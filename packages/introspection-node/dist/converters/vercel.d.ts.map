@@ -1,0 +1,1 @@
+{"version":3,"file":"vercel.d.ts","sourceRoot":"","sources":["../../src/converters/vercel.ts"],"names":[],"mappings":"AAAA;;;;;;;GAOG;AAEH,OAAO,KAAK,EAAE,UAAU,EAAE,MAAM,oBAAoB,CAAC;AAuCrD;;;;kEAIkE;AAClE,wBAAgB,cAAc,CAAC,KAAK,EAAE,UAAU,GAAG,OAAO,CAGzD;AAED;;;GAGG;AACH,wBAAgB,sBAAsB,CACpC,KAAK,EAAE,UAAU,GAChB,MAAM,CAAC,MAAM,EAAE,OAAO,CAAC,CAkJzB"}

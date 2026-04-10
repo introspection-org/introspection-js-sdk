@@ -1,0 +1,34 @@
+{
+  "name": "pwd",
+  "private": true,
+  "scripts": {
+    "build": "turbo run build",
+    "dev": "turbo run dev",
+    "lint": "turbo run lint",
+    "lint:fix": "turbo run lint -- --fix",
+    "format": "prettier --write \"**/*.{ts,tsx,md}\"",
+    "format:check": "prettier --check \"**/*.{ts,tsx,md}\"",
+    "check-types": "turbo run check-types",
+    "pre-commit": "pnpm lint && pnpm format:check && pnpm check-types",
+    "prepare": "husky install",
+    "test": "pnpm --filter introspection-tests test",
+    "test:replay": "pnpm --filter introspection-tests test:replay",
+    "test:record": "pnpm --filter introspection-tests test:record"
+  },
+  "devDependencies": {
+    "husky": "^9.0.0",
+    "lint-staged": "^15.2.0",
+    "prettier": "^3.7.4",
+    "turbo": "^2.7.1",
+    "typescript": "5.9.2"
+  },
+  "packageManager": "pnpm@9.0.0",
+  "engines": {
+    "node": ">=18"
+  },
+  "pnpm": {
+    "overrides": {
+      "@opentelemetry/sdk-trace-base": "^2.0.1"
+    }
+  }
+}

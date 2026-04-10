@@ -1,0 +1,10 @@
+#!/usr/bin/env sh
+
+# Run lint-staged for staged files
+pnpm exec lint-staged
+
+# Run type checking on all files
+pnpm check-types
+
+# Run tests in replay mode (uses recorded HTTP fixtures, no API keys needed)
+pnpm test:replay

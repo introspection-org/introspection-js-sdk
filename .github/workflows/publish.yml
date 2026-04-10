@@ -1,0 +1,128 @@
+name: Publish to npm
+
+run-name: "${{ inputs.version && format('Publish v{0}', inputs.version) || format('Publish {0}', github.ref_name) }}"
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to publish (without v prefix). Defaults to tag name."
+        required: false
+        type: string
+
+concurrency:
+  group: release-publish
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  # ── Resolve version from tag ───────────────────────────────────────
+  resolve-version:
+    name: Resolve version
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.resolve.outputs.version }}
+    steps:
+      - name: Resolve version
+        id: resolve
+        run: |
+          VERSION="${{ inputs.version }}"
+          if [ -z "${VERSION}" ]; then
+            VERSION="${GITHUB_REF_NAME#v}"
+          fi
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "Version: ${VERSION}"
+
+  # ── Test ───────────────────────────────────────────────────────────
+  test:
+    name: Test
+    needs: resolve-version
+    runs-on: ubuntu-latest
+    environment: publish
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "pnpm"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build packages
+        run: pnpm build
+
+      - name: Run tests
+        run: pnpm test:replay
+
+  # ── Publish to npm ─────────────────────────────────────────────────
+  publish:
+    name: Publish v${{ needs.resolve-version.outputs.version }} to npm
+    needs: [resolve-version, test]
+    runs-on: ubuntu-latest
+    environment: publish
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "pnpm"
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Stamp version from tag
+        run: |
+          VERSION="${{ needs.resolve-version.outputs.version }}"
+          for pkg in packages/introspection-node packages/introspection-browser packages/introspection-types packages/introspection-openclaw; do
+            jq --arg v "$VERSION" '.version = $v' "$pkg/package.json" > tmp.json && mv tmp.json "$pkg/package.json"
+          done
+          echo "Stamped all package.json files with version ${VERSION}"
+
+      - name: Build all packages
+        run: pnpm build
+
+      - name: Publish to npm
+        run: pnpm -r publish --access public --provenance --no-git-checks
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+  # ── GitHub Release ─────────────────────────────────────────────────
+  github-release:
+    name: Create GitHub Release
+    needs: [resolve-version, publish]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "v${{ needs.resolve-version.outputs.version }}" \
+            --title "v${{ needs.resolve-version.outputs.version }}" \
+            --generate-notes

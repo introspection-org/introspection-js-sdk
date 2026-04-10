@@ -1,0 +1,52 @@
+{
+  "name": "introspection-tests",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:processors": "vitest run processors/",
+    "test:observability": "vitest run observability/",
+    "test:record": "POLLY_MODE=record vitest run",
+    "test:replay": "POLLY_MODE=replay vitest run"
+  },
+  "dependencies": {
+    "@introspection-sdk/introspection-node": "workspace:*"
+  },
+  "devDependencies": {
+    "@openai/agents": "^0.7.2",
+    "@opentelemetry/api": "^1.9.0",
+    "@opentelemetry/core": "^2.6.0",
+    "@opentelemetry/exporter-trace-otlp-http": "^0.213.0",
+    "@opentelemetry/exporter-trace-otlp-proto": "^0.213.0",
+    "@opentelemetry/instrumentation": "^0.213.0",
+    "@opentelemetry/resources": "^2.6.0",
+    "@opentelemetry/sdk-trace-base": "^2.6.0",
+    "@opentelemetry/sdk-trace-node": "^2.6.0",
+    "@pollyjs/adapter-fetch": "^6.0.6",
+    "@pollyjs/adapter-node-http": "^6.0.6",
+    "@pollyjs/core": "^6.0.6",
+    "@pollyjs/persister-fs": "^6.0.6",
+    "@types/node": "^22.15.0",
+    "dotenv": "^16.4.0",
+    "openai": "^6.29.0",
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.0",
+    "zod": "^4.0.0"
+  },
+  "optionalDependencies": {
+    "@ai-sdk/openai": "^3.0.0",
+    "ai": "^6.0.0",
+    "@anthropic-ai/claude-agent-sdk": "^0.2.76",
+    "@anthropic-ai/sdk": "^0.82.0",
+    "@arizeai/openinference-instrumentation-langchain": "^4.0.0",
+    "@arizeai/openinference-instrumentation-openai": "^4.0.0",
+    "@arizeai/openinference-vercel": "^2.5.5",
+    "@langchain/core": "^1.0.0",
+    "@langchain/openai": "^1.0.0",
+    "@mastra/core": "^1.13.2",
+    "@mastra/observability": "^1.5.0",
+    "@mastra/otel-exporter": "^1.0.7"
+  }
+}

@@ -1,0 +1,79 @@
+{
+  "name": "@introspection-sdk/introspection-node",
+  "version": "0.1.0",
+  "description": "Introspection observability SDK for Node.js",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./mastra": {
+      "types": "./dist/mastra-exporter.d.ts",
+      "default": "./dist/mastra-exporter.js"
+    },
+    "./langchain": {
+      "types": "./dist/langchain-handler.d.ts",
+      "default": "./dist/langchain-handler.js"
+    }
+  },
+  "scripts": {
+    "lint": "eslint . --max-warnings 0",
+    "check-types": "tsc --noEmit",
+    "build": "tsc"
+  },
+  "devDependencies": {
+    "@openai/agents": "^0.7.2",
+    "@repo/eslint-config": "workspace:*",
+    "@repo/typescript-config": "workspace:*",
+    "@types/node": "^22.15.3",
+    "eslint": "^9.39.1",
+    "@langchain/core": "^1.0.0",
+    "@mastra/core": "^1.13.2",
+    "@mastra/observability": "^1.5.0",
+    "openai": "^6.29.0",
+    "typescript": "5.9.3"
+  },
+  "peerDependencies": {
+    "@openai/agents": ">=0.0.1",
+    "@anthropic-ai/claude-agent-sdk": ">=0.2.0",
+    "ai": ">=4.0.0",
+    "@mastra/core": ">=1.0.0",
+    "@mastra/observability": ">=1.0.0",
+    "@langchain/core": ">=0.3.0"
+  },
+  "peerDependenciesMeta": {
+    "@openai/agents": {
+      "optional": true
+    },
+    "@anthropic-ai/claude-agent-sdk": {
+      "optional": true
+    },
+    "ai": {
+      "optional": true
+    },
+    "@mastra/core": {
+      "optional": true
+    },
+    "@mastra/observability": {
+      "optional": true
+    },
+    "@langchain/core": {
+      "optional": true
+    }
+  },
+  "dependencies": {
+    "@introspection-sdk/types": "workspace:*",
+    "@opentelemetry/api": "^1.9.0",
+    "@opentelemetry/api-logs": "^0.213.0",
+    "@opentelemetry/core": "^2.6.0",
+    "@opentelemetry/exporter-logs-otlp-proto": "^0.213.0",
+    "@opentelemetry/exporter-trace-otlp-proto": "^0.213.0",
+    "@opentelemetry/resources": "^2.6.0",
+    "@opentelemetry/sdk-logs": "^0.213.0",
+    "@opentelemetry/sdk-trace-base": "^2.6.0",
+    "@opentelemetry/semantic-conventions": "^1.40.0"
+  }
+}

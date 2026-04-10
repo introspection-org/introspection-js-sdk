@@ -1,0 +1,105 @@
+name: "Release: Tag"
+
+run-name: "${{ inputs.version && format('Tag v{0}', inputs.version) || 'Validate VERSION' }}"
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - VERSION
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to tag (without v prefix). Defaults to VERSION file."
+        required: false
+        type: string
+
+concurrency:
+  group: release-tag
+  cancel-in-progress: false
+
+jobs:
+  # ── Validate version bump (runs on PRs) ────────────────────────────
+  validate-version:
+    name: Validate VERSION bump
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Validate version bump
+        run: |
+          MAIN_COMMIT=$(git rev-parse origin/main)
+          PR_COMMIT=${{ github.event.pull_request.head.sha }}
+
+          PREVIOUS_VERSION=$(git show "${MAIN_COMMIT}:VERSION" | tr -d '[:space:]')
+          echo "Previous version: ${PREVIOUS_VERSION}"
+
+          NEW_VERSION=$(git show "${PR_COMMIT}:VERSION" | tr -d '[:space:]')
+          echo "New version: ${NEW_VERSION}"
+
+          if [[ ! "${NEW_VERSION}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::Invalid version format '${NEW_VERSION}'. Must be X.Y.Z (semver)."
+            exit 1
+          fi
+
+          IFS='.' read -r prev_major prev_minor prev_patch <<< "${PREVIOUS_VERSION}"
+          IFS='.' read -r new_major new_minor new_patch <<< "${NEW_VERSION}"
+
+          prev_num=$((prev_major * 1000000 + prev_minor * 1000 + prev_patch))
+          new_num=$((new_major * 1000000 + new_minor * 1000 + new_patch))
+
+          if [ "${new_num}" -le "${prev_num}" ]; then
+            echo "::error::New version ${NEW_VERSION} is not greater than previous version ${PREVIOUS_VERSION}"
+            exit 1
+          fi
+
+          echo "Version bump is valid: ${PREVIOUS_VERSION} -> ${NEW_VERSION}"
+
+  # ── Manual tag creation (workflow_dispatch only) ───────────────────
+  create-tag:
+    name: Create tag
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    environment: build
+    steps:
+      - name: Generate GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ vars.GH_APP_ID || secrets.GH_APP_ID }}
+          private-key: ${{ secrets.GH_APP_PRIVATE_KEY }}
+          owner: introspection-org
+          repositories: introspection-js-sdk
+
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ steps.app-token.outputs.token }}
+
+      - name: Resolve version
+        id: resolve
+        run: |
+          VERSION="${{ inputs.version }}"
+          VERSION="${VERSION:-$(tr -d '[:space:]' < VERSION)}"
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "Version: ${VERSION}"
+
+      - name: Create and push tag
+        run: |
+          VERSION="${{ steps.resolve.outputs.version }}"
+          TAG="v${VERSION}"
+
+          if git tag -l "${TAG}" | grep -q .; then
+            echo "Tag ${TAG} already exists, skipping."
+            exit 0
+          fi
+
+          git config --global user.email "actions@github.com"
+          git config --global user.name "GitHub Actions"
+          git tag -a "${TAG}" -m "Release ${TAG}"
+          git push origin "${TAG}"
+          echo "Created and pushed tag ${TAG}"

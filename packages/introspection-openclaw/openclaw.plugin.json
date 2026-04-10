@@ -1,0 +1,58 @@
+{
+  "id": "introspection-openclaw",
+  "kind": "observability",
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "token": {
+        "type": "string",
+        "description": "Introspection write token. Falls back to INTROSPECTION_TOKEN env var."
+      },
+      "baseUrl": {
+        "type": "string",
+        "description": "Introspection OTLP base URL. Falls back to INTROSPECTION_BASE_URL env var."
+      },
+      "serviceName": {
+        "type": "string",
+        "default": "openclaw-agent",
+        "description": "OTEL service name for resource identification."
+      },
+      "captureMessageContent": {
+        "type": "boolean",
+        "default": true,
+        "description": "Record LLM prompt/response content as span attributes."
+      },
+      "captureToolInput": {
+        "type": "boolean",
+        "default": true,
+        "description": "Record tool call arguments as span attributes."
+      },
+      "captureToolOutput": {
+        "type": "boolean",
+        "default": true,
+        "description": "Record tool results as span attributes."
+      },
+      "maxCaptureLength": {
+        "type": "integer",
+        "default": 2048,
+        "description": "Max character length for captured content."
+      }
+    }
+  },
+  "uiHints": {
+    "token": {
+      "label": "Write Token",
+      "placeholder": "Set via INTROSPECTION_TOKEN env var",
+      "sensitive": true
+    },
+    "baseUrl": {
+      "label": "Base URL",
+      "placeholder": "https://otel.introspection.dev"
+    },
+    "serviceName": {
+      "label": "Service Name",
+      "placeholder": "openclaw-agent"
+    }
+  }
+}
