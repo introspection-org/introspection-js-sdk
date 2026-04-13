@@ -17,6 +17,10 @@
     "./langchain": {
       "types": "./dist/langchain-handler.d.ts",
       "default": "./dist/langchain-handler.js"
+    },
+    "./pi": {
+      "types": "./dist/pi-instrumentation.d.ts",
+      "default": "./dist/pi-instrumentation.js"
     }
   },
   "scripts": {
