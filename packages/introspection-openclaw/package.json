@@ -1,6 +1,7 @@
 {
   "name": "@introspection-sdk/introspection-openclaw",
   "version": "0.1.0",
+  "license": "Apache-2.0",
   "description": "Introspection observability plugin for OpenClaw — OTEL GenAI semantic convention spans",
   "type": "module",
   "main": "./dist/index.js",

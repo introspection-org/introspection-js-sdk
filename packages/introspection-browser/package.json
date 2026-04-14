@@ -1,6 +1,7 @@
 {
   "name": "@introspection-sdk/introspection-browser",
   "version": "0.1.0",
+  "license": "Apache-2.0",
   "description": "Introspection observability SDK for the browser",
   "type": "module",
   "main": "./dist/index.js",

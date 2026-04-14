@@ -1,6 +1,7 @@
 {
   "name": "@introspection-sdk/types",
   "version": "0.1.0",
+  "license": "Apache-2.0",
   "description": "Shared types for the Introspection JavaScript SDK",
   "type": "module",
   "main": "./dist/index.js",
