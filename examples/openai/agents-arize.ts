@@ -16,7 +16,10 @@
 import { Agent, run, addTraceProcessor, tool } from "@openai/agents";
 import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-proto";
 import type { SpanExporter, ReadableSpan } from "@opentelemetry/sdk-trace-base";
-import { IntrospectionTracingProcessor } from "@introspection-sdk/introspection-node";
+import {
+  IntrospectionTracingProcessor,
+  OpenInferenceSpanExporter,
+} from "@introspection-sdk/introspection-node";
 import { z } from "zod";
 
 if (!process.env.ARIZE_SPACE_KEY || !process.env.ARIZE_API_KEY) {
@@ -35,20 +38,22 @@ class CompositeSpanExporter implements SpanExporter {
 
   export(
     spans: ReadableSpan[],
-    resultCallback: (result: { code: number }) => void,
+    resultCallback: (result: { code: number; error?: Error }) => void,
   ): void {
     let completed = 0;
     let hasSuccess = false;
-    for (const exporter of this.exporters) {
+    for (const [i, exporter] of this.exporters.entries()) {
       exporter.export(spans, (result) => {
         if (result.code === FAILED) {
-          console.warn(`[CompositeExporter] One exporter failed to send spans`);
+          console.warn(
+            `[CompositeExporter] exporter[${i}] failed:`,
+            (result as { error?: Error }).error,
+          );
         } else {
           hasSuccess = true;
         }
         completed++;
         if (completed === this.exporters.length) {
-          // Report success if at least one exporter succeeded
           resultCallback({ code: hasSuccess ? SUCCESS : FAILED });
         }
       });
@@ -65,13 +70,60 @@ class CompositeSpanExporter implements SpanExporter {
 }
 
 // --- Arize exporter ---
-const arizeExporter = new OTLPTraceExporter({
-  url: "https://otlp.arize.com/v1/traces",
-  headers: {
-    space_id: process.env.ARIZE_SPACE_KEY,
-    api_key: process.env.ARIZE_API_KEY,
-  },
-});
+// Arize requires OpenInference semantic conventions, so wrap the OTLP
+// exporter with OpenInferenceSpanExporter to convert gen_ai.* attrs.
+// Arize also requires `arize.project.name` (or `model_id` on the resource);
+// OpenAI Agents SDK owns its tracer provider so we inject it per span.
+const ARIZE_PROJECT_NAME = "openai-agents-arize";
+
+class ArizeProjectNameExporter implements SpanExporter {
+  constructor(
+    private inner: SpanExporter,
+    private projectName: string,
+  ) {}
+
+  export(
+    spans: ReadableSpan[],
+    resultCallback: (result: { code: number; error?: Error }) => void,
+  ): void {
+    const enriched = spans.map(
+      (span) =>
+        new Proxy(span, {
+          get: (target, prop) => {
+            if (prop === "attributes") {
+              return {
+                ...target.attributes,
+                "arize.project.name": this.projectName,
+              };
+            }
+            return Reflect.get(target, prop);
+          },
+        }),
+    );
+    this.inner.export(enriched, resultCallback);
+  }
+
+  async shutdown(): Promise<void> {
+    await this.inner.shutdown();
+  }
+
+  async forceFlush(): Promise<void> {
+    await this.inner.forceFlush?.();
+  }
+}
+
+const arizeExporter = new ArizeProjectNameExporter(
+  new OpenInferenceSpanExporter(
+    new OTLPTraceExporter({
+      url: "https://otlp.arize.com/v1/traces",
+      headers: {
+        space_id: process.env.ARIZE_SPACE_KEY,
+        api_key: process.env.ARIZE_API_KEY,
+      },
+    }),
+  ),
+  ARIZE_PROJECT_NAME,
+);
 
 // --- Introspection exporter ---
 const baseUrl =
@@ -112,7 +164,7 @@ async function main() {
 
   const agent = new Agent({
     name: "Weather Assistant",
-    model: "gpt-5-nano",
+    model: "gpt-4o-mini",
     instructions: "You are a helpful weather assistant.",
     tools: [getWeather],
   });
