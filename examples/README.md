@@ -51,6 +51,19 @@ pnpm mastra-cloud                 # Mastra Cloud
 pnpm langchain-handler            # IntrospectionCallbackHandler
 ```
 
+For LangGraph, pass the app's session id in `configurable.thread_id`. The
+callback handler maps that internal LangGraph thread id to
+`gen_ai.conversation.id`, so each graph thread appears as a distinct
+Introspection conversation.
+
+```typescript
+const threadId = "user-session-123";
+await graph.invoke(input, {
+  callbacks: [handler],
+  configurable: { thread_id: threadId },
+});
+```
+
 ## OpenInference (Third-Party / Unsupported Frameworks)
 
 For frameworks that use OpenInference instrumentation. Uses `IntrospectionSpanProcessor` to convert OpenInference attributes to GenAI semantic conventions.

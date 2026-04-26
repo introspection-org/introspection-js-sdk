@@ -114,4 +114,155 @@ describe("LangChain First-Party Handler Tests", () => {
 
     await handler.shutdown();
   });
+
+  it("maps LangGraph thread_id metadata to gen_ai.conversation.id", async () => {
+    const localExporter = new TestSpanExporter();
+    const { IntrospectionCallbackHandler } =
+      await import("@introspection-sdk/introspection-node/langchain");
+
+    const handler = new IntrospectionCallbackHandler({
+      advanced: {
+        spanExporter: localExporter,
+        useSimpleSpanProcessor: true,
+      },
+    });
+
+    handler.handleChainStart(
+      { name: "LangGraph" },
+      { input: "hello" },
+      "run-1",
+      undefined,
+      undefined,
+      { thread_id: "thread-123" },
+    );
+    handler.handleChainEnd({ output: "hello!" }, "run-1");
+    await handler.forceFlush();
+
+    const spans = localExporter.getFinishedSpans();
+    expect(spans[0].attributes["gen_ai.conversation.id"]).toBe("thread-123");
+
+    await handler.shutdown();
+  });
+
+  it("prefers explicit gen_ai.conversation.id over thread_id metadata", async () => {
+    const localExporter = new TestSpanExporter();
+    const { IntrospectionCallbackHandler } =
+      await import("@introspection-sdk/introspection-node/langchain");
+
+    const handler = new IntrospectionCallbackHandler({
+      advanced: {
+        spanExporter: localExporter,
+        useSimpleSpanProcessor: true,
+      },
+    });
+
+    handler.handleChainStart(
+      { name: "LangGraph" },
+      { input: "hello" },
+      "run-1",
+      undefined,
+      undefined,
+      {
+        thread_id: "thread-123",
+        "gen_ai.conversation.id": "conversation-456",
+      },
+    );
+    handler.handleChainEnd({ output: "hello!" }, "run-1");
+    await handler.forceFlush();
+
+    const spans = localExporter.getFinishedSpans();
+    expect(spans[0].attributes["gen_ai.conversation.id"]).toBe(
+      "conversation-456",
+    );
+
+    await handler.shutdown();
+  });
+
+  it("keeps independent top-level runs in distinct traces", async () => {
+    const localExporter = new TestSpanExporter();
+    const { IntrospectionCallbackHandler } =
+      await import("@introspection-sdk/introspection-node/langchain");
+
+    const handler = new IntrospectionCallbackHandler({
+      advanced: {
+        spanExporter: localExporter,
+        useSimpleSpanProcessor: true,
+      },
+    });
+
+    handler.handleChainStart(
+      { name: "LangGraph" },
+      { input: "first" },
+      "run-1",
+      undefined,
+      undefined,
+      { thread_id: "email-1" },
+    );
+    handler.handleChainStart(
+      { name: "LangGraph" },
+      { input: "second" },
+      "run-2",
+      undefined,
+      undefined,
+      { thread_id: "email-2" },
+    );
+    handler.handleChainEnd({ output: "first" }, "run-1");
+    handler.handleChainEnd({ output: "second" }, "run-2");
+    await handler.forceFlush();
+
+    const spans = localExporter.getFinishedSpans();
+    const traceByConversation = new Map(
+      spans.map((span) => [
+        span.attributes["gen_ai.conversation.id"],
+        span.context.trace_id,
+      ]),
+    );
+
+    expect(traceByConversation.get("email-1")).not.toBe(
+      traceByConversation.get("email-2"),
+    );
+
+    await handler.shutdown();
+  });
+
+  it("keeps child runs in the parent trace", async () => {
+    const localExporter = new TestSpanExporter();
+    const { IntrospectionCallbackHandler } =
+      await import("@introspection-sdk/introspection-node/langchain");
+
+    const handler = new IntrospectionCallbackHandler({
+      advanced: {
+        spanExporter: localExporter,
+        useSimpleSpanProcessor: true,
+      },
+    });
+
+    handler.handleChainStart(
+      { name: "LangGraph" },
+      { input: "hello" },
+      "parent-run",
+      undefined,
+      undefined,
+      { thread_id: "email-1" },
+    );
+    handler.handleToolStart(
+      { name: "lookup" },
+      "input",
+      "child-run",
+      "parent-run",
+      undefined,
+      { thread_id: "email-1" },
+    );
+    handler.handleToolEnd("output", "child-run");
+    handler.handleChainEnd({ output: "done" }, "parent-run");
+    await handler.forceFlush();
+
+    const traceIds = new Set(
+      localExporter.getFinishedSpans().map((span) => span.context.trace_id),
+    );
+
+    expect(traceIds.size).toBe(1);
+
+    await handler.shutdown();
+  });
 });

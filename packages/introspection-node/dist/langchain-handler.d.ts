@@ -65,16 +65,18 @@ export declare class IntrospectionCallbackHandler extends BaseCallbackHandler {
     private _tracerProvider;
     private _tracer;
     private _spans;
-    private _rootSpan;
     private _conversationId;
     private _spanNames;
     private _spanParents;
+    private _runRoots;
     private static _wrapperNames;
     private _llmInputs;
     constructor(options?: IntrospectionCallbackHandlerOptions);
-    /** Get or create a root span so all callbacks share the same traceId. */
-    private _ensureRoot;
-    /** Create a child span under the root (or under a parent if provided).
+    private _rootRunId;
+    /** Keep the top-level run span aligned with child conversation IDs. */
+    private _setRootConversationId;
+    private _endRootIfComplete;
+    /** Create a span under a LangChain parent when one exists.
      *  Sets gen_ai.agent.name to the parent span's name for hierarchy. */
     private _createChildSpan;
     handleChatModelStart(llm: Serialized, messages: BaseMessage[][], runId: string, parentRunId?: string, extraParams?: Record<string, unknown>, _tags?: string[], metadata?: Record<string, unknown>, runName?: string): void;
@@ -84,7 +86,7 @@ export declare class IntrospectionCallbackHandler extends BaseCallbackHandler {
     handleChainStart(chain: Serialized, _inputs: ChainValues, runId: string, _runType?: string, _tags?: string[], metadata?: Record<string, unknown>, runName?: string, parentRunId?: string): void;
     handleChainEnd(_outputs: ChainValues, runId: string): void;
     handleChainError(err: Error, runId: string): void;
-    handleToolStart(tool: Serialized, input: string, runId: string, parentRunId?: string, _tags?: string[], _metadata?: Record<string, unknown>, runName?: string): void;
+    handleToolStart(tool: Serialized, input: string, runId: string, parentRunId?: string, _tags?: string[], metadata?: Record<string, unknown>, runName?: string): void;
     handleToolEnd(output: unknown, runId: string): void;
     handleToolError(err: Error, runId: string): void;
     shutdown(): Promise<void>;

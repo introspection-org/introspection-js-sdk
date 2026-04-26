@@ -149,6 +149,17 @@ const response = await model.invoke("Hello!", { callbacks: [handler] });
 await handler.shutdown();
 ```
 
+For LangGraph, pass the app's session id as `thread_id`. The callback handler
+maps that internal LangGraph thread id to `gen_ai.conversation.id`.
+
+```typescript
+const threadId = "user-session-123";
+const response = await graph.invoke(input, {
+  callbacks: [handler],
+  configurable: { thread_id: threadId },
+});
+```
+
 > See [examples/](./examples/) for complete integration patterns including dual-export with Arize, Langfuse, Braintrust, and LangSmith.
 
 ## Client API

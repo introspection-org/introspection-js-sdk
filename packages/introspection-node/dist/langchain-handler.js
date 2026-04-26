@@ -26,7 +26,7 @@
  * ```
  */
 import { BaseCallbackHandler } from "@langchain/core/callbacks/base";
-import { context as otelContext, trace as otelTrace, } from "@opentelemetry/api";
+import { context as otelContext, ROOT_CONTEXT, SpanStatusCode, trace as otelTrace, } from "@opentelemetry/api";
 import { BasicTracerProvider, BatchSpanProcessor, SimpleSpanProcessor, } from "@opentelemetry/sdk-trace-base";
 import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-proto";
 import { resourceFromAttributes } from "@opentelemetry/resources";
@@ -49,11 +49,11 @@ export class IntrospectionCallbackHandler extends BaseCallbackHandler {
     _tracerProvider;
     _tracer;
     _spans = new Map();
-    _rootSpan = null;
     _conversationId;
     // Track span names and parents so children can resolve gen_ai.agent.name
     _spanNames = new Map();
     _spanParents = new Map();
+    _runRoots = new Map();
     // LangChain wrapper names to skip when resolving agent names
     static _wrapperNames = new Set([
         "RunnableSequence",
@@ -128,20 +128,29 @@ export class IntrospectionCallbackHandler extends BaseCallbackHandler {
         this._tracer = this._tracerProvider.getTracer("langchain", VERSION);
         this._conversationId = `intro_conv_${randomUUID().replace(/-/g, "")}`;
     }
-    /** Get or create a root span so all callbacks share the same traceId. */
-    _ensureRoot() {
-        if (!this._rootSpan) {
-            this._rootSpan = this._tracer.startSpan("langchain-run");
-            this._rootSpan.setAttribute("gen_ai.conversation.id", this._conversationId);
-        }
-        return this._rootSpan;
+    _rootRunId(runId, parentRunId) {
+        if (!parentRunId)
+            return runId;
+        return this._runRoots.get(parentRunId) || parentRunId;
     }
-    /** Create a child span under the root (or under a parent if provided).
+    /** Keep the top-level run span aligned with child conversation IDs. */
+    _setRootConversationId(conversationId, runId, parentRunId) {
+        const root = this._spans.get(this._rootRunId(runId, parentRunId));
+        root?.setAttribute("gen_ai.conversation.id", conversationId);
+    }
+    _endRootIfComplete(runId) {
+        this._runRoots.delete(runId);
+        this._spanNames.delete(runId);
+        this._spanParents.delete(runId);
+    }
+    /** Create a span under a LangChain parent when one exists.
      *  Sets gen_ai.agent.name to the parent span's name for hierarchy. */
     _createChildSpan(name, runId, parentRunId) {
-        const parent = (parentRunId ? this._spans.get(parentRunId) : undefined) ||
-            this._ensureRoot();
-        const ctx = otelTrace.setSpan(otelContext.active(), parent);
+        const parent = parentRunId ? this._spans.get(parentRunId) : undefined;
+        this._runRoots.set(runId, this._rootRunId(runId, parentRunId));
+        const ctx = parent
+            ? otelTrace.setSpan(otelContext.active(), parent)
+            : ROOT_CONTEXT;
         const span = this._tracer.startSpan(name, {}, ctx);
         this._spanNames.set(runId, name);
         if (parentRunId) {
@@ -163,6 +172,7 @@ export class IntrospectionCallbackHandler extends BaseCallbackHandler {
         const otelSpan = this._createChildSpan(spanName, runId, parentRunId);
         this._spans.set(runId, otelSpan);
         const conversationId = this._getConversationId(metadata);
+        this._setRootConversationId(conversationId, runId, parentRunId);
         otelSpan.setAttribute("gen_ai.operation.name", "chat");
         otelSpan.setAttribute("gen_ai.conversation.id", conversationId);
         otelSpan.setAttribute("openinference.span.kind", "LLM");
@@ -205,6 +215,7 @@ export class IntrospectionCallbackHandler extends BaseCallbackHandler {
         const otelSpan = this._createChildSpan(spanName, runId, parentRunId);
         this._spans.set(runId, otelSpan);
         const conversationId = this._getConversationId(metadata);
+        this._setRootConversationId(conversationId, runId, parentRunId);
         otelSpan.setAttribute("gen_ai.operation.name", "chat");
         otelSpan.setAttribute("gen_ai.conversation.id", conversationId);
         otelSpan.setAttribute("openinference.span.kind", "LLM");
@@ -227,6 +238,7 @@ export class IntrospectionCallbackHandler extends BaseCallbackHandler {
         this._spans.delete(runId);
         this._spanNames.delete(runId);
         this._llmInputs.delete(runId);
+        this._endRootIfComplete(runId);
         const generations = output.generations?.[0];
         if (generations && generations.length > 0) {
             const parts = [];
@@ -290,8 +302,10 @@ export class IntrospectionCallbackHandler extends BaseCallbackHandler {
         this._spans.delete(runId);
         this._spanNames.delete(runId);
         this._llmInputs.delete(runId);
-        otelSpan.setAttribute("error", true);
-        otelSpan.setAttribute("error.message", err.message);
+        this._endRootIfComplete(runId);
+        otelSpan.recordException(err);
+        otelSpan.setStatus({ code: SpanStatusCode.ERROR, message: err.message });
+        otelSpan.setAttribute("exception.message", err.message);
         otelSpan.end();
     }
     // -------------------------------------------------------------------------
@@ -302,6 +316,7 @@ export class IntrospectionCallbackHandler extends BaseCallbackHandler {
         const otelSpan = this._createChildSpan(name, runId, parentRunId);
         this._spans.set(runId, otelSpan);
         const conversationId = this._getConversationId(metadata);
+        this._setRootConversationId(conversationId, runId, parentRunId);
         otelSpan.setAttribute("gen_ai.conversation.id", conversationId);
     }
     handleChainEnd(_outputs, runId) {
@@ -309,6 +324,7 @@ export class IntrospectionCallbackHandler extends BaseCallbackHandler {
         if (!otelSpan)
             return;
         this._spans.delete(runId);
+        this._endRootIfComplete(runId);
         otelSpan.end();
     }
     handleChainError(err, runId) {
@@ -316,27 +332,32 @@ export class IntrospectionCallbackHandler extends BaseCallbackHandler {
         if (!otelSpan)
             return;
         this._spans.delete(runId);
-        otelSpan.setAttribute("error", true);
-        otelSpan.setAttribute("error.message", err.message);
+        this._endRootIfComplete(runId);
+        otelSpan.recordException(err);
+        otelSpan.setStatus({ code: SpanStatusCode.ERROR, message: err.message });
+        otelSpan.setAttribute("exception.message", err.message);
         otelSpan.end();
     }
     // -------------------------------------------------------------------------
     // Tool callbacks
     // -------------------------------------------------------------------------
-    handleToolStart(tool, input, runId, parentRunId, _tags, _metadata, runName) {
+    handleToolStart(tool, input, runId, parentRunId, _tags, metadata, runName) {
         const toolName = runName || tool?.name || tool?.id?.[tool.id.length - 1] || "tool";
         const otelSpan = this._createChildSpan(toolName, runId, parentRunId);
         this._spans.set(runId, otelSpan);
+        const conversationId = this._getConversationId(metadata);
+        this._setRootConversationId(conversationId, runId, parentRunId);
         otelSpan.setAttribute("gen_ai.tool.name", toolName);
         otelSpan.setAttribute("openinference.span.kind", "TOOL");
         otelSpan.setAttribute("gen_ai.tool.input", input);
-        otelSpan.setAttribute("gen_ai.conversation.id", this._conversationId);
+        otelSpan.setAttribute("gen_ai.conversation.id", conversationId);
     }
     handleToolEnd(output, runId) {
         const otelSpan = this._spans.get(runId);
         if (!otelSpan)
             return;
         this._spans.delete(runId);
+        this._endRootIfComplete(runId);
         if (output != null) {
             otelSpan.setAttribute("gen_ai.tool.output", typeof output === "string" ? output : JSON.stringify(output));
         }
@@ -347,8 +368,10 @@ export class IntrospectionCallbackHandler extends BaseCallbackHandler {
         if (!otelSpan)
             return;
         this._spans.delete(runId);
-        otelSpan.setAttribute("error", true);
-        otelSpan.setAttribute("error.message", err.message);
+        this._endRootIfComplete(runId);
+        otelSpan.recordException(err);
+        otelSpan.setStatus({ code: SpanStatusCode.ERROR, message: err.message });
+        otelSpan.setAttribute("exception.message", err.message);
         otelSpan.end();
     }
     // -------------------------------------------------------------------------
@@ -358,10 +381,9 @@ export class IntrospectionCallbackHandler extends BaseCallbackHandler {
         for (const span of this._spans.values())
             span.end();
         this._spans.clear();
-        if (this._rootSpan) {
-            this._rootSpan.end();
-            this._rootSpan = null;
-        }
+        this._spanNames.clear();
+        this._spanParents.clear();
+        this._runRoots.clear();
         await this._tracerProvider.shutdown();
     }
     async forceFlush() {
@@ -408,7 +430,14 @@ export class IntrospectionCallbackHandler extends BaseCallbackHandler {
     }
     _getConversationId(metadata) {
         const metaConvId = metadata?.["gen_ai.conversation.id"];
-        return metaConvId || this._conversationId;
+        if (metaConvId !== undefined && metaConvId !== null) {
+            return String(metaConvId);
+        }
+        const threadId = metadata?.["thread_id"];
+        if (threadId !== undefined && threadId !== null) {
+            return String(threadId);
+        }
+        return this._conversationId;
     }
     _convertMessages(messages) {
         const inputMessages = [];
