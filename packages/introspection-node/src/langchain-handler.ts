@@ -34,6 +34,8 @@ import type { ChainValues } from "@langchain/core/utils/types";
 
 import {
   context as otelContext,
+  ROOT_CONTEXT,
+  SpanStatusCode,
   trace as otelTrace,
   type Span as OtelSpan,
 } from "@opentelemetry/api";
@@ -102,11 +104,11 @@ export class IntrospectionCallbackHandler extends BaseCallbackHandler {
   private _tracerProvider: BasicTracerProvider;
   private _tracer: ReturnType<BasicTracerProvider["getTracer"]>;
   private _spans: Map<string, OtelSpan> = new Map();
-  private _rootSpan: OtelSpan | null = null;
   private _conversationId: string;
   // Track span names and parents so children can resolve gen_ai.agent.name
   private _spanNames: Map<string, string> = new Map();
   private _spanParents: Map<string, string> = new Map();
+  private _runRoots: Map<string, string> = new Map();
   // LangChain wrapper names to skip when resolving agent names
   private static _wrapperNames = new Set([
     "RunnableSequence",
@@ -203,29 +205,39 @@ export class IntrospectionCallbackHandler extends BaseCallbackHandler {
     this._conversationId = `intro_conv_${randomUUID().replace(/-/g, "")}`;
   }
 
-  /** Get or create a root span so all callbacks share the same traceId. */
-  private _ensureRoot(): OtelSpan {
-    if (!this._rootSpan) {
-      this._rootSpan = this._tracer.startSpan("langchain-run");
-      this._rootSpan.setAttribute(
-        "gen_ai.conversation.id",
-        this._conversationId,
-      );
-    }
-    return this._rootSpan;
+  private _rootRunId(runId: string, parentRunId?: string): string {
+    if (!parentRunId) return runId;
+    return this._runRoots.get(parentRunId) || parentRunId;
   }
 
-  /** Create a child span under the root (or under a parent if provided).
+  /** Keep the top-level run span aligned with child conversation IDs. */
+  private _setRootConversationId(
+    conversationId: string,
+    runId: string,
+    parentRunId?: string,
+  ): void {
+    const root = this._spans.get(this._rootRunId(runId, parentRunId));
+    root?.setAttribute("gen_ai.conversation.id", conversationId);
+  }
+
+  private _endRootIfComplete(runId: string): void {
+    this._runRoots.delete(runId);
+    this._spanNames.delete(runId);
+    this._spanParents.delete(runId);
+  }
+
+  /** Create a span under a LangChain parent when one exists.
    *  Sets gen_ai.agent.name to the parent span's name for hierarchy. */
   private _createChildSpan(
     name: string,
     runId: string,
     parentRunId?: string,
   ): OtelSpan {
-    const parent =
-      (parentRunId ? this._spans.get(parentRunId) : undefined) ||
-      this._ensureRoot();
-    const ctx = otelTrace.setSpan(otelContext.active(), parent);
+    const parent = parentRunId ? this._spans.get(parentRunId) : undefined;
+    this._runRoots.set(runId, this._rootRunId(runId, parentRunId));
+    const ctx = parent
+      ? otelTrace.setSpan(otelContext.active(), parent)
+      : ROOT_CONTEXT;
     const span = this._tracer.startSpan(name, {}, ctx);
     this._spanNames.set(runId, name);
     if (parentRunId) {
@@ -262,6 +274,7 @@ export class IntrospectionCallbackHandler extends BaseCallbackHandler {
     this._spans.set(runId, otelSpan);
 
     const conversationId = this._getConversationId(metadata);
+    this._setRootConversationId(conversationId, runId, parentRunId);
 
     otelSpan.setAttribute("gen_ai.operation.name", "chat");
     otelSpan.setAttribute("gen_ai.conversation.id", conversationId);
@@ -346,6 +359,7 @@ export class IntrospectionCallbackHandler extends BaseCallbackHandler {
     this._spans.set(runId, otelSpan);
 
     const conversationId = this._getConversationId(metadata);
+    this._setRootConversationId(conversationId, runId, parentRunId);
 
     otelSpan.setAttribute("gen_ai.operation.name", "chat");
     otelSpan.setAttribute("gen_ai.conversation.id", conversationId);
@@ -375,6 +389,7 @@ export class IntrospectionCallbackHandler extends BaseCallbackHandler {
     this._spans.delete(runId);
     this._spanNames.delete(runId);
     this._llmInputs.delete(runId);
+    this._endRootIfComplete(runId);
 
     const generations = output.generations?.[0];
     if (generations && generations.length > 0) {
@@ -458,8 +473,10 @@ export class IntrospectionCallbackHandler extends BaseCallbackHandler {
     this._spans.delete(runId);
     this._spanNames.delete(runId);
     this._llmInputs.delete(runId);
-    otelSpan.setAttribute("error", true);
-    otelSpan.setAttribute("error.message", err.message);
+    this._endRootIfComplete(runId);
+    otelSpan.recordException(err);
+    otelSpan.setStatus({ code: SpanStatusCode.ERROR, message: err.message });
+    otelSpan.setAttribute("exception.message", err.message);
     otelSpan.end();
   }
 
@@ -484,6 +501,7 @@ export class IntrospectionCallbackHandler extends BaseCallbackHandler {
     this._spans.set(runId, otelSpan);
 
     const conversationId = this._getConversationId(metadata);
+    this._setRootConversationId(conversationId, runId, parentRunId);
     otelSpan.setAttribute("gen_ai.conversation.id", conversationId);
   }
 
@@ -491,6 +509,7 @@ export class IntrospectionCallbackHandler extends BaseCallbackHandler {
     const otelSpan = this._spans.get(runId);
     if (!otelSpan) return;
     this._spans.delete(runId);
+    this._endRootIfComplete(runId);
     otelSpan.end();
   }
 
@@ -498,8 +517,10 @@ export class IntrospectionCallbackHandler extends BaseCallbackHandler {
     const otelSpan = this._spans.get(runId);
     if (!otelSpan) return;
     this._spans.delete(runId);
-    otelSpan.setAttribute("error", true);
-    otelSpan.setAttribute("error.message", err.message);
+    this._endRootIfComplete(runId);
+    otelSpan.recordException(err);
+    otelSpan.setStatus({ code: SpanStatusCode.ERROR, message: err.message });
+    otelSpan.setAttribute("exception.message", err.message);
     otelSpan.end();
   }
 
@@ -513,7 +534,7 @@ export class IntrospectionCallbackHandler extends BaseCallbackHandler {
     runId: string,
     parentRunId?: string,
     _tags?: string[],
-    _metadata?: Record<string, unknown>,
+    metadata?: Record<string, unknown>,
     runName?: string,
   ): void {
     const toolName =
@@ -522,16 +543,20 @@ export class IntrospectionCallbackHandler extends BaseCallbackHandler {
     const otelSpan = this._createChildSpan(toolName, runId, parentRunId);
     this._spans.set(runId, otelSpan);
 
+    const conversationId = this._getConversationId(metadata);
+    this._setRootConversationId(conversationId, runId, parentRunId);
+
     otelSpan.setAttribute("gen_ai.tool.name", toolName);
     otelSpan.setAttribute("openinference.span.kind", "TOOL");
     otelSpan.setAttribute("gen_ai.tool.input", input);
-    otelSpan.setAttribute("gen_ai.conversation.id", this._conversationId);
+    otelSpan.setAttribute("gen_ai.conversation.id", conversationId);
   }
 
   handleToolEnd(output: unknown, runId: string): void {
     const otelSpan = this._spans.get(runId);
     if (!otelSpan) return;
     this._spans.delete(runId);
+    this._endRootIfComplete(runId);
 
     if (output != null) {
       otelSpan.setAttribute(
@@ -547,8 +572,10 @@ export class IntrospectionCallbackHandler extends BaseCallbackHandler {
     const otelSpan = this._spans.get(runId);
     if (!otelSpan) return;
     this._spans.delete(runId);
-    otelSpan.setAttribute("error", true);
-    otelSpan.setAttribute("error.message", err.message);
+    this._endRootIfComplete(runId);
+    otelSpan.recordException(err);
+    otelSpan.setStatus({ code: SpanStatusCode.ERROR, message: err.message });
+    otelSpan.setAttribute("exception.message", err.message);
     otelSpan.end();
   }
 
@@ -559,10 +586,9 @@ export class IntrospectionCallbackHandler extends BaseCallbackHandler {
   async shutdown(): Promise<void> {
     for (const span of this._spans.values()) span.end();
     this._spans.clear();
-    if (this._rootSpan) {
-      this._rootSpan.end();
-      this._rootSpan = null;
-    }
+    this._spanNames.clear();
+    this._spanParents.clear();
+    this._runRoots.clear();
     await this._tracerProvider.shutdown();
   }
 
@@ -623,10 +649,15 @@ export class IntrospectionCallbackHandler extends BaseCallbackHandler {
   }
 
   private _getConversationId(metadata?: Record<string, unknown>): string {
-    const metaConvId = metadata?.["gen_ai.conversation.id"] as
-      | string
-      | undefined;
-    return metaConvId || this._conversationId;
+    const metaConvId = metadata?.["gen_ai.conversation.id"];
+    if (metaConvId !== undefined && metaConvId !== null) {
+      return String(metaConvId);
+    }
+    const threadId = metadata?.["thread_id"];
+    if (threadId !== undefined && threadId !== null) {
+      return String(threadId);
+    }
+    return this._conversationId;
   }
 
   private _convertMessages(messages: BaseMessage[]): {
