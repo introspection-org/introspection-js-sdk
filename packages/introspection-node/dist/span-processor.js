@@ -32,6 +32,9 @@ class ConvertedReadableSpan {
     spanContext() {
         return this._original.spanContext();
     }
+    get parentSpanContext() {
+        return this._original.parentSpanContext;
+    }
     get startTime() {
         return this._original.startTime;
     }
