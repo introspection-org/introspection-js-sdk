@@ -192,7 +192,7 @@ export function convertToolsToToolDefinitions(
       name,
       description:
         typeof t.description === "string" ? t.description : undefined,
-      parameters: extractToolParameters(t.parameters),
+      parameters: extractToolParameters(t.inputSchema ?? t.parameters),
     });
   }
 
@@ -283,6 +283,31 @@ function extractToolParameters(
 ): Record<string, unknown> | undefined {
   if (!parameters || typeof parameters !== "object") return undefined;
   const p = parameters as Record<string, unknown>;
+
+  // Zod 4 schema — exposes a toJSONSchema() method.
+  if (typeof p.toJSONSchema === "function") {
+    const jsonSchema = p.toJSONSchema();
+    if (jsonSchema && typeof jsonSchema === "object") {
+      return jsonSchema as Record<string, unknown>;
+    }
+  }
+
+  // AI SDK v6 tools expose inputSchema instead of parameters. Zod-backed
+  // schemas usually carry a JSON Schema factory on this property.
+  if (p["~standard"] && typeof p["~standard"] === "object") {
+    const standard = p["~standard"] as Record<string, unknown>;
+    const standardJsonSchema = standard.jsonSchema;
+    if (standardJsonSchema && typeof standardJsonSchema === "object") {
+      const input = (standardJsonSchema as Record<string, unknown>).input;
+      if (typeof input === "function") {
+        const jsonSchema = input();
+        if (jsonSchema && typeof jsonSchema === "object") {
+          return jsonSchema as Record<string, unknown>;
+        }
+      }
+      return standardJsonSchema as Record<string, unknown>;
+    }
+  }
 
   // jsonSchema() wrapper — has a jsonSchema property
   if (p.jsonSchema && typeof p.jsonSchema === "object") {
