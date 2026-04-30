@@ -20,6 +20,6 @@
   "devDependencies": {
     "@opentelemetry/sdk-trace-base": "^2.2.0",
     "@repo/typescript-config": "workspace:*",
-    "typescript": "5.9.2"
+    "typescript": "5.9.3"
   }
 }

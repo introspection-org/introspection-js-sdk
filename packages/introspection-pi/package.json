@@ -42,8 +42,8 @@
     "@mariozechner/pi-ai": "^0.70.6",
     "@repo/eslint-config": "workspace:*",
     "@repo/typescript-config": "workspace:*",
-    "@types/node": "^22.15.3",
-    "eslint": "^9.39.1",
+    "@types/node": "^22.19.17",
+    "eslint": "^9.39.4",
     "typescript": "5.9.3"
   },
   "engines": {
