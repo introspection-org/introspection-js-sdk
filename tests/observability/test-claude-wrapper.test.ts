@@ -53,7 +53,7 @@ function createMockMessages(sessionId = "test-session-123") {
       type: "system",
       subtype: "init",
       session_id: sessionId,
-      model: "claude-sonnet-4-5-20250514",
+      model: "claude-sonnet-4-6",
       tools: ["Bash", "Read", "Write"],
     },
     {
@@ -61,7 +61,7 @@ function createMockMessages(sessionId = "test-session-123") {
       session_id: sessionId,
       message: {
         id: "msg_01ABC123",
-        model: "claude-sonnet-4-5-20250514",
+        model: "claude-sonnet-4-6",
         usage: { input_tokens: 150, output_tokens: 10 },
         content: [{ type: "text", text: "4" }],
       },
@@ -139,7 +139,7 @@ describe("withIntrospection() Wrapper Tests", () => {
               "gen_ai.input.messages": "[{"role":"user","parts":[{"type":"text","content":"What is 2 + 2? Just give me the number."}]}]",
               "gen_ai.operation.name": "chat",
               "gen_ai.output.messages": "[{"role":"assistant","parts":[{"type":"text","content":"4"}],"finish_reason":"success"}]",
-              "gen_ai.request.model": "claude-sonnet-4-5-20250514",
+              "gen_ai.request.model": "claude-sonnet-4-6",
               "gen_ai.response.id": "msg_01ABC123",
               "gen_ai.system": "anthropic",
               "gen_ai.system_instructions": "[{"type":"text","content":"You are a calculator."}]",
@@ -284,7 +284,7 @@ describe("withIntrospection() Wrapper Tests", () => {
         type: "system",
         subtype: "init",
         session_id: "error-session",
-        model: "claude-sonnet-4-5-20250514",
+        model: "claude-sonnet-4-6",
       },
     ];
 

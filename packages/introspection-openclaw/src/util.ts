@@ -1,8 +1,23 @@
 /**
- * Serialize a value to JSON, handling circular refs and BigInts.
+ * OpenClaw → OTel GenAI semantic-convention conversion + small JSON helpers.
+ *
+ * Output shapes come from `@introspection-sdk/types` so this plugin,
+ * `introspection-node`, and `introspection-pi-agent` all emit identical
+ * `gen_ai.input.messages` / `gen_ai.output.messages` JSON.
  */
+
+import type {
+  InputMessage,
+  MessagePart,
+  OutputMessage,
+  ToolCallRequestPart,
+} from "@introspection-sdk/types";
+
+// ─── JSON helpers ──────────────────────────────────────────────────────────
+
+/** JSON.stringify with circular-ref + BigInt fallbacks. */
 export function safeJsonStringify(value: unknown): string {
-  const seen = new WeakSet();
+  const seen = new WeakSet<object>();
   try {
     return JSON.stringify(value, (_key, val) => {
       if (typeof val === "bigint") return val.toString();
@@ -17,182 +32,102 @@ export function safeJsonStringify(value: unknown): string {
   }
 }
 
-/** Truncate a string, appending "...[truncated]" if needed. */
+/** Truncate a string with a `...[truncated]` suffix when it exceeds `maxLength`. */
 export function truncate(value: string, maxLength: number): string {
-  if (value.length <= maxLength) return value;
-  return value.slice(0, maxLength) + "...[truncated]";
+  return value.length <= maxLength
+    ? value
+    : `${value.slice(0, maxLength)}...[truncated]`;
 }
 
-/**
- * Prepare a value for recording as a span attribute.
- * Serializes to JSON string and truncates.
- */
+/** Stringify (if needed) and truncate — for capturing values as span attributes. */
 export function prepareForCapture(value: unknown, maxLength: number): string {
   const str = typeof value === "string" ? value : safeJsonStringify(value);
   return truncate(str, maxLength);
 }
 
-// ---------- OTEL Gen AI semantic convention message conversion ----------
+// ─── OpenClaw → semconv conversion ─────────────────────────────────────────
 
 /**
- * OTEL Gen AI semantic convention message part.
- * @see https://opentelemetry.io/docs/specs/semconv/gen-ai/
- */
-interface OtelPart {
-  type: "text" | "tool_call" | "tool_call_response";
-  content?: string;
-  name?: string;
-  id?: string;
-  arguments?: unknown;
-  response?: unknown;
-}
-
-interface OtelInputMessage {
-  role: "system" | "user" | "assistant" | "tool";
-  parts: OtelPart[];
-  name?: string;
-}
-
-interface OtelOutputMessage {
-  role: "system" | "user" | "assistant" | "tool";
-  parts: OtelPart[];
-  finish_reason?: string;
-}
-
-/**
- * Convert an OpenClaw content part to an OTEL semantic convention part.
+ * Convert one OpenClaw content block to a semconv message part.
  *
- * OpenClaw format:
- *   {type: "text", text: "..."}
- *   {type: "thinking", thinking: "..."}
- *   {type: "tool_use", name: "...", arguments: {...}, id: "..."}
+ *  OpenClaw                                  → semconv
+ *  ──────────                                  ──────────
+ *  {type:"text", text}                       → {type:"text", content}
+ *  {type:"thinking", thinking}               → {type:"text", content}
+ *  {type:"tool_use", name, id, arguments}    → {type:"tool_call", ...}
  *
- * OTEL format:
- *   {type: "text", content: "..."}
- *   {type: "tool_call", name: "...", arguments: {...}, id: "..."}
+ * Returns `null` for blocks that have no representable content.
  */
-function convertPart(part: Record<string, unknown>): OtelPart | null {
-  const type = part.type as string;
+function convertPart(block: Record<string, unknown>): MessagePart | null {
+  switch (block.type) {
+    case "text":
+      return { type: "text", content: (block.text as string) ?? "" };
 
-  if (type === "text") {
-    return { type: "text", content: (part.text as string) || "" };
-  }
-
-  if (type === "thinking") {
-    // Include thinking content as text with a marker
-    const thinking = part.thinking as string;
-    if (thinking) {
-      return { type: "text", content: thinking };
+    case "thinking": {
+      const thinking = block.thinking as string | undefined;
+      return thinking ? { type: "text", content: thinking } : null;
     }
-    return null;
-  }
 
-  if (type === "tool_use") {
-    const result: OtelPart = {
-      type: "tool_call",
-      name: part.name as string,
-    };
-    if (part.id) result.id = part.id as string;
-    if (part.arguments !== undefined) result.arguments = part.arguments;
-    // Some OpenClaw versions use "input" instead of "arguments"
-    if (part.input !== undefined && part.arguments === undefined)
-      result.arguments = part.input;
-    return result;
-  }
+    case "tool_use": {
+      const part: ToolCallRequestPart = {
+        type: "tool_call",
+        name: block.name as string,
+      };
+      if (typeof block.id === "string") part.id = block.id;
+      // OpenClaw uses `arguments`; older versions used `input`.
+      const args = block.arguments ?? block.input;
+      if (args !== undefined) part.arguments = args;
+      return part;
+    }
 
-  // Fallback: treat unknown types as text if they have text content
-  if (part.text) {
-    return { type: "text", content: part.text as string };
+    default:
+      // Last-resort text extraction for unknown shapes.
+      return typeof block.text === "string"
+        ? { type: "text", content: block.text }
+        : null;
   }
+}
 
-  return null;
+/** Convert an OpenClaw content array (or plain string) to semconv parts. */
+function partsOf(content: unknown): MessagePart[] {
+  if (typeof content === "string") return [{ type: "text", content }];
+  if (!Array.isArray(content)) return [];
+  return content.flatMap((item) => {
+    if (typeof item !== "object" || item === null) return [];
+    const part = convertPart(item as Record<string, unknown>);
+    return part ? [part] : [];
+  });
 }
 
 /**
- * Convert OpenClaw content array to OTEL parts array.
- */
-function convertContentToParts(content: unknown): OtelPart[] {
-  if (!Array.isArray(content)) {
-    // Plain string content
-    if (typeof content === "string") {
-      return [{ type: "text", content }];
-    }
-    return [];
-  }
-
-  const parts: OtelPart[] = [];
-  for (const item of content) {
-    if (typeof item === "object" && item !== null) {
-      const converted = convertPart(item as Record<string, unknown>);
-      if (converted) parts.push(converted);
-    }
-  }
-  return parts;
-}
-
-/**
- * Convert an array of OpenClaw history messages to OTEL Gen AI
- * semantic convention input messages format.
+ * Convert OpenClaw history messages + the current user prompt to semconv
+ * `gen_ai.input.messages` form.
  *
- * OpenClaw roles: "user", "assistant", "toolResult"
- * OTEL roles: "user", "assistant", "tool"
+ * Roles map: `"user"` → `"user"`, `"assistant"` → `"assistant"`,
+ * `"toolResult"` → `"tool"`.
  */
 export function convertInputMessages(
   historyMessages: unknown[],
   currentPrompt?: unknown,
-): OtelInputMessage[] {
-  const result: OtelInputMessage[] = [];
+): InputMessage[] {
+  const result: InputMessage[] = [];
 
   for (const raw of historyMessages) {
     if (typeof raw !== "object" || raw === null) continue;
     const msg = raw as Record<string, unknown>;
-    const role = msg.role as string;
 
-    if (role === "user") {
-      result.push({
-        role: "user",
-        parts: convertContentToParts(msg.content),
-      });
-    } else if (role === "assistant") {
-      result.push({
-        role: "assistant",
-        parts: convertContentToParts(msg.content),
-      });
-    } else if (role === "toolResult") {
-      const otelMsg: OtelInputMessage = {
-        role: "tool",
-        parts: [],
-      };
-      if (msg.toolName) otelMsg.name = msg.toolName as string;
+    switch (msg.role) {
+      case "user":
+      case "assistant":
+        result.push({ role: msg.role, parts: partsOf(msg.content) });
+        break;
 
-      // Convert tool result content to tool_call_response parts
-      const content = msg.content;
-      if (Array.isArray(content)) {
-        for (const item of content) {
-          if (typeof item === "object" && item !== null) {
-            const part = item as Record<string, unknown>;
-            if (part.type === "text") {
-              otelMsg.parts.push({
-                type: "tool_call_response",
-                response: part.text,
-                id: msg.toolCallId as string | undefined,
-              });
-            }
-          }
-        }
-      } else if (typeof content === "string") {
-        otelMsg.parts.push({
-          type: "tool_call_response",
-          response: content,
-          id: msg.toolCallId as string | undefined,
-        });
-      }
-
-      result.push(otelMsg);
+      case "toolResult":
+        result.push(toolResultMessage(msg));
+        break;
     }
   }
 
-  // Add current user prompt
   if (currentPrompt !== undefined) {
     const promptStr =
       typeof currentPrompt === "string"
@@ -207,40 +142,56 @@ export function convertInputMessages(
   return result;
 }
 
-/**
- * Convert an OpenClaw lastAssistant response object to OTEL Gen AI
- * semantic convention output messages format.
- *
- * OpenClaw format:
- *   {role: "assistant", content: [{type: "text", text: "..."}, ...], stopReason: "stop", ...}
- *
- * OTEL format:
- *   [{role: "assistant", parts: [{type: "text", content: "..."}], finish_reason: "stop"}]
- */
-export function convertOutputMessages(
-  lastAssistant: unknown,
-): OtelOutputMessage[] {
-  if (typeof lastAssistant !== "object" || lastAssistant === null) {
-    if (typeof lastAssistant === "string") {
-      return [
-        {
-          role: "assistant",
-          parts: [{ type: "text", content: lastAssistant }],
-        },
-      ];
-    }
-    return [];
-  }
+/** Convert an OpenClaw `toolResult` history entry to a semconv `tool` message. */
+function toolResultMessage(msg: Record<string, unknown>): InputMessage {
+  const toolCallId =
+    typeof msg.toolCallId === "string" ? msg.toolCallId : undefined;
+  const parts: MessagePart[] = [];
 
-  const msg = lastAssistant as Record<string, unknown>;
-  const otelMsg: OtelOutputMessage = {
-    role: "assistant",
-    parts: convertContentToParts(msg.content),
+  const append = (response: unknown) => {
+    parts.push({
+      type: "tool_call_response",
+      response,
+      ...(toolCallId && { id: toolCallId }),
+    });
   };
 
-  if (msg.stopReason) {
-    otelMsg.finish_reason = msg.stopReason as string;
+  if (typeof msg.content === "string") {
+    append(msg.content);
+  } else if (Array.isArray(msg.content)) {
+    for (const item of msg.content) {
+      if (
+        typeof item === "object" &&
+        item !== null &&
+        (item as { type?: unknown }).type === "text"
+      ) {
+        append((item as { text?: unknown }).text);
+      }
+    }
   }
 
-  return [otelMsg];
+  return {
+    role: "tool",
+    parts,
+    ...(typeof msg.toolName === "string" && { name: msg.toolName }),
+  };
+}
+
+/**
+ * Convert an OpenClaw `lastAssistant` payload to semconv `gen_ai.output.messages` form.
+ *
+ * Accepts the structured object form, a bare string, or anything else (returns `[]`).
+ */
+export function convertOutputMessages(lastAssistant: unknown): OutputMessage[] {
+  if (typeof lastAssistant === "string") {
+    return [
+      { role: "assistant", parts: [{ type: "text", content: lastAssistant }] },
+    ];
+  }
+  if (typeof lastAssistant !== "object" || lastAssistant === null) return [];
+
+  const msg = lastAssistant as Record<string, unknown>;
+  const out: OutputMessage = { role: "assistant", parts: partsOf(msg.content) };
+  if (typeof msg.stopReason === "string") out.finish_reason = msg.stopReason;
+  return [out];
 }

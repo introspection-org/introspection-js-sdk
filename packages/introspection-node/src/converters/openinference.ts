@@ -7,8 +7,8 @@ import type {
   ReasoningPart,
   SystemInstruction,
   ToolDefinition,
-} from "../types/genai.js";
-import { toAttributes } from "../types/genai.js";
+} from "@introspection-sdk/types";
+import { toAttributes } from "@introspection-sdk/types";
 
 const OI = {
   MODEL_NAME: "llm.model_name",

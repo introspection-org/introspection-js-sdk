@@ -1,0 +1,52 @@
+{
+  "name": "@introspection-sdk/introspection-pi",
+  "version": "0.1.0",
+  "license": "Apache-2.0",
+  "description": "Introspection observability extension for the Pi Agent SDK — OTEL GenAI semantic-convention spans for chat completions and tool execution",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist/"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "check-types": "tsc --noEmit",
+    "lint": "eslint . --max-warnings 0",
+    "prepare": "tsc"
+  },
+  "dependencies": {
+    "@introspection-sdk/types": "workspace:*",
+    "@opentelemetry/api": "^1.9.0"
+  },
+  "peerDependencies": {
+    "@mariozechner/pi-ai": ">=0.70.0",
+    "@mariozechner/pi-agent-core": ">=0.70.0"
+  },
+  "peerDependenciesMeta": {
+    "@mariozechner/pi-ai": {
+      "optional": true
+    },
+    "@mariozechner/pi-agent-core": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@mariozechner/pi-agent-core": "^0.70.6",
+    "@mariozechner/pi-ai": "^0.70.6",
+    "@repo/eslint-config": "workspace:*",
+    "@repo/typescript-config": "workspace:*",
+    "@types/node": "^22.15.3",
+    "eslint": "^9.39.1",
+    "typescript": "5.9.3"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

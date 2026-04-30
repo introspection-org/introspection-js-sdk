@@ -57,7 +57,7 @@ import type {
   InputMessage,
   OutputMessage,
   MessagePart,
-} from "./types/genai.js";
+} from "@introspection-sdk/types";
 
 // ---------------------------------------------------------------------------
 // Configuration

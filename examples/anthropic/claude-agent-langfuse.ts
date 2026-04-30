@@ -162,7 +162,7 @@ const stream = tracedSdk.query({
     "I'm planning a trip — compare San Francisco and Tokyo. " +
     "What's the weather like, and what are the top 3 attractions in each city?",
   options: {
-    model: "claude-sonnet-4-5-20250929",
+    model: "claude-sonnet-4-6",
     systemPrompt,
     mcpServers: { travel: weatherServer },
     allowedTools: ["mcp__travel__get_weather", "mcp__travel__get_attractions"],

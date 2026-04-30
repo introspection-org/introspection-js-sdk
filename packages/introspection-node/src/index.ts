@@ -82,8 +82,8 @@ export type {
   ToolCallRequestPart,
   ToolCallResponsePart,
   MessagePart,
-} from "./types/genai.js";
-export { toAttributes } from "./types/genai.js";
+} from "@introspection-sdk/types";
+export { toAttributes } from "@introspection-sdk/types";
 
 // OpenAI converter exports
 export {
