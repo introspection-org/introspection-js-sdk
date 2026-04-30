@@ -24,7 +24,8 @@
   "scripts": {
     "build": "tsc",
     "check-types": "tsc --noEmit",
-    "lint": "eslint . --max-warnings 0"
+    "lint": "eslint . --max-warnings 0",
+    "prepare": "tsc"
   },
   "dependencies": {
     "@introspection-sdk/types": "workspace:*",

@@ -56,7 +56,7 @@ async function main() {
     },
   ];
 
-  const model = "claude-sonnet-4-5-20250929";
+  const model = "claude-sonnet-4-6";
   const system =
     "You are a helpful weather assistant. Always use the tool to get weather data. Be concise.";
   const thinkingConfig: ThinkingConfigEnabledParam = {

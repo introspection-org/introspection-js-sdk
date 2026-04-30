@@ -92,7 +92,7 @@ async function main() {
     {
       runId: "run-1",
       provider: "anthropic",
-      model: "claude-sonnet-4-5-20250929",
+      model: "claude-sonnet-4-6",
       systemPrompt: "You are a helpful weather assistant. Be concise.",
       historyMessages: [],
       prompt: "What's the weather in Tokyo?",
@@ -120,7 +120,7 @@ async function main() {
     "llm_output",
     {
       runId: "run-1",
-      model: "claude-sonnet-4-5-20250929",
+      model: "claude-sonnet-4-6",
       provider: "anthropic",
       usage: { input: 380, output: 42, cacheRead: 0, cacheWrite: 0 },
       lastAssistant: {
@@ -147,7 +147,7 @@ async function main() {
     {
       runId: "run-2",
       provider: "anthropic",
-      model: "claude-sonnet-4-5-20250929",
+      model: "claude-sonnet-4-6",
       systemPrompt: "You are a helpful weather assistant. Be concise.",
       historyMessages: [
         { role: "user", content: "What's the weather in Tokyo?" },
@@ -179,7 +179,7 @@ async function main() {
     "llm_output",
     {
       runId: "run-2",
-      model: "claude-sonnet-4-5-20250929",
+      model: "claude-sonnet-4-6",
       provider: "anthropic",
       usage: { input: 480, output: 28, cacheRead: 350, cacheWrite: 0 },
       lastAssistant: {

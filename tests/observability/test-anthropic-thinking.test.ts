@@ -93,7 +93,7 @@ describe("Anthropic Thinking Tests", () => {
       h.instrumentor.instrument({ tracerProvider: h.provider, client });
 
       const response = (await client.messages.create({
-        model: "claude-sonnet-4-5-20250929",
+        model: "claude-sonnet-4-6",
         max_tokens: 8000,
         thinking: { type: "enabled", budget_tokens: 5000 },
         messages: [
@@ -125,7 +125,7 @@ describe("Anthropic Thinking Tests", () => {
                 "gen_ai.operation.name": "chat",
                 "gen_ai.output.messages": "<output_messages>",
                 "gen_ai.provider.name": "anthropic",
-                "gen_ai.request.model": "claude-sonnet-4-5-20250929",
+                "gen_ai.request.model": "claude-sonnet-4-6",
                 "gen_ai.response.id": "<response_id>",
                 "gen_ai.response.model": "<response_model>",
                 "gen_ai.system": "anthropic",
@@ -189,7 +189,7 @@ describe("Anthropic Thinking Tests", () => {
 
       // Turn 1: thinking + tool call
       const response1 = (await client.messages.create({
-        model: "claude-sonnet-4-5-20250929",
+        model: "claude-sonnet-4-6",
         max_tokens: 8000,
         thinking: { type: "enabled", budget_tokens: 5000 },
         tools,
@@ -215,7 +215,7 @@ describe("Anthropic Thinking Tests", () => {
 
       // Turn 2: model summarizes tool result
       const response2 = (await client.messages.create({
-        model: "claude-sonnet-4-5-20250929",
+        model: "claude-sonnet-4-6",
         max_tokens: 8000,
         thinking: { type: "enabled", budget_tokens: 5000 },
         tools,
@@ -234,7 +234,7 @@ describe("Anthropic Thinking Tests", () => {
 
       // Turn 3: model reasons over previous output to convert 25C -> ~77F
       const response3 = (await client.messages.create({
-        model: "claude-sonnet-4-5-20250929",
+        model: "claude-sonnet-4-6",
         max_tokens: 8000,
         thinking: { type: "enabled", budget_tokens: 5000 },
         messages,
@@ -272,7 +272,7 @@ describe("Anthropic Thinking Tests", () => {
                 "gen_ai.operation.name": "chat",
                 "gen_ai.output.messages": "<output_messages>",
                 "gen_ai.provider.name": "anthropic",
-                "gen_ai.request.model": "claude-sonnet-4-5-20250929",
+                "gen_ai.request.model": "claude-sonnet-4-6",
                 "gen_ai.response.id": "<response_id>",
                 "gen_ai.response.model": "<response_model>",
                 "gen_ai.system": "anthropic",
@@ -292,7 +292,7 @@ describe("Anthropic Thinking Tests", () => {
                 "gen_ai.operation.name": "chat",
                 "gen_ai.output.messages": "<output_messages>",
                 "gen_ai.provider.name": "anthropic",
-                "gen_ai.request.model": "claude-sonnet-4-5-20250929",
+                "gen_ai.request.model": "claude-sonnet-4-6",
                 "gen_ai.response.id": "<response_id>",
                 "gen_ai.response.model": "<response_model>",
                 "gen_ai.system": "anthropic",
@@ -312,7 +312,7 @@ describe("Anthropic Thinking Tests", () => {
                 "gen_ai.operation.name": "chat",
                 "gen_ai.output.messages": "<output_messages>",
                 "gen_ai.provider.name": "anthropic",
-                "gen_ai.request.model": "claude-sonnet-4-5-20250929",
+                "gen_ai.request.model": "claude-sonnet-4-6",
                 "gen_ai.response.id": "<response_id>",
                 "gen_ai.response.model": "<response_model>",
                 "gen_ai.system": "anthropic",
@@ -375,7 +375,7 @@ describe("Anthropic Thinking Tests", () => {
       h.instrumentor.instrument({ tracerProvider: h.provider, client });
 
       const stream = (await client.messages.create({
-        model: "claude-sonnet-4-5-20250929",
+        model: "claude-sonnet-4-6",
         max_tokens: 8000,
         stream: true,
         thinking: { type: "enabled", budget_tokens: 5000 },
@@ -405,7 +405,7 @@ describe("Anthropic Thinking Tests", () => {
                 "gen_ai.operation.name": "chat",
                 "gen_ai.output.messages": "<output_messages>",
                 "gen_ai.provider.name": "anthropic",
-                "gen_ai.request.model": "claude-sonnet-4-5-20250929",
+                "gen_ai.request.model": "claude-sonnet-4-6",
                 "gen_ai.response.id": "<response_id>",
                 "gen_ai.response.model": "<response_model>",
                 "gen_ai.system": "anthropic",

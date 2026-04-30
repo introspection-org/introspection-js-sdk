@@ -2,7 +2,7 @@
  * Pure builders that turn OpenClaw event payloads into OTel `Attributes`
  * records, ready for `span.setAttributes(...)`.
  *
- * Mirrors the `attributes.ts` layer in `@introspection-sdk/introspection-pi-agent`:
+ * Mirrors the `attributes.ts` layer in `@introspection-sdk/introspection-pi`:
  * keeps `hooks.ts` short and free of inline string keys.
  */
 

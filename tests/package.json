@@ -13,7 +13,7 @@
   },
   "dependencies": {
     "@introspection-sdk/introspection-node": "workspace:*",
-    "@introspection-sdk/introspection-pi-agent": "workspace:*"
+    "@introspection-sdk/introspection-pi": "workspace:*"
   },
   "devDependencies": {
     "@openai/agents": "^0.7.2",
