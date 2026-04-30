@@ -27,6 +27,7 @@
     "lint": "eslint . --max-warnings 0"
   },
   "dependencies": {
+    "@introspection-sdk/types": "workspace:*",
     "@opentelemetry/api": "^1.9.0",
     "@opentelemetry/exporter-trace-otlp-proto": "^0.209.0",
     "@opentelemetry/resources": "^2.0.0",
