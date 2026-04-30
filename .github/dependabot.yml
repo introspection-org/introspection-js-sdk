@@ -16,6 +16,13 @@ updates:
     commit-message:
       prefix: "chore(deps)"
       include: "scope"
+    # Restrict alerts/PRs to deps that ship to consumers (`dependencies` and
+    # `peerDependencies`). For npm, this excludes both `devDependencies`
+    # (root tooling, package build tools, test helpers) and
+    # `optionalDependencies` (examples' AI SDKs / mastra / anthropic / etc.
+    # — those are demo-only, not part of the published surface area).
+    allow:
+      - dependency-type: "production"
     groups:
       # `applies-to: all` (default-ish) covers BOTH scheduled version updates
       # AND security-alert PRs — so security fixes get rolled up along the

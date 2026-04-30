@@ -85,52 +85,8 @@ jobs:
       - name: Run tests
         run: pnpm test:replay
 
-  examples:
-    name: Examples
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    needs: test
-    runs-on: ubuntu-latest
-    environment: build
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          submodules: true
-
-      - name: Install pnpm
-        uses: pnpm/action-setup@v4
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: "22"
-          cache: "pnpm"
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Build packages
-        run: pnpm build
-
-      - name: Install Claude Code CLI
-        run: npm install -g @anthropic-ai/claude-code
-
-      - name: Run examples
-        working-directory: examples
-        env:
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          INTROSPECTION_TOKEN: ${{ secrets.INTROSPECTION_TOKEN }}
-          INTROSPECTION_BASE_URL: ${{ vars.INTROSPECTION_BASE_URL }}
-          ARIZE_API_KEY: ${{ secrets.ARIZE_API_KEY }}
-          ARIZE_SPACE_KEY: ${{ secrets.ARIZE_SPACE_KEY }}
-          BRAINTRUST_API_KEY: ${{ secrets.BRAINTRUST_API_KEY }}
-          LANGFUSE_PUBLIC_KEY: ${{ secrets.LANGFUSE_PUBLIC_KEY }}
-          LANGFUSE_SECRET_KEY: ${{ secrets.LANGFUSE_SECRET_KEY }}
-          LANGFUSE_BASE_URL: ${{ vars.LANGFUSE_BASE_URL }}
-          LANGSMITH_API_KEY: ${{ secrets.LANGSMITH_API_KEY }}
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          MASTRA_CLOUD_ACCESS_TOKEN: ${{ secrets.MASTRA_CLOUD_ACCESS_TOKEN }}
-          POSTHOG_API_KEY: ${{ secrets.POSTHOG_API_KEY }}
-        run: ./run_all.sh
+  # Examples live in their own workflow (./examples.yml) so they don't burn
+  # LLM tokens on every push. They run on `workflow_dispatch` + tag pushes.
 
   # ── Create release tag (only on VERSION change) ────────────────────
   create-tag:
