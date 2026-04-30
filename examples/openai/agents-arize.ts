@@ -74,7 +74,7 @@ class CompositeSpanExporter implements SpanExporter {
 // exporter with OpenInferenceSpanExporter to convert gen_ai.* attrs.
 // Arize also requires `arize.project.name` (or `model_id` on the resource);
 // OpenAI Agents SDK owns its tracer provider so we inject it per span.
-const ARIZE_PROJECT_NAME = "openai-agents-arize";
+const ARIZE_PROJECT_NAME = "openai-agents-arize-example";
 
 class ArizeProjectNameExporter implements SpanExporter {
   constructor(
@@ -152,7 +152,7 @@ const getWeather = tool({
 
 async function main() {
   const processor = new IntrospectionTracingProcessor({
-    serviceName: "openai-agents-arize",
+    serviceName: "openai-agents-arize-example",
     advanced: {
       spanExporter: new CompositeSpanExporter([
         arizeExporter,

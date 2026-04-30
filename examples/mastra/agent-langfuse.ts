@@ -54,7 +54,7 @@ const introspectionExporter = new IntrospectionMastraExporter();
 const observability = new Observability({
   configs: {
     langfuse: {
-      serviceName: "mastra-langfuse-introspection-demo",
+      serviceName: "mastra-langfuse-example",
       exporters: [langfuseExporter, introspectionExporter],
     },
   },

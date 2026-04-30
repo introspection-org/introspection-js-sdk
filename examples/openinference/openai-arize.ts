@@ -42,8 +42,8 @@ const arizeExporter = new OTLPTraceExporter({
 
 const provider = new NodeTracerProvider({
   resource: resourceFromAttributes({
-    [ATTR_SERVICE_NAME]: "openai-arize-example",
-    "openinference.project.name": "openai-arize-example",
+    [ATTR_SERVICE_NAME]: "openinference-openai-arize-example",
+    "openinference.project.name": "openinference-openai-arize-example",
   }),
   spanProcessors: [
     new SimpleSpanProcessor(arizeExporter),

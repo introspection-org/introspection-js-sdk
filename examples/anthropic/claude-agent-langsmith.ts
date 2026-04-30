@@ -35,7 +35,7 @@ process.env["LANGSMITH_TRACING"] = "true";
 // Chain wrappers: LangSmith first, then Introspection
 const langsmithSdk = wrapClaudeAgentSDK(originalSdk);
 const tracedSdk = withIntrospection(langsmithSdk, {
-  serviceName: "travel-assistant",
+  serviceName: "claude-agent-langsmith-example",
 });
 
 // --- MCP tools ---

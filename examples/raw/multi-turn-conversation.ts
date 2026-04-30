@@ -41,7 +41,7 @@ import {
 } from "@opentelemetry/sdk-trace-base";
 import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-proto";
 
-const AGENT_NAME = "raw-otel-example";
+const AGENT_NAME = "raw-conversation-example";
 const MODEL = "gpt-4o";
 const SCOPE = "@introspection/examples";
 

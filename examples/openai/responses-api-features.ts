@@ -13,7 +13,7 @@ import { IntrospectionTracingProcessor } from "@introspection-sdk/introspection-
 
 async function main() {
   const processor = new IntrospectionTracingProcessor({
-    serviceName: "openai-responses-api-example",
+    serviceName: "openai-responses-api-features-example",
   });
   addTraceProcessor(processor);
 

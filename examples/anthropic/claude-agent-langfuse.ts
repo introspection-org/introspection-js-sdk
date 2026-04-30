@@ -88,7 +88,7 @@ const introspectionExporter = new OTLPTraceExporter({
 
 // --- Wrap SDK with composite exporter for dual export ---
 const tracedSdk = withIntrospection(sdk, {
-  serviceName: "travel-assistant",
+  serviceName: "claude-agent-langfuse-example",
   advanced: {
     spanExporter: new CompositeSpanExporter([
       langfuseExporter,

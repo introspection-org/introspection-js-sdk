@@ -140,9 +140,19 @@ jobs:
     runs-on: ubuntu-latest
     environment: build
     steps:
+      - name: Generate GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ vars.GH_APP_ID || secrets.GH_APP_ID }}
+          private-key: ${{ secrets.GH_APP_PRIVATE_KEY }}
+          owner: introspection-org
+          repositories: introspection-js-sdk
+
       - uses: actions/checkout@v4
         with:
           fetch-depth: 2
+          token: ${{ steps.app-token.outputs.token }}
 
       - name: Check if VERSION changed
         id: check
@@ -153,21 +163,6 @@ jobs:
           else
             echo "changed=false" >> "$GITHUB_OUTPUT"
           fi
-
-      - name: Generate GitHub App token
-        if: steps.check.outputs.changed == 'true'
-        id: app-token
-        uses: actions/create-github-app-token@v1
-        with:
-          app-id: ${{ vars.GH_APP_ID || secrets.GH_APP_ID }}
-          private-key: ${{ secrets.GH_APP_PRIVATE_KEY }}
-          owner: introspection-org
-          repositories: introspection-js-sdk
-
-      - name: Configure git with App token
-        if: steps.check.outputs.changed == 'true'
-        run: |
-          git remote set-url origin "https://x-access-token:${{ steps.app-token.outputs.token }}@github.com/${{ github.repository }}.git"
 
       - name: Create and push tag
         if: steps.check.outputs.changed == 'true'

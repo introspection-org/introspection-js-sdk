@@ -25,7 +25,7 @@ if (!process.env.INTROSPECTION_TOKEN) {
 }
 
 const logger = initLogger({
-  projectName: "mastra-braintrust-introspection-demo",
+  projectName: "mastra-braintrust-example",
 });
 
 // --- Braintrust exporter ---
@@ -48,7 +48,7 @@ const mastra = new Mastra({
   observability: new Observability({
     configs: {
       braintrust: {
-        serviceName: "mastra-braintrust-introspection-demo",
+        serviceName: "mastra-braintrust-example",
         exporters: [braintrustExporter, introspectionExporter],
       },
     },

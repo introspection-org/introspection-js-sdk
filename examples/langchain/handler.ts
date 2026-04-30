@@ -24,7 +24,7 @@ import { z } from "zod";
 
 async function main() {
   const handler = new IntrospectionCallbackHandler({
-    serviceName: "langchain-example",
+    serviceName: "langchain-handler-example",
   });
 
   console.log("Running LangChain agent with tools + system prompt...");

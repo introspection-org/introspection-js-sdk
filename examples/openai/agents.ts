@@ -42,4 +42,13 @@ async function main() {
   await processor.shutdown();
 }
 
-main().catch(console.error);
+// The OpenAI Agents SDK installs a `beforeExit` handler that re-invokes
+// shutdown() with a 5s timeout. Under CI network conditions the exporter
+// flush often exceeds that and the SDK force-exits with code 1. Bypass
+// the natural-exit path by exiting cleanly ourselves.
+main()
+  .then(() => process.exit(0))
+  .catch((err) => {
+    console.error(err);
+    process.exit(1);
+  });

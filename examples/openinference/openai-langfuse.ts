@@ -40,7 +40,7 @@ const langfuseBaseUrl =
 
 const provider = new NodeTracerProvider({
   resource: resourceFromAttributes({
-    [ATTR_SERVICE_NAME]: "openai-langfuse-example",
+    [ATTR_SERVICE_NAME]: "openinference-openai-langfuse-example",
   }),
   spanProcessors: [
     new BatchSpanProcessor(

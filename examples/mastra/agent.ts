@@ -18,7 +18,7 @@ import { z } from "zod";
 const observability = new Observability({
   configs: {
     otel: {
-      serviceName: "mastra-weather-assistant",
+      serviceName: "mastra-ai-example",
       exporters: [new IntrospectionMastraExporter()],
     },
   },

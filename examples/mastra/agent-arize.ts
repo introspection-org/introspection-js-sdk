@@ -46,7 +46,7 @@ const arizeExporter = new OtelExporter({
   },
   exporter: new OpenInferenceSpanExporter(arizeOtlp),
   resourceAttributes: {
-    "openinference.project.name": "mastra-arize-introspection-demo",
+    "openinference.project.name": "mastra-arize-example",
   },
 });
 
@@ -58,7 +58,7 @@ const introspectionExporter = new IntrospectionMastraExporter();
 const observability = new Observability({
   configs: {
     arize: {
-      serviceName: "mastra-arize-introspection-demo",
+      serviceName: "mastra-arize-example",
       exporters: [arizeExporter, introspectionExporter],
     },
   },

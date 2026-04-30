@@ -48,7 +48,7 @@ const introspectionExporter = new IntrospectionMastraExporter();
 const observability = new Observability({
   configs: {
     langsmith: {
-      serviceName: "mastra-langsmith-introspection-demo",
+      serviceName: "mastra-langsmith-example",
       exporters: [langsmithExporter, introspectionExporter],
     },
   },

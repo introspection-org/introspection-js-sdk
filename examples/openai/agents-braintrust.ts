@@ -95,7 +95,7 @@ const getWeather = tool({
 
 async function main() {
   const processor = new IntrospectionTracingProcessor({
-    serviceName: "openai-agents-braintrust",
+    serviceName: "openai-agents-braintrust-example",
     advanced: {
       spanExporter: new CompositeSpanExporter([
         braintrustExporter,

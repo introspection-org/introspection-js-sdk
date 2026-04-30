@@ -100,7 +100,7 @@ const getWeather = tool({
 
 async function main() {
   const processor = new IntrospectionTracingProcessor({
-    serviceName: "openai-agents-langfuse",
+    serviceName: "openai-agents-langfuse-example",
     advanced: {
       spanExporter: new CompositeSpanExporter([
         langfuseExporter,

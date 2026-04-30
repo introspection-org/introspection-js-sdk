@@ -94,7 +94,7 @@ const getWeather = tool({
 
 async function main() {
   const processor = new IntrospectionTracingProcessor({
-    serviceName: "openai-agents-langsmith",
+    serviceName: "openai-agents-langsmith-example",
     advanced: {
       spanExporter: new CompositeSpanExporter([
         langsmithExporter,

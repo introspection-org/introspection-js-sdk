@@ -32,7 +32,7 @@ function getWeather(city: string): string {
 
 const provider = new NodeTracerProvider({
   resource: resourceFromAttributes({
-    [ATTR_SERVICE_NAME]: "openai-braintrust-example",
+    [ATTR_SERVICE_NAME]: "openinference-openai-braintrust-example",
   }),
   spanProcessors: [
     new IntrospectionSpanProcessor({
@@ -40,7 +40,7 @@ const provider = new NodeTracerProvider({
       advanced: {
         baseUrl: "https://api.braintrust.dev/otel/v1/traces",
         additionalHeaders: {
-          "x-bt-parent": "project_name:openai-braintrust-example",
+          "x-bt-parent": "project_name:openinference-openai-braintrust-example",
         },
       },
     }),
