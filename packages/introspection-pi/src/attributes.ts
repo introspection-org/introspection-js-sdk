@@ -76,7 +76,7 @@ export function chatRequestAttributes(
 export function chatResponseAttributes(message: AssistantMessage): Attributes {
   const attributes: Attributes = {
     [GenAi.OUTPUT_MESSAGES]: JSON.stringify(assistantToOutputMessages(message)),
-    [GenAi.RESPONSE_FINISH_REASONS]: JSON.stringify([message.stopReason]),
+    [GenAi.RESPONSE_FINISH_REASONS]: [message.stopReason],
     [GenAi.USAGE_INPUT_TOKENS]: message.usage.input,
     [GenAi.USAGE_OUTPUT_TOKENS]: message.usage.output,
   };

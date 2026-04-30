@@ -112,7 +112,7 @@ export function chatResponseAttributes(input: ChatResponseInput): Attributes {
   };
 
   if (input.finishReason) {
-    attrs[GenAi.RESPONSE_FINISH_REASONS] = JSON.stringify([input.finishReason]);
+    attrs[GenAi.RESPONSE_FINISH_REASONS] = [input.finishReason];
   }
   if (typeof input.costUsd === "number") {
     attrs[GenAi.COST_USD] = input.costUsd;
@@ -152,7 +152,7 @@ export function toolResponseChatAttributes(
   };
 
   if (input.finishReason) {
-    attrs[GenAi.RESPONSE_FINISH_REASONS] = JSON.stringify([input.finishReason]);
+    attrs[GenAi.RESPONSE_FINISH_REASONS] = [input.finishReason];
   }
   const out = serializeBounded(input.outputMessages);
   if (out) attrs[GenAi.OUTPUT_MESSAGES] = out;

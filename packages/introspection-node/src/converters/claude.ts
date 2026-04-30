@@ -318,7 +318,7 @@ export function convertClaudeSessionToGenAI(
  */
 export function convertClaudeSessionToOtelAttributes(
   data: ClaudeSessionData,
-): Record<string, string | number> {
+): Record<string, string | number | string[] | number[]> {
   const genaiAttrs = convertClaudeSessionToGenAI(data);
   const result = toAttributes(genaiAttrs);
 

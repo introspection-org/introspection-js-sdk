@@ -135,8 +135,9 @@ export interface ToolDefinition {
  * Camel-cased GenAI attribute bag, convenient for callers that don't want to
  * deal with OTel's dotted attribute names directly.
  *
- * {@link toAttributes} converts this to a flat `Record<string, string | number>`
- * with `gen_ai.*` keys.
+ * {@link toAttributes} converts this to a flat OTel attribute record with
+ * `gen_ai.*` keys (primitive arrays like `finishReasons` pass through as
+ * native string arrays; nested objects are JSON-serialized).
  */
 export interface GenAiAttributes {
   /** Model name (gen_ai.request.model) */
@@ -162,7 +163,7 @@ export interface GenAiAttributes {
   responseId?: string;
   /** Response model (gen_ai.response.model) */
   responseModel?: string;
-  /** Finish reason array (gen_ai.response.finish_reasons) — serialized to JSON. */
+  /** Finish reason array (gen_ai.response.finish_reasons) — emitted as a native OTel string array. */
   finishReasons?: string[];
   /** Input token count (gen_ai.usage.input_tokens) */
   inputTokens?: number;
@@ -197,16 +198,18 @@ const ATTRIBUTE_NAMES: Record<keyof GenAiAttributes, string> = {
 
 /**
  * Convert a {@link GenAiAttributes} object into an OTel-compatible
- * `Record<string, string | number>` with `gen_ai.*` dotted keys.
+ * attribute record with `gen_ai.*` dotted keys.
  *
- * Properties that are `undefined` are omitted. Object-valued properties
- * (`toolDefinitions`, `inputMessages`, …) are JSON-serialized with `null`
- * and `undefined` stripped.
+ * Properties that are `undefined` are omitted. Primitive arrays (e.g.
+ * `finishReasons: string[]`) pass through as native OTel string arrays.
+ * Object-valued properties (`toolDefinitions`, `inputMessages`, …) are
+ * JSON-serialized with `null` and `undefined` stripped, since OTel
+ * attributes can't carry nested objects.
  */
 export function toAttributes(
   attrs: GenAiAttributes,
-): Record<string, string | number> {
-  const result: Record<string, string | number> = {};
+): Record<string, string | number | string[] | number[]> {
+  const result: Record<string, string | number | string[] | number[]> = {};
 
   for (const key of Object.keys(attrs) as (keyof GenAiAttributes)[]) {
     const value = attrs[key];
@@ -214,12 +217,23 @@ export function toAttributes(
     const otelKey = ATTRIBUTE_NAMES[key];
     if (typeof value === "string" || typeof value === "number") {
       result[otelKey] = value;
+    } else if (isPrimitiveArray(value)) {
+      result[otelKey] = value as string[] | number[];
     } else {
       result[otelKey] = JSON.stringify(stripNullish(value));
     }
   }
 
   return result;
+}
+
+function isPrimitiveArray(value: unknown): value is string[] | number[] {
+  return (
+    Array.isArray(value) &&
+    value.every(
+      (entry) => typeof entry === "string" || typeof entry === "number",
+    )
+  );
 }
 
 /**

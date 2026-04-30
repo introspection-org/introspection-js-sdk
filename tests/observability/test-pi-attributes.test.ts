@@ -175,9 +175,7 @@ describe("chatResponseAttributes", () => {
     expect(attrs["gen_ai.cost.usd"]).toBe(0.0042);
     expect(attrs["gen_ai.response.id"]).toBe("resp_pi_123");
     expect(attrs["gen_ai.response.model"]).toBe("claude-sonnet-4-6");
-    expect(JSON.parse(String(attrs["gen_ai.response.finish_reasons"]))).toEqual(
-      ["stop"],
-    );
+    expect(attrs["gen_ai.response.finish_reasons"]).toEqual(["stop"]);
 
     const outputs = JSON.parse(String(attrs["gen_ai.output.messages"]));
     expect(outputs[0]).toMatchObject({
