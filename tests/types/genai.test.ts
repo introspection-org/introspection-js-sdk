@@ -74,9 +74,7 @@ describe("toAttributes", () => {
     expect(JSON.parse(String(result["gen_ai.tool.definitions"]))).toEqual(
       toolDefinitions,
     );
-    expect(
-      JSON.parse(String(result["gen_ai.response.finish_reasons"])),
-    ).toEqual(["stop"]);
+    expect(result["gen_ai.response.finish_reasons"]).toEqual(["stop"]);
     expect(JSON.parse(String(result["gen_ai.system_instructions"]))).toEqual([
       { type: "text", content: "Be concise." },
     ]);

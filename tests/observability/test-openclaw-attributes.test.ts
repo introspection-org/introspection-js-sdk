@@ -105,7 +105,7 @@ describe("chatResponseAttributes", () => {
     expect(attrs["gen_ai.usage.input_tokens"]).toBe(100);
     expect(attrs["gen_ai.usage.output_tokens"]).toBe(50);
     expect(attrs["gen_ai.response.model"]).toBe("claude-sonnet-4-6");
-    expect(attrs["gen_ai.response.finish_reasons"]).toBe('["end_turn"]');
+    expect(attrs["gen_ai.response.finish_reasons"]).toEqual(["end_turn"]);
     expect(attrs["gen_ai.cost.usd"]).toBe(0.0042);
   });
 
@@ -156,7 +156,7 @@ describe("toolResponseChatAttributes", () => {
     expect(attrs["introspection.new_messages.end"]).toBe(1);
     expect(typeof attrs["gen_ai.input.messages"]).toBe("string");
     expect(typeof attrs["gen_ai.output.messages"]).toBe("string");
-    expect(attrs["gen_ai.response.finish_reasons"]).toBe('["end_turn"]');
+    expect(attrs["gen_ai.response.finish_reasons"]).toEqual(["end_turn"]);
   });
 });
 
