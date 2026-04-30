@@ -1,0 +1,127 @@
+version: 2
+
+updates:
+  # ── npm (root + every package, examples, tests via workspace discovery) ──
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+      timezone: "Etc/UTC"
+    open-pull-requests-limit: 10
+    labels:
+      - "dependencies"
+      - "javascript"
+    commit-message:
+      prefix: "chore(deps)"
+      include: "scope"
+    groups:
+      # `applies-to: all` (default-ish) covers BOTH scheduled version updates
+      # AND security-alert PRs — so security fixes get rolled up along the
+      # same boundaries as routine bumps. One PR per group, not one per alert.
+
+      # OTel moves as a fleet — keep all @opentelemetry/* in one PR.
+      otel:
+        applies-to: version-updates
+        patterns:
+          - "@opentelemetry/*"
+      otel-security:
+        applies-to: security-updates
+        patterns:
+          - "@opentelemetry/*"
+
+      # AI provider SDKs + pi-mono peers travel together, often in lockstep.
+      ai-providers:
+        applies-to: version-updates
+        patterns:
+          - "@anthropic-ai/*"
+          - "@ai-sdk/*"
+          - "@mariozechner/*"
+          - "@openai/*"
+          - "ai"
+          - "openai"
+      ai-providers-security:
+        applies-to: security-updates
+        patterns:
+          - "@anthropic-ai/*"
+          - "@ai-sdk/*"
+          - "@mariozechner/*"
+          - "@openai/*"
+          - "ai"
+          - "openai"
+
+      # Mastra ecosystem.
+      mastra:
+        applies-to: version-updates
+        patterns:
+          - "@mastra/*"
+      mastra-security:
+        applies-to: security-updates
+        patterns:
+          - "@mastra/*"
+
+      # TypeScript / test toolchain.
+      typescript-tooling:
+        applies-to: version-updates
+        patterns:
+          - "typescript"
+          - "tsx"
+          - "vitest"
+          - "@types/*"
+          - "eslint"
+          - "@typescript-eslint/*"
+          - "prettier"
+      typescript-tooling-security:
+        applies-to: security-updates
+        patterns:
+          - "typescript"
+          - "tsx"
+          - "vitest"
+          - "@types/*"
+          - "eslint"
+          - "@typescript-eslint/*"
+          - "prettier"
+
+      # Observability backends used by the example dual-export tests.
+      observability-vendors:
+        applies-to: version-updates
+        patterns:
+          - "@arizeai/*"
+          - "@pollyjs/*"
+          - "braintrust"
+          - "langsmith"
+          - "@langchain/*"
+      observability-vendors-security:
+        applies-to: security-updates
+        patterns:
+          - "@arizeai/*"
+          - "@pollyjs/*"
+          - "braintrust"
+          - "langsmith"
+          - "@langchain/*"
+
+      # Catch-all for any security alert not matching a more specific group —
+      # rolls up everything else (transitive deps, langchain peers, etc.) into
+      # one PR rather than one-PR-per-alert.
+      security-rollup:
+        applies-to: security-updates
+        patterns:
+          - "*"
+    ignore:
+      # Major bumps still produce alerts — but don't auto-PR; require a human.
+      - dependency-name: "*"
+        update-types:
+          - "version-update:semver-major"
+
+  # ── GitHub Actions (used by ci.yml / publish.yml / release-tag.yml) ──
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "monthly"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "github-actions"
+    commit-message:
+      prefix: "chore(actions)"

@@ -1,0 +1,50 @@
+name: Dependabot auto-merge
+
+# Auto-merges Dependabot PRs once required CI checks pass.
+# Only patch + minor bumps are auto-merged — majors stay open for review.
+#
+# Repo default workflow permissions are `read`, so we declare the writes we
+# actually need at the job scope rather than flipping the repo default.
+
+on:
+  pull_request_target:
+    branches: [main]
+
+concurrency:
+  group: dependabot-automerge-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
+jobs:
+  auto-merge:
+    name: Enable auto-merge
+    if: github.actor == 'dependabot[bot]' && github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # allows the auto-merge to land the squash commit
+      pull-requests: write # allows enabling auto-merge + commenting
+    steps:
+      - name: Get Dependabot metadata
+        id: meta
+        uses: dependabot/fetch-metadata@v2
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Auto-merge patch + minor
+        if: steps.meta.outputs.update-type != 'version-update:semver-major'
+        env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "Update type: ${{ steps.meta.outputs.update-type }}"
+          echo "Dependency: ${{ steps.meta.outputs.dependency-names }}"
+          gh pr merge --auto --squash "${PR_URL}"
+
+      - name: Comment on major bumps
+        if: steps.meta.outputs.update-type == 'version-update:semver-major'
+        env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh pr comment "${PR_URL}" --body \
+            "Major version bump for **${{ steps.meta.outputs.dependency-names }}**.\
+            Auto-merge skipped — please review release notes and merge manually."
