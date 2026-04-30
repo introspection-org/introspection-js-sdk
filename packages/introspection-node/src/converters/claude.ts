@@ -12,8 +12,8 @@ import type {
   ReasoningPart,
   GenAiAttributes,
   ToolDefinition,
-} from "../types/genai.js";
-import { toAttributes } from "../types/genai.js";
+} from "@introspection-sdk/types";
+import { toAttributes } from "@introspection-sdk/types";
 
 /** A plain-text content block from the Claude API. */
 export interface ClaudeTextBlock {

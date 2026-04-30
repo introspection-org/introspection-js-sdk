@@ -14,7 +14,7 @@ import type {
   ReasoningPart,
   ToolDefinition,
   SystemInstruction,
-} from "../types/genai.js";
+} from "@introspection-sdk/types";
 
 /** Re-export OpenAI types used by callers (e.g. tracing-processor). */
 export type ResponseInputItem = Responses.ResponseInputItem;

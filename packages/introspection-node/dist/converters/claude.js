@@ -4,7 +4,7 @@
  * These functions convert Claude Agent SDK message formats to the standardized
  * OTel Gen AI Semantic Convention format for gen_ai.input.messages and gen_ai.output.messages.
  */
-import { toAttributes } from "../types/genai.js";
+import { toAttributes } from "@introspection-sdk/types";
 /**
  * Convert a user prompt string to OTel Gen AI input message format.
  *

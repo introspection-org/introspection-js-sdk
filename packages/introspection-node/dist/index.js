@@ -28,7 +28,7 @@ export { IntrospectionTracingProcessor } from "./tracing-processor.js";
 export { IntrospectionClaudeHooks } from "./claude-hooks.js";
 // Claude Agent SDK wrapper exports
 export { withIntrospection } from "./claude-wrapper.js";
-export { toAttributes } from "./types/genai.js";
+export { toAttributes } from "@introspection-sdk/types";
 // OpenAI converter exports
 export { convertResponsesInputsToSemconv, convertResponsesOutputsToSemconv, convertResponsesToolsToSemconv, convertResponsesInstructionsToSemconv, } from "./converters/openai.js";
 // AI SDK integration exports (for Vercel AI SDK)

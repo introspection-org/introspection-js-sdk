@@ -14,7 +14,7 @@ import type {
   SystemInstruction,
   ToolDefinition,
   MessagePart,
-} from "../types/genai.js";
+} from "@introspection-sdk/types";
 
 // ---------------------------------------------------------------------------
 // Local types — minimal shapes matching AI SDK data structures.

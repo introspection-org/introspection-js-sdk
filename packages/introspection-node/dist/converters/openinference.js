@@ -1,4 +1,4 @@
-import { toAttributes } from "../types/genai.js";
+import { toAttributes } from "@introspection-sdk/types";
 const OI = {
     MODEL_NAME: "llm.model_name",
     SYSTEM: "llm.system",

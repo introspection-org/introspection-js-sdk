@@ -4,7 +4,7 @@
  * These functions convert Claude Agent SDK message formats to the standardized
  * OTel Gen AI Semantic Convention format for gen_ai.input.messages and gen_ai.output.messages.
  */
-import type { InputMessage, OutputMessage, GenAiAttributes } from "../types/genai.js";
+import type { InputMessage, OutputMessage, GenAiAttributes } from "@introspection-sdk/types";
 /** A plain-text content block from the Claude API. */
 export interface ClaudeTextBlock {
     type: "text";

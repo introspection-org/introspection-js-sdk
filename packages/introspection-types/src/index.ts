@@ -5,6 +5,8 @@
 
 import type { SpanExporter } from "@opentelemetry/sdk-trace-base";
 
+export * from "./genai.js";
+
 /**
  * Advanced options for configuration and testing.
  *

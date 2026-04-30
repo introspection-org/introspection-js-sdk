@@ -2,6 +2,7 @@
  * Shared types for the Introspection SDK.
  * Used by both browser and Node.js packages.
  */
+export * from "./genai.js";
 /**
  * Generate a unique event ID.
  *

@@ -6,7 +6,7 @@
  * and gen_ai.output.messages attributes.
  */
 import type { Responses } from "openai/resources/responses/responses";
-import type { InputMessage, OutputMessage, ToolDefinition, SystemInstruction } from "../types/genai.js";
+import type { InputMessage, OutputMessage, ToolDefinition, SystemInstruction } from "@introspection-sdk/types";
 /** Re-export OpenAI types used by callers (e.g. tracing-processor). */
 export type ResponseInputItem = Responses.ResponseInputItem;
 export type ResponseOutputItem = Responses.ResponseOutputItem;

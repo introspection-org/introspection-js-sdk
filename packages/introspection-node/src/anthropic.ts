@@ -22,7 +22,7 @@ import type {
   OutputMessage,
   MessagePart,
   ReasoningPart,
-} from "./types/genai.js";
+} from "@introspection-sdk/types";
 
 import { trace, SpanKind, SpanStatusCode } from "@opentelemetry/api";
 import type { Tracer, Span } from "@opentelemetry/api";

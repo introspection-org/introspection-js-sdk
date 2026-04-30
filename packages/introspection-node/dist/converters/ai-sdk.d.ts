@@ -7,7 +7,7 @@
  *
  * Used by {@link IntrospectionAISDKIntegration}.
  */
-import type { InputMessage, OutputMessage, SystemInstruction, ToolDefinition } from "../types/genai.js";
+import type { InputMessage, OutputMessage, SystemInstruction, ToolDefinition } from "@introspection-sdk/types";
 /**
  * Convert AI SDK messages (ModelMessage[]) to gen_ai InputMessage[].
  * System messages are excluded — they're handled separately via

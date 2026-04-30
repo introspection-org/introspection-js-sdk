@@ -1,6 +1,6 @@
 import type { Attributes } from "@opentelemetry/api";
 import type { ReadableSpan, SpanExporter } from "@opentelemetry/sdk-trace-base";
-import type { GenAiAttributes } from "../types/genai.js";
+import type { GenAiAttributes } from "@introspection-sdk/types";
 /**
  * Check whether an OTel scope name belongs to an OpenInference instrumentor.
  *

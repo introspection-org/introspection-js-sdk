@@ -1,0 +1,145 @@
+/**
+ * Subscribe to a pi-agent {@link Agent} to emit `execute_tool` spans for every
+ * tool call the loop runs.
+ */
+
+import {
+  context as otelContext,
+  SpanKind,
+  SpanStatusCode,
+  trace,
+  type Context as OtelContext,
+  type Span,
+  type Tracer,
+} from "@opentelemetry/api";
+import type { Agent, AgentEvent } from "@mariozechner/pi-agent-core";
+import { GenAiSpanName } from "@introspection-sdk/types";
+import {
+  executeToolAttributes,
+  executeToolResultAttribute,
+  type AgentMeta,
+} from "./attributes.js";
+
+export interface InstrumentAgentOptions {
+  /** Tracer to start the execute_tool spans on. */
+  tracer: Tracer;
+  /** Required metadata stamped onto every execute_tool span. */
+  meta: AgentMeta;
+  /**
+   * Returns the parent OTel context for the next tool span. If undefined or
+   * returns null, `context.active()` is used at the time the start event fires.
+   */
+  getParentContext?: () => OtelContext | null | undefined;
+  /** Override the default span name builder. */
+  spanName?: (toolName: string) => string;
+}
+
+export interface AgentInstrumentation {
+  /** Stop subscribing and finalize any tool spans still open. */
+  stop: () => void;
+}
+
+/**
+ * Subscribe to {@link Agent.subscribe} and emit one `execute_tool ${name}`
+ * span per tool call. Returns a handle whose `stop()` unsubscribes and
+ * finalizes any still-open spans.
+ *
+ * Tool call IDs are assumed unique per agent run; concurrent tool execution
+ * (`ToolExecutionMode = "parallel"`) is supported because each id keys its
+ * own span entry.
+ */
+export function instrumentAgent(
+  agent: Agent,
+  opts: InstrumentAgentOptions,
+): AgentInstrumentation {
+  const buildSpanName = opts.spanName ?? GenAiSpanName.executeTool;
+  const activeSpans = new Map<string, Span>();
+
+  const unsubscribe = agent.subscribe((event) => {
+    handleEvent(event, opts, activeSpans, buildSpanName);
+  });
+
+  return {
+    stop: () => {
+      unsubscribe();
+      for (const span of activeSpans.values()) {
+        span.setStatus({ code: SpanStatusCode.OK });
+        span.end();
+      }
+      activeSpans.clear();
+    },
+  };
+}
+
+function handleEvent(
+  event: AgentEvent,
+  opts: InstrumentAgentOptions,
+  activeSpans: Map<string, Span>,
+  buildSpanName: (toolName: string) => string,
+): void {
+  switch (event.type) {
+    case "tool_execution_start": {
+      const parentContext = opts.getParentContext?.() ?? otelContext.active();
+
+      const span = opts.tracer.startSpan(
+        buildSpanName(event.toolName),
+        { kind: SpanKind.INTERNAL },
+        parentContext ?? undefined,
+      );
+      span.setAttributes(
+        executeToolAttributes(
+          event.toolName,
+          event.toolCallId,
+          event.args,
+          opts.meta,
+        ),
+      );
+
+      // Activate the tool span as the current OTel context for the duration
+      // of the tool execution. Pi runs tool execution in user code, so any
+      // child spans created inside the tool implementation should parent to
+      // this span automatically.
+      otelContext.with(
+        trace.setSpan(parentContext ?? otelContext.active(), span),
+        () => {},
+      );
+
+      activeSpans.set(event.toolCallId, span);
+      return;
+    }
+
+    case "tool_execution_end": {
+      const span = activeSpans.get(event.toolCallId);
+      if (!span) return;
+      activeSpans.delete(event.toolCallId);
+
+      span.setAttributes(executeToolResultAttribute(event.result));
+      if (event.isError) {
+        span.setStatus({
+          code: SpanStatusCode.ERROR,
+          message:
+            typeof event.result === "string"
+              ? event.result
+              : event.result !== undefined
+                ? safeStringify(event.result)
+                : undefined,
+        });
+      } else {
+        span.setStatus({ code: SpanStatusCode.OK });
+      }
+      span.end();
+      return;
+    }
+
+    default:
+      return;
+  }
+}
+
+function safeStringify(value: unknown): string {
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return String(value);
+  }
+}
