@@ -40,7 +40,7 @@
     "@opentelemetry/instrumentation": "^0.216.0",
     "@opentelemetry/semantic-conventions": "^1.40.0",
     "braintrust": "^2.2.0",
-    "langsmith": "^0.4.12",
+    "langsmith": "^0.5.19",
     "openai": "^6.29.0"
   },
   "devDependencies": {
