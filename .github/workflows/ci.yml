@@ -14,7 +14,7 @@ jobs:
       contents: read
       pull-requests: read
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
       - uses: gitleaks/gitleaks-action@v2
@@ -26,7 +26,7 @@ jobs:
     name: Lint GitHub Actions
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: Run actionlint
         uses: raven-actions/actionlint@v2
 
@@ -34,7 +34,7 @@ jobs:
     name: Lint & Type Check
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Install pnpm
         uses: pnpm/action-setup@v4
@@ -63,7 +63,7 @@ jobs:
     runs-on: ubuntu-latest
     environment: test
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           submodules: true
 
@@ -105,7 +105,7 @@ jobs:
           owner: introspection-org
           repositories: introspection-js-sdk
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 2
           token: ${{ steps.app-token.outputs.token }}
