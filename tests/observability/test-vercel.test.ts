@@ -87,6 +87,16 @@ describe("Vercel AI SDK Dual Exporter Tests", () => {
       normalize: true,
     });
 
+    // Normalize the AI SDK version baked into `ai.request.headers.user-agent`
+    // so a Vercel AI SDK dep bump (e.g. ai/6.0.116 → ai/6.0.170) doesn't break
+    // the snapshot. The version string carries no semantic value to this test.
+    for (const span of simplified) {
+      const ua = span.attributes["ai.request.headers.user-agent"];
+      if (typeof ua === "string" && /^ai\/\d/.test(ua)) {
+        span.attributes["ai.request.headers.user-agent"] = "<user_agent>";
+      }
+    }
+
     // The LLM span (chat) has full gen_ai.* attributes from the PR branch
     const chatSpan = simplified.find(
       (s) => s.attributes["gen_ai.operation.name"] === "chat",
@@ -104,7 +114,7 @@ describe("Vercel AI SDK Dual Exporter Tests", () => {
           "ai.model.provider": "openai.responses",
           "ai.operationId": "ai.generateText.doGenerate",
           "ai.prompt.messages": "[{"role":"user","content":[{"type":"text","text":"What is the weather in Boston?"}]}]",
-          "ai.request.headers.user-agent": "ai/6.0.116",
+          "ai.request.headers.user-agent": "<user_agent>",
           "ai.response.finishReason": "stop",
           "ai.response.id": "<response_id>",
           "ai.response.model": "<response_model>",
