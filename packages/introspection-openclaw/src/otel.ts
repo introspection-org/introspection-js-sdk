@@ -1,3 +1,4 @@
+import type { Tracer } from "@opentelemetry/api";
 import {
   BasicTracerProvider,
   BatchSpanProcessor,
@@ -35,7 +36,7 @@ export function initializeOtel(config: OtelConfig): BasicTracerProvider {
   return provider;
 }
 
-export function getTracer() {
+export function getTracer(): Tracer {
   if (!provider) {
     throw new Error("openclaw-introspection: OTEL not initialized");
   }
