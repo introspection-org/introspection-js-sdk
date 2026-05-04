@@ -43,13 +43,13 @@ importers:
         version: link:../packages/introspection-pi
       '@mastra/braintrust':
         specifier: ^1.0.2
-        version: 1.0.2(@aws-sdk/credential-provider-web-identity@3.972.37)(@mastra/core@1.13.2(@cfworker/json-schema@4.1.1)(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(quansync@0.2.11)(typebox@1.1.35)(zod-to-json-schema@3.25.2(zod@4.4.1))(zod@4.4.1))(@standard-community/standard-openapi@0.2.9(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(quansync@0.2.11)(typebox@1.1.35)(zod-to-json-schema@3.25.2(zod@4.4.1))(zod@4.4.1))(@standard-schema/spec@1.1.0)(openapi-types@12.1.3)(typebox@1.1.35)(zod@4.4.1))(@types/json-schema@7.0.15)(openapi-types@12.1.3)(zod@4.4.1))(zod@4.4.1)
+        version: 1.0.2(@aws-sdk/credential-provider-web-identity@3.972.37)(@mastra/core@1.13.2(@cfworker/json-schema@4.1.1)(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(quansync@0.2.11)(typebox@1.1.35)(zod-to-json-schema@3.25.2(zod@4.4.2))(zod@4.4.2))(@standard-community/standard-openapi@0.2.9(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(quansync@0.2.11)(typebox@1.1.35)(zod-to-json-schema@3.25.2(zod@4.4.2))(zod@4.4.2))(@standard-schema/spec@1.1.0)(openapi-types@12.1.3)(typebox@1.1.35)(zod@4.4.2))(@types/json-schema@7.0.15)(openapi-types@12.1.3)(zod@4.4.2))(zod@4.4.2)
       '@mastra/observability':
         specifier: ^1.5.0
-        version: 1.5.0(@mastra/core@1.13.2(@cfworker/json-schema@4.1.1)(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(quansync@0.2.11)(typebox@1.1.35)(zod-to-json-schema@3.25.2(zod@4.4.1))(zod@4.4.1))(@standard-community/standard-openapi@0.2.9(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(quansync@0.2.11)(typebox@1.1.35)(zod-to-json-schema@3.25.2(zod@4.4.1))(zod@4.4.1))(@standard-schema/spec@1.1.0)(openapi-types@12.1.3)(typebox@1.1.35)(zod@4.4.1))(@types/json-schema@7.0.15)(openapi-types@12.1.3)(zod@4.4.1))
+        version: 1.5.0(@mastra/core@1.13.2(@cfworker/json-schema@4.1.1)(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(quansync@0.2.11)(typebox@1.1.35)(zod-to-json-schema@3.25.2(zod@4.4.2))(zod@4.4.2))(@standard-community/standard-openapi@0.2.9(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(quansync@0.2.11)(typebox@1.1.35)(zod-to-json-schema@3.25.2(zod@4.4.2))(zod@4.4.2))(@standard-schema/spec@1.1.0)(openapi-types@12.1.3)(typebox@1.1.35)(zod@4.4.2))(@types/json-schema@7.0.15)(openapi-types@12.1.3)(zod@4.4.2))
       '@mastra/otel-exporter':
         specifier: ^1.0.7
-        version: 1.0.7(@mastra/core@1.13.2(@cfworker/json-schema@4.1.1)(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(quansync@0.2.11)(typebox@1.1.35)(zod-to-json-schema@3.25.2(zod@4.4.1))(zod@4.4.1))(@standard-community/standard-openapi@0.2.9(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(quansync@0.2.11)(typebox@1.1.35)(zod-to-json-schema@3.25.2(zod@4.4.1))(zod@4.4.1))(@standard-schema/spec@1.1.0)(openapi-types@12.1.3)(typebox@1.1.35)(zod@4.4.1))(@types/json-schema@7.0.15)(openapi-types@12.1.3)(zod@4.4.1))
+        version: 1.0.7(@mastra/core@1.13.2(@cfworker/json-schema@4.1.1)(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(quansync@0.2.11)(typebox@1.1.35)(zod-to-json-schema@3.25.2(zod@4.4.2))(zod@4.4.2))(@standard-community/standard-openapi@0.2.9(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(quansync@0.2.11)(typebox@1.1.35)(zod-to-json-schema@3.25.2(zod@4.4.2))(zod@4.4.2))(@standard-schema/spec@1.1.0)(openapi-types@12.1.3)(typebox@1.1.35)(zod@4.4.2))(@types/json-schema@7.0.15)(openapi-types@12.1.3)(zod@4.4.2))
       '@opentelemetry/instrumentation':
         specifier: ^0.216.0
         version: 0.216.0(@opentelemetry/api@1.9.1)
@@ -58,29 +58,29 @@ importers:
         version: 1.40.0
       braintrust:
         specifier: ^2.2.0
-        version: 2.2.0(@aws-sdk/credential-provider-web-identity@3.972.37)(zod@4.4.1)
+        version: 2.2.0(@aws-sdk/credential-provider-web-identity@3.972.37)(zod@4.4.2)
       langsmith:
         specifier: ^0.5.19
-        version: 0.5.19(@opentelemetry/api@1.9.1)(@opentelemetry/exporter-trace-otlp-proto@0.216.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.7.1(@opentelemetry/api@1.9.1))(openai@6.29.0(ws@8.19.0)(zod@4.4.1))(ws@8.19.0)
+        version: 0.5.19(@opentelemetry/api@1.9.1)(@opentelemetry/exporter-trace-otlp-proto@0.216.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.7.1(@opentelemetry/api@1.9.1))(openai@6.29.0(ws@8.19.0)(zod@4.4.2))(ws@8.19.0)
       openai:
         specifier: ^6.29.0
-        version: 6.29.0(ws@8.19.0)(zod@4.4.1)
+        version: 6.29.0(ws@8.19.0)(zod@4.4.2)
     optionalDependencies:
       '@ai-sdk/anthropic':
         specifier: ^3.0.64
-        version: 3.0.64(zod@4.4.1)
+        version: 3.0.64(zod@4.4.2)
       '@ai-sdk/openai':
         specifier: ^3.0.0
-        version: 3.0.41(zod@4.4.1)
+        version: 3.0.41(zod@4.4.2)
       '@anthropic-ai/claude-agent-sdk':
         specifier: ^0.2.76
-        version: 0.2.76(zod@4.4.1)
+        version: 0.2.76(zod@4.4.2)
       '@anthropic-ai/sdk':
         specifier: ^0.91.1
-        version: 0.91.1(zod@4.4.1)
+        version: 0.91.1(zod@4.4.2)
       '@arizeai/openinference-instrumentation-langchain':
         specifier: ^4.0.0
-        version: 4.0.6(@langchain/core@1.1.32(@opentelemetry/api@1.9.1)(@opentelemetry/exporter-trace-otlp-proto@0.216.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.7.1(@opentelemetry/api@1.9.1))(openai@6.29.0(ws@8.19.0)(zod@4.4.1))(ws@8.19.0))
+        version: 4.0.6(@langchain/core@1.1.32(@opentelemetry/api@1.9.1)(@opentelemetry/exporter-trace-otlp-proto@0.216.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.7.1(@opentelemetry/api@1.9.1))(openai@6.29.0(ws@8.19.0)(zod@4.4.2))(ws@8.19.0))
       '@arizeai/openinference-instrumentation-openai':
         specifier: ^4.0.0
         version: 4.0.5
@@ -92,22 +92,22 @@ importers:
         version: 1.14.3
       '@langchain/core':
         specifier: ^1.0.0
-        version: 1.1.32(@opentelemetry/api@1.9.1)(@opentelemetry/exporter-trace-otlp-proto@0.216.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.7.1(@opentelemetry/api@1.9.1))(openai@6.29.0(ws@8.19.0)(zod@4.4.1))(ws@8.19.0)
+        version: 1.1.32(@opentelemetry/api@1.9.1)(@opentelemetry/exporter-trace-otlp-proto@0.216.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.7.1(@opentelemetry/api@1.9.1))(openai@6.29.0(ws@8.19.0)(zod@4.4.2))(ws@8.19.0)
       '@langchain/openai':
         specifier: ^1.0.0
-        version: 1.2.13(@langchain/core@1.1.32(@opentelemetry/api@1.9.1)(@opentelemetry/exporter-trace-otlp-proto@0.216.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.7.1(@opentelemetry/api@1.9.1))(openai@6.29.0(ws@8.19.0)(zod@4.4.1))(ws@8.19.0))(ws@8.19.0)
+        version: 1.2.13(@langchain/core@1.1.32(@opentelemetry/api@1.9.1)(@opentelemetry/exporter-trace-otlp-proto@0.216.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.7.1(@opentelemetry/api@1.9.1))(openai@6.29.0(ws@8.19.0)(zod@4.4.2))(ws@8.19.0))(ws@8.19.0)
       '@mariozechner/pi-agent-core':
         specifier: ^0.70.6
-        version: 0.70.6(@modelcontextprotocol/sdk@1.27.1(@cfworker/json-schema@4.1.1)(zod@4.4.1))(ws@8.19.0)(zod@4.4.1)
+        version: 0.70.6(@modelcontextprotocol/sdk@1.27.1(@cfworker/json-schema@4.1.1)(zod@4.4.2))(ws@8.19.0)(zod@4.4.2)
       '@mariozechner/pi-ai':
         specifier: ^0.70.6
-        version: 0.70.6(@modelcontextprotocol/sdk@1.27.1(@cfworker/json-schema@4.1.1)(zod@4.4.1))(ws@8.19.0)(zod@4.4.1)
+        version: 0.70.6(@modelcontextprotocol/sdk@1.27.1(@cfworker/json-schema@4.1.1)(zod@4.4.2))(ws@8.19.0)(zod@4.4.2)
       '@mastra/core':
         specifier: ^1.13.2
-        version: 1.13.2(@cfworker/json-schema@4.1.1)(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(quansync@0.2.11)(typebox@1.1.35)(zod-to-json-schema@3.25.2(zod@4.4.1))(zod@4.4.1))(@standard-community/standard-openapi@0.2.9(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(quansync@0.2.11)(typebox@1.1.35)(zod-to-json-schema@3.25.2(zod@4.4.1))(zod@4.4.1))(@standard-schema/spec@1.1.0)(openapi-types@12.1.3)(typebox@1.1.35)(zod@4.4.1))(@types/json-schema@7.0.15)(openapi-types@12.1.3)(zod@4.4.1)
+        version: 1.13.2(@cfworker/json-schema@4.1.1)(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(quansync@0.2.11)(typebox@1.1.35)(zod-to-json-schema@3.25.2(zod@4.4.2))(zod@4.4.2))(@standard-community/standard-openapi@0.2.9(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(quansync@0.2.11)(typebox@1.1.35)(zod-to-json-schema@3.25.2(zod@4.4.2))(zod@4.4.2))(@standard-schema/spec@1.1.0)(openapi-types@12.1.3)(typebox@1.1.35)(zod@4.4.2))(@types/json-schema@7.0.15)(openapi-types@12.1.3)(zod@4.4.2)
       '@openai/agents':
         specifier: ^0.7.2
-        version: 0.7.2(@cfworker/json-schema@4.1.1)(ws@8.19.0)(zod@4.4.1)
+        version: 0.7.2(@cfworker/json-schema@4.1.1)(ws@8.19.0)(zod@4.4.2)
       '@opentelemetry/api':
         specifier: ^1.9.1
         version: 1.9.1
@@ -128,10 +128,10 @@ importers:
         version: 0.14.0(@opentelemetry/api-logs@0.216.0)(@opentelemetry/api@1.9.1)(@opentelemetry/auto-instrumentations-node@0.68.0(@opentelemetry/api@1.9.1)(@opentelemetry/core@2.7.1(@opentelemetry/api@1.9.1)))(@opentelemetry/context-async-hooks@2.7.1(@opentelemetry/api@1.9.1))(@opentelemetry/core@2.7.1(@opentelemetry/api@1.9.1))(@opentelemetry/exporter-logs-otlp-proto@0.216.0(@opentelemetry/api@1.9.1))(@opentelemetry/exporter-metrics-otlp-proto@0.210.0(@opentelemetry/api@1.9.1))(@opentelemetry/exporter-trace-otlp-proto@0.216.0(@opentelemetry/api@1.9.1))(@opentelemetry/instrumentation@0.216.0(@opentelemetry/api@1.9.1))(@opentelemetry/resources@2.7.1(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-logs@0.216.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-metrics@2.7.1(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-node@0.210.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.7.1(@opentelemetry/api@1.9.1))(@opentelemetry/semantic-conventions@1.40.0)
       ai:
         specifier: ^6.0.69
-        version: 6.0.116(zod@4.4.1)
+        version: 6.0.116(zod@4.4.2)
       zod:
-        specifier: ^4.4.1
-        version: 4.4.1
+        specifier: ^4.4.2
+        version: 4.4.2
     devDependencies:
       '@opentelemetry/exporter-trace-otlp-proto':
         specifier: ^0.216.0
@@ -223,7 +223,7 @@ importers:
     dependencies:
       '@anthropic-ai/claude-agent-sdk':
         specifier: '>=0.2.0'
-        version: 0.2.31(zod@4.4.1)
+        version: 0.2.31(zod@4.4.2)
       '@introspection-sdk/types':
         specifier: workspace:*
         version: link:../introspection-types
@@ -256,20 +256,20 @@ importers:
         version: 1.40.0
       ai:
         specifier: '>=4.0.0'
-        version: 6.0.116(zod@4.4.1)
+        version: 6.0.116(zod@4.4.2)
     devDependencies:
       '@langchain/core':
         specifier: ^1.0.0
-        version: 1.1.32(@opentelemetry/api@1.9.1)(@opentelemetry/exporter-trace-otlp-proto@0.216.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.7.1(@opentelemetry/api@1.9.1))(openai@6.29.0(ws@8.19.0)(zod@4.4.1))(ws@8.19.0)
+        version: 1.1.32(@opentelemetry/api@1.9.1)(@opentelemetry/exporter-trace-otlp-proto@0.216.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.7.1(@opentelemetry/api@1.9.1))(openai@6.29.0(ws@8.19.0)(zod@4.4.2))(ws@8.19.0)
       '@mastra/core':
         specifier: ^1.13.2
-        version: 1.13.2(@cfworker/json-schema@4.1.1)(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(quansync@0.2.11)(typebox@1.1.35)(zod-to-json-schema@3.25.2(zod@4.4.1))(zod@4.4.1))(@standard-community/standard-openapi@0.2.9(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(quansync@0.2.11)(typebox@1.1.35)(zod-to-json-schema@3.25.2(zod@4.4.1))(zod@4.4.1))(@standard-schema/spec@1.1.0)(openapi-types@12.1.3)(typebox@1.1.35)(zod@4.4.1))(@types/json-schema@7.0.15)(openapi-types@12.1.3)(zod@4.4.1)
+        version: 1.13.2(@cfworker/json-schema@4.1.1)(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(quansync@0.2.11)(typebox@1.1.35)(zod-to-json-schema@3.25.2(zod@4.4.2))(zod@4.4.2))(@standard-community/standard-openapi@0.2.9(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(quansync@0.2.11)(typebox@1.1.35)(zod-to-json-schema@3.25.2(zod@4.4.2))(zod@4.4.2))(@standard-schema/spec@1.1.0)(openapi-types@12.1.3)(typebox@1.1.35)(zod@4.4.2))(@types/json-schema@7.0.15)(openapi-types@12.1.3)(zod@4.4.2)
       '@mastra/observability':
         specifier: ^1.5.0
-        version: 1.5.0(@mastra/core@1.13.2(@cfworker/json-schema@4.1.1)(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(quansync@0.2.11)(typebox@1.1.35)(zod-to-json-schema@3.25.2(zod@4.4.1))(zod@4.4.1))(@standard-community/standard-openapi@0.2.9(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(quansync@0.2.11)(typebox@1.1.35)(zod-to-json-schema@3.25.2(zod@4.4.1))(zod@4.4.1))(@standard-schema/spec@1.1.0)(openapi-types@12.1.3)(typebox@1.1.35)(zod@4.4.1))(@types/json-schema@7.0.15)(openapi-types@12.1.3)(zod@4.4.1))
+        version: 1.5.0(@mastra/core@1.13.2(@cfworker/json-schema@4.1.1)(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(quansync@0.2.11)(typebox@1.1.35)(zod-to-json-schema@3.25.2(zod@4.4.2))(zod@4.4.2))(@standard-community/standard-openapi@0.2.9(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(quansync@0.2.11)(typebox@1.1.35)(zod-to-json-schema@3.25.2(zod@4.4.2))(zod@4.4.2))(@standard-schema/spec@1.1.0)(openapi-types@12.1.3)(typebox@1.1.35)(zod@4.4.2))(@types/json-schema@7.0.15)(openapi-types@12.1.3)(zod@4.4.2))
       '@openai/agents':
         specifier: ^0.7.2
-        version: 0.7.2(@cfworker/json-schema@4.1.1)(ws@8.19.0)(zod@4.4.1)
+        version: 0.7.2(@cfworker/json-schema@4.1.1)(ws@8.19.0)(zod@4.4.2)
       '@repo/eslint-config':
         specifier: workspace:*
         version: link:../eslint-config
@@ -284,7 +284,7 @@ importers:
         version: 9.39.1
       openai:
         specifier: ^6.29.0
-        version: 6.29.0(ws@8.19.0)(zod@4.4.1)
+        version: 6.29.0(ws@8.19.0)(zod@4.4.2)
       typescript:
         specifier: 5.9.3
         version: 5.9.3
@@ -331,10 +331,10 @@ importers:
     devDependencies:
       '@mariozechner/pi-agent-core':
         specifier: ^0.70.6
-        version: 0.70.6(@modelcontextprotocol/sdk@1.27.1(@cfworker/json-schema@4.1.1)(zod@4.4.1))(ws@8.19.0)(zod@4.4.1)
+        version: 0.70.6(@modelcontextprotocol/sdk@1.27.1(@cfworker/json-schema@4.1.1)(zod@4.4.2))(ws@8.19.0)(zod@4.4.2)
       '@mariozechner/pi-ai':
         specifier: ^0.70.6
-        version: 0.70.6(@modelcontextprotocol/sdk@1.27.1(@cfworker/json-schema@4.1.1)(zod@4.4.1))(ws@8.19.0)(zod@4.4.1)
+        version: 0.70.6(@modelcontextprotocol/sdk@1.27.1(@cfworker/json-schema@4.1.1)(zod@4.4.2))(ws@8.19.0)(zod@4.4.2)
       '@repo/eslint-config':
         specifier: workspace:*
         version: link:../eslint-config
@@ -376,16 +376,16 @@ importers:
     optionalDependencies:
       '@ai-sdk/openai':
         specifier: ^3.0.0
-        version: 3.0.41(zod@4.4.1)
+        version: 3.0.41(zod@4.4.2)
       '@anthropic-ai/claude-agent-sdk':
         specifier: ^0.2.76
-        version: 0.2.76(zod@4.4.1)
+        version: 0.2.76(zod@4.4.2)
       '@anthropic-ai/sdk':
         specifier: ^0.91.1
-        version: 0.91.1(zod@4.4.1)
+        version: 0.91.1(zod@4.4.2)
       '@arizeai/openinference-instrumentation-langchain':
         specifier: ^4.0.0
-        version: 4.0.6(@langchain/core@1.1.32(@opentelemetry/api@1.9.1)(@opentelemetry/exporter-trace-otlp-proto@0.216.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.7.1(@opentelemetry/api@1.9.1))(openai@6.29.0(ws@8.19.0)(zod@4.4.1))(ws@8.19.0))
+        version: 4.0.6(@langchain/core@1.1.32(@opentelemetry/api@1.9.1)(@opentelemetry/exporter-trace-otlp-proto@0.216.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.7.1(@opentelemetry/api@1.9.1))(openai@6.29.0(ws@8.19.0)(zod@4.4.2))(ws@8.19.0))
       '@arizeai/openinference-instrumentation-openai':
         specifier: ^4.0.0
         version: 4.0.5
@@ -394,32 +394,32 @@ importers:
         version: 2.5.5(@opentelemetry/api@1.9.1)
       '@langchain/core':
         specifier: ^1.0.0
-        version: 1.1.32(@opentelemetry/api@1.9.1)(@opentelemetry/exporter-trace-otlp-proto@0.216.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.7.1(@opentelemetry/api@1.9.1))(openai@6.29.0(ws@8.19.0)(zod@4.4.1))(ws@8.19.0)
+        version: 1.1.32(@opentelemetry/api@1.9.1)(@opentelemetry/exporter-trace-otlp-proto@0.216.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.7.1(@opentelemetry/api@1.9.1))(openai@6.29.0(ws@8.19.0)(zod@4.4.2))(ws@8.19.0)
       '@langchain/openai':
         specifier: ^1.0.0
-        version: 1.2.13(@langchain/core@1.1.32(@opentelemetry/api@1.9.1)(@opentelemetry/exporter-trace-otlp-proto@0.216.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.7.1(@opentelemetry/api@1.9.1))(openai@6.29.0(ws@8.19.0)(zod@4.4.1))(ws@8.19.0))(ws@8.19.0)
+        version: 1.2.13(@langchain/core@1.1.32(@opentelemetry/api@1.9.1)(@opentelemetry/exporter-trace-otlp-proto@0.216.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.7.1(@opentelemetry/api@1.9.1))(openai@6.29.0(ws@8.19.0)(zod@4.4.2))(ws@8.19.0))(ws@8.19.0)
       '@mariozechner/pi-agent-core':
         specifier: ^0.70.6
-        version: 0.70.6(@modelcontextprotocol/sdk@1.27.1(@cfworker/json-schema@4.1.1)(zod@4.4.1))(ws@8.19.0)(zod@4.4.1)
+        version: 0.70.6(@modelcontextprotocol/sdk@1.27.1(@cfworker/json-schema@4.1.1)(zod@4.4.2))(ws@8.19.0)(zod@4.4.2)
       '@mariozechner/pi-ai':
         specifier: ^0.70.6
-        version: 0.70.6(@modelcontextprotocol/sdk@1.27.1(@cfworker/json-schema@4.1.1)(zod@4.4.1))(ws@8.19.0)(zod@4.4.1)
+        version: 0.70.6(@modelcontextprotocol/sdk@1.27.1(@cfworker/json-schema@4.1.1)(zod@4.4.2))(ws@8.19.0)(zod@4.4.2)
       '@mastra/core':
         specifier: ^1.13.2
-        version: 1.13.2(@cfworker/json-schema@4.1.1)(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(quansync@0.2.11)(typebox@1.1.35)(zod-to-json-schema@3.25.2(zod@4.4.1))(zod@4.4.1))(@standard-community/standard-openapi@0.2.9(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(quansync@0.2.11)(typebox@1.1.35)(zod-to-json-schema@3.25.2(zod@4.4.1))(zod@4.4.1))(@standard-schema/spec@1.1.0)(openapi-types@12.1.3)(typebox@1.1.35)(zod@4.4.1))(@types/json-schema@7.0.15)(openapi-types@12.1.3)(zod@4.4.1)
+        version: 1.13.2(@cfworker/json-schema@4.1.1)(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(quansync@0.2.11)(typebox@1.1.35)(zod-to-json-schema@3.25.2(zod@4.4.2))(zod@4.4.2))(@standard-community/standard-openapi@0.2.9(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(quansync@0.2.11)(typebox@1.1.35)(zod-to-json-schema@3.25.2(zod@4.4.2))(zod@4.4.2))(@standard-schema/spec@1.1.0)(openapi-types@12.1.3)(typebox@1.1.35)(zod@4.4.2))(@types/json-schema@7.0.15)(openapi-types@12.1.3)(zod@4.4.2)
       '@mastra/observability':
         specifier: ^1.5.0
-        version: 1.5.0(@mastra/core@1.13.2(@cfworker/json-schema@4.1.1)(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(quansync@0.2.11)(typebox@1.1.35)(zod-to-json-schema@3.25.2(zod@4.4.1))(zod@4.4.1))(@standard-community/standard-openapi@0.2.9(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(quansync@0.2.11)(typebox@1.1.35)(zod-to-json-schema@3.25.2(zod@4.4.1))(zod@4.4.1))(@standard-schema/spec@1.1.0)(openapi-types@12.1.3)(typebox@1.1.35)(zod@4.4.1))(@types/json-schema@7.0.15)(openapi-types@12.1.3)(zod@4.4.1))
+        version: 1.5.0(@mastra/core@1.13.2(@cfworker/json-schema@4.1.1)(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(quansync@0.2.11)(typebox@1.1.35)(zod-to-json-schema@3.25.2(zod@4.4.2))(zod@4.4.2))(@standard-community/standard-openapi@0.2.9(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(quansync@0.2.11)(typebox@1.1.35)(zod-to-json-schema@3.25.2(zod@4.4.2))(zod@4.4.2))(@standard-schema/spec@1.1.0)(openapi-types@12.1.3)(typebox@1.1.35)(zod@4.4.2))(@types/json-schema@7.0.15)(openapi-types@12.1.3)(zod@4.4.2))
       '@mastra/otel-exporter':
         specifier: ^1.0.7
-        version: 1.0.7(@mastra/core@1.13.2(@cfworker/json-schema@4.1.1)(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(quansync@0.2.11)(typebox@1.1.35)(zod-to-json-schema@3.25.2(zod@4.4.1))(zod@4.4.1))(@standard-community/standard-openapi@0.2.9(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(quansync@0.2.11)(typebox@1.1.35)(zod-to-json-schema@3.25.2(zod@4.4.1))(zod@4.4.1))(@standard-schema/spec@1.1.0)(openapi-types@12.1.3)(typebox@1.1.35)(zod@4.4.1))(@types/json-schema@7.0.15)(openapi-types@12.1.3)(zod@4.4.1))
+        version: 1.0.7(@mastra/core@1.13.2(@cfworker/json-schema@4.1.1)(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(quansync@0.2.11)(typebox@1.1.35)(zod-to-json-schema@3.25.2(zod@4.4.2))(zod@4.4.2))(@standard-community/standard-openapi@0.2.9(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(quansync@0.2.11)(typebox@1.1.35)(zod-to-json-schema@3.25.2(zod@4.4.2))(zod@4.4.2))(@standard-schema/spec@1.1.0)(openapi-types@12.1.3)(typebox@1.1.35)(zod@4.4.2))(@types/json-schema@7.0.15)(openapi-types@12.1.3)(zod@4.4.2))
       ai:
         specifier: ^6.0.0
-        version: 6.0.116(zod@4.4.1)
+        version: 6.0.116(zod@4.4.2)
     devDependencies:
       '@openai/agents':
         specifier: ^0.7.2
-        version: 0.7.2(@cfworker/json-schema@4.1.1)(ws@8.19.0)(zod@4.4.1)
+        version: 0.7.2(@cfworker/json-schema@4.1.1)(ws@8.19.0)(zod@4.4.2)
       '@opentelemetry/api':
         specifier: ^1.9.1
         version: 1.9.1
@@ -464,16 +464,16 @@ importers:
         version: 16.6.1
       openai:
         specifier: ^6.29.0
-        version: 6.29.0(ws@8.19.0)(zod@4.4.1)
+        version: 6.29.0(ws@8.19.0)(zod@4.4.2)
       typescript:
         specifier: ^5.9.3
         version: 5.9.3
       vitest:
         specifier: ^4.1.0
-        version: 4.1.0(@opentelemetry/api@1.9.1)(@types/node@22.15.3)(vite@7.3.1(@types/node@22.15.3)(tsx@4.21.0)(yaml@2.8.3))
+        version: 4.1.0(@opentelemetry/api@1.9.1)(@types/node@22.15.3)(vite@7.3.1(@types/node@22.15.3)(tsx@4.21.0)(yaml@2.8.4))
       zod:
-        specifier: ^4.4.1
-        version: 4.4.1
+        specifier: ^4.4.2
+        version: 4.4.2
 
 packages:
 
@@ -2520,6 +2520,7 @@ packages:
   '@smithy/util-retry@4.3.6':
     resolution: {integrity: sha512-p6/FO1n2KxMeQyna067i0uJ6TSbb165ZhnRtCpWh4Foxqbfc6oW+XITaL8QkFJj3KFnDe2URt4gOhgU06EP9ew==}
     engines: {node: '>=18.0.0'}
+    deprecated: '@smithy/util-retry v4.3.6 contains a bug in Adaptive Retry, see https://github.com/smithy-lang/smithy-typescript/issues/1993. Upgrade to 4.3.7+'
 
   '@smithy/util-stream@4.5.25':
     resolution: {integrity: sha512-/PFpG4k8Ze8Ei+mMKj3oiPICYekthuzePZMgZbCqMiXIHHf4n2aZ4Ps0aSRShycFTGuj/J6XldmC0x0DwednIA==}
@@ -5245,8 +5246,8 @@ packages:
     engines: {node: '>= 14.6'}
     hasBin: true
 
-  yaml@2.8.3:
-    resolution: {integrity: sha512-AvbaCLOO2Otw/lW5bmh9d/WEdcDFdQp2Z2ZUH3pX9U2ihyUY0nvLv7J6TrWowklRGPYbB/IuIMfYgxaCPg5Bpg==}
+  yaml@2.8.4:
+    resolution: {integrity: sha512-ml/JPOj9fOQK8RNnWojA67GbZ0ApXAUlN2UQclwv2eVgTgn7O9gg9o7paZWKMp4g0H3nTLtS9LVzhkpOFIKzog==}
     engines: {node: '>= 14.6'}
     hasBin: true
 
@@ -5285,8 +5286,8 @@ packages:
   zod@3.25.76:
     resolution: {integrity: sha512-gzUt/qt81nXsFGKIFcC3YnfEAx5NkunCfnDlvuBSSFS02bcXu4Lmea0AFIUwbLWxWPx3d9p8S5QoaujKcNQxcQ==}
 
-  zod@4.4.1:
-    resolution: {integrity: sha512-a6ENMBBGZBsnlSebQ/eKCguSBeGKSf4O7BPnqVPmYGtpBYI7VSqoVqw+QcB7kPRjbqPwhYTpFbVj/RqNz/CT0Q==}
+  zod@4.4.2:
+    resolution: {integrity: sha512-IynmDyxsEsb9RKzO3J9+4SxXnl2FTFSzNBaKKaMV6tsSk0rw9gYw9gs+JFCq/qk2LCZ78KDwyj+Z289TijSkUw==}
 
 snapshots:
 
@@ -5301,61 +5302,61 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  '@ai-sdk/anthropic@3.0.64(zod@4.4.1)':
+  '@ai-sdk/anthropic@3.0.64(zod@4.4.2)':
     dependencies:
       '@ai-sdk/provider': 3.0.8
-      '@ai-sdk/provider-utils': 4.0.21(zod@4.4.1)
-      zod: 4.4.1
+      '@ai-sdk/provider-utils': 4.0.21(zod@4.4.2)
+      zod: 4.4.2
     optional: true
 
-  '@ai-sdk/gateway@3.0.66(zod@4.4.1)':
+  '@ai-sdk/gateway@3.0.66(zod@4.4.2)':
     dependencies:
       '@ai-sdk/provider': 3.0.8
-      '@ai-sdk/provider-utils': 4.0.19(zod@4.4.1)
+      '@ai-sdk/provider-utils': 4.0.19(zod@4.4.2)
       '@vercel/oidc': 3.1.0
-      zod: 4.4.1
+      zod: 4.4.2
 
-  '@ai-sdk/openai@3.0.41(zod@4.4.1)':
+  '@ai-sdk/openai@3.0.41(zod@4.4.2)':
     dependencies:
       '@ai-sdk/provider': 3.0.8
-      '@ai-sdk/provider-utils': 4.0.19(zod@4.4.1)
-      zod: 4.4.1
+      '@ai-sdk/provider-utils': 4.0.19(zod@4.4.2)
+      zod: 4.4.2
     optional: true
 
-  '@ai-sdk/provider-utils@2.2.8(zod@4.4.1)':
+  '@ai-sdk/provider-utils@2.2.8(zod@4.4.2)':
     dependencies:
       '@ai-sdk/provider': 1.1.3
       nanoid: 3.3.12
       secure-json-parse: 2.7.0
-      zod: 4.4.1
+      zod: 4.4.2
 
-  '@ai-sdk/provider-utils@3.0.20(zod@4.4.1)':
+  '@ai-sdk/provider-utils@3.0.20(zod@4.4.2)':
     dependencies:
       '@ai-sdk/provider': 2.0.1
       '@standard-schema/spec': 1.1.0
       eventsource-parser: 3.0.8
-      zod: 4.4.1
+      zod: 4.4.2
 
-  '@ai-sdk/provider-utils@4.0.0(zod@4.4.1)':
+  '@ai-sdk/provider-utils@4.0.0(zod@4.4.2)':
     dependencies:
       '@ai-sdk/provider': 3.0.0
       '@standard-schema/spec': 1.1.0
       eventsource-parser: 3.0.8
-      zod: 4.4.1
+      zod: 4.4.2
 
-  '@ai-sdk/provider-utils@4.0.19(zod@4.4.1)':
+  '@ai-sdk/provider-utils@4.0.19(zod@4.4.2)':
     dependencies:
       '@ai-sdk/provider': 3.0.8
       '@standard-schema/spec': 1.1.0
       eventsource-parser: 3.0.6
-      zod: 4.4.1
+      zod: 4.4.2
 
-  '@ai-sdk/provider-utils@4.0.21(zod@4.4.1)':
+  '@ai-sdk/provider-utils@4.0.21(zod@4.4.2)':
     dependencies:
       '@ai-sdk/provider': 3.0.8
       '@standard-schema/spec': 1.1.0
       eventsource-parser: 3.0.6
-      zod: 4.4.1
+      zod: 4.4.2
     optional: true
 
   '@ai-sdk/provider@1.1.3':
@@ -5378,16 +5379,16 @@ snapshots:
     dependencies:
       json-schema: 0.4.0
 
-  '@ai-sdk/ui-utils@1.2.11(zod@4.4.1)':
+  '@ai-sdk/ui-utils@1.2.11(zod@4.4.2)':
     dependencies:
       '@ai-sdk/provider': 1.1.3
-      '@ai-sdk/provider-utils': 2.2.8(zod@4.4.1)
-      zod: 4.4.1
-      zod-to-json-schema: 3.25.2(zod@4.4.1)
+      '@ai-sdk/provider-utils': 2.2.8(zod@4.4.2)
+      zod: 4.4.2
+      zod-to-json-schema: 3.25.2(zod@4.4.2)
 
-  '@anthropic-ai/claude-agent-sdk@0.2.31(zod@4.4.1)':
+  '@anthropic-ai/claude-agent-sdk@0.2.31(zod@4.4.2)':
     dependencies:
-      zod: 4.4.1
+      zod: 4.4.2
     optionalDependencies:
       '@img/sharp-darwin-arm64': 0.33.5
       '@img/sharp-darwin-x64': 0.33.5
@@ -5398,9 +5399,9 @@ snapshots:
       '@img/sharp-linuxmusl-x64': 0.33.5
       '@img/sharp-win32-x64': 0.33.5
 
-  '@anthropic-ai/claude-agent-sdk@0.2.76(zod@4.4.1)':
+  '@anthropic-ai/claude-agent-sdk@0.2.76(zod@4.4.2)':
     dependencies:
-      zod: 4.4.1
+      zod: 4.4.2
     optionalDependencies:
       '@img/sharp-darwin-arm64': 0.34.5
       '@img/sharp-darwin-x64': 0.34.5
@@ -5413,17 +5414,17 @@ snapshots:
       '@img/sharp-win32-x64': 0.34.5
     optional: true
 
-  '@anthropic-ai/sdk@0.90.0(zod@4.4.1)':
+  '@anthropic-ai/sdk@0.90.0(zod@4.4.2)':
     dependencies:
       json-schema-to-ts: 3.1.1
     optionalDependencies:
-      zod: 4.4.1
+      zod: 4.4.2
 
-  '@anthropic-ai/sdk@0.91.1(zod@4.4.1)':
+  '@anthropic-ai/sdk@0.91.1(zod@4.4.2)':
     dependencies:
       json-schema-to-ts: 3.1.1
     optionalDependencies:
-      zod: 4.4.1
+      zod: 4.4.2
     optional: true
 
   '@arizeai/openinference-core@2.0.5':
@@ -5433,11 +5434,11 @@ snapshots:
       '@opentelemetry/core': 1.30.1(@opentelemetry/api@1.9.1)
     optional: true
 
-  '@arizeai/openinference-instrumentation-langchain@4.0.6(@langchain/core@1.1.32(@opentelemetry/api@1.9.1)(@opentelemetry/exporter-trace-otlp-proto@0.216.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.7.1(@opentelemetry/api@1.9.1))(openai@6.29.0(ws@8.19.0)(zod@4.4.1))(ws@8.19.0))':
+  '@arizeai/openinference-instrumentation-langchain@4.0.6(@langchain/core@1.1.32(@opentelemetry/api@1.9.1)(@opentelemetry/exporter-trace-otlp-proto@0.216.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.7.1(@opentelemetry/api@1.9.1))(openai@6.29.0(ws@8.19.0)(zod@4.4.2))(ws@8.19.0))':
     dependencies:
       '@arizeai/openinference-core': 2.0.5
       '@arizeai/openinference-semantic-conventions': 2.1.7
-      '@langchain/core': 1.1.32(@opentelemetry/api@1.9.1)(@opentelemetry/exporter-trace-otlp-proto@0.216.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.7.1(@opentelemetry/api@1.9.1))(openai@6.29.0(ws@8.19.0)(zod@4.4.1))(ws@8.19.0)
+      '@langchain/core': 1.1.32(@opentelemetry/api@1.9.1)(@opentelemetry/exporter-trace-otlp-proto@0.216.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.7.1(@opentelemetry/api@1.9.1))(openai@6.29.0(ws@8.19.0)(zod@4.4.2))(ws@8.19.0)
       '@opentelemetry/api': 1.9.1
       '@opentelemetry/core': 1.30.1(@opentelemetry/api@1.9.1)
       '@opentelemetry/instrumentation': 0.46.0(@opentelemetry/api@1.9.1)
@@ -6091,14 +6092,14 @@ snapshots:
       '@eslint/core': 0.17.0
       levn: 0.4.1
 
-  '@google/genai@1.51.0(@modelcontextprotocol/sdk@1.27.1(@cfworker/json-schema@4.1.1)(zod@4.4.1))':
+  '@google/genai@1.51.0(@modelcontextprotocol/sdk@1.27.1(@cfworker/json-schema@4.1.1)(zod@4.4.2))':
     dependencies:
       google-auth-library: 10.6.2
       p-retry: 4.6.2
       protobufjs: 7.5.4
       ws: 8.19.0
     optionalDependencies:
-      '@modelcontextprotocol/sdk': 1.27.1(@cfworker/json-schema@4.1.1)(zod@4.4.1)
+      '@modelcontextprotocol/sdk': 1.27.1(@cfworker/json-schema@4.1.1)(zod@4.4.2)
     transitivePeerDependencies:
       - bufferutil
       - supports-color
@@ -6269,7 +6270,7 @@ snapshots:
 
   '@kwsites/promise-deferred@1.1.1': {}
 
-  '@langchain/core@1.1.32(@opentelemetry/api@1.9.1)(@opentelemetry/exporter-trace-otlp-proto@0.216.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.7.1(@opentelemetry/api@1.9.1))(openai@6.29.0(ws@8.19.0)(zod@4.4.1))(ws@8.19.0)':
+  '@langchain/core@1.1.32(@opentelemetry/api@1.9.1)(@opentelemetry/exporter-trace-otlp-proto@0.216.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.7.1(@opentelemetry/api@1.9.1))(openai@6.29.0(ws@8.19.0)(zod@4.4.2))(ws@8.19.0)':
     dependencies:
       '@cfworker/json-schema': 4.1.1
       '@standard-schema/spec': 1.1.0
@@ -6277,11 +6278,11 @@ snapshots:
       camelcase: 6.3.0
       decamelize: 1.2.0
       js-tiktoken: 1.0.21
-      langsmith: 0.5.19(@opentelemetry/api@1.9.1)(@opentelemetry/exporter-trace-otlp-proto@0.216.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.7.1(@opentelemetry/api@1.9.1))(openai@6.29.0(ws@8.19.0)(zod@4.4.1))(ws@8.19.0)
+      langsmith: 0.5.19(@opentelemetry/api@1.9.1)(@opentelemetry/exporter-trace-otlp-proto@0.216.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.7.1(@opentelemetry/api@1.9.1))(openai@6.29.0(ws@8.19.0)(zod@4.4.2))(ws@8.19.0)
       mustache: 4.2.0
       p-queue: 6.6.2
       uuid: 11.1.0
-      zod: 4.4.1
+      zod: 4.4.2
     transitivePeerDependencies:
       - '@opentelemetry/api'
       - '@opentelemetry/exporter-trace-otlp-proto'
@@ -6289,12 +6290,12 @@ snapshots:
       - openai
       - ws
 
-  '@langchain/openai@1.2.13(@langchain/core@1.1.32(@opentelemetry/api@1.9.1)(@opentelemetry/exporter-trace-otlp-proto@0.216.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.7.1(@opentelemetry/api@1.9.1))(openai@6.29.0(ws@8.19.0)(zod@4.4.1))(ws@8.19.0))(ws@8.19.0)':
+  '@langchain/openai@1.2.13(@langchain/core@1.1.32(@opentelemetry/api@1.9.1)(@opentelemetry/exporter-trace-otlp-proto@0.216.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.7.1(@opentelemetry/api@1.9.1))(openai@6.29.0(ws@8.19.0)(zod@4.4.2))(ws@8.19.0))(ws@8.19.0)':
     dependencies:
-      '@langchain/core': 1.1.32(@opentelemetry/api@1.9.1)(@opentelemetry/exporter-trace-otlp-proto@0.216.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.7.1(@opentelemetry/api@1.9.1))(openai@6.29.0(ws@8.19.0)(zod@4.4.1))(ws@8.19.0)
+      '@langchain/core': 1.1.32(@opentelemetry/api@1.9.1)(@opentelemetry/exporter-trace-otlp-proto@0.216.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.7.1(@opentelemetry/api@1.9.1))(openai@6.29.0(ws@8.19.0)(zod@4.4.2))(ws@8.19.0)
       js-tiktoken: 1.0.21
-      openai: 6.29.0(ws@8.19.0)(zod@4.4.1)
-      zod: 4.4.1
+      openai: 6.29.0(ws@8.19.0)(zod@4.4.2)
+      zod: 4.4.2
     transitivePeerDependencies:
       - ws
     optional: true
@@ -6305,9 +6306,9 @@ snapshots:
     dependencies:
       '@lukeed/csprng': 1.1.0
 
-  '@mariozechner/pi-agent-core@0.70.6(@modelcontextprotocol/sdk@1.27.1(@cfworker/json-schema@4.1.1)(zod@4.4.1))(ws@8.19.0)(zod@4.4.1)':
+  '@mariozechner/pi-agent-core@0.70.6(@modelcontextprotocol/sdk@1.27.1(@cfworker/json-schema@4.1.1)(zod@4.4.2))(ws@8.19.0)(zod@4.4.2)':
     dependencies:
-      '@mariozechner/pi-ai': 0.70.6(@modelcontextprotocol/sdk@1.27.1(@cfworker/json-schema@4.1.1)(zod@4.4.1))(ws@8.19.0)(zod@4.4.1)
+      '@mariozechner/pi-ai': 0.70.6(@modelcontextprotocol/sdk@1.27.1(@cfworker/json-schema@4.1.1)(zod@4.4.2))(ws@8.19.0)(zod@4.4.2)
       typebox: 1.1.35
     transitivePeerDependencies:
       - '@modelcontextprotocol/sdk'
@@ -6318,19 +6319,19 @@ snapshots:
       - ws
       - zod
 
-  '@mariozechner/pi-ai@0.70.6(@modelcontextprotocol/sdk@1.27.1(@cfworker/json-schema@4.1.1)(zod@4.4.1))(ws@8.19.0)(zod@4.4.1)':
+  '@mariozechner/pi-ai@0.70.6(@modelcontextprotocol/sdk@1.27.1(@cfworker/json-schema@4.1.1)(zod@4.4.2))(ws@8.19.0)(zod@4.4.2)':
     dependencies:
-      '@anthropic-ai/sdk': 0.90.0(zod@4.4.1)
+      '@anthropic-ai/sdk': 0.90.0(zod@4.4.2)
       '@aws-sdk/client-bedrock-runtime': 3.1039.0
-      '@google/genai': 1.51.0(@modelcontextprotocol/sdk@1.27.1(@cfworker/json-schema@4.1.1)(zod@4.4.1))
+      '@google/genai': 1.51.0(@modelcontextprotocol/sdk@1.27.1(@cfworker/json-schema@4.1.1)(zod@4.4.2))
       '@mistralai/mistralai': 2.2.1
       chalk: 5.6.2
-      openai: 6.26.0(ws@8.19.0)(zod@4.4.1)
+      openai: 6.26.0(ws@8.19.0)(zod@4.4.2)
       partial-json: 0.1.7
       proxy-agent: 6.5.0
       typebox: 1.1.35
       undici: 7.25.0
-      zod-to-json-schema: 3.25.1(zod@4.4.1)
+      zod-to-json-schema: 3.25.1(zod@4.4.2)
     transitivePeerDependencies:
       - '@modelcontextprotocol/sdk'
       - aws-crt
@@ -6340,29 +6341,29 @@ snapshots:
       - ws
       - zod
 
-  '@mastra/braintrust@1.0.2(@aws-sdk/credential-provider-web-identity@3.972.37)(@mastra/core@1.13.2(@cfworker/json-schema@4.1.1)(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(quansync@0.2.11)(typebox@1.1.35)(zod-to-json-schema@3.25.2(zod@4.4.1))(zod@4.4.1))(@standard-community/standard-openapi@0.2.9(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(quansync@0.2.11)(typebox@1.1.35)(zod-to-json-schema@3.25.2(zod@4.4.1))(zod@4.4.1))(@standard-schema/spec@1.1.0)(openapi-types@12.1.3)(typebox@1.1.35)(zod@4.4.1))(@types/json-schema@7.0.15)(openapi-types@12.1.3)(zod@4.4.1))(zod@4.4.1)':
+  '@mastra/braintrust@1.0.2(@aws-sdk/credential-provider-web-identity@3.972.37)(@mastra/core@1.13.2(@cfworker/json-schema@4.1.1)(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(quansync@0.2.11)(typebox@1.1.35)(zod-to-json-schema@3.25.2(zod@4.4.2))(zod@4.4.2))(@standard-community/standard-openapi@0.2.9(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(quansync@0.2.11)(typebox@1.1.35)(zod-to-json-schema@3.25.2(zod@4.4.2))(zod@4.4.2))(@standard-schema/spec@1.1.0)(openapi-types@12.1.3)(typebox@1.1.35)(zod@4.4.2))(@types/json-schema@7.0.15)(openapi-types@12.1.3)(zod@4.4.2))(zod@4.4.2)':
     dependencies:
-      '@mastra/core': 1.13.2(@cfworker/json-schema@4.1.1)(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(quansync@0.2.11)(typebox@1.1.35)(zod-to-json-schema@3.25.2(zod@4.4.1))(zod@4.4.1))(@standard-community/standard-openapi@0.2.9(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(quansync@0.2.11)(typebox@1.1.35)(zod-to-json-schema@3.25.2(zod@4.4.1))(zod@4.4.1))(@standard-schema/spec@1.1.0)(openapi-types@12.1.3)(typebox@1.1.35)(zod@4.4.1))(@types/json-schema@7.0.15)(openapi-types@12.1.3)(zod@4.4.1)
-      '@mastra/observability': 1.2.0(@mastra/core@1.13.2(@cfworker/json-schema@4.1.1)(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(quansync@0.2.11)(typebox@1.1.35)(zod-to-json-schema@3.25.2(zod@4.4.1))(zod@4.4.1))(@standard-community/standard-openapi@0.2.9(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(quansync@0.2.11)(typebox@1.1.35)(zod-to-json-schema@3.25.2(zod@4.4.1))(zod@4.4.1))(@standard-schema/spec@1.1.0)(openapi-types@12.1.3)(typebox@1.1.35)(zod@4.4.1))(@types/json-schema@7.0.15)(openapi-types@12.1.3)(zod@4.4.1))
-      braintrust: 1.1.1(@aws-sdk/credential-provider-web-identity@3.972.37)(zod@4.4.1)
+      '@mastra/core': 1.13.2(@cfworker/json-schema@4.1.1)(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(quansync@0.2.11)(typebox@1.1.35)(zod-to-json-schema@3.25.2(zod@4.4.2))(zod@4.4.2))(@standard-community/standard-openapi@0.2.9(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(quansync@0.2.11)(typebox@1.1.35)(zod-to-json-schema@3.25.2(zod@4.4.2))(zod@4.4.2))(@standard-schema/spec@1.1.0)(openapi-types@12.1.3)(typebox@1.1.35)(zod@4.4.2))(@types/json-schema@7.0.15)(openapi-types@12.1.3)(zod@4.4.2)
+      '@mastra/observability': 1.2.0(@mastra/core@1.13.2(@cfworker/json-schema@4.1.1)(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(quansync@0.2.11)(typebox@1.1.35)(zod-to-json-schema@3.25.2(zod@4.4.2))(zod@4.4.2))(@standard-community/standard-openapi@0.2.9(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(quansync@0.2.11)(typebox@1.1.35)(zod-to-json-schema@3.25.2(zod@4.4.2))(zod@4.4.2))(@standard-schema/spec@1.1.0)(openapi-types@12.1.3)(typebox@1.1.35)(zod@4.4.2))(@types/json-schema@7.0.15)(openapi-types@12.1.3)(zod@4.4.2))
+      braintrust: 1.1.1(@aws-sdk/credential-provider-web-identity@3.972.37)(zod@4.4.2)
     transitivePeerDependencies:
       - '@aws-sdk/credential-provider-web-identity'
       - chokidar
       - supports-color
       - zod
 
-  '@mastra/core@1.13.2(@cfworker/json-schema@4.1.1)(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(quansync@0.2.11)(typebox@1.1.35)(zod-to-json-schema@3.25.2(zod@4.4.1))(zod@4.4.1))(@standard-community/standard-openapi@0.2.9(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(quansync@0.2.11)(typebox@1.1.35)(zod-to-json-schema@3.25.2(zod@4.4.1))(zod@4.4.1))(@standard-schema/spec@1.1.0)(openapi-types@12.1.3)(typebox@1.1.35)(zod@4.4.1))(@types/json-schema@7.0.15)(openapi-types@12.1.3)(zod@4.4.1)':
+  '@mastra/core@1.13.2(@cfworker/json-schema@4.1.1)(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(quansync@0.2.11)(typebox@1.1.35)(zod-to-json-schema@3.25.2(zod@4.4.2))(zod@4.4.2))(@standard-community/standard-openapi@0.2.9(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(quansync@0.2.11)(typebox@1.1.35)(zod-to-json-schema@3.25.2(zod@4.4.2))(zod@4.4.2))(@standard-schema/spec@1.1.0)(openapi-types@12.1.3)(typebox@1.1.35)(zod@4.4.2))(@types/json-schema@7.0.15)(openapi-types@12.1.3)(zod@4.4.2)':
     dependencies:
       '@a2a-js/sdk': 0.2.5
-      '@ai-sdk/provider-utils-v5': '@ai-sdk/provider-utils@3.0.20(zod@4.4.1)'
-      '@ai-sdk/provider-utils-v6': '@ai-sdk/provider-utils@4.0.0(zod@4.4.1)'
+      '@ai-sdk/provider-utils-v5': '@ai-sdk/provider-utils@3.0.20(zod@4.4.2)'
+      '@ai-sdk/provider-utils-v6': '@ai-sdk/provider-utils@4.0.0(zod@4.4.2)'
       '@ai-sdk/provider-v5': '@ai-sdk/provider@2.0.1'
       '@ai-sdk/provider-v6': '@ai-sdk/provider@3.0.5'
-      '@ai-sdk/ui-utils-v5': '@ai-sdk/ui-utils@1.2.11(zod@4.4.1)'
+      '@ai-sdk/ui-utils-v5': '@ai-sdk/ui-utils@1.2.11(zod@4.4.2)'
       '@isaacs/ttlcache': 2.1.4
       '@lukeed/uuid': 2.0.1
-      '@mastra/schema-compat': 1.2.4(zod@4.4.1)
-      '@modelcontextprotocol/sdk': 1.25.3(@cfworker/json-schema@4.1.1)(hono@4.12.8)(zod@4.4.1)
+      '@mastra/schema-compat': 1.2.4(zod@4.4.2)
+      '@modelcontextprotocol/sdk': 1.25.3(@cfworker/json-schema@4.1.1)(hono@4.12.8)(zod@4.4.2)
       '@sindresorhus/slugify': 2.2.1
       '@standard-schema/spec': 1.1.0
       ajv: 8.18.0
@@ -6370,7 +6371,7 @@ snapshots:
       execa: 9.6.1
       gray-matter: 4.0.3
       hono: 4.12.8
-      hono-openapi: 1.2.0(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(quansync@0.2.11)(typebox@1.1.35)(zod-to-json-schema@3.25.2(zod@4.4.1))(zod@4.4.1))(@standard-community/standard-openapi@0.2.9(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(quansync@0.2.11)(typebox@1.1.35)(zod-to-json-schema@3.25.2(zod@4.4.1))(zod@4.4.1))(@standard-schema/spec@1.1.0)(openapi-types@12.1.3)(typebox@1.1.35)(zod@4.4.1))(@types/json-schema@7.0.15)(hono@4.12.8)(openapi-types@12.1.3)
+      hono-openapi: 1.2.0(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(quansync@0.2.11)(typebox@1.1.35)(zod-to-json-schema@3.25.2(zod@4.4.2))(zod@4.4.2))(@standard-community/standard-openapi@0.2.9(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(quansync@0.2.11)(typebox@1.1.35)(zod-to-json-schema@3.25.2(zod@4.4.2))(zod@4.4.2))(@standard-schema/spec@1.1.0)(openapi-types@12.1.3)(typebox@1.1.35)(zod@4.4.2))(@types/json-schema@7.0.15)(hono@4.12.8)(openapi-types@12.1.3)
       ignore: 7.0.5
       js-tiktoken: 1.0.21
       json-schema: 0.4.0
@@ -6381,7 +6382,7 @@ snapshots:
       radash: 12.1.1
       ws: 8.19.0
       xxhash-wasm: 1.1.0
-      zod: 4.4.1
+      zod: 4.4.2
     transitivePeerDependencies:
       - '@cfworker/json-schema'
       - '@hono/standard-validator'
@@ -6393,18 +6394,18 @@ snapshots:
       - supports-color
       - utf-8-validate
 
-  '@mastra/observability@1.2.0(@mastra/core@1.13.2(@cfworker/json-schema@4.1.1)(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(quansync@0.2.11)(typebox@1.1.35)(zod-to-json-schema@3.25.2(zod@4.4.1))(zod@4.4.1))(@standard-community/standard-openapi@0.2.9(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(quansync@0.2.11)(typebox@1.1.35)(zod-to-json-schema@3.25.2(zod@4.4.1))(zod@4.4.1))(@standard-schema/spec@1.1.0)(openapi-types@12.1.3)(typebox@1.1.35)(zod@4.4.1))(@types/json-schema@7.0.15)(openapi-types@12.1.3)(zod@4.4.1))':
+  '@mastra/observability@1.2.0(@mastra/core@1.13.2(@cfworker/json-schema@4.1.1)(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(quansync@0.2.11)(typebox@1.1.35)(zod-to-json-schema@3.25.2(zod@4.4.2))(zod@4.4.2))(@standard-community/standard-openapi@0.2.9(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(quansync@0.2.11)(typebox@1.1.35)(zod-to-json-schema@3.25.2(zod@4.4.2))(zod@4.4.2))(@standard-schema/spec@1.1.0)(openapi-types@12.1.3)(typebox@1.1.35)(zod@4.4.2))(@types/json-schema@7.0.15)(openapi-types@12.1.3)(zod@4.4.2))':
     dependencies:
-      '@mastra/core': 1.13.2(@cfworker/json-schema@4.1.1)(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(quansync@0.2.11)(typebox@1.1.35)(zod-to-json-schema@3.25.2(zod@4.4.1))(zod@4.4.1))(@standard-community/standard-openapi@0.2.9(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(quansync@0.2.11)(typebox@1.1.35)(zod-to-json-schema@3.25.2(zod@4.4.1))(zod@4.4.1))(@standard-schema/spec@1.1.0)(openapi-types@12.1.3)(typebox@1.1.35)(zod@4.4.1))(@types/json-schema@7.0.15)(openapi-types@12.1.3)(zod@4.4.1)
+      '@mastra/core': 1.13.2(@cfworker/json-schema@4.1.1)(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(quansync@0.2.11)(typebox@1.1.35)(zod-to-json-schema@3.25.2(zod@4.4.2))(zod@4.4.2))(@standard-community/standard-openapi@0.2.9(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(quansync@0.2.11)(typebox@1.1.35)(zod-to-json-schema@3.25.2(zod@4.4.2))(zod@4.4.2))(@standard-schema/spec@1.1.0)(openapi-types@12.1.3)(typebox@1.1.35)(zod@4.4.2))(@types/json-schema@7.0.15)(openapi-types@12.1.3)(zod@4.4.2)
 
-  '@mastra/observability@1.5.0(@mastra/core@1.13.2(@cfworker/json-schema@4.1.1)(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(quansync@0.2.11)(typebox@1.1.35)(zod-to-json-schema@3.25.2(zod@4.4.1))(zod@4.4.1))(@standard-community/standard-openapi@0.2.9(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(quansync@0.2.11)(typebox@1.1.35)(zod-to-json-schema@3.25.2(zod@4.4.1))(zod@4.4.1))(@standard-schema/spec@1.1.0)(openapi-types@12.1.3)(typebox@1.1.35)(zod@4.4.1))(@types/json-schema@7.0.15)(openapi-types@12.1.3)(zod@4.4.1))':
+  '@mastra/observability@1.5.0(@mastra/core@1.13.2(@cfworker/json-schema@4.1.1)(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(quansync@0.2.11)(typebox@1.1.35)(zod-to-json-schema@3.25.2(zod@4.4.2))(zod@4.4.2))(@standard-community/standard-openapi@0.2.9(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(quansync@0.2.11)(typebox@1.1.35)(zod-to-json-schema@3.25.2(zod@4.4.2))(zod@4.4.2))(@standard-schema/spec@1.1.0)(openapi-types@12.1.3)(typebox@1.1.35)(zod@4.4.2))(@types/json-schema@7.0.15)(openapi-types@12.1.3)(zod@4.4.2))':
     dependencies:
-      '@mastra/core': 1.13.2(@cfworker/json-schema@4.1.1)(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(quansync@0.2.11)(typebox@1.1.35)(zod-to-json-schema@3.25.2(zod@4.4.1))(zod@4.4.1))(@standard-community/standard-openapi@0.2.9(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(quansync@0.2.11)(typebox@1.1.35)(zod-to-json-schema@3.25.2(zod@4.4.1))(zod@4.4.1))(@standard-schema/spec@1.1.0)(openapi-types@12.1.3)(typebox@1.1.35)(zod@4.4.1))(@types/json-schema@7.0.15)(openapi-types@12.1.3)(zod@4.4.1)
+      '@mastra/core': 1.13.2(@cfworker/json-schema@4.1.1)(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(quansync@0.2.11)(typebox@1.1.35)(zod-to-json-schema@3.25.2(zod@4.4.2))(zod@4.4.2))(@standard-community/standard-openapi@0.2.9(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(quansync@0.2.11)(typebox@1.1.35)(zod-to-json-schema@3.25.2(zod@4.4.2))(zod@4.4.2))(@standard-schema/spec@1.1.0)(openapi-types@12.1.3)(typebox@1.1.35)(zod@4.4.2))(@types/json-schema@7.0.15)(openapi-types@12.1.3)(zod@4.4.2)
 
-  '@mastra/otel-exporter@1.0.7(@mastra/core@1.13.2(@cfworker/json-schema@4.1.1)(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(quansync@0.2.11)(typebox@1.1.35)(zod-to-json-schema@3.25.2(zod@4.4.1))(zod@4.4.1))(@standard-community/standard-openapi@0.2.9(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(quansync@0.2.11)(typebox@1.1.35)(zod-to-json-schema@3.25.2(zod@4.4.1))(zod@4.4.1))(@standard-schema/spec@1.1.0)(openapi-types@12.1.3)(typebox@1.1.35)(zod@4.4.1))(@types/json-schema@7.0.15)(openapi-types@12.1.3)(zod@4.4.1))':
+  '@mastra/otel-exporter@1.0.7(@mastra/core@1.13.2(@cfworker/json-schema@4.1.1)(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(quansync@0.2.11)(typebox@1.1.35)(zod-to-json-schema@3.25.2(zod@4.4.2))(zod@4.4.2))(@standard-community/standard-openapi@0.2.9(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(quansync@0.2.11)(typebox@1.1.35)(zod-to-json-schema@3.25.2(zod@4.4.2))(zod@4.4.2))(@standard-schema/spec@1.1.0)(openapi-types@12.1.3)(typebox@1.1.35)(zod@4.4.2))(@types/json-schema@7.0.15)(openapi-types@12.1.3)(zod@4.4.2))':
     dependencies:
-      '@mastra/core': 1.13.2(@cfworker/json-schema@4.1.1)(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(quansync@0.2.11)(typebox@1.1.35)(zod-to-json-schema@3.25.2(zod@4.4.1))(zod@4.4.1))(@standard-community/standard-openapi@0.2.9(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(quansync@0.2.11)(typebox@1.1.35)(zod-to-json-schema@3.25.2(zod@4.4.1))(zod@4.4.1))(@standard-schema/spec@1.1.0)(openapi-types@12.1.3)(typebox@1.1.35)(zod@4.4.1))(@types/json-schema@7.0.15)(openapi-types@12.1.3)(zod@4.4.1)
-      '@mastra/observability': 1.5.0(@mastra/core@1.13.2(@cfworker/json-schema@4.1.1)(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(quansync@0.2.11)(typebox@1.1.35)(zod-to-json-schema@3.25.2(zod@4.4.1))(zod@4.4.1))(@standard-community/standard-openapi@0.2.9(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(quansync@0.2.11)(typebox@1.1.35)(zod-to-json-schema@3.25.2(zod@4.4.1))(zod@4.4.1))(@standard-schema/spec@1.1.0)(openapi-types@12.1.3)(typebox@1.1.35)(zod@4.4.1))(@types/json-schema@7.0.15)(openapi-types@12.1.3)(zod@4.4.1))
+      '@mastra/core': 1.13.2(@cfworker/json-schema@4.1.1)(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(quansync@0.2.11)(typebox@1.1.35)(zod-to-json-schema@3.25.2(zod@4.4.2))(zod@4.4.2))(@standard-community/standard-openapi@0.2.9(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(quansync@0.2.11)(typebox@1.1.35)(zod-to-json-schema@3.25.2(zod@4.4.2))(zod@4.4.2))(@standard-schema/spec@1.1.0)(openapi-types@12.1.3)(typebox@1.1.35)(zod@4.4.2))(@types/json-schema@7.0.15)(openapi-types@12.1.3)(zod@4.4.2)
+      '@mastra/observability': 1.5.0(@mastra/core@1.13.2(@cfworker/json-schema@4.1.1)(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(quansync@0.2.11)(typebox@1.1.35)(zod-to-json-schema@3.25.2(zod@4.4.2))(zod@4.4.2))(@standard-community/standard-openapi@0.2.9(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(quansync@0.2.11)(typebox@1.1.35)(zod-to-json-schema@3.25.2(zod@4.4.2))(zod@4.4.2))(@standard-schema/spec@1.1.0)(openapi-types@12.1.3)(typebox@1.1.35)(zod@4.4.2))(@types/json-schema@7.0.15)(openapi-types@12.1.3)(zod@4.4.2))
       '@opentelemetry/api': 1.9.1
       '@opentelemetry/core': 2.6.0(@opentelemetry/api@1.9.1)
       '@opentelemetry/resources': 2.7.1(@opentelemetry/api@1.9.1)
@@ -6418,24 +6419,24 @@ snapshots:
       '@opentelemetry/exporter-trace-otlp-proto': 0.205.0(@opentelemetry/api@1.9.1)
       '@opentelemetry/exporter-zipkin': 2.4.0(@opentelemetry/api@1.9.1)
 
-  '@mastra/schema-compat@1.2.4(zod@4.4.1)':
+  '@mastra/schema-compat@1.2.4(zod@4.4.2)':
     dependencies:
       json-schema-to-zod: 2.7.0
-      zod: 4.4.1
+      zod: 4.4.2
       zod-from-json-schema: 0.5.2
       zod-from-json-schema-v3: zod-from-json-schema@0.0.5
-      zod-to-json-schema: 3.25.1(zod@4.4.1)
+      zod-to-json-schema: 3.25.1(zod@4.4.2)
 
   '@mistralai/mistralai@2.2.1':
     dependencies:
       ws: 8.19.0
-      zod: 4.4.1
-      zod-to-json-schema: 3.25.1(zod@4.4.1)
+      zod: 4.4.2
+      zod-to-json-schema: 3.25.1(zod@4.4.2)
     transitivePeerDependencies:
       - bufferutil
       - utf-8-validate
 
-  '@modelcontextprotocol/sdk@1.25.3(@cfworker/json-schema@4.1.1)(hono@4.12.8)(zod@4.4.1)':
+  '@modelcontextprotocol/sdk@1.25.3(@cfworker/json-schema@4.1.1)(hono@4.12.8)(zod@4.4.2)':
     dependencies:
       '@hono/node-server': 1.19.9(hono@4.12.8)
       ajv: 8.18.0
@@ -6451,15 +6452,15 @@ snapshots:
       json-schema-typed: 8.0.2
       pkce-challenge: 5.0.1
       raw-body: 3.0.2
-      zod: 4.4.1
-      zod-to-json-schema: 3.25.1(zod@4.4.1)
+      zod: 4.4.2
+      zod-to-json-schema: 3.25.1(zod@4.4.2)
     optionalDependencies:
       '@cfworker/json-schema': 4.1.1
     transitivePeerDependencies:
       - hono
       - supports-color
 
-  '@modelcontextprotocol/sdk@1.27.1(@cfworker/json-schema@4.1.1)(zod@4.4.1)':
+  '@modelcontextprotocol/sdk@1.27.1(@cfworker/json-schema@4.1.1)(zod@4.4.2)':
     dependencies:
       '@hono/node-server': 1.19.9(hono@4.12.8)
       ajv: 8.18.0
@@ -6476,8 +6477,8 @@ snapshots:
       json-schema-typed: 8.0.2
       pkce-challenge: 5.0.1
       raw-body: 3.0.2
-      zod: 4.4.1
-      zod-to-json-schema: 3.25.2(zod@4.4.1)
+      zod: 4.4.2
+      zod-to-json-schema: 3.25.2(zod@4.4.2)
     optionalDependencies:
       '@cfworker/json-schema': 4.1.1
     transitivePeerDependencies:
@@ -6504,50 +6505,50 @@ snapshots:
       '@nodelib/fs.scandir': 2.1.5
       fastq: 1.20.1
 
-  '@openai/agents-core@0.7.2(@cfworker/json-schema@4.1.1)(ws@8.19.0)(zod@4.4.1)':
+  '@openai/agents-core@0.7.2(@cfworker/json-schema@4.1.1)(ws@8.19.0)(zod@4.4.2)':
     dependencies:
       debug: 4.4.3
-      openai: 6.29.0(ws@8.19.0)(zod@4.4.1)
+      openai: 6.29.0(ws@8.19.0)(zod@4.4.2)
     optionalDependencies:
-      '@modelcontextprotocol/sdk': 1.27.1(@cfworker/json-schema@4.1.1)(zod@4.4.1)
-      zod: 4.4.1
+      '@modelcontextprotocol/sdk': 1.27.1(@cfworker/json-schema@4.1.1)(zod@4.4.2)
+      zod: 4.4.2
     transitivePeerDependencies:
       - '@cfworker/json-schema'
       - supports-color
       - ws
 
-  '@openai/agents-openai@0.7.2(@cfworker/json-schema@4.1.1)(ws@8.19.0)(zod@4.4.1)':
+  '@openai/agents-openai@0.7.2(@cfworker/json-schema@4.1.1)(ws@8.19.0)(zod@4.4.2)':
     dependencies:
-      '@openai/agents-core': 0.7.2(@cfworker/json-schema@4.1.1)(ws@8.19.0)(zod@4.4.1)
+      '@openai/agents-core': 0.7.2(@cfworker/json-schema@4.1.1)(ws@8.19.0)(zod@4.4.2)
       debug: 4.4.3
-      openai: 6.29.0(ws@8.19.0)(zod@4.4.1)
-      zod: 4.4.1
+      openai: 6.29.0(ws@8.19.0)(zod@4.4.2)
+      zod: 4.4.2
     transitivePeerDependencies:
       - '@cfworker/json-schema'
       - supports-color
       - ws
 
-  '@openai/agents-realtime@0.7.2(@cfworker/json-schema@4.1.1)(zod@4.4.1)':
+  '@openai/agents-realtime@0.7.2(@cfworker/json-schema@4.1.1)(zod@4.4.2)':
     dependencies:
-      '@openai/agents-core': 0.7.2(@cfworker/json-schema@4.1.1)(ws@8.19.0)(zod@4.4.1)
+      '@openai/agents-core': 0.7.2(@cfworker/json-schema@4.1.1)(ws@8.19.0)(zod@4.4.2)
       '@types/ws': 8.18.1
       debug: 4.4.3
       ws: 8.19.0
-      zod: 4.4.1
+      zod: 4.4.2
     transitivePeerDependencies:
       - '@cfworker/json-schema'
       - bufferutil
       - supports-color
       - utf-8-validate
 
-  '@openai/agents@0.7.2(@cfworker/json-schema@4.1.1)(ws@8.19.0)(zod@4.4.1)':
+  '@openai/agents@0.7.2(@cfworker/json-schema@4.1.1)(ws@8.19.0)(zod@4.4.2)':
     dependencies:
-      '@openai/agents-core': 0.7.2(@cfworker/json-schema@4.1.1)(ws@8.19.0)(zod@4.4.1)
-      '@openai/agents-openai': 0.7.2(@cfworker/json-schema@4.1.1)(ws@8.19.0)(zod@4.4.1)
-      '@openai/agents-realtime': 0.7.2(@cfworker/json-schema@4.1.1)(zod@4.4.1)
+      '@openai/agents-core': 0.7.2(@cfworker/json-schema@4.1.1)(ws@8.19.0)(zod@4.4.2)
+      '@openai/agents-openai': 0.7.2(@cfworker/json-schema@4.1.1)(ws@8.19.0)(zod@4.4.2)
+      '@openai/agents-realtime': 0.7.2(@cfworker/json-schema@4.1.1)(zod@4.4.2)
       debug: 4.4.3
-      openai: 6.29.0(ws@8.19.0)(zod@4.4.1)
-      zod: 4.4.1
+      openai: 6.29.0(ws@8.19.0)(zod@4.4.2)
+      zod: 4.4.2
     transitivePeerDependencies:
       - '@cfworker/json-schema'
       - bufferutil
@@ -6635,7 +6636,7 @@ snapshots:
     dependencies:
       '@opentelemetry/api': 1.9.1
       '@opentelemetry/core': 2.4.0(@opentelemetry/api@1.9.1)
-      yaml: 2.8.3
+      yaml: 2.8.4
     optional: true
 
   '@opentelemetry/context-async-hooks@2.4.0(@opentelemetry/api@1.9.1)':
@@ -8068,24 +8069,24 @@ snapshots:
     dependencies:
       tslib: 2.8.1
 
-  '@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(quansync@0.2.11)(typebox@1.1.35)(zod-to-json-schema@3.25.2(zod@4.4.1))(zod@4.4.1)':
+  '@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(quansync@0.2.11)(typebox@1.1.35)(zod-to-json-schema@3.25.2(zod@4.4.2))(zod@4.4.2)':
     dependencies:
       '@standard-schema/spec': 1.1.0
       '@types/json-schema': 7.0.15
       quansync: 0.2.11
     optionalDependencies:
       typebox: 1.1.35
-      zod: 4.4.1
-      zod-to-json-schema: 3.25.2(zod@4.4.1)
+      zod: 4.4.2
+      zod-to-json-schema: 3.25.2(zod@4.4.2)
 
-  '@standard-community/standard-openapi@0.2.9(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(quansync@0.2.11)(typebox@1.1.35)(zod-to-json-schema@3.25.2(zod@4.4.1))(zod@4.4.1))(@standard-schema/spec@1.1.0)(openapi-types@12.1.3)(typebox@1.1.35)(zod@4.4.1)':
+  '@standard-community/standard-openapi@0.2.9(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(quansync@0.2.11)(typebox@1.1.35)(zod-to-json-schema@3.25.2(zod@4.4.2))(zod@4.4.2))(@standard-schema/spec@1.1.0)(openapi-types@12.1.3)(typebox@1.1.35)(zod@4.4.2)':
     dependencies:
-      '@standard-community/standard-json': 0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(quansync@0.2.11)(typebox@1.1.35)(zod-to-json-schema@3.25.2(zod@4.4.1))(zod@4.4.1)
+      '@standard-community/standard-json': 0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(quansync@0.2.11)(typebox@1.1.35)(zod-to-json-schema@3.25.2(zod@4.4.2))(zod@4.4.2)
       '@standard-schema/spec': 1.1.0
       openapi-types: 12.1.3
     optionalDependencies:
       typebox: 1.1.35
-      zod: 4.4.1
+      zod: 4.4.2
 
   '@standard-schema/spec@1.1.0': {}
 
@@ -8342,13 +8343,13 @@ snapshots:
       chai: 6.2.2
       tinyrainbow: 3.1.0
 
-  '@vitest/mocker@4.1.0(vite@7.3.1(@types/node@22.15.3)(tsx@4.21.0)(yaml@2.8.3))':
+  '@vitest/mocker@4.1.0(vite@7.3.1(@types/node@22.15.3)(tsx@4.21.0)(yaml@2.8.4))':
     dependencies:
       '@vitest/spy': 4.1.0
       estree-walker: 3.0.3
       magic-string: 0.30.21
     optionalDependencies:
-      vite: 7.3.1(@types/node@22.15.3)(tsx@4.21.0)(yaml@2.8.3)
+      vite: 7.3.1(@types/node@22.15.3)(tsx@4.21.0)(yaml@2.8.4)
 
   '@vitest/pretty-format@4.1.0':
     dependencies:
@@ -8405,13 +8406,13 @@ snapshots:
 
   agent-base@7.1.4: {}
 
-  ai@6.0.116(zod@4.4.1):
+  ai@6.0.116(zod@4.4.2):
     dependencies:
-      '@ai-sdk/gateway': 3.0.66(zod@4.4.1)
+      '@ai-sdk/gateway': 3.0.66(zod@4.4.2)
       '@ai-sdk/provider': 3.0.8
-      '@ai-sdk/provider-utils': 4.0.19(zod@4.4.1)
+      '@ai-sdk/provider-utils': 4.0.19(zod@4.4.2)
       '@opentelemetry/api': 1.9.0
-      zod: 4.4.1
+      zod: 4.4.2
 
   ajv-formats@3.0.1(ajv@8.18.0):
     optionalDependencies:
@@ -8607,7 +8608,7 @@ snapshots:
     dependencies:
       fill-range: 7.1.1
 
-  braintrust@1.1.1(@aws-sdk/credential-provider-web-identity@3.972.37)(zod@4.4.1):
+  braintrust@1.1.1(@aws-sdk/credential-provider-web-identity@3.972.37)(zod@4.4.2):
     dependencies:
       '@ai-sdk/provider': 1.1.3
       '@next/env': 14.2.35
@@ -8633,14 +8634,14 @@ snapshots:
       source-map: 0.7.6
       termi-link: 1.1.0
       uuid: 9.0.1
-      zod: 4.4.1
-      zod-to-json-schema: 3.25.1(zod@4.4.1)
+      zod: 4.4.2
+      zod-to-json-schema: 3.25.1(zod@4.4.2)
     transitivePeerDependencies:
       - '@aws-sdk/credential-provider-web-identity'
       - chokidar
       - supports-color
 
-  braintrust@2.2.0(@aws-sdk/credential-provider-web-identity@3.972.37)(zod@4.4.1):
+  braintrust@2.2.0(@aws-sdk/credential-provider-web-identity@3.972.37)(zod@4.4.2):
     dependencies:
       '@ai-sdk/provider': 1.1.3
       '@next/env': 14.2.35
@@ -8666,8 +8667,8 @@ snapshots:
       source-map: 0.7.6
       termi-link: 1.1.0
       uuid: 9.0.1
-      zod: 4.4.1
-      zod-to-json-schema: 3.25.1(zod@4.4.1)
+      zod: 4.4.2
+      zod-to-json-schema: 3.25.1(zod@4.4.2)
     transitivePeerDependencies:
       - '@aws-sdk/credential-provider-web-identity'
       - chokidar
@@ -9571,10 +9572,10 @@ snapshots:
     dependencies:
       function-bind: 1.1.2
 
-  hono-openapi@1.2.0(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(quansync@0.2.11)(typebox@1.1.35)(zod-to-json-schema@3.25.2(zod@4.4.1))(zod@4.4.1))(@standard-community/standard-openapi@0.2.9(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(quansync@0.2.11)(typebox@1.1.35)(zod-to-json-schema@3.25.2(zod@4.4.1))(zod@4.4.1))(@standard-schema/spec@1.1.0)(openapi-types@12.1.3)(typebox@1.1.35)(zod@4.4.1))(@types/json-schema@7.0.15)(hono@4.12.8)(openapi-types@12.1.3):
+  hono-openapi@1.2.0(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(quansync@0.2.11)(typebox@1.1.35)(zod-to-json-schema@3.25.2(zod@4.4.2))(zod@4.4.2))(@standard-community/standard-openapi@0.2.9(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(quansync@0.2.11)(typebox@1.1.35)(zod-to-json-schema@3.25.2(zod@4.4.2))(zod@4.4.2))(@standard-schema/spec@1.1.0)(openapi-types@12.1.3)(typebox@1.1.35)(zod@4.4.2))(@types/json-schema@7.0.15)(hono@4.12.8)(openapi-types@12.1.3):
     dependencies:
-      '@standard-community/standard-json': 0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(quansync@0.2.11)(typebox@1.1.35)(zod-to-json-schema@3.25.2(zod@4.4.1))(zod@4.4.1)
-      '@standard-community/standard-openapi': 0.2.9(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(quansync@0.2.11)(typebox@1.1.35)(zod-to-json-schema@3.25.2(zod@4.4.1))(zod@4.4.1))(@standard-schema/spec@1.1.0)(openapi-types@12.1.3)(typebox@1.1.35)(zod@4.4.1)
+      '@standard-community/standard-json': 0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(quansync@0.2.11)(typebox@1.1.35)(zod-to-json-schema@3.25.2(zod@4.4.2))(zod@4.4.2)
+      '@standard-community/standard-openapi': 0.2.9(@standard-community/standard-json@0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(quansync@0.2.11)(typebox@1.1.35)(zod-to-json-schema@3.25.2(zod@4.4.2))(zod@4.4.2))(@standard-schema/spec@1.1.0)(openapi-types@12.1.3)(typebox@1.1.35)(zod@4.4.2)
       '@types/json-schema': 7.0.15
       openapi-types: 12.1.3
     optionalDependencies:
@@ -9900,7 +9901,7 @@ snapshots:
 
   kind-of@6.0.3: {}
 
-  langsmith@0.5.19(@opentelemetry/api@1.9.1)(@opentelemetry/exporter-trace-otlp-proto@0.216.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.7.1(@opentelemetry/api@1.9.1))(openai@6.29.0(ws@8.19.0)(zod@4.4.1))(ws@8.19.0):
+  langsmith@0.5.19(@opentelemetry/api@1.9.1)(@opentelemetry/exporter-trace-otlp-proto@0.216.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.7.1(@opentelemetry/api@1.9.1))(openai@6.29.0(ws@8.19.0)(zod@4.4.2))(ws@8.19.0):
     dependencies:
       p-queue: 6.6.2
       uuid: 10.0.0
@@ -9908,7 +9909,7 @@ snapshots:
       '@opentelemetry/api': 1.9.1
       '@opentelemetry/exporter-trace-otlp-proto': 0.216.0(@opentelemetry/api@1.9.1)
       '@opentelemetry/sdk-trace-base': 2.7.1(@opentelemetry/api@1.9.1)
-      openai: 6.29.0(ws@8.19.0)(zod@4.4.1)
+      openai: 6.29.0(ws@8.19.0)(zod@4.4.2)
       ws: 8.19.0
 
   levn@0.4.1:
@@ -10166,15 +10167,15 @@ snapshots:
     dependencies:
       mimic-function: 5.0.1
 
-  openai@6.26.0(ws@8.19.0)(zod@4.4.1):
+  openai@6.26.0(ws@8.19.0)(zod@4.4.2):
     optionalDependencies:
       ws: 8.19.0
-      zod: 4.4.1
+      zod: 4.4.2
 
-  openai@6.29.0(ws@8.19.0)(zod@4.4.1):
+  openai@6.29.0(ws@8.19.0)(zod@4.4.2):
     optionalDependencies:
       ws: 8.19.0
-      zod: 4.4.1
+      zod: 4.4.2
 
   openapi-types@12.1.3: {}
 
@@ -11028,7 +11029,7 @@ snapshots:
 
   vary@1.1.2: {}
 
-  vite@7.3.1(@types/node@22.15.3)(tsx@4.21.0)(yaml@2.8.3):
+  vite@7.3.1(@types/node@22.15.3)(tsx@4.21.0)(yaml@2.8.4):
     dependencies:
       esbuild: 0.27.7
       fdir: 6.5.0(picomatch@4.0.4)
@@ -11040,12 +11041,12 @@ snapshots:
       '@types/node': 22.15.3
       fsevents: 2.3.3
       tsx: 4.21.0
-      yaml: 2.8.3
+      yaml: 2.8.4
 
-  vitest@4.1.0(@opentelemetry/api@1.9.1)(@types/node@22.15.3)(vite@7.3.1(@types/node@22.15.3)(tsx@4.21.0)(yaml@2.8.3)):
+  vitest@4.1.0(@opentelemetry/api@1.9.1)(@types/node@22.15.3)(vite@7.3.1(@types/node@22.15.3)(tsx@4.21.0)(yaml@2.8.4)):
     dependencies:
       '@vitest/expect': 4.1.0
-      '@vitest/mocker': 4.1.0(vite@7.3.1(@types/node@22.15.3)(tsx@4.21.0)(yaml@2.8.3))
+      '@vitest/mocker': 4.1.0(vite@7.3.1(@types/node@22.15.3)(tsx@4.21.0)(yaml@2.8.4))
       '@vitest/pretty-format': 4.1.0
       '@vitest/runner': 4.1.0
       '@vitest/snapshot': 4.1.0
@@ -11062,7 +11063,7 @@ snapshots:
       tinyexec: 1.0.4
       tinyglobby: 0.2.15
       tinyrainbow: 3.1.0
-      vite: 7.3.1(@types/node@22.15.3)(tsx@4.21.0)(yaml@2.8.3)
+      vite: 7.3.1(@types/node@22.15.3)(tsx@4.21.0)(yaml@2.8.4)
       why-is-node-running: 2.3.0
     optionalDependencies:
       '@opentelemetry/api': 1.9.1
@@ -11164,7 +11165,7 @@ snapshots:
 
   yaml@2.8.2: {}
 
-  yaml@2.8.3:
+  yaml@2.8.4:
     optional: true
 
   yargs-parser@21.1.1:
@@ -11191,16 +11192,16 @@ snapshots:
 
   zod-from-json-schema@0.5.2:
     dependencies:
-      zod: 4.4.1
+      zod: 4.4.2
 
-  zod-to-json-schema@3.25.1(zod@4.4.1):
+  zod-to-json-schema@3.25.1(zod@4.4.2):
     dependencies:
-      zod: 4.4.1
+      zod: 4.4.2
 
-  zod-to-json-schema@3.25.2(zod@4.4.1):
+  zod-to-json-schema@3.25.2(zod@4.4.2):
     dependencies:
-      zod: 4.4.1
+      zod: 4.4.2
 
   zod@3.25.76: {}
 
-  zod@4.4.1: {}
+  zod@4.4.2: {}
