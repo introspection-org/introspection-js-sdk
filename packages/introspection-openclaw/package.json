@@ -30,10 +30,10 @@
   "dependencies": {
     "@introspection-sdk/types": "workspace:*",
     "@opentelemetry/api": "^1.9.1",
-    "@opentelemetry/exporter-trace-otlp-proto": "^0.216.0",
+    "@opentelemetry/exporter-trace-otlp-proto": "^0.217.0",
     "@opentelemetry/resources": "^2.7.1",
     "@opentelemetry/sdk-trace-base": "^2.7.1",
-    "@opentelemetry/semantic-conventions": "^1.40.0"
+    "@opentelemetry/semantic-conventions": "^1.41.1"
   },
   "devDependencies": {
     "@repo/typescript-config": "workspace:*",
