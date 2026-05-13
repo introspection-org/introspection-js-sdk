@@ -98,7 +98,6 @@ describe("Langfuse Dual Exporter Tests", () => {
               "gen_ai.request.model": "gpt-5-nano-2025-08-07",
               "gen_ai.response.id": "<response_id>",
               "gen_ai.system": "openai",
-              "gen_ai.usage.cache_read.input_tokens": 0,
               "gen_ai.usage.input_tokens": "<input_tokens>",
               "gen_ai.usage.output_tokens": "<output_tokens>",
               "input.mime_type": "application/json",

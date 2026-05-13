@@ -110,7 +110,6 @@ describe("AI SDK First-Party Integration Tests", () => {
           "gen_ai.response.model": "<response_model>",
           "gen_ai.system": "openai.responses",
           "gen_ai.system_instructions": "[{"type":"text","content":"Reply in one word."}]",
-          "gen_ai.usage.cache_read.input_tokens": 0,
           "gen_ai.usage.input_tokens": "<input_tokens>",
           "gen_ai.usage.output_tokens": "<output_tokens>",
           "openinference.span.kind": "LLM",
