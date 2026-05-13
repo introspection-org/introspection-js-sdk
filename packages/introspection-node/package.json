@@ -27,7 +27,7 @@
     "prepare": "tsc"
   },
   "devDependencies": {
-    "@openai/agents": "^0.7.2",
+    "@openai/agents": "^0.11.4",
     "@repo/eslint-config": "workspace:*",
     "@repo/typescript-config": "workspace:*",
     "@types/node": "^22.15.3",
@@ -35,7 +35,7 @@
     "@langchain/core": "^1.0.0",
     "@mastra/core": "^1.13.2",
     "@mastra/observability": "^1.5.0",
-    "openai": "^6.29.0",
+    "openai": "^6.37.0",
     "typescript": "5.9.3"
   },
   "peerDependencies": {
