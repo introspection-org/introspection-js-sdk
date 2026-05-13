@@ -105,6 +105,7 @@ const DYNAMIC_KEYS: Record<string, string> = {
   "gen_ai.response.model": "<response_model>",
   "gen_ai.response.finish_reasons": "<finish_reasons>",
   "gen_ai.provider.name": "<provider_name>",
+  "mastra.completion_start_time": "<completion_start_time>",
   "mastra.metadata.runId": "<run_id>",
 };
 
@@ -208,12 +209,6 @@ describe("Mastra AI SDK OTEL Tests", () => {
 
     const mastra = new Mastra({ observability });
 
-    // Eagerly initialize the OtelExporter's OTEL pipeline (BatchSpanProcessor,
-    // SpanConverter, etc.) so it's ready when spans are emitted. Without this,
-    // the lazy setup() races with Mastra's fire-and-forget span.end() calls,
-    // causing spans to be lost before the processor is created.
-    await (otelExporter as any).setup();
-
     const agent = new Agent({
       id: "test-agent",
       name: "test-agent",
@@ -254,13 +249,15 @@ describe("Mastra AI SDK OTEL Tests", () => {
           "gen_ai.output.messages": "<output_messages>",
           "gen_ai.provider.name": "<provider_name>",
           "gen_ai.request.model": "gpt-5-nano",
-          "gen_ai.request.temperature": 0,
           "gen_ai.response.finish_reasons": "<finish_reasons>",
           "gen_ai.response.id": "<response_id>",
           "gen_ai.response.model": "<response_model>",
+          "gen_ai.usage.cache_read.input_tokens": 0,
           "gen_ai.usage.input_tokens": "<input_tokens>",
           "gen_ai.usage.output_tokens": "<output_tokens>",
           "gen_ai.usage.reasoning_tokens": "<reasoning_tokens>",
+          "mastra.completion_start_time": "<completion_start_time>",
+          "mastra.metadata.environment": "test",
           "mastra.metadata.runId": "<run_id>",
           "mastra.span.type": "model_generation",
         },
