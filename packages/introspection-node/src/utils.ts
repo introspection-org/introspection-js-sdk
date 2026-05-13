@@ -1,4 +1,19 @@
 import { DiagLogLevel, DiagLogger } from "@opentelemetry/api";
+import { HttpsProxyAgent } from "https-proxy-agent";
+
+function getHttpsProxyUrl(): string | undefined {
+  return process.env.HTTPS_PROXY || undefined;
+}
+
+export function withOtlpHttpsProxy<T extends object>(options: T): T {
+  const proxyUrl = getHttpsProxyUrl();
+  if (!proxyUrl) return options;
+
+  return {
+    ...options,
+    httpAgentOptions: () => new HttpsProxyAgent(proxyUrl),
+  } as T;
+}
 
 /**
  * Logger for introspection-sdk package.

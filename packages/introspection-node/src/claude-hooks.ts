@@ -28,7 +28,7 @@ import {
 } from "@opentelemetry/resources";
 import { ATTR_SERVICE_NAME } from "@opentelemetry/semantic-conventions";
 
-import { logger } from "./utils.js";
+import { logger, withOtlpHttpsProxy } from "./utils.js";
 import { VERSION } from "./version.js";
 import {
   convertClaudeSessionToOtelAttributes,
@@ -372,10 +372,12 @@ export class IntrospectionClaudeHooks {
         `IntrospectionClaudeHooks initialized: service=${serviceName}, endpoint=${endpoint}`,
       );
 
-      const spanExporter = new OTLPTraceExporter({
-        url: endpoint,
-        headers,
-      });
+      const spanExporter = new OTLPTraceExporter(
+        withOtlpHttpsProxy({
+          url: endpoint,
+          headers,
+        }),
+      );
 
       // Default to sequential export for dev/staging tokens.
       const useSimple =

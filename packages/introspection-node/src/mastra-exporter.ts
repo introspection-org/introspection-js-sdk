@@ -51,7 +51,7 @@ import { resourceFromAttributes } from "@opentelemetry/resources";
 import { ATTR_SERVICE_NAME } from "@opentelemetry/semantic-conventions";
 import { randomUUID } from "crypto";
 
-import { logger } from "./utils.js";
+import { logger, withOtlpHttpsProxy } from "./utils.js";
 import { VERSION } from "./version.js";
 import type {
   InputMessage,
@@ -164,7 +164,9 @@ export class IntrospectionMastraExporter extends BaseExporter {
         ...opts.additionalHeaders,
       };
 
-      const spanExporter = new OTLPTraceExporter({ url: endpoint, headers });
+      const spanExporter = new OTLPTraceExporter(
+        withOtlpHttpsProxy({ url: endpoint, headers }),
+      );
       const effectiveBatchSize =
         token.startsWith("intro_dev") || token.startsWith("intro_staging")
           ? 1

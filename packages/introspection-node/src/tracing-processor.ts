@@ -32,7 +32,7 @@ import type {
   Response as OpenAIResponse,
   ResponseInputItem,
 } from "./converters/openai.js";
-import { logger } from "./utils.js";
+import { logger, withOtlpHttpsProxy } from "./utils.js";
 import { VERSION } from "./version.js";
 
 // Type imports from @openai/agents
@@ -150,10 +150,12 @@ export class IntrospectionTracingProcessor implements TracingProcessor {
       );
 
       // Setup OTLP exporter
-      const spanExporter = new OTLPTraceExporter({
-        url: endpoint,
-        headers,
-      });
+      const spanExporter = new OTLPTraceExporter(
+        withOtlpHttpsProxy({
+          url: endpoint,
+          headers,
+        }),
+      );
 
       // Use SimpleSpanProcessor for maxExportBatchSize=1 (sequential export),
       // otherwise BatchSpanProcessor with configurable batch size.

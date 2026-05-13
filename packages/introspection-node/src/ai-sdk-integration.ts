@@ -56,7 +56,7 @@ import {
   convertToolsToToolDefinitions,
 } from "./converters/ai-sdk.js";
 import type { InputMessage } from "@introspection-sdk/types";
-import { logger } from "./utils.js";
+import { logger, withOtlpHttpsProxy } from "./utils.js";
 import { VERSION } from "./version.js";
 
 // ---------------------------------------------------------------------------
@@ -159,7 +159,9 @@ export class IntrospectionAISDKIntegration {
         `IntrospectionAISDKIntegration initialized: endpoint=${endpoint}`,
       );
 
-      const spanExporter = new OTLPTraceExporter({ url: endpoint, headers });
+      const spanExporter = new OTLPTraceExporter(
+        withOtlpHttpsProxy({ url: endpoint, headers }),
+      );
 
       // Use SimpleSpanProcessor for sequential export (dev/staging tokens)
       const effectiveBatchSize =
