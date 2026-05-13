@@ -129,7 +129,7 @@ describe("Vercel AI SDK Dual Exporter Tests", () => {
           "gen_ai.input.messages": "[{"role":"user","parts":[{"type":"text","content":"What is the weather in Boston?"}]}]",
           "gen_ai.operation.name": "chat",
           "gen_ai.output.messages": "<output_messages>",
-          "gen_ai.request.model": "gpt-5-nano",
+          "gen_ai.request.model": "gpt-5-nano-2025-08-07",
           "gen_ai.response.finish_reasons": [
             "stop",
           ],
@@ -138,6 +138,8 @@ describe("Vercel AI SDK Dual Exporter Tests", () => {
           "gen_ai.system": "openai.responses",
           "gen_ai.usage.input_tokens": "<input_tokens>",
           "gen_ai.usage.output_tokens": "<output_tokens>",
+          "input.mime_type": "application/json",
+          "input.value": "<input_value>",
           "openinference.span.kind": "LLM",
           "operation.name": "ai.generateText.doGenerate",
         },
