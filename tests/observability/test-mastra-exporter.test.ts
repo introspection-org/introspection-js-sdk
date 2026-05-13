@@ -123,7 +123,6 @@ describe("Mastra First-Party Exporter Tests", () => {
       {
         "attributes": {
           "gen_ai.conversation.id": "<conversation_id>",
-          "gen_ai.input.messages": "[{"role":"developer","parts":[{"type":"text","content":"You are a helpful assistant. Reply in one sentence."}]},{"role":"user","parts":[{"type":"text","content":"Say hello in one word."}]}]",
           "gen_ai.operation.name": "chat",
           "gen_ai.output.messages": "<output_messages>",
           "gen_ai.request.model": "gpt-5-nano",
