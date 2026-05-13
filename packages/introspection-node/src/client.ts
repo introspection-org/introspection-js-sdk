@@ -18,7 +18,7 @@ import {
 } from "@opentelemetry/resources";
 import { ATTR_SERVICE_NAME } from "@opentelemetry/semantic-conventions";
 import { propagation, context } from "@opentelemetry/api";
-import { logger as sdkLogger } from "./utils.js";
+import { logger as sdkLogger, withOtlpHttpsProxy } from "./utils.js";
 import { VERSION } from "./version.js";
 import {
   generateEventId,
@@ -86,10 +86,12 @@ export class IntrospectionClient {
     }
 
     // Create OTLP log exporter
-    const exporter = new OTLPLogExporter({
-      url: endpoint,
-      headers,
-    });
+    const exporter = new OTLPLogExporter(
+      withOtlpHttpsProxy({
+        url: endpoint,
+        headers,
+      }),
+    );
 
     // Create batch processor
     const processor = new BatchLogRecordProcessor(exporter, {

@@ -17,7 +17,7 @@ import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-proto";
 import { ExportResult, ExportResultCode } from "@opentelemetry/core";
 import { randomUUID } from "crypto";
 import type { AdvancedOptions } from "./types.js";
-import { logger } from "./utils.js";
+import { logger, withOtlpHttpsProxy } from "./utils.js";
 import {
   isOpenInferenceSpan,
   replaceOpenInferenceWithGenAI,
@@ -180,10 +180,12 @@ export class IntrospectionSpanProcessor implements SpanProcessor {
     // Use custom spanExporter if provided (for testing), otherwise create OTLP exporter
     const baseExporter: SpanExporter =
       advanced.spanExporter ||
-      new OTLPTraceExporter({
-        url: endpoint,
-        headers,
-      });
+      new OTLPTraceExporter(
+        withOtlpHttpsProxy({
+          url: endpoint,
+          headers,
+        }),
+      );
 
     // Wrap exporter to add v1/v2 compatibility and basic validation
     const exporter: SpanExporter = {
