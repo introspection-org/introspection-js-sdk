@@ -119,7 +119,6 @@ describe("Arize Dual Exporter Tests", () => {
               "gen_ai.response.id": "<response_id>",
               "gen_ai.system": "openai",
               "gen_ai.tool.definitions": "[{"type":"function","name":"get_weather","description":"Get weather for a given city.","parameters":{"type":"object","properties":{"city":{"type":"string","description":"The city name"}},"required":["city"]}}]",
-              "gen_ai.usage.cache_read.input_tokens": 0,
               "gen_ai.usage.input_tokens": "<input_tokens>",
               "gen_ai.usage.output_tokens": "<output_tokens>",
               "input.mime_type": "application/json",

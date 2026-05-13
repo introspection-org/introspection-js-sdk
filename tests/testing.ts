@@ -145,6 +145,19 @@ export function simplifySpansForSnapshot(
       // Skip undefined values — they're non-deterministic from instrumentation
       if (value === undefined) continue;
       if (normalize) {
+        // The Vercel AI SDK (and others) may emit increasingly detailed usage
+        // breakdown attributes (e.g. cache hits, reasoning tokens). These fields
+        // are not semantically important for our snapshot assertions and tend to
+        // change shape across dependency bumps, so we omit them.
+        if (
+          key.startsWith("ai.usage.") &&
+          key !== "ai.usage.promptTokens" &&
+          key !== "ai.usage.completionTokens" &&
+          key !== "ai.usage.inputTokens" &&
+          key !== "ai.usage.outputTokens"
+        ) {
+          continue;
+        }
         // Normalize dynamic values to placeholders
         if (key === "gen_ai.conversation.id") {
           attributes[key] = "<conversation_id>";
@@ -154,6 +167,11 @@ export function simplifySpansForSnapshot(
           attributes[key] = "<input_tokens>";
         } else if (key === "gen_ai.usage.output_tokens") {
           attributes[key] = "<output_tokens>";
+        } else if (key === "gen_ai.usage.cache_read.input_tokens") {
+          // Optional field, depends on upstream SDK / provider; normalize away.
+          // Some tests include it in snapshots; some don't. Excluding it makes
+          // those snapshots stable across upstream changes.
+          continue;
         } else if (key === "gen_ai.output.messages") {
           attributes[key] = "<output_messages>";
         } else if (key === "openai_agents.span_data") {
@@ -179,6 +197,14 @@ export function simplifySpansForSnapshot(
           attributes[key] = "<input_tokens>";
         } else if (key === "ai.usage.completionTokens") {
           attributes[key] = "<output_tokens>";
+        } else if (key === "ai.usage.inputTokens") {
+          // Normalize to the older promptTokens key so snapshots remain stable
+          // across AI SDK versions.
+          attributes["ai.usage.promptTokens"] = "<input_tokens>";
+          continue;
+        } else if (key === "ai.usage.outputTokens") {
+          attributes["ai.usage.completionTokens"] = "<output_tokens>";
+          continue;
         } else if (key === "llm.token_count.prompt") {
           attributes[key] = "<input_tokens>";
         } else if (key === "llm.token_count.completion") {
