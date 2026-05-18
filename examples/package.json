@@ -40,7 +40,7 @@
     "@opentelemetry/instrumentation": "^0.218.0",
     "@opentelemetry/semantic-conventions": "^1.41.1",
     "braintrust": "^2.2.2",
-    "langsmith": "^0.6.3",
+    "langsmith": "^0.7.1",
     "openai": "^6.37.0"
   },
   "devDependencies": {
@@ -57,9 +57,9 @@
     "@anthropic-ai/sdk": "^0.95.2",
     "@mariozechner/pi-agent-core": "^0.73.1",
     "@mariozechner/pi-ai": "^0.73.1",
-    "@arizeai/openinference-instrumentation-langchain": "^4.0.9",
-    "@arizeai/openinference-instrumentation-openai": "^4.1.0",
-    "@arizeai/openinference-vercel": "^2.7.4",
+    "@arizeai/openinference-instrumentation-langchain": "^4.0.10",
+    "@arizeai/openinference-instrumentation-openai": "^4.1.1",
+    "@arizeai/openinference-vercel": "^2.7.5",
     "@grpc/grpc-js": "^1.12.0",
     "@langchain/core": "^1.1.46",
     "@langchain/openai": "^1.4.5",
