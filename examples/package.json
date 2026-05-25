@@ -60,7 +60,7 @@
     "@arizeai/openinference-instrumentation-langchain": "^4.0.10",
     "@arizeai/openinference-instrumentation-openai": "^4.1.1",
     "@arizeai/openinference-vercel": "^2.7.5",
-    "@grpc/grpc-js": "^1.12.0",
+    "@grpc/grpc-js": "^1.14.4",
     "@langchain/core": "^1.1.46",
     "@langchain/openai": "^1.4.5",
     "@mastra/core": "^1.35.0",
