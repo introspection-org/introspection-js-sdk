@@ -32,7 +32,7 @@
     "@repo/typescript-config": "workspace:*",
     "@types/node": "^22.15.3",
     "eslint": "^9.39.1",
-    "@langchain/core": "^1.1.46",
+    "@langchain/core": "^1.1.48",
     "@mastra/core": "^1.35.0",
     "@mastra/observability": "^1.12.0",
     "openai": "^6.38.0",

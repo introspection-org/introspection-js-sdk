@@ -30,7 +30,7 @@
     "raw-conversation": "node --import tsx raw/multi-turn-conversation.ts"
   },
   "dependencies": {
-    "@arizeai/openinference-semantic-conventions": "^2.3.0",
+    "@arizeai/openinference-semantic-conventions": "^2.4.0",
     "@introspection-sdk/introspection-node": "workspace:*",
     "@introspection-sdk/introspection-openclaw": "workspace:*",
     "@introspection-sdk/introspection-pi": "workspace:*",
@@ -40,7 +40,7 @@
     "@opentelemetry/instrumentation": "^0.218.0",
     "@opentelemetry/semantic-conventions": "^1.41.1",
     "braintrust": "^2.2.2",
-    "langsmith": "^0.7.1",
+    "langsmith": "^0.7.2",
     "openai": "^6.38.0"
   },
   "devDependencies": {
@@ -57,12 +57,12 @@
     "@anthropic-ai/sdk": "^0.96.0",
     "@mariozechner/pi-agent-core": "^0.73.1",
     "@mariozechner/pi-ai": "^0.73.1",
-    "@arizeai/openinference-instrumentation-langchain": "^4.0.10",
-    "@arizeai/openinference-instrumentation-openai": "^4.1.1",
-    "@arizeai/openinference-vercel": "^2.7.5",
+    "@arizeai/openinference-instrumentation-langchain": "^4.0.11",
+    "@arizeai/openinference-instrumentation-openai": "^4.1.2",
+    "@arizeai/openinference-vercel": "^2.7.6",
     "@grpc/grpc-js": "^1.12.0",
-    "@langchain/core": "^1.1.46",
-    "@langchain/openai": "^1.4.5",
+    "@langchain/core": "^1.1.48",
+    "@langchain/openai": "^1.4.7",
     "@mastra/core": "^1.35.0",
     "@openai/agents": "^0.11.4",
     "@opentelemetry/api": "^1.9.1",
