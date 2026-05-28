@@ -8,6 +8,11 @@ name: Examples
 
 on:
   workflow_dispatch:
+    inputs:
+      run_examples:
+        description: "Run the OTel examples (burns LLM tokens)"
+        type: boolean
+        default: false
   push:
     tags:
       - "v*"
@@ -44,8 +49,8 @@ jobs:
       - name: Install Claude Code CLI
         run: npm install -g @anthropic-ai/claude-code
 
-      - if: false
-        name: Run examples
+      - name: Run examples
+        if: inputs.run_examples
         working-directory: examples/otel
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
