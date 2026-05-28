@@ -29,32 +29,19 @@
 | `@introspection-sdk/introspection-browser`  | Browser client with localStorage persistence                        |
 | `@introspection-sdk/types`                  | Shared types and constants                                          |
 | `@introspection-sdk/introspection-openclaw` | [OpenClaw](https://openclaw.dev) plugin for agent lifecycle tracing |
+| `@introspection-sdk/introspection-pi`       | [Pi Agent SDK](https://withpi.ai) instrumentor — OTel GenAI spans for chat completions and tool execution |
 
 ## Three independent surfaces
 
 The Node SDK exposes three surfaces you can adopt independently:
 
-1. **`IntrospectionClient`** — REST-only control plane (runtimes, experiments, runs, files). Zero OpenTelemetry imports. Always available.
-2. **`IntrospectionLogs`** — OTel logs exporter for `track` / `feedback` / `identify` + baggage helpers. Owns its own `LoggerProvider`. Lives at `@introspection-sdk/introspection-node/otel`. Requires the OTel SDK peer deps.
-3. **OTel span processors and instrumentors** — `IntrospectionSpanProcessor`, `IntrospectionTracingProcessor`, `IntrospectionClaudeHooks`, `withIntrospection`, `AnthropicInstrumentor`, `GeminiInstrumentor`, `IntrospectionPiInstrumentor`, the LangChain callback handler, the Mastra exporter. All under `@introspection-sdk/introspection-node/otel` (or the dedicated `/langchain` and `/mastra` subpaths for the framework hooks).
+1. **Introspection API (runtimes, tasks, files)** with `IntrospectionClient` — the main Introspection API. Zero OpenTelemetry imports. Always available.
+2. **Analytics events (track, feedback, identify)** with `IntrospectionLogs` — OTel logs exporter with baggage helpers. Owns its own `LoggerProvider`. Lives at `@introspection-sdk/introspection-node/otel`. Requires the OTel SDK peer deps.
+3. **Traces (span processors + instrumentors)** with `IntrospectionSpanProcessor` and friends — `IntrospectionTracingProcessor`, `IntrospectionClaudeHooks`, `withIntrospection`, `AnthropicInstrumentor`, `GeminiInstrumentor`, `IntrospectionPiInstrumentor`, the LangChain callback handler, the Mastra exporter. All under `@introspection-sdk/introspection-node/otel` (or the dedicated `/langchain` and `/mastra` subpaths for the framework hooks).
 
-## Environment Variables
+## 1. Introspection API (runtimes, tasks, files) with `IntrospectionClient`
 
-```shell
-# REST (IntrospectionClient)
-export INTROSPECTION_TOKEN="intro_xxx"
-export INTROSPECTION_BASE_API_URL="https://api.introspection.dev"  # optional
-
-# OTel (IntrospectionLogs + span processors + instrumentors)
-export INTROSPECTION_BASE_OTEL_URL="https://otel.introspection.dev" # optional
-export INTROSPECTION_SERVICE_NAME="my-service"                      # optional
-```
-
-> `INTROSPECTION_BASE_URL` was renamed to `INTROSPECTION_BASE_OTEL_URL` to disambiguate it from the REST API endpoint. There is no fallback to the old name.
-
-## 1. REST-only usage
-
-No OTel packages required. Install just the SDK:
+The main Introspection API surface. No OTel packages required — install just the SDK:
 
 ```shell
 pnpm add @introspection-sdk/introspection-node
@@ -78,7 +65,7 @@ await runner.close();
 await client.shutdown();
 ```
 
-## 2. Logs (track / feedback / identify) with `IntrospectionLogs`
+## 2. Analytics events (track, feedback, identify) with `IntrospectionLogs`
 
 Install the SDK plus the OTel logs peer dependencies:
 
@@ -133,7 +120,7 @@ await logs.shutdown();
 | `withAnonymousId(id, callback)`                | Set anonymous ID             |
 | `withBaggage(values, callback)`                | Set arbitrary baggage values |
 
-## 3. Traces (span processors + instrumentors)
+## 3. Traces (span processors + instrumentors) with `IntrospectionSpanProcessor`
 
 Install the SDK plus the OTel trace peer dependencies:
 
@@ -263,6 +250,20 @@ const response = await graph.invoke(input, {
 ```
 
 > See [examples/](./examples/) for complete integration patterns including dual-export with Arize, Langfuse, Braintrust, and LangSmith.
+
+## Environment variables
+
+```shell
+# Introspection API (IntrospectionClient)
+export INTROSPECTION_TOKEN="intro_xxx"
+export INTROSPECTION_BASE_API_URL="https://api.introspection.dev"  # optional
+
+# OTel (IntrospectionLogs + span processors + instrumentors)
+export INTROSPECTION_BASE_OTEL_URL="https://otel.introspection.dev" # optional
+export INTROSPECTION_SERVICE_NAME="my-service"                      # optional
+```
+
+> `INTROSPECTION_BASE_URL` was renamed to `INTROSPECTION_BASE_OTEL_URL` to disambiguate it from the REST API endpoint. There is no fallback to the old name.
 
 ## Documentation
 
