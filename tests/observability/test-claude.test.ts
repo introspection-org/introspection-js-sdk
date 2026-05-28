@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import type { Polly } from "@pollyjs/core";
-import { IntrospectionClaudeHooks } from "@introspection-sdk/introspection-node";
+import { IntrospectionClaudeHooks } from "@introspection-sdk/introspection-node/otel";
 import {
   TestSpanExporter,
   IncrementalIdGenerator,
@@ -112,6 +112,7 @@ describe("Claude Agent SDK Tests", () => {
               "claude.source": "message",
               "claude.tools": "Bash,Read,Write",
               "gen_ai.agent.name": "claude-agent",
+              "gen_ai.conversation.id": "test-session-123",
               "gen_ai.cost.usd": 0.00052,
               "gen_ai.input.messages": "[{"role":"user","parts":[{"type":"text","content":"What is 2 + 2? Just give me the number."}]}]",
               "gen_ai.operation.name": "chat",
@@ -229,6 +230,7 @@ describe("Claude Agent SDK Tests", () => {
               "claude.session_id": "test-session-456",
               "claude.source": "message",
               "gen_ai.agent.name": "claude-agent",
+              "gen_ai.conversation.id": "test-session-456",
               "gen_ai.cost.usd": 0.001,
               "gen_ai.input.messages": "[{"role":"user","parts":[{"type":"text","content":"List files in the current directory"}]}]",
               "gen_ai.operation.name": "chat",

@@ -113,7 +113,8 @@ export class IntrospectionClient {
     const advanced = options.advanced || {};
     const baseUrl =
       advanced.baseUrl ||
-      (typeof process !== "undefined" && process.env?.INTROSPECTION_BASE_URL) ||
+      (typeof process !== "undefined" &&
+        process.env?.INTROSPECTION_BASE_OTEL_URL) ||
       "https://otel.introspection.dev";
     this.logger = new Logger(advanced.debug ?? false);
 

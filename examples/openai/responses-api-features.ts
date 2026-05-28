@@ -9,7 +9,7 @@
  */
 
 import { Agent, run, addTraceProcessor, webSearchTool } from "@openai/agents";
-import { IntrospectionTracingProcessor } from "@introspection-sdk/introspection-node";
+import { IntrospectionTracingProcessor } from "@introspection-sdk/introspection-node/otel";
 
 async function main() {
   const processor = new IntrospectionTracingProcessor({

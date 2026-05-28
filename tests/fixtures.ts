@@ -6,7 +6,7 @@
 import {
   IntrospectionTracingProcessor,
   type TracingProcessorAdvancedOptions,
-} from "@introspection-sdk/introspection-node";
+} from "@introspection-sdk/introspection-node/otel";
 import { IncrementalIdGenerator, TestSpanExporter } from "./testing";
 
 /**

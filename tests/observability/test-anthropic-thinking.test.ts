@@ -12,7 +12,7 @@ import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
 import {
   AnthropicInstrumentor,
   IntrospectionSpanProcessor,
-} from "@introspection-sdk/introspection-node";
+} from "@introspection-sdk/introspection-node/otel";
 import {
   TestSpanExporter,
   IncrementalIdGenerator,
@@ -129,6 +129,7 @@ describe("Anthropic Thinking Tests", () => {
                 "gen_ai.response.id": "<response_id>",
                 "gen_ai.response.model": "<response_model>",
                 "gen_ai.system": "anthropic",
+                "gen_ai.usage.cache_creation.input_tokens": 0,
                 "gen_ai.usage.input_tokens": "<input_tokens>",
                 "gen_ai.usage.output_tokens": "<output_tokens>",
                 "openinference.span.kind": "LLM",
@@ -277,6 +278,7 @@ describe("Anthropic Thinking Tests", () => {
                 "gen_ai.response.model": "<response_model>",
                 "gen_ai.system": "anthropic",
                 "gen_ai.tool.definitions": "[{"name":"get_weather","description":"Get weather for a city. Returns conditions and temperature in Celsius.","parameters":{"type":"object","properties":{"city":{"type":"string","description":"City name"}},"required":["city"]}}]",
+                "gen_ai.usage.cache_creation.input_tokens": 0,
                 "gen_ai.usage.input_tokens": "<input_tokens>",
                 "gen_ai.usage.output_tokens": "<output_tokens>",
                 "openinference.span.kind": "LLM",
@@ -297,6 +299,7 @@ describe("Anthropic Thinking Tests", () => {
                 "gen_ai.response.model": "<response_model>",
                 "gen_ai.system": "anthropic",
                 "gen_ai.tool.definitions": "[{"name":"get_weather","description":"Get weather for a city. Returns conditions and temperature in Celsius.","parameters":{"type":"object","properties":{"city":{"type":"string","description":"City name"}},"required":["city"]}}]",
+                "gen_ai.usage.cache_creation.input_tokens": 0,
                 "gen_ai.usage.input_tokens": "<input_tokens>",
                 "gen_ai.usage.output_tokens": "<output_tokens>",
                 "openinference.span.kind": "LLM",
@@ -316,6 +319,7 @@ describe("Anthropic Thinking Tests", () => {
                 "gen_ai.response.id": "<response_id>",
                 "gen_ai.response.model": "<response_model>",
                 "gen_ai.system": "anthropic",
+                "gen_ai.usage.cache_creation.input_tokens": 0,
                 "gen_ai.usage.input_tokens": "<input_tokens>",
                 "gen_ai.usage.output_tokens": "<output_tokens>",
                 "openinference.span.kind": "LLM",

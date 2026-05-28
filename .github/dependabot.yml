@@ -16,13 +16,14 @@ updates:
     commit-message:
       prefix: "chore(deps)"
       include: "scope"
-    # Restrict alerts/PRs to deps that ship to consumers (`dependencies` and
-    # `peerDependencies`). For npm, this excludes both `devDependencies`
-    # (root tooling, package build tools, test helpers) and
-    # `optionalDependencies` (examples' AI SDKs / mastra / anthropic / etc.
-    # — those are demo-only, not part of the published surface area).
+    # Watch ALL workspace deps (production, dev, optional, peer). The grouping
+    # config below is what does the curation — `allow: production` was
+    # contradicting it and leaving the AI provider packages in
+    # tests/package.json devDependencies (and previously optionalDependencies)
+    # unwatched, so they would drift indefinitely. Routine tooling bumps still
+    # flow but are consolidated into the `typescript-tooling` group below.
     allow:
-      - dependency-type: "production"
+      - dependency-type: "all"
     groups:
       # `applies-to: all` (default-ish) covers BOTH scheduled version updates
       # AND security-alert PRs — so security fixes get rolled up along the

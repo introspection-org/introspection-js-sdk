@@ -31,7 +31,7 @@ pnpm claude-agent-langfuse        # + Langfuse dual export
 ### Vercel AI SDK
 
 ```bash
-pnpm ai-sdk                       # IntrospectionAISDKIntegration
+pnpm ai-sdk                       # Vercel AI SDK native telemetry
 ```
 
 ### Mastra
@@ -64,6 +64,22 @@ await graph.invoke(input, {
 });
 ```
 
+### Anthropic SDK (`@anthropic-ai/sdk`)
+
+```bash
+pnpm anthropic-native             # AnthropicInstrumentor with extended thinking + tool use
+```
+
+### Google Gemini (`@google/genai`)
+
+```bash
+pnpm gemini-native                # GeminiInstrumentor with thought signatures + tool use
+```
+
+Captures per-part `thoughtSignature` payloads (Gemini 2.5+ / 3.x) that must be
+replayed on subsequent turns to preserve the model's chain of thought across
+tool calls. See `gemini-sdk/gemini-native.ts` for the multi-turn replay pattern.
+
 ## OpenInference (Third-Party / Unsupported Frameworks)
 
 For frameworks that use OpenInference instrumentation. Uses `IntrospectionSpanProcessor` to convert OpenInference attributes to GenAI semantic conventions.
@@ -86,6 +102,8 @@ pnpm raw-conversation              # Multi-turn conversation with raw OTel APIs
 examples/
   openai/           # OpenAI Agents SDK
   anthropic/        # Claude Agent SDK
+  anthropic-sdk/    # Anthropic SDK (@anthropic-ai/sdk)
+  gemini-sdk/       # Google Gemini (@google/genai)
   vercel/           # Vercel AI SDK
   mastra/           # Mastra
   langchain/        # LangChain / LangGraph

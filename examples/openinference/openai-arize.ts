@@ -16,7 +16,7 @@ import { SimpleSpanProcessor } from "@opentelemetry/sdk-trace-base";
 import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-proto";
 import { OpenAIInstrumentation } from "@arizeai/openinference-instrumentation-openai";
 import { registerInstrumentations } from "@opentelemetry/instrumentation";
-import { IntrospectionSpanProcessor } from "@introspection-sdk/introspection-node";
+import { IntrospectionSpanProcessor } from "@introspection-sdk/introspection-node/otel";
 import { resourceFromAttributes } from "@opentelemetry/resources";
 import { ATTR_SERVICE_NAME } from "@opentelemetry/semantic-conventions";
 

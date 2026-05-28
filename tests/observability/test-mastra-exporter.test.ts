@@ -123,6 +123,7 @@ describe("Mastra First-Party Exporter Tests", () => {
       {
         "attributes": {
           "gen_ai.conversation.id": "<conversation_id>",
+          "gen_ai.input.messages": "[{"role":"user","parts":[{"type":"text","content":"Say hello in one word."}]}]",
           "gen_ai.operation.name": "chat",
           "gen_ai.output.messages": "<output_messages>",
           "gen_ai.request.model": "gpt-5-nano",
@@ -132,6 +133,7 @@ describe("Mastra First-Party Exporter Tests", () => {
           "gen_ai.response.id": "<response_id>",
           "gen_ai.response.model": "<response_model>",
           "gen_ai.system": "openai.responses",
+          "gen_ai.system_instructions": "[{"type":"text","content":"You are a helpful assistant. Reply in one sentence."}]",
           "gen_ai.usage.input_tokens": "<input_tokens>",
           "gen_ai.usage.output_tokens": "<output_tokens>",
           "openinference.span.kind": "LLM",

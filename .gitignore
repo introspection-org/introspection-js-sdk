@@ -18,6 +18,9 @@ coverage
 # Turbo
 .turbo
 
+# Node.js compile cache
+node-compile-cache/
+
 # Vercel
 .vercel
 
@@ -26,6 +29,7 @@ coverage
 out/
 build
 dist
+node-compile-cache
 
 # Debug
 npm-debug.log*

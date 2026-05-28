@@ -33,7 +33,7 @@ export default function register(api: PluginApi): void {
   const token = (cfg.token as string) || process.env.INTROSPECTION_TOKEN || "";
   const baseUrl =
     (cfg.baseUrl as string) ||
-    process.env.INTROSPECTION_BASE_URL ||
+    process.env.INTROSPECTION_BASE_OTEL_URL ||
     "https://otel.introspection.dev";
   const serviceName =
     (cfg.serviceName as string) ||

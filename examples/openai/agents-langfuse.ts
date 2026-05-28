@@ -16,7 +16,7 @@
 import { Agent, run, addTraceProcessor, tool } from "@openai/agents";
 import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-proto";
 import type { SpanExporter, ReadableSpan } from "@opentelemetry/sdk-trace-base";
-import { IntrospectionTracingProcessor } from "@introspection-sdk/introspection-node";
+import { IntrospectionTracingProcessor } from "@introspection-sdk/introspection-node/otel";
 import { z } from "zod";
 
 if (!process.env.LANGFUSE_PUBLIC_KEY || !process.env.LANGFUSE_SECRET_KEY) {
@@ -75,7 +75,7 @@ const langfuseExporter = new OTLPTraceExporter({
 
 // --- Introspection exporter ---
 const baseUrl =
-  process.env.INTROSPECTION_BASE_URL || "https://otel.introspection.dev";
+  process.env.INTROSPECTION_BASE_OTEL_URL || "https://otel.introspection.dev";
 const introspectionEndpoint = `${baseUrl.replace(/\/$/, "")}/v1/traces`;
 
 const introspectionExporter = new OTLPTraceExporter({

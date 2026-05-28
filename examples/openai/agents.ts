@@ -8,7 +8,7 @@
  */
 
 import { Agent, run, addTraceProcessor, tool } from "@openai/agents";
-import { IntrospectionTracingProcessor } from "@introspection-sdk/introspection-node";
+import { IntrospectionTracingProcessor } from "@introspection-sdk/introspection-node/otel";
 import { z } from "zod";
 
 const getWeather = tool({

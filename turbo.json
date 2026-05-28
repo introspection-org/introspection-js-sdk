@@ -2,10 +2,13 @@
   "$schema": "https://turborepo.com/schema.json",
   "ui": "tui",
   "globalEnv": [
-    "INTROSPECTION_BASE_URL",
+    "INTROSPECTION_BASE_API_URL",
+    "INTROSPECTION_BASE_OTEL_URL",
+    "INTROSPECTION_PROJECT_ID",
     "INTROSPECTION_TOKEN",
     "INTROSPECTION_LOG_LEVEL",
     "INTROSPECTION_SERVICE_NAME",
+    "INTROSPECTION_STRICT_TRACING",
     "HTTPS_PROXY"
   ],
   "tasks": {

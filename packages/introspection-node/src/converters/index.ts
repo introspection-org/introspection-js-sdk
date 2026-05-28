@@ -25,13 +25,6 @@ export {
 export { isVercelAISpan, convertVercelAIToGenAI } from "./vercel.js";
 
 export {
-  convertMessagesToInputMessages as convertAISDKMessagesToInputMessages,
-  extractSystemInstructions as extractAISDKSystemInstructions,
-  buildOutputMessages as buildAISDKOutputMessages,
-  convertToolsToToolDefinitions as convertAISDKToolsToToolDefinitions,
-} from "./ai-sdk.js";
-
-export {
   convertClaudePromptToInputMessages,
   convertClaudeResponseToOutputMessages,
   convertClaudeMessagesToInputMessages,
@@ -42,3 +35,16 @@ export {
   type ClaudeResponse,
   type ClaudeSessionData,
 } from "./claude.js";
+
+export {
+  convertGeminiContentsToInputMessages,
+  convertGeminiCandidatesToOutputMessages,
+  convertGeminiSystemInstructionToSemconv,
+  convertGeminiToolsToToolDefinitions,
+  GEMINI_PROVIDER_NAME,
+  type GeminiCandidate,
+  type GeminiContent,
+  type GeminiFunctionDeclaration,
+  type GeminiPart,
+  type GeminiTool,
+} from "./gemini.js";
