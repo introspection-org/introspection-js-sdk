@@ -64,8 +64,6 @@ export interface IntrospectionLogsOptions {
    * default: "https://otel.introspection.dev").
    */
   baseOtelUrl?: string;
-  /** Optional project id (for downstream attribute tagging only). */
-  projectId?: string;
   /** Additional HTTP headers to include in exporter requests. */
   additionalHeaders?: Record<string, string>;
   /** Flush interval in milliseconds (default: 5000). */
@@ -80,7 +78,6 @@ export class IntrospectionLogs {
   private userId: string | undefined;
   private anonymousId: string | undefined;
   private traits: Record<string, unknown> = {};
-  private readonly projectId: string | undefined;
 
   constructor(options: IntrospectionLogsOptions = {}) {
     const token = options.token || process.env.INTROSPECTION_TOKEN || "";
@@ -88,8 +85,6 @@ export class IntrospectionLogs {
       options.serviceName ||
       process.env.INTROSPECTION_SERVICE_NAME ||
       "introspection-client";
-    this.projectId =
-      options.projectId || process.env.INTROSPECTION_PROJECT_ID || undefined;
     const baseOtelUrl =
       options.baseOtelUrl ||
       process.env.INTROSPECTION_BASE_OTEL_URL ||
@@ -211,8 +206,6 @@ export class IntrospectionLogs {
         finalPreviousResponseId;
     if (genAi.agentName) attributes["gen_ai.agent.name"] = genAi.agentName;
     if (genAi.agentId) attributes["gen_ai.agent.id"] = genAi.agentId;
-
-    if (this.projectId) attributes["introspection.project.id"] = this.projectId;
 
     if (properties) {
       for (const [key, value] of Object.entries(properties)) {
