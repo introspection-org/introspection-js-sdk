@@ -268,3 +268,7 @@ export INTROSPECTION_SERVICE_NAME="my-service"                      # optional
 ## Documentation
 
 Full documentation is available at [docs.introspection.dev](https://docs.introspection.dev).
+
+## License
+
+Apache-2.0
