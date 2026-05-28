@@ -167,8 +167,8 @@ importers:
         specifier: ^9.39.4
         version: 9.39.4
       eslint-config-prettier:
-        specifier: ^10.1.1
-        version: 10.1.1(eslint@9.39.4)
+        specifier: ^10.1.8
+        version: 10.1.8(eslint@9.39.4)
       eslint-plugin-only-warn:
         specifier: ^1.2.1
         version: 1.2.1
@@ -3420,8 +3420,8 @@ packages:
     engines: {node: '>=6.0'}
     hasBin: true
 
-  eslint-config-prettier@10.1.1:
-    resolution: {integrity: sha512-4EQQr6wXwS+ZJSzaR5ZCrYgLxqvUjdXctaEtBqHcbkW944B1NQyO4qpdHQbXBONfwxXdkAY81HH4+LUfrg+zPw==}
+  eslint-config-prettier@10.1.8:
+    resolution: {integrity: sha512-82GZUjRS0p/jganf6q1rEO25VSoHH0hKPCTrgillPjdI/3bgBhAE1QzHrHTizjpRvy6pGAvKjDJtk2pF9NDq8w==}
     hasBin: true
     peerDependencies:
       eslint: '>=7.0.0'
@@ -9384,7 +9384,7 @@ snapshots:
     optionalDependencies:
       source-map: 0.6.1
 
-  eslint-config-prettier@10.1.1(eslint@9.39.4):
+  eslint-config-prettier@10.1.8(eslint@9.39.4):
     dependencies:
       eslint: 9.39.4
 
