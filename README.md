@@ -50,16 +50,13 @@ pnpm add @introspection-sdk/introspection-node
 ```typescript
 import { IntrospectionClient } from "@introspection-sdk/introspection-node";
 
-const client = new IntrospectionClient({
-  token: process.env.INTROSPECTION_TOKEN,
-  projectId: "proj_…",
-});
+const client = new IntrospectionClient({ token: "your-token" });
 
-const runner = await client.runtimes("customer-agent").run({
-  identity: { user_id: "u_42" },
-});
-const run = await runner.tasks.create({ prompt: "Summarize this repo" });
-for await (const ev of run.stream()) console.log(ev);
+const runtimeId = process.env.INTROSPECTION_RUNTIME_ID!;
+const runner = await client.runtimes(runtimeId).run();
+const run = await runner.tasks.start({ prompt: "Summarize this repo" });
+const text = await run.text();
+console.log(text);
 
 await runner.close();
 await client.shutdown();
@@ -85,7 +82,6 @@ const logs = new IntrospectionLogs({
   token: process.env.INTROSPECTION_TOKEN,
   serviceName: "my-service",
   baseOtelUrl: process.env.INTROSPECTION_BASE_OTEL_URL, // optional
-  projectId: "proj_…", // optional
 });
 
 await logs.withUserId("user_123", async () => {
