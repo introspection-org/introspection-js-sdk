@@ -14,7 +14,7 @@ import type {
 import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
 import { OpenAIInstrumentation } from "@arizeai/openinference-instrumentation-openai";
 import { registerInstrumentations } from "@opentelemetry/instrumentation";
-import { IntrospectionSpanProcessor } from "@introspection-sdk/introspection-node";
+import { IntrospectionSpanProcessor } from "@introspection-sdk/introspection-node/otel";
 import { resourceFromAttributes } from "@opentelemetry/resources";
 import { ATTR_SERVICE_NAME } from "@opentelemetry/semantic-conventions";
 

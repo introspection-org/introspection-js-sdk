@@ -37,8 +37,8 @@
   },
   "devDependencies": {
     "@repo/typescript-config": "workspace:*",
-    "@types/node": "^22.15.3",
-    "typescript": "5.9.2"
+    "@types/node": "^22.19.19",
+    "typescript": "5.9.3"
   },
   "engines": {
     "node": ">=18"

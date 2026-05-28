@@ -82,8 +82,18 @@ jobs:
       - name: Build packages
         run: pnpm build
 
-      - name: Run tests
-        run: pnpm test:replay
+      - name: Run tests with coverage
+        run: pnpm --filter introspection-tests test:cov
+        env:
+          POLLY_MODE: replay
+
+      - name: Upload coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: tests/coverage/
+          retention-days: 7
 
   # Examples live in their own workflow (./examples.yml) so they don't burn
   # LLM tokens on every push. They run on `workflow_dispatch` + tag pushes.
@@ -103,7 +113,7 @@ jobs:
           app-id: ${{ vars.GH_APP_ID || secrets.GH_APP_ID }}
           private-key: ${{ secrets.GH_APP_PRIVATE_KEY }}
           owner: introspection-org
-          repositories: introspection-js-sdk
+          repositories: introspection-js-sdk-private
 
       - uses: actions/checkout@v4
         with:

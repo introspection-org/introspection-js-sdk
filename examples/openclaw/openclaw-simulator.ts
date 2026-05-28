@@ -19,7 +19,7 @@
  *   INTROSPECTION_TOKEN
  *
  * Optional:
- *   INTROSPECTION_BASE_URL  (default: https://otel.introspection.dev)
+ *   INTROSPECTION_BASE_OTEL_URL  (default: https://otel.introspection.dev)
  */
 
 import register from "@introspection-sdk/introspection-openclaw";
@@ -50,7 +50,8 @@ async function main() {
     pluginConfig: {
       token: process.env.INTROSPECTION_TOKEN ?? "",
       baseUrl:
-        process.env.INTROSPECTION_BASE_URL ?? "https://otel.introspection.dev",
+        process.env.INTROSPECTION_BASE_OTEL_URL ??
+        "https://otel.introspection.dev",
       serviceName: "openclaw-simulator-example",
       captureMessageContent: true,
       captureToolInput: true,

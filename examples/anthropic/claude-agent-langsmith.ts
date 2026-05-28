@@ -20,7 +20,7 @@
 
 import * as originalSdk from "@anthropic-ai/claude-agent-sdk";
 import { wrapClaudeAgentSDK } from "langsmith/experimental/anthropic";
-import { withIntrospection } from "@introspection-sdk/introspection-node";
+import { withIntrospection } from "@introspection-sdk/introspection-node/otel";
 import { z } from "zod/v4";
 
 if (!process.env.LANGSMITH_API_KEY) {

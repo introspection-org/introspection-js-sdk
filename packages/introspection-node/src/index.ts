@@ -1,36 +1,18 @@
-import { IntrospectionSpanProcessor } from "./span-processor.js";
-import type { IntrospectionSpanProcessorOptions } from "./span-processor.js";
-
 /**
- * Factory that creates an {@link IntrospectionSpanProcessor}.
+ * Root entry point — REST-only surface.
  *
- * Provided as the default export for convenient use with logfire's
- * `additionalSpanProcessors` option.
+ * Exports `IntrospectionClient` (REST), Runner / RuntimeHandle /
+ * ExperimentHandle, REST wire types, and HTTP helpers. None of these
+ * touch the OpenTelemetry SDK.
  *
- * @param options - Optional processor configuration (token, serviceName, etc.).
- * @returns A ready-to-use {@link IntrospectionSpanProcessor}.
- *
- * @example
- * ```ts
- * import introspectionSpanProcessor from "@introspection-sdk/introspection-node";
- *
- * logfire.configure({ additionalSpanProcessors: [introspectionSpanProcessor()] });
- * ```
+ * For the OTel surface (logs, span processors, instrumentors) import
+ * from `@introspection-sdk/introspection-node/otel`.
  */
-export default function introspectionSpanProcessor(
-  options?: IntrospectionSpanProcessorOptions,
-): IntrospectionSpanProcessor {
-  return new IntrospectionSpanProcessor(options);
-}
 
-// Span processor exports (for OpenTelemetry integration)
-export { IntrospectionSpanProcessor } from "./span-processor.js";
-export type { IntrospectionSpanProcessorOptions } from "./span-processor.js";
-
-// Client exports
+// REST client.
 export { IntrospectionClient } from "./client.js";
 
-// Type exports
+// Configuration / event types shared with the OTel surface.
 export type {
   AdvancedOptions,
   IntrospectionClientOptions,
@@ -38,40 +20,98 @@ export type {
   UserTraits,
 } from "./types.js";
 
-// Tracing processor exports (for OpenAI Agents SDK integration)
-export { IntrospectionTracingProcessor } from "./tracing-processor.js";
-export type {
-  IntrospectionTracingProcessorOptions,
-  TracingProcessorAdvancedOptions,
-} from "./tracing-processor.js";
+// Runner-bound REST namespaces (runner.tasks, runner.files) + HTTP/SSE.
+export { TasksApi, TaskRunsApi, RunHandle } from "./runner-resources/tasks.js";
+export type { StartParams } from "./runner-resources/tasks.js";
+export { FilesApi, FileVersionsApi } from "./runner-resources/files.js";
+export type { FileUploadBody } from "./runner-resources/files.js";
+export { HttpClient } from "./http.js";
+export type { ResolvedApiConfig } from "./http.js";
+export { parseSse } from "./streaming.js";
 
-// Claude Agent SDK hooks exports
-export { IntrospectionClaudeHooks } from "./claude-hooks.js";
-export type {
-  IntrospectionClaudeHooksOptions,
-  ClaudeHooksAdvancedOptions,
-  ClaudeHooksConfig,
-  ClaudeHookCallbackMatcher,
-  ClaudeHookEvent,
-  ClaudeHookInput,
-  ClaudeHookOutput,
-  ClaudeHookCallback,
-  ClaudeUsage,
-  ClaudeModelUsage,
-  ClaudeResultMessage,
-  ClaudeAssistantMessage,
-  ClaudeSDKMessage,
-} from "./claude-hooks.js";
+// Runner + CP resources.
+export { Runner } from "./runner.js";
+export type { RunnerSource } from "./runner.js";
+export {
+  RuntimesApi,
+  RuntimeHandle,
+  attachRuntimes,
+  isUuid,
+} from "./resources/runtimes.js";
+export type { RuntimeHandleFactory } from "./resources/runtimes.js";
+export {
+  ExperimentsApi,
+  ExperimentHandle,
+  attachExperiments,
+} from "./resources/experiments.js";
+export type { ExperimentHandleFactory } from "./resources/experiments.js";
+export { RecipesApi, attachRecipes } from "./resources/recipes.js";
 
-// Claude Agent SDK wrapper exports
-export { withIntrospection } from "./claude-wrapper.js";
+// REST API wire types
 export type {
-  WithIntrospectionOptions,
-  InstrumentedClaudeAgentSDK,
-  ClaudeAgentSDKModule,
-} from "./claude-wrapper.js";
+  Paginated,
+  ListParams,
+  Task,
+  TaskCreateParams,
+  TaskUpdateParams,
+  TaskListParams,
+  TaskMode,
+  TaskStatus,
+  TaskPrompt,
+  TaskRun,
+  TaskRunCreateParams,
+  TaskRunResponse,
+  TaskCreateResponse,
+  TaskCancelResponse,
+  AgentInfo,
+  File,
+  FileType,
+  FileListParams,
+  FileUpdateParams,
+  FileCreateTextParams,
+  SseEvent,
+  Runtime,
+  RuntimeCreate,
+  RuntimeUpdate,
+  RuntimeListParams,
+  Experiment,
+  ExperimentCreate,
+  ExperimentUpdate,
+  ExperimentListParams,
+  ExperimentStatus,
+  ExperimentEndParams,
+  Arm,
+  Recipe,
+  RecipeCreate,
+  RecipeUpdate,
+  RecipeListParams,
+  RunnerSpec,
+  RunnerDeployment,
+  RunnerContext,
+  RunnerRecipeSummary,
+  RunnerIdentity,
+  RunRequest,
+  RunCaller,
+  RunCallerLibrary,
+  RunCallerPage,
+  RunIdentityInput,
+} from "@introspection-sdk/types";
+export {
+  IntrospectionAPIError,
+  AuthenticationError,
+  InsufficientScopeError,
+  RunnerExpiredError,
+  NotFoundError,
+  ConflictError,
+  ValidationError,
+  RateLimitError,
+  SandboxUnavailableError,
+  StreamError,
+  NetworkError,
+  apiErrorFromResponse,
+} from "@introspection-sdk/types";
 
-// GenAI types exports
+// GenAI types (shared, no OTel SDK imports).
 export type {
   GenAiAttributes,
   InputMessage,
@@ -85,7 +125,7 @@ export type {
 } from "@introspection-sdk/types";
 export { toAttributes } from "@introspection-sdk/types";
 
-// OpenAI converter exports
+// OpenAI converter exports (pure functions, no OTel SDK imports).
 export {
   convertResponsesInputsToSemconv,
   convertResponsesOutputsToSemconv,
@@ -100,22 +140,17 @@ export type {
   Response as OpenAIResponse,
 } from "./converters/openai.js";
 
-// AI SDK integration exports (for Vercel AI SDK)
-export { IntrospectionAISDKIntegration } from "./ai-sdk-integration.js";
+// Gemini converters (pure functions, no OTel SDK imports).
+export {
+  convertGeminiContentsToInputMessages,
+  convertGeminiCandidatesToOutputMessages,
+  convertGeminiSystemInstructionToSemconv,
+  convertGeminiToolsToToolDefinitions,
+} from "./converters/gemini.js";
 export type {
-  IntrospectionAISDKIntegrationOptions,
-  AISDKIntegrationAdvancedOptions,
-} from "./ai-sdk-integration.js";
-
-// OpenInference converter exports
-export {
-  addOpenInferenceAttributes,
-  OpenInferenceSpanExporter,
-} from "./converters/openinference.js";
-
-// Anthropic instrumentor exports
-export {
-  AnthropicInstrumentor,
-  tracedMessagesCreate,
-  REDACTED_THINKING_CONTENT,
-} from "./anthropic.js";
+  GeminiCandidate,
+  GeminiContent,
+  GeminiFunctionDeclaration,
+  GeminiPart,
+  GeminiTool,
+} from "./converters/gemini.js";

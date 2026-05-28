@@ -9,18 +9,18 @@ describe("LangChain First-Party Handler Tests", () => {
 
   beforeEach(async () => {
     try {
-      await import("@langchain/openai");
+      await import("@langchain/anthropic");
       await import("@introspection-sdk/introspection-node/langchain");
     } catch {
       console.log(
-        "Skipping: LangChain packages not installed (@langchain/openai, @langchain/core)",
+        "Skipping: LangChain packages not installed (@langchain/anthropic, @langchain/core)",
       );
       return;
     }
 
     polly = setupPolly({ recordingName: "langchain-handler" });
 
-    if (!ensureEnvVarsForReplay(["OPENAI_API_KEY"], "langchain-handler")) {
+    if (!ensureEnvVarsForReplay(["ANTHROPIC_API_KEY"], "langchain-handler")) {
       console.log(
         "Skipping: Required env vars not set for record/passthrough mode",
       );
@@ -45,9 +45,9 @@ describe("LangChain First-Party Handler Tests", () => {
       return;
     }
 
-    let ChatOpenAI, IntrospectionCallbackHandler;
+    let ChatAnthropic, IntrospectionCallbackHandler;
     try {
-      ({ ChatOpenAI } = await import("@langchain/openai"));
+      ({ ChatAnthropic } = await import("@langchain/anthropic"));
       ({ IntrospectionCallbackHandler } =
         await import("@introspection-sdk/introspection-node/langchain"));
     } catch {
@@ -62,8 +62,8 @@ describe("LangChain First-Party Handler Tests", () => {
       },
     });
 
-    const model = new ChatOpenAI({
-      modelName: "gpt-5-nano",
+    const model = new ChatAnthropic({
+      model: "claude-haiku-4-5",
     });
 
     const response = await model.invoke("Say hello in one word.", {
@@ -98,14 +98,15 @@ describe("LangChain First-Party Handler Tests", () => {
           "gen_ai.input.messages": "[{"role":"user","parts":[{"type":"text","content":"Say hello in one word."}]}]",
           "gen_ai.operation.name": "chat",
           "gen_ai.output.messages": "<output_messages>",
-          "gen_ai.request.model": "gpt-5-nano",
+          "gen_ai.request.model": "claude-haiku-4-5",
           "gen_ai.response.id": "<response_id>",
-          "gen_ai.system": "ChatOpenAI",
+          "gen_ai.response.model": "<response_model>",
+          "gen_ai.system": "ChatAnthropic",
           "gen_ai.usage.input_tokens": "<input_tokens>",
           "gen_ai.usage.output_tokens": "<output_tokens>",
           "openinference.span.kind": "LLM",
         },
-        "name": "chat gpt-5-nano",
+        "name": "chat claude-haiku-4-5",
         "span_id": Any<String>,
         "trace_id": Any<String>,
       }
@@ -225,6 +226,46 @@ describe("LangChain First-Party Handler Tests", () => {
     await handler.shutdown();
   });
 
+  it("captures Anthropic cache_creation and cache_read token counts", async () => {
+    const localExporter = new TestSpanExporter();
+    const { IntrospectionCallbackHandler } =
+      await import("@introspection-sdk/introspection-node/langchain");
+
+    const handler = new IntrospectionCallbackHandler({
+      advanced: { spanExporter: localExporter, useSimpleSpanProcessor: true },
+    });
+
+    handler.handleLLMStart(
+      { name: "ChatAnthropic", id: ["ChatAnthropic"] },
+      ["hello"],
+      "run-cache",
+    );
+    handler.handleLLMEnd(
+      {
+        generations: [[{ text: "Hi!" }]],
+        llmOutput: {
+          usage: {
+            input_tokens: 100,
+            output_tokens: 20,
+            cache_creation_input_tokens: 80,
+            cache_read_input_tokens: 60,
+          },
+        },
+      },
+      "run-cache",
+    );
+    await handler.forceFlush();
+
+    const spans = localExporter.getFinishedSpans();
+    const attrs = spans[0].attributes;
+    expect(attrs["gen_ai.usage.input_tokens"]).toBe(100);
+    expect(attrs["gen_ai.usage.output_tokens"]).toBe(20);
+    expect(attrs["gen_ai.usage.cache_creation.input_tokens"]).toBe(80);
+    expect(attrs["gen_ai.usage.cache_read.input_tokens"]).toBe(60);
+
+    await handler.shutdown();
+  });
+
   it("keeps child runs in the parent trace", async () => {
     const localExporter = new TestSpanExporter();
     const { IntrospectionCallbackHandler } =
@@ -262,6 +303,112 @@ describe("LangChain First-Party Handler Tests", () => {
     );
 
     expect(traceIds.size).toBe(1);
+
+    await handler.shutdown();
+  });
+});
+
+describe("LangChain First-Party Handler Tests (OpenAI)", () => {
+  let exporter: TestSpanExporter | null = null;
+  let polly: Polly | null = null;
+
+  beforeEach(async () => {
+    try {
+      await import("@langchain/openai");
+      await import("@introspection-sdk/introspection-node/langchain");
+    } catch {
+      console.log(
+        "Skipping: LangChain packages not installed (@langchain/openai, @langchain/core)",
+      );
+      return;
+    }
+
+    polly = setupPolly({ recordingName: "langchain-handler-openai" });
+
+    if (
+      !ensureEnvVarsForReplay(["OPENAI_API_KEY"], "langchain-handler-openai")
+    ) {
+      console.log(
+        "Skipping: Required env vars not set for record/passthrough mode",
+      );
+      await polly.stop();
+      polly = null;
+      return;
+    }
+
+    exporter = new TestSpanExporter();
+  });
+
+  afterEach(async () => {
+    if (polly) {
+      await polly.stop();
+      polly = null;
+    }
+    exporter = null;
+  });
+
+  it("should capture LangChain chat completion with gen_ai attributes via first-party handler", async () => {
+    if (!exporter) {
+      return;
+    }
+
+    const { ChatOpenAI } = await import("@langchain/openai");
+    const { IntrospectionCallbackHandler } =
+      await import("@introspection-sdk/introspection-node/langchain");
+
+    const handler = new IntrospectionCallbackHandler({
+      advanced: {
+        spanExporter: exporter,
+        useSimpleSpanProcessor: true,
+      },
+    });
+
+    const model = new ChatOpenAI({
+      model: "gpt-4o-mini",
+    });
+
+    const response = await model.invoke("Say hello in one word.", {
+      callbacks: [handler],
+    });
+
+    expect(response.content).toBeDefined();
+
+    await handler.forceFlush();
+    const spans = exporter.getFinishedSpans();
+
+    expect(spans.length).toBeGreaterThan(0);
+
+    const simplified = simplifySpansForSnapshot(spans, { normalize: true });
+
+    const chatSpan = simplified.find(
+      (s) => s.attributes["gen_ai.operation.name"] === "chat",
+    );
+    expect(chatSpan).toBeDefined();
+    expect(chatSpan).toMatchInlineSnapshot(
+      {
+        trace_id: expect.any(String),
+        span_id: expect.any(String),
+      },
+      `
+      {
+        "attributes": {
+          "gen_ai.conversation.id": "<conversation_id>",
+          "gen_ai.input.messages": "[{"role":"user","parts":[{"type":"text","content":"Say hello in one word."}]}]",
+          "gen_ai.operation.name": "chat",
+          "gen_ai.output.messages": "<output_messages>",
+          "gen_ai.request.model": "gpt-4o-mini",
+          "gen_ai.response.id": "<response_id>",
+          "gen_ai.system": "ChatOpenAI",
+          "gen_ai.usage.input_tokens": "<input_tokens>",
+          "gen_ai.usage.output_tokens": "<output_tokens>",
+          "openinference.span.kind": "LLM",
+        },
+        "name": "chat gpt-4o-mini",
+        "span_id": Any<String>,
+        "trace_id": Any<String>,
+      }
+    `,
+    );
 
     await handler.shutdown();
   });

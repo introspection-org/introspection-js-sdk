@@ -46,7 +46,7 @@ const langfuseExporter = new OtelExporter({
 
 // --- Introspection exporter ---
 const baseUrl =
-  process.env.INTROSPECTION_BASE_URL || "https://otel.introspection.dev";
+  process.env.INTROSPECTION_BASE_OTEL_URL || "https://otel.introspection.dev";
 
 const introspectionExporter = new IntrospectionMastraExporter();
 

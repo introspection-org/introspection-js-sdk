@@ -7,7 +7,7 @@ import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
 import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-http";
 import { OTLPTraceExporter as ProtoOTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-proto";
 import { resourceFromAttributes } from "@opentelemetry/resources";
-import { IntrospectionSpanProcessor } from "@introspection-sdk/introspection-node";
+import { IntrospectionSpanProcessor } from "@introspection-sdk/introspection-node/otel";
 import { IncrementalIdGenerator, TestSpanExporter } from "../testing";
 
 interface OpenInferenceInstrumentation {

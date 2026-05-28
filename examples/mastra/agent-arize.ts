@@ -16,7 +16,7 @@ import { OtelExporter } from "@mastra/otel-exporter";
 import { IntrospectionMastraExporter } from "@introspection-sdk/introspection-node/mastra";
 import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-proto";
 import { z } from "zod";
-import { OpenInferenceSpanExporter } from "@introspection-sdk/introspection-node";
+import { OpenInferenceSpanExporter } from "@introspection-sdk/introspection-node/otel";
 
 if (!process.env.ARIZE_SPACE_KEY || !process.env.ARIZE_API_KEY) {
   throw new Error("ARIZE_SPACE_KEY and ARIZE_API_KEY must be set");
@@ -51,7 +51,7 @@ const arizeExporter = new OtelExporter({
 });
 
 const baseUrl =
-  process.env.INTROSPECTION_BASE_URL || "https://otel.introspection.dev";
+  process.env.INTROSPECTION_BASE_OTEL_URL || "https://otel.introspection.dev";
 
 const introspectionExporter = new IntrospectionMastraExporter();
 

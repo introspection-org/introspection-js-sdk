@@ -78,7 +78,7 @@ async function main() {
   if (!token) throw new Error("INTROSPECTION_TOKEN is required");
 
   const baseUrl =
-    process.env.INTROSPECTION_BASE_URL || "https://otel.introspection.dev";
+    process.env.INTROSPECTION_BASE_OTEL_URL || "https://otel.introspection.dev";
   const endpoint = `${baseUrl.replace(/\/$/, "")}/v1/traces`;
 
   const provider = new BasicTracerProvider({

@@ -22,7 +22,13 @@ interface VercelContentPart {
   name?: string;
   toolCallId?: string;
   id?: string;
+  // AI SDK v6 uses `input` for tool-call args; older versions used `args`.
   args?: string | Record<string, unknown>;
+  input?: string | Record<string, unknown>;
+  // tool-result payload. AI SDK v6 emits `{ output: { type: "text", value } }`
+  // for text results; older shapes used `result`.
+  output?: { type?: string; value?: unknown } | unknown;
+  result?: unknown;
 }
 
 interface VercelTool {
@@ -39,6 +45,10 @@ interface GenAIPart {
   name?: string;
   id?: string;
   arguments?: string;
+  // tool_call_response payload — kept separate from `content` so downstream
+  // consumers (and brightstaff signal detectors) can distinguish tool
+  // results from plain text.
+  response?: string;
 }
 
 interface GenAIMessage {
@@ -247,14 +257,42 @@ function extractParts(content: VercelMessage["content"]): GenAIPart[] {
         return { type: "text", content: part.text || part.content || "" };
       }
       if (part.type === "tool-call" || part.type === "tool_call") {
+        // AI SDK v6 emits `input`; older versions emitted `args`.
+        const rawArgs = part.input ?? part.args;
         return {
           type: "tool_call",
           name: part.toolName || part.name || "",
           id: part.toolCallId || part.id || "",
           arguments:
-            typeof part.args === "string"
-              ? part.args
-              : JSON.stringify(part.args),
+            typeof rawArgs === "string" ? rawArgs : JSON.stringify(rawArgs),
+        };
+      }
+      if (part.type === "tool-result" || part.type === "tool_result") {
+        // AI SDK v6 wraps text outputs in `{ output: { type: "text", value } }`.
+        // Older shapes used `result`. Unwrap to the raw string when we can so
+        // brightstaff's execution.failure.* / environment.exhaustion.* regex
+        // detectors see the error text directly — otherwise downstream
+        // consumers get a JSON-stringified blob and the canonical
+        // `tool_call_response` shape is lost.
+        const rawOutput =
+          part.result !== undefined ? part.result : (part.output as unknown);
+        let response: string;
+        if (typeof rawOutput === "string") {
+          response = rawOutput;
+        } else if (
+          rawOutput &&
+          typeof rawOutput === "object" &&
+          "value" in (rawOutput as Record<string, unknown>)
+        ) {
+          const value = (rawOutput as Record<string, unknown>).value;
+          response = typeof value === "string" ? value : JSON.stringify(value);
+        } else {
+          response = JSON.stringify(rawOutput);
+        }
+        return {
+          type: "tool_call_response",
+          id: part.toolCallId || part.id || "",
+          response,
         };
       }
       return { type: "text", content: JSON.stringify(part) };

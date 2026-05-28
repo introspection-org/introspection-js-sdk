@@ -2,6 +2,13 @@ import { Polly, Timing } from "@pollyjs/core";
 import FetchAdapter from "@pollyjs/adapter-fetch";
 import NodeHTTPAdapter from "@pollyjs/adapter-node-http";
 import FSPersister from "@pollyjs/persister-fs";
+import { context, propagation, trace } from "@opentelemetry/api";
+import { AsyncLocalStorageContextManager } from "@opentelemetry/context-async-hooks";
+import {
+  CompositePropagator,
+  W3CBaggagePropagator,
+  W3CTraceContextPropagator,
+} from "@opentelemetry/core";
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
@@ -23,6 +30,8 @@ const SENSITIVE_HEADERS = [
   "space_id",
   "x-stainless-api-key",
   "anthropic-api-key",
+  "x-goog-api-key",
+  "x-goog-user-project",
   "cookie",
   "set-cookie",
   "openai-organization",
@@ -115,6 +124,99 @@ export function setupPolly({
 
   return polly;
 }
+
+/**
+ * Install a clean set of OTel globals (context manager + W3C propagator)
+ * for a single test scope, and return a disposer.
+ *
+ * Why this exists: OTel's `setGlobalContextManager` / `setGlobalPropagator`
+ * silently refuse to replace an existing registration — they return false
+ * and leave the prior value in place. That makes test isolation fragile:
+ * if any earlier code in the same worker called
+ * `NodeTracerProvider.register()` (which auto-installs both), or registered
+ * globals without cleaning up, subsequent tests inherit stale state and
+ * `withAgent` / `withConversation` baggage scopes silently don't take.
+ *
+ * This helper enforces a clean slate by calling `disable()` first, then
+ * registering, then asserting that the registration actually took.
+ * A loud throw beats silent baggage drops.
+ *
+ * Usage:
+ *
+ *   beforeEach(() => {
+ *     dispose = installTestOTelGlobals();
+ *   });
+ *   afterEach(() => dispose());
+ */
+export function installTestOTelGlobals(): () => void {
+  context.disable();
+  propagation.disable();
+  trace.disable();
+
+  const ok =
+    context.setGlobalContextManager(
+      new AsyncLocalStorageContextManager().enable(),
+    ) &&
+    propagation.setGlobalPropagator(
+      new CompositePropagator({
+        propagators: [
+          new W3CTraceContextPropagator(),
+          new W3CBaggagePropagator(),
+        ],
+      }),
+    );
+
+  if (!ok) {
+    throw new Error(
+      "[polly-setup] OTel globals refused replacement after disable() — " +
+        "registry is stuck. Tests cannot reliably propagate baggage; " +
+        "failing loud rather than silently producing spans without identity.",
+    );
+  }
+
+  return () => {
+    context.disable();
+    propagation.disable();
+    trace.disable();
+  };
+}
+
+/**
+ * Canonical base URLs that test code should pass to SDK clients so the URL
+ * each SDK posts to is identical between record and replay — independent of
+ * what `ANTHROPIC_BASE_URL` / `OPENAI_BASE_URL` etc. happen to be in the
+ * host shell (Claude Code on the web pre-sets `ANTHROPIC_BASE_URL`, some
+ * AnyLLM dev setups too).
+ *
+ * Each entry maps to the SDK's `baseURL`/`anthropicApiUrl` option, NOT to
+ * the full request URL — the SDK appends its own path. Different SDKs split
+ * the URL differently (e.g. the Anthropic Node SDK appends `/v1/messages`
+ * while `@ai-sdk/anthropic` appends just `/messages`), hence the separate
+ * entries per SDK family.
+ *
+ * Usage:
+ *
+ *   const client = new Anthropic({ baseURL: pollyEndpoints.anthropic.node });
+ *   const model = new ChatAnthropic({
+ *     anthropicApiUrl: pollyEndpoints.anthropic.langchain,
+ *   });
+ *   const m = openai({ baseURL: pollyEndpoints.openai.aiSdk })("gpt-5-nano");
+ */
+export const pollyEndpoints = {
+  anthropic: {
+    /** Anthropic Node SDK appends `/v1/messages` itself. */
+    node: "https://api.anthropic.com",
+    /** `@langchain/anthropic` uses the same base as the Node SDK. */
+    langchain: "https://api.anthropic.com",
+    /** `@ai-sdk/anthropic` appends just `/messages` — base must include /v1. */
+    aiSdk: "https://api.anthropic.com/v1",
+  },
+  openai: {
+    /** OpenAI Node SDK and `@ai-sdk/openai` use the same base. */
+    node: "https://api.openai.com/v1",
+    aiSdk: "https://api.openai.com/v1",
+  },
+} as const;
 
 /**
  * Check if a recording exists on disk for the given name.

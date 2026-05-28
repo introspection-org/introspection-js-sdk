@@ -228,6 +228,10 @@ export interface ClaudeSessionData {
   toolNames?: string[];
   /** System instructions / system prompt */
   systemInstructions?: string;
+  /** Tokens read from the LLM prompt cache */
+  cacheReadInputTokens?: number;
+  /** Tokens written to the LLM prompt cache */
+  cacheCreationInputTokens?: number;
 }
 
 /**
@@ -279,6 +283,12 @@ export function convertClaudeSessionToGenAI(
   }
   if (data.outputTokens !== undefined) {
     result.outputTokens = data.outputTokens;
+  }
+  if (data.cacheReadInputTokens !== undefined) {
+    result.cacheReadInputTokens = data.cacheReadInputTokens;
+  }
+  if (data.cacheCreationInputTokens !== undefined) {
+    result.cacheCreationInputTokens = data.cacheCreationInputTokens;
   }
 
   // Set response ID

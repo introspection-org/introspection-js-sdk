@@ -11,7 +11,7 @@
       },
       "baseUrl": {
         "type": "string",
-        "description": "Introspection OTLP base URL. Falls back to INTROSPECTION_BASE_URL env var."
+        "description": "Introspection OTLP base URL. Falls back to INTROSPECTION_BASE_OTEL_URL env var."
       },
       "serviceName": {
         "type": "string",

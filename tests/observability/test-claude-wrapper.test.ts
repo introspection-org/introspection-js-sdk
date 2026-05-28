@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import {
   withIntrospection,
   type ClaudeAgentSDKModule,
-} from "@introspection-sdk/introspection-node";
+} from "@introspection-sdk/introspection-node/otel";
 import {
   TestSpanExporter,
   IncrementalIdGenerator,
@@ -135,6 +135,7 @@ describe("withIntrospection() Wrapper Tests", () => {
               "claude.source": "message",
               "claude.tools": "Bash,Read,Write",
               "gen_ai.agent.name": "claude-agent",
+              "gen_ai.conversation.id": "test-session-123",
               "gen_ai.cost.usd": 0.00052,
               "gen_ai.input.messages": "[{"role":"user","parts":[{"type":"text","content":"What is 2 + 2? Just give me the number."}]}]",
               "gen_ai.operation.name": "chat",

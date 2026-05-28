@@ -16,7 +16,7 @@
 import * as sdk from "@anthropic-ai/claude-agent-sdk";
 import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-proto";
 import type { SpanExporter, ReadableSpan } from "@opentelemetry/sdk-trace-base";
-import { withIntrospection } from "@introspection-sdk/introspection-node";
+import { withIntrospection } from "@introspection-sdk/introspection-node/otel";
 import { z } from "zod/v4";
 
 if (!process.env.BRAINTRUST_API_KEY) {
@@ -71,7 +71,7 @@ const braintrustExporter = new OTLPTraceExporter({
 
 // --- Introspection exporter ---
 const baseUrl =
-  process.env.INTROSPECTION_BASE_URL || "https://otel.introspection.dev";
+  process.env.INTROSPECTION_BASE_OTEL_URL || "https://otel.introspection.dev";
 const introspectionEndpoint = `${baseUrl.replace(/\/$/, "")}/v1/traces`;
 
 const introspectionExporter = new OTLPTraceExporter({

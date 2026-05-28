@@ -6,5 +6,8 @@ pnpm exec lint-staged
 # Run type checking on all files
 pnpm check-types
 
-# Run tests in replay mode (uses recorded HTTP fixtures, no API keys needed)
-pnpm test:replay
+# Run the full replay suite WITH coverage. Coverage thresholds in
+# tests/vitest.config.ts block the commit if any drops below the baseline
+# (see docs/cleanup-plan.md for how to raise them and AGENTS.md for the
+# contributor expectation).
+pnpm --filter introspection-tests test:cov

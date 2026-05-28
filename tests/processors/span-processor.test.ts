@@ -5,7 +5,7 @@ import {
 } from "@opentelemetry/sdk-trace-base";
 import { describe, expect, it } from "vitest";
 
-import { IntrospectionSpanProcessor } from "../../packages/introspection-node/src/span-processor";
+import { IntrospectionSpanProcessor } from "../../packages/introspection-node/src/otel/span-processor";
 import { IncrementalIdGenerator } from "../testing";
 
 describe("IntrospectionSpanProcessor", () => {

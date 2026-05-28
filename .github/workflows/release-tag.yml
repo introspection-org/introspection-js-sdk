@@ -74,7 +74,7 @@ jobs:
           app-id: ${{ vars.GH_APP_ID || secrets.GH_APP_ID }}
           private-key: ${{ secrets.GH_APP_PRIVATE_KEY }}
           owner: introspection-org
-          repositories: introspection-js-sdk
+          repositories: introspection-js-sdk-private
 
       - uses: actions/checkout@v4
         with:

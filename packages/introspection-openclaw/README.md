@@ -87,15 +87,15 @@ You should see `introspection-openclaw` listed as loaded. Run an agent session a
 
 All config options can be set in `plugins.entries.introspection-openclaw.config` or via environment variables:
 
-| Config key              | Env var                      | Default                          | Description                                          |
-| ----------------------- | ---------------------------- | -------------------------------- | ---------------------------------------------------- |
-| `token`                 | `INTROSPECTION_TOKEN`        | —                                | **Required.** Introspection write token.             |
-| `baseUrl`               | `INTROSPECTION_BASE_URL`     | `https://otel.introspection.dev` | OTLP endpoint URL.                                   |
-| `serviceName`           | `INTROSPECTION_SERVICE_NAME` | `openclaw-agent`                 | OTEL service name.                                   |
-| `captureMessageContent` | —                            | `true`                           | Record LLM prompt/response content.                  |
-| `captureToolInput`      | —                            | `true`                           | Record tool call arguments.                          |
-| `captureToolOutput`     | —                            | `true`                           | Record tool results.                                 |
-| `maxCaptureLength`      | —                            | `2048`                           | Max character length for captured tool input/output. |
+| Config key              | Env var                       | Default                          | Description                                          |
+| ----------------------- | ----------------------------- | -------------------------------- | ---------------------------------------------------- |
+| `token`                 | `INTROSPECTION_TOKEN`         | —                                | **Required.** Introspection write token.             |
+| `baseUrl`               | `INTROSPECTION_BASE_OTEL_URL` | `https://otel.introspection.dev` | OTLP endpoint URL.                                   |
+| `serviceName`           | `INTROSPECTION_SERVICE_NAME`  | `openclaw-agent`                 | OTEL service name.                                   |
+| `captureMessageContent` | —                             | `true`                           | Record LLM prompt/response content.                  |
+| `captureToolInput`      | —                             | `true`                           | Record tool call arguments.                          |
+| `captureToolOutput`     | —                             | `true`                           | Record tool results.                                 |
+| `maxCaptureLength`      | —                             | `2048`                           | Max character length for captured tool input/output. |
 
 ## Exported span attributes
 

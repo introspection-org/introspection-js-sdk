@@ -19,7 +19,7 @@ import type { SpanExporter, ReadableSpan } from "@opentelemetry/sdk-trace-base";
 import {
   IntrospectionTracingProcessor,
   OpenInferenceSpanExporter,
-} from "@introspection-sdk/introspection-node";
+} from "@introspection-sdk/introspection-node/otel";
 import { z } from "zod";
 
 if (!process.env.ARIZE_SPACE_KEY || !process.env.ARIZE_API_KEY) {
@@ -127,7 +127,7 @@ const arizeExporter = new ArizeProjectNameExporter(
 
 // --- Introspection exporter ---
 const baseUrl =
-  process.env.INTROSPECTION_BASE_URL || "https://otel.introspection.dev";
+  process.env.INTROSPECTION_BASE_OTEL_URL || "https://otel.introspection.dev";
 const introspectionEndpoint = `${baseUrl.replace(/\/$/, "")}/v1/traces`;
 
 const introspectionExporter = new OTLPTraceExporter({
