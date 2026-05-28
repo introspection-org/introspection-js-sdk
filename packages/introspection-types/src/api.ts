@@ -165,6 +165,17 @@ export interface FileCreateTextParams {
 
 // --- runtimes / experiments / runner ---
 
+/**
+ * How a Runtime acquires LLM provider credentials at session create.
+ *
+ * - `"managed"` — Introspection-managed keys (default; current behaviour).
+ * - `"byok"`    — the project's Endpoint pool. Applicable LLM endpoints
+ *                 are materialised into the session. Session create fails
+ *                 with `byok_no_endpoints` if no applicable LLM endpoint
+ *                 exists in the project.
+ */
+export type RuntimeLlmMode = "managed" | "byok";
+
 export interface Runtime {
   id: Uuid;
   org_id: Uuid;
@@ -173,6 +184,7 @@ export interface Runtime {
   description?: string | null;
   recipe_id: Uuid;
   is_active: boolean;
+  llm_mode: RuntimeLlmMode;
   created_at: IsoDate;
   updated_at: IsoDate;
   metadata?: Record<string, unknown> | null;
@@ -185,6 +197,8 @@ export interface RuntimeCreate {
   description?: string;
   metadata?: Record<string, unknown>;
   is_active?: boolean;
+  /** Defaults to `"managed"` on the server when omitted. */
+  llm_mode?: RuntimeLlmMode;
 }
 
 export interface RuntimeUpdate {
@@ -193,6 +207,7 @@ export interface RuntimeUpdate {
   recipe_id?: Uuid;
   is_active?: boolean;
   metadata?: Record<string, unknown>;
+  llm_mode?: RuntimeLlmMode;
 }
 
 export interface RuntimeListParams extends ListParams {
