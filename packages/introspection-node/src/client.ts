@@ -54,7 +54,7 @@ export class IntrospectionClient {
   readonly cpHttp: HttpClient;
   /** @internal — passed through to Runner so it can build its own DP HTTP client. */
   readonly advancedOptions: AdvancedOptions;
-  private readonly projectId: string | undefined;
+  readonly projectId: string | undefined;
 
   /**
    * CRUD on `/v1/runtimes` and the `(idOrName) => RuntimeHandle` factory.
@@ -107,19 +107,6 @@ export class IntrospectionClient {
     this.recipes = attachRecipes(this.cpHttp);
 
     sdkLogger.info(`IntrospectionClient initialized: api=${baseApiUrl}`);
-  }
-
-  /**
-   * @internal — used by `RuntimeHandle` to look up a runtime by name when
-   * no UUID was supplied.
-   */
-  requireProjectId(): string {
-    if (!this.projectId) {
-      throw new Error(
-        "IntrospectionClient.runtimes(name) requires a projectId. Pass `projectId` to the IntrospectionClient constructor, or set INTROSPECTION_PROJECT_ID, or call `client.runtimes(<uuid>)` instead of by name.",
-      );
-    }
-    return this.projectId;
   }
 
   /** Close the underlying HTTP client. */

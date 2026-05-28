@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 set -uo pipefail
 
-# Load .env from this directory or parent
-if [ -f ".env" ]; then
-  set -a; source ".env"; set +a
-elif [ -f "../.env" ]; then
+# Load .env from parent (examples/) or grandparent (repo root)
+if [ -f "../.env" ]; then
   set -a; source "../.env"; set +a
+elif [ -f "../../.env" ]; then
+  set -a; source "../../.env"; set +a
 fi
 
 failed=0

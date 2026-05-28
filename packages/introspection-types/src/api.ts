@@ -211,7 +211,7 @@ export interface RuntimeUpdate {
 }
 
 export interface RuntimeListParams extends ListParams {
-  project_id: Uuid;
+  project_id?: Uuid;
   name?: string;
   recipe_id?: Uuid;
   only_active?: boolean;
@@ -252,7 +252,7 @@ export interface RecipeUpdate {
 }
 
 export interface RecipeListParams extends ListParams {
-  project_id: Uuid;
+  project_id?: Uuid;
   repository_id?: Uuid;
   name?: string;
   git_ref?: string;
@@ -302,7 +302,7 @@ export interface ExperimentUpdate {
 }
 
 export interface ExperimentListParams extends ListParams {
-  project_id: Uuid;
+  project_id?: Uuid;
   name?: string;
   status?: ExperimentStatus;
 }

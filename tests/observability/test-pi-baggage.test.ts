@@ -178,7 +178,7 @@ describe("Pi Agent SDK baggage — real Agent against Polly-recorded Anthropic",
 
     // Single shared instrumentor — instrument both agents with neutral
     // defaults, then have each branch override identity via withAgent +
-    // withConversation. Mirrors examples/pi/pi-subagents-baggage.ts.
+    // withConversation. Mirrors examples/otel/pi/pi-subagents-baggage.ts.
     const primesAgent = await makeAgent();
     const fibAgent = await makeAgent();
     instrumentor.instrument(primesAgent, {

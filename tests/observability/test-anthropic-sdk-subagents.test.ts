@@ -3,7 +3,7 @@
  *
  * Covers the combination of AnthropicInstrumentor + IntrospectionLogs
  * .withAgent()/.withConversation() used in
- * examples/anthropic-sdk/subagents-baggage.ts:
+ * examples/otel/anthropic-sdk/subagents-baggage.ts:
  *   - withAgent(name, id, fn) sets gen_ai.agent.name / gen_ai.agent.id baggage
  *   - withConversation(id, _, fn) sets gen_ai.conversation.id baggage
  *   - AnthropicInstrumentor reads baggage from OTel context and stamps it

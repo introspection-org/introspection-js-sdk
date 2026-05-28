@@ -7,7 +7,7 @@
  * for the user phrases and tool error patterns it knows. These tests
  * verify the *client-side inputs* the detector relies on are captured
  * correctly onto spans for every signal category exercised by
- * `examples/vercel/signals.ts`:
+ * `examples/otel/vercel/signals.ts`:
  *
  *   - User trigger phrases appear in `gen_ai.input.messages` (interaction
  *     signals: disengagement / satisfaction / stagnation / misalignment).
@@ -23,7 +23,7 @@
  * signals example would otherwise require 20+ HAR files (`dragging` alone is
  * 10 round-trips), and the mock keeps the suite deterministic and runnable
  * without an Anthropic key. The companion example
- * (`examples/vercel/signals.ts`) is the live-API counterpart for end-to-end
+ * (`examples/otel/vercel/signals.ts`) is the live-API counterpart for end-to-end
  * signal emission against the Introspection backend.
  *
  * Uses the native AI SDK telemetry pathway introduced by PR #54:

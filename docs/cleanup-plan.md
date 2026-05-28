@@ -28,19 +28,19 @@ Each phase is independently shippable.
 
 ### Frameworks & their npm packages
 
-| Framework area             | npm package(s)                                       | Example folder               | Test file(s)                                                                                                                     |
-| -------------------------- | ---------------------------------------------------- | ---------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
-| OpenAI Agents SDK          | `@openai/agents`                                     | `examples/openai/`           | `test-openai-subagents.test.ts`                                                                                                  |
-| Anthropic raw SDK          | `@anthropic-ai/sdk`                                  | `examples/anthropic-sdk/` 🚩 | `test-anthropic-sdk-subagents.test.ts`, `test-anthropic-thinking.test.ts`                                                        |
-| Anthropic Claude Agent SDK | `@anthropic-ai/claude-agent-sdk`                     | `examples/anthropic/` 🚩     | `test-claude.test.ts`, `test-claude-wrapper.test.ts`, `test-claude-baggage-proxy.test.ts`                                        |
-| Gemini                     | `@google/genai`                                      | `examples/gemini-sdk/`       | `test-gemini-thinking.test.ts`                                                                                                   |
-| LangChain                  | `@langchain/*` + `IntrospectionCallbackHandler`      | `examples/langchain/`        | `test-langchain.test.ts`, `test-langchain-handler.test.ts`, `test-langchain-subagents.test.ts`, `test-langchain-baggage.test.ts` |
-| Vercel AI SDK              | `ai` + `@ai-sdk/*`                                   | `examples/vercel/`           | `test-vercel.test.ts`, `test-vercel-subagents.test.ts`, `test-vercel-baggage-openai.test.ts`                                     |
-| Mastra                     | `@mastra/*` + `IntrospectionMastraExporter`          | `examples/mastra/`           | `test-mastra.test.ts`, `test-mastra-exporter.test.ts`, `test-mastra-subagents.test.ts`                                           |
-| Pi                         | `@mariozechner/pi-*` + `IntrospectionPiInstrumentor` | `examples/pi/`               | `test-pi-attributes.test.ts`, `test-pi-baggage.test.ts`, `test-pi-instrumentation.test.ts`, `test-pi-subagents.test.ts`          |
-| OpenInference              | `@arizeai/openinference-*`                           | `examples/openinference/`    | **none** ❌                                                                                                                      |
-| OpenClaw                   | `@introspection-sdk/introspection-openclaw`          | `examples/openclaw/`         | `test-openclaw-attributes.test.ts`                                                                                               |
-| Raw OTel (no wrapper)      | —                                                    | `examples/raw/` 🚩           | **none** ❌                                                                                                                      |
+| Framework area             | npm package(s)                                       | Example folder                    | Test file(s)                                                                                                                     |
+| -------------------------- | ---------------------------------------------------- | --------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| OpenAI Agents SDK          | `@openai/agents`                                     | `examples/otel/openai/`           | `test-openai-subagents.test.ts`                                                                                                  |
+| Anthropic raw SDK          | `@anthropic-ai/sdk`                                  | `examples/otel/anthropic-sdk/` 🚩 | `test-anthropic-sdk-subagents.test.ts`, `test-anthropic-thinking.test.ts`                                                        |
+| Anthropic Claude Agent SDK | `@anthropic-ai/claude-agent-sdk`                     | `examples/otel/anthropic/` 🚩     | `test-claude.test.ts`, `test-claude-wrapper.test.ts`, `test-claude-baggage-proxy.test.ts`                                        |
+| Gemini                     | `@google/genai`                                      | `examples/otel/gemini-sdk/`       | `test-gemini-thinking.test.ts`                                                                                                   |
+| LangChain                  | `@langchain/*` + `IntrospectionCallbackHandler`      | `examples/otel/langchain/`        | `test-langchain.test.ts`, `test-langchain-handler.test.ts`, `test-langchain-subagents.test.ts`, `test-langchain-baggage.test.ts` |
+| Vercel AI SDK              | `ai` + `@ai-sdk/*`                                   | `examples/otel/vercel/`           | `test-vercel.test.ts`, `test-vercel-subagents.test.ts`, `test-vercel-baggage-openai.test.ts`                                     |
+| Mastra                     | `@mastra/*` + `IntrospectionMastraExporter`          | `examples/otel/mastra/`           | `test-mastra.test.ts`, `test-mastra-exporter.test.ts`, `test-mastra-subagents.test.ts`                                           |
+| Pi                         | `@mariozechner/pi-*` + `IntrospectionPiInstrumentor` | `examples/otel/pi/`               | `test-pi-attributes.test.ts`, `test-pi-baggage.test.ts`, `test-pi-instrumentation.test.ts`, `test-pi-subagents.test.ts`          |
+| OpenInference              | `@arizeai/openinference-*`                           | `examples/otel/openinference/`    | **none** ❌                                                                                                                      |
+| OpenClaw                   | `@introspection-sdk/introspection-openclaw`          | `examples/otel/openclaw/`         | `test-openclaw-attributes.test.ts`                                                                                               |
+| Raw OTel (no wrapper)      | —                                                    | `examples/otel/raw/` 🚩           | **none** ❌                                                                                                                      |
 
 🚩 = naming or structure problem listed below.
 ❌ = no test coverage.
@@ -75,16 +75,16 @@ These should be applied consistently going forward; any new code that doesn't ma
 
 Two npm packages, two top-level folders, both peers (not nested):
 
-| Folder                   | npm package                      | What it demonstrates                                                |
-| ------------------------ | -------------------------------- | ------------------------------------------------------------------- |
-| `examples/anthropic/`    | `@anthropic-ai/sdk`              | Raw Anthropic Node SDK — `client.messages.create()` directly        |
-| `examples/claude-agent/` | `@anthropic-ai/claude-agent-sdk` | Claude Agent SDK — high-level agent that spawns the `claude` binary |
+| Folder                     | npm package                      | What it demonstrates                                                |
+| -------------------------- | -------------------------------- | ------------------------------------------------------------------- |
+| `examples/otel/anthropic/` | `@anthropic-ai/sdk`              | Raw Anthropic Node SDK — `client.messages.create()` directly        |
+| `examples/otel/anthropic/` | `@anthropic-ai/claude-agent-sdk` | Claude Agent SDK — high-level agent that spawns the `claude` binary |
 
 Maps cleanly onto the published package names. Same applies to the SDK source files: `anthropic.ts` is the instrumentor for the raw SDK, `claude-hooks.ts` / `claude-wrapper.ts` are for the agent SDK.
 
 ### `raw/` → `otel/`
 
-`examples/raw/multi-turn-conversation.ts` is the only file under `examples/raw/`. The folder will be renamed to `examples/otel/` to make its intent explicit: "show what wiring Introspection looks like with hand-rolled OTel, no framework-specific wrapper."
+`examples/raw/multi-turn-conversation.ts` is the only file under `examples/otel/raw/`. The folder will be renamed to `examples/otel/` to make its intent explicit: "show what wiring Introspection looks like with hand-rolled OTel, no framework-specific wrapper."
 
 ### Example file naming pattern
 
@@ -100,10 +100,10 @@ Where:
 
 Examples:
 
-- `examples/openai/agents.ts` — base
-- `examples/openai/agents-arize.ts` — dual-export
-- `examples/mastra/agent.ts` — base
-- `examples/mastra/agent-arize.ts` — dual-export
+- `examples/otel/openai/agents.ts` — base
+- `examples/otel/openai/agents-arize.ts` — dual-export
+- `examples/otel/mastra/agent.ts` — base
+- `examples/otel/mastra/agent-arize.ts` — dual-export
 
 Today's drift:
 
@@ -136,8 +136,8 @@ Proposed shape:
 
 ```
 examples/_shared/dual-export.ts          # exports vendor setup helpers
-examples/openai/agents-arize.ts          # imports + uses
-examples/openai/agents-braintrust.ts     # imports + uses
+examples/otel/openai/agents-arize.ts          # imports + uses
+examples/otel/openai/agents-braintrust.ts     # imports + uses
 ...
 ```
 
@@ -179,18 +179,18 @@ Goal: apply the naming conventions above. No behavior change; entirely structura
 
 ### Tasks
 
-| ID   | Task                                                                                                                 | From → To                                                                                                                          |
-| ---- | -------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- | --- |
-| 2.1  | Rename Anthropic agent folder                                                                                        | `examples/anthropic/` → `examples/claude-agent/`                                                                                   |
-| 2.2  | Rename Anthropic raw SDK folder                                                                                      | `examples/anthropic-sdk/` → `examples/anthropic/`                                                                                  |
-| 2.3  | Drop redundant `claude-agent-` prefix inside `examples/claude-agent/`                                                | `claude-agent.ts` → `agent.ts`, `claude-agent-subagents.ts` → `subagents.ts`, `claude-agent-braintrust.ts` → `braintrust.ts`, etc. |
-| 2.4  | Drop redundant `anthropic-` prefix inside `examples/anthropic/`                                                      | `anthropic-native.ts` → `native.ts`, `subagents-baggage.ts` → `subagents.ts`                                                       |
-| 2.5  | Rename `examples/gemini-sdk/` → `examples/gemini/` and `gemini-native.ts` → `native.ts`                              | —                                                                                                                                  |
-| 2.6  | Drop redundant `pi-` prefix inside `examples/pi/`                                                                    | `pi-native.ts` → `native.ts`, `pi-subagents-baggage.ts` → `subagents.ts`                                                           |
-| 2.7  | Rename `examples/raw/` → `examples/otel/` and `multi-turn-conversation.ts` → `multi-turn.ts` (drop redundant suffix) | —                                                                                                                                  |
-| 2.8  | Update every `pnpm <script>` mapping in `examples/package.json` to the new paths                                     | `examples/package.json`                                                                                                            |     |
-| 2.9  | Update every reference in `README.md`, `examples/README.md`, `tests/README.md`, `AGENTS.md`                          | —                                                                                                                                  |     |
-| 2.10 | Update every reference in PR descriptions / commit messages going forward (nothing to do historically)               | —                                                                                                                                  |     |
+| ID   | Task                                                                                                                      | From → To                                                                                                                          |
+| ---- | ------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- | --- |
+| 2.1  | Rename Anthropic agent folder                                                                                             | `examples/otel/anthropic/` → `examples/otel/anthropic/`                                                                            |
+| 2.2  | Rename Anthropic raw SDK folder                                                                                           | `examples/otel/anthropic-sdk/` → `examples/otel/anthropic/`                                                                        |
+| 2.3  | Drop redundant `claude-agent-` prefix inside `examples/otel/anthropic/`                                                   | `claude-agent.ts` → `agent.ts`, `claude-agent-subagents.ts` → `subagents.ts`, `claude-agent-braintrust.ts` → `braintrust.ts`, etc. |
+| 2.4  | Drop redundant `anthropic-` prefix inside `examples/otel/anthropic/`                                                      | `anthropic-native.ts` → `native.ts`, `subagents-baggage.ts` → `subagents.ts`                                                       |
+| 2.5  | Rename `examples/otel/gemini-sdk/` → `examples/otel/gemini-sdk/` and `gemini-native.ts` → `native.ts`                     | —                                                                                                                                  |
+| 2.6  | Drop redundant `pi-` prefix inside `examples/otel/pi/`                                                                    | `pi-native.ts` → `native.ts`, `pi-subagents-baggage.ts` → `subagents.ts`                                                           |
+| 2.7  | Rename `examples/otel/raw/` → `examples/otel/` and `multi-turn-conversation.ts` → `multi-turn.ts` (drop redundant suffix) | —                                                                                                                                  |
+| 2.8  | Update every `pnpm <script>` mapping in `examples/package.json` to the new paths                                          | `examples/package.json`                                                                                                            |     |
+| 2.9  | Update every reference in `README.md`, `examples/README.md`, `tests/README.md`, `AGENTS.md`                               | —                                                                                                                                  |     |
+| 2.10 | Update every reference in PR descriptions / commit messages going forward (nothing to do historically)                    | —                                                                                                                                  |     |
 
 ### Acceptance for the phase
 

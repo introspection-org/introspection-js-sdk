@@ -72,21 +72,21 @@ Where:
 
 Examples (post-rename):
 
-- `examples/openai/agents.ts` — base
-- `examples/openai/agents-arize.ts` — dual-export
-- `examples/claude-agent/agent.ts`, `examples/claude-agent/subagents.ts`
-- `examples/anthropic/native.ts` (raw Anthropic Node SDK — see naming note below)
-- `examples/gemini/native.ts`
-- `examples/otel/multi-turn.ts` (the wrapper-free OTel example)
+- `examples/otel/openai/agents.ts` — base
+- `examples/otel/openai/agents-arize.ts` — dual-export
+- `examples/otel/anthropic/claude-agent.ts`, `examples/otel/anthropic/claude-agent-subagents.ts`
+- `examples/otel/anthropic-sdk/anthropic-native.ts` (raw Anthropic Node SDK — see naming note below)
+- `examples/otel/gemini-sdk/gemini-native.ts`
+- `examples/otel/raw/multi-turn-conversation.ts` (the wrapper-free OTel example)
 
 **Naming note — Anthropic is two SDKs, two folders:**
 
-| Folder                   | npm package                                                              |
-| ------------------------ | ------------------------------------------------------------------------ |
-| `examples/anthropic/`    | `@anthropic-ai/sdk` (raw Node SDK)                                       |
-| `examples/claude-agent/` | `@anthropic-ai/claude-agent-sdk` (agent SDK; spawns the `claude` binary) |
+| Folder                         | npm package                                                              |
+| ------------------------------ | ------------------------------------------------------------------------ |
+| `examples/otel/anthropic-sdk/` | `@anthropic-ai/sdk` (raw Node SDK)                                       |
+| `examples/otel/anthropic/`     | `@anthropic-ai/claude-agent-sdk` (agent SDK; spawns the `claude` binary) |
 
-Top-level peers. Do not nest one under the other. Do not name them `anthropic-sdk/` — the package name is `@anthropic-ai/sdk` and the folder name should match the convention.
+Top-level peers under `otel/`. Do not nest one under the other.
 
 ### Tests folder layout
 
