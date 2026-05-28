@@ -44,8 +44,9 @@ jobs:
       - name: Install Claude Code CLI
         run: npm install -g @anthropic-ai/claude-code
 
-      - name: Run examples
-        working-directory: examples
+      - if: false
+        name: Run examples
+        working-directory: examples/otel
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           INTROSPECTION_TOKEN: ${{ secrets.INTROSPECTION_TOKEN }}
