@@ -23,12 +23,12 @@
 
 ## Packages
 
-| Package                                     | Description                                                         |
-| ------------------------------------------- | ------------------------------------------------------------------- |
-| `@introspection-sdk/introspection-node`     | Node.js client with OpenTelemetry baggage context                   |
-| `@introspection-sdk/introspection-browser`  | Browser client with localStorage persistence                        |
-| `@introspection-sdk/types`                  | Shared types and constants                                          |
-| `@introspection-sdk/introspection-openclaw` | [OpenClaw](https://openclaw.dev) plugin for agent lifecycle tracing |
+| Package                                     | Description                                                                                               |
+| ------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| `@introspection-sdk/introspection-node`     | Node.js client with OpenTelemetry baggage context                                                         |
+| `@introspection-sdk/introspection-browser`  | Browser client with localStorage persistence                                                              |
+| `@introspection-sdk/types`                  | Shared types and constants                                                                                |
+| `@introspection-sdk/introspection-openclaw` | [OpenClaw](https://openclaw.dev) plugin for agent lifecycle tracing                                       |
 | `@introspection-sdk/introspection-pi`       | [Pi Agent SDK](https://withpi.ai) instrumentor — OTel GenAI spans for chat completions and tool execution |
 
 ## Three independent surfaces
