@@ -47,11 +47,11 @@
     "@types/node": "^22.19.19",
     "eslint": "^9.39.4",
     "@langchain/core": "^1.1.48",
-    "@mastra/core": "^1.36.0",
-    "@mastra/observability": "^1.13.0",
+    "@mastra/core": "^1.37.1",
+    "@mastra/observability": "^1.14.0",
     "@mariozechner/pi-agent-core": "^0.73.1",
     "@mariozechner/pi-ai": "^0.73.1",
-    "openai": "^6.39.0",
+    "openai": "^6.39.1",
     "typescript": "5.9.3"
   },
   "peerDependencies": {
