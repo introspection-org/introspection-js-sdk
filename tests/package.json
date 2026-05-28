@@ -55,8 +55,8 @@
     "@arizeai/openinference-instrumentation-langchain": "^4.0.11",
     "@arizeai/openinference-instrumentation-openai": "^4.1.2",
     "@arizeai/openinference-vercel": "^2.7.6",
-    "@mastra/core": "^1.36.0",
-    "@mastra/observability": "^1.13.0",
-    "@mastra/otel-exporter": "^1.1.1"
+    "@mastra/core": "^1.37.1",
+    "@mastra/observability": "^1.14.0",
+    "@mastra/otel-exporter": "^1.2.0"
   }
 }
