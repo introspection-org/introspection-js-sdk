@@ -7,7 +7,13 @@ cp .env.example .env   # fill in API keys
 pnpm install
 ```
 
-## First-Party Integrations
+## REST API
+
+```bash
+pnpm api-runtimes                 # Runner walkthrough: resolve by name, tasks + file ops
+```
+
+## First-Party Integrations (OTel)
 
 ### OpenAI Agents SDK
 
@@ -78,7 +84,7 @@ pnpm gemini-native                # GeminiInstrumentor with thought signatures +
 
 Captures per-part `thoughtSignature` payloads (Gemini 2.5+ / 3.x) that must be
 replayed on subsequent turns to preserve the model's chain of thought across
-tool calls. See `gemini-sdk/gemini-native.ts` for the multi-turn replay pattern.
+tool calls. See `otel/gemini-sdk/gemini-native.ts` for the multi-turn replay pattern.
 
 ## OpenInference (Third-Party / Unsupported Frameworks)
 
@@ -100,13 +106,18 @@ pnpm raw-conversation              # Multi-turn conversation with raw OTel APIs
 
 ```
 examples/
-  openai/           # OpenAI Agents SDK
-  anthropic/        # Claude Agent SDK
-  anthropic-sdk/    # Anthropic SDK (@anthropic-ai/sdk)
-  gemini-sdk/       # Google Gemini (@google/genai)
-  vercel/           # Vercel AI SDK
-  mastra/           # Mastra
-  langchain/        # LangChain / LangGraph
-  openinference/    # OpenInference-based frameworks
-  raw/              # Raw OTEL (no framework)
+  api/              # REST API (no OTel)
+  otel/             # OTel-based instrumentation examples
+    openai/         # OpenAI Agents SDK
+    anthropic/      # Claude Agent SDK
+    anthropic-sdk/  # Anthropic SDK (@anthropic-ai/sdk)
+    gemini-sdk/     # Google Gemini (@google/genai)
+    vercel/         # Vercel AI SDK
+    mastra/         # Mastra
+    langchain/      # LangChain / LangGraph
+    openinference/  # OpenInference-based frameworks
+    pi/             # Pi Agent
+    openclaw/       # OpenClaw simulator
+    raw/            # Raw OTEL (no framework)
+    run_all.sh      # Run all OTel examples
 ```

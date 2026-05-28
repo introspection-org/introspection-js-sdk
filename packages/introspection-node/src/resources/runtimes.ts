@@ -100,12 +100,12 @@ export class RuntimesApi {
   }
 
   /** Resolve a name to a runtime by querying `/v1/runtimes?name=…`. */
-  async resolveByName(name: string, projectId: Uuid): Promise<Runtime> {
+  async resolveByName(name: string, projectId?: Uuid): Promise<Runtime> {
     const page = await this.list({ project_id: projectId, name, limit: 2 });
     const match = page.records.find((r) => r.name === name);
     if (!match) {
       throw new NotFoundError({
-        message: `Runtime '${name}' not found in project ${projectId}`,
+        message: `Runtime '${name}' not found${projectId ? ` in project ${projectId}` : ""}`,
         status: 404,
         code: "not_found",
       });
@@ -163,8 +163,10 @@ export class RuntimeHandle {
 
   private async resolveId(): Promise<Uuid> {
     if (this.resolvedId) return this.resolvedId;
-    const projectId = this.client.requireProjectId();
-    const runtime = await this.api.resolveByName(this.idOrName, projectId);
+    const runtime = await this.api.resolveByName(
+      this.idOrName,
+      this.client.projectId,
+    );
     this.resolvedId = runtime.id;
     return runtime.id;
   }

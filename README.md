@@ -50,13 +50,17 @@ pnpm add @introspection-sdk/introspection-node
 ```typescript
 import { IntrospectionClient } from "@introspection-sdk/introspection-node";
 
-const client = new IntrospectionClient({ token: "your-token" });
+const client = new IntrospectionClient();
 
-const runtimeId = process.env.INTROSPECTION_RUNTIME_ID!;
-const runner = await client.runtimes(runtimeId).run();
-const run = await runner.tasks.start({ prompt: "Summarize this repo" });
-const text = await run.text();
-console.log(text);
+const runner = await client.runtimes("customer-agent").run();
+
+const run = await runner.tasks.start({
+  prompt: "Say hello in one sentence.",
+});
+
+for await (const event of run.stream()) {
+  console.log(`[${event.event}] ${event.data}`);
+}
 
 await runner.close();
 await client.shutdown();

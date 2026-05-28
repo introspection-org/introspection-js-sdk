@@ -2,7 +2,7 @@
  * Tests for the Mastra multi-agent subagent pattern.
  *
  * Covers the IntrospectionMastraExporter identity propagation used in
- * examples/mastra/subagents.ts:
+ * examples/otel/mastra/subagents.ts:
  *   - tracingOptions.metadata["gen_ai.conversation.id"] → per-agent conversation IDs
  *   - Separate Agent instances → distinct gen_ai.agent.name values
  *   - Orchestrator phases 1 & 3 sharing a conversation ID

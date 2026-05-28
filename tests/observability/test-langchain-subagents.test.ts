@@ -2,7 +2,7 @@
  * Tests for the LangChain multi-agent subagent pattern.
  *
  * Covers the IntrospectionCallbackHandler identity propagation used in
- * examples/langchain/subagents.ts:
+ * examples/otel/langchain/subagents.ts:
  *   - runName on a RunnableLambda → gen_ai.agent.name on enclosed LLM spans
  *   - metadata["gen_ai.conversation.id"] per invoke → per-agent conversation IDs
  *   - Parallel agents (Promise.all) produce distinct conversation IDs
