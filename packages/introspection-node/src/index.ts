@@ -29,6 +29,15 @@ export { HttpClient } from "./http.js";
 export type { ResolvedApiConfig } from "./http.js";
 export { parseSse } from "./streaming.js";
 
+// Outbound proxy helpers for fetch-based clients (egress credential-injection
+// proxy or a standard forward proxy). No OTel SDK imports.
+export {
+  getProxyDispatcher,
+  createProxyFetch,
+  installProxyFetch,
+} from "./proxy.js";
+export type { ProxyFetchOptions } from "./proxy.js";
+
 // Runner + CP resources.
 export { Runner } from "./runner.js";
 export type { RunnerSource } from "./runner.js";
