@@ -1,6 +1,6 @@
 import { DiagLogLevel, DiagLogger } from "@opentelemetry/api";
 import { HttpsProxyAgent } from "https-proxy-agent";
-import { resolveForwardProxyUrl } from "./proxy.js";
+import { resolveForwardProxyUrl } from "@introspection-sdk/introspection-proxy";
 
 /**
  * Attach a forward-proxy agent to OTLP exporter options when a proxy is

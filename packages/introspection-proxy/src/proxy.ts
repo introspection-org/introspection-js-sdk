@@ -18,10 +18,10 @@
  *    it, so no URL rewriting is required.
  *
  *  - **Standard forward (CONNECT) proxy** (`HTTPS_PROXY` / `HTTP_PROXY`,
- *    honouring `NO_PROXY`): the same kind of proxy the OTLP exporter uses via
- *    {@link withOtlpHttpsProxy}, but exposed as an undici dispatcher so it
- *    works with `fetch`. (`HttpsProxyAgent` is a Node `http.Agent` and is
- *    ignored by `fetch`, which only accepts an undici `dispatcher`.)
+ *    honouring `NO_PROXY`): the same kind of proxy the OTLP exporter uses, but
+ *    exposed as an undici dispatcher so it works with `fetch`.
+ *    (`HttpsProxyAgent` is a Node `http.Agent` and is ignored by `fetch`, which
+ *    only accepts an undici `dispatcher`.)
  *
  * `EGRESS_PROXY_URL` takes precedence when both are set.
  *

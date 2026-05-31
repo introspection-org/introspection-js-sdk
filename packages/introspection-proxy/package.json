@@ -1,0 +1,35 @@
+{
+  "name": "@introspection-sdk/introspection-proxy",
+  "version": "0.1.0",
+  "license": "Apache-2.0",
+  "description": "Outbound HTTP proxy helpers for routing fetch-based clients through the Introspection egress proxy or a standard forward proxy",
+  "engines": {
+    "node": ">=22"
+  },
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "lint": "eslint . --max-warnings 0",
+    "check-types": "tsc --noEmit",
+    "build": "tsc",
+    "clean": "rm -rf dist",
+    "prepare": "tsc"
+  },
+  "dependencies": {
+    "undici": "^8.3.0"
+  },
+  "devDependencies": {
+    "@repo/eslint-config": "workspace:*",
+    "@repo/typescript-config": "workspace:*",
+    "@types/node": "^22.19.19",
+    "eslint": "^9.39.4",
+    "typescript": "5.9.3"
+  }
+}

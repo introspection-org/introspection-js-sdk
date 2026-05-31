@@ -136,8 +136,8 @@
   "dependencies": {
     "@introspection-sdk/types": "workspace:*",
     "@introspection-sdk/introspection-pi": "workspace:*",
+    "@introspection-sdk/introspection-proxy": "workspace:*",
     "@opentelemetry/api": "^1.9.1",
-    "https-proxy-agent": "^7.0.6",
-    "undici": "^8.3.0"
+    "https-proxy-agent": "^7.0.6"
   }
 }
