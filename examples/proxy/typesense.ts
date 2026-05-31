@@ -22,7 +22,7 @@
  * Run with:
  *   EGRESS_PROXY_URL=http://localhost:10000
  *   TYPESENSE_HOST=<cluster>.a1.typesense.net
- *   TYPESENSE_API_KEY=<search-only or admin key>
+ *   TYPESENSE_SEARCH_API_KEY=<search-only key>   # (or TYPESENSE_API_KEY)
  *   TYPESENSE_COLLECTION=profiles                # collection to search
  *   TYPESENSE_QUERY_BY=<comma-separated text field(s), e.g. name>
  *   TYPESENSE_QUERY=*                            # optional, default "*"
@@ -33,14 +33,14 @@ import { installProxyFetch } from "@introspection-sdk/introspection-proxy";
 
 const TYPESENSE_HOST = process.env.TYPESENSE_HOST;
 const TYPESENSE_API_KEY =
-  process.env.TYPESENSE_API_KEY ?? process.env.TYPESENSE_SEARCH_API_KEY;
+  process.env.TYPESENSE_SEARCH_API_KEY ?? process.env.TYPESENSE_API_KEY;
 const COLLECTION = process.env.TYPESENSE_COLLECTION ?? "profiles";
 const QUERY_BY = process.env.TYPESENSE_QUERY_BY ?? "name";
 const QUERY = process.env.TYPESENSE_QUERY ?? "*";
 
 if (!TYPESENSE_HOST || !TYPESENSE_API_KEY) {
   console.error(
-    "Set TYPESENSE_HOST and TYPESENSE_API_KEY (and EGRESS_PROXY_URL to route via the egress proxy).",
+    "Set TYPESENSE_HOST and TYPESENSE_SEARCH_API_KEY (and EGRESS_PROXY_URL to route via the egress proxy).",
   );
   process.exit(1);
 }
