@@ -37,13 +37,18 @@
     "openinference-openai-braintrust": "node --import tsx otel/openinference/openai-braintrust.ts",
     "openinference-openai-langfuse": "node --import tsx otel/openinference/openai-langfuse.ts",
     "raw-conversation": "node --import tsx otel/raw/multi-turn-conversation.ts",
-    "api-runtimes": "node --import tsx api/runtimes.ts"
+    "api-runtimes": "node --import tsx api/runtimes.ts",
+    "proxy-supabase-global": "node --import tsx proxy/supabase-global.ts",
+    "proxy-supabase-manual": "node --import tsx proxy/supabase-manual.ts",
+    "proxy-typesense": "node --import tsx proxy/typesense.ts",
+    "proxy-deepwiki": "node --import tsx proxy/deepwiki-mcp.ts"
   },
   "dependencies": {
     "@arizeai/openinference-semantic-conventions": "^2.4.0",
     "@introspection-sdk/introspection-node": "workspace:*",
     "@introspection-sdk/introspection-openclaw": "workspace:*",
     "@introspection-sdk/introspection-pi": "workspace:*",
+    "@introspection-sdk/introspection-proxy": "workspace:*",
     "@mastra/braintrust": "^1.1.2",
     "@mastra/observability": "^1.14.0",
     "@mastra/otel-exporter": "^1.2.0",
@@ -54,10 +59,13 @@
     "openai": "^6.39.1"
   },
   "devDependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
     "@opentelemetry/exporter-trace-otlp-proto": "^0.218.0",
     "@opentelemetry/resources": "^2.7.1",
+    "@supabase/supabase-js": "^2.106.2",
     "@types/node": "^22.19.19",
     "tsx": "^4.22.3",
+    "typesense": "^3.0.6",
     "typescript": "^5.9.3"
   },
   "optionalDependencies": {
