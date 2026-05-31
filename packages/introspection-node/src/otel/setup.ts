@@ -61,6 +61,7 @@ import {
   W3CTraceContextPropagator,
 } from "@opentelemetry/core";
 import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
+import type { SpanProcessor } from "@opentelemetry/sdk-trace-base";
 
 import { logger } from "../utils.js";
 import {
@@ -86,6 +87,24 @@ export interface SetupTracingOptions extends IntrospectionSpanProcessorOptions {
    *     other libraries that relied on the previous registration.
    */
   onConflict?: ConflictBehavior;
+
+  /**
+   * Extra span processors attached to the same `NodeTracerProvider`,
+   * running **after** the {@link IntrospectionSpanProcessor} so they observe
+   * the normalised `gen_ai.*` attribute shape. This is the low-level
+   * dual-export hook — e.g. fan a copy of every span out to Langfuse / Arize:
+   *
+   * ```ts
+   * setupTracing({
+   *   serviceName: "my-app",
+   *   additionalSpanProcessors: [new BatchSpanProcessor(langfuseExporter)],
+   * });
+   * ```
+   *
+   * `introspection.init({ spanProcessors })` is the equivalent for the
+   * one-liner surface.
+   */
+  additionalSpanProcessors?: SpanProcessor[];
 }
 
 function defaultConflictBehavior(): ConflictBehavior {
@@ -178,7 +197,12 @@ export function setupTracing(
   registerOTelGlobals(behavior);
 
   const provider = new NodeTracerProvider({
-    spanProcessors: [new IntrospectionSpanProcessor(options)],
+    // The Introspection processor runs first so downstream dual-export
+    // processors see normalised `gen_ai.*` attributes.
+    spanProcessors: [
+      new IntrospectionSpanProcessor(options),
+      ...(options?.additionalSpanProcessors ?? []),
+    ],
   });
   provider.register();
 

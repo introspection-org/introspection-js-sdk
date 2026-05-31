@@ -108,19 +108,20 @@ export default defineConfig({
         // Version constant — no logic to test.
         "**/version.ts",
       ],
-      // Baseline thresholds (captured on first real run of Phase 1; see
-      // docs/cleanup-plan.md). These are NOT aspirational — they are the
-      // "do not regress" floor. CI / pre-commit fails if a PR drops below
-      // any of them. Raising them is Phase 4 work, after the gap-closing
-      // tests land for openinference, gemini, mastra-exporter, etc.
+      // "Do not regress" floor — CI / pre-commit fails if a PR drops below
+      // any of these. Raised in the unification-surface pass after the
+      // gap-closing tests landed (REST control-plane against a real HTTP
+      // server, openinference reverse converter + exporter, typed-error
+      // mapping, setupTracing dual-export, the otel/register preload).
       //
-      // Baseline at landing time:
-      //   statements 62.86%  branches 48.65%  functions 64.65%  lines 64.24%
+      // Phase 1 baseline:  statements 62.86%  branches 48.65%  functions 64.65%  lines 64.24%
+      // Current measured:  statements 73.44%  branches 57.80%  functions 79.20%  lines 75.00%
+      // Floors sit just under the measured values to leave a small margin.
       thresholds: {
-        lines: 60,
-        functions: 60,
-        branches: 45,
-        statements: 60,
+        lines: 70,
+        functions: 72,
+        branches: 53,
+        statements: 70,
       },
     },
   },

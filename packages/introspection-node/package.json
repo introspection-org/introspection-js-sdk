@@ -18,6 +18,10 @@
       "types": "./dist/otel/index.d.ts",
       "default": "./dist/otel/index.js"
     },
+    "./otel/register": {
+      "types": "./dist/otel/register.d.ts",
+      "default": "./dist/otel/register.js"
+    },
     "./mastra": {
       "types": "./dist/otel/mastra-exporter.d.ts",
       "default": "./dist/otel/mastra-exporter.js"
