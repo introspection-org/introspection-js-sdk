@@ -15,17 +15,28 @@
  * adapter) aren't worth the cost, so the process-wide swap is the recommended
  * pattern for axios-based clients.
  *
+ * This example runs a no-key `/health` check (which proves routing on its own)
+ * and a document `search` — which works with a **search-only** key. Listing
+ * collections would instead require an **admin** key.
+ *
  * Run with:
  *   EGRESS_PROXY_URL=http://localhost:10000
  *   TYPESENSE_HOST=<cluster>.a1.typesense.net
- *   TYPESENSE_API_KEY=<key or placeholder; injected by the egress proxy>
+ *   TYPESENSE_API_KEY=<search-only or admin key>
+ *   TYPESENSE_COLLECTION=profiles                # collection to search
+ *   TYPESENSE_QUERY_BY=<comma-separated text field(s), e.g. name>
+ *   TYPESENSE_QUERY=*                            # optional, default "*"
  *   pnpm proxy-typesense
  */
 import Typesense from "typesense";
 import { installProxyFetch } from "@introspection-sdk/introspection-proxy";
 
 const TYPESENSE_HOST = process.env.TYPESENSE_HOST;
-const TYPESENSE_API_KEY = process.env.TYPESENSE_API_KEY;
+const TYPESENSE_API_KEY =
+  process.env.TYPESENSE_API_KEY ?? process.env.TYPESENSE_SEARCH_API_KEY;
+const COLLECTION = process.env.TYPESENSE_COLLECTION ?? "profiles";
+const QUERY_BY = process.env.TYPESENSE_QUERY_BY ?? "name";
+const QUERY = process.env.TYPESENSE_QUERY ?? "*";
 
 if (!TYPESENSE_HOST || !TYPESENSE_API_KEY) {
   console.error(
@@ -50,16 +61,28 @@ async function main() {
     nodes: [{ host: TYPESENSE_HOST!, port: 443, protocol: "https" }],
     apiKey: TYPESENSE_API_KEY!,
     connectionTimeoutSeconds: 10,
-    // axios can't take a per-client fetch, so we point it at the global fetch
-    // adapter — which installProxyFetch() has routed through the egress proxy.
+    // Make Typesense's axios use the global fetch, which installProxyFetch()
+    // has pointed at the egress proxy.
     axiosAdapter: "fetch",
   });
 
+  // /health needs no key — confirms connectivity (and routing) on its own.
   const health = await client.health.retrieve();
   console.log("Typesense health:", health);
 
-  const collections = await client.collections().retrieve();
-  console.log(`Found ${collections.length} collection(s).`);
+  // A search works with a search-only key (unlike listing collections, which
+  // needs an admin key). Set TYPESENSE_QUERY_BY to a text field in your schema.
+  console.log(`Searching "${COLLECTION}" for "${QUERY}" by "${QUERY_BY}"...`);
+  const results = (await client
+    .collections(COLLECTION)
+    .documents()
+    .search({ q: QUERY, query_by: QUERY_BY, per_page: 5 })) as {
+    found: number;
+    hits?: Array<{ document: Record<string, unknown> }>;
+  };
+  console.log(
+    `Found ${results.found} hit(s); first ${results.hits?.length ?? 0} returned.`,
+  );
 }
 
 main().catch((err) => {
