@@ -1,5 +1,5 @@
 /**
- * Typesense through the Introspection egress (reverse) proxy.
+ * Typesense through the Introspection egress (reverse) proxy — GLOBAL approach.
  *
  * Unlike supabase-js, the Typesense client uses **axios**, not `fetch`, so it
  * won't pick up a custom fetch on its own. We bridge it onto `fetch` with
@@ -9,19 +9,13 @@
  * injects the real `X-TYPESENSE-API-KEY` — so this process can use a
  * placeholder key.
  *
+ * See `typesense-manual.ts` for the scoped, no-fetch alternative.
+ *
  * Run with:
  *   EGRESS_PROXY_URL=http://localhost:10000
  *   TYPESENSE_HOST=<cluster>.a1.typesense.net
  *   TYPESENSE_API_KEY=<key or placeholder; injected by the egress proxy>
- *   pnpm proxy-typesense
- *
- * Alternative (no fetch bridge): point the node at the proxy and pass the real
- * host as a header — axios honours a manually-set `Host` (unlike fetch):
- *   new Typesense.Client({
- *     nodes: [{ host: "localhost", port: 10000, protocol: "http" }],
- *     additionalHeaders: { Host: TYPESENSE_HOST },
- *     apiKey,
- *   });
+ *   pnpm proxy-typesense-global
  */
 import Typesense from "typesense";
 import { installProxyFetch } from "@introspection-sdk/introspection-proxy";
@@ -40,7 +34,7 @@ async function main() {
   const egress = process.env.EGRESS_PROXY_URL;
   console.log(
     egress
-      ? `Routing Typesense through egress proxy: ${egress}`
+      ? `Routing ALL fetch (incl. Typesense) through egress proxy: ${egress}`
       : "EGRESS_PROXY_URL unset — talking to Typesense directly.",
   );
 

@@ -40,7 +40,8 @@
     "api-runtimes": "node --import tsx api/runtimes.ts",
     "proxy-supabase-global": "node --import tsx proxy/supabase-global.ts",
     "proxy-supabase-manual": "node --import tsx proxy/supabase-manual.ts",
-    "proxy-typesense": "node --import tsx proxy/typesense.ts",
+    "proxy-typesense-global": "node --import tsx proxy/typesense-global.ts",
+    "proxy-typesense-manual": "node --import tsx proxy/typesense-manual.ts",
     "proxy-deepwiki": "node --import tsx proxy/deepwiki-mcp.ts"
   },
   "dependencies": {
