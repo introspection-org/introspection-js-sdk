@@ -29,14 +29,17 @@ import {
 } from "@opentelemetry/sdk-trace-base";
 
 /**
- * A Langfuse span processor (OTLP HTTP + Basic auth).
+ * Resolved Langfuse OTLP endpoint + Basic-auth headers.
  *
  * Required env vars:
  *   - `LANGFUSE_PUBLIC_KEY`
  *   - `LANGFUSE_SECRET_KEY`
  *   - `LANGFUSE_BASE_URL` (optional, defaults to Langfuse Cloud)
  */
-export function langfuseSpanProcessor(): SpanProcessor {
+export function langfuseOtlpConfig(): {
+  url: string;
+  headers: Record<string, string>;
+} {
   const publicKey = process.env.LANGFUSE_PUBLIC_KEY;
   const secretKey = process.env.LANGFUSE_SECRET_KEY;
   if (!publicKey || !secretKey) {
@@ -44,14 +47,20 @@ export function langfuseSpanProcessor(): SpanProcessor {
       "LANGFUSE_PUBLIC_KEY and LANGFUSE_SECRET_KEY must be set for the Langfuse dual-export example.",
     );
   }
-
   const auth = Buffer.from(`${publicKey}:${secretKey}`).toString("base64");
   const baseUrl = process.env.LANGFUSE_BASE_URL || "https://cloud.langfuse.com";
+  return {
+    url: `${baseUrl}/api/public/otel/v1/traces`,
+    headers: { Authorization: `Basic ${auth}` },
+  };
+}
 
-  return new BatchSpanProcessor(
-    new OTLPTraceExporter({
-      url: `${baseUrl}/api/public/otel/v1/traces`,
-      headers: { Authorization: `Basic ${auth}` },
-    }),
-  );
+/** A raw Langfuse OTLP trace exporter — for frameworks that compose exporters. */
+export function langfuseOtelExporter(): OTLPTraceExporter {
+  return new OTLPTraceExporter(langfuseOtlpConfig());
+}
+
+/** A Langfuse span processor — for an explicit OTel provider's processor list. */
+export function langfuseSpanProcessor(): SpanProcessor {
+  return new BatchSpanProcessor(langfuseOtelExporter());
 }
