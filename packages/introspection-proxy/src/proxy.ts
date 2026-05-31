@@ -134,7 +134,9 @@ export function getProxyDispatcher(
  * When no proxy is configured this returns the global `fetch` unchanged, so it
  * is safe to use unconditionally (local dev keeps talking directly to APIs).
  */
-export function createProxyFetch(options: ProxyFetchOptions = {}): typeof fetch {
+export function createProxyFetch(
+  options: ProxyFetchOptions = {},
+): typeof fetch {
   const dispatcher = getProxyDispatcher(options);
   if (!dispatcher) {
     return fetch;

@@ -29,17 +29,6 @@ export { HttpClient } from "./http.js";
 export type { ResolvedApiConfig } from "./http.js";
 export { parseSse } from "./streaming.js";
 
-// Outbound proxy helpers for fetch-based clients (egress credential-injection
-// proxy or a standard forward proxy). Re-exported from the standalone
-// @introspection-sdk/introspection-proxy package (undici-only, no OTel SDK).
-export {
-  getProxyDispatcher,
-  createProxyFetch,
-  installProxyFetch,
-  resolveForwardProxyUrl,
-} from "@introspection-sdk/introspection-proxy";
-export type { ProxyFetchOptions } from "@introspection-sdk/introspection-proxy";
-
 // Runner + CP resources.
 export { Runner } from "./runner.js";
 export type { RunnerSource } from "./runner.js";
