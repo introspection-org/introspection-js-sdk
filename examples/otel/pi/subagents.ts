@@ -11,7 +11,7 @@
  *     IntrospectionClient.withAgent() / .withConversation().
  *   - Promise.all preserves per-branch baggage thanks to AsyncLocalStorage.
  *
- * Run with: pnpm pi-subagents-baggage
+ * Run with: pnpm pi-subagents
  *
  * Required env:
  *   INTROSPECTION_TOKEN   ANTHROPIC_API_KEY

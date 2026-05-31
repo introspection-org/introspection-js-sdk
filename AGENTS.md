@@ -74,9 +74,9 @@ Examples (post-rename):
 
 - `examples/otel/openai/agents.ts` — base
 - `examples/otel/openai/agents-arize.ts` — dual-export
-- `examples/otel/claude-agent/claude-agent.ts`, `examples/otel/claude-agent/claude-agent-subagents.ts`
-- `examples/otel/anthropic/anthropic-native.ts` (raw Anthropic Node SDK — see naming note below)
-- `examples/otel/gemini-sdk/gemini-native.ts`
+- `examples/otel/claude-agent/agent.ts`, `examples/otel/claude-agent/subagents.ts`
+- `examples/otel/anthropic/native.ts` (raw Anthropic Node SDK — see naming note below)
+- `examples/otel/gemini/native.ts`
 - `examples/otel/raw/multi-turn-conversation.ts` (the wrapper-free OTel example)
 
 **Naming note — Anthropic is two SDKs, two folders:**

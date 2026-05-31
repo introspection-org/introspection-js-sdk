@@ -16,7 +16,7 @@
  * Compare to subagents.ts (manual spans + BasicTracerProvider) to see the
  * boilerplate removed.
  *
- * Run with: pnpm anthropic-sdk-subagents-baggage
+ * Run with: pnpm anthropic-subagents
  */
 
 import Anthropic from "@anthropic-ai/sdk";

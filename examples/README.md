@@ -110,7 +110,7 @@ pnpm gemini-native                # GeminiInstrumentor with thought signatures +
 
 Captures per-part `thoughtSignature` payloads (Gemini 2.5+ / 3.x) that must be
 replayed on subsequent turns to preserve the model's chain of thought across
-tool calls. See `otel/gemini-sdk/gemini-native.ts` for the multi-turn replay pattern.
+tool calls. See `otel/gemini/native.ts` for the multi-turn replay pattern.
 
 ## OpenInference (Third-Party / Unsupported Frameworks)
 
@@ -137,7 +137,7 @@ examples/
     openai/         # OpenAI Agents SDK
     anthropic/      # raw Anthropic SDK (@anthropic-ai/sdk)
     claude-agent/   # Claude Agent SDK (@anthropic-ai/claude-agent-sdk)
-    gemini-sdk/     # Google Gemini (@google/genai)
+    gemini/         # Google Gemini (@google/genai)
     vercel/         # Vercel AI SDK
     mastra/         # Mastra
     langchain/      # LangChain / LangGraph
