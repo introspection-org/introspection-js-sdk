@@ -26,6 +26,7 @@ Two ways to wire it, compared on Supabase:
 pnpm proxy-supabase-global        # installProxyFetch(): swaps global fetch, whole process
 pnpm proxy-supabase-manual        # createProxyFetch(): scoped to one supabase-js client
 pnpm proxy-typesense              # Typesense (axios) via installProxyFetch + axiosAdapter "fetch"
+pnpm proxy-deepwiki               # DeepWiki MCP (@modelcontextprotocol/sdk) via transport fetch
 ```
 
 ## First-Party Integrations (OTel)
