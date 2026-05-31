@@ -4,7 +4,7 @@
   "license": "Apache-2.0",
   "description": "Outbound HTTP proxy helpers for routing fetch-based clients through the Introspection egress proxy or a standard forward proxy",
   "engines": {
-    "node": ">=22"
+    "node": ">=22.19.0"
   },
   "type": "module",
   "main": "./dist/index.js",
