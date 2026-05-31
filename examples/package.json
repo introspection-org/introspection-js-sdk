@@ -37,13 +37,16 @@
     "openinference-openai-braintrust": "node --import tsx otel/openinference/openai-braintrust.ts",
     "openinference-openai-langfuse": "node --import tsx otel/openinference/openai-langfuse.ts",
     "raw-conversation": "node --import tsx otel/raw/multi-turn-conversation.ts",
-    "api-runtimes": "node --import tsx api/runtimes.ts"
+    "api-runtimes": "node --import tsx api/runtimes.ts",
+    "proxy-supabase": "node --import tsx proxy/supabase.ts",
+    "proxy-typesense": "node --import tsx proxy/typesense.ts"
   },
   "dependencies": {
     "@arizeai/openinference-semantic-conventions": "^2.4.0",
     "@introspection-sdk/introspection-node": "workspace:*",
     "@introspection-sdk/introspection-openclaw": "workspace:*",
     "@introspection-sdk/introspection-pi": "workspace:*",
+    "@introspection-sdk/introspection-proxy": "workspace:*",
     "@mastra/braintrust": "^1.1.2",
     "@mastra/observability": "^1.14.0",
     "@mastra/otel-exporter": "^1.2.0",
@@ -63,6 +66,8 @@
   "optionalDependencies": {
     "@ai-sdk/anthropic": "^3.0.81",
     "@ai-sdk/openai": "^3.0.66",
+    "@supabase/supabase-js": "^2.106.2",
+    "typesense": "^3.0.6",
     "@anthropic-ai/claude-agent-sdk": "^0.3.154",
     "@anthropic-ai/sdk": "^0.100.0",
     "@google/genai": "^2.6.0",

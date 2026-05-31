@@ -13,6 +13,18 @@ pnpm install
 pnpm api-runtimes                 # Runner walkthrough: resolve by name, tasks + file ops
 ```
 
+## Egress Proxy
+
+Route third-party API calls through the Introspection egress (reverse) proxy so
+credentials are injected by the proxy instead of held in the process. Set
+`EGRESS_PROXY_URL` (e.g. `http://localhost:10000`); when unset the helpers are
+no-ops and code talks to the APIs directly.
+
+```bash
+pnpm proxy-supabase               # supabase-js via createProxyFetch (fetch-based)
+pnpm proxy-typesense              # Typesense via installProxyFetch + axiosAdapter "fetch"
+```
+
 ## First-Party Integrations (OTel)
 
 ### OpenAI Agents SDK
