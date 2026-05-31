@@ -1,17 +1,21 @@
 /**
- * Supabase through the Introspection egress (reverse) proxy.
+ * Supabase through the Introspection egress (reverse) proxy — MANUAL approach.
  *
- * supabase-js issues all of its HTTP via `fetch`, so we hand it a proxy-aware
- * fetch from `@introspection-sdk/introspection-proxy`. With `EGRESS_PROXY_URL`
- * set, requests are routed to the egress proxy, which routes by `Host` and
- * injects the real Supabase credential — so this process only needs the
- * (non-secret) publishable key, never the service-role key.
+ * Instead of replacing the global fetch, we hand a proxy-aware fetch from
+ * `createProxyFetch()` to a single supabase-js client via its `global.fetch`
+ * option. Only this client is proxied; the rest of the process keeps using the
+ * normal global fetch. The proxy routes by `Host` and injects the real Supabase
+ * credential, so this process only needs the (non-secret) publishable key.
+ *
+ * Trade-off vs the global approach (see `supabase-global.ts`): a touch more
+ * wiring, but the proxy is scoped to exactly this client — the safer default for
+ * app code that also talks to hosts the egress proxy doesn't know about.
  *
  * Run with:
  *   EGRESS_PROXY_URL=http://localhost:10000
  *   SUPABASE_URL=https://<project>.supabase.co
  *   SUPABASE_PUBLISHABLE_KEY=<anon/publishable key>   # non-secret
- *   pnpm proxy-supabase
+ *   pnpm proxy-supabase-manual
  *
  * If EGRESS_PROXY_URL is unset, `createProxyFetch()` returns the global fetch
  * unchanged, so the same code talks to Supabase directly in local dev.
@@ -33,14 +37,12 @@ async function main() {
   const egress = process.env.EGRESS_PROXY_URL;
   console.log(
     egress
-      ? `Routing Supabase through egress proxy: ${egress}`
+      ? `Routing this Supabase client through egress proxy: ${egress}`
       : "EGRESS_PROXY_URL unset — talking to Supabase directly.",
   );
 
-  // The egress proxy speaks plain HTTP and injects the real upstream key, so
-  // the only proxy-specific change is the custom fetch. Everything else is
-  // ordinary supabase-js. (For a whole process you could instead call
-  // `installProxyFetch()` once at startup and drop the `global.fetch` option.)
+  // The only proxy-specific change is the per-client fetch; everything else is
+  // ordinary supabase-js, and nothing else in the process is affected.
   const supabase = createClient(SUPABASE_URL!, SUPABASE_PUBLISHABLE_KEY!, {
     global: { fetch: createProxyFetch() },
   });

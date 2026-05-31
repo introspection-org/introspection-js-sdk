@@ -20,9 +20,12 @@ credentials are injected by the proxy instead of held in the process. Set
 `EGRESS_PROXY_URL` (e.g. `http://localhost:10000`); when unset the helpers are
 no-ops and code talks to the APIs directly.
 
+Two ways to wire it, compared on Supabase:
+
 ```bash
-pnpm proxy-supabase               # supabase-js via createProxyFetch (fetch-based)
-pnpm proxy-typesense              # Typesense via installProxyFetch + axiosAdapter "fetch"
+pnpm proxy-supabase-global        # installProxyFetch(): swaps global fetch, whole process
+pnpm proxy-supabase-manual        # createProxyFetch(): scoped to one supabase-js client
+pnpm proxy-typesense              # Typesense (axios) via installProxyFetch + axiosAdapter "fetch"
 ```
 
 ## First-Party Integrations (OTel)
