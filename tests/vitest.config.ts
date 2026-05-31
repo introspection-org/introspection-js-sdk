@@ -115,13 +115,14 @@ export default defineConfig({
       // mapping, setupTracing dual-export, the otel/register preload).
       //
       // Phase 1 baseline:  statements 62.86%  branches 48.65%  functions 64.65%  lines 64.24%
-      // Current measured:  statements 73.44%  branches 57.80%  functions 79.20%  lines 75.00%
+      // Current measured:  statements 75.74%  branches 60.07%  functions 80.19%  lines 77.43%
+      // (every introspection-node source file is now >=70% lines.)
       // Floors sit just under the measured values to leave a small margin.
       thresholds: {
-        lines: 70,
-        functions: 72,
-        branches: 53,
-        statements: 70,
+        lines: 74,
+        functions: 77,
+        branches: 57,
+        statements: 73,
       },
     },
   },

@@ -11,7 +11,10 @@ import {
   SimpleSpanProcessor,
 } from "@opentelemetry/sdk-trace-base";
 
-import { setupTracing } from "../../packages/introspection-node/src/otel/setup";
+import {
+  setupTracing,
+  registerOTelGlobals,
+} from "../../packages/introspection-node/src/otel/setup";
 import {
   getTracerProvider,
   getClient,
@@ -24,6 +27,26 @@ function resetOTelGlobals() {
   propagation.disable();
   trace.disable();
 }
+
+describe("registerOTelGlobals conflict behaviour", () => {
+  afterEach(() => resetOTelGlobals());
+
+  it("throws when a manager/propagator is already registered and onConflict='throw'", () => {
+    registerOTelGlobals("replace"); // establish a registration
+    expect(() => registerOTelGlobals("throw")).toThrow(/already registered/i);
+  });
+
+  it("force-replaces an existing registration with onConflict='replace'", () => {
+    registerOTelGlobals();
+    expect(() => registerOTelGlobals("replace")).not.toThrow();
+  });
+
+  it("warns and continues with onConflict='warn' (default)", () => {
+    registerOTelGlobals();
+    // Second call: OTel refuses re-registration; warn path swallows it.
+    expect(() => registerOTelGlobals("warn")).not.toThrow();
+  });
+});
 
 describe("setupTracing({ additionalSpanProcessors })", () => {
   afterEach(async () => {
