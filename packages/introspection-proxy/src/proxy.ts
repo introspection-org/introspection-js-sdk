@@ -21,7 +21,13 @@
  *    honouring `NO_PROXY`): the same kind of proxy the OTLP exporter uses, but
  *    exposed as an undici dispatcher so it works with `fetch`.
  *    (`HttpsProxyAgent` is a Node `http.Agent` and is ignored by `fetch`, which
- *    only accepts an undici `dispatcher`.)
+ *    only accepts an undici `dispatcher`.) This is plain forward-proxying and
+ *    does **not** inject credentials: for `https:` targets it uses HTTP
+ *    `CONNECT`, so the connection is an opaque end-to-end TLS tunnel the proxy
+ *    cannot read or modify. Credential injection happens **only** in egress
+ *    mode above (where the request is sent to the proxy in plaintext so it can
+ *    route by `Host` and inject). Use this branch for consumers that sit behind
+ *    a generic corporate/forward proxy.
  *
  * `EGRESS_PROXY_URL` takes precedence when both are set.
  *
@@ -50,6 +56,11 @@ export interface ProxyFetchOptions {
    * Standard forward-proxy URL. Defaults to the `HTTPS_PROXY` / `HTTP_PROXY`
    * environment variables (which also honour `NO_PROXY`). Used only when no
    * egress proxy is configured.
+   *
+   * Note: this is a plain forward proxy (a `CONNECT` tunnel for `https:`
+   * targets) and does **not** inject credentials — it only routes traffic. For
+   * the Introspection egress proxy that injects credentials, use
+   * {@link ProxyFetchOptions.egressProxyUrl} / `EGRESS_PROXY_URL` instead.
    */
   forwardProxyUrl?: string;
 }
