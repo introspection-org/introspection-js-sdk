@@ -59,15 +59,15 @@
   "devDependencies": {
     "@opentelemetry/exporter-trace-otlp-proto": "^0.218.0",
     "@opentelemetry/resources": "^2.7.1",
+    "@supabase/supabase-js": "^2.106.2",
     "@types/node": "^22.19.19",
     "tsx": "^4.22.3",
+    "typesense": "^3.0.6",
     "typescript": "^5.9.3"
   },
   "optionalDependencies": {
     "@ai-sdk/anthropic": "^3.0.81",
     "@ai-sdk/openai": "^3.0.66",
-    "@supabase/supabase-js": "^2.106.2",
-    "typesense": "^3.0.6",
     "@anthropic-ai/claude-agent-sdk": "^0.3.154",
     "@anthropic-ai/sdk": "^0.100.0",
     "@google/genai": "^2.6.0",

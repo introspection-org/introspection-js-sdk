@@ -135,15 +135,9 @@ importers:
       '@pydantic/logfire-node':
         specifier: ^0.15.3
         version: 0.15.3(@opentelemetry/api-logs@0.218.0)(@opentelemetry/api@1.9.1)(@opentelemetry/auto-instrumentations-node@0.76.0(@opentelemetry/api@1.9.1)(@opentelemetry/core@2.7.1(@opentelemetry/api@1.9.1)))(@opentelemetry/context-async-hooks@2.7.1(@opentelemetry/api@1.9.1))(@opentelemetry/core@2.7.1(@opentelemetry/api@1.9.1))(@opentelemetry/exporter-logs-otlp-proto@0.218.0(@opentelemetry/api@1.9.1))(@opentelemetry/exporter-metrics-otlp-proto@0.218.0(@opentelemetry/api@1.9.1))(@opentelemetry/exporter-trace-otlp-proto@0.218.0(@opentelemetry/api@1.9.1))(@opentelemetry/instrumentation@0.218.0(@opentelemetry/api@1.9.1))(@opentelemetry/resources@2.7.1(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-logs@0.218.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-metrics@2.7.1(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-node@0.218.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.7.1(@opentelemetry/api@1.9.1))(@opentelemetry/semantic-conventions@1.41.1)
-      '@supabase/supabase-js':
-        specifier: ^2.106.2
-        version: 2.106.2
       ai:
         specifier: ^6.0.192
         version: 6.0.192(zod@4.4.3)
-      typesense:
-        specifier: ^3.0.6
-        version: 3.0.6(@babel/runtime@7.29.7)
       zod:
         specifier: ^4.4.3
         version: 4.4.3
@@ -154,6 +148,9 @@ importers:
       '@opentelemetry/resources':
         specifier: ^2.7.1
         version: 2.7.1(@opentelemetry/api@1.9.1)
+      '@supabase/supabase-js':
+        specifier: ^2.106.2
+        version: 2.106.2
       '@types/node':
         specifier: ^22.19.19
         version: 22.19.19
@@ -163,6 +160,9 @@ importers:
       typescript:
         specifier: ^5.9.3
         version: 5.9.3
+      typesense:
+        specifier: ^3.0.6
+        version: 3.0.6(@babel/runtime@7.29.7)
 
   packages/eslint-config:
     devDependencies:
@@ -7172,32 +7172,26 @@ snapshots:
   '@supabase/auth-js@2.106.2':
     dependencies:
       tslib: 2.8.1
-    optional: true
 
   '@supabase/functions-js@2.106.2':
     dependencies:
       tslib: 2.8.1
-    optional: true
 
-  '@supabase/phoenix@0.4.2':
-    optional: true
+  '@supabase/phoenix@0.4.2': {}
 
   '@supabase/postgrest-js@2.106.2':
     dependencies:
       tslib: 2.8.1
-    optional: true
 
   '@supabase/realtime-js@2.106.2':
     dependencies:
       '@supabase/phoenix': 0.4.2
       tslib: 2.8.1
-    optional: true
 
   '@supabase/storage-js@2.106.2':
     dependencies:
       iceberg-js: 0.8.1
       tslib: 2.8.1
-    optional: true
 
   '@supabase/supabase-js@2.106.2':
     dependencies:
@@ -7206,7 +7200,6 @@ snapshots:
       '@supabase/postgrest-js': 2.106.2
       '@supabase/realtime-js': 2.106.2
       '@supabase/storage-js': 2.106.2
-    optional: true
 
   '@tootallnate/quickjs-emscripten@0.23.0': {}
 
@@ -7509,7 +7502,6 @@ snapshots:
       debug: 4.4.3
     transitivePeerDependencies:
       - supports-color
-    optional: true
 
   agent-base@7.1.4: {}
 
@@ -7638,8 +7630,7 @@ snapshots:
 
   async-function@1.0.0: {}
 
-  asynckit@0.4.0:
-    optional: true
+  asynckit@0.4.0: {}
 
   available-typed-arrays@1.0.7:
     dependencies:
@@ -7654,7 +7645,6 @@ snapshots:
     transitivePeerDependencies:
       - debug
       - supports-color
-    optional: true
 
   bail@2.0.2: {}
 
@@ -7866,7 +7856,6 @@ snapshots:
   combined-stream@1.0.8:
     dependencies:
       delayed-stream: 1.0.0
-    optional: true
 
   commander@13.1.0: {}
 
@@ -7959,8 +7948,7 @@ snapshots:
       escodegen: 2.1.0
       esprima: 4.0.1
 
-  delayed-stream@1.0.0:
-    optional: true
+  delayed-stream@1.0.0: {}
 
   depd@2.0.0: {}
 
@@ -8507,8 +8495,7 @@ snapshots:
 
   flatted@3.4.2: {}
 
-  follow-redirects@1.16.0:
-    optional: true
+  follow-redirects@1.16.0: {}
 
   for-each@0.3.5:
     dependencies:
@@ -8521,7 +8508,6 @@ snapshots:
       es-set-tostringtag: 2.1.0
       hasown: 2.0.4
       mime-types: 2.1.35
-    optional: true
 
   formdata-polyfill@4.0.10:
     dependencies:
@@ -8723,7 +8709,6 @@ snapshots:
       debug: 4.4.3
     transitivePeerDependencies:
       - supports-color
-    optional: true
 
   https-proxy-agent@7.0.6:
     dependencies:
@@ -8738,8 +8723,7 @@ snapshots:
 
   husky@9.1.7: {}
 
-  iceberg-js@0.8.1:
-    optional: true
+  iceberg-js@0.8.1: {}
 
   iconv-lite@0.4.24:
     dependencies:
@@ -9854,8 +9838,7 @@ snapshots:
 
   proxy-from-env@1.1.0: {}
 
-  proxy-from-env@2.1.0:
-    optional: true
+  proxy-from-env@2.1.0: {}
 
   punycode@2.3.1: {}
 
@@ -10446,7 +10429,6 @@ snapshots:
     transitivePeerDependencies:
       - debug
       - supports-color
-    optional: true
 
   unbox-primitive@1.1.0:
     dependencies:
