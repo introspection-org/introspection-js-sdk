@@ -297,6 +297,79 @@ interface GeminiModelsApi {
  * Captures all content parts including thought summaries and signed
  * `thoughtSignature` payloads required for multi-turn replay.
  */
+/**
+ * Build the traced replacement for a non-streaming `generateContent`-style
+ * method. Shared by {@link GeminiInstrumentor.instrument} (patches a client's
+ * public `models.generateContent`) and {@link GeminiInstrumentor.instrumentClass}
+ * (patches `Models.prototype.generateContentInternal` so every client is
+ * auto-traced). Preserves the call-site `this`.
+ */
+function buildTracedGenerate(
+  origGenerate: (...args: unknown[]) => Promise<unknown>,
+  tracer: Tracer,
+  conversationId: string,
+): (...args: unknown[]) => Promise<unknown> {
+  return async function tracedGenerate(this: unknown, ...args: unknown[]) {
+    const kwargs = (args[0] as Record<string, unknown>) || {};
+    const span = startSpan(
+      tracer,
+      (kwargs.model as string) || "unknown",
+      conversationId,
+    );
+    setRequestAttrs(span, kwargs);
+    try {
+      const response = (await origGenerate.apply(this, args)) as Record<
+        string,
+        unknown
+      >;
+      setResponseAttrs(span, response);
+      return response;
+    } catch (err) {
+      span.setStatus({ code: SpanStatusCode.ERROR, message: String(err) });
+      throw err;
+    } finally {
+      span.end();
+    }
+  };
+}
+
+/** Build the traced replacement for a streaming `generateContentStream`-style method. */
+function buildTracedGenerateStream(
+  origStream: (...args: unknown[]) => Promise<unknown>,
+  tracer: Tracer,
+  conversationId: string,
+): (...args: unknown[]) => Promise<unknown> {
+  return async function tracedGenerateStream(
+    this: unknown,
+    ...args: unknown[]
+  ) {
+    const kwargs = (args[0] as Record<string, unknown>) || {};
+    const span = startSpan(
+      tracer,
+      (kwargs.model as string) || "unknown",
+      conversationId,
+    );
+    setRequestAttrs(span, kwargs);
+    try {
+      const stream = (await origStream.apply(
+        this,
+        args,
+      )) as AsyncIterable<StreamChunk>;
+      return new TracedStream(stream, span);
+    } catch (err) {
+      span.setStatus({ code: SpanStatusCode.ERROR, message: String(err) });
+      span.end();
+      throw err;
+    }
+  };
+}
+
+/**
+ * Marker placed on a patched `Models.prototype` method so repeated
+ * `instrumentClass()` calls (e.g. a second `introspection.init()`) are no-ops.
+ */
+const PATCHED = Symbol.for("introspection.gemini.patched");
+
 export class GeminiInstrumentor {
   private tracer: Tracer | null = null;
   private restores: Array<() => void> = [];
@@ -337,55 +410,76 @@ export class GeminiInstrumentor {
       if (origGenerateStream) api.generateContentStream = origGenerateStream;
     });
 
-    api.generateContent = async (...args: unknown[]) => {
-      const kwargs = (args[0] as Record<string, unknown>) || {};
-      const span = startSpan(
-        tracer,
-        (kwargs.model as string) || "unknown",
-        conversationId,
-      );
-      setRequestAttrs(span, kwargs);
-      try {
-        const response = (await origGenerate(...args)) as Record<
-          string,
-          unknown
-        >;
-        setResponseAttrs(span, response);
-        return response;
-      } catch (err) {
-        span.setStatus({
-          code: SpanStatusCode.ERROR,
-          message: String(err),
-        });
-        throw err;
-      } finally {
-        span.end();
-      }
-    };
+    api.generateContent = buildTracedGenerate(
+      origGenerate,
+      tracer,
+      conversationId,
+    ) as GeminiModelsApi["generateContent"];
 
     if (origGenerateStream) {
-      api.generateContentStream = async (...args: unknown[]) => {
-        const kwargs = (args[0] as Record<string, unknown>) || {};
-        const span = startSpan(
-          tracer,
-          (kwargs.model as string) || "unknown",
-          conversationId,
-        );
-        setRequestAttrs(span, kwargs);
-        try {
-          const stream = (await origGenerateStream(
-            ...args,
-          )) as AsyncIterable<StreamChunk>;
-          return new TracedStream(stream, span);
-        } catch (err) {
-          span.setStatus({
-            code: SpanStatusCode.ERROR,
-            message: String(err),
-          });
-          span.end();
-          throw err;
-        }
-      };
+      api.generateContentStream = buildTracedGenerateStream(
+        origGenerateStream,
+        tracer,
+        conversationId,
+      ) as GeminiModelsApi["generateContentStream"];
+    }
+  }
+
+  /**
+   * Patch `Models.prototype.generateContentInternal` / `…StreamInternal` so
+   * **every** `GoogleGenAI` client is traced — the one-liner path used by
+   * `introspection.init()`. The public `generateContent` /
+   * `generateContentStream` are per-instance bound class fields that delegate
+   * to these prototype methods, so patching the prototype covers all clients.
+   * Idempotent: a second call is a no-op.
+   *
+   * @param opts.genai The `@google/genai` module (must expose `Models`).
+   */
+  instrumentClass(opts: {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    genai: any;
+    tracerProvider?: BasicTracerProvider;
+    conversationId?: string;
+  }): void {
+    const proto = opts.genai?.Models?.prototype;
+    if (typeof proto?.generateContentInternal !== "function") {
+      throw new Error(
+        "Invalid @google/genai module — expected `Models.prototype.generateContentInternal`",
+      );
+    }
+    if (proto.generateContentInternal[PATCHED]) return;
+
+    this.conversationId = opts.conversationId ?? crypto.randomUUID();
+    const provider = opts.tracerProvider ?? trace.getTracerProvider();
+    this.tracer = (provider as BasicTracerProvider).getTracer(
+      "introspection-gemini",
+    );
+    const conversationId = this.conversationId;
+
+    const origGenerate = proto.generateContentInternal;
+    const patchedGenerate = buildTracedGenerate(
+      origGenerate,
+      this.tracer,
+      conversationId,
+    ) as ((...args: unknown[]) => Promise<unknown>) & { [PATCHED]?: boolean };
+    patchedGenerate[PATCHED] = true;
+    proto.generateContentInternal = patchedGenerate;
+    this.restores.push(() => {
+      proto.generateContentInternal = origGenerate;
+    });
+
+    if (typeof proto.generateContentStreamInternal === "function") {
+      const origStream = proto.generateContentStreamInternal;
+      const patchedStream = buildTracedGenerateStream(
+        origStream,
+        this.tracer,
+        conversationId,
+      ) as ((...args: unknown[]) => Promise<unknown>) & { [PATCHED]?: boolean };
+      patchedStream[PATCHED] = true;
+      proto.generateContentStreamInternal = patchedStream;
+      this.restores.push(() => {
+        proto.generateContentStreamInternal = origStream;
+      });
     }
   }
 

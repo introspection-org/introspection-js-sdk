@@ -1,0 +1,108 @@
+/**
+ * Integration discovery + setup loader for `introspection.init()`.
+ *
+ * Mirrors the Python SDK's registry: built-in integrations are resolved
+ * lazily (a missing framework just skips its shim), `setupOnce` runs at most
+ * once per identifier per process, and an integration may `deactivate` others.
+ */
+
+import { logger } from "../../utils.js";
+import {
+  DidNotEnable,
+  type Integration,
+  type IntegrationHandles,
+  type IntegrationSetupContext,
+} from "./base.js";
+
+export { DidNotEnable };
+export type { Integration, IntegrationHandles, IntegrationSetupContext };
+
+/**
+ * Built-in integrations, loaded lazily. Each thunk dynamically imports an
+ * integration module; that module imports its framework at the top level, so
+ * if the framework is not installed the import rejects and the integration is
+ * skipped. Order matters only for `deactivates` resolution (handled below).
+ */
+const BUILTIN_INTEGRATIONS: ReadonlyArray<
+  () => Promise<{ default: Integration }>
+> = [
+  () => import("./anthropic.js"),
+  () => import("./gemini.js"),
+  () => import("./openai-agents.js"),
+  () => import("./vercel.js"),
+  () => import("./claude-agent.js"),
+  () => import("./langchain.js"),
+  () => import("./mastra.js"),
+  () => import("./pi.js"),
+];
+
+const installed = new Set<string>();
+
+/**
+ * Return the built-in integrations whose framework is importable.
+ *
+ * Each module's top-level framework import determines availability: a missing
+ * package makes the dynamic import reject, which we log at debug and skip.
+ */
+export async function discoverIntegrations(): Promise<Integration[]> {
+  const found: Integration[] = [];
+  for (const load of BUILTIN_INTEGRATIONS) {
+    try {
+      const mod = await load();
+      if (mod.default) found.push(mod.default);
+    } catch (e) {
+      logger.debug(`Skipping integration: ${String(e)}`);
+    }
+  }
+  return found;
+}
+
+/**
+ * Run each integration's `setupOnce` once, honouring `deactivates`.
+ *
+ * @returns the set of identifiers installed so far this process.
+ */
+export function setupIntegrations(
+  integrations: Integration[],
+  ctx: IntegrationSetupContext,
+): Set<string> {
+  // First-wins de-dupe by identifier.
+  const byId = new Map<string, Integration>();
+  for (const integration of integrations) {
+    if (!byId.has(integration.identifier)) {
+      byId.set(integration.identifier, integration);
+    }
+  }
+
+  const disabled = new Set<string>();
+  for (const integration of byId.values()) {
+    for (const id of integration.deactivates ?? []) disabled.add(id);
+  }
+
+  for (const [identifier, integration] of byId) {
+    if (disabled.has(identifier)) {
+      logger.debug(
+        `Skipping ${identifier} (deactivated by another integration)`,
+      );
+      continue;
+    }
+    if (installed.has(identifier)) continue;
+    try {
+      integration.setupOnce(ctx);
+      installed.add(identifier);
+    } catch (e) {
+      if (e instanceof DidNotEnable) {
+        logger.debug(`Could not enable ${identifier}: ${e.message}`);
+        continue;
+      }
+      throw e;
+    }
+  }
+
+  return new Set(installed);
+}
+
+/** Clear the run-once guard. Test-only utility. */
+export function resetInstalledForTests(): void {
+  installed.clear();
+}

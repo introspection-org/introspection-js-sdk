@@ -149,6 +149,20 @@ function registerPropagator(behavior: ConflictBehavior): void {
 }
 
 /**
+ * Install the OTel context manager + W3C (trace-context + baggage) propagator
+ * that Introspection's baggage scopes depend on.
+ *
+ * Shared by {@link setupTracing} and `introspection.init()`. `behavior`
+ * controls what happens when a manager / propagator is already registered
+ * (see {@link ConflictBehavior}).
+ */
+export function registerOTelGlobals(behavior?: ConflictBehavior): void {
+  const resolved = behavior ?? defaultConflictBehavior();
+  registerContextManager(resolved);
+  registerPropagator(resolved);
+}
+
+/**
  * Initialise Introspection tracing for a Node.js process.
  */
 export function setupTracing(
@@ -161,8 +175,7 @@ export function setupTracing(
   const behavior: ConflictBehavior =
     options?.onConflict ?? defaultConflictBehavior();
 
-  registerContextManager(behavior);
-  registerPropagator(behavior);
+  registerOTelGlobals(behavior);
 
   const provider = new NodeTracerProvider({
     spanProcessors: [new IntrospectionSpanProcessor(options)],
