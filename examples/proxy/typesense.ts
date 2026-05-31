@@ -23,9 +23,9 @@
  *   EGRESS_PROXY_URL=http://localhost:10000
  *   TYPESENSE_HOST=<cluster>.a1.typesense.net
  *   TYPESENSE_SEARCH_API_KEY=<search-only key>   # (or TYPESENSE_API_KEY)
- *   TYPESENSE_COLLECTION=profiles                # collection to search
- *   TYPESENSE_QUERY_BY=<comma-separated text field(s), e.g. name>
- *   TYPESENSE_QUERY=*                            # optional, default "*"
+ *   TYPESENSE_COLLECTION=<collection name>
+ *   TYPESENSE_QUERY_BY=<text field(s) to search IN, e.g. a "name" field>
+ *   TYPESENSE_QUERY=<search term>                # optional, default "*" (all)
  *   pnpm proxy-typesense
  */
 import Typesense from "typesense";
@@ -34,13 +34,14 @@ import { installProxyFetch } from "@introspection-sdk/introspection-proxy";
 const TYPESENSE_HOST = process.env.TYPESENSE_HOST;
 const TYPESENSE_API_KEY =
   process.env.TYPESENSE_SEARCH_API_KEY ?? process.env.TYPESENSE_API_KEY;
-const COLLECTION = process.env.TYPESENSE_COLLECTION ?? "profiles";
-const QUERY_BY = process.env.TYPESENSE_QUERY_BY ?? "name";
+const COLLECTION = process.env.TYPESENSE_COLLECTION;
+const QUERY_BY = process.env.TYPESENSE_QUERY_BY;
 const QUERY = process.env.TYPESENSE_QUERY ?? "*";
 
-if (!TYPESENSE_HOST || !TYPESENSE_API_KEY) {
+if (!TYPESENSE_HOST || !TYPESENSE_API_KEY || !COLLECTION || !QUERY_BY) {
   console.error(
-    "Set TYPESENSE_HOST and TYPESENSE_SEARCH_API_KEY (and EGRESS_PROXY_URL to route via the egress proxy).",
+    "Set TYPESENSE_HOST, TYPESENSE_SEARCH_API_KEY, TYPESENSE_COLLECTION and " +
+      "TYPESENSE_QUERY_BY (and EGRESS_PROXY_URL to route via the egress proxy).",
   );
   process.exit(1);
 }
@@ -74,9 +75,9 @@ async function main() {
   // needs an admin key). Set TYPESENSE_QUERY_BY to a text field in your schema.
   console.log(`Searching "${COLLECTION}" for "${QUERY}" by "${QUERY_BY}"...`);
   const results = (await client
-    .collections(COLLECTION)
+    .collections(COLLECTION!)
     .documents()
-    .search({ q: QUERY, query_by: QUERY_BY, per_page: 5 })) as {
+    .search({ q: QUERY, query_by: QUERY_BY!, per_page: 5 })) as {
     found: number;
     hits?: Array<{ document: Record<string, unknown> }>;
   };
