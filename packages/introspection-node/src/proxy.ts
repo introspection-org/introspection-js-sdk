@@ -58,6 +58,23 @@ function resolveEgressProxyUrl(options: ProxyFetchOptions): string | undefined {
   return options.egressProxyUrl ?? process.env.EGRESS_PROXY_URL ?? undefined;
 }
 
+/**
+ * Resolve a standard forward-proxy URL from the environment, honouring the
+ * conventional `HTTPS_PROXY` / `HTTP_PROXY` variables (and their lowercase
+ * forms). Shared with the OTLP exporter proxy helper (`withOtlpHttpsProxy`) so
+ * fetch traffic and OTLP traffic resolve the same proxy.
+ */
+export function resolveForwardProxyUrl(): string | undefined {
+  const env = process.env;
+  return (
+    env.HTTPS_PROXY ||
+    env.https_proxy ||
+    env.HTTP_PROXY ||
+    env.http_proxy ||
+    undefined
+  );
+}
+
 function buildEgressDispatcher(proxyUrl: string): Dispatcher {
   const url = new URL(proxyUrl);
   const useTls = url.protocol === "https:";
@@ -101,13 +118,7 @@ export function getProxyDispatcher(
     return new ProxyAgent(options.forwardProxyUrl);
   }
 
-  const env = process.env;
-  if (
-    env.HTTPS_PROXY ||
-    env.https_proxy ||
-    env.HTTP_PROXY ||
-    env.http_proxy
-  ) {
+  if (resolveForwardProxyUrl()) {
     // Reads HTTPS_PROXY / HTTP_PROXY / NO_PROXY from the environment.
     return new EnvHttpProxyAgent();
   }

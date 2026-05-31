@@ -1,12 +1,19 @@
 import { DiagLogLevel, DiagLogger } from "@opentelemetry/api";
 import { HttpsProxyAgent } from "https-proxy-agent";
+import { resolveForwardProxyUrl } from "./proxy.js";
 
-function getHttpsProxyUrl(): string | undefined {
-  return process.env.HTTPS_PROXY || undefined;
-}
-
+/**
+ * Attach a forward-proxy agent to OTLP exporter options when a proxy is
+ * configured in the environment.
+ *
+ * Note: the OTLP proto exporters use Node's `http`/`https` stack, so this uses
+ * `HttpsProxyAgent` (an `http.Agent`) rather than the undici dispatcher from
+ * `./proxy.js` — a dispatcher only applies to `fetch`. The proxy *URL* is
+ * resolved by the shared {@link resolveForwardProxyUrl} so fetch and OTLP
+ * traffic agree on which proxy to use.
+ */
 export function withOtlpHttpsProxy<T extends object>(options: T): T {
-  const proxyUrl = getHttpsProxyUrl();
+  const proxyUrl = resolveForwardProxyUrl();
   if (!proxyUrl) return options;
 
   return {

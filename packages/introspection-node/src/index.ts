@@ -35,6 +35,7 @@ export {
   getProxyDispatcher,
   createProxyFetch,
   installProxyFetch,
+  resolveForwardProxyUrl,
 } from "./proxy.js";
 export type { ProxyFetchOptions } from "./proxy.js";
 
