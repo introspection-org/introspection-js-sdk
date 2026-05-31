@@ -78,3 +78,40 @@ export {
   addOpenInferenceAttributes,
   OpenInferenceSpanExporter,
 } from "../converters/openinference.js";
+
+// One-liner bootstrap (`introspection.init()`) + analytics proxies and the
+// per-framework handle accessors it binds. Auto-detects installed frameworks
+// and wires them into one shared provider.
+export {
+  init,
+  shutdown,
+  track,
+  feedback,
+  identify,
+  conversation,
+  newConversationId,
+  getClient,
+  getTracerProvider,
+  getLangchainHandler,
+  getMastraExporter,
+  instrumentPi,
+  instrumentClaudeAgent,
+  _resetForTests,
+} from "./init.js";
+export type { InitOptions } from "./init.js";
+
+// Low-level OTel registration helper (also used by `init`).
+export { registerOTelGlobals } from "./setup.js";
+
+// Integration registry — for custom integrations passed to `init`.
+export {
+  DidNotEnable,
+  discoverIntegrations,
+  setupIntegrations,
+  resetInstalledForTests,
+} from "./integrations/index.js";
+export type {
+  Integration,
+  IntegrationSetupContext,
+  IntegrationHandles,
+} from "./integrations/index.js";

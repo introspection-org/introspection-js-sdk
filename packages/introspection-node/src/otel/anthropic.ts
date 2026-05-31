@@ -438,10 +438,92 @@ export async function tracedMessagesCreate(
  * Captures all content blocks including thinking (extended thinking) with
  * signatures. Supports both non-streaming and streaming calls.
  */
+/**
+ * Build the traced replacement for `messages.create`.
+ *
+ * Shared by {@link AnthropicInstrumentor.instrument} (patches a single client
+ * instance) and {@link AnthropicInstrumentor.instrumentClass} (patches
+ * `Anthropic.Messages.prototype.create` so every client is auto-traced). The
+ * returned function preserves the call-site `this`, so it works whether it is
+ * assigned to an instance property or onto the class prototype.
+ */
+function buildTracedCreate(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  origCreate: (...args: any[]) => any,
+  tracer: Tracer,
+  defaultConversationId: string,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+): (...args: any[]) => any {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return function tracedCreate(this: unknown, ...args: any[]) {
+    const kwargs = args[0] as Record<string, unknown>;
+    const isStream = kwargs?.stream === true;
+
+    // Baggage on the active context overrides the conversation ID bound at
+    // instrument() time, so callers can wrap a request in
+    // IntrospectionClient.withConversation() to scope a single call to a
+    // distinct conversation without re-instrumenting the client.
+    const baggage = propagation.getBaggage(otelContext.active());
+    const baggageConvId = baggage?.getEntry("gen_ai.conversation.id")?.value;
+    const baggageAgentName = baggage?.getEntry("gen_ai.agent.name")?.value;
+    const baggageAgentId = baggage?.getEntry("gen_ai.agent.id")?.value;
+
+    const { span } = startSpan(
+      tracer,
+      (kwargs?.model as string) || "unknown",
+      baggageConvId ?? defaultConversationId,
+    );
+    if (baggageAgentName) {
+      span.setAttribute("gen_ai.agent.name", baggageAgentName);
+    }
+    if (baggageAgentId) {
+      span.setAttribute("gen_ai.agent.id", baggageAgentId);
+    }
+    setRequestAttrs(span, kwargs || {});
+
+    if (isStream) {
+      const streamPromise = origCreate.apply(this, args) as Promise<
+        AsyncIterable<StreamEvent>
+      >;
+      return streamPromise.then(
+        (stream: AsyncIterable<StreamEvent>) => new TracedStream(stream, span),
+        (err: Error) => {
+          span.setStatus({ code: SpanStatusCode.ERROR, message: String(err) });
+          span.end();
+          throw err;
+        },
+      );
+    }
+
+    const resultPromise = origCreate.apply(this, args) as Promise<
+      Record<string, unknown>
+    >;
+    return resultPromise.then(
+      (response: Record<string, unknown>) => {
+        setResponseAttrs(span, response);
+        span.end();
+        return response;
+      },
+      (err: Error) => {
+        span.setStatus({ code: SpanStatusCode.ERROR, message: String(err) });
+        span.end();
+        throw err;
+      },
+    );
+  };
+}
+
+/**
+ * Marker placed on a patched `Messages.prototype.create` so repeated
+ * `instrumentClass()` calls (e.g. a second `introspection.init()`) are no-ops.
+ */
+const PATCHED = Symbol.for("introspection.anthropic.patched");
+
 export class AnthropicInstrumentor {
   private tracer: Tracer | null = null;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private patchedClients: Array<{ client: any; originalCreate: any }> = [];
+  private protoRestores: Array<() => void> = [];
   private conversationId: string | undefined;
 
   instrument(opts: {
@@ -473,73 +555,54 @@ export class AnthropicInstrumentor {
 
     const origCreate = client.messages.create.bind(client.messages);
     this.patchedClients.push({ client, originalCreate: origCreate });
-    const tracer = this.tracer!;
-    const defaultConversationId = this.conversationId;
 
+    client.messages.create = buildTracedCreate(
+      origCreate,
+      this.tracer,
+      this.conversationId,
+    );
+  }
+
+  /**
+   * Patch `Anthropic.Messages.prototype.create` so **every** client constructed
+   * from the given module is traced — the one-liner path used by
+   * `introspection.init()`. Idempotent: a second call is a no-op.
+   *
+   * @param opts.anthropic The `@anthropic-ai/sdk` module's default export
+   *   (the `Anthropic` class). Its `.Messages.prototype.create` is patched.
+   */
+  instrumentClass(opts: {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    client.messages.create = function (...args: any[]) {
-      const kwargs = args[0] as Record<string, unknown>;
-      const isStream = kwargs?.stream === true;
-
-      // Baggage on the active context overrides the conversation ID bound
-      // at instrument() time, so callers can wrap a request in
-      // IntrospectionClient.withConversation() to scope a single call to a
-      // distinct conversation without re-instrumenting the client.
-      const baggage = propagation.getBaggage(otelContext.active());
-      const baggageConvId = baggage?.getEntry("gen_ai.conversation.id")?.value;
-      const baggageAgentName = baggage?.getEntry("gen_ai.agent.name")?.value;
-      const baggageAgentId = baggage?.getEntry("gen_ai.agent.id")?.value;
-
-      const { span } = startSpan(
-        tracer,
-        (kwargs?.model as string) || "unknown",
-        baggageConvId ?? defaultConversationId,
+    anthropic: any;
+    tracerProvider?: BasicTracerProvider;
+    conversationId?: string;
+  }): void {
+    const Messages = opts.anthropic?.Messages;
+    const proto = Messages?.prototype;
+    if (typeof proto?.create !== "function") {
+      throw new Error(
+        "Invalid Anthropic module — expected `Anthropic.Messages.prototype.create`",
       );
-      if (baggageAgentName) {
-        span.setAttribute("gen_ai.agent.name", baggageAgentName);
-      }
-      if (baggageAgentId) {
-        span.setAttribute("gen_ai.agent.id", baggageAgentId);
-      }
-      setRequestAttrs(span, kwargs || {});
+    }
+    if (proto.create[PATCHED]) return;
 
-      if (isStream) {
-        const streamPromise = origCreate(...args) as Promise<
-          AsyncIterable<StreamEvent>
-        >;
-        return streamPromise.then(
-          (stream: AsyncIterable<StreamEvent>) =>
-            new TracedStream(stream, span),
-          (err: Error) => {
-            span.setStatus({
-              code: SpanStatusCode.ERROR,
-              message: String(err),
-            });
-            span.end();
-            throw err;
-          },
-        );
-      }
+    this.conversationId = opts.conversationId ?? crypto.randomUUID();
+    const provider = opts.tracerProvider ?? trace.getTracerProvider();
+    this.tracer = (provider as BasicTracerProvider).getTracer(
+      "introspection-anthropic",
+    );
 
-      const resultPromise = origCreate(...args) as Promise<
-        Record<string, unknown>
-      >;
-      return resultPromise.then(
-        (response: Record<string, unknown>) => {
-          setResponseAttrs(span, response);
-          span.end();
-          return response;
-        },
-        (err: Error) => {
-          span.setStatus({
-            code: SpanStatusCode.ERROR,
-            message: String(err),
-          });
-          span.end();
-          throw err;
-        },
-      );
-    };
+    const origCreate = proto.create;
+    const patched = buildTracedCreate(
+      origCreate,
+      this.tracer,
+      this.conversationId,
+    ) as ((...args: unknown[]) => unknown) & { [PATCHED]?: boolean };
+    patched[PATCHED] = true;
+    proto.create = patched;
+    this.protoRestores.push(() => {
+      proto.create = origCreate;
+    });
   }
 
   uninstrument(): void {
@@ -547,6 +610,8 @@ export class AnthropicInstrumentor {
       client.messages.create = originalCreate;
     }
     this.patchedClients = [];
+    for (const restore of this.protoRestores) restore();
+    this.protoRestores = [];
     this.tracer = null;
   }
 }
