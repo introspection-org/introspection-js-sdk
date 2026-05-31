@@ -16,6 +16,8 @@
     "claude-agent-langfuse": "node --import tsx otel/anthropic/claude-agent-langfuse.ts",
     "claude-agent-subagents": "node --import tsx otel/anthropic/claude-agent-subagents.ts",
     "ai-sdk": "node --import tsx otel/vercel/ai-sdk.ts",
+    "ai-sdk-init": "node --import tsx otel/vercel/ai-sdk-init.ts",
+    "ai-sdk-langfuse": "node --import tsx otel/vercel/ai-sdk-langfuse.ts",
     "ai-sdk-subagents": "node --import tsx otel/vercel/subagents.ts",
     "ai-sdk-signals": "node --import tsx otel/vercel/signals.ts",
     "mastra-ai": "node --import tsx otel/mastra/agent.ts",

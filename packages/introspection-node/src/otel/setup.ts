@@ -89,10 +89,9 @@ export interface SetupTracingOptions extends IntrospectionSpanProcessorOptions {
   onConflict?: ConflictBehavior;
 
   /**
-   * Extra span processors attached to the same `NodeTracerProvider`,
-   * running **after** the {@link IntrospectionSpanProcessor} so they observe
-   * the normalised `gen_ai.*` attribute shape. This is the low-level
-   * dual-export hook — e.g. fan a copy of every span out to Langfuse / Arize:
+   * Extra span processors attached to the same `NodeTracerProvider`, so a
+   * single set of spans fans out to other backends (Langfuse, Arize, …).
+   * This is the low-level dual-export hook:
    *
    * ```ts
    * setupTracing({
@@ -101,8 +100,11 @@ export interface SetupTracingOptions extends IntrospectionSpanProcessorOptions {
    * });
    * ```
    *
-   * `introspection.init({ spanProcessors })` is the equivalent for the
-   * one-liner surface.
+   * Note: the {@link IntrospectionSpanProcessor} forwards its *own* converted
+   * copy of each span to Introspection — it does not mutate the shared span —
+   * so these processors receive the raw span and run independently of it.
+   * Order is therefore irrelevant. `introspection.init({ spanProcessors })`
+   * is the equivalent for the one-liner surface.
    */
   additionalSpanProcessors?: SpanProcessor[];
 }
