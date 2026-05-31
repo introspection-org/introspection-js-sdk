@@ -96,8 +96,8 @@ accessors — `introspection.getLangchainHandler()`,
 `introspection.instrumentClaudeAgent(sdk)`. Prefer the explicit instrumentors
 below if you want full control over provider construction.
 
-> See [examples/otel/anthropic-sdk/anthropic-init.ts](./examples/otel/anthropic-sdk/anthropic-init.ts)
-> (one-liner) and [anthropic-langfuse-init.ts](./examples/otel/anthropic-sdk/anthropic-langfuse-init.ts)
+> See [examples/otel/anthropic/anthropic-init.ts](./examples/otel/anthropic/anthropic-init.ts)
+> (one-liner) and [anthropic-langfuse.ts](./examples/otel/anthropic/anthropic-langfuse.ts)
 > (dual export).
 
 ## 1. Introspection API (runtimes, tasks, files) with `IntrospectionClient`

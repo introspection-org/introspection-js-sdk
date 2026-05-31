@@ -135,8 +135,8 @@ examples/
   api/              # REST API (no OTel)
   otel/             # OTel-based instrumentation examples
     openai/         # OpenAI Agents SDK
-    anthropic/      # Claude Agent SDK
-    anthropic-sdk/  # Anthropic SDK (@anthropic-ai/sdk)
+    anthropic/      # raw Anthropic SDK (@anthropic-ai/sdk)
+    claude-agent/   # Claude Agent SDK (@anthropic-ai/claude-agent-sdk)
     gemini-sdk/     # Google Gemini (@google/genai)
     vercel/         # Vercel AI SDK
     mastra/         # Mastra
