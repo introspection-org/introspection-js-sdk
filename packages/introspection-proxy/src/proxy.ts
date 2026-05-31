@@ -157,9 +157,33 @@ export function createProxyFetch(
     input: RequestInfo | URL,
     init?: RequestInit,
   ): Promise<Response> => {
+    // Some clients (notably axios's fetch adapter) call fetch with a `Request`
+    // object. undici's fetch can't consume a foreign Request instance (it tries
+    // to coerce it to a URL — "Failed to parse URL from [object Request]"), so
+    // normalise a Request into (url, init), carrying over its fields.
+    let target: string | URL;
+    let opts: Record<string, unknown>;
+    if (typeof Request !== "undefined" && input instanceof Request) {
+      target = input.url;
+      opts = {
+        method: input.method,
+        headers: input.headers,
+        body: input.body,
+        signal: input.signal,
+        redirect: input.redirect,
+        credentials: input.credentials,
+        ...init,
+        dispatcher,
+      };
+      // A streamed request body requires half-duplex in undici.
+      if (input.body != null) opts.duplex = "half";
+    } else {
+      target = input as string | URL;
+      opts = { ...init, dispatcher };
+    }
     return undiciFetch(
-      input as unknown as Parameters<typeof undiciFetch>[0],
-      { ...init, dispatcher } as unknown as Parameters<typeof undiciFetch>[1],
+      target as unknown as Parameters<typeof undiciFetch>[0],
+      opts as unknown as Parameters<typeof undiciFetch>[1],
     ) as unknown as Promise<Response>;
   };
 
