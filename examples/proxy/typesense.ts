@@ -1,21 +1,25 @@
 /**
- * Typesense through the Introspection egress (reverse) proxy — GLOBAL approach.
+ * Typesense through the Introspection egress (reverse) proxy.
  *
- * Unlike supabase-js, the Typesense client uses **axios**, not `fetch`, so it
- * won't pick up a custom fetch on its own. We bridge it onto `fetch` with
- * Typesense's `axiosAdapter: "fetch"` and then install a process-wide
- * proxy-aware fetch via `installProxyFetch()`. With `EGRESS_PROXY_URL` set,
- * Typesense traffic is routed to the egress proxy, which routes by `Host` and
- * injects the real `X-TYPESENSE-API-KEY` — so this process can use a
- * placeholder key.
+ * Unlike supabase-js (which exposes a per-client `global.fetch` option), the
+ * Typesense client uses axios — and axios does NOT let you set a custom `fetch`
+ * per client: its built-in `fetch` adapter always uses the process-global
+ * fetch. So we install a process-wide proxy-aware fetch via `installProxyFetch()`
+ * and point Typesense's axios at the fetch adapter with `axiosAdapter: "fetch"`.
+ * With `EGRESS_PROXY_URL` set, Typesense traffic is routed to the egress proxy,
+ * which routes by `Host` and injects the real `X-TYPESENSE-API-KEY` — so this
+ * process can use a placeholder key.
  *
- * See `typesense-manual.ts` for the scoped, no-fetch alternative.
+ * Note: there is no clean per-client equivalent of supabase's `global.fetch`
+ * here. The only alternatives (a Host-header trick, or a hand-written axios
+ * adapter) aren't worth the cost, so the process-wide swap is the recommended
+ * pattern for axios-based clients.
  *
  * Run with:
  *   EGRESS_PROXY_URL=http://localhost:10000
  *   TYPESENSE_HOST=<cluster>.a1.typesense.net
  *   TYPESENSE_API_KEY=<key or placeholder; injected by the egress proxy>
- *   pnpm proxy-typesense-global
+ *   pnpm proxy-typesense
  */
 import Typesense from "typesense";
 import { installProxyFetch } from "@introspection-sdk/introspection-proxy";
@@ -46,8 +50,8 @@ async function main() {
     nodes: [{ host: TYPESENSE_HOST!, port: 443, protocol: "https" }],
     apiKey: TYPESENSE_API_KEY!,
     connectionTimeoutSeconds: 10,
-    // Make Typesense's axios use the global fetch, which installProxyFetch()
-    // has pointed at the egress proxy.
+    // axios can't take a per-client fetch, so we point it at the global fetch
+    // adapter — which installProxyFetch() has routed through the egress proxy.
     axiosAdapter: "fetch",
   });
 

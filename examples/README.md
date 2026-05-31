@@ -20,15 +20,24 @@ credentials are injected by the proxy instead of held in the process. Set
 `EGRESS_PROXY_URL` (e.g. `http://localhost:10000`); when unset the helpers are
 no-ops and code talks to the APIs directly.
 
-Two ways to wire it, compared on Supabase:
+There are two ways to wire it, compared on Supabase:
+
+- **Global** — `installProxyFetch()` swaps `globalThis.fetch` once; the whole
+  process routes through the proxy.
+- **Manual** — `createProxyFetch()` is passed to a single client (e.g.
+  supabase-js's `global.fetch`); only that client is proxied.
 
 ```bash
 pnpm proxy-supabase-global        # installProxyFetch(): swaps global fetch, whole process
 pnpm proxy-supabase-manual        # createProxyFetch(): scoped to one supabase-js client
-pnpm proxy-typesense-global       # Typesense (axios): installProxyFetch + axiosAdapter "fetch"
-pnpm proxy-typesense-manual       # Typesense (axios): node points at proxy + Host header
+pnpm proxy-typesense              # Typesense (axios): installProxyFetch + axiosAdapter "fetch"
 pnpm proxy-deepwiki               # DeepWiki MCP (@modelcontextprotocol/sdk) via transport fetch
 ```
+
+For **axios-based clients (e.g. Typesense), use the global install** — axios has
+no per-client `fetch` option (its built-in fetch adapter always uses the global
+fetch), so `installProxyFetch()` + `axiosAdapter: "fetch"` is the recommended
+pattern. `fetch`-native clients (supabase-js, the MCP SDK) can use either.
 
 ## First-Party Integrations (OTel)
 
