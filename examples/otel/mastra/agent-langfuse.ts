@@ -18,28 +18,20 @@ import { OtelExporter } from "@mastra/otel-exporter";
 import { IntrospectionMastraExporter } from "@introspection-sdk/introspection-node/mastra";
 import { z } from "zod";
 
-if (!process.env.LANGFUSE_PUBLIC_KEY || !process.env.LANGFUSE_SECRET_KEY) {
-  throw new Error("LANGFUSE_PUBLIC_KEY and LANGFUSE_SECRET_KEY must be set");
-}
+import { langfuseOtlpConfig } from "../../_shared/dual-export";
+
 if (!process.env.INTROSPECTION_TOKEN) {
   throw new Error("INTROSPECTION_TOKEN must be set");
 }
 
-// --- Langfuse exporter (Basic auth) ---
-const langfuseAuth = Buffer.from(
-  `${process.env.LANGFUSE_PUBLIC_KEY}:${process.env.LANGFUSE_SECRET_KEY}`,
-).toString("base64");
-const langfuseBaseUrl =
-  process.env.LANGFUSE_BASE_URL || "https://cloud.langfuse.com";
-
+// --- Langfuse exporter (shared helper resolves endpoint + Basic auth) ---
+const langfuse = langfuseOtlpConfig();
 const langfuseExporter = new OtelExporter({
   provider: {
     custom: {
-      endpoint: `${langfuseBaseUrl}/api/public/otel/v1/traces`,
+      endpoint: langfuse.url,
       protocol: "http/protobuf",
-      headers: {
-        Authorization: `Basic ${langfuseAuth}`,
-      },
+      headers: langfuse.headers,
     },
   },
 });

@@ -114,6 +114,7 @@ const SYSTEM_MESSAGE = {
 };
 
 type HistoryMessage = { role: "user" | "assistant"; content: string };
+type AgentGenerateInput = Parameters<typeof agent.generate>[0];
 
 async function runTurn(
   userMsg: string,
@@ -124,7 +125,7 @@ async function runTurn(
     SYSTEM_MESSAGE,
     ...history,
     { role: "user" as const, content: userMsg },
-  ];
+  ] as unknown as AgentGenerateInput;
   const result = await agent.generate(messages, {
     tracingOptions: { metadata: { "gen_ai.conversation.id": conversationId } },
   });

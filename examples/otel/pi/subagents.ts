@@ -8,10 +8,10 @@
  *   - Each agent role gets its own pi Agent instance with independent state.
  *   - Per-call agent identity (gen_ai.agent.name / gen_ai.agent.id /
  *     gen_ai.conversation.id) is propagated via OTel baggage using
- *     IntrospectionClient.withAgent() / .withConversation().
+ *     IntrospectionLogs.withAgent() / .withConversation().
  *   - Promise.all preserves per-branch baggage thanks to AsyncLocalStorage.
  *
- * Run with: pnpm pi-subagents-baggage
+ * Run with: pnpm pi-subagents
  *
  * Required env:
  *   INTROSPECTION_TOKEN   ANTHROPIC_API_KEY
@@ -20,10 +20,10 @@
 import { Agent } from "@mariozechner/pi-agent-core";
 import { getModel } from "@mariozechner/pi-ai";
 import { randomUUID } from "crypto";
-import { IntrospectionClient } from "@introspection-sdk/introspection-node";
 import {
   IntrospectionPiInstrumentor,
   setupTracing,
+  IntrospectionLogs,
   type PiAgentMeta,
 } from "@introspection-sdk/introspection-node/otel";
 
@@ -31,7 +31,9 @@ const token = process.env.INTROSPECTION_TOKEN;
 if (!token) throw new Error("INTROSPECTION_TOKEN must be set");
 
 const provider = setupTracing({ serviceName: "pi-subagents-baggage" });
-const introspect = new IntrospectionClient();
+const introspect = new IntrospectionLogs({
+  serviceName: "pi-subagents-baggage",
+});
 const piInstrumentor = new IntrospectionPiInstrumentor();
 
 const MODEL = getModel("anthropic", "claude-sonnet-4-6");

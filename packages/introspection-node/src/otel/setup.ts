@@ -61,6 +61,7 @@ import {
   W3CTraceContextPropagator,
 } from "@opentelemetry/core";
 import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
+import type { SpanProcessor } from "@opentelemetry/sdk-trace-base";
 
 import { logger } from "../utils.js";
 import {
@@ -86,6 +87,26 @@ export interface SetupTracingOptions extends IntrospectionSpanProcessorOptions {
    *     other libraries that relied on the previous registration.
    */
   onConflict?: ConflictBehavior;
+
+  /**
+   * Extra span processors attached to the same `NodeTracerProvider`, so a
+   * single set of spans fans out to other backends (Langfuse, Arize, …).
+   * This is the low-level dual-export hook:
+   *
+   * ```ts
+   * setupTracing({
+   *   serviceName: "my-app",
+   *   additionalSpanProcessors: [new BatchSpanProcessor(langfuseExporter)],
+   * });
+   * ```
+   *
+   * Note: the {@link IntrospectionSpanProcessor} forwards its *own* converted
+   * copy of each span to Introspection — it does not mutate the shared span —
+   * so these processors receive the raw span and run independently of it.
+   * Order is therefore irrelevant. `introspection.init({ spanProcessors })`
+   * is the equivalent for the one-liner surface.
+   */
+  additionalSpanProcessors?: SpanProcessor[];
 }
 
 function defaultConflictBehavior(): ConflictBehavior {
@@ -149,6 +170,20 @@ function registerPropagator(behavior: ConflictBehavior): void {
 }
 
 /**
+ * Install the OTel context manager + W3C (trace-context + baggage) propagator
+ * that Introspection's baggage scopes depend on.
+ *
+ * Shared by {@link setupTracing} and `introspection.init()`. `behavior`
+ * controls what happens when a manager / propagator is already registered
+ * (see {@link ConflictBehavior}).
+ */
+export function registerOTelGlobals(behavior?: ConflictBehavior): void {
+  const resolved = behavior ?? defaultConflictBehavior();
+  registerContextManager(resolved);
+  registerPropagator(resolved);
+}
+
+/**
  * Initialise Introspection tracing for a Node.js process.
  */
 export function setupTracing(
@@ -161,11 +196,17 @@ export function setupTracing(
   const behavior: ConflictBehavior =
     options?.onConflict ?? defaultConflictBehavior();
 
-  registerContextManager(behavior);
-  registerPropagator(behavior);
+  registerOTelGlobals(behavior);
 
   const provider = new NodeTracerProvider({
-    spanProcessors: [new IntrospectionSpanProcessor(options)],
+    // Order is irrelevant: IntrospectionSpanProcessor exports its own converted
+    // copy and does not mutate the shared span, so co-located dual-export
+    // processors receive the raw span regardless of position. Listed first here
+    // (and in init()) purely for a consistent, readable ordering story.
+    spanProcessors: [
+      new IntrospectionSpanProcessor(options),
+      ...(options?.additionalSpanProcessors ?? []),
+    ],
   });
   provider.register();
 

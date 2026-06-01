@@ -30,6 +30,7 @@
 | `@introspection-sdk/types`                  | Shared types and constants                                                                                |
 | `@introspection-sdk/introspection-openclaw` | [OpenClaw](https://openclaw.dev) plugin for agent lifecycle tracing                                       |
 | `@introspection-sdk/introspection-pi`       | [Pi Agent SDK](https://withpi.ai) instrumentor — OTel GenAI spans for chat completions and tool execution |
+| `@introspection-sdk/introspection-proxy`    | Forward/egress proxy helpers — route third-party API calls so credentials are injected by the proxy       |
 
 ## Three independent surfaces
 
@@ -38,6 +39,83 @@ The Node SDK exposes three surfaces you can adopt independently:
 1. **Introspection API (runtimes, tasks, files)** with `IntrospectionClient` — the main Introspection API. Zero OpenTelemetry imports. Always available.
 2. **Analytics events (track, feedback, identify)** with `IntrospectionLogs` — OTel logs exporter with baggage helpers. Owns its own `LoggerProvider`. Lives at `@introspection-sdk/introspection-node/otel`. Requires the OTel SDK peer deps.
 3. **Traces (span processors + instrumentors)** with `IntrospectionSpanProcessor` and friends — `IntrospectionTracingProcessor`, `IntrospectionClaudeHooks`, `withIntrospection`, `AnthropicInstrumentor`, `GeminiInstrumentor`, `IntrospectionPiInstrumentor`, the LangChain callback handler, the Mastra exporter. All under `@introspection-sdk/introspection-node/otel` (or the dedicated `/langchain` and `/mastra` subpaths for the framework hooks).
+
+## Quick start: one-liner `introspection.init()`
+
+`init()` auto-detects the installed LLM frameworks (Anthropic, Gemini, OpenAI
+Agents, Vercel AI SDK, Claude Agent SDK, LangChain, Mastra, Pi) and wires them
+into a single shared trace pipeline. Anthropic and Gemini are patched at the SDK
+level, so a client constructed _after_ `init()` is traced with no per-client
+wiring:
+
+```typescript
+import * as introspection from "@introspection-sdk/introspection-node/otel";
+import Anthropic from "@anthropic-ai/sdk";
+
+await introspection.init({ serviceName: "my-app" }); // reads INTROSPECTION_TOKEN
+
+const client = new Anthropic(); // auto-traced
+await introspection.conversation(() =>
+  client.messages.create({
+    model: "claude-sonnet-4-6",
+    max_tokens: 256,
+    messages: [{ role: "user", content: "Hello!" }],
+  }),
+);
+
+introspection.track("Signed up", { plan: "pro" });
+await introspection.shutdown();
+```
+
+Both import styles work — a namespace import for the one-liner above, or named
+("dual") imports for granular use:
+
+```typescript
+import {
+  init,
+  conversation,
+  track,
+} from "@introspection-sdk/introspection-node/otel";
+```
+
+**Dual export** (a third-party backend _and_ Introspection) — the explicit form
+is to build the OpenTelemetry provider yourself with both span processors, then
+hand it to `init()`:
+
+```typescript
+import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
+import { BatchSpanProcessor } from "@opentelemetry/sdk-trace-base";
+import { IntrospectionSpanProcessor } from "@introspection-sdk/introspection-node/otel";
+
+// You own the provider and its processor list — Introspection alongside the vendor.
+const provider = new NodeTracerProvider({
+  spanProcessors: [
+    new IntrospectionSpanProcessor({ token: process.env.INTROSPECTION_TOKEN }),
+    new BatchSpanProcessor(langfuseExporter),
+  ],
+});
+provider.register();
+
+// init() adopts your provider (it won't create its own) and adds the W3C baggage
+// propagator, framework auto-discovery, and the analytics/logs stream.
+await introspection.init({ tracerProvider: provider });
+```
+
+`IntrospectionSpanProcessor` exports its own converted copy of each span, so the
+vendor processor receives the raw span and **processor order is irrelevant**. For
+a quick one-call alternative that composes a vendor processor onto the provider
+`init()` creates, use `init({ spanProcessors: [new BatchSpanProcessor(langfuseExporter)] })`.
+
+Frameworks whose hooks are attached per-call (LangChain), per-config (Mastra),
+or per-instance (Pi, Claude Agent SDK) are bound by `init()` and exposed via
+accessors — `introspection.getLangchainHandler()`,
+`introspection.getMastraExporter()`, `introspection.instrumentPi(agent, meta)`,
+`introspection.instrumentClaudeAgent(sdk)`. Prefer the explicit instrumentors
+below if you want full control over provider construction.
+
+> See [examples/otel/anthropic/init.ts](./examples/otel/anthropic/init.ts)
+> (one-liner) and [langfuse.ts](./examples/otel/anthropic/langfuse.ts)
+> (dual export).
 
 ## 1. Introspection API (runtimes, tasks, files) with `IntrospectionClient`
 

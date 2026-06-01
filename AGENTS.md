@@ -74,17 +74,17 @@ Examples (post-rename):
 
 - `examples/otel/openai/agents.ts` — base
 - `examples/otel/openai/agents-arize.ts` — dual-export
-- `examples/otel/anthropic/claude-agent.ts`, `examples/otel/anthropic/claude-agent-subagents.ts`
-- `examples/otel/anthropic-sdk/anthropic-native.ts` (raw Anthropic Node SDK — see naming note below)
-- `examples/otel/gemini-sdk/gemini-native.ts`
+- `examples/otel/claude-agent/agent.ts`, `examples/otel/claude-agent/subagents.ts`
+- `examples/otel/anthropic/native.ts` (raw Anthropic Node SDK — see naming note below)
+- `examples/otel/gemini/native.ts`
 - `examples/otel/raw/multi-turn-conversation.ts` (the wrapper-free OTel example)
 
 **Naming note — Anthropic is two SDKs, two folders:**
 
-| Folder                         | npm package                                                              |
-| ------------------------------ | ------------------------------------------------------------------------ |
-| `examples/otel/anthropic-sdk/` | `@anthropic-ai/sdk` (raw Node SDK)                                       |
-| `examples/otel/anthropic/`     | `@anthropic-ai/claude-agent-sdk` (agent SDK; spawns the `claude` binary) |
+| Folder                        | npm package                                                              |
+| ----------------------------- | ------------------------------------------------------------------------ |
+| `examples/otel/anthropic/`    | `@anthropic-ai/sdk` (raw Node SDK)                                       |
+| `examples/otel/claude-agent/` | `@anthropic-ai/claude-agent-sdk` (agent SDK; spawns the `claude` binary) |
 
 Top-level peers under `otel/`. Do not nest one under the other.
 

@@ -12,8 +12,8 @@
 import Anthropic from "@anthropic-ai/sdk";
 import type {
   MessageParam,
-  ToolParam,
-  ThinkingConfigEnabledParam,
+  ThinkingConfigEnabled,
+  Tool,
 } from "@anthropic-ai/sdk/resources/messages";
 import {
   AnthropicInstrumentor,
@@ -41,7 +41,7 @@ async function main() {
   const client = new Anthropic();
   const instrumentor = new AnthropicInstrumentor();
   instrumentor.instrument({ tracerProvider: provider, client });
-  const tools: ToolParam[] = [
+  const tools: Tool[] = [
     {
       name: "get_weather",
       description:
@@ -104,7 +104,7 @@ Marine forecasts include sea state, wave height, swell period, and visibility fo
     },
   ];
 
-  const thinkingConfig: ThinkingConfigEnabledParam = {
+  const thinkingConfig: ThinkingConfigEnabled = {
     type: "enabled",
     budget_tokens: 5000,
   };

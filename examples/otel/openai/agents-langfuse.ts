@@ -19,9 +19,8 @@ import type { SpanExporter, ReadableSpan } from "@opentelemetry/sdk-trace-base";
 import { IntrospectionTracingProcessor } from "@introspection-sdk/introspection-node/otel";
 import { z } from "zod";
 
-if (!process.env.LANGFUSE_PUBLIC_KEY || !process.env.LANGFUSE_SECRET_KEY) {
-  throw new Error("LANGFUSE_PUBLIC_KEY and LANGFUSE_SECRET_KEY must be set");
-}
+import { langfuseOtelExporter } from "../../_shared/dual-export";
+
 if (!process.env.INTROSPECTION_TOKEN) {
   throw new Error("INTROSPECTION_TOKEN must be set");
 }
@@ -59,19 +58,8 @@ class CompositeSpanExporter implements SpanExporter {
   }
 }
 
-// --- Langfuse exporter (Basic auth) ---
-const langfuseAuth = Buffer.from(
-  `${process.env.LANGFUSE_PUBLIC_KEY}:${process.env.LANGFUSE_SECRET_KEY}`,
-).toString("base64");
-const langfuseBaseUrl =
-  process.env.LANGFUSE_BASE_URL || "https://cloud.langfuse.com";
-
-const langfuseExporter = new OTLPTraceExporter({
-  url: `${langfuseBaseUrl}/api/public/otel/v1/traces`,
-  headers: {
-    Authorization: `Basic ${langfuseAuth}`,
-  },
-});
+// --- Langfuse exporter (shared helper: OTLP HTTP + Basic auth) ---
+const langfuseExporter = langfuseOtelExporter();
 
 // --- Introspection exporter ---
 const baseUrl =

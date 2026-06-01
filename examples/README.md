@@ -41,10 +41,19 @@ pattern. `fetch`-native clients (supabase-js, the MCP SDK) can use either.
 
 ## First-Party Integrations (OTel)
 
+Each framework ships two patterns: a one-liner `introspection.init()` example
+(`*-init`) that auto-wires every installed framework, and dual-export examples
+that fan the same spans out to a third-party backend alongside Introspection.
+For the frameworks whose spans flow through the OTel provider (Vercel, Anthropic,
+Gemini, Pi) the `*-langfuse` example uses the explicit bring-your-own-provider
+form; the others (OpenAI Agents, Claude Agent, Mastra) use each framework's
+native multi-exporter.
+
 ### OpenAI Agents SDK
 
 ```bash
 pnpm openai-agents                # Basic tracing
+pnpm openai-agents-init           # introspection.init() one-liner
 pnpm openai-agents-braintrust     # + Braintrust dual export
 pnpm openai-agents-arize          # + Arize dual export
 pnpm openai-agents-langsmith      # + LangSmith dual export
@@ -55,6 +64,7 @@ pnpm openai-agents-langfuse       # + Langfuse dual export
 
 ```bash
 pnpm claude-agent                 # withIntrospection() wrapper
+pnpm claude-agent-init            # introspection.init() + instrumentClaudeAgent(sdk)
 pnpm claude-agent-braintrust      # + Braintrust dual export
 pnpm claude-agent-langsmith       # + LangSmith dual export
 pnpm claude-agent-langfuse        # + Langfuse dual export
@@ -64,12 +74,16 @@ pnpm claude-agent-langfuse        # + Langfuse dual export
 
 ```bash
 pnpm ai-sdk                       # Vercel AI SDK native telemetry
+pnpm ai-sdk-init                  # introspection.init() one-liner
+pnpm ai-sdk-langfuse              # + Langfuse dual export (explicit provider)
+pnpm ai-sdk-subagents             # Multi-agent baggage
 ```
 
 ### Mastra
 
 ```bash
 pnpm mastra-ai                    # IntrospectionMastraExporter
+pnpm mastra-init                  # introspection.init() + getMastraExporter()
 pnpm mastra-braintrust            # + Braintrust dual export
 pnpm mastra-arize                 # + Arize dual export
 pnpm mastra-langsmith             # + LangSmith dual export
@@ -81,6 +95,8 @@ pnpm mastra-cloud                 # Mastra Cloud
 
 ```bash
 pnpm langchain-handler            # IntrospectionCallbackHandler
+pnpm langchain-handler-init       # introspection.init() + getLangchainHandler()
+pnpm langchain-subagents          # Multi-agent baggage
 ```
 
 For LangGraph, pass the app's session id in `configurable.thread_id`. The
@@ -100,26 +116,40 @@ await graph.invoke(input, {
 
 ```bash
 pnpm anthropic-native             # AnthropicInstrumentor with extended thinking + tool use
+pnpm anthropic-init               # introspection.init() one-liner
+pnpm anthropic-langfuse           # + Langfuse dual export (explicit provider)
+pnpm anthropic-subagents          # Multi-agent baggage
 ```
 
 ### Google Gemini (`@google/genai`)
 
 ```bash
 pnpm gemini-native                # GeminiInstrumentor with thought signatures + tool use
+pnpm gemini-init                  # introspection.init() one-liner
+pnpm gemini-langfuse              # + Langfuse dual export (explicit provider)
 ```
 
 Captures per-part `thoughtSignature` payloads (Gemini 2.5+ / 3.x) that must be
 replayed on subsequent turns to preserve the model's chain of thought across
-tool calls. See `otel/gemini-sdk/gemini-native.ts` for the multi-turn replay pattern.
+tool calls. See `otel/gemini/native.ts` for the multi-turn replay pattern.
+
+### Pi Agent
+
+```bash
+pnpm pi-native                    # IntrospectionPiInstrumentor
+pnpm pi-init                      # introspection.init() + instrumentPi(agent, meta)
+pnpm pi-langfuse                  # + Langfuse dual export (explicit provider)
+pnpm pi-subagents                 # Multi-agent baggage
+```
 
 ## OpenInference (Third-Party / Unsupported Frameworks)
 
 For frameworks that use OpenInference instrumentation. Uses `IntrospectionSpanProcessor` to convert OpenInference attributes to GenAI semantic conventions.
 
 ```bash
-pnpm openinference-arize           # Arize/Phoenix + Introspection
-pnpm openinference-braintrust      # Braintrust + Introspection
-pnpm openinference-langfuse        # Langfuse + Introspection
+pnpm openinference-openai-arize        # Arize/Phoenix + Introspection
+pnpm openinference-openai-braintrust   # Braintrust + Introspection
+pnpm openinference-openai-langfuse     # Langfuse + Introspection
 ```
 
 ### Raw OTEL
@@ -135,9 +165,9 @@ examples/
   api/              # REST API (no OTel)
   otel/             # OTel-based instrumentation examples
     openai/         # OpenAI Agents SDK
-    anthropic/      # Claude Agent SDK
-    anthropic-sdk/  # Anthropic SDK (@anthropic-ai/sdk)
-    gemini-sdk/     # Google Gemini (@google/genai)
+    anthropic/      # raw Anthropic SDK (@anthropic-ai/sdk)
+    claude-agent/   # Claude Agent SDK (@anthropic-ai/claude-agent-sdk)
+    gemini/         # Google Gemini (@google/genai)
     vercel/         # Vercel AI SDK
     mastra/         # Mastra
     langchain/      # LangChain / LangGraph
