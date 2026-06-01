@@ -38,7 +38,7 @@
     "prepare": "tsc"
   },
   "devDependencies": {
-    "@openai/agents": "^0.11.5",
+    "@openai/agents": "^0.11.6",
     "@opentelemetry/api-logs": "^0.218.0",
     "@opentelemetry/context-async-hooks": "^2.7.1",
     "@opentelemetry/core": "^2.7.1",
@@ -58,11 +58,11 @@
     "@mastra/observability": "^1.14.0",
     "@mariozechner/pi-agent-core": "^0.73.1",
     "@mariozechner/pi-ai": "^0.73.1",
-    "@anthropic-ai/sdk": "^0.100.0",
-    "@anthropic-ai/claude-agent-sdk": "^0.3.154",
+    "@anthropic-ai/sdk": "^0.100.1",
+    "@anthropic-ai/claude-agent-sdk": "^0.3.159",
     "@google/genai": "^2.6.0",
-    "ai": "^6.0.192",
-    "openai": "^6.39.1",
+    "ai": "^6.0.194",
+    "openai": "^6.40.0",
     "typescript": "5.9.3"
   },
   "peerDependencies": {
