@@ -29,9 +29,9 @@
 
 import * as sdk from "@anthropic-ai/claude-agent-sdk";
 import { randomUUID } from "crypto";
-import { IntrospectionClient } from "@introspection-sdk/introspection-node";
 import {
   setupTracing,
+  IntrospectionLogs,
   withIntrospection,
 } from "@introspection-sdk/introspection-node/otel";
 
@@ -44,7 +44,9 @@ if (!process.env.INTROSPECTION_TOKEN) {
 // no-op and identity never reaches the Claude hooks.
 setupTracing({ serviceName: "claude-agent-subagents" });
 
-const introspect = new IntrospectionClient();
+const introspect = new IntrospectionLogs({
+  serviceName: "claude-agent-subagents",
+});
 const tracedSdk = withIntrospection(sdk, {
   serviceName: "claude-agent-subagents",
 });

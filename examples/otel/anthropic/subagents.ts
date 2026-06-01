@@ -7,7 +7,7 @@
  *     process. No per-call SDK construction.
  *   - Per-call agent identity (gen_ai.agent.name / gen_ai.agent.id /
  *     gen_ai.conversation.id) is propagated via OTel baggage using
- *     IntrospectionClient.withAgent() / .withConversation().
+ *     IntrospectionLogs.withAgent() / .withConversation().
  *   - setupTracing() takes care of registering AsyncLocalStorageContextManager,
  *     the W3C baggage propagator, and the IntrospectionSpanProcessor in one
  *     call. Without the context manager, context.with() silently drops the
@@ -22,10 +22,10 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { randomUUID } from "crypto";
 
-import { IntrospectionClient } from "@introspection-sdk/introspection-node";
 import {
   AnthropicInstrumentor,
   setupTracing,
+  IntrospectionLogs,
 } from "@introspection-sdk/introspection-node/otel";
 
 const token = process.env.INTROSPECTION_TOKEN;
@@ -39,7 +39,9 @@ const provider = setupTracing({
   serviceName: "anthropic-sdk-subagents-baggage",
 });
 
-const introspect = new IntrospectionClient();
+const introspect = new IntrospectionLogs({
+  serviceName: "anthropic-subagents",
+});
 const client = new Anthropic();
 new AnthropicInstrumentor().instrument({ client });
 

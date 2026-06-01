@@ -148,10 +148,9 @@ export async function init(options: InitOptions = {}): Promise<TracerProvider> {
   }
 
   const provider = resolveProvider(options, token, serviceName, advanced);
-  state.provider = provider;
 
   // The track / feedback / identify surface is a separate OTLP log stream.
-  state.logs = new IntrospectionLogs({
+  const logs = new IntrospectionLogs({
     token,
     serviceName,
     baseOtelUrl: baseUrl,
@@ -169,12 +168,23 @@ export async function init(options: InitOptions = {}): Promise<TracerProvider> {
     handles: state.handles,
   };
 
-  const toInstall: Integration[] = [];
-  if (options.autoDiscover !== false) {
-    toInstall.push(...(await discoverIntegrations()));
+  // Run discovery + setup BEFORE committing global state, so a failure here
+  // doesn't leave a half-configured provider behind the idempotency guard
+  // (a later init() would otherwise return the broken provider and never retry).
+  try {
+    const toInstall: Integration[] = [];
+    if (options.autoDiscover !== false) {
+      toInstall.push(...(await discoverIntegrations()));
+    }
+    if (options.integrations) toInstall.push(...options.integrations);
+    setupIntegrations(toInstall, ctx);
+  } catch (e) {
+    state.handles = {};
+    throw e;
   }
-  if (options.integrations) toInstall.push(...options.integrations);
-  setupIntegrations(toInstall, ctx);
+
+  state.provider = provider;
+  state.logs = logs;
 
   if (!state.shutdownRegistered) {
     process.once("beforeExit", () => {
@@ -255,6 +265,52 @@ export function conversation<T>(
   return getClient().withConversation(conversationId, undefined, () =>
     callback(conversationId),
   );
+}
+
+/**
+ * Run `callback` with `gen_ai.agent.name` (+ optional `gen_ai.agent.id`) on the
+ * baggage, so spans/events produced within are attributed to that agent.
+ * Requires {@link init} first. Mirrors `IntrospectionLogs.withAgent`.
+ */
+export function withAgent<T>(
+  agentName: string,
+  agentId: string | undefined,
+  callback: () => T | Promise<T>,
+): Promise<T> {
+  return getClient().withAgent(agentName, agentId, callback);
+}
+
+/**
+ * Run `callback` inside a conversation scope, optionally chaining a previous
+ * response id. Unlike {@link conversation}, the id is required (no auto-gen).
+ * Requires {@link init} first.
+ */
+export function withConversation<T>(
+  conversationId: string | undefined,
+  previousResponseId: string | undefined,
+  callback: () => T | Promise<T>,
+): Promise<T> {
+  return getClient().withConversation(
+    conversationId,
+    previousResponseId,
+    callback,
+  );
+}
+
+/** Run `callback` with `identity.user_id` on the baggage. Requires {@link init} first. */
+export function withUserId<T>(
+  userId: string,
+  callback: () => T | Promise<T>,
+): Promise<T> {
+  return getClient().withUserId(userId, callback);
+}
+
+/** Run `callback` with `identity.anonymous_id` on the baggage. Requires {@link init} first. */
+export function withAnonymousId<T>(
+  anonymousId: string,
+  callback: () => T | Promise<T>,
+): Promise<T> {
+  return getClient().withAnonymousId(anonymousId, callback);
 }
 
 /**

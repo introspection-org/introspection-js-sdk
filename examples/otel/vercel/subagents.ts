@@ -23,15 +23,17 @@
  * Run with: pnpm ai-sdk-subagents
  */
 
-import { IntrospectionClient } from "@introspection-sdk/introspection-node";
-import { setupTracing } from "@introspection-sdk/introspection-node/otel";
+import {
+  setupTracing,
+  IntrospectionLogs,
+} from "@introspection-sdk/introspection-node/otel";
 import { generateText, stepCountIs } from "ai";
 import type { ModelMessage } from "ai";
 import { anthropic } from "@ai-sdk/anthropic";
 import { randomUUID } from "crypto";
 
 const provider = setupTracing({ serviceName: "ai-sdk-subagents" });
-const introspect = new IntrospectionClient();
+const introspect = new IntrospectionLogs({ serviceName: "ai-sdk-subagents" });
 
 const SYSTEM_PROMPT =
   "You are a concise research assistant. " +
