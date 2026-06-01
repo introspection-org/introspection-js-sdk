@@ -26,10 +26,27 @@ import Anthropic from "@anthropic-ai/sdk";
 import * as introspection from "@introspection-sdk/introspection-node/otel";
 import { IntrospectionSpanProcessor } from "@introspection-sdk/introspection-node/otel";
 import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
+import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-proto";
+import { BatchSpanProcessor } from "@opentelemetry/sdk-trace-base";
 import { resourceFromAttributes } from "@opentelemetry/resources";
 import { ATTR_SERVICE_NAME } from "@opentelemetry/semantic-conventions";
 
-import { langfuseSpanProcessor } from "../../_shared/dual-export";
+function langfuseSpanProcessor(): BatchSpanProcessor {
+  const publicKey = process.env.LANGFUSE_PUBLIC_KEY;
+  const secretKey = process.env.LANGFUSE_SECRET_KEY;
+  if (!publicKey || !secretKey) {
+    throw new Error("LANGFUSE_PUBLIC_KEY and LANGFUSE_SECRET_KEY must be set");
+  }
+  const baseUrl = process.env.LANGFUSE_BASE_URL || "https://cloud.langfuse.com";
+  return new BatchSpanProcessor(
+    new OTLPTraceExporter({
+      url: `${baseUrl}/api/public/otel/v1/traces`,
+      headers: {
+        Authorization: `Basic ${Buffer.from(`${publicKey}:${secretKey}`).toString("base64")}`,
+      },
+    }),
+  );
+}
 
 async function main() {
   // You own the provider and its processor list — Introspection alongside
