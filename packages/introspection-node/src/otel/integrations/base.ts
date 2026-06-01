@@ -85,6 +85,11 @@ export interface Integration {
    * wrapping framework (e.g. LangChain) does not double-trace the SDK it wraps.
    */
   readonly deactivates?: readonly string[];
-  /** Wire the framework into the shared pipeline. Runs once; may throw {@link DidNotEnable}. */
-  setupOnce(ctx: IntegrationSetupContext): void;
+  /**
+   * Wire the framework into the shared pipeline. Runs once; may throw
+   * {@link DidNotEnable}. May return a teardown callback (e.g. to uninstrument a
+   * prototype patch) that `introspection.shutdown()` runs so a later `init()`
+   * re-installs cleanly against the rebuilt provider.
+   */
+  setupOnce(ctx: IntegrationSetupContext): void | (() => void);
 }

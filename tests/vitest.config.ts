@@ -109,16 +109,18 @@ export default defineConfig({
         // Version constant — no logic to test.
         "**/version.ts",
       ],
-      // "Do not regress" floor — CI / pre-commit fails if a PR drops below
-      // any of these. Raised in the unification-surface pass after the
-      // gap-closing tests landed (REST control-plane against a real HTTP
-      // server, openinference reverse converter + exporter, typed-error
-      // mapping, setupTracing dual-export, the otel/register preload).
+      // POLICY: the gate is REPO-WIDE aggregate coverage across the `include`
+      // packages (a "do not regress" floor), NOT a per-file or all-metrics-≥70
+      // guarantee. Concretely: line/statement/function coverage are high (~84/84/87%)
+      // and the dominant target; branch coverage is tracked but intentionally
+      // lower (~67%, floor 63) since exhaustive branch coverage on multi-format
+      // converters has steep diminishing returns. Some individual files are below
+      // 70% (e.g. introspection-browser/src/client.ts is 0% — deferred pending a
+      // browser harness; introspection-openclaw is excluded entirely as beta).
+      // If a stricter "every file ≥ X" policy is wanted, tighten this block.
       //
       // Phase 1 baseline:  statements 62.86%  branches 48.65%  functions 64.65%  lines 64.24%
       // Current measured:  statements 83.50%  branches 67.02%  functions 87.06%  lines 84.70%
-      // (openclaw excluded as beta; barrels covered by the public-export smoke
-      // test; mastra-exporter + langchain-handler branch gaps closed.)
       // Floors sit just under the measured values to leave a small margin.
       thresholds: {
         lines: 82,

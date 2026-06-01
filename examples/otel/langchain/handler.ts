@@ -16,7 +16,6 @@ import { tool } from "@langchain/core/tools";
 import {
   HumanMessage,
   SystemMessage,
-  ToolMessage,
   type BaseMessage,
 } from "@langchain/core/messages";
 import type { AIMessage } from "@langchain/core/messages";

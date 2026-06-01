@@ -20,16 +20,21 @@ describe("anthropic integration", () => {
     });
 
     expect(anthropicIntegration.identifier).toBe("anthropic");
-    // Real @anthropic-ai/sdk prototype gets patched; should not throw, and a
-    // repeat call is a no-op via the PATCHED marker.
-    expect(() =>
-      anthropicIntegration.setupOnce({
-        tracerProvider: provider,
-        handles: {},
-      }),
-    ).not.toThrow();
 
     const Anthropic = (await import("@anthropic-ai/sdk")).default;
-    expect(typeof Anthropic.Messages.prototype.create).toBe("function");
+    const original = Anthropic.Messages.prototype.create;
+
+    // setupOnce patches the prototype and returns a teardown.
+    const teardown = anthropicIntegration.setupOnce({
+      tracerProvider: provider,
+      handles: {},
+    });
+    expect(Anthropic.Messages.prototype.create).not.toBe(original);
+    expect(typeof teardown).toBe("function");
+
+    // Teardown restores the original prototype so a later init() can re-patch
+    // against a new provider (the run-once guard alone wouldn't allow that).
+    (teardown as () => void)();
+    expect(Anthropic.Messages.prototype.create).toBe(original);
   });
 });

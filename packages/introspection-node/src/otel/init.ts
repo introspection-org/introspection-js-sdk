@@ -35,6 +35,7 @@ import type { InstrumentedClaudeAgentSDK } from "./claude-wrapper.js";
 import {
   discoverIntegrations,
   setupIntegrations,
+  teardownIntegrations,
   type Integration,
   type IntegrationHandles,
   type IntegrationSetupContext,
@@ -113,9 +114,12 @@ function resolveProvider(
     resource: serviceName
       ? resourceFromAttributes({ [ATTR_SERVICE_NAME]: serviceName })
       : undefined,
+    // Order is irrelevant (IntrospectionSpanProcessor exports an isolated
+    // converted copy and never mutates the shared span); listed first to match
+    // setupTracing()'s ordering.
     spanProcessors: [
-      ...(options.spanProcessors ?? []),
       new IntrospectionSpanProcessor({ token, serviceName, advanced }),
+      ...(options.spanProcessors ?? []),
     ],
   });
   provider.register();
@@ -387,6 +391,10 @@ export async function shutdown(): Promise<void> {
       logger.debug(`Error shutting down provider: ${String(e)}`);
     }
   }
+  // Run integration teardowns (uninstrument prototype patches) + clear the
+  // run-once guard so a later init() re-installs and rebuilds the handles
+  // against the new provider instead of being skipped.
+  teardownIntegrations();
   state.provider = null;
   state.ownsProvider = false;
   state.logs = null;
@@ -395,6 +403,7 @@ export async function shutdown(): Promise<void> {
 
 /** Reset module state. Test-only utility. */
 export function _resetForTests(): void {
+  teardownIntegrations();
   state.provider = null;
   state.ownsProvider = false;
   state.logs = null;

@@ -37,6 +37,9 @@ const BUILTIN_INTEGRATIONS: ReadonlyArray<
 ];
 
 const installed = new Set<string>();
+// Teardown callbacks returned by integration setupOnce (e.g. uninstrument a
+// prototype patch), run by teardownIntegrations() on shutdown.
+const teardowns: Array<() => void> = [];
 
 /**
  * Distinguish "framework package not installed" (expected — skip quietly) from
@@ -111,7 +114,8 @@ export function setupIntegrations(
     }
     if (installed.has(identifier)) continue;
     try {
-      integration.setupOnce(ctx);
+      const teardown = integration.setupOnce(ctx);
+      if (typeof teardown === "function") teardowns.push(teardown);
       installed.add(identifier);
     } catch (e) {
       if (e instanceof DidNotEnable) {
@@ -125,7 +129,23 @@ export function setupIntegrations(
   return new Set(installed);
 }
 
-/** Clear the run-once guard. Test-only utility. */
-export function resetInstalledForTests(): void {
+/**
+ * Run every integration teardown and clear the run-once guard, so the next
+ * `setupIntegrations()` (e.g. after `introspection.shutdown()` + a fresh
+ * `init()`) re-installs against the rebuilt provider instead of being skipped.
+ */
+export function teardownIntegrations(): void {
+  for (const teardown of teardowns.splice(0)) {
+    try {
+      teardown();
+    } catch (e) {
+      logger.debug(`Error tearing down integration: ${String(e)}`);
+    }
+  }
   installed.clear();
+}
+
+/** Clear the run-once guard (running teardowns). Test-only utility. */
+export function resetInstalledForTests(): void {
+  teardownIntegrations();
 }

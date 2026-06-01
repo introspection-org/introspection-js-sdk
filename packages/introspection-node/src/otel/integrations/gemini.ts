@@ -14,7 +14,11 @@ import type { Integration } from "./base.js";
 const integration: Integration = {
   identifier: "gemini",
   setupOnce({ tracerProvider }) {
-    new GeminiInstrumentor().instrumentClass({ genai, tracerProvider });
+    const instrumentor = new GeminiInstrumentor();
+    instrumentor.instrumentClass({ genai, tracerProvider });
+    // Restore the original prototype on shutdown so a later init() re-patches
+    // against the rebuilt provider (the patch captures the provider's tracer).
+    return () => instrumentor.uninstrument();
   },
 };
 

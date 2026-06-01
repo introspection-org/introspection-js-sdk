@@ -15,10 +15,11 @@ import type { Integration } from "./base.js";
 const integration: Integration = {
   identifier: "anthropic",
   setupOnce({ tracerProvider }) {
-    new AnthropicInstrumentor().instrumentClass({
-      anthropic: Anthropic,
-      tracerProvider,
-    });
+    const instrumentor = new AnthropicInstrumentor();
+    instrumentor.instrumentClass({ anthropic: Anthropic, tracerProvider });
+    // Restore the original prototype on shutdown so a later init() re-patches
+    // against the rebuilt provider (the patch captures the provider's tracer).
+    return () => instrumentor.uninstrument();
   },
 };
 

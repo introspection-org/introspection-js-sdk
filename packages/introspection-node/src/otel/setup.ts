@@ -199,8 +199,10 @@ export function setupTracing(
   registerOTelGlobals(behavior);
 
   const provider = new NodeTracerProvider({
-    // The Introspection processor runs first so downstream dual-export
-    // processors see normalised `gen_ai.*` attributes.
+    // Order is irrelevant: IntrospectionSpanProcessor exports its own converted
+    // copy and does not mutate the shared span, so co-located dual-export
+    // processors receive the raw span regardless of position. Listed first here
+    // (and in init()) purely for a consistent, readable ordering story.
     spanProcessors: [
       new IntrospectionSpanProcessor(options),
       ...(options?.additionalSpanProcessors ?? []),
