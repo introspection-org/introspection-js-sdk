@@ -194,8 +194,11 @@ the elderly, young children, or people with respiratory conditions.`;
     // Execute each tool call
     for (const tc of response.tool_calls) {
       console.log(`Calling tool: ${tc.name}(${JSON.stringify(tc.args)})`);
-      const result = await getWeather.invoke(tc.args, callbacks);
-      messages.push(new ToolMessage({ content: result, tool_call_id: tc.id! }));
+      const result = await getWeather.invoke(
+        { ...tc, id: tc.id ?? `${tc.name}-${messages.length}` },
+        callbacks,
+      );
+      messages.push(result);
     }
 
     // Call model again with tool results

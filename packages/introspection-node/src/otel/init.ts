@@ -78,6 +78,7 @@ export interface InitOptions {
 
 interface InitState {
   provider: TracerProvider | null;
+  ownsProvider: boolean;
   logs: IntrospectionLogs | null;
   handles: IntegrationHandles;
   shutdownRegistered: boolean;
@@ -85,6 +86,7 @@ interface InitState {
 
 const state: InitState = {
   provider: null,
+  ownsProvider: false,
   logs: null,
   handles: {},
   shutdownRegistered: false,
@@ -147,6 +149,7 @@ export async function init(options: InitOptions = {}): Promise<TracerProvider> {
     );
   }
 
+  const ownsProvider = !options.tracerProvider;
   const provider = resolveProvider(options, token, serviceName, advanced);
 
   // The track / feedback / identify surface is a separate OTLP log stream.
@@ -184,6 +187,7 @@ export async function init(options: InitOptions = {}): Promise<TracerProvider> {
   }
 
   state.provider = provider;
+  state.ownsProvider = ownsProvider;
   state.logs = logs;
 
   if (!state.shutdownRegistered) {
@@ -368,7 +372,7 @@ export function instrumentClaudeAgent(
 
 /** Flush and shut down the logs client and (if owned) the provider. */
 export async function shutdown(): Promise<void> {
-  const { logs, provider } = state;
+  const { logs, provider, ownsProvider } = state;
   if (logs) {
     try {
       await logs.shutdown();
@@ -376,18 +380,23 @@ export async function shutdown(): Promise<void> {
       logger.debug(`Error shutting down logs client: ${String(e)}`);
     }
   }
-  if (provider && "shutdown" in provider) {
+  if (ownsProvider && provider && "shutdown" in provider) {
     try {
       await (provider as { shutdown(): Promise<void> }).shutdown();
     } catch (e) {
       logger.debug(`Error shutting down provider: ${String(e)}`);
     }
   }
+  state.provider = null;
+  state.ownsProvider = false;
+  state.logs = null;
+  state.handles = {};
 }
 
 /** Reset module state. Test-only utility. */
 export function _resetForTests(): void {
   state.provider = null;
+  state.ownsProvider = false;
   state.logs = null;
   state.handles = {};
 }

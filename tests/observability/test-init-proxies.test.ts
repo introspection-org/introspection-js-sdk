@@ -3,9 +3,10 @@
  * withUserId / withAnonymousId) and the init() partial-state rollback.
  * No mocks: a real InMemorySpanExporter stands in for the token.
  */
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { context, propagation, trace } from "@opentelemetry/api";
 import { InMemorySpanExporter } from "@opentelemetry/sdk-trace-base";
+import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
 
 import {
   init,
@@ -113,5 +114,47 @@ describe("init() rolls back partial state when setup throws", () => {
     // A subsequent clean init() succeeds (retry works).
     await initForTest();
     expect(getTracerProvider()).toBeDefined();
+  });
+});
+
+describe("shutdown()", () => {
+  afterEach(async () => {
+    await shutdown();
+    _resetForTests();
+    resetOTelGlobals();
+  });
+
+  it("shuts down owned providers and clears the init cache", async () => {
+    const provider = await init({
+      token: "test-token",
+      autoDiscover: false,
+      onConflict: "replace",
+      advanced: { spanExporter: new InMemorySpanExporter() },
+    });
+    const shutdownSpy = vi.spyOn(provider as NodeTracerProvider, "shutdown");
+
+    await shutdown();
+
+    expect(shutdownSpy).toHaveBeenCalledOnce();
+    expect(() => getTracerProvider()).toThrow(/init/);
+
+    await initForTest();
+    expect(getTracerProvider()).toBeDefined();
+  });
+
+  it("does not shut down caller-owned providers", async () => {
+    const provider = new NodeTracerProvider();
+    const shutdownSpy = vi.spyOn(provider, "shutdown");
+
+    await init({
+      tracerProvider: provider,
+      token: "test-token",
+      autoDiscover: false,
+      onConflict: "replace",
+    });
+    await shutdown();
+
+    expect(shutdownSpy).not.toHaveBeenCalled();
+    expect(() => getTracerProvider()).toThrow(/init/);
   });
 });

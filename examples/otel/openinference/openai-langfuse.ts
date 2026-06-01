@@ -101,6 +101,7 @@ async function main() {
 
   if (assistantMsg.tool_calls) {
     for (const tc of assistantMsg.tool_calls) {
+      if (tc.type !== "function") continue;
       const args = JSON.parse(tc.function.arguments);
       const result = getWeather(args.city);
       console.log(

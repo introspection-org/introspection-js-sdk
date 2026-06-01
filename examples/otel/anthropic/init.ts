@@ -25,8 +25,8 @@
 import Anthropic from "@anthropic-ai/sdk";
 import type {
   MessageParam,
-  ToolParam,
-  ThinkingConfigEnabledParam,
+  ThinkingConfigEnabled,
+  Tool,
 } from "@anthropic-ai/sdk/resources/messages";
 import * as introspection from "@introspection-sdk/introspection-node/otel";
 
@@ -45,7 +45,7 @@ async function main() {
 
   // Constructed AFTER init() — auto-traced, no per-client wiring.
   const client = new Anthropic();
-  const tools: ToolParam[] = [
+  const tools: Tool[] = [
     {
       name: "get_weather",
       description:
@@ -59,7 +59,7 @@ async function main() {
   ];
 
   const model = "claude-sonnet-4-6";
-  const thinking: ThinkingConfigEnabledParam = {
+  const thinking: ThinkingConfigEnabled = {
     type: "enabled",
     budget_tokens: 5000,
   };
