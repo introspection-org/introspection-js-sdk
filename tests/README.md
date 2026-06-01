@@ -87,18 +87,21 @@ The report lives at `tests/coverage/`. The `coverage/index.html` page lets you c
 3. Run `pnpm test:cov` locally. If coverage drops below the threshold the commit will fail; either add more test coverage or justify the gap in the PR description (and raise the threshold deliberately).
 4. CI runs the same check and uploads the HTML report as a downloadable artifact.
 
-### Current baseline
+### Current coverage
 
-Captured at landing:
+Repo-wide aggregate across the `include` packages (the gate is a repo-wide
+"do-not-regress" floor, not a per-file guarantee — see the `coverage` block in
+`vitest.config.ts`). `introspection-openclaw` is excluded (beta) and
+`introspection-browser` is deferred pending a browser harness.
 
-| Metric     | Baseline | Threshold (do-not-regress) | Phase 4 target |
-| ---------- | -------: | -------------------------: | -------------: |
-| Statements |      63% |                        60% |            70% |
-| Branches   |      49% |                        45% |            60% |
-| Functions  |      65% |                        60% |            70% |
-| Lines      |      64% |                        60% |            70% |
+| Metric     | Phase 1 baseline | Current | Threshold (do-not-regress) |
+| ---------- | ---------------: | ------: | -------------------------: |
+| Statements |              63% |     84% |                        80% |
+| Branches   |              49% |     69% |                        63% |
+| Functions  |              65% |     88% |                        84% |
+| Lines      |              64% |     85% |                        82% |
 
-Per-package detail is in the HTML report.
+Per-package / per-file detail is in the HTML report.
 
 ## Test policy: Polly recordings over mocks
 

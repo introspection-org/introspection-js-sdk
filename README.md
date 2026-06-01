@@ -30,6 +30,7 @@
 | `@introspection-sdk/types`                  | Shared types and constants                                                                                |
 | `@introspection-sdk/introspection-openclaw` | [OpenClaw](https://openclaw.dev) plugin for agent lifecycle tracing                                       |
 | `@introspection-sdk/introspection-pi`       | [Pi Agent SDK](https://withpi.ai) instrumentor — OTel GenAI spans for chat completions and tool execution |
+| `@introspection-sdk/introspection-proxy`    | Forward/egress proxy helpers — route third-party API calls so credentials are injected by the proxy       |
 
 ## Three independent surfaces
 
@@ -77,17 +78,33 @@ import {
 } from "@introspection-sdk/introspection-node/otel";
 ```
 
-**Dual export** (third-party backend + Introspection) is one call — pass the
-vendor's span processor and `init()` composes it alongside Introspection's:
+**Dual export** (a third-party backend _and_ Introspection) — the explicit form
+is to build the OpenTelemetry provider yourself with both span processors, then
+hand it to `init()`:
 
 ```typescript
+import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
 import { BatchSpanProcessor } from "@opentelemetry/sdk-trace-base";
+import { IntrospectionSpanProcessor } from "@introspection-sdk/introspection-node/otel";
 
-await introspection.init({
-  serviceName: "my-app",
-  spanProcessors: [new BatchSpanProcessor(langfuseExporter)],
+// You own the provider and its processor list — Introspection alongside the vendor.
+const provider = new NodeTracerProvider({
+  spanProcessors: [
+    new IntrospectionSpanProcessor({ token: process.env.INTROSPECTION_TOKEN }),
+    new BatchSpanProcessor(langfuseExporter),
+  ],
 });
+provider.register();
+
+// init() adopts your provider (it won't create its own) and adds the W3C baggage
+// propagator, framework auto-discovery, and the analytics/logs stream.
+await introspection.init({ tracerProvider: provider });
 ```
+
+`IntrospectionSpanProcessor` exports its own converted copy of each span, so the
+vendor processor receives the raw span and **processor order is irrelevant**. For
+a quick one-call alternative that composes a vendor processor onto the provider
+`init()` creates, use `init({ spanProcessors: [new BatchSpanProcessor(langfuseExporter)] })`.
 
 Frameworks whose hooks are attached per-call (LangChain), per-config (Mastra),
 or per-instance (Pi, Claude Agent SDK) are bound by `init()` and exposed via
