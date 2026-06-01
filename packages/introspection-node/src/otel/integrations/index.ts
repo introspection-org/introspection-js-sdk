@@ -39,10 +39,25 @@ const BUILTIN_INTEGRATIONS: ReadonlyArray<
 const installed = new Set<string>();
 
 /**
+ * Distinguish "framework package not installed" (expected — skip quietly) from
+ * a real error inside an installed integration (a bug we shouldn't hide).
+ */
+export function isModuleNotFound(e: unknown): boolean {
+  const code = (e as { code?: string } | null)?.code;
+  if (code === "ERR_MODULE_NOT_FOUND" || code === "MODULE_NOT_FOUND") {
+    return true;
+  }
+  const msg = e instanceof Error ? e.message : String(e);
+  return /Cannot find (module|package)|Failed to resolve/i.test(msg);
+}
+
+/**
  * Return the built-in integrations whose framework is importable.
  *
  * Each module's top-level framework import determines availability: a missing
- * package makes the dynamic import reject, which we log at debug and skip.
+ * package makes the dynamic import reject, which we log at debug and skip. Any
+ * OTHER failure (a real error inside an installed integration) is surfaced at
+ * warn level rather than silently swallowed — it's a bug, not an absent peer.
  */
 export async function discoverIntegrations(): Promise<Integration[]> {
   const found: Integration[] = [];
@@ -51,7 +66,15 @@ export async function discoverIntegrations(): Promise<Integration[]> {
       const mod = await load();
       if (mod.default) found.push(mod.default);
     } catch (e) {
-      logger.debug(`Skipping integration: ${String(e)}`);
+      if (isModuleNotFound(e)) {
+        logger.debug(
+          `Skipping integration (framework not installed): ${String(e)}`,
+        );
+      } else {
+        logger.warn(
+          `Integration failed to load with an unexpected error (skipping): ${String(e)}`,
+        );
+      }
     }
   }
   return found;
