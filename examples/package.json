@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "check-types": "tsc --noEmit",
     "openai-agents": "node --import tsx otel/openai/agents.ts",
     "openai-agents-subagents": "node --import tsx otel/openai/agents-subagents.ts",
     "openai-agents-braintrust": "node --import tsx otel/openai/agents-braintrust.ts",

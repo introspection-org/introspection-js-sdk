@@ -23,8 +23,8 @@
  */
 
 import {
-  setupTracing,
   IntrospectionLogs,
+  setupTracing,
 } from "@introspection-sdk/introspection-node/otel";
 import { IntrospectionCallbackHandler } from "@introspection-sdk/introspection-node/langchain";
 import { ChatAnthropic } from "@langchain/anthropic";

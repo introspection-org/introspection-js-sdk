@@ -80,6 +80,7 @@ const RESEARCHER_PRIMES_CONV_ID = randomUUID();
 const RESEARCHER_FIB_CONV_ID = randomUUID();
 
 type HistoryMessage = { role: "user" | "assistant"; content: string };
+type AgentGenerateInput = Parameters<typeof orchestratorAgent.generate>[0];
 
 async function runAgent(
   agent: Agent,
@@ -91,7 +92,7 @@ async function runAgent(
     SYSTEM_MESSAGE,
     ...history,
     { role: "user" as const, content: prompt },
-  ];
+  ] as unknown as AgentGenerateInput;
   const result = await agent.generate(messages, {
     tracingOptions: { metadata: { "gen_ai.conversation.id": conversationId } },
   });

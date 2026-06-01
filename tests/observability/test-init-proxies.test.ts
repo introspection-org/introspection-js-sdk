@@ -3,7 +3,7 @@
  * withUserId / withAnonymousId) and the init() partial-state rollback.
  * No mocks: a real InMemorySpanExporter stands in for the token.
  */
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { context, propagation, trace } from "@opentelemetry/api";
 import { InMemorySpanExporter } from "@opentelemetry/sdk-trace-base";
 import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
@@ -117,47 +117,44 @@ describe("init() rolls back partial state when setup throws", () => {
   });
 });
 
-describe("shutdown() provider ownership + state reset", () => {
+describe("shutdown()", () => {
   afterEach(async () => {
     await shutdown();
     _resetForTests();
     resetOTelGlobals();
   });
 
-  it("does NOT shut down a caller-supplied provider, and resets state", async () => {
-    const provider = new NodeTracerProvider();
-    let shutdownCalled = false;
-    const orig = provider.shutdown.bind(provider);
-    provider.shutdown = async () => {
-      shutdownCalled = true;
-      return orig();
-    };
-
-    await init({
+  it("shuts down owned providers and clears the init cache", async () => {
+    const provider = await init({
       token: "test-token",
       autoDiscover: false,
       onConflict: "replace",
-      tracerProvider: provider,
+      advanced: { spanExporter: new InMemorySpanExporter() },
     });
+    const shutdownSpy = vi.spyOn(provider as NodeTracerProvider, "shutdown");
 
     await shutdown();
 
-    // Host-owned provider must be left running.
-    expect(shutdownCalled).toBe(false);
-    // State is cleared so a later init() rebuilds rather than returning a dead one.
+    expect(shutdownSpy).toHaveBeenCalledOnce();
     expect(() => getTracerProvider()).toThrow(/init/);
+
+    await initForTest();
+    expect(getTracerProvider()).toBeDefined();
   });
 
-  it("shuts down an init()-created provider and rebuilds on the next init()", async () => {
-    await initForTest();
-    const first = getTracerProvider();
+  it("does not shut down caller-owned providers", async () => {
+    const provider = new NodeTracerProvider();
+    const shutdownSpy = vi.spyOn(provider, "shutdown");
 
+    await init({
+      tracerProvider: provider,
+      token: "test-token",
+      autoDiscover: false,
+      onConflict: "replace",
+    });
     await shutdown();
-    expect(() => getTracerProvider()).toThrow(/init/);
 
-    await initForTest();
-    const second = getTracerProvider();
-    expect(second).toBeDefined();
-    expect(second).not.toBe(first);
+    expect(shutdownSpy).not.toHaveBeenCalled();
+    expect(() => getTracerProvider()).toThrow(/init/);
   });
 });

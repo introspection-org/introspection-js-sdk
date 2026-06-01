@@ -78,7 +78,6 @@ export interface InitOptions {
 
 interface InitState {
   provider: TracerProvider | null;
-  /** True only when `init()` created the provider (not a caller-supplied one). */
   ownsProvider: boolean;
   logs: IntrospectionLogs | null;
   handles: IntegrationHandles;
@@ -150,6 +149,7 @@ export async function init(options: InitOptions = {}): Promise<TracerProvider> {
     );
   }
 
+  const ownsProvider = !options.tracerProvider;
   const provider = resolveProvider(options, token, serviceName, advanced);
 
   // The track / feedback / identify surface is a separate OTLP log stream.
@@ -187,9 +187,7 @@ export async function init(options: InitOptions = {}): Promise<TracerProvider> {
   }
 
   state.provider = provider;
-  // Only a provider we created is ours to shut down; a caller-supplied one
-  // (init({ tracerProvider })) stays owned by the host.
-  state.ownsProvider = options.tracerProvider === undefined;
+  state.ownsProvider = ownsProvider;
   state.logs = logs;
 
   if (!state.shutdownRegistered) {
@@ -372,15 +370,7 @@ export function instrumentClaudeAgent(
   return fn(sdk);
 }
 
-/**
- * Flush and shut down the logs client and — only if `init()` created it — the
- * tracer provider. A caller-supplied provider (init({ tracerProvider })) is
- * left running so it isn't torn out from under the host's OTel pipeline.
- *
- * Resets module state afterwards so a subsequent `init()` rebuilds a live
- * provider/logs client instead of the idempotency guard handing back the
- * shut-down ones (a hot-reload / CLI / test footgun).
- */
+/** Flush and shut down the logs client and (if owned) the provider. */
 export async function shutdown(): Promise<void> {
   const { logs, provider, ownsProvider } = state;
   if (logs) {

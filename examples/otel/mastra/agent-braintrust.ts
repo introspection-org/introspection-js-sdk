@@ -40,6 +40,7 @@ const introspectionExporter = new IntrospectionMastraExporter();
 const mastra = new Mastra({
   agents: {
     assistant: new Agent({
+      id: "assistant",
       name: "Assistant",
       instructions: "You only respond in haikus.",
       model: "openai/gpt-4o-mini",
