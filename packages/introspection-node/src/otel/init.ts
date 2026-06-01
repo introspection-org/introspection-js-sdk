@@ -78,6 +78,8 @@ export interface InitOptions {
 
 interface InitState {
   provider: TracerProvider | null;
+  /** True only when `init()` created the provider (not a caller-supplied one). */
+  ownsProvider: boolean;
   logs: IntrospectionLogs | null;
   handles: IntegrationHandles;
   shutdownRegistered: boolean;
@@ -85,6 +87,7 @@ interface InitState {
 
 const state: InitState = {
   provider: null,
+  ownsProvider: false,
   logs: null,
   handles: {},
   shutdownRegistered: false,
@@ -184,6 +187,9 @@ export async function init(options: InitOptions = {}): Promise<TracerProvider> {
   }
 
   state.provider = provider;
+  // Only a provider we created is ours to shut down; a caller-supplied one
+  // (init({ tracerProvider })) stays owned by the host.
+  state.ownsProvider = options.tracerProvider === undefined;
   state.logs = logs;
 
   if (!state.shutdownRegistered) {
@@ -366,9 +372,17 @@ export function instrumentClaudeAgent(
   return fn(sdk);
 }
 
-/** Flush and shut down the logs client and (if owned) the provider. */
+/**
+ * Flush and shut down the logs client and — only if `init()` created it — the
+ * tracer provider. A caller-supplied provider (init({ tracerProvider })) is
+ * left running so it isn't torn out from under the host's OTel pipeline.
+ *
+ * Resets module state afterwards so a subsequent `init()` rebuilds a live
+ * provider/logs client instead of the idempotency guard handing back the
+ * shut-down ones (a hot-reload / CLI / test footgun).
+ */
 export async function shutdown(): Promise<void> {
-  const { logs, provider } = state;
+  const { logs, provider, ownsProvider } = state;
   if (logs) {
     try {
       await logs.shutdown();
@@ -376,18 +390,23 @@ export async function shutdown(): Promise<void> {
       logger.debug(`Error shutting down logs client: ${String(e)}`);
     }
   }
-  if (provider && "shutdown" in provider) {
+  if (ownsProvider && provider && "shutdown" in provider) {
     try {
       await (provider as { shutdown(): Promise<void> }).shutdown();
     } catch (e) {
       logger.debug(`Error shutting down provider: ${String(e)}`);
     }
   }
+  state.provider = null;
+  state.ownsProvider = false;
+  state.logs = null;
+  state.handles = {};
 }
 
 /** Reset module state. Test-only utility. */
 export function _resetForTests(): void {
   state.provider = null;
+  state.ownsProvider = false;
   state.logs = null;
   state.handles = {};
 }

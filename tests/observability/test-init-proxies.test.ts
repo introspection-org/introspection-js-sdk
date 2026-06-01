@@ -6,6 +6,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { context, propagation, trace } from "@opentelemetry/api";
 import { InMemorySpanExporter } from "@opentelemetry/sdk-trace-base";
+import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
 
 import {
   init,
@@ -113,5 +114,50 @@ describe("init() rolls back partial state when setup throws", () => {
     // A subsequent clean init() succeeds (retry works).
     await initForTest();
     expect(getTracerProvider()).toBeDefined();
+  });
+});
+
+describe("shutdown() provider ownership + state reset", () => {
+  afterEach(async () => {
+    await shutdown();
+    _resetForTests();
+    resetOTelGlobals();
+  });
+
+  it("does NOT shut down a caller-supplied provider, and resets state", async () => {
+    const provider = new NodeTracerProvider();
+    let shutdownCalled = false;
+    const orig = provider.shutdown.bind(provider);
+    provider.shutdown = async () => {
+      shutdownCalled = true;
+      return orig();
+    };
+
+    await init({
+      token: "test-token",
+      autoDiscover: false,
+      onConflict: "replace",
+      tracerProvider: provider,
+    });
+
+    await shutdown();
+
+    // Host-owned provider must be left running.
+    expect(shutdownCalled).toBe(false);
+    // State is cleared so a later init() rebuilds rather than returning a dead one.
+    expect(() => getTracerProvider()).toThrow(/init/);
+  });
+
+  it("shuts down an init()-created provider and rebuilds on the next init()", async () => {
+    await initForTest();
+    const first = getTracerProvider();
+
+    await shutdown();
+    expect(() => getTracerProvider()).toThrow(/init/);
+
+    await initForTest();
+    const second = getTracerProvider();
+    expect(second).toBeDefined();
+    expect(second).not.toBe(first);
   });
 });

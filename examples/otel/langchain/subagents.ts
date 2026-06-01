@@ -22,8 +22,10 @@
  * Run with: pnpm langchain-subagents
  */
 
-import { IntrospectionClient } from "@introspection-sdk/introspection-node";
-import { setupTracing } from "@introspection-sdk/introspection-node/otel";
+import {
+  setupTracing,
+  IntrospectionLogs,
+} from "@introspection-sdk/introspection-node/otel";
 import { IntrospectionCallbackHandler } from "@introspection-sdk/introspection-node/langchain";
 import { ChatAnthropic } from "@langchain/anthropic";
 import {
@@ -40,7 +42,9 @@ import { randomUUID } from "crypto";
 // dropped and identity won't reach the handler.
 setupTracing({ serviceName: "langchain-subagents" });
 
-const introspect = new IntrospectionClient();
+const introspect = new IntrospectionLogs({
+  serviceName: "langchain-subagents",
+});
 const handler = new IntrospectionCallbackHandler({
   serviceName: "langchain-subagents",
 });
