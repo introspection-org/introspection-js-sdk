@@ -153,7 +153,9 @@ export function createProxyFetch(
     return fetch;
   }
 
-  const isEgress = !!resolveEgressProxyUrl(options);
+  const egressUrl = resolveEgressProxyUrl(options);
+  const egressIsPlainHttp =
+    !!egressUrl && new URL(egressUrl).protocol === "http:";
 
   const proxied = (
     input: RequestInfo | URL,
@@ -184,12 +186,11 @@ export function createProxyFetch(
       opts = { ...init, dispatcher };
     }
 
-    // Egress (reverse proxy) mode: the proxy is a plain-HTTP reverse proxy
-    // that routes by Host header and handles upstream TLS itself. Rewrite
-    // https:// → http:// so undici doesn't try to TLS-wrap the connection
-    // to the proxy. The Host header is preserved for routing. This is safe
-    // because the sandbox↔proxy link is localhost/in-cluster.
-    if (isEgress) {
+    // Egress (reverse proxy) mode: when the proxy itself is plain HTTP,
+    // rewrite https:// → http:// so undici doesn't TLS-wrap the connection
+    // to the proxy. The proxy handles upstream TLS. The Host header is
+    // preserved for routing. Only applied when EGRESS_PROXY_URL is http://.
+    if (egressIsPlainHttp) {
       const urlStr = typeof target === "string" ? target : target.toString();
       if (urlStr.startsWith("https://")) {
         target = "http://" + urlStr.slice(8);
