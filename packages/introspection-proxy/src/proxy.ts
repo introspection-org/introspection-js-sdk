@@ -153,6 +153,8 @@ export function createProxyFetch(
     return fetch;
   }
 
+  const isEgress = !!resolveEgressProxyUrl(options);
+
   const proxied = (
     input: RequestInfo | URL,
     init?: RequestInit,
@@ -181,6 +183,19 @@ export function createProxyFetch(
       target = input as string | URL;
       opts = { ...init, dispatcher };
     }
+
+    // Egress (reverse proxy) mode: the proxy is a plain-HTTP reverse proxy
+    // that routes by Host header and handles upstream TLS itself. Rewrite
+    // https:// → http:// so undici doesn't try to TLS-wrap the connection
+    // to the proxy. The Host header is preserved for routing. This is safe
+    // because the sandbox↔proxy link is localhost/in-cluster.
+    if (isEgress) {
+      const urlStr = typeof target === "string" ? target : target.toString();
+      if (urlStr.startsWith("https://")) {
+        target = "http://" + urlStr.slice(8);
+      }
+    }
+
     return undiciFetch(
       target as unknown as Parameters<typeof undiciFetch>[0],
       opts as unknown as Parameters<typeof undiciFetch>[1],
