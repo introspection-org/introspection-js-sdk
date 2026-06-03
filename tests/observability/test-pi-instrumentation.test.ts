@@ -21,7 +21,7 @@ import {
   createAssistantMessageEventStream,
   type AssistantMessage,
   type Model,
-} from "@mariozechner/pi-ai";
+} from "@earendil-works/pi-ai";
 import {
   instrumentAgent,
   instrumentStream,
@@ -281,6 +281,43 @@ describe("instrumentAgent", () => {
       JSON.parse(String(span?.attributes["gen_ai.tool.call.result"])),
     ).toEqual({ stdout: "ok" });
     expect(span?.status.code).toBe(1); // OK
+  });
+
+  it("invokes extraAttributes and merges its output onto the tool span", async () => {
+    const { exporter, tracer, provider } = setupTracer();
+    const agent = fakeAgent();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const tools = instrumentAgent(agent as any, {
+      tracer,
+      meta: META,
+      extraAttributes: (event) => ({
+        "introspection.run.id": `run-${event.toolCallId}`,
+        "introspection.agent.invocation_index": 2,
+      }),
+    });
+
+    agent.emit({
+      type: "tool_execution_start",
+      toolCallId: "call-1",
+      toolName: "shell",
+      args: { cmd: "ls" },
+    });
+    agent.emit({
+      type: "tool_execution_end",
+      toolCallId: "call-1",
+      toolName: "shell",
+      result: { stdout: "ok" },
+      isError: false,
+    });
+
+    tools.stop();
+    await provider.forceFlush();
+
+    const span = exporter
+      .getFinishedSpans()
+      .find((s) => s.name === "execute_tool shell");
+    expect(span?.attributes["introspection.run.id"]).toBe("run-call-1");
+    expect(span?.attributes["introspection.agent.invocation_index"]).toBe(2);
   });
 
   it("marks the span as error and surfaces the result message when isError=true", async () => {

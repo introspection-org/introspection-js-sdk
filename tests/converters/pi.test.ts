@@ -12,7 +12,7 @@ import type {
   Message,
   ToolResultMessage,
   UserMessage,
-} from "@mariozechner/pi-ai";
+} from "@earendil-works/pi-ai";
 import {
   assistantToOutputMessages,
   inputMessagesToMessages,

@@ -17,8 +17,8 @@
  *   INTROSPECTION_BASE_OTEL_URL       defaults to https://otel.introspection.dev
  */
 
-import { Agent, type AgentTool } from "@mariozechner/pi-agent-core";
-import { getModel, Type } from "@mariozechner/pi-ai";
+import { Agent, type AgentTool } from "@earendil-works/pi-agent-core";
+import { getModel, Type } from "@earendil-works/pi-ai";
 import {
   IntrospectionPiInstrumentor,
   setupTracing,

@@ -7,7 +7,7 @@
  * @example
  * ```ts
  * import { IntrospectionPiInstrumentor, setupTracing } from "@introspection-sdk/introspection-node";
- * import { Agent } from "@mariozechner/pi-agent-core";
+ * import { Agent } from "@earendil-works/pi-agent-core";
  *
  * setupTracing({ serviceName: "my-app" });
  * const instrumentor = new IntrospectionPiInstrumentor();
@@ -25,7 +25,7 @@
  */
 
 import { trace } from "@opentelemetry/api";
-import type { Agent } from "@mariozechner/pi-agent-core";
+import type { Agent } from "@earendil-works/pi-agent-core";
 import {
   instrumentStream,
   instrumentAgent,

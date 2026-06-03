@@ -3,7 +3,7 @@
  *
  * Covers IntrospectionPiInstrumentor with multiple agents, each carrying
  * distinct AgentMeta (agentName, agentId, conversationId), matching the
- * pattern in examples/otel/pi/pi-subagents-baggage.ts.
+ * pattern in examples/otel/pi/subagents.ts.
  *
  * Uses mock streams — no real API calls, no Polly recordings needed.
  */
@@ -18,7 +18,7 @@ import {
   createAssistantMessageEventStream,
   type AssistantMessage,
   type Model,
-} from "@mariozechner/pi-ai";
+} from "@earendil-works/pi-ai";
 import {
   instrumentStream,
   type AgentMeta,

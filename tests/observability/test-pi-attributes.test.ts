@@ -13,7 +13,7 @@ import type {
   Context,
   Model,
   Tool,
-} from "@mariozechner/pi-ai";
+} from "@earendil-works/pi-ai";
 import {
   chatRequestAttributes,
   chatResponseAttributes,

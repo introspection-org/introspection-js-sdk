@@ -40,7 +40,7 @@ import {
   type IntegrationHandles,
   type IntegrationSetupContext,
 } from "./integrations/index.js";
-import type { Agent } from "@mariozechner/pi-agent-core";
+import type { Agent } from "@earendil-works/pi-agent-core";
 
 import type { AgentMeta } from "./pi.js";
 import { IntrospectionLogs } from "./logs.js";
@@ -351,7 +351,7 @@ export function instrumentPi(agent: Agent, meta: AgentMeta): void {
   const instrumentor = state.handles.piInstrumentor;
   if (!instrumentor) {
     throw new Error(
-      "Pi integration not configured. Call introspection.init() with @mariozechner/pi-agent-core installed.",
+      "Pi integration not configured. Call introspection.init() with @earendil-works/pi-agent-core installed.",
     );
   }
   instrumentor.instrument(agent, meta);

@@ -2,7 +2,7 @@
  * Multi-Agent Subagent Example — Pi Agent SDK (Baggage propagation)
  *
  * Same scenario as anthropic-sdk/subagents-baggage.ts but built on
- * `@mariozechner/pi-agent-core`:
+ * `@earendil-works/pi-agent-core`:
  *
  *   - setupTracing() + IntrospectionPiInstrumentor handle all OTel setup.
  *   - Each agent role gets its own pi Agent instance with independent state.
@@ -17,8 +17,8 @@
  *   INTROSPECTION_TOKEN   ANTHROPIC_API_KEY
  */
 
-import { Agent } from "@mariozechner/pi-agent-core";
-import { getModel } from "@mariozechner/pi-ai";
+import { Agent } from "@earendil-works/pi-agent-core";
+import { getModel } from "@earendil-works/pi-ai";
 import { randomUUID } from "crypto";
 import {
   IntrospectionPiInstrumentor,

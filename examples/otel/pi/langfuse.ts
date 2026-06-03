@@ -16,8 +16,8 @@
  *   LANGFUSE_SECRET_KEY   - Langfuse secret key
  */
 
-import { Agent, type AgentTool } from "@mariozechner/pi-agent-core";
-import { getModel, Type } from "@mariozechner/pi-ai";
+import { Agent, type AgentTool } from "@earendil-works/pi-agent-core";
+import { getModel, Type } from "@earendil-works/pi-ai";
 import * as introspection from "@introspection-sdk/introspection-node/otel";
 import {
   IntrospectionSpanProcessor,
