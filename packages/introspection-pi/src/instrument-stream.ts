@@ -20,8 +20,8 @@ import {
   type AssistantMessageEventStream,
   type Context,
   type Model,
-} from "@mariozechner/pi-ai";
-import type { StreamFn } from "@mariozechner/pi-agent-core";
+} from "@earendil-works/pi-ai";
+import type { StreamFn } from "@earendil-works/pi-agent-core";
 import { GenAiSpanName } from "@introspection-sdk/types";
 import {
   chatRequestAttributes,

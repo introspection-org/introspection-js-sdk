@@ -18,7 +18,7 @@ import {
   createAssistantMessageEventStream,
   type AssistantMessage,
   type Model,
-} from "@mariozechner/pi-ai";
+} from "@earendil-works/pi-ai";
 import {
   instrumentStream,
   type AgentMeta,

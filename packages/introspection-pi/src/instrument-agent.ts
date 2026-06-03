@@ -7,12 +7,12 @@ import {
   context as otelContext,
   SpanKind,
   SpanStatusCode,
-  trace,
+  type Attributes,
   type Context as OtelContext,
   type Span,
   type Tracer,
 } from "@opentelemetry/api";
-import type { Agent, AgentEvent } from "@mariozechner/pi-agent-core";
+import type { Agent, AgentEvent } from "@earendil-works/pi-agent-core";
 import { GenAiSpanName } from "@introspection-sdk/types";
 import {
   executeToolAttributes,
@@ -30,6 +30,13 @@ export interface InstrumentAgentOptions {
    * returns null, `context.active()` is used at the time the start event fires.
    */
   getParentContext?: () => OtelContext | null | undefined;
+  /**
+   * Caller-specific attributes (e.g. tenant labels, correlation IDs) layered
+   * on top of the GenAI semconv attributes for each tool span.
+   */
+  extraAttributes?: (
+    event: Extract<AgentEvent, { type: "tool_execution_start" }>,
+  ) => Attributes;
   /** Override the default span name builder. */
   spanName?: (toolName: string) => string;
 }
@@ -94,15 +101,10 @@ function handleEvent(
           opts.meta,
         ),
       );
-
-      // Activate the tool span as the current OTel context for the duration
-      // of the tool execution. Pi runs tool execution in user code, so any
-      // child spans created inside the tool implementation should parent to
-      // this span automatically.
-      otelContext.with(
-        trace.setSpan(parentContext ?? otelContext.active(), span),
-        () => {},
-      );
+      const extra = opts.extraAttributes?.(event);
+      if (extra) {
+        span.setAttributes(extra);
+      }
 
       activeSpans.set(event.toolCallId, span);
       return;

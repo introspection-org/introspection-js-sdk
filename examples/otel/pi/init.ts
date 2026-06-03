@@ -1,7 +1,7 @@
 /**
  * Pi Agent + `introspection.init()` one-liner.
  *
- * `init()` discovers `@mariozechner/pi-agent-core` and binds a Pi instrumentor
+ * `init()` discovers `@earendil-works/pi-agent-core` and binds a Pi instrumentor
  * to the shared provider. Because a Pi `Agent` is instrumented per instance, you
  * still hand each agent to `introspection.instrumentPi(agent, meta)` — the
  * equivalent of Python's `pi.instrument(agent)`.
@@ -13,8 +13,8 @@
  *   INTROSPECTION_TOKEN  - Introspection API token
  */
 
-import { Agent, type AgentTool } from "@mariozechner/pi-agent-core";
-import { getModel, Type } from "@mariozechner/pi-ai";
+import { Agent, type AgentTool } from "@earendil-works/pi-agent-core";
+import { getModel, Type } from "@earendil-works/pi-ai";
 import * as introspection from "@introspection-sdk/introspection-node/otel";
 import type { PiAgentMeta } from "@introspection-sdk/introspection-node/otel";
 

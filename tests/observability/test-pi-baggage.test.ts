@@ -42,10 +42,10 @@ describe("Pi Agent SDK baggage — real Agent against Polly-recorded Anthropic",
   // One Polly per file — see test-langchain-baggage.test.ts for the rationale.
   beforeAll(async () => {
     try {
-      await import("@mariozechner/pi-agent-core");
-      await import("@mariozechner/pi-ai");
+      await import("@earendil-works/pi-agent-core");
+      await import("@earendil-works/pi-ai");
     } catch {
-      console.log("Skipping: @mariozechner/pi-agent-core not installed");
+      console.log("Skipping: @earendil-works/pi-agent-core not installed");
       return;
     }
 
@@ -99,8 +99,8 @@ describe("Pi Agent SDK baggage — real Agent against Polly-recorded Anthropic",
   });
 
   async function makeAgent(systemPrompt = "Answer in one word.") {
-    const { Agent } = await import("@mariozechner/pi-agent-core");
-    const { getModel } = await import("@mariozechner/pi-ai");
+    const { Agent } = await import("@earendil-works/pi-agent-core");
+    const { getModel } = await import("@earendil-works/pi-ai");
     // Force baseUrl so the request URL is deterministic across record/replay,
     // independent of any ANTHROPIC_BASE_URL leaking in from the host env.
     const model = {

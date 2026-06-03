@@ -26,20 +26,20 @@
     "@opentelemetry/api": "^1.9.1"
   },
   "peerDependencies": {
-    "@mariozechner/pi-ai": ">=0.70.0",
-    "@mariozechner/pi-agent-core": ">=0.70.0"
+    "@earendil-works/pi-ai": ">=0.75.0",
+    "@earendil-works/pi-agent-core": ">=0.75.0"
   },
   "peerDependenciesMeta": {
-    "@mariozechner/pi-ai": {
+    "@earendil-works/pi-ai": {
       "optional": true
     },
-    "@mariozechner/pi-agent-core": {
+    "@earendil-works/pi-agent-core": {
       "optional": true
     }
   },
   "devDependencies": {
-    "@mariozechner/pi-agent-core": "^0.73.1",
-    "@mariozechner/pi-ai": "^0.73.1",
+    "@earendil-works/pi-agent-core": "^0.75.4",
+    "@earendil-works/pi-ai": "^0.75.4",
     "@repo/eslint-config": "workspace:*",
     "@repo/typescript-config": "workspace:*",
     "@types/node": "^22.19.19",

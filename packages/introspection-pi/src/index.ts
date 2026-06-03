@@ -2,7 +2,7 @@
  * @introspection-sdk/introspection-pi
  *
  * Introspection observability extension for the Pi Agent SDK
- * (`@mariozechner/pi-ai`, `@mariozechner/pi-agent-core`).
+ * (`@earendil-works/pi-ai`, `@earendil-works/pi-agent-core`).
  *
  * Emits OTel GenAI semantic-convention spans for chat completions
  * (`chat ${provider}`) and tool execution (`execute_tool ${tool_name}`).

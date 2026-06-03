@@ -10,15 +10,15 @@ spans for chat completions and tool execution.
 ```bash
 npm install @introspection-sdk/introspection-pi \
   @opentelemetry/api \
-  @mariozechner/pi-ai \
-  @mariozechner/pi-agent-core
+  @earendil-works/pi-ai \
+  @earendil-works/pi-agent-core
 ```
 
 ## Usage
 
 ```ts
 import { trace } from "@opentelemetry/api";
-import { Agent } from "@mariozechner/pi-agent-core";
+import { Agent } from "@earendil-works/pi-agent-core";
 import {
   instrumentAgent,
   instrumentStream,

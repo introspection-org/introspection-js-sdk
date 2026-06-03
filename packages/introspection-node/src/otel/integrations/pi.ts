@@ -7,7 +7,7 @@
  */
 
 // Presence gate.
-import "@mariozechner/pi-agent-core";
+import "@earendil-works/pi-agent-core";
 
 import { IntrospectionPiInstrumentor } from "../pi.js";
 import type { Integration } from "./base.js";

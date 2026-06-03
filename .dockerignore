@@ -1,0 +1,26 @@
+# VCS / local state
+.git
+.gitignore
+
+# Dependency installs
+node_modules
+**/node_modules
+.pnpm-store
+
+# Build / cache output. Keep package dist/ directories because local file:
+# package installs use the same published surface as npm packages.
+.turbo
+coverage
+**/coverage
+*.tsbuildinfo
+
+# Test recordings and local env
+tests/recordings
+.env
+.env.*
+*.local
+
+# OS / editor files
+.DS_Store
+.idea
+.vscode
