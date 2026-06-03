@@ -48,7 +48,7 @@
     "dotenv": "^16.4.0",
     "openai": "^6.40.0",
     "typescript": "^5.9.3",
-    "vitest": "^4.1.7",
+    "vitest": "^4.1.8",
     "zod": "^4.4.3"
   },
   "optionalDependencies": {
