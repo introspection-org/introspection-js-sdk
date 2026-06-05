@@ -17,7 +17,7 @@ pnpm api-runtimes                 # Runner walkthrough: resolve by name, tasks +
 
 Route third-party API calls through the Introspection egress (reverse) proxy so
 credentials are injected by the proxy instead of held in the process. Set
-`EGRESS_PROXY_URL` (e.g. `http://localhost:10000`); when unset the helpers are
+`INTROSPECTION_EGRESS_URL` (e.g. `http://localhost:10000`); when unset the helpers are
 no-ops and code talks to the APIs directly.
 
 There are two ways to wire it, compared on Supabase:

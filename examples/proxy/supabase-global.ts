@@ -11,7 +11,7 @@
  * fetch is dialed at the proxy, so every destination must be configured on it.
  *
  * Run with:
- *   EGRESS_PROXY_URL=http://localhost:10000
+ *   INTROSPECTION_EGRESS_URL=http://localhost:10000
  *   SUPABASE_URL=https://<project>.supabase.co
  *   SUPABASE_PUBLISHABLE_KEY=<anon/publishable key>   # non-secret
  *   pnpm proxy-supabase-global
@@ -24,21 +24,21 @@ const SUPABASE_PUBLISHABLE_KEY = process.env.SUPABASE_PUBLISHABLE_KEY;
 
 if (!SUPABASE_URL || !SUPABASE_PUBLISHABLE_KEY) {
   console.error(
-    "Set SUPABASE_URL and SUPABASE_PUBLISHABLE_KEY (and EGRESS_PROXY_URL to route via the egress proxy).",
+    "Set SUPABASE_URL and SUPABASE_PUBLISHABLE_KEY (and INTROSPECTION_EGRESS_URL to route via the egress proxy).",
   );
   process.exit(1);
 }
 
 async function main() {
-  const egress = process.env.EGRESS_PROXY_URL;
+  const egress = process.env.INTROSPECTION_EGRESS_URL;
   console.log(
     egress
       ? `Routing ALL fetch (incl. Supabase) through egress proxy: ${egress}`
-      : "EGRESS_PROXY_URL unset — talking to Supabase directly.",
+      : "INTROSPECTION_EGRESS_URL unset — talking to Supabase directly.",
   );
 
   // One line, before any client is constructed: every fetch in this process now
-  // routes through the egress proxy. No-op when EGRESS_PROXY_URL is unset.
+  // routes through the egress proxy. No-op when INTROSPECTION_EGRESS_URL is unset.
   installProxyFetch();
 
   // Plain supabase-js — no proxy-specific options needed.

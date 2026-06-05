@@ -13,7 +13,7 @@
  * OpenTelemetry trace instrumentation.
  *
  * Run with:
- *   EGRESS_PROXY_URL=http://localhost:10000
+ *   INTROSPECTION_EGRESS_URL=http://localhost:10000
  *   pnpm proxy-deepwiki
  *
  * Optional:
@@ -36,11 +36,11 @@ const QUESTION =
   "Which frameworks are supported for OpenTelemetry trace instrumentation?";
 
 async function main() {
-  const egress = process.env.EGRESS_PROXY_URL;
+  const egress = process.env.INTROSPECTION_EGRESS_URL;
   console.log(
     egress
       ? `Routing DeepWiki MCP through egress proxy: ${egress}`
-      : "EGRESS_PROXY_URL unset — talking to DeepWiki directly.",
+      : "INTROSPECTION_EGRESS_URL unset — talking to DeepWiki directly.",
   );
 
   // Route MCP HTTP through the proxy by giving the transport a proxy-aware

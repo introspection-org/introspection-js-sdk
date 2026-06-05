@@ -6,7 +6,7 @@
  * per client: its built-in `fetch` adapter always uses the process-global
  * fetch. So we install a process-wide proxy-aware fetch via `installProxyFetch()`
  * and point Typesense's axios at the fetch adapter with `axiosAdapter: "fetch"`.
- * With `EGRESS_PROXY_URL` set, Typesense traffic is routed to the egress proxy,
+ * With `INTROSPECTION_EGRESS_URL` set, Typesense traffic is routed to the egress proxy,
  * which routes by `Host` and injects the real `X-TYPESENSE-API-KEY` — so this
  * process can use a placeholder key.
  *
@@ -20,7 +20,7 @@
  * collections would instead require an **admin** key.
  *
  * Run with:
- *   EGRESS_PROXY_URL=http://localhost:10000
+ *   INTROSPECTION_EGRESS_URL=http://localhost:10000
  *   TYPESENSE_HOST=<cluster>.a1.typesense.net
  *   TYPESENSE_SEARCH_API_KEY=<search-only key>   # (or TYPESENSE_API_KEY)
  *   TYPESENSE_COLLECTION=todos                   # optional, default "todos"
@@ -40,21 +40,21 @@ const QUERY = process.env.TYPESENSE_QUERY ?? "*";
 
 if (!TYPESENSE_HOST || !TYPESENSE_API_KEY) {
   console.error(
-    "Set TYPESENSE_HOST and TYPESENSE_SEARCH_API_KEY (and EGRESS_PROXY_URL to route via the egress proxy).",
+    "Set TYPESENSE_HOST and TYPESENSE_SEARCH_API_KEY (and INTROSPECTION_EGRESS_URL to route via the egress proxy).",
   );
   process.exit(1);
 }
 
 async function main() {
-  const egress = process.env.EGRESS_PROXY_URL;
+  const egress = process.env.INTROSPECTION_EGRESS_URL;
   console.log(
     egress
       ? `Routing ALL fetch (incl. Typesense) through egress proxy: ${egress}`
-      : "EGRESS_PROXY_URL unset — talking to Typesense directly.",
+      : "INTROSPECTION_EGRESS_URL unset — talking to Typesense directly.",
   );
 
   // Route every fetch in this process through the egress proxy. No-op when
-  // EGRESS_PROXY_URL is unset. Call once, before constructing the client.
+  // INTROSPECTION_EGRESS_URL is unset. Call once, before constructing the client.
   installProxyFetch();
 
   const client = new Typesense.Client({
