@@ -30,7 +30,7 @@
 | `@introspection-sdk/types`                  | Shared types and constants                                                                                |
 | `@introspection-sdk/introspection-openclaw` | [OpenClaw](https://openclaw.dev) plugin for agent lifecycle tracing                                       |
 | `@introspection-sdk/introspection-pi`       | [Pi Agent SDK](https://withpi.ai) instrumentor — OTel GenAI spans for chat completions and tool execution |
-| `@introspection-sdk/introspection-proxy`    | Forward/egress proxy helpers — route third-party API calls so credentials are injected by the proxy       |
+| `@introspection-sdk/introspection-proxy`    | [Egress proxy helpers](./packages/introspection-proxy/) — route fetch through credential-injection or CONNECT proxy |
 
 ## Three independent surfaces
 
@@ -342,6 +342,22 @@ export INTROSPECTION_SERVICE_NAME="my-service"                      # optional
 ```
 
 > `INTROSPECTION_BASE_URL` was renamed to `INTROSPECTION_BASE_OTEL_URL` to disambiguate it from the REST API endpoint. There is no fallback to the old name.
+
+## Egress proxy
+
+`@introspection-sdk/introspection-proxy` routes outbound `fetch` calls through the Introspection egress proxy for credential injection, or through a standard CONNECT forward proxy for everything else.
+
+```typescript
+import { installProxyFetch } from "@introspection-sdk/introspection-proxy";
+
+installProxyFetch();
+
+const res = await fetch("https://api.openai.com/v1/models");
+```
+
+Hosts listed in `INTROSPECTION_ENDPOINT_HOSTS` go through the egress reverse proxy (`INTROSPECTION_EGRESS_URL`) where ext_proc injects credentials. All other hosts use the standard `HTTPS_PROXY` CONNECT tunnel.
+
+> See the [proxy package README](./packages/introspection-proxy/) for full configuration and per-client usage.
 
 ## Documentation
 
