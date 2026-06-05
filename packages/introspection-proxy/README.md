@@ -17,11 +17,11 @@ const res = await fetch("https://api.openai.com/v1/models");
 
 ## Environment variables
 
-| Variable | Purpose |
-|---|---|
-| `INTROSPECTION_EGRESS_URL` | Egress reverse proxy URL (e.g. `http://localhost:10000`). Sends requests as plain HTTP so the proxy can route by `Host` header and inject credentials via ext_proc. |
+| Variable                       | Purpose                                                                                                                                                                                                                                    |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `INTROSPECTION_EGRESS_URL`     | Egress reverse proxy URL (e.g. `http://localhost:10000`). Sends requests as plain HTTP so the proxy can route by `Host` header and inject credentials via ext_proc.                                                                        |
 | `INTROSPECTION_ENDPOINT_HOSTS` | Comma-separated hostnames that should use the egress proxy (e.g. `api.openai.com,api.anthropic.com`). When set, only matching hosts use egress; all others fall through to the CONNECT proxy. When unset, all traffic goes through egress. |
-| `HTTPS_PROXY` / `HTTP_PROXY` | Standard forward proxy. Used as the CONNECT tunnel for hosts not in `INTROSPECTION_ENDPOINT_HOSTS`. |
+| `HTTPS_PROXY` / `HTTP_PROXY`   | Standard forward proxy. Used as the CONNECT tunnel for hosts not in `INTROSPECTION_ENDPOINT_HOSTS`.                                                                                                                                        |
 
 ## Per-client usage
 

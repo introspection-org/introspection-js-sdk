@@ -68,7 +68,11 @@ await introspection.shutdown();
 Both import styles work:
 
 ```typescript
-import { init, conversation, track } from "@introspection-sdk/introspection-node/otel";
+import {
+  init,
+  conversation,
+  track,
+} from "@introspection-sdk/introspection-node/otel";
 ```
 
 ### Dual export
@@ -119,23 +123,23 @@ await logs.shutdown();
 
 ### Methods
 
-| Method | Description |
-|---|---|
-| `track(event, properties?)` | Track any user action |
-| `feedback(type, options?)` | Track feedback on AI responses |
-| `identify(userId, traits?)` | Associate a user with traits |
-| `flush()` | Flush pending events |
-| `shutdown()` | Shutdown and flush |
+| Method                      | Description                    |
+| --------------------------- | ------------------------------ |
+| `track(event, properties?)` | Track any user action          |
+| `feedback(type, options?)`  | Track feedback on AI responses |
+| `identify(userId, traits?)` | Associate a user with traits   |
+| `flush()`                   | Flush pending events           |
+| `shutdown()`                | Shutdown and flush             |
 
 ### Context helpers (OTel baggage)
 
-| Method | Description |
-|---|---|
-| `withUserId(id, callback)` | Set user context |
-| `withConversation(id?, responseId?, callback)` | Set conversation context |
-| `withAgent(name, id?, callback)` | Set agent context |
-| `withAnonymousId(id, callback)` | Set anonymous ID |
-| `withBaggage(values, callback)` | Set arbitrary baggage values |
+| Method                                         | Description                  |
+| ---------------------------------------------- | ---------------------------- |
+| `withUserId(id, callback)`                     | Set user context             |
+| `withConversation(id?, responseId?, callback)` | Set conversation context     |
+| `withAgent(name, id?, callback)`               | Set agent context            |
+| `withAnonymousId(id, callback)`                | Set anonymous ID             |
+| `withBaggage(values, callback)`                | Set arbitrary baggage values |
 
 ## Framework integrations
 
@@ -181,7 +185,9 @@ const stream = tracedSdk.query({
   options: { model: "claude-sonnet-4-5-20250929", maxTurns: 1 },
 });
 
-for await (const message of stream) { /* ... */ }
+for await (const message of stream) {
+  /* ... */
+}
 await tracedSdk.shutdown();
 ```
 

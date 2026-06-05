@@ -23,14 +23,14 @@
 
 ## Packages
 
-| Package | Description |
-|---|---|
-| [`@introspection-sdk/introspection-node`](./packages/introspection-node/) | Node.js client — API, analytics events, and OpenTelemetry trace instrumentation |
-| [`@introspection-sdk/introspection-browser`](./packages/introspection-browser/) | Browser client with localStorage persistence |
-| [`@introspection-sdk/types`](./packages/introspection-types/) | Shared types and constants |
-| [`@introspection-sdk/introspection-openclaw`](./packages/introspection-openclaw/) | [OpenClaw](https://openclaw.dev) plugin for agent lifecycle tracing |
-| [`@introspection-sdk/introspection-pi`](./packages/introspection-pi/) | [Pi Agent SDK](https://withpi.ai) instrumentor |
-| [`@introspection-sdk/introspection-proxy`](./packages/introspection-proxy/) | Egress proxy helpers — credential injection and CONNECT forward proxy |
+| Package                                                                           | Description                                                                     |
+| --------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
+| [`@introspection-sdk/introspection-node`](./packages/introspection-node/)         | Node.js client — API, analytics events, and OpenTelemetry trace instrumentation |
+| [`@introspection-sdk/introspection-browser`](./packages/introspection-browser/)   | Browser client with localStorage persistence                                    |
+| [`@introspection-sdk/types`](./packages/introspection-types/)                     | Shared types and constants                                                      |
+| [`@introspection-sdk/introspection-openclaw`](./packages/introspection-openclaw/) | [OpenClaw](https://openclaw.dev) plugin for agent lifecycle tracing             |
+| [`@introspection-sdk/introspection-pi`](./packages/introspection-pi/)             | [Pi Agent SDK](https://withpi.ai) instrumentor                                  |
+| [`@introspection-sdk/introspection-proxy`](./packages/introspection-proxy/)       | Egress proxy helpers — credential injection and CONNECT forward proxy           |
 
 ## Quick start
 
