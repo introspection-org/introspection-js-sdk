@@ -12,12 +12,12 @@
  * app code that also talks to hosts the egress proxy doesn't know about.
  *
  * Run with:
- *   EGRESS_PROXY_URL=http://localhost:10000
+ *   INTROSPECTION_EGRESS_URL=http://localhost:10000
  *   SUPABASE_URL=https://<project>.supabase.co
  *   SUPABASE_PUBLISHABLE_KEY=<anon/publishable key>   # non-secret
  *   pnpm proxy-supabase-manual
  *
- * If EGRESS_PROXY_URL is unset, `createProxyFetch()` returns the global fetch
+ * If INTROSPECTION_EGRESS_URL is unset, `createProxyFetch()` returns the global fetch
  * unchanged, so the same code talks to Supabase directly in local dev.
  */
 import { createClient } from "@supabase/supabase-js";
@@ -28,17 +28,17 @@ const SUPABASE_PUBLISHABLE_KEY = process.env.SUPABASE_PUBLISHABLE_KEY;
 
 if (!SUPABASE_URL || !SUPABASE_PUBLISHABLE_KEY) {
   console.error(
-    "Set SUPABASE_URL and SUPABASE_PUBLISHABLE_KEY (and EGRESS_PROXY_URL to route via the egress proxy).",
+    "Set SUPABASE_URL and SUPABASE_PUBLISHABLE_KEY (and INTROSPECTION_EGRESS_URL to route via the egress proxy).",
   );
   process.exit(1);
 }
 
 async function main() {
-  const egress = process.env.EGRESS_PROXY_URL;
+  const egress = process.env.INTROSPECTION_EGRESS_URL;
   console.log(
     egress
       ? `Routing this Supabase client through egress proxy: ${egress}`
-      : "EGRESS_PROXY_URL unset — talking to Supabase directly.",
+      : "INTROSPECTION_EGRESS_URL unset — talking to Supabase directly.",
   );
 
   // The only proxy-specific change is the per-client fetch; everything else is

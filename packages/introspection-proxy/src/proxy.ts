@@ -1,87 +1,55 @@
 /**
  * Outbound HTTP proxy helpers for `fetch`-based clients.
  *
- * These let any `fetch` call — a bare `fetch(...)`, an SDK that accepts a
- * custom `fetch` (e.g. `@supabase/supabase-js` via `global.fetch`), or every
- * request in a process (via {@link installProxyFetch}) — be routed through a
- * proxy so the caller does not have to hold upstream credentials.
+ * Two proxy modes, selected per-request:
  *
- * Two proxy shapes are supported, selected from the environment:
+ *  - **Egress credential-injection proxy** (`INTROSPECTION_EGRESS_URL`):
+ *    plain-HTTP reverse proxy that routes by `Host` header and injects upstream
+ *    credentials via ext_proc. Only used for hosts listed in
+ *    `INTROSPECTION_ENDPOINT_HOSTS` (comma-separated). When the host list is
+ *    empty, all traffic goes through egress (legacy behaviour).
  *
- *  - **Egress credential-injection proxy** (`EGRESS_PROXY_URL`): the
- *    Introspection egress proxy is a plain-HTTP reverse proxy that routes by
- *    the request's `Host`/`:authority` header and injects the real upstream
- *    credential (so the process can send a placeholder/locator token). We dial
- *    the proxy on every connection but leave the request — including its real
- *    `Host` and `https:` scheme — untouched, which is exactly what the proxy
- *    needs to route and inject. undici speaks HTTP/1.1 over the socket we hand
- *    it, so no URL rewriting is required.
- *
- *  - **Standard forward (CONNECT) proxy** (`HTTPS_PROXY` / `HTTP_PROXY`,
- *    honouring `NO_PROXY`): the same kind of proxy the OTLP exporter uses, but
- *    exposed as an undici dispatcher so it works with `fetch`.
- *    (`HttpsProxyAgent` is a Node `http.Agent` and is ignored by `fetch`, which
- *    only accepts an undici `dispatcher`.) This is plain forward-proxying and
- *    does **not** inject credentials: for `https:` targets it uses HTTP
- *    `CONNECT`, so the connection is an opaque end-to-end TLS tunnel the proxy
- *    cannot read or modify. Credential injection happens **only** in egress
- *    mode above (where the request is sent to the proxy in plaintext so it can
- *    route by `Host` and inject). Use this branch for consumers that sit behind
- *    a generic corporate/forward proxy.
- *
- * `EGRESS_PROXY_URL` takes precedence when both are set.
- *
- * Note: in egress mode the dispatcher routes *all* requests through the proxy,
- * so destinations must be configured on the proxy. This matches the intended
- * "all egress goes through the proxy" model for sandboxed recipes.
+ *  - **Forward CONNECT proxy** (`HTTPS_PROXY` / `HTTP_PROXY`): opaque TLS
+ *    tunnel the proxy cannot read or modify. Used for all other hosts (S3,
+ *    GitHub, npm, etc.).
  */
 import { Socket } from "node:net";
 import { connect as tlsConnect } from "node:tls";
 import {
   Agent,
   EnvHttpProxyAgent,
-  ProxyAgent,
   buildConnector,
   fetch as undiciFetch,
   type Dispatcher,
 } from "undici";
 
 export interface ProxyFetchOptions {
-  /**
-   * Egress (credential-injection) proxy URL. Defaults to
-   * `process.env.EGRESS_PROXY_URL` (e.g. `http://localhost:10000`).
-   */
   egressProxyUrl?: string;
-  /**
-   * Standard forward-proxy URL. Defaults to the `HTTPS_PROXY` / `HTTP_PROXY`
-   * environment variables (which also honour `NO_PROXY`). Used only when no
-   * egress proxy is configured.
-   *
-   * Note: this is a plain forward proxy (a `CONNECT` tunnel for `https:`
-   * targets) and does **not** inject credentials — it only routes traffic. For
-   * the Introspection egress proxy that injects credentials, use
-   * {@link ProxyFetchOptions.egressProxyUrl} / `EGRESS_PROXY_URL` instead.
-   */
+  egressProxyHosts?: string;
   forwardProxyUrl?: string;
 }
 
-function resolveEgressProxyUrl(options: ProxyFetchOptions): string | undefined {
-  return options.egressProxyUrl ?? process.env.EGRESS_PROXY_URL ?? undefined;
+function resolveEgressUrl(options: ProxyFetchOptions): string | undefined {
+  return options.egressProxyUrl ?? process.env.INTROSPECTION_EGRESS_URL;
 }
 
-/**
- * Resolve a standard forward-proxy URL from the environment, honouring the
- * conventional `HTTPS_PROXY` / `HTTP_PROXY` variables (and their lowercase
- * forms). Shared with the OTLP exporter proxy helper (`withOtlpHttpsProxy`) so
- * fetch traffic and OTLP traffic resolve the same proxy.
- */
+function resolveEgressHosts(options: ProxyFetchOptions): Set<string> {
+  const raw =
+    options.egressProxyHosts ?? process.env.INTROSPECTION_ENDPOINT_HOSTS ?? "";
+  return new Set(
+    raw
+      .split(",")
+      .map((h) => h.trim().toLowerCase())
+      .filter(Boolean),
+  );
+}
+
 export function resolveForwardProxyUrl(): string | undefined {
-  const env = process.env;
   return (
-    env.HTTPS_PROXY ||
-    env.https_proxy ||
-    env.HTTP_PROXY ||
-    env.http_proxy ||
+    process.env.HTTPS_PROXY ||
+    process.env.https_proxy ||
+    process.env.HTTP_PROXY ||
+    process.env.http_proxy ||
     undefined
   );
 }
@@ -92,8 +60,6 @@ function buildEgressDispatcher(proxyUrl: string): Dispatcher {
   const port = Number(url.port) || (useTls ? 443 : 80);
   const host = url.hostname;
 
-  // Always connect to the proxy, regardless of the request's destination. The
-  // request keeps its real `Host`, which is what the proxy routes + injects on.
   return new Agent({
     connect(
       _options: buildConnector.Options,
@@ -113,60 +79,61 @@ function buildEgressDispatcher(proxyUrl: string): Dispatcher {
 }
 
 /**
- * Build an undici {@link Dispatcher} for outbound HTTP based on the
- * environment (or explicit {@link ProxyFetchOptions}). Returns `undefined`
- * when no proxy is configured, so callers can fall back to the default fetch.
+ * Returns a single dispatcher. When egress hosts are scoped, returns the
+ * forward dispatcher (the egress/forward split is per-request inside
+ * {@link createProxyFetch}).
  */
 export function getProxyDispatcher(
   options: ProxyFetchOptions = {},
 ): Dispatcher | undefined {
-  const egressUrl = resolveEgressProxyUrl(options);
-  if (egressUrl) {
+  const egressUrl = resolveEgressUrl(options);
+  if (egressUrl && resolveEgressHosts(options).size === 0) {
     return buildEgressDispatcher(egressUrl);
   }
-
-  if (options.forwardProxyUrl) {
-    return new ProxyAgent(options.forwardProxyUrl);
-  }
-
   if (resolveForwardProxyUrl()) {
-    // Reads HTTPS_PROXY / HTTP_PROXY / NO_PROXY from the environment.
     return new EnvHttpProxyAgent();
   }
-
   return undefined;
 }
 
-/**
- * A `fetch`-compatible function that routes through the configured proxy.
- * Drop-in for any client that accepts a `fetch` (e.g. supabase-js
- * `createClient(url, key, { global: { fetch: createProxyFetch() } })`).
- *
- * When no proxy is configured this returns the global `fetch` unchanged, so it
- * is safe to use unconditionally (local dev keeps talking directly to APIs).
- */
+function toUrlString(input: RequestInfo | URL): string {
+  if (typeof input === "string") return input;
+  if (input instanceof URL) return input.toString();
+  return (input as Request).url;
+}
+
+function downgradeToHttp(url: string | URL): string {
+  const s = typeof url === "string" ? url : url.toString();
+  return s.startsWith("https://") ? "http://" + s.slice(8) : s;
+}
+
 export function createProxyFetch(
   options: ProxyFetchOptions = {},
 ): typeof fetch {
-  const dispatcher = getProxyDispatcher(options);
-  if (!dispatcher) {
-    return fetch;
-  }
-
-  const egressUrl = resolveEgressProxyUrl(options);
+  const egressUrl = resolveEgressUrl(options);
+  const egressHosts = resolveEgressHosts(options);
   const egressIsPlainHttp =
     !!egressUrl && new URL(egressUrl).protocol === "http:";
 
-  const proxied = (
-    input: RequestInfo | URL,
-    init?: RequestInit,
-  ): Promise<Response> => {
-    // Some clients (notably axios's fetch adapter) call fetch with a `Request`
-    // object. undici's fetch can't consume a foreign Request instance (it tries
-    // to coerce it to a URL — "Failed to parse URL from [object Request]"), so
-    // normalise a Request into (url, init), carrying over its fields.
+  const egress = egressUrl ? buildEgressDispatcher(egressUrl) : undefined;
+  const forward = resolveForwardProxyUrl()
+    ? new EnvHttpProxyAgent()
+    : undefined;
+
+  if (!egress && !forward) return fetch;
+
+  return (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+    const hostname = new URL(toUrlString(input)).hostname.toLowerCase();
+
+    const useEgress =
+      !!egress && (egressHosts.size === 0 || egressHosts.has(hostname));
+    const dispatcher = useEgress ? egress : forward;
+
+    if (!dispatcher) return fetch(input, init);
+
     let target: string | URL;
     let opts: Record<string, unknown>;
+
     if (typeof Request !== "undefined" && input instanceof Request) {
       target = input.url;
       opts = {
@@ -179,22 +146,14 @@ export function createProxyFetch(
         ...init,
         dispatcher,
       };
-      // A streamed request body requires half-duplex in undici.
       if (input.body != null) opts.duplex = "half";
     } else {
       target = input as string | URL;
       opts = { ...init, dispatcher };
     }
 
-    // Egress (reverse proxy) mode: when the proxy itself is plain HTTP,
-    // rewrite https:// → http:// so undici doesn't TLS-wrap the connection
-    // to the proxy. The proxy handles upstream TLS. The Host header is
-    // preserved for routing. Only applied when EGRESS_PROXY_URL is http://.
-    if (egressIsPlainHttp) {
-      const urlStr = typeof target === "string" ? target : target.toString();
-      if (urlStr.startsWith("https://")) {
-        target = "http://" + urlStr.slice(8);
-      }
+    if (useEgress && egressIsPlainHttp) {
+      target = downgradeToHttp(target);
     }
 
     return undiciFetch(
@@ -202,26 +161,13 @@ export function createProxyFetch(
       opts as unknown as Parameters<typeof undiciFetch>[1],
     ) as unknown as Promise<Response>;
   };
-
-  return proxied as typeof fetch;
 }
 
-/**
- * Replace `globalThis.fetch` so existing bare `fetch(...)` calls — and any SDK
- * that uses the global fetch by default, including supabase-js — route through
- * the configured proxy with no other code changes. No-op when no proxy is
- * configured.
- *
- * Returns a function that restores the original `fetch`.
- */
 export function installProxyFetch(options: ProxyFetchOptions = {}): () => void {
-  const dispatcher = getProxyDispatcher(options);
-  if (!dispatcher) {
-    return () => {};
-  }
-
+  const proxied = createProxyFetch(options);
+  if (proxied === fetch) return () => {};
   const original = globalThis.fetch;
-  globalThis.fetch = createProxyFetch(options);
+  globalThis.fetch = proxied;
   return () => {
     globalThis.fetch = original;
   };
