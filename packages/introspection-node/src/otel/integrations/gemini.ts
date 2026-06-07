@@ -6,14 +6,19 @@
  * capture the standalone `GeminiInstrumentor` is built for.
  */
 
-import * as genai from "@google/genai";
-
 import { GeminiInstrumentor } from "../gemini.js";
-import type { Integration } from "./base.js";
+import {
+  importOptionalPeer,
+  isOptionalPeerInstalled,
+  OPTIONAL_PEERS,
+  type Integration,
+} from "./base.js";
 
 const integration: Integration = {
   identifier: "gemini",
-  setupOnce({ tracerProvider }) {
+  isAvailable: () => isOptionalPeerInstalled(OPTIONAL_PEERS.gemini),
+  async setupOnce({ tracerProvider }) {
+    const genai = await importOptionalPeer(OPTIONAL_PEERS.gemini);
     const instrumentor = new GeminiInstrumentor();
     instrumentor.instrumentClass({ genai, tracerProvider });
     // Restore the original prototype on shutdown so a later init() re-patches

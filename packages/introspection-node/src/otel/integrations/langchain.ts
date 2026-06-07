@@ -10,14 +10,25 @@
  * patch would double-trace it.
  */
 
-// Presence gate.
-import "@langchain/core/callbacks/base";
+import {
+  importOptionalPeer,
+  isOptionalPeerInstalled,
+  OPTIONAL_PEERS,
+  type Integration,
+} from "./base.js";
+import type { IntrospectionCallbackHandler } from "../langchain-handler.js";
 
-import { IntrospectionCallbackHandler } from "../langchain-handler.js";
-import type { Integration } from "./base.js";
+const importLocal = (specifier: string) =>
+  import(specifier) as Promise<{
+    IntrospectionCallbackHandler: new (
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      options: any,
+    ) => IntrospectionCallbackHandler;
+  }>;
 
 const integration: Integration = {
   identifier: "langchain",
+  isAvailable: () => isOptionalPeerInstalled(OPTIONAL_PEERS.langchainCallbacks),
   // Intentional, and matches the Python SDK: when @langchain/core is present,
   // auto-discovery skips the always-on raw-Anthropic prototype patch so a
   // LangChain → ChatAnthropic call isn't traced twice (once by LangChain's
@@ -29,7 +40,11 @@ const integration: Integration = {
   // `new AnthropicInstrumentor().instrumentClass(...)`, or call
   // `init({ autoDiscover: false, integrations: [anthropicIntegration] })`.
   deactivates: ["anthropic"],
-  setupOnce({ token, serviceName, baseUrl, advanced, handles }) {
+  async setupOnce({ token, serviceName, baseUrl, advanced, handles }) {
+    await importOptionalPeer(OPTIONAL_PEERS.langchainCallbacks);
+    const { IntrospectionCallbackHandler } = await importLocal(
+      "../langchain-handler.js",
+    );
     handles.langchainHandler = new IntrospectionCallbackHandler({
       token,
       serviceName,

@@ -15,6 +15,17 @@ import type { InstrumentedClaudeAgentSDK } from "../claude-wrapper.js";
 import type { IntrospectionCallbackHandler } from "../langchain-handler.js";
 import type { IntrospectionPiInstrumentor } from "../pi.js";
 
+export const OPTIONAL_PEERS = {
+  anthropic: "@anthropic-ai/sdk",
+  claudeAgent: "@anthropic-ai/claude-agent-sdk",
+  gemini: "@google/genai",
+  langchainCallbacks: "@langchain/core/callbacks/base",
+  mastraObservability: "@mastra/observability",
+  openaiAgents: "@openai/agents",
+  piAgentCore: "@earendil-works/pi-agent-core",
+  vercelAi: "ai",
+} as const;
+
 /**
  * Bound framework handles published by instance/config-based integrations.
  *
@@ -47,6 +58,50 @@ export class DidNotEnable extends Error {
   constructor(message: string) {
     super(message);
     this.name = "DidNotEnable";
+  }
+}
+
+/**
+ * Distinguish "framework package not installed" (expected — skip quietly) from
+ * a real error inside an installed integration (a bug we shouldn't hide).
+ */
+export function isModuleNotFound(e: unknown): boolean {
+  const code = (e as { code?: string } | null)?.code;
+  if (code === "ERR_MODULE_NOT_FOUND" || code === "MODULE_NOT_FOUND") {
+    return true;
+  }
+  const msg = e instanceof Error ? e.message : String(e);
+  return /Cannot find (module|package)|Failed to resolve/i.test(msg);
+}
+
+/**
+ * Import an optional peer without leaving a static import edge for bundlers.
+ * Keep the `import()` argument variable-based: built-in framework integrations
+ * use this so importing `@introspection-sdk/introspection-node/otel` does not
+ * require every optional framework SDK to be installed.
+ */
+export async function importOptionalPeer<T = unknown>(
+  specifier: string,
+): Promise<T> {
+  try {
+    return (await import(specifier)) as T;
+  } catch (e) {
+    if (isModuleNotFound(e)) {
+      throw new DidNotEnable(`Optional peer ${specifier} is not installed`);
+    }
+    throw e;
+  }
+}
+
+export async function isOptionalPeerInstalled(
+  specifier: (typeof OPTIONAL_PEERS)[keyof typeof OPTIONAL_PEERS],
+): Promise<boolean> {
+  try {
+    await importOptionalPeer(specifier);
+    return true;
+  } catch (e) {
+    if (e instanceof DidNotEnable) return false;
+    throw e;
   }
 }
 
@@ -86,10 +141,18 @@ export interface Integration {
    */
   readonly deactivates?: readonly string[];
   /**
+   * Optional availability probe for built-in integrations backed by optional
+   * peer packages. Missing peers should return false so their `deactivates`
+   * rules do not affect installed integrations.
+   */
+  isAvailable?(): boolean | Promise<boolean>;
+  /**
    * Wire the framework into the shared pipeline. Runs once; may throw
    * {@link DidNotEnable}. May return a teardown callback (e.g. to uninstrument a
    * prototype patch) that `introspection.shutdown()` runs so a later `init()`
    * re-installs cleanly against the rebuilt provider.
    */
-  setupOnce(ctx: IntegrationSetupContext): void | (() => void);
+  setupOnce(
+    ctx: IntegrationSetupContext,
+  ): void | (() => void) | Promise<void | (() => void)>;
 }

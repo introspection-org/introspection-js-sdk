@@ -7,6 +7,14 @@
  * because the suite imports specific modules, never the barrels). No mocks.
  */
 import { describe, expect, it } from "vitest";
+import { readdirSync, readFileSync } from "node:fs";
+import { dirname, join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const repoRoot = resolve(__dirname, "../..");
+const OPTIONAL_FRAMEWORK_IMPORT =
+  /^import\s+(?!"type\b)(?:[^"']+\s+from\s+)?["'](@anthropic-ai|@openai|@google|@langchain|@mastra|@earendil|ai|openai)(?:\/[^"']*)?["'];/gm;
 
 describe("public export barrels", () => {
   it("@introspection-sdk/introspection-node (REST root)", async () => {
@@ -29,6 +37,25 @@ describe("public export barrels", () => {
     ] as const) {
       expect(mod[name], name).toBeTypeOf("function");
     }
+  });
+
+  it("/otel integration modules do not statically import optional framework peers", () => {
+    const integrationsDir = join(
+      repoRoot,
+      "packages/introspection-node/src/otel/integrations",
+    );
+    const offenders: string[] = [];
+
+    for (const file of readdirSync(integrationsDir)) {
+      if (!file.endsWith(".ts")) continue;
+      const source = readFileSync(join(integrationsDir, file), "utf8");
+      const matches = source.match(OPTIONAL_FRAMEWORK_IMPORT);
+      if (matches?.length) {
+        offenders.push(`${file}: ${matches.join(", ")}`);
+      }
+    }
+
+    expect(offenders).toEqual([]);
   });
 
   it("converters barrel", async () => {
