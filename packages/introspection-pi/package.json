@@ -42,7 +42,7 @@
     "@earendil-works/pi-ai": "^0.75.4",
     "@repo/eslint-config": "workspace:*",
     "@repo/typescript-config": "workspace:*",
-    "@types/node": "^22.19.19",
+    "@types/node": "^22.19.20",
     "eslint": "^9.39.4",
     "typescript": "5.9.3"
   },
