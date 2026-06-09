@@ -26,8 +26,10 @@ export { TasksApi, TaskRunsApi, RunHandle } from "./runner-resources/tasks.js";
 export type { StartParams } from "./runner-resources/tasks.js";
 export { FilesApi, FileVersionsApi } from "./runner-resources/files.js";
 export type { FileUploadBody } from "./runner-resources/files.js";
-export { ConversationsApi } from "./runner-resources/conversations.js";
-export type { ConversationTranscript } from "./runner-resources/conversations.js";
+export {
+  ConversationsApi,
+  ConversationItemsApi,
+} from "./runner-resources/conversations.js";
 export { HttpClient } from "./http.js";
 export type { ResolvedApiConfig } from "./http.js";
 export { parseSse } from "./streaming.js";
@@ -105,7 +107,7 @@ export type {
   ConversationItemNodeType,
   ConversationListParams,
   ConversationItemListParams,
-  ConversationState,
+  ConversationResponse,
   ConversationsMethod,
   IntrospectionMetadata,
   SpanEvent,

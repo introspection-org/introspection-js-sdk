@@ -4,7 +4,7 @@ import type {
   ConversationItemList,
   ConversationItemListParams,
   ConversationListParams,
-  ConversationState,
+  ConversationResponse,
   ConversationSummary,
   MessagePart,
   Paginated,
@@ -12,18 +12,72 @@ import type {
 } from "@introspection-sdk/types";
 import { HttpClient } from "../http.js";
 
-/** Includes requested when building a {@link ConversationState}. */
-const STATE_INCLUDES: ConversationItemInclude[] = [
+/** Includes requested when building a {@link ConversationResponse}. */
+const RESPONSE_INCLUDES: ConversationItemInclude[] = [
   "gen_ai.input.messages",
   "gen_ai.system_instructions",
   "gen_ai.tool.definitions",
 ];
 
-/** Full transcript returned by {@link ConversationsApi.retrieve}. */
-export interface ConversationTranscript {
-  conversation_id: string;
-  /** All items in ascending order; each carries its per-turn input delta. */
-  items: ConversationItem[];
+/**
+ * Items of a conversation (`/v1/conversations/{id}/items`). Read-only.
+ *
+ * Paging is OpenAI-style: the envelope has NO `next` token — drive
+ * `after` = the previous page's `last_id` while `has_more` is true
+ * (see `listAll()`).
+ */
+export class ConversationItemsApi {
+  constructor(private readonly http: HttpClient) {}
+
+  /**
+   * List one page of items. Items in this LIST response carry the
+   * turn-local delta in `input_messages` — only the messages new to
+   * that turn.
+   */
+  list(
+    conversationId: string,
+    params?: ConversationItemListParams,
+  ): Promise<ConversationItemList> {
+    return this.http.request<ConversationItemList>({
+      method: "GET",
+      path: `/v1/conversations/${encodeURIComponent(conversationId)}/items`,
+      query: params as Record<string, unknown> | undefined,
+    });
+  }
+
+  /**
+   * Iterate all items of a conversation, driving `after` = the previous
+   * page's `last_id` while `has_more` is true. Pass `order: "asc"` to
+   * walk the transcript from the start.
+   */
+  async *listAll(
+    conversationId: string,
+    params?: ConversationItemListParams,
+  ): AsyncIterable<ConversationItem> {
+    let after: string | undefined = params?.after;
+    for (;;) {
+      const page = await this.list(conversationId, { ...params, after });
+      for (const item of page.data) yield item;
+      if (!page.has_more || page.last_id === null) return;
+      after = page.last_id;
+    }
+  }
+
+  /**
+   * Fetch a single conversation item. Unlike the list route, the
+   * detail's `input_messages` is the FULL input history for that span.
+   */
+  get(
+    conversationId: string,
+    itemId: string,
+    params?: { include?: ConversationItemInclude[] },
+  ): Promise<ConversationItem> {
+    return this.http.request<ConversationItem>({
+      method: "GET",
+      path: `/v1/conversations/${encodeURIComponent(conversationId)}/items/${encodeURIComponent(itemId)}`,
+      query: params as Record<string, unknown> | undefined,
+    });
+  }
 }
 
 /**
@@ -32,12 +86,17 @@ export interface ConversationTranscript {
  * Two paging styles are in play:
  * - `list()` uses the standard Introspection cursor envelope — drive the
  *   opaque `next` token (see `listAll()`).
- * - `listItems()` uses an OpenAI-style envelope with NO `next` token —
+ * - `items.list()` uses an OpenAI-style envelope with NO `next` token —
  *   drive `after` = the previous page's `last_id` while `has_more` is
- *   true (see `listItemsAll()`).
+ *   true (see `items.listAll()`).
  */
 export class ConversationsApi {
-  constructor(private readonly http: HttpClient) {}
+  /** Items of a conversation — `conversations.items.list(...)` etc. */
+  readonly items: ConversationItemsApi;
+
+  constructor(private readonly http: HttpClient) {
+    this.items = new ConversationItemsApi(http);
+  }
 
   /** List conversation summaries (cursor-paged Introspection envelope). */
   list(
@@ -63,83 +122,22 @@ export class ConversationsApi {
   }
 
   /**
-   * List items of a conversation (OpenAI-style `after`/`has_more`
-   * envelope). Items in this LIST response carry the turn-local delta in
-   * `input_messages` — only the messages new to that turn.
-   */
-  listItems(
-    conversationId: string,
-    params?: ConversationItemListParams,
-  ): Promise<ConversationItemList> {
-    return this.http.request<ConversationItemList>({
-      method: "GET",
-      path: `/v1/conversations/${encodeURIComponent(conversationId)}/items`,
-      query: params as Record<string, unknown> | undefined,
-    });
-  }
-
-  /**
-   * Iterate all items of a conversation. This envelope has NO `next`
-   * token — paging is driven by `after` = the previous page's `last_id`
-   * while `has_more` is true.
-   */
-  async *listItemsAll(
-    conversationId: string,
-    params?: ConversationItemListParams,
-  ): AsyncIterable<ConversationItem> {
-    let after: string | undefined = params?.after;
-    for (;;) {
-      const page = await this.listItems(conversationId, { ...params, after });
-      for (const item of page.data) yield item;
-      if (!page.has_more || page.last_id === null) return;
-      after = page.last_id;
-    }
-  }
-
-  /**
-   * Fetch a single conversation item. Unlike the list route, the
-   * detail's `input_messages` is the FULL input history for that span.
-   */
-  getItem(
-    conversationId: string,
-    itemId: string,
-    params?: { include?: ConversationItemInclude[] },
-  ): Promise<ConversationItem> {
-    return this.http.request<ConversationItem>({
-      method: "GET",
-      path: `/v1/conversations/${encodeURIComponent(conversationId)}/items/${encodeURIComponent(itemId)}`,
-      query: params as Record<string, unknown> | undefined,
-    });
-  }
-
-  /**
-   * High-level: fetch the full transcript of a conversation — every item
-   * in ascending order, each carrying its per-turn input delta.
-   */
-  async retrieve(conversationId: string): Promise<ConversationTranscript> {
-    const items: ConversationItem[] = [];
-    for await (const item of this.listItemsAll(conversationId, {
-      order: "asc",
-    })) {
-      items.push(item);
-    }
-    return { conversation_id: conversationId, items };
-  }
-
-  /**
-   * High-level: load the "previous state" of a conversation — the full
-   * input history, output, system instructions, and tool definitions of
-   * the most recent LLM turn — as a Responses-API-style state object.
+   * Responses-API-style retrieve: load the latest state of a
+   * conversation — the full input history, output, system instructions,
+   * and tool definitions of the most recent LLM turn.
    *
    * The latest LLM turn is the first item (in descending order) whose
    * `node_type` is `"assistant"` or whose `operation_name` is `"chat"`,
    * falling back to the first item with a non-null `output_message`.
    * Returns `null` when the conversation has no items.
+   *
+   * For the full per-turn transcript instead, iterate
+   * `items.listAll(conversationId, { order: "asc" })`.
    */
-  async state(conversationId: string): Promise<ConversationState | null> {
+  async retrieve(conversationId: string): Promise<ConversationResponse | null> {
     let picked: ConversationItem | null = null;
     let fallback: ConversationItem | null = null;
-    for await (const item of this.listItemsAll(conversationId, {
+    for await (const item of this.items.listAll(conversationId, {
       order: "desc",
     })) {
       if (item.node_type === "assistant" || item.operation_name === "chat") {
@@ -151,8 +149,8 @@ export class ConversationsApi {
     const target = picked ?? fallback;
     if (target === null) return null;
 
-    const detail = await this.getItem(conversationId, target.id, {
-      include: STATE_INCLUDES,
+    const detail = await this.items.get(conversationId, target.id, {
+      include: RESPONSE_INCLUDES,
     });
     const outputMessages =
       detail.gen_ai_output_messages ??
@@ -178,8 +176,8 @@ export class ConversationsApi {
 }
 
 /**
- * Defensive normalization for {@link ConversationsApi.state} only: older
- * DP deployments emitted `tool_call_response` parts with a legacy
+ * Defensive normalization for {@link ConversationsApi.retrieve} only:
+ * older DP deployments emitted `tool_call_response` parts with a legacy
  * `result` key instead of the semconv `response` key. Map it across so
  * replayed history is always semconv-shaped.
  */

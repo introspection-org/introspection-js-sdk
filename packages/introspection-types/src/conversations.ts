@@ -299,12 +299,13 @@ export interface ConversationItemListParams {
 }
 
 /**
- * Responses-API-style "previous state" of a conversation — the full
- * input history, output, system instructions, and tool definitions of
- * the most recent LLM turn. Built client-side by
- * `ConversationsApi.state()` from the single-item detail route.
+ * Responses-API-style view of a conversation — the full input history,
+ * output, system instructions, and tool definitions of the most recent
+ * LLM turn, analogous to retrieving the latest Response. Built
+ * client-side by `ConversationsApi.retrieve()` from the single-item
+ * detail route.
  */
-export interface ConversationState {
+export interface ConversationResponse {
   /** Conversation ID the state belongs to. */
   conversation_id: string;
   /** Provider response identifier of the latest turn, when available. */
@@ -339,12 +340,12 @@ export interface ConversationState {
  */
 export const ConversationsMethods = {
   list: { method: "GET", path: "/v1/conversations", paging: "cursor" },
-  listItems: {
+  "items.list": {
     method: "GET",
     path: "/v1/conversations/{conversation_id}/items",
     paging: "after",
   },
-  getItem: {
+  "items.get": {
     method: "GET",
     path: "/v1/conversations/{conversation_id}/items/{item_id}",
     paging: "none",

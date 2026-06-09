@@ -114,10 +114,10 @@ describe("ConversationsApi", () => {
     ).toBe("cursor-2");
   });
 
-  it("listItems() calls GET /v1/conversations/:id/items with includes", async () => {
+  it("items.list() calls GET /v1/conversations/:id/items with includes", async () => {
     const http = mockHttp({ requestResult: makePage([makeItem()], false) });
     const api = new ConversationsApi(http);
-    await api.listItems("conv-1", {
+    await api.items.list("conv-1", {
       order: "asc",
       include: ["events", "span_attributes"],
     });
@@ -129,7 +129,7 @@ describe("ConversationsApi", () => {
     });
   });
 
-  it("listItemsAll() drives `after` = last_id while has_more, then stops", async () => {
+  it("items.listAll() drives `after` = last_id while has_more, then stops", async () => {
     const page1 = makePage(
       [makeItem({ id: "item-1" }), makeItem({ id: "item-2" })],
       true,
@@ -142,7 +142,7 @@ describe("ConversationsApi", () => {
 
     const api = new ConversationsApi(http);
     const items = [];
-    for await (const item of api.listItemsAll("conv-1")) items.push(item);
+    for await (const item of api.items.listAll("conv-1")) items.push(item);
 
     expect(items.map((i) => i.id)).toEqual(["item-1", "item-2", "item-3"]);
     expect(http.request).toHaveBeenCalledTimes(2);
@@ -151,20 +151,40 @@ describe("ConversationsApi", () => {
     expect(calls[1][0].query.after).toBe("item-2");
   });
 
-  it("listItemsAll() terminates on an empty page (has_more=false, last_id=null)", async () => {
+  it("items.listAll() terminates on an empty page (has_more=false, last_id=null)", async () => {
     const http = mockHttp({ requestResult: makePage([], false) });
     const api = new ConversationsApi(http);
     const items = [];
-    for await (const item of api.listItemsAll("conv-1")) items.push(item);
+    for await (const item of api.items.listAll("conv-1")) items.push(item);
 
     expect(items).toHaveLength(0);
     expect(http.request).toHaveBeenCalledTimes(1);
   });
 
-  it("getItem() URL-encodes path segments", async () => {
+  it("items.listAll() walks the ascending transcript when order=asc", async () => {
+    const page1 = makePage([makeItem({ id: "item-1" })], true);
+    const page2 = makePage([makeItem({ id: "item-2" })], false);
+    const http = mockHttp();
+    (http.request as ReturnType<typeof vi.fn>)
+      .mockResolvedValueOnce(page1)
+      .mockResolvedValueOnce(page2);
+
+    const api = new ConversationsApi(http);
+    const items = [];
+    for await (const item of api.items.listAll("conv-1", { order: "asc" })) {
+      items.push(item);
+    }
+
+    expect(items.map((i) => i.id)).toEqual(["item-1", "item-2"]);
+    const calls = (http.request as ReturnType<typeof vi.fn>).mock.calls;
+    expect(calls[0][0].query.order).toBe("asc");
+    expect(calls[1][0].query.order).toBe("asc");
+  });
+
+  it("items.get() URL-encodes path segments", async () => {
     const http = mockHttp({ requestResult: makeItem() });
     const api = new ConversationsApi(http);
-    await api.getItem("conv/with spaces", "item:1", {
+    await api.items.get("conv/with spaces", "item:1", {
       include: ["gen_ai.input.messages"],
     });
 
@@ -175,24 +195,7 @@ describe("ConversationsApi", () => {
     });
   });
 
-  it("retrieve() collects the full ascending transcript", async () => {
-    const page1 = makePage([makeItem({ id: "item-1" })], true);
-    const page2 = makePage([makeItem({ id: "item-2" })], false);
-    const http = mockHttp();
-    (http.request as ReturnType<typeof vi.fn>)
-      .mockResolvedValueOnce(page1)
-      .mockResolvedValueOnce(page2);
-
-    const api = new ConversationsApi(http);
-    const transcript = await api.retrieve("conv-1");
-
-    expect(transcript.conversation_id).toBe("conv-1");
-    expect(transcript.items.map((i) => i.id)).toEqual(["item-1", "item-2"]);
-    const calls = (http.request as ReturnType<typeof vi.fn>).mock.calls;
-    expect(calls[0][0].query.order).toBe("asc");
-  });
-
-  it("state() picks the latest assistant turn and fetches the detail", async () => {
+  it("retrieve() picks the latest assistant turn and fetches the detail", async () => {
     // Descending order: a tool_call span first, then the assistant turn.
     const listPage = makePage(
       [
@@ -226,7 +229,7 @@ describe("ConversationsApi", () => {
       .mockResolvedValueOnce(detail);
 
     const api = new ConversationsApi(http);
-    const state = await api.state("conv-1");
+    const response = await api.retrieve("conv-1");
 
     const calls = (http.request as ReturnType<typeof vi.fn>).mock.calls;
     expect(calls[0][0].query.order).toBe("desc");
@@ -241,22 +244,22 @@ describe("ConversationsApi", () => {
         ],
       },
     });
-    expect(state).not.toBeNull();
-    expect(state!.item_id).toBe("item-2");
-    expect(state!.response_id).toBe("resp-2");
-    expect(state!.model).toBe("claude-x");
-    expect(state!.provider_name).toBe("anthropic");
-    expect(state!.created_at).toBe("2025-01-01T00:00:02Z");
-    expect(state!.input_messages).toHaveLength(1);
+    expect(response).not.toBeNull();
+    expect(response!.item_id).toBe("item-2");
+    expect(response!.response_id).toBe("resp-2");
+    expect(response!.model).toBe("claude-x");
+    expect(response!.provider_name).toBe("anthropic");
+    expect(response!.created_at).toBe("2025-01-01T00:00:02Z");
+    expect(response!.input_messages).toHaveLength(1);
     // output_message is wrapped when gen_ai_output_messages is absent.
-    expect(state!.output_messages).toEqual([detail.output_message]);
-    expect(state!.system_instructions).toEqual([
+    expect(response!.output_messages).toEqual([detail.output_message]);
+    expect(response!.system_instructions).toEqual([
       { type: "text", content: "be nice" },
     ]);
-    expect(state!.tool_definitions).toEqual([{ name: "lookup" }]);
+    expect(response!.tool_definitions).toEqual([{ name: "lookup" }]);
   });
 
-  it("state() falls back to the first item with an output_message", async () => {
+  it("retrieve() falls back to the first item with an output_message", async () => {
     const listPage = makePage(
       [
         makeItem({ id: "item-2", node_type: "span" }),
@@ -279,21 +282,21 @@ describe("ConversationsApi", () => {
       );
 
     const api = new ConversationsApi(http);
-    const state = await api.state("conv-1");
+    const response = await api.retrieve("conv-1");
 
-    expect(state!.item_id).toBe("item-1");
+    expect(response!.item_id).toBe("item-1");
   });
 
-  it("state() returns null when the conversation has no items", async () => {
+  it("retrieve() returns null when the conversation has no items", async () => {
     const http = mockHttp({ requestResult: makePage([], false) });
     const api = new ConversationsApi(http);
-    const state = await api.state("conv-1");
+    const response = await api.retrieve("conv-1");
 
-    expect(state).toBeNull();
+    expect(response).toBeNull();
     expect(http.request).toHaveBeenCalledTimes(1);
   });
 
-  it("state() maps legacy `result` keys on tool_call_response parts to `response`", async () => {
+  it("retrieve() maps legacy `result` keys on tool_call_response parts to `response`", async () => {
     const listPage = makePage(
       [makeItem({ id: "item-1", node_type: "assistant" })],
       false,
@@ -334,20 +337,20 @@ describe("ConversationsApi", () => {
       .mockResolvedValueOnce(detail);
 
     const api = new ConversationsApi(http);
-    const state = await api.state("conv-1");
+    const response = await api.retrieve("conv-1");
 
-    expect(state!.input_messages[0].parts[0]).toEqual({
+    expect(response!.input_messages[0].parts[0]).toEqual({
       type: "tool_call_response",
       id: "call-1",
       response: { ok: true },
     });
     // Non-tool parts and already-semconv parts pass through untouched.
-    expect(state!.input_messages[0].parts[1]).toEqual({
+    expect(response!.input_messages[0].parts[1]).toEqual({
       type: "text",
       content: "unrelated",
     });
     // gen_ai_output_messages is preferred over output_message.
-    expect(state!.output_messages[0].parts[0]).toEqual({
+    expect(response!.output_messages[0].parts[0]).toEqual({
       type: "tool_call_response",
       id: "call-2",
       response: "already-semconv",
