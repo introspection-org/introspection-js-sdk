@@ -110,6 +110,7 @@ function downgradeToHttp(url: string | URL): string {
 
 export function createProxyFetch(
   options: ProxyFetchOptions = {},
+  baseFetch: typeof fetch = globalThis.fetch,
 ): typeof fetch {
   const egressUrl = resolveEgressUrl(options);
   const egressHosts = resolveEgressHosts(options);
@@ -121,7 +122,7 @@ export function createProxyFetch(
     ? new EnvHttpProxyAgent()
     : undefined;
 
-  if (!egress && !forward) return fetch;
+  if (!egress && !forward) return baseFetch;
 
   return (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
     const hostname = new URL(toUrlString(input)).hostname.toLowerCase();
@@ -130,7 +131,7 @@ export function createProxyFetch(
       !!egress && egressHosts.size > 0 && egressHosts.has(hostname);
     const dispatcher = useEgress ? egress : forward;
 
-    if (!dispatcher) return fetch(input, init);
+    if (!dispatcher) return baseFetch(input, init);
 
     let target: string | URL;
     let opts: Record<string, unknown>;
@@ -165,11 +166,13 @@ export function createProxyFetch(
 }
 
 export function installProxyFetch(options: ProxyFetchOptions = {}): () => void {
-  const proxied = createProxyFetch(options);
-  if (proxied === fetch) return () => {};
   const original = globalThis.fetch;
+  const proxied = createProxyFetch(options, original);
+  if (proxied === original) return () => {};
   globalThis.fetch = proxied;
   return () => {
-    globalThis.fetch = original;
+    if (globalThis.fetch === proxied) {
+      globalThis.fetch = original;
+    }
   };
 }
