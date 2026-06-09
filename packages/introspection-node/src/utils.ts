@@ -1,6 +1,9 @@
 import { DiagLogLevel, DiagLogger } from "@opentelemetry/api";
 import { HttpsProxyAgent } from "https-proxy-agent";
-import { resolveForwardProxyUrl } from "@introspection-sdk/introspection-proxy";
+import {
+  resolveForwardProxyUrl,
+  shouldBypassProxy,
+} from "@introspection-sdk/introspection-proxy";
 
 /**
  * Attach a forward-proxy agent to OTLP exporter options when a proxy is
@@ -11,10 +14,16 @@ import { resolveForwardProxyUrl } from "@introspection-sdk/introspection-proxy";
  * `./proxy.js` — a dispatcher only applies to `fetch`. The proxy *URL* is
  * resolved by the shared {@link resolveForwardProxyUrl} so fetch and OTLP
  * traffic agree on which proxy to use.
+ *
+ * Unlike undici's `EnvHttpProxyAgent`, `HttpsProxyAgent` ignores `NO_PROXY`, so
+ * we honour it explicitly via {@link shouldBypassProxy}. This keeps in-cluster
+ * endpoints (e.g. `*.svc.cluster.local`) on a direct connection instead of
+ * tunnelling them through the egress proxy, which has no route for them.
  */
-export function withOtlpHttpsProxy<T extends object>(options: T): T {
+export function withOtlpHttpsProxy<T extends { url?: string }>(options: T): T {
   const proxyUrl = resolveForwardProxyUrl();
   if (!proxyUrl) return options;
+  if (options.url && shouldBypassProxy(options.url)) return options;
 
   return {
     ...options,

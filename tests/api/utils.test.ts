@@ -12,10 +12,13 @@ import {
 } from "../../packages/introspection-node/src/utils";
 
 describe("withOtlpHttpsProxy", () => {
-  const prev = process.env.HTTPS_PROXY;
+  const prevProxy = process.env.HTTPS_PROXY;
+  const prevNoProxy = process.env.NO_PROXY;
   afterEach(() => {
-    if (prev === undefined) delete process.env.HTTPS_PROXY;
-    else process.env.HTTPS_PROXY = prev;
+    if (prevProxy === undefined) delete process.env.HTTPS_PROXY;
+    else process.env.HTTPS_PROXY = prevProxy;
+    if (prevNoProxy === undefined) delete process.env.NO_PROXY;
+    else process.env.NO_PROXY = prevNoProxy;
   });
 
   it("returns options unchanged when no proxy is configured", () => {
@@ -26,12 +29,24 @@ describe("withOtlpHttpsProxy", () => {
 
   it("adds an httpAgentOptions factory when HTTPS_PROXY is set", () => {
     process.env.HTTPS_PROXY = "http://127.0.0.1:8888";
+    delete process.env.NO_PROXY;
     const out = withOtlpHttpsProxy({ url: "https://example.com" }) as {
       httpAgentOptions: () => unknown;
     };
     expect(typeof out.httpAgentOptions).toBe("function");
     // Invoking it constructs a real HttpsProxyAgent.
     expect(out.httpAgentOptions()).toBeDefined();
+  });
+
+  it("skips the proxy when the OTLP endpoint matches NO_PROXY", () => {
+    process.env.HTTPS_PROXY = "http://127.0.0.1:8888";
+    process.env.NO_PROXY = ".svc.cluster.local";
+    const opts = {
+      url: "http://introspection-gateway-internal-otel.envoy-gateway-system.svc.cluster.local/v1/traces",
+      headers: {},
+    };
+    // In-cluster endpoint bypasses the egress proxy: options returned as-is.
+    expect(withOtlpHttpsProxy(opts)).toBe(opts);
   });
 });
 
