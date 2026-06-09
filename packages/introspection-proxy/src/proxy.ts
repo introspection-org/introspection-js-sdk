@@ -7,7 +7,7 @@
  *    plain-HTTP reverse proxy that routes by `Host` header and injects upstream
  *    credentials via ext_proc. Only used for hosts listed in
  *    `INTROSPECTION_ENDPOINT_HOSTS` (comma-separated). When the host list is
- *    empty, all traffic goes through egress (legacy behaviour).
+ *    empty, egress is disabled and all traffic uses the forward proxy.
  *
  *  - **Forward CONNECT proxy** (`HTTPS_PROXY` / `HTTP_PROXY`): opaque TLS
  *    tunnel the proxy cannot read or modify. Used for all other hosts (S3,
@@ -87,7 +87,8 @@ export function getProxyDispatcher(
   options: ProxyFetchOptions = {},
 ): Dispatcher | undefined {
   const egressUrl = resolveEgressUrl(options);
-  if (egressUrl && resolveEgressHosts(options).size === 0) {
+  const egressHostSet = resolveEgressHosts(options);
+  if (egressUrl && egressHostSet.size > 0) {
     return buildEgressDispatcher(egressUrl);
   }
   if (resolveForwardProxyUrl()) {
@@ -126,7 +127,7 @@ export function createProxyFetch(
     const hostname = new URL(toUrlString(input)).hostname.toLowerCase();
 
     const useEgress =
-      !!egress && (egressHosts.size === 0 || egressHosts.has(hostname));
+      !!egress && egressHosts.size > 0 && egressHosts.has(hostname);
     const dispatcher = useEgress ? egress : forward;
 
     if (!dispatcher) return fetch(input, init);
