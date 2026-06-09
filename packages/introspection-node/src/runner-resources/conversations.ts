@@ -22,41 +22,33 @@ const RESPONSE_INCLUDES: ConversationItemInclude[] = [
 /**
  * Items of a conversation (`/v1/conversations/{id}/items`). Read-only.
  *
- * Paging is OpenAI-style: the envelope has NO `next` token — drive
- * `after` = the previous page's `last_id` while `has_more` is true
- * (see `listAll()`).
+ * Paging is OpenAI-style underneath: the envelope has NO `next` token —
+ * `list()` drives `after` = the previous page's `last_id` while
+ * `has_more` is true.
  */
 export class ConversationItemsApi {
   constructor(private readonly http: HttpClient) {}
 
   /**
-   * List one page of items. Items in this LIST response carry the
-   * turn-local delta in `input_messages` — only the messages new to
-   * that turn.
+   * Iterate items of a conversation. Pages are fetched lazily as the
+   * iterator is consumed (`limit` sets the page size, `after` the
+   * starting cursor); stop early to stop fetching. Pass
+   * `order: "asc"` to walk the transcript from the start.
+   *
+   * Items carry the turn-local delta in `input_messages` — only the
+   * messages new to that turn. Use `get()` for the full input history.
    */
-  list(
-    conversationId: string,
-    params?: ConversationItemListParams,
-  ): Promise<ConversationItemList> {
-    return this.http.request<ConversationItemList>({
-      method: "GET",
-      path: `/v1/conversations/${encodeURIComponent(conversationId)}/items`,
-      query: params as Record<string, unknown> | undefined,
-    });
-  }
-
-  /**
-   * Iterate all items of a conversation, driving `after` = the previous
-   * page's `last_id` while `has_more` is true. Pass `order: "asc"` to
-   * walk the transcript from the start.
-   */
-  async *listAll(
+  async *list(
     conversationId: string,
     params?: ConversationItemListParams,
   ): AsyncIterable<ConversationItem> {
     let after: string | undefined = params?.after;
     for (;;) {
-      const page = await this.list(conversationId, { ...params, after });
+      const page = await this.http.request<ConversationItemList>({
+        method: "GET",
+        path: `/v1/conversations/${encodeURIComponent(conversationId)}/items`,
+        query: { ...params, after } as Record<string, unknown>,
+      });
       for (const item of page.data) yield item;
       if (!page.has_more || page.last_id === null) return;
       after = page.last_id;
@@ -83,12 +75,11 @@ export class ConversationItemsApi {
 /**
  * Read-only Conversations API (`/v1/conversations`).
  *
- * Two paging styles are in play:
- * - `list()` uses the standard Introspection cursor envelope — drive the
- *   opaque `next` token (see `listAll()`).
- * - `items.list()` uses an OpenAI-style envelope with NO `next` token —
- *   drive `after` = the previous page's `last_id` while `has_more` is
- *   true (see `items.listAll()`).
+ * Both `list()` and `items.list()` are auto-paging async generators,
+ * but they drive different wire protocols underneath: `list()` walks
+ * the standard Introspection cursor envelope's opaque `next` token,
+ * while `items.list()` walks an OpenAI-style envelope via `after` =
+ * the previous page's `last_id` while `has_more` is true.
  */
 export class ConversationsApi {
   /** Items of a conversation — `conversations.items.list(...)` etc. */
@@ -98,58 +89,48 @@ export class ConversationsApi {
     this.items = new ConversationItemsApi(http);
   }
 
-  /** List conversation summaries (cursor-paged Introspection envelope). */
-  list(
-    params?: ConversationListParams,
-  ): Promise<Paginated<ConversationSummary>> {
-    return this.http.request<Paginated<ConversationSummary>>({
-      method: "GET",
-      path: "/v1/conversations",
-      query: params as Record<string, unknown> | undefined,
-    });
-  }
-
-  /** Iterate all conversation summaries, driving the `next` token. */
-  async *listAll(
+  /**
+   * Iterate conversation summaries matching `params`. Pages are fetched
+   * lazily as the iterator is consumed (`limit` sets the page size,
+   * `next` the starting cursor); stop early to stop fetching.
+   */
+  async *list(
     params?: ConversationListParams,
   ): AsyncIterable<ConversationSummary> {
     let next: string | undefined = params?.next;
     do {
-      const page = await this.list({ ...params, next });
+      const page = await this.http.request<Paginated<ConversationSummary>>({
+        method: "GET",
+        path: "/v1/conversations",
+        query: { ...params, next } as Record<string, unknown>,
+      });
       for (const c of page.records) yield c;
       next = page.next ?? undefined;
     } while (next);
   }
 
   /**
-   * Responses-API-style retrieve: load the latest state of a
-   * conversation — the full input history, output, system instructions,
-   * and tool definitions of the most recent LLM turn.
+   * Responses-API-style retrieve: load the state of a conversation as of
+   * one item — the full input history, output, system instructions, and
+   * tool definitions of that turn.
    *
-   * The latest LLM turn is the first item (in descending order) whose
-   * `node_type` is `"assistant"` or whose `operation_name` is `"chat"`,
-   * falling back to the first item with a non-null `output_message`.
-   * Returns `null` when the conversation has no items.
+   * When `itemId` is omitted, the latest LLM turn is used: the first
+   * item (in descending order) whose `node_type` is `"assistant"` or
+   * whose `operation_name` is `"chat"`, falling back to the first item
+   * with a non-null `output_message`. Returns `null` when the
+   * conversation has no items.
    *
    * For the full per-turn transcript instead, iterate
-   * `items.listAll(conversationId, { order: "asc" })`.
+   * `items.list(conversationId, { order: "asc" })`.
    */
-  async retrieve(conversationId: string): Promise<ConversationResponse | null> {
-    let picked: ConversationItem | null = null;
-    let fallback: ConversationItem | null = null;
-    for await (const item of this.items.listAll(conversationId, {
-      order: "desc",
-    })) {
-      if (item.node_type === "assistant" || item.operation_name === "chat") {
-        picked = item;
-        break;
-      }
-      if (fallback === null && item.output_message != null) fallback = item;
-    }
-    const target = picked ?? fallback;
-    if (target === null) return null;
+  async retrieve(
+    conversationId: string,
+    itemId?: string,
+  ): Promise<ConversationResponse | null> {
+    const targetId = itemId ?? (await this.findLatestTurnId(conversationId));
+    if (targetId === null) return null;
 
-    const detail = await this.items.get(conversationId, target.id, {
+    const detail = await this.items.get(conversationId, targetId, {
       include: RESPONSE_INCLUDES,
     });
     const outputMessages =
@@ -172,6 +153,22 @@ export class ConversationsApi {
       system_instructions: detail.system_instructions ?? null,
       tool_definitions: detail.tool_definitions ?? null,
     };
+  }
+
+  /** Scan items in descending order for the most recent LLM turn. */
+  private async findLatestTurnId(
+    conversationId: string,
+  ): Promise<string | null> {
+    let fallback: ConversationItem | null = null;
+    for await (const item of this.items.list(conversationId, {
+      order: "desc",
+    })) {
+      if (item.node_type === "assistant" || item.operation_name === "chat") {
+        return item.id;
+      }
+      if (fallback === null && item.output_message != null) fallback = item;
+    }
+    return fallback?.id ?? null;
   }
 }
 

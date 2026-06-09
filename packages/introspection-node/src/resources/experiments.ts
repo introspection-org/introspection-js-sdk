@@ -36,18 +36,19 @@ export class ExperimentsApi {
     private readonly client: IntrospectionClient,
   ) {}
 
-  list(params: ExperimentListParams): Promise<Paginated<Experiment>> {
-    return this.http.request<Paginated<Experiment>>({
-      method: "GET",
-      path: "/v1/experiments",
-      query: params as unknown as Record<string, unknown>,
-    });
-  }
-
-  async *listAll(params: ExperimentListParams): AsyncIterable<Experiment> {
+  /**
+   * Iterate experiments matching `params`. Pages are fetched lazily as
+   * the iterator is consumed (`limit` sets the page size, `next` the
+   * starting cursor); stop early to stop fetching.
+   */
+  async *list(params: ExperimentListParams): AsyncIterable<Experiment> {
     let next: string | undefined = params.next;
     do {
-      const page = await this.list({ ...params, next });
+      const page = await this.http.request<Paginated<Experiment>>({
+        method: "GET",
+        path: "/v1/experiments",
+        query: { ...params, next } as unknown as Record<string, unknown>,
+      });
       for (const r of page.records) yield r;
       next = page.next ?? undefined;
     } while (next);
@@ -157,7 +158,6 @@ export function attachExperiments(
     new ExperimentHandle(api, id);
   const hybrid = factory as ExperimentsApi & ExperimentHandleFactory;
   hybrid.list = api.list.bind(api);
-  hybrid.listAll = api.listAll.bind(api);
   hybrid.get = api.get.bind(api);
   hybrid.create = api.create.bind(api);
   hybrid.update = api.update.bind(api);

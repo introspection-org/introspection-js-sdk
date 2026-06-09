@@ -37,17 +37,18 @@ describe("FilesApi", () => {
       },
     });
     const api = new FilesApi(http);
-    const result = await api.list({ limit: 5 });
+    const files = [];
+    for await (const f of api.list({ limit: 5 })) files.push(f);
 
     expect(http.request).toHaveBeenCalledWith({
       method: "GET",
       path: "/v1/files",
       query: { limit: 5 },
     });
-    expect(result.records).toHaveLength(1);
+    expect(files).toHaveLength(1);
   });
 
-  it("listAll() paginates through all pages", async () => {
+  it("list() paginates through all pages", async () => {
     const page1 = {
       records: [FILE_FIXTURE],
       count: 1,
@@ -67,7 +68,7 @@ describe("FilesApi", () => {
 
     const api = new FilesApi(http);
     const files = [];
-    for await (const f of api.listAll()) files.push(f);
+    for await (const f of api.list()) files.push(f);
 
     expect(files).toHaveLength(2);
     expect(http.request).toHaveBeenCalledTimes(2);
@@ -192,16 +193,18 @@ describe("FileVersionsApi", () => {
       },
     });
     const versions = new FileVersionsApi(http);
-    await versions.list("file-1");
+    const all = [];
+    for await (const v of versions.list("file-1")) all.push(v);
 
     expect(http.request).toHaveBeenCalledWith({
       method: "GET",
       path: "/v1/files/file-1/versions",
-      query: undefined,
+      query: {},
     });
+    expect(all).toHaveLength(1);
   });
 
-  it("listAll() paginates through versions", async () => {
+  it("list() paginates through versions", async () => {
     const page1 = {
       records: [FILE_FIXTURE],
       count: 1,
@@ -221,7 +224,7 @@ describe("FileVersionsApi", () => {
 
     const versions = new FileVersionsApi(http);
     const all = [];
-    for await (const v of versions.listAll("file-1")) all.push(v);
+    for await (const v of versions.list("file-1")) all.push(v);
     expect(all).toHaveLength(2);
   });
 

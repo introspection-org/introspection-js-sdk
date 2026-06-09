@@ -64,8 +64,9 @@ async function main() {
   });
   console.log(`uploaded binary file: ${binary.id}`);
 
-  const filesPage = await runner.files.list();
-  console.log(`total files (first page): ${filesPage.records.length}`);
+  let fileCount = 0;
+  for await (const _ of runner.files.list()) fileCount++;
+  console.log(`total files: ${fileCount}`);
 
   await runner.close();
   await client.shutdown();

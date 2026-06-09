@@ -74,17 +74,20 @@ describe("ConversationsApi", () => {
       },
     });
     const api = new ConversationsApi(http);
-    const result = await api.list({ limit: 10, status: "Error" });
+    const summaries = [];
+    for await (const c of api.list({ limit: 10, status: "Error" })) {
+      summaries.push(c);
+    }
 
     expect(http.request).toHaveBeenCalledWith({
       method: "GET",
       path: "/v1/conversations",
       query: { limit: 10, status: "Error" },
     });
-    expect(result.records).toHaveLength(1);
+    expect(summaries).toHaveLength(1);
   });
 
-  it("listAll() drives the cursor `next` token until exhausted", async () => {
+  it("list() drives the cursor `next` token until exhausted", async () => {
     const page1 = {
       records: [SUMMARY_FIXTURE],
       count: 1,
@@ -104,7 +107,7 @@ describe("ConversationsApi", () => {
 
     const api = new ConversationsApi(http);
     const summaries = [];
-    for await (const c of api.listAll()) summaries.push(c);
+    for await (const c of api.list()) summaries.push(c);
 
     expect(summaries).toHaveLength(2);
     expect(summaries[1].trace_id).toBe("trace-2");
@@ -117,19 +120,23 @@ describe("ConversationsApi", () => {
   it("items.list() calls GET /v1/conversations/:id/items with includes", async () => {
     const http = mockHttp({ requestResult: makePage([makeItem()], false) });
     const api = new ConversationsApi(http);
-    await api.items.list("conv-1", {
+    const items = [];
+    for await (const item of api.items.list("conv-1", {
       order: "asc",
       include: ["events", "span_attributes"],
-    });
+    })) {
+      items.push(item);
+    }
 
     expect(http.request).toHaveBeenCalledWith({
       method: "GET",
       path: "/v1/conversations/conv-1/items",
       query: { order: "asc", include: ["events", "span_attributes"] },
     });
+    expect(items).toHaveLength(1);
   });
 
-  it("items.listAll() drives `after` = last_id while has_more, then stops", async () => {
+  it("items.list() drives `after` = last_id while has_more, then stops", async () => {
     const page1 = makePage(
       [makeItem({ id: "item-1" }), makeItem({ id: "item-2" })],
       true,
@@ -142,7 +149,7 @@ describe("ConversationsApi", () => {
 
     const api = new ConversationsApi(http);
     const items = [];
-    for await (const item of api.items.listAll("conv-1")) items.push(item);
+    for await (const item of api.items.list("conv-1")) items.push(item);
 
     expect(items.map((i) => i.id)).toEqual(["item-1", "item-2", "item-3"]);
     expect(http.request).toHaveBeenCalledTimes(2);
@@ -151,17 +158,17 @@ describe("ConversationsApi", () => {
     expect(calls[1][0].query.after).toBe("item-2");
   });
 
-  it("items.listAll() terminates on an empty page (has_more=false, last_id=null)", async () => {
+  it("items.list() terminates on an empty page (has_more=false, last_id=null)", async () => {
     const http = mockHttp({ requestResult: makePage([], false) });
     const api = new ConversationsApi(http);
     const items = [];
-    for await (const item of api.items.listAll("conv-1")) items.push(item);
+    for await (const item of api.items.list("conv-1")) items.push(item);
 
     expect(items).toHaveLength(0);
     expect(http.request).toHaveBeenCalledTimes(1);
   });
 
-  it("items.listAll() walks the ascending transcript when order=asc", async () => {
+  it("items.list() walks the ascending transcript when order=asc", async () => {
     const page1 = makePage([makeItem({ id: "item-1" })], true);
     const page2 = makePage([makeItem({ id: "item-2" })], false);
     const http = mockHttp();
@@ -171,7 +178,7 @@ describe("ConversationsApi", () => {
 
     const api = new ConversationsApi(http);
     const items = [];
-    for await (const item of api.items.listAll("conv-1", { order: "asc" })) {
+    for await (const item of api.items.list("conv-1", { order: "asc" })) {
       items.push(item);
     }
 
@@ -257,6 +264,32 @@ describe("ConversationsApi", () => {
       { type: "text", content: "be nice" },
     ]);
     expect(response!.tool_definitions).toEqual([{ name: "lookup" }]);
+  });
+
+  it("retrieve() with an explicit itemId skips the scan and fetches that item", async () => {
+    const detail = makeItem({
+      id: "item-7",
+      node_type: "assistant",
+      response_id: "resp-7",
+    });
+    const http = mockHttp({ requestResult: detail });
+    const api = new ConversationsApi(http);
+    const response = await api.retrieve("conv-1", "item-7");
+
+    expect(http.request).toHaveBeenCalledTimes(1);
+    expect(http.request).toHaveBeenCalledWith({
+      method: "GET",
+      path: "/v1/conversations/conv-1/items/item-7",
+      query: {
+        include: [
+          "gen_ai.input.messages",
+          "gen_ai.system_instructions",
+          "gen_ai.tool.definitions",
+        ],
+      },
+    });
+    expect(response!.item_id).toBe("item-7");
+    expect(response!.response_id).toBe("resp-7");
   });
 
   it("retrieve() falls back to the first item with an output_message", async () => {
