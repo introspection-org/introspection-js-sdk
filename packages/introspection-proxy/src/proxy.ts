@@ -111,6 +111,10 @@ function downgradeToHttp(url: string | URL): string {
 export function createProxyFetch(
   options: ProxyFetchOptions = {},
 ): typeof fetch {
+  // Capture the real fetch now, before installProxyFetch swaps
+  // globalThis.fetch to this wrapper. The per-request fallback below must not
+  // re-read the global, or it would recurse into the installed proxy.
+  const base = globalThis.fetch;
   const egressUrl = resolveEgressUrl(options);
   const egressHosts = resolveEgressHosts(options);
   const egressIsPlainHttp =
@@ -121,7 +125,7 @@ export function createProxyFetch(
     ? new EnvHttpProxyAgent()
     : undefined;
 
-  if (!egress && !forward) return fetch;
+  if (!egress && !forward) return base;
 
   return (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
     const hostname = new URL(toUrlString(input)).hostname.toLowerCase();
@@ -130,7 +134,7 @@ export function createProxyFetch(
       !!egress && egressHosts.size > 0 && egressHosts.has(hostname);
     const dispatcher = useEgress ? egress : forward;
 
-    if (!dispatcher) return fetch(input, init);
+    if (!dispatcher) return base(input, init);
 
     let target: string | URL;
     let opts: Record<string, unknown>;
@@ -165,11 +169,13 @@ export function createProxyFetch(
 }
 
 export function installProxyFetch(options: ProxyFetchOptions = {}): () => void {
-  const proxied = createProxyFetch(options);
-  if (proxied === fetch) return () => {};
   const original = globalThis.fetch;
+  const proxied = createProxyFetch(options);
+  if (proxied === original) return () => {};
   globalThis.fetch = proxied;
   return () => {
-    globalThis.fetch = original;
+    if (globalThis.fetch === proxied) {
+      globalThis.fetch = original;
+    }
   };
 }

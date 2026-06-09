@@ -18,6 +18,7 @@ import {
   type AssistantMessage,
   type AssistantMessageEvent,
   type AssistantMessageEventStream,
+  type Api,
   type Context,
   type Model,
 } from "@earendil-works/pi-ai";
@@ -43,9 +44,9 @@ export interface InstrumentStreamOptions {
    * Caller-specific attributes (e.g. tenant labels, correlation IDs) layered
    * on top of the GenAI semconv attributes for each chat span.
    */
-  extraAttributes?: (model: Model<string>, context: Context) => Attributes;
+  extraAttributes?: (model: Model<Api>, context: Context) => Attributes;
   /** Override the default span name builder. */
-  spanName?: (model: Model<string>, context: Context) => string;
+  spanName?: (model: Model<Api>, context: Context) => string;
 }
 
 /**
@@ -105,7 +106,7 @@ export function instrumentStream(
 
 interface RunUpstreamArgs {
   streamFn: StreamFn;
-  model: Model<string>;
+  model: Model<Api>;
   context: Context;
   options: Parameters<StreamFn>[2];
   spanContext: OtelContext;
@@ -178,7 +179,7 @@ function finishSpan(
 }
 
 function assistantErrorMessage(
-  model: Model<string>,
+  model: Model<Api>,
   errorMessage: string,
 ): AssistantMessage {
   return {
