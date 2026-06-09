@@ -57,7 +57,7 @@
     "@mastra/core": "^1.41.0",
     "@mastra/observability": "^1.14.1",
     "@earendil-works/pi-agent-core": "^0.75.4",
-    "@earendil-works/pi-ai": "^0.75.4",
+    "@earendil-works/pi-ai": "^0.79.0",
     "@anthropic-ai/sdk": "^0.102.0",
     "@anthropic-ai/claude-agent-sdk": "^0.3.168",
     "@google/genai": "^2.8.0",

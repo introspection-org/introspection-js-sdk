@@ -27,7 +27,7 @@
     "@langchain/core": "^1.1.48",
     "@langchain/openai": "^1.4.7",
     "@earendil-works/pi-agent-core": "^0.75.4",
-    "@earendil-works/pi-ai": "^0.75.4",
+    "@earendil-works/pi-ai": "^0.79.0",
     "@openai/agents": "^0.11.6",
     "@opentelemetry/api": "^1.9.1",
     "@opentelemetry/context-async-hooks": "^2.7.1",
