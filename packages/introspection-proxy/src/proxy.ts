@@ -54,43 +54,6 @@ export function resolveForwardProxyUrl(): string | undefined {
   );
 }
 
-/**
- * Returns `true` when `url`'s host should bypass the forward proxy because it
- * matches an entry in `NO_PROXY` / `no_proxy`.
- *
- * undici's `EnvHttpProxyAgent` already applies this to `fetch`, so the only
- * callers that need it explicitly are the OTLP exporters, which route through
- * `https-proxy-agent` (it ignores `NO_PROXY`). Keeping the matcher here lets
- * fetch and OTLP traffic agree on which hosts skip the proxy.
- *
- * Matching mirrors the common `NO_PROXY` convention: `*` bypasses everything,
- * entries match the host exactly or as a domain suffix (with or without a
- * leading dot), and an optional `:port` suffix on an entry is ignored.
- */
-export function shouldBypassProxy(url: string): boolean {
-  const noProxy = (process.env.NO_PROXY || process.env.no_proxy || "").trim();
-  if (!noProxy) return false;
-  if (noProxy === "*") return true;
-
-  let hostname: string;
-  try {
-    hostname = new URL(url).hostname.toLowerCase();
-  } catch {
-    return false;
-  }
-
-  return noProxy
-    .split(/[\s,]+/)
-    .map((entry) => entry.trim().toLowerCase())
-    .filter(Boolean)
-    .some((entry) => {
-      const host = entry.replace(/:\d+$/, "").replace(/^\./, "");
-      return (
-        host.length > 0 && (hostname === host || hostname.endsWith(`.${host}`))
-      );
-    });
-}
-
 function buildEgressDispatcher(proxyUrl: string): Dispatcher {
   const url = new URL(proxyUrl);
   const useTls = url.protocol === "https:";

@@ -4,7 +4,7 @@
  * re-importing the module under different `INTROSPECTION_LOG_LEVEL` values via
  * `vi.resetModules()` (a module-cache reset, not a mock).
  */
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   withOtlpHttpsProxy,
@@ -12,24 +12,39 @@ import {
 } from "../../packages/introspection-node/src/utils";
 
 describe("withOtlpHttpsProxy", () => {
-  const prevProxy = process.env.HTTPS_PROXY;
-  const prevNoProxy = process.env.NO_PROXY;
+  // Resolution reads the full proxy env (proxy-from-env is scheme-aware), so
+  // snapshot and clear all of them around each case for a clean slate.
+  const PROXY_ENV = [
+    "HTTP_PROXY",
+    "http_proxy",
+    "HTTPS_PROXY",
+    "https_proxy",
+    "NO_PROXY",
+    "no_proxy",
+    "ALL_PROXY",
+    "all_proxy",
+  ] as const;
+  const saved: Record<string, string | undefined> = {};
+  beforeEach(() => {
+    for (const key of PROXY_ENV) {
+      saved[key] = process.env[key];
+      delete process.env[key];
+    }
+  });
   afterEach(() => {
-    if (prevProxy === undefined) delete process.env.HTTPS_PROXY;
-    else process.env.HTTPS_PROXY = prevProxy;
-    if (prevNoProxy === undefined) delete process.env.NO_PROXY;
-    else process.env.NO_PROXY = prevNoProxy;
+    for (const key of PROXY_ENV) {
+      if (saved[key] === undefined) delete process.env[key];
+      else process.env[key] = saved[key];
+    }
   });
 
   it("returns options unchanged when no proxy is configured", () => {
-    delete process.env.HTTPS_PROXY;
     const opts = { url: "https://example.com", headers: {} };
     expect(withOtlpHttpsProxy(opts)).toBe(opts);
   });
 
-  it("adds an httpAgentOptions factory when HTTPS_PROXY is set", () => {
+  it("adds an httpAgentOptions factory for an https endpoint behind HTTPS_PROXY", () => {
     process.env.HTTPS_PROXY = "http://127.0.0.1:8888";
-    delete process.env.NO_PROXY;
     const out = withOtlpHttpsProxy({ url: "https://example.com" }) as {
       httpAgentOptions: () => unknown;
     };
@@ -38,14 +53,23 @@ describe("withOtlpHttpsProxy", () => {
     expect(out.httpAgentOptions()).toBeDefined();
   });
 
+  it("selects HTTP_PROXY for an http endpoint (scheme-aware resolution)", () => {
+    process.env.HTTP_PROXY = "http://127.0.0.1:8888";
+    const out = withOtlpHttpsProxy({
+      url: "http://collector.example/v1/traces",
+    }) as { httpAgentOptions?: () => unknown };
+    expect(typeof out.httpAgentOptions).toBe("function");
+  });
+
   it("skips the proxy when the OTLP endpoint matches NO_PROXY", () => {
-    process.env.HTTPS_PROXY = "http://127.0.0.1:8888";
+    // HTTP_PROXY is set, so only NO_PROXY can keep this in-cluster endpoint
+    // on a direct connection.
+    process.env.HTTP_PROXY = "http://127.0.0.1:8888";
     process.env.NO_PROXY = ".svc.cluster.local";
     const opts = {
       url: "http://introspection-gateway-internal-otel.envoy-gateway-system.svc.cluster.local/v1/traces",
       headers: {},
     };
-    // In-cluster endpoint bypasses the egress proxy: options returned as-is.
     expect(withOtlpHttpsProxy(opts)).toBe(opts);
   });
 });

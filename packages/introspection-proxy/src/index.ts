@@ -13,6 +13,5 @@ export {
   createProxyFetch,
   installProxyFetch,
   resolveForwardProxyUrl,
-  shouldBypassProxy,
 } from "./proxy.js";
 export type { ProxyFetchOptions } from "./proxy.js";
