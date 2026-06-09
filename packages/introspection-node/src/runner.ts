@@ -9,6 +9,7 @@ import {
 import { HttpClient } from "./http.js";
 import { TasksApi } from "./runner-resources/tasks.js";
 import { FilesApi } from "./runner-resources/files.js";
+import { ConversationsApi } from "./runner-resources/conversations.js";
 import type { IntrospectionClient } from "./client.js";
 
 /**
@@ -23,7 +24,7 @@ export type RunnerSource =
 /**
  * Live handle to a Data Plane sandbox. Holds the bearer JWT, the DP
  * endpoint URL, and the runtime/experiment context, and exposes the
- * runner-bound `tasks` and `files` namespaces.
+ * runner-bound `tasks`, `files`, and `conversations` namespaces.
  *
  * In v1 of the agent-session-based design, token refresh is handled
  * server-side by the DP materializer attached to the agent session — the
@@ -39,6 +40,7 @@ export class Runner {
   // Public API surfaces.
   readonly tasks: TasksApi;
   readonly files: FilesApi;
+  readonly conversations: ConversationsApi;
 
   constructor(
     private readonly client: IntrospectionClient,
@@ -49,6 +51,7 @@ export class Runner {
     this.http = this.buildHttp();
     this.tasks = new TasksApi(this.guardedHttp(this.http));
     this.files = new FilesApi(this.guardedHttp(this.http));
+    this.conversations = new ConversationsApi(this.guardedHttp(this.http));
   }
 
   // --- public accessors ---
@@ -113,7 +116,8 @@ export class Runner {
 
   /**
    * Best-effort close — flips a local `isClosed` flag so subsequent
-   * `runner.tasks` / `runner.files` calls throw a friendly error. No
+   * `runner.tasks` / `runner.files` / `runner.conversations` calls
+   * throw a friendly error. No
    * server-side revoke is performed; future work will route a revoke via
    * the CP locator-token path.
    */

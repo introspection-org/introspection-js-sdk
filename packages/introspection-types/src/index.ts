@@ -7,6 +7,7 @@ import type { SpanExporter } from "@opentelemetry/sdk-trace-base";
 
 export * from "./genai.js";
 export * from "./api.js";
+export * from "./conversations.js";
 export * from "./errors.js";
 
 /**

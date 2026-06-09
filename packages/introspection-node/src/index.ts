@@ -20,11 +20,14 @@ export type {
   UserTraits,
 } from "./types.js";
 
-// Runner-bound REST namespaces (runner.tasks, runner.files) + HTTP/SSE.
+// Runner-bound REST namespaces (runner.tasks, runner.files,
+// runner.conversations) + HTTP/SSE.
 export { TasksApi, TaskRunsApi, RunHandle } from "./runner-resources/tasks.js";
 export type { StartParams } from "./runner-resources/tasks.js";
 export { FilesApi, FileVersionsApi } from "./runner-resources/files.js";
 export type { FileUploadBody } from "./runner-resources/files.js";
+export { ConversationsApi } from "./runner-resources/conversations.js";
+export type { ConversationTranscript } from "./runner-resources/conversations.js";
 export { HttpClient } from "./http.js";
 export type { ResolvedApiConfig } from "./http.js";
 export { parseSse } from "./streaming.js";
@@ -95,7 +98,21 @@ export type {
   RunCallerLibrary,
   RunCallerPage,
   RunIdentityInput,
+  ConversationSummary,
+  ConversationItem,
+  ConversationItemList,
+  ConversationItemInclude,
+  ConversationItemNodeType,
+  ConversationListParams,
+  ConversationItemListParams,
+  ConversationState,
+  ConversationsMethod,
+  IntrospectionMetadata,
+  SpanEvent,
+  SpanKind,
+  SpanStatus,
 } from "@introspection-sdk/types";
+export { ConversationsMethods } from "@introspection-sdk/types";
 export {
   IntrospectionAPIError,
   AuthenticationError,
@@ -121,6 +138,8 @@ export type {
   TextPart,
   ToolCallRequestPart,
   ToolCallResponsePart,
+  MediaUrlPart,
+  BinaryDataPart,
   MessagePart,
 } from "@introspection-sdk/types";
 export { toAttributes } from "@introspection-sdk/types";
