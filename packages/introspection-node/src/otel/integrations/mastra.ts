@@ -9,12 +9,30 @@
  * is the presence gate: a missing Mastra makes discovery skip this shim.
  */
 
-import { IntrospectionMastraExporter } from "../mastra-exporter.js";
-import type { Integration } from "./base.js";
+import {
+  importOptionalPeer,
+  isOptionalPeerInstalled,
+  OPTIONAL_PEERS,
+  type Integration,
+} from "./base.js";
+
+const importLocal = (specifier: string) =>
+  import(specifier) as Promise<{
+    IntrospectionMastraExporter: new (
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      options: any,
+    ) => unknown;
+  }>;
 
 const integration: Integration = {
   identifier: "mastra",
-  setupOnce({ token, baseUrl, advanced, handles }) {
+  isAvailable: () =>
+    isOptionalPeerInstalled(OPTIONAL_PEERS.mastraObservability),
+  async setupOnce({ token, baseUrl, advanced, handles }) {
+    await importOptionalPeer(OPTIONAL_PEERS.mastraObservability);
+    const { IntrospectionMastraExporter } = await importLocal(
+      "../mastra-exporter.js",
+    );
     handles.mastraExporter = new IntrospectionMastraExporter({
       token,
       baseUrl,

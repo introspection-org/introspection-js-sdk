@@ -9,19 +9,19 @@
 import { logger } from "../../utils.js";
 import {
   DidNotEnable,
+  isModuleNotFound,
   type Integration,
   type IntegrationHandles,
   type IntegrationSetupContext,
 } from "./base.js";
 
-export { DidNotEnable };
+export { DidNotEnable, isModuleNotFound };
 export type { Integration, IntegrationHandles, IntegrationSetupContext };
 
 /**
- * Built-in integrations, loaded lazily. Each thunk dynamically imports an
- * integration module; that module imports its framework at the top level, so
- * if the framework is not installed the import rejects and the integration is
- * skipped. Order matters only for `deactivates` resolution (handled below).
+ * Built-in integrations, loaded lazily. Each integration probes its optional
+ * framework package at runtime, so importing the OTel barrel never requires
+ * every optional framework SDK to be installed.
  */
 const BUILTIN_INTEGRATIONS: ReadonlyArray<
   () => Promise<{ default: Integration }>
@@ -41,26 +41,27 @@ const installed = new Set<string>();
 // prototype patch), run by teardownIntegrations() on shutdown.
 const teardowns: Array<() => void> = [];
 
-/**
- * Distinguish "framework package not installed" (expected — skip quietly) from
- * a real error inside an installed integration (a bug we shouldn't hide).
- */
-export function isModuleNotFound(e: unknown): boolean {
-  const code = (e as { code?: string } | null)?.code;
-  if (code === "ERR_MODULE_NOT_FOUND" || code === "MODULE_NOT_FOUND") {
-    return true;
+async function availableIntegrations(
+  integrations: Integration[],
+): Promise<Integration[]> {
+  const available: Integration[] = [];
+
+  for (const integration of integrations) {
+    if (integration.isAvailable && !(await integration.isAvailable())) {
+      continue;
+    }
+    available.push(integration);
   }
-  const msg = e instanceof Error ? e.message : String(e);
-  return /Cannot find (module|package)|Failed to resolve/i.test(msg);
+
+  return available;
 }
 
 /**
  * Return the built-in integrations whose framework is importable.
  *
- * Each module's top-level framework import determines availability: a missing
- * package makes the dynamic import reject, which we log at debug and skip. Any
- * OTHER failure (a real error inside an installed integration) is surfaced at
- * warn level rather than silently swallowed — it's a bug, not an absent peer.
+ * Missing optional peer packages are expected and skipped quietly. Any OTHER
+ * failure is surfaced at warn level rather than silently swallowed — it's a
+ * bug, not an absent peer.
  */
 export async function discoverIntegrations(): Promise<Integration[]> {
   const found: Integration[] = [];
@@ -80,7 +81,7 @@ export async function discoverIntegrations(): Promise<Integration[]> {
       }
     }
   }
-  return found;
+  return availableIntegrations(found);
 }
 
 /**
@@ -88,13 +89,13 @@ export async function discoverIntegrations(): Promise<Integration[]> {
  *
  * @returns the set of identifiers installed so far this process.
  */
-export function setupIntegrations(
+export async function setupIntegrations(
   integrations: Integration[],
   ctx: IntegrationSetupContext,
-): Set<string> {
+): Promise<Set<string>> {
   // First-wins de-dupe by identifier.
   const byId = new Map<string, Integration>();
-  for (const integration of integrations) {
+  for (const integration of await availableIntegrations(integrations)) {
     if (!byId.has(integration.identifier)) {
       byId.set(integration.identifier, integration);
     }
@@ -114,7 +115,7 @@ export function setupIntegrations(
     }
     if (installed.has(identifier)) continue;
     try {
-      const teardown = integration.setupOnce(ctx);
+      const teardown = await integration.setupOnce(ctx);
       if (typeof teardown === "function") teardowns.push(teardown);
       installed.add(identifier);
     } catch (e) {

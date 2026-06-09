@@ -9,13 +9,15 @@
  * (via its top-level import) is skipped when `ai` is not installed.
  */
 
-// Presence gate: a missing `ai` package makes this module's import reject.
-import "ai";
-
-import type { Integration } from "./base.js";
+import {
+  isOptionalPeerInstalled,
+  OPTIONAL_PEERS,
+  type Integration,
+} from "./base.js";
 
 const integration: Integration = {
   identifier: "vercel",
+  isAvailable: () => isOptionalPeerInstalled(OPTIONAL_PEERS.vercelAi),
   setupOnce() {
     // No-op: the shared IntrospectionSpanProcessor converts AI SDK spans.
   },

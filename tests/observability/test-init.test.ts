@@ -60,7 +60,7 @@ describe("introspection.init()", () => {
 
   // -------------------------------------------------------------------------
   describe("integration loader", () => {
-    it("runs setupOnce once and respects deactivates", () => {
+    it("runs setupOnce once and respects deactivates", async () => {
       const calls: string[] = [];
       const A: Integration = {
         identifier: "a",
@@ -72,35 +72,60 @@ describe("introspection.init()", () => {
         setupOnce: () => calls.push("b"),
       };
 
-      const installed = setupIntegrations([A, B], fakeCtx());
+      const installed = await setupIntegrations([A, B], fakeCtx());
       expect(installed.has("b")).toBe(true);
       expect(installed.has("a")).toBe(false); // deactivated by B
       expect(calls).toEqual(["b"]);
 
       // Second call is a no-op for already-installed identifiers.
-      setupIntegrations([B], fakeCtx());
+      await setupIntegrations([B], fakeCtx());
       expect(calls).toEqual(["b"]);
     });
 
-    it("swallows DidNotEnable from an integration", () => {
+    it("does not apply deactivates from unavailable integrations", async () => {
+      const calls: string[] = [];
+      const Available: Integration = {
+        identifier: "available",
+        setupOnce: () => calls.push("available"),
+      };
+      const MissingWrapper: Integration = {
+        identifier: "missing-wrapper",
+        deactivates: ["available"],
+        isAvailable: () => false,
+        setupOnce: () => calls.push("missing-wrapper"),
+      };
+
+      const installed = await setupIntegrations(
+        [MissingWrapper, Available],
+        fakeCtx(),
+      );
+
+      expect(installed.has("available")).toBe(true);
+      expect(installed.has("missing-wrapper")).toBe(false);
+      expect(calls).toEqual(["available"]);
+    });
+
+    it("swallows DidNotEnable from an integration", async () => {
       const Flaky: Integration = {
         identifier: "flaky",
         setupOnce: () => {
           throw new DidNotEnable("nope");
         },
       };
-      const installed = setupIntegrations([Flaky], fakeCtx());
+      const installed = await setupIntegrations([Flaky], fakeCtx());
       expect(installed.has("flaky")).toBe(false);
     });
 
-    it("rethrows unexpected errors from an integration", () => {
+    it("rethrows unexpected errors from an integration", async () => {
       const Boom: Integration = {
         identifier: "boom",
         setupOnce: () => {
           throw new Error("kaboom");
         },
       };
-      expect(() => setupIntegrations([Boom], fakeCtx())).toThrow("kaboom");
+      await expect(setupIntegrations([Boom], fakeCtx())).rejects.toThrow(
+        "kaboom",
+      );
     });
   });
 

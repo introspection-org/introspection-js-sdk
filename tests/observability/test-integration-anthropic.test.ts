@@ -25,7 +25,7 @@ describe("anthropic integration", () => {
     const original = Anthropic.Messages.prototype.create;
 
     // setupOnce patches the prototype and returns a teardown.
-    const teardown = anthropicIntegration.setupOnce({
+    const teardown = await anthropicIntegration.setupOnce({
       tracerProvider: provider,
       handles: {},
     });

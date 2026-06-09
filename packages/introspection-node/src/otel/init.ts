@@ -184,7 +184,7 @@ export async function init(options: InitOptions = {}): Promise<TracerProvider> {
       toInstall.push(...(await discoverIntegrations()));
     }
     if (options.integrations) toInstall.push(...options.integrations);
-    setupIntegrations(toInstall, ctx);
+    await setupIntegrations(toInstall, ctx);
   } catch (e) {
     state.handles = {};
     throw e;

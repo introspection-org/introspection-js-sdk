@@ -6,14 +6,30 @@
  * other integrations (e.g. a vendor exporter) already registered.
  */
 
-import { addTraceProcessor } from "@openai/agents";
-
 import { IntrospectionTracingProcessor } from "../tracing-processor.js";
-import type { Integration } from "./base.js";
+import {
+  importOptionalPeer,
+  isOptionalPeerInstalled,
+  OPTIONAL_PEERS,
+  type Integration,
+} from "./base.js";
+
+interface OpenAIAgentsModule {
+  addTraceProcessor?: (processor: IntrospectionTracingProcessor) => void;
+}
 
 const integration: Integration = {
   identifier: "openai_agents",
-  setupOnce({ token, serviceName, baseUrl, advanced }) {
+  isAvailable: () => isOptionalPeerInstalled(OPTIONAL_PEERS.openaiAgents),
+  async setupOnce({ token, serviceName, baseUrl, advanced }) {
+    const { addTraceProcessor } = await importOptionalPeer<OpenAIAgentsModule>(
+      OPTIONAL_PEERS.openaiAgents,
+    );
+    if (!addTraceProcessor) {
+      throw new Error(
+        "Invalid @openai/agents module: addTraceProcessor missing",
+      );
+    }
     addTraceProcessor(
       new IntrospectionTracingProcessor({
         token,

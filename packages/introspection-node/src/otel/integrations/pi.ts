@@ -6,15 +6,19 @@
  * publishes it via `introspection.instrumentPi(agent, meta)`.
  */
 
-// Presence gate.
-import "@earendil-works/pi-agent-core";
-
 import { IntrospectionPiInstrumentor } from "../pi.js";
-import type { Integration } from "./base.js";
+import {
+  importOptionalPeer,
+  isOptionalPeerInstalled,
+  OPTIONAL_PEERS,
+  type Integration,
+} from "./base.js";
 
 const integration: Integration = {
   identifier: "pi",
-  setupOnce({ handles }) {
+  isAvailable: () => isOptionalPeerInstalled(OPTIONAL_PEERS.piAgentCore),
+  async setupOnce({ handles }) {
+    await importOptionalPeer(OPTIONAL_PEERS.piAgentCore);
     // The instrumentor emits onto the global tracer, which `init()` has just
     // registered with the shared IntrospectionSpanProcessor.
     handles.piInstrumentor = new IntrospectionPiInstrumentor();

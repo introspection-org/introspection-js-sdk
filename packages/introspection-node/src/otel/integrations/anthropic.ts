@@ -5,16 +5,26 @@
  * client is traced against the shared provider — no per-client wiring.
  */
 
-// Top-level import gates availability: if `@anthropic-ai/sdk` is not installed
-// the dynamic import of this module rejects and discovery skips the shim.
-import Anthropic from "@anthropic-ai/sdk";
-
 import { AnthropicInstrumentor } from "../anthropic.js";
-import type { Integration } from "./base.js";
+import {
+  importOptionalPeer,
+  isOptionalPeerInstalled,
+  OPTIONAL_PEERS,
+  type Integration,
+} from "./base.js";
+
+async function loadAnthropicSdk(): Promise<unknown> {
+  const mod = await importOptionalPeer<{ default?: unknown }>(
+    OPTIONAL_PEERS.anthropic,
+  );
+  return mod.default ?? mod;
+}
 
 const integration: Integration = {
   identifier: "anthropic",
-  setupOnce({ tracerProvider }) {
+  isAvailable: () => isOptionalPeerInstalled(OPTIONAL_PEERS.anthropic),
+  async setupOnce({ tracerProvider }) {
+    const Anthropic = await loadAnthropicSdk();
     const instrumentor = new AnthropicInstrumentor();
     instrumentor.instrumentClass({ anthropic: Anthropic, tracerProvider });
     // Restore the original prototype on shutdown so a later init() re-patches

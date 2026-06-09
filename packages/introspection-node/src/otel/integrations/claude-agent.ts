@@ -7,15 +7,19 @@
  * `init()` re-exposes as `introspection.instrumentClaudeAgent(sdk)`.
  */
 
-// Presence gate.
-import "@anthropic-ai/claude-agent-sdk";
-
 import { withIntrospection } from "../claude-wrapper.js";
-import type { Integration } from "./base.js";
+import {
+  importOptionalPeer,
+  isOptionalPeerInstalled,
+  OPTIONAL_PEERS,
+  type Integration,
+} from "./base.js";
 
 const integration: Integration = {
   identifier: "claude_agent",
-  setupOnce({ token, serviceName, baseUrl, advanced, handles }) {
+  isAvailable: () => isOptionalPeerInstalled(OPTIONAL_PEERS.claudeAgent),
+  async setupOnce({ token, serviceName, baseUrl, advanced, handles }) {
+    await importOptionalPeer(OPTIONAL_PEERS.claudeAgent);
     handles.instrumentClaudeAgent = (sdk) =>
       withIntrospection(sdk, {
         token,
