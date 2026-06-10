@@ -128,6 +128,21 @@ export interface TaskCancelResponse {
 
 export type FileType = "upload" | "filesystem" | "other";
 
+/**
+ * Minimum sharing scope of a file row.
+ *
+ * - `"identity"` — only the caller identity that owns the file (default
+ *   when the credential carries an identity claim).
+ * - `"member"`   — the owning member's sessions.
+ * - `"project"`  — any project principal (default for identity-less
+ *   credentials; pre-visibility behaviour).
+ *
+ * Privileged credentials (API keys / dashboards without an identity
+ * claim) always see every row. `task_id` is attribution/accounting,
+ * never an access boundary.
+ */
+export type FileVisibility = "identity" | "member" | "project";
+
 export interface File {
   id: Uuid;
   org_id: Uuid;
@@ -144,23 +159,44 @@ export interface File {
   version: number;
   parent_id?: Uuid | null;
   storage_version_id?: string | null;
+  visibility: FileVisibility;
+  identity_key?: string | null;
+  task_id?: Uuid | null;
 }
 
 export interface FileListParams extends ListParams {
   name?: string;
   file_type?: FileType;
   storage_path?: string;
+  visibility?: FileVisibility;
+  /** Accounting view: files stamped with this task. Access rules still apply. */
+  task_id?: Uuid;
+  /** Privileged credentials only: audit a specific owner identity. */
+  identity_key?: string;
 }
 
 export interface FileUpdateParams {
   name?: string;
   metadata?: Record<string, unknown>;
+  /**
+   * Change the file's sharing scope. The row must already carry the
+   * matching owner column (PATCH never re-owns a file).
+   */
+  visibility?: FileVisibility;
 }
 
 export interface FileCreateTextParams {
   name: string;
   content: string;
   mime_type?: string;
+}
+
+export interface FileCreateOptions {
+  /**
+   * Sharing scope for the new file. Defaults to `"identity"` when the
+   * credential carries an identity claim, else `"project"`.
+   */
+  visibility?: FileVisibility;
 }
 
 // --- runtimes / experiments / runner ---
