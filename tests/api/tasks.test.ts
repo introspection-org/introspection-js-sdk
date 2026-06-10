@@ -93,6 +93,34 @@ describe("TasksApi", () => {
     });
   });
 
+  it("create() with visibility includes it in the POST /v1/tasks body", async () => {
+    const http = mockHttp({
+      requestResult: { task: TASK_FIXTURE, run: RUN_FIXTURE },
+    });
+    const api = new TasksApi(http);
+    await api.create({ title: "Scoped task", visibility: "identity" });
+
+    expect(http.request).toHaveBeenCalledWith({
+      method: "POST",
+      path: "/v1/tasks",
+      body: { title: "Scoped task", visibility: "identity" },
+    });
+  });
+
+  it("list() forwards visibility and identity_key filters", async () => {
+    const http = mockHttp({
+      requestResult: { records: [], count: 0, total_count: 0, next: null },
+    });
+    const api = new TasksApi(http);
+    await api.list({ visibility: "identity", identity_key: "user:u_a" });
+
+    expect(http.request).toHaveBeenCalledWith({
+      method: "GET",
+      path: "/v1/tasks",
+      query: { visibility: "identity", identity_key: "user:u_a" },
+    });
+  });
+
   it("get() calls GET /v1/tasks/:id", async () => {
     const http = mockHttp({ requestResult: TASK_FIXTURE });
     const api = new TasksApi(http);

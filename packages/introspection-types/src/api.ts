@@ -51,6 +51,20 @@ export interface AgentInfo {
   session_id?: string | null;
 }
 
+/**
+ * Minimum sharing scope of a task.
+ *
+ * - `"identity"` — only the caller identity that owns the task (default
+ *   when the credential carries an identity claim).
+ * - `"member"`   — the owning member's sessions.
+ * - `"project"`  — any project principal (default for identity-less
+ *   credentials; pre-visibility behaviour).
+ *
+ * The task's `identity_key` is derived from JWT claims, never the
+ * request body.
+ */
+export type TaskVisibility = "identity" | "member" | "project";
+
 export interface Task {
   id: Uuid;
   org_id: Uuid;
@@ -70,6 +84,8 @@ export interface Task {
   last_user_message_at?: IsoDate | null;
   metadata?: Record<string, unknown> | null;
   agent?: AgentInfo | null;
+  visibility: TaskVisibility;
+  identity_key?: string | null;
 }
 
 export interface TaskCreateParams {
@@ -79,6 +95,11 @@ export interface TaskCreateParams {
   system_id?: string;
   repository_id?: string;
   metadata?: Record<string, unknown>;
+  /**
+   * Sharing scope for the new task. Defaults to `"identity"` when the
+   * credential carries an identity claim, else `"project"`.
+   */
+  visibility?: TaskVisibility;
 }
 
 export interface TaskUpdateParams {
@@ -91,6 +112,9 @@ export interface TaskListParams extends ListParams {
   statuses?: TaskStatus[];
   modes?: TaskMode[];
   require_automation_id?: boolean;
+  visibility?: TaskVisibility;
+  /** Privileged credentials only: audit a specific owner identity. */
+  identity_key?: string;
 }
 
 export interface TaskPrompt {
