@@ -101,12 +101,28 @@ export interface BinaryDataPart {
   content?: string;
 }
 
+/**
+ * A compacted-history summary part.
+ *
+ * Emitted when an agent compacts its conversation history: the model-visible
+ * summary that replaced the compacted messages, without the prose wrapper the
+ * agent renders around it (e.g. Pi's "The conversation history before this
+ * point was compacted…" preamble).
+ */
+export interface CompactionPart {
+  /** Discriminator — always `"compaction"`. */
+  type: "compaction";
+  /** Compacted summary text shown to the model. */
+  content: string;
+}
+
 /** Union of all possible message-part shapes. */
 export type MessagePart =
   | TextPart
   | ReasoningPart
   | ToolCallRequestPart
   | ToolCallResponsePart
+  | CompactionPart
   | MediaUrlPart
   | BinaryDataPart;
 

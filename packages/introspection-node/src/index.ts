@@ -140,6 +140,7 @@ export type {
   TextPart,
   ToolCallRequestPart,
   ToolCallResponsePart,
+  CompactionPart,
   MediaUrlPart,
   BinaryDataPart,
   MessagePart,

@@ -17,6 +17,7 @@ import type {
   UserMessage,
 } from "@earendil-works/pi-ai";
 import type {
+  CompactionPart,
   InputMessage,
   MessagePart,
   OutputMessage,
@@ -26,6 +27,23 @@ import type {
   ToolCallRequestPart,
   ToolCallResponsePart,
 } from "@introspection-sdk/types";
+
+/**
+ * Pi renders a compaction summary into model-visible context as a user
+ * message wrapping the summary in this prose preamble + `<summary>` tags
+ * (`COMPACTION_SUMMARY_PREFIX` / `COMPACTION_SUMMARY_SUFFIX` in
+ * `@earendil-works/pi-coding-agent`'s `core/messages.ts` — not exported,
+ * so mirrored here). The contract test in `tests/converters/pi.test.ts`
+ * pins these against pi's real `convertToLlm` output, so a rewording in
+ * pi fails the SDK tests instead of silently breaking detection.
+ */
+const COMPACTION_SUMMARY_PREFIX = `The conversation history before this point was compacted into the following summary:
+
+<summary>
+`;
+
+const COMPACTION_SUMMARY_SUFFIX = `
+</summary>`;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // pi-ai → semconv
@@ -78,6 +96,21 @@ function userMessageToSemconv(message: UserMessage): InputMessage {
     typeof message.content === "string"
       ? message.content
       : extractTextFromUserContent(message.content);
+  // Anchored on both ends so a user message merely quoting the preamble
+  // somewhere in its body is never rewritten.
+  if (
+    text.startsWith(COMPACTION_SUMMARY_PREFIX) &&
+    text.endsWith(COMPACTION_SUMMARY_SUFFIX)
+  ) {
+    const content = text.slice(
+      COMPACTION_SUMMARY_PREFIX.length,
+      text.length - COMPACTION_SUMMARY_SUFFIX.length,
+    );
+    return {
+      role: "user",
+      parts: [{ type: "compaction", content }],
+    };
+  }
   return {
     role: "user",
     parts: [{ type: "text", content: text }],
@@ -228,9 +261,18 @@ export function inputMessagesToMessages(
     const parts = message.parts ?? [];
 
     if (message.role === "user") {
+      // Compaction parts are re-rendered into the exact prefixed text Pi
+      // originally sent to the model, so hydrated history is byte-identical.
       const text = parts
-        .filter(isTextPart)
-        .map((part) => part.content)
+        .map((part) =>
+          isTextPart(part)
+            ? part.content
+            : isCompactionPart(part)
+              ? COMPACTION_SUMMARY_PREFIX +
+                part.content +
+                COMPACTION_SUMMARY_SUFFIX
+              : "",
+        )
         .join("");
       if (!text) continue;
       result.push({ role: "user", content: text, timestamp: 0 });
@@ -403,6 +445,10 @@ function sanitizeToolPairing(messages: readonly Message[]): Message[] {
 
 function isTextPart(part: MessagePart): part is TextPart {
   return part.type === "text";
+}
+
+function isCompactionPart(part: MessagePart): part is CompactionPart {
+  return part.type === "compaction";
 }
 
 function isReasoningPart(part: MessagePart): part is ReasoningPart {

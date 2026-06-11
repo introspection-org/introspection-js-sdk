@@ -13,6 +13,7 @@ import type {
   ToolResultMessage,
   UserMessage,
 } from "@earendil-works/pi-ai";
+import { convertToLlm } from "@earendil-works/pi-coding-agent";
 import {
   assistantToOutputMessages,
   inputMessagesToMessages,
@@ -232,6 +233,69 @@ describe("inputMessagesToMessages (semconv → pi-ai)", () => {
     const assistant = replayed[0] as AssistantMessage;
     expect(assistant.content).toEqual([
       { type: "text", text: "About to call." },
+    ]);
+  });
+});
+
+describe("compaction summaries", () => {
+  const SUMMARY = "Use pnpm and keep citations.";
+  const RENDERED_COMPACTION_TEXT = `The conversation history before this point was compacted into the following summary:
+
+<summary>
+${SUMMARY}
+</summary>`;
+
+  it("encodes a Pi-rendered compaction message as a compaction part", () => {
+    const inputs = messagesToInputMessages([
+      userMessage(RENDERED_COMPACTION_TEXT),
+    ]);
+    expect(inputs).toEqual([
+      { role: "user", parts: [{ type: "compaction", content: SUMMARY }] },
+    ]);
+  });
+
+  it("matches pi's real convertToLlm rendering (cross-repo contract)", () => {
+    // The wire contract: pi renders a compactionSummary message into user
+    // text via convertToLlm; the converter must recognize exactly that
+    // rendering. If pi rewords its preamble, this test fails — update the
+    // mirrored COMPACTION_SUMMARY_* constants in convert.ts to match.
+    const rendered = convertToLlm([
+      {
+        role: "compactionSummary",
+        summary: SUMMARY,
+        tokensBefore: 12_345,
+        timestamp: 0,
+      },
+    ]);
+    const inputs = messagesToInputMessages(rendered as Message[]);
+    expect(inputs).toEqual([
+      { role: "user", parts: [{ type: "compaction", content: SUMMARY }] },
+    ]);
+  });
+
+  it("re-renders compaction parts byte-identically on hydration", () => {
+    const replayed = inputMessagesToMessages([
+      { role: "user", parts: [{ type: "compaction", content: SUMMARY }] },
+    ]);
+    expect(replayed).toEqual([
+      { role: "user", content: RENDERED_COMPACTION_TEXT, timestamp: 0 },
+    ]);
+  });
+
+  it("round-trips pi-rendered compaction text through both converters", () => {
+    const replayed = inputMessagesToMessages(
+      messagesToInputMessages([userMessage(RENDERED_COMPACTION_TEXT)]),
+    );
+    expect(replayed).toEqual([
+      { role: "user", content: RENDERED_COMPACTION_TEXT, timestamp: 0 },
+    ]);
+  });
+
+  it("leaves a user message merely quoting the preamble as a text part", () => {
+    const quoting = `What does this mean?\n\n${RENDERED_COMPACTION_TEXT}`;
+    const inputs = messagesToInputMessages([userMessage(quoting)]);
+    expect(inputs).toEqual([
+      { role: "user", parts: [{ type: "text", content: quoting }] },
     ]);
   });
 });
