@@ -41,17 +41,18 @@ describe("TasksApi", () => {
       },
     });
     const api = new TasksApi(http);
-    const result = await api.list({ limit: 10 });
+    const tasks = [];
+    for await (const t of api.list({ limit: 10 })) tasks.push(t);
 
     expect(http.request).toHaveBeenCalledWith({
       method: "GET",
       path: "/v1/tasks",
       query: { limit: 10 },
     });
-    expect(result.records).toHaveLength(1);
+    expect(tasks).toHaveLength(1);
   });
 
-  it("listAll() paginates through all pages", async () => {
+  it("list() paginates through all pages", async () => {
     const page1 = {
       records: [TASK_FIXTURE],
       count: 1,
@@ -71,12 +72,15 @@ describe("TasksApi", () => {
 
     const api = new TasksApi(http);
     const tasks = [];
-    for await (const t of api.listAll()) tasks.push(t);
+    for await (const t of api.list()) tasks.push(t);
 
     expect(tasks).toHaveLength(2);
     expect(tasks[0].id).toBe("task-1");
     expect(tasks[1].id).toBe("task-2");
     expect(http.request).toHaveBeenCalledTimes(2);
+    expect(
+      (http.request as ReturnType<typeof vi.fn>).mock.calls[1][0].query.next,
+    ).toBe("cursor-2");
   });
 
   it("create() calls POST /v1/tasks", async () => {

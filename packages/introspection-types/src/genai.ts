@@ -73,12 +73,58 @@ export interface ToolCallResponsePart {
   name?: string;
 }
 
+/**
+ * A media content part referenced by URL.
+ *
+ * The `type` discriminator names the media kind (image / audio / video /
+ * document); the payload itself lives behind `url`.
+ */
+export interface MediaUrlPart {
+  /** Discriminator — the media kind. */
+  type: "image-url" | "audio-url" | "video-url" | "document-url";
+  /** URL to the media content. */
+  url?: string;
+}
+
+/**
+ * A binary data part carrying inline base64-encoded content.
+ *
+ * Used when media is embedded directly in the message instead of being
+ * referenced by URL.
+ */
+export interface BinaryDataPart {
+  /** Discriminator — always `"binary"`. */
+  type: "binary";
+  /** MIME type of the content (e.g. `"image/png"`). */
+  media_type: string;
+  /** Base64-encoded content. */
+  content?: string;
+}
+
+/**
+ * A compacted-history summary part.
+ *
+ * Emitted when an agent compacts its conversation history: the model-visible
+ * summary that replaced the compacted messages, without the prose wrapper the
+ * agent renders around it (e.g. Pi's "The conversation history before this
+ * point was compacted…" preamble).
+ */
+export interface CompactionPart {
+  /** Discriminator — always `"compaction"`. */
+  type: "compaction";
+  /** Compacted summary text shown to the model. */
+  content: string;
+}
+
 /** Union of all possible message-part shapes. */
 export type MessagePart =
   | TextPart
   | ReasoningPart
   | ToolCallRequestPart
-  | ToolCallResponsePart;
+  | ToolCallResponsePart
+  | CompactionPart
+  | MediaUrlPart
+  | BinaryDataPart;
 
 /** A system instruction entry for `gen_ai.system_instructions`. */
 export interface SystemInstruction {

@@ -220,11 +220,17 @@ function makeClient() {
   });
 }
 
+async function collect<T>(iter: AsyncIterable<T>): Promise<T[]> {
+  const out: T[] = [];
+  for await (const x of iter) out.push(x);
+  return out;
+}
+
 describe("IntrospectionClient (REST control-plane, real server)", () => {
   it("sends the bearer token and resolves base URL", async () => {
     requests = [];
     const client = makeClient();
-    await client.runtimes.list({ project_id: "proj-1" });
+    await collect(client.runtimes.list({ project_id: "proj-1" }));
     expect(requests[0].auth).toBe("Bearer test-token");
     expect(requests[0].path).toBe("/v1/runtimes");
     await client.shutdown();
@@ -243,8 +249,10 @@ describe("IntrospectionClient (REST control-plane, real server)", () => {
   describe("runtimes", () => {
     it("CRUD + activate", async () => {
       const client = makeClient();
-      const listed = await client.runtimes.list({ project_id: "proj-1" });
-      expect(listed.records[0].name).toBe("customer-agent");
+      const listed = await collect(
+        client.runtimes.list({ project_id: "proj-1" }),
+      );
+      expect(listed[0].name).toBe("customer-agent");
 
       const created = await client.runtimes.create({
         name: "customer-agent",
@@ -271,10 +279,10 @@ describe("IntrospectionClient (REST control-plane, real server)", () => {
       expect(activated.is_active).toBe(true);
     });
 
-    it("listAll paginates across pages", async () => {
+    it("list paginates across pages", async () => {
       const client = makeClient();
       const ids: string[] = [];
-      for await (const r of client.runtimes.listAll({
+      for await (const r of client.runtimes.list({
         project_id: "proj-1",
         paginate: 1,
       } as never)) {
@@ -339,7 +347,7 @@ describe("IntrospectionClient (REST control-plane, real server)", () => {
     it("CRUD + lifecycle + run", async () => {
       const client = makeClient();
       expect(
-        (await client.experiments.list({ project_id: "proj-1" })).records,
+        await collect(client.experiments.list({ project_id: "proj-1" })),
       ).toHaveLength(1);
       expect(
         (await client.experiments.create({ name: "exp-a" } as never)).id,
@@ -368,10 +376,10 @@ describe("IntrospectionClient (REST control-plane, real server)", () => {
       expect(runner.session_id).toBe("sess-1");
     });
 
-    it("listAll paginates", async () => {
+    it("list paginates", async () => {
       const client = makeClient();
       const seen = [];
-      for await (const e of client.experiments.listAll({
+      for await (const e of client.experiments.list({
         project_id: "proj-1",
       }))
         seen.push(e.id);
@@ -380,10 +388,10 @@ describe("IntrospectionClient (REST control-plane, real server)", () => {
   });
 
   describe("recipes", () => {
-    it("CRUD + listAll", async () => {
+    it("CRUD + list", async () => {
       const client = makeClient();
       expect(
-        (await client.recipes.list({ project_id: "proj-1" })).records,
+        await collect(client.recipes.list({ project_id: "proj-1" })),
       ).toHaveLength(1);
       expect(
         (await client.recipes.create({ git_ref: "main" } as never)).id,
@@ -398,7 +406,7 @@ describe("IntrospectionClient (REST control-plane, real server)", () => {
       ).toBe("release");
       await expect(client.recipes.delete(RECIPE.id)).resolves.toBeUndefined();
       const seen = [];
-      for await (const r of client.recipes.listAll({ project_id: "proj-1" }))
+      for await (const r of client.recipes.list({ project_id: "proj-1" }))
         seen.push(r.id);
       expect(seen).toEqual([RECIPE.id]);
     });
@@ -418,8 +426,8 @@ describe("IntrospectionClient (REST control-plane, real server)", () => {
 
       // DP call routes to deployment.endpoint with the runner JWT.
       requests = [];
-      const tasks = await runner.tasks.list();
-      expect(tasks.records[0].id).toBe("task-1");
+      const tasks = await collect(runner.tasks.list());
+      expect(tasks[0].id).toBe("task-1");
       expect(requests.find((r) => r.path === "/v1/tasks")?.auth).toBe(
         "Bearer runner-jwt",
       );
@@ -427,10 +435,11 @@ describe("IntrospectionClient (REST control-plane, real server)", () => {
       // Manual escape hatch: refresh re-calls the CP /run route.
       await expect(runner.refresh()).resolves.toBeUndefined();
 
-      // After close, guarded HTTP rejects further DP calls.
+      // After close, guarded HTTP rejects further DP calls. The guard
+      // fires on first iteration of the lazy generator.
       await runner.close();
       expect(runner.isClosed).toBe(true);
-      await expect(runner.tasks.list()).rejects.toBeInstanceOf(
+      await expect(collect(runner.tasks.list())).rejects.toBeInstanceOf(
         RunnerExpiredError,
       );
       await expect(runner.refresh()).rejects.toBeInstanceOf(RunnerExpiredError);

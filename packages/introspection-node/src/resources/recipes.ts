@@ -18,19 +18,19 @@ import type { HttpClient } from "../http.js";
 export class RecipesApi {
   constructor(private readonly http: HttpClient) {}
 
-  list(params: RecipeListParams): Promise<Paginated<Recipe>> {
-    return this.http.request<Paginated<Recipe>>({
-      method: "GET",
-      path: "/v1/recipes",
-      query: params as unknown as Record<string, unknown>,
-    });
-  }
-
-  /** Async-iterate every page that matches `params`. */
-  async *listAll(params: RecipeListParams): AsyncIterable<Recipe> {
+  /**
+   * Iterate recipes matching `params`. Pages are fetched lazily as the
+   * iterator is consumed (`limit` sets the page size, `next` the
+   * starting cursor); stop early to stop fetching.
+   */
+  async *list(params: RecipeListParams): AsyncIterable<Recipe> {
     let next: string | undefined = params.next;
     do {
-      const page = await this.list({ ...params, next });
+      const page = await this.http.request<Paginated<Recipe>>({
+        method: "GET",
+        path: "/v1/recipes",
+        query: { ...params, next } as unknown as Record<string, unknown>,
+      });
       for (const r of page.records) yield r;
       next = page.next ?? undefined;
     } while (next);

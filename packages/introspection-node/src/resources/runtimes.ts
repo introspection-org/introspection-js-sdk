@@ -50,18 +50,19 @@ export class RuntimesApi {
     private readonly client: IntrospectionClient,
   ) {}
 
-  list(params: RuntimeListParams): Promise<Paginated<Runtime>> {
-    return this.http.request<Paginated<Runtime>>({
-      method: "GET",
-      path: "/v1/runtimes",
-      query: params as unknown as Record<string, unknown>,
-    });
-  }
-
-  async *listAll(params: RuntimeListParams): AsyncIterable<Runtime> {
+  /**
+   * Iterate runtimes matching `params`. Pages are fetched lazily as the
+   * iterator is consumed (`limit` sets the page size, `next` the
+   * starting cursor); stop early to stop fetching.
+   */
+  async *list(params: RuntimeListParams): AsyncIterable<Runtime> {
     let next: string | undefined = params.next;
     do {
-      const page = await this.list({ ...params, next });
+      const page = await this.http.request<Paginated<Runtime>>({
+        method: "GET",
+        path: "/v1/runtimes",
+        query: { ...params, next } as unknown as Record<string, unknown>,
+      });
       for (const r of page.records) yield r;
       next = page.next ?? undefined;
     } while (next);
@@ -101,16 +102,18 @@ export class RuntimesApi {
 
   /** Resolve a name to a runtime by querying `/v1/runtimes?name=…`. */
   async resolveByName(name: string, projectId?: Uuid): Promise<Runtime> {
-    const page = await this.list({ project_id: projectId, name, limit: 2 });
-    const match = page.records.find((r) => r.name === name);
-    if (!match) {
-      throw new NotFoundError({
-        message: `Runtime '${name}' not found${projectId ? ` in project ${projectId}` : ""}`,
-        status: 404,
-        code: "not_found",
-      });
+    for await (const r of this.list({
+      project_id: projectId,
+      name,
+      limit: 2,
+    })) {
+      if (r.name === name) return r;
     }
-    return match;
+    throw new NotFoundError({
+      message: `Runtime '${name}' not found${projectId ? ` in project ${projectId}` : ""}`,
+      status: 404,
+      code: "not_found",
+    });
   }
 
   /** POST `/v1/runtimes/{id}/run` and wrap the result in a `Runner`. */
@@ -219,7 +222,6 @@ export function attachRuntimes(
   // the methods can be invoked off the proxy without losing `this`.
   const hybrid = factory as RuntimesApi & RuntimeHandleFactory;
   hybrid.list = api.list.bind(api);
-  hybrid.listAll = api.listAll.bind(api);
   hybrid.get = api.get.bind(api);
   hybrid.create = api.create.bind(api);
   hybrid.update = api.update.bind(api);

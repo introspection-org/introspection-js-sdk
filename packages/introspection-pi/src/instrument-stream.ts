@@ -47,6 +47,15 @@ export interface InstrumentStreamOptions {
   extraAttributes?: (model: Model<Api>, context: Context) => Attributes;
   /** Override the default span name builder. */
   spanName?: (model: Model<Api>, context: Context) => string;
+  /**
+   * Returns the compaction summaries known for the session, read at span
+   * time so summaries created mid-session are picked up. Source them
+   * structurally from pi's session tree —
+   * `session.sessionManager.getEntries()` filtered to
+   * `type === "compaction"`, mapped to `summary` — so detection does not
+   * depend on the prose wrapper pi renders around the summary.
+   */
+  getCompactionSummaries?: () => readonly string[];
 }
 
 /**
@@ -78,7 +87,11 @@ export function instrumentStream(
       parentContext ?? undefined,
     );
 
-    span.setAttributes(chatRequestAttributes(model, context, opts.meta));
+    span.setAttributes(
+      chatRequestAttributes(model, context, opts.meta, {
+        compactionSummaries: opts.getCompactionSummaries?.(),
+      }),
+    );
     const extra = opts.extraAttributes?.(model, context);
     if (extra) {
       span.setAttributes(extra);

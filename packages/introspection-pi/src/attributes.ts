@@ -18,6 +18,7 @@ import {
   assistantToOutputMessages,
   messagesToInputMessages,
   systemPromptToInstructions,
+  type ConvertOptions,
 } from "./convert.js";
 
 const MAX_BYTES = 64_000;
@@ -34,6 +35,7 @@ export function chatRequestAttributes(
   model: Model<string>,
   context: Context,
   meta: AgentMeta,
+  options?: ConvertOptions,
 ): Attributes {
   const attributes: Attributes = {
     [GenAi.CONVERSATION_ID]: meta.conversationId,
@@ -61,7 +63,7 @@ export function chatRequestAttributes(
   }
 
   attributes[GenAi.INPUT_MESSAGES] = JSON.stringify(
-    messagesToInputMessages(context.messages),
+    messagesToInputMessages(context.messages, options),
   );
 
   return attributes;

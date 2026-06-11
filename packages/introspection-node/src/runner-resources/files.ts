@@ -21,21 +21,21 @@ export type FileUploadBody =
 export class FileVersionsApi {
   constructor(private readonly http: HttpClient) {}
 
-  list(fileId: string, params?: ListParams): Promise<Paginated<FileResource>> {
-    return this.http.request<Paginated<FileResource>>({
-      method: "GET",
-      path: `/v1/files/${encodeURIComponent(fileId)}/versions`,
-      query: params as Record<string, unknown> | undefined,
-    });
-  }
-
-  async *listAll(
+  /**
+   * Iterate versions of a file. Pages are fetched lazily as the
+   * iterator is consumed; stop early to stop fetching.
+   */
+  async *list(
     fileId: string,
     params?: ListParams,
   ): AsyncIterable<FileResource> {
     let next: string | undefined = params?.next;
     do {
-      const page = await this.list(fileId, { ...params, next });
+      const page = await this.http.request<Paginated<FileResource>>({
+        method: "GET",
+        path: `/v1/files/${encodeURIComponent(fileId)}/versions`,
+        query: { ...params, next } as Record<string, unknown>,
+      });
       for (const f of page.records) yield f;
       next = page.next ?? undefined;
     } while (next);
@@ -65,18 +65,19 @@ export class FilesApi {
     this.versions = new FileVersionsApi(http);
   }
 
-  list(params?: FileListParams): Promise<Paginated<FileResource>> {
-    return this.http.request<Paginated<FileResource>>({
-      method: "GET",
-      path: "/v1/files",
-      query: params as Record<string, unknown> | undefined,
-    });
-  }
-
-  async *listAll(params?: FileListParams): AsyncIterable<FileResource> {
+  /**
+   * Iterate files matching `params`. Pages are fetched lazily as the
+   * iterator is consumed (`limit` sets the page size, `next` the
+   * starting cursor); stop early to stop fetching.
+   */
+  async *list(params?: FileListParams): AsyncIterable<FileResource> {
     let next: string | undefined = params?.next;
     do {
-      const page = await this.list({ ...params, next });
+      const page = await this.http.request<Paginated<FileResource>>({
+        method: "GET",
+        path: "/v1/files",
+        query: { ...params, next } as Record<string, unknown>,
+      });
       for (const f of page.records) yield f;
       next = page.next ?? undefined;
     } while (next);

@@ -84,18 +84,19 @@ export class TasksApi {
     this.runs = new TaskRunsApi(http);
   }
 
-  list(params?: TaskListParams): Promise<Paginated<Task>> {
-    return this.http.request<Paginated<Task>>({
-      method: "GET",
-      path: "/v1/tasks",
-      query: params as Record<string, unknown> | undefined,
-    });
-  }
-
-  async *listAll(params?: TaskListParams): AsyncIterable<Task> {
+  /**
+   * Iterate tasks matching `params`. Pages are fetched lazily as the
+   * iterator is consumed (`limit` sets the page size, `next` the
+   * starting cursor); stop early to stop fetching.
+   */
+  async *list(params?: TaskListParams): AsyncIterable<Task> {
     let next: string | undefined = params?.next;
     do {
-      const page = await this.list({ ...params, next });
+      const page = await this.http.request<Paginated<Task>>({
+        method: "GET",
+        path: "/v1/tasks",
+        query: { ...params, next } as Record<string, unknown>,
+      });
       for (const t of page.records) yield t;
       next = page.next ?? undefined;
     } while (next);
