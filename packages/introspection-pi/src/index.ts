@@ -46,6 +46,7 @@ export {
   inputMessagesToMessages,
   messagesToInputMessages,
   systemPromptToInstructions,
+  type ConvertOptions,
 } from "./convert.js";
 
 // Re-export the GenAI types so consumers don't need a second import.

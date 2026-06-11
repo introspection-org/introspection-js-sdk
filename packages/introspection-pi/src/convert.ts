@@ -33,9 +33,11 @@ import type {
  * message wrapping the summary in this prose preamble + `<summary>` tags
  * (`COMPACTION_SUMMARY_PREFIX` / `COMPACTION_SUMMARY_SUFFIX` in
  * `@earendil-works/pi-coding-agent`'s `core/messages.ts` — not exported,
- * so mirrored here). The contract test in `tests/converters/pi.test.ts`
- * pins these against pi's real `convertToLlm` output, so a rewording in
- * pi fails the SDK tests instead of silently breaking detection.
+ * so mirrored here). This is only the FALLBACK detection path for callers
+ * that cannot supply {@link ConvertOptions.compactionSummaries}; the
+ * contract test in `tests/converters/pi.test.ts` pins these against pi's
+ * real `convertToLlm` output, so a rewording in pi fails the SDK tests
+ * instead of silently breaking the fallback.
  */
 const COMPACTION_SUMMARY_PREFIX = `The conversation history before this point was compacted into the following summary:
 
@@ -45,6 +47,22 @@ const COMPACTION_SUMMARY_PREFIX = `The conversation history before this point wa
 const COMPACTION_SUMMARY_SUFFIX = `
 </summary>`;
 
+/** Options for the pi-ai → semconv conversion. */
+export interface ConvertOptions {
+  /**
+   * Known compaction summaries for the session, sourced structurally from
+   * pi's session tree (`session.sessionManager.getEntries()` →
+   * `type === "compaction"` → `summary`) or the `session_compact`
+   * extension event. A user message containing one of these verbatim is
+   * emitted as a `compaction` part with that summary as content,
+   * regardless of the prose wrapper pi rendered around it — so this path
+   * keeps working if pi rewords its preamble or an extension customizes
+   * compaction. When absent (or nothing matches), detection falls back to
+   * the mirrored prefix/suffix sniff above.
+   */
+  compactionSummaries?: readonly string[];
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // pi-ai → semconv
 // ─────────────────────────────────────────────────────────────────────────────
@@ -52,10 +70,11 @@ const COMPACTION_SUMMARY_SUFFIX = `
 /** Convert a `Message[]` (pi-ai source) to the `gen_ai.input.messages` shape. */
 export function messagesToInputMessages(
   messages: readonly Message[],
+  options?: ConvertOptions,
 ): InputMessage[] {
   const result: InputMessage[] = [];
   for (const message of messages) {
-    const converted = messageToSemconv(message);
+    const converted = messageToSemconv(message, options);
     if (converted) result.push(converted);
   }
   return result;
@@ -76,10 +95,13 @@ export function systemPromptToInstructions(
   return [{ type: "text", content: systemPrompt }];
 }
 
-function messageToSemconv(message: Message): InputMessage | null {
+function messageToSemconv(
+  message: Message,
+  options?: ConvertOptions,
+): InputMessage | null {
   switch (message.role) {
     case "user":
-      return userMessageToSemconv(message);
+      return userMessageToSemconv(message, options);
     case "assistant": {
       const semconv = assistantMessageToSemconv(message);
       // For input messages we include the assistant message as-is (no
@@ -91,30 +113,56 @@ function messageToSemconv(message: Message): InputMessage | null {
   }
 }
 
-function userMessageToSemconv(message: UserMessage): InputMessage {
+function userMessageToSemconv(
+  message: UserMessage,
+  options?: ConvertOptions,
+): InputMessage {
   const text =
     typeof message.content === "string"
       ? message.content
       : extractTextFromUserContent(message.content);
-  // Anchored on both ends so a user message merely quoting the preamble
-  // somewhere in its body is never rewritten.
-  if (
-    text.startsWith(COMPACTION_SUMMARY_PREFIX) &&
-    text.endsWith(COMPACTION_SUMMARY_SUFFIX)
-  ) {
-    const content = text.slice(
-      COMPACTION_SUMMARY_PREFIX.length,
-      text.length - COMPACTION_SUMMARY_SUFFIX.length,
-    );
+  const summary = matchCompactionSummary(text, options);
+  if (summary !== null) {
     return {
       role: "user",
-      parts: [{ type: "compaction", content }],
+      parts: [{ type: "compaction", content: summary }],
     };
   }
   return {
     role: "user",
     parts: [{ type: "text", content: text }],
   };
+}
+
+/**
+ * Identify a user message as a rendered compaction summary.
+ *
+ * Primary path: the text contains a session-known summary verbatim
+ * (wrapper-agnostic — see {@link ConvertOptions.compactionSummaries}).
+ * Fallback: the text is wrapped in pi's default preamble + `<summary>`
+ * tags, anchored on both ends so a user message merely quoting the
+ * preamble somewhere in its body is never rewritten.
+ *
+ * Returns the summary content, or null when the message is not a
+ * compaction rendering.
+ */
+function matchCompactionSummary(
+  text: string,
+  options?: ConvertOptions,
+): string | null {
+  for (const summary of options?.compactionSummaries ?? []) {
+    if (summary && text.includes(summary)) return summary;
+  }
+  if (
+    text.startsWith(COMPACTION_SUMMARY_PREFIX) &&
+    text.endsWith(COMPACTION_SUMMARY_SUFFIX)
+  ) {
+    return text.slice(
+      COMPACTION_SUMMARY_PREFIX.length,
+      text.length - COMPACTION_SUMMARY_SUFFIX.length,
+    );
+  }
+  return null;
 }
 
 interface SemconvAssistant {

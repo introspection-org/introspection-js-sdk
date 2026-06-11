@@ -299,3 +299,49 @@ ${SUMMARY}
     ]);
   });
 });
+
+describe("compaction summaries — structural detection via compactionSummaries", () => {
+  const SUMMARY = "Use pnpm and keep citations.";
+
+  it("detects a compaction message via a session-known summary", () => {
+    const rendered = `The conversation history before this point was compacted into the following summary:\n\n<summary>\n${SUMMARY}\n</summary>`;
+    const inputs = messagesToInputMessages([userMessage(rendered)], {
+      compactionSummaries: [SUMMARY],
+    });
+    expect(inputs).toEqual([
+      { role: "user", parts: [{ type: "compaction", content: SUMMARY }] },
+    ]);
+  });
+
+  it("survives a reworded wrapper when the summary is session-known", () => {
+    // Simulates pi (or a custom-compaction extension) changing the prose
+    // around the summary: the prefix fallback would miss this, the
+    // structural path must not.
+    const reworded = `Everything earlier was squashed. Summary follows:\n${SUMMARY}\nCarry on.`;
+    const inputs = messagesToInputMessages([userMessage(reworded)], {
+      compactionSummaries: [SUMMARY],
+    });
+    expect(inputs).toEqual([
+      { role: "user", parts: [{ type: "compaction", content: SUMMARY }] },
+    ]);
+  });
+
+  it("ignores empty session summaries and ordinary user messages", () => {
+    const inputs = messagesToInputMessages([userMessage("just a question")], {
+      compactionSummaries: ["", SUMMARY],
+    });
+    expect(inputs).toEqual([
+      { role: "user", parts: [{ type: "text", content: "just a question" }] },
+    ]);
+  });
+
+  it("falls back to prefix detection when no summaries are supplied", () => {
+    const rendered = `The conversation history before this point was compacted into the following summary:\n\n<summary>\n${SUMMARY}\n</summary>`;
+    const inputs = messagesToInputMessages([userMessage(rendered)], {
+      compactionSummaries: [],
+    });
+    expect(inputs).toEqual([
+      { role: "user", parts: [{ type: "compaction", content: SUMMARY }] },
+    ]);
+  });
+});
