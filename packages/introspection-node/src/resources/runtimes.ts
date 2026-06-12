@@ -12,6 +12,7 @@ import type {
 import { NotFoundError } from "@introspection-sdk/types";
 import type { HttpClient } from "../http.js";
 import type { IntrospectionClient } from "../client.js";
+import { Paginator, cursorPaginate } from "../pagination.js";
 import { Runner, type RunnerSource } from "../runner.js";
 
 const UUID_RE =
@@ -51,21 +52,21 @@ export class RuntimesApi {
   ) {}
 
   /**
-   * Iterate runtimes matching `params`. Pages are fetched lazily as the
-   * iterator is consumed (`limit` sets the page size, `next` the
-   * starting cursor); stop early to stop fetching.
+   * List runtimes matching `params`. `await` the result for the first
+   * page, or `for await` it to stream every runtime across pages (fetched
+   * lazily — `limit` sets the page size, `next` the starting cursor; stop
+   * early to stop fetching).
    */
-  async *list(params: RuntimeListParams): AsyncIterable<Runtime> {
-    let next: string | undefined = params.next;
-    do {
-      const page = await this.http.request<Paginated<Runtime>>({
-        method: "GET",
-        path: "/v1/runtimes",
-        query: { ...params, next } as unknown as Record<string, unknown>,
-      });
-      for (const r of page.records) yield r;
-      next = page.next ?? undefined;
-    } while (next);
+  list(params: RuntimeListParams): Paginator<Runtime> {
+    return cursorPaginate(
+      (next) =>
+        this.http.request<Paginated<Runtime>>({
+          method: "GET",
+          path: "/v1/runtimes",
+          query: { ...params, next } as unknown as Record<string, unknown>,
+        }),
+      params.next,
+    );
   }
 
   get(id: Uuid, params: { project_id?: Uuid }): Promise<Runtime> {

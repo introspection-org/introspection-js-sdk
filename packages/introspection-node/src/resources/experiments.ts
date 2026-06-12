@@ -11,6 +11,7 @@ import type {
 } from "@introspection-sdk/types";
 import type { HttpClient } from "../http.js";
 import type { IntrospectionClient } from "../client.js";
+import { Paginator, cursorPaginate } from "../pagination.js";
 import { Runner, type RunnerSource } from "../runner.js";
 
 interface ExperimentRunRequestBody {
@@ -37,21 +38,21 @@ export class ExperimentsApi {
   ) {}
 
   /**
-   * Iterate experiments matching `params`. Pages are fetched lazily as
-   * the iterator is consumed (`limit` sets the page size, `next` the
-   * starting cursor); stop early to stop fetching.
+   * List experiments matching `params`. `await` the result for the first
+   * page, or `for await` it to stream every experiment across pages
+   * (fetched lazily — `limit` sets the page size, `next` the starting
+   * cursor; stop early to stop fetching).
    */
-  async *list(params: ExperimentListParams): AsyncIterable<Experiment> {
-    let next: string | undefined = params.next;
-    do {
-      const page = await this.http.request<Paginated<Experiment>>({
-        method: "GET",
-        path: "/v1/experiments",
-        query: { ...params, next } as unknown as Record<string, unknown>,
-      });
-      for (const r of page.records) yield r;
-      next = page.next ?? undefined;
-    } while (next);
+  list(params: ExperimentListParams): Paginator<Experiment> {
+    return cursorPaginate(
+      (next) =>
+        this.http.request<Paginated<Experiment>>({
+          method: "GET",
+          path: "/v1/experiments",
+          query: { ...params, next } as unknown as Record<string, unknown>,
+        }),
+      params.next,
+    );
   }
 
   get(id: Uuid): Promise<Experiment> {
