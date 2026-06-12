@@ -111,6 +111,53 @@ describe("FilesApi", () => {
     });
   });
 
+  it("createText() with visibility option includes it in the JSON body", async () => {
+    const http = mockHttp({ requestResult: FILE_FIXTURE });
+    const api = new FilesApi(http);
+    await api.createText(
+      { name: "notes.md", content: "# Hello", mime_type: "text/markdown" },
+      { visibility: "identity" },
+    );
+
+    expect(http.request).toHaveBeenCalledWith({
+      method: "POST",
+      path: "/v1/files",
+      body: {
+        name: "notes.md",
+        content: "# Hello",
+        mime_type: "text/markdown",
+        visibility: "identity",
+      },
+    });
+  });
+
+  it("upload() with visibility option appends the form field", async () => {
+    const http = mockHttp({ requestResult: FILE_FIXTURE });
+    const api = new FilesApi(http);
+    await api.upload(
+      { file: new Blob(["hi"]), name: "hi.txt" },
+      { visibility: "project" },
+    );
+
+    const call = (http.request as ReturnType<typeof vi.fn>).mock.calls[0][0];
+    expect(call.body).toBeInstanceOf(FormData);
+    expect((call.body as FormData).get("visibility")).toBe("project");
+  });
+
+  it("list() forwards visibility and task_id filters", async () => {
+    const http = mockHttp({
+      requestResult: { records: [], count: 0, total_count: 0, next: null },
+    });
+    const api = new FilesApi(http);
+    await api.list({ visibility: "identity", task_id: "task-1" });
+
+    expect(http.request).toHaveBeenCalledWith({
+      method: "GET",
+      path: "/v1/files",
+      query: { visibility: "identity", task_id: "task-1" },
+    });
+  });
+
   it("get() calls GET /v1/files/:id", async () => {
     const http = mockHttp({ requestResult: FILE_FIXTURE });
     const api = new FilesApi(http);

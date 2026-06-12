@@ -1,5 +1,6 @@
 import type {
   File as FileResource,
+  FileCreateOptions,
   FileCreateTextParams,
   FileListParams,
   FileType,
@@ -48,8 +49,12 @@ export class FileVersionsApi {
     });
   }
 
-  create(fileId: string, body: FileUploadBody): Promise<FileResource> {
-    const form = toFormData(body);
+  create(
+    fileId: string,
+    body: FileUploadBody,
+    options?: FileCreateOptions,
+  ): Promise<FileResource> {
+    const form = toFormData(body, options);
     return this.http.request<FileResource>({
       method: "POST",
       path: `/v1/files/${encodeURIComponent(fileId)}/versions`,
@@ -83,8 +88,11 @@ export class FilesApi {
     } while (next);
   }
 
-  upload(body: FileUploadBody): Promise<FileResource> {
-    const form = toFormData(body);
+  upload(
+    body: FileUploadBody,
+    options?: FileCreateOptions,
+  ): Promise<FileResource> {
+    const form = toFormData(body, options);
     return this.http.request<FileResource>({
       method: "POST",
       path: "/v1/files",
@@ -92,11 +100,16 @@ export class FilesApi {
     });
   }
 
-  createText(body: FileCreateTextParams): Promise<FileResource> {
+  createText(
+    body: FileCreateTextParams,
+    options?: FileCreateOptions,
+  ): Promise<FileResource> {
     return this.http.request<FileResource>({
       method: "POST",
       path: "/v1/files",
-      body,
+      body: options?.visibility
+        ? { ...body, visibility: options.visibility }
+        : body,
     });
   }
 
@@ -140,7 +153,10 @@ export class FilesApi {
   }
 }
 
-function toFormData(body: FileUploadBody): FormData {
+function toFormData(
+  body: FileUploadBody,
+  options?: FileCreateOptions,
+): FormData {
   const fd = new FormData();
   if ("file" in body && body.file instanceof Blob) {
     fd.append("file", body.file, body.name);
@@ -160,5 +176,6 @@ function toFormData(body: FileUploadBody): FormData {
   }
   if (body.name) fd.append("name", body.name);
   if (body.file_type) fd.append("file_type", body.file_type);
+  if (options?.visibility) fd.append("visibility", options.visibility);
   return fd;
 }
