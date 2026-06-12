@@ -7,6 +7,7 @@ import type {
   Uuid,
 } from "@introspection-sdk/types";
 import type { HttpClient } from "../http.js";
+import { Paginator, cursorPaginate } from "../pagination.js";
 
 /**
  * Programmatic CRUD for `/v1/recipes` on the CP.
@@ -19,21 +20,21 @@ export class RecipesApi {
   constructor(private readonly http: HttpClient) {}
 
   /**
-   * Iterate recipes matching `params`. Pages are fetched lazily as the
-   * iterator is consumed (`limit` sets the page size, `next` the
-   * starting cursor); stop early to stop fetching.
+   * List recipes matching `params`. `await` the result for the first
+   * page, or `for await` it to stream every recipe across pages (fetched
+   * lazily — `limit` sets the page size, `next` the starting cursor; stop
+   * early to stop fetching).
    */
-  async *list(params: RecipeListParams): AsyncIterable<Recipe> {
-    let next: string | undefined = params.next;
-    do {
-      const page = await this.http.request<Paginated<Recipe>>({
-        method: "GET",
-        path: "/v1/recipes",
-        query: { ...params, next } as unknown as Record<string, unknown>,
-      });
-      for (const r of page.records) yield r;
-      next = page.next ?? undefined;
-    } while (next);
+  list(params: RecipeListParams): Paginator<Recipe> {
+    return cursorPaginate(
+      (next) =>
+        this.http.request<Paginated<Recipe>>({
+          method: "GET",
+          path: "/v1/recipes",
+          query: { ...params, next } as unknown as Record<string, unknown>,
+        }),
+      params.next,
+    );
   }
 
   get(id: Uuid): Promise<Recipe> {

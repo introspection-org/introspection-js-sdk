@@ -9,6 +9,7 @@ import type {
   Paginated,
 } from "@introspection-sdk/types";
 import { HttpClient } from "../http.js";
+import { Paginator, cursorPaginate } from "../pagination.js";
 
 export type FileUploadBody =
   | { file: Blob; name?: string; file_type?: FileType }
@@ -23,23 +24,20 @@ export class FileVersionsApi {
   constructor(private readonly http: HttpClient) {}
 
   /**
-   * Iterate versions of a file. Pages are fetched lazily as the
-   * iterator is consumed; stop early to stop fetching.
+   * List versions of a file. `await` the result for the first page, or
+   * `for await` it to stream every version across pages (fetched lazily;
+   * stop early to stop fetching).
    */
-  async *list(
-    fileId: string,
-    params?: ListParams,
-  ): AsyncIterable<FileResource> {
-    let next: string | undefined = params?.next;
-    do {
-      const page = await this.http.request<Paginated<FileResource>>({
-        method: "GET",
-        path: `/v1/files/${encodeURIComponent(fileId)}/versions`,
-        query: { ...params, next } as Record<string, unknown>,
-      });
-      for (const f of page.records) yield f;
-      next = page.next ?? undefined;
-    } while (next);
+  list(fileId: string, params?: ListParams): Paginator<FileResource> {
+    return cursorPaginate(
+      (next) =>
+        this.http.request<Paginated<FileResource>>({
+          method: "GET",
+          path: `/v1/files/${encodeURIComponent(fileId)}/versions`,
+          query: { ...params, next } as Record<string, unknown>,
+        }),
+      params?.next,
+    );
   }
 
   get(fileId: string, versionId: string): Promise<FileResource> {
@@ -71,21 +69,21 @@ export class FilesApi {
   }
 
   /**
-   * Iterate files matching `params`. Pages are fetched lazily as the
-   * iterator is consumed (`limit` sets the page size, `next` the
-   * starting cursor); stop early to stop fetching.
+   * List files matching `params`. `await` the result for the first page,
+   * or `for await` it to stream every file across pages (fetched lazily —
+   * `limit` sets the page size, `next` the starting cursor; stop early to
+   * stop fetching).
    */
-  async *list(params?: FileListParams): AsyncIterable<FileResource> {
-    let next: string | undefined = params?.next;
-    do {
-      const page = await this.http.request<Paginated<FileResource>>({
-        method: "GET",
-        path: "/v1/files",
-        query: { ...params, next } as Record<string, unknown>,
-      });
-      for (const f of page.records) yield f;
-      next = page.next ?? undefined;
-    } while (next);
+  list(params?: FileListParams): Paginator<FileResource> {
+    return cursorPaginate(
+      (next) =>
+        this.http.request<Paginated<FileResource>>({
+          method: "GET",
+          path: "/v1/files",
+          query: { ...params, next } as Record<string, unknown>,
+        }),
+      params?.next,
+    );
   }
 
   upload(

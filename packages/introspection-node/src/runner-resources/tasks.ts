@@ -12,6 +12,7 @@ import type {
   TaskUpdateParams,
 } from "@introspection-sdk/types";
 import { HttpClient } from "../http.js";
+import { Paginator, cursorPaginate } from "../pagination.js";
 import { parseSse } from "../streaming.js";
 
 export interface StartParams extends TaskCreateParams {
@@ -85,21 +86,21 @@ export class TasksApi {
   }
 
   /**
-   * Iterate tasks matching `params`. Pages are fetched lazily as the
-   * iterator is consumed (`limit` sets the page size, `next` the
-   * starting cursor); stop early to stop fetching.
+   * List tasks matching `params`. `await` the result for the first page,
+   * or `for await` it to stream every task across pages (fetched lazily —
+   * `limit` sets the page size, `next` the starting cursor; stop early to
+   * stop fetching).
    */
-  async *list(params?: TaskListParams): AsyncIterable<Task> {
-    let next: string | undefined = params?.next;
-    do {
-      const page = await this.http.request<Paginated<Task>>({
-        method: "GET",
-        path: "/v1/tasks",
-        query: { ...params, next } as Record<string, unknown>,
-      });
-      for (const t of page.records) yield t;
-      next = page.next ?? undefined;
-    } while (next);
+  list(params?: TaskListParams): Paginator<Task> {
+    return cursorPaginate(
+      (next) =>
+        this.http.request<Paginated<Task>>({
+          method: "GET",
+          path: "/v1/tasks",
+          query: { ...params, next } as Record<string, unknown>,
+        }),
+      params?.next,
+    );
   }
 
   create(body: TaskCreateParams): Promise<TaskCreateResponse> {

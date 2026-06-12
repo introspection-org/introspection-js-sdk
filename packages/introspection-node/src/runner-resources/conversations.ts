@@ -11,6 +11,7 @@ import type {
   ToolCallResponsePart,
 } from "@introspection-sdk/types";
 import { HttpClient } from "../http.js";
+import { Paginator, cursorPaginate } from "../pagination.js";
 
 /** Includes requested when building a {@link ConversationResponse}. */
 const RESPONSE_INCLUDES: ConversationItemInclude[] = [
@@ -30,29 +31,34 @@ export class ConversationItemsApi {
   constructor(private readonly http: HttpClient) {}
 
   /**
-   * Iterate items of a conversation. Pages are fetched lazily as the
-   * iterator is consumed (`limit` sets the page size, `after` the
-   * starting cursor); stop early to stop fetching. Pass
-   * `order: "asc"` to walk the transcript from the start.
+   * List items of a conversation. `await` the result for the first page
+   * (an OpenAI-style {@link ConversationItemList} envelope), or
+   * `for await` it to stream every item across pages (fetched lazily —
+   * `limit` sets the page size, `after` the starting cursor; stop early to
+   * stop fetching). Pass `order: "asc"` to walk the transcript from the
+   * start.
    *
    * Items carry the turn-local delta in `input_messages` — only the
    * messages new to that turn. Use `get()` for the full input history.
    */
-  async *list(
+  list(
     conversationId: string,
     params?: ConversationItemListParams,
-  ): AsyncIterable<ConversationItem> {
-    let after: string | undefined = params?.after;
-    for (;;) {
-      const page = await this.http.request<ConversationItemList>({
-        method: "GET",
-        path: `/v1/conversations/${encodeURIComponent(conversationId)}/items`,
-        query: { ...params, after } as Record<string, unknown>,
-      });
-      for (const item of page.data) yield item;
-      if (!page.has_more || page.last_id === null) return;
-      after = page.last_id;
-    }
+  ): Paginator<ConversationItem, ConversationItemList> {
+    return new Paginator(
+      {
+        fetch: (after) =>
+          this.http.request<ConversationItemList>({
+            method: "GET",
+            path: `/v1/conversations/${encodeURIComponent(conversationId)}/items`,
+            query: { ...params, after } as Record<string, unknown>,
+          }),
+        items: (page) => page.data,
+        next: (page) =>
+          page.has_more && page.last_id !== null ? page.last_id : undefined,
+      },
+      params?.after,
+    );
   }
 
   /**
@@ -90,23 +96,21 @@ export class ConversationsApi {
   }
 
   /**
-   * Iterate conversation summaries matching `params`. Pages are fetched
-   * lazily as the iterator is consumed (`limit` sets the page size,
-   * `next` the starting cursor); stop early to stop fetching.
+   * List conversation summaries matching `params`. `await` the result for
+   * the first page, or `for await` it to stream every summary across
+   * pages (fetched lazily — `limit` sets the page size, `next` the
+   * starting cursor; stop early to stop fetching).
    */
-  async *list(
-    params?: ConversationListParams,
-  ): AsyncIterable<ConversationSummary> {
-    let next: string | undefined = params?.next;
-    do {
-      const page = await this.http.request<Paginated<ConversationSummary>>({
-        method: "GET",
-        path: "/v1/conversations",
-        query: { ...params, next } as Record<string, unknown>,
-      });
-      for (const c of page.records) yield c;
-      next = page.next ?? undefined;
-    } while (next);
+  list(params?: ConversationListParams): Paginator<ConversationSummary> {
+    return cursorPaginate(
+      (next) =>
+        this.http.request<Paginated<ConversationSummary>>({
+          method: "GET",
+          path: "/v1/conversations",
+          query: { ...params, next } as Record<string, unknown>,
+        }),
+      params?.next,
+    );
   }
 
   /**
