@@ -27,7 +27,8 @@ partner MCP server** (`app/api/mcp`). Every MCP request carries a
 platform-minted **identity assertion** (a short-lived ES256 JWT signed with the
 application's own key) which the server verifies against the application's
 published JWKS — so the partner authenticates the end user without ever holding
-an Introspection credential. See https://docs.introspection.dev.
+an Introspection credential. See
+https://docs.introspection.dev/platform/applications.
 
 ## Prerequisites
 
@@ -47,8 +48,9 @@ IdP issuer attached. The partner MCP demo additionally needs this app's
 `/api/mcp` registered as a `kind: mcp` endpoint and linked to the `jwks`
 application (the link installs the app's ES256 assertion signing keys). Create
 them on the Control Plane and note each `client_id` (and the service-account
-`intro_sk_…` secret, shown once) for the env vars below — see
-[docs.introspection.dev](https://docs.introspection.dev). The app's assertion
+`intro_sk_…` secret, shown once) for the env vars below — see the
+[Applications & Auth guide](https://docs.introspection.dev/platform/applications).
+The app's assertion
 JWKS, which the sample MCP verifies against, is published at
 `{CP}/v1/applications/<jwks_client_id>/.well-known/jwks.json`.
 
@@ -81,7 +83,7 @@ database (not app code) scopes every read/write by the assertion's `sub`. The
 MCP route is deliberately plain `fetch` against the PostgREST surface, so the
 pattern ports unchanged to `supabase-js` or the JS SDK. Requires the app's
 issuer registered as a third-party auth integration and the table provisioned;
-see https://docs.introspection.dev.
+see https://docs.introspection.dev/platform/applications.
 
 ## Notes
 
