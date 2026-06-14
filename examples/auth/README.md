@@ -44,10 +44,12 @@ https://docs.introspection.dev/platform/applications.
 
 ## Create the applications
 
-Authenticate once as an org owner, then create one application per mode with the
-CLI. Note each printed `client_id` for the env vars below.
+Install the CLI, authenticate once as an org owner, then create one application
+per mode. Note each printed `client_id` for the env vars below.
 
 ```bash
+npm install -g @introspection-ai/cli   # or run any command via `npx @introspection-ai/cli …`
+
 introspection login   # signs in as your member; selects your project
 ```
 
