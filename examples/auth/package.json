@@ -1,5 +1,5 @@
 {
-  "name": "introspection-example-sample-auth",
+  "name": "introspection-example-auth",
   "version": "0.1.0",
   "private": true,
   "description": "Introspection SDK example — B2B2C auth modes (JWKS federation, hosted-login SPA, service account) and a partner MCP server authenticated by per-application identity-assertion signing keys. Streams a task from the Data Plane with no API key in the browser.",
