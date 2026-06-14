@@ -7,6 +7,15 @@ cp .env.example .env   # fill in API keys
 pnpm install
 ```
 
+## Apps
+
+Full runnable apps (their own package + README), not single scripts:
+
+- [`auth`](./auth) — B2B2C auth modes (JWKS federation, hosted-login SPA,
+  service account) and a partner MCP server authenticated by per-application
+  identity-assertion signing keys. `cd auth` and see its README to set up and
+  run.
+
 ## REST API
 
 ```bash
