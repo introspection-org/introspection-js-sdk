@@ -1,0 +1,30 @@
+{
+  "name": "introspection-example-sample-auth",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Introspection SDK example — B2B2C auth modes (JWKS federation, hosted-login SPA, service account) and a partner MCP server authenticated by per-application identity-assertion signing keys. Streams a task from the Data Plane with no API key in the browser.",
+  "scripts": {
+    "dev": "next dev --turbopack --port 3200",
+    "build": "next build",
+    "start": "next start --port 3200",
+    "lint": "eslint .",
+    "check-types": "tsc --noEmit",
+    "clean": "rm -rf .next .turbo node_modules"
+  },
+  "dependencies": {
+    "jose": "^5.9.6",
+    "next": "^16.1.4",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "@supabase/supabase-js": "^2.0.0",
+    "server-only": "^0.0.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "@types/react": "^19.0.7",
+    "@types/react-dom": "^19.0.4",
+    "eslint": "^9.17.0",
+    "eslint-config-next": "^16.1.4",
+    "typescript": "^5.7.2"
+  }
+}
