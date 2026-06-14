@@ -33,11 +33,10 @@ https://docs.introspection.dev/platform/applications.
 ## Prerequisites
 
 - **Node ≥ 22** and `pnpm`.
-- An **Introspection project** and **organization owner access** to it.
-  Creating the applications below is an owner/admin operation done from the
-  dashboard (an authenticated owner session) — a standard project API key
-  (`intro_…`) doesn't have permission to create applications, IdPs, or endpoint
-  links.
+- The [`introspection` CLI](https://docs.introspection.dev/cli) and
+  **organization owner access** to a project — creating applications / IdPs /
+  endpoints is an owner/admin operation (`introspection login` signs you in as
+  that member; a project API key can't do it).
 - For `/jwks`: a **Supabase project with asymmetric JWT signing keys**
   (ES256/RS256) enabled, so its JWKS is published at
   `{issuer}/.well-known/jwks.json`. Legacy HS256 shared-secret tokens are
@@ -45,18 +44,51 @@ https://docs.introspection.dev/platform/applications.
 
 ## Create the applications
 
-Each mode needs an application on your Introspection project — a `spa`, a
-`service_account` (with a minted secret), and/or a `jwks` application with its
-IdP issuer attached. The partner MCP demo additionally needs this app's
-`/api/mcp` registered as a `kind: mcp` endpoint and linked to the `jwks`
-application (the link installs the app's ES256 assertion signing keys). Create
-them as an organization owner (dashboard / owner session — not a project API
-key) and note each `client_id` (and the service-account `intro_sk_…` secret,
-shown once) for the env vars below — see the
-[Applications & Auth guide](https://docs.introspection.dev/platform/applications).
-The app's assertion
-JWKS, which the sample MCP verifies against, is published at
-`{CP}/v1/applications/<jwks_client_id>/.well-known/jwks.json`.
+Authenticate once as an org owner, then create one application per mode with the
+CLI. Note each printed `client_id` for the env vars below.
+
+```bash
+introspection login   # signs in as your member; selects your project
+```
+
+**SPA** (hosted login):
+
+```bash
+introspection applications create --type spa --name "Hosted SPA" \
+  --redirect-uri http://localhost:3200/callback \
+  --allowed-origin http://localhost:3200
+# → client_id → NEXT_PUBLIC_INTROSPECTION_SPA_CLIENT_ID
+```
+
+**Service account** (machine token):
+
+```bash
+introspection applications create --type service-account --name "CI runner"
+# → client_id → INTROSPECTION_SERVICE_ACCOUNT_CLIENT_ID
+# mint its secret in the dashboard (shown once) → INTROSPECTION_SERVICE_ACCOUNT_CLIENT_SECRET
+```
+
+**JWKS** (bring-your-own-IdP) **+ partner MCP endpoint**:
+
+```bash
+introspection applications create --type jwks --name "Partner JWKS" \
+  --allowed-origin http://localhost:3200 \
+  --issuer https://<ref>.supabase.co/auth/v1
+# → client_id → FEDERATED_CLIENT_ID  (note the printed `id` for --app below)
+
+# Register this app's /api/mcp endpoint and link it
+# (the link installs the application's ES256 assertion signing keys):
+introspection endpoints create --name "sample-auth partner mcp" \
+  --base-url http://host.docker.internal:3200/api/mcp \
+  --assertion-claim role=authenticated \
+  --app <jwks_app_id>
+```
+
+The app's assertion JWKS — which the sample MCP verifies against — is published
+at `{CP}/v1/applications/<jwks_client_id>/.well-known/jwks.json` →
+`MCP_ASSERTION_JWKS_URL`. See the
+[Applications & Auth guide](https://docs.introspection.dev/platform/applications)
+for details.
 
 ## Configure & run
 
