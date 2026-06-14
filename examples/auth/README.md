@@ -122,13 +122,3 @@ MCP route is deliberately plain `fetch` against the PostgREST surface, so the
 pattern ports unchanged to `supabase-js` or the JS SDK. Requires the app's
 issuer registered as a third-party auth integration and the table provisioned;
 see https://docs.introspection.dev/platform/applications.
-
-## Notes
-
-- **No API key in the browser.** Secrets (the service-account secret, the IdP
-  client secret) stay server-side; the browser only ever holds the end user's
-  own IdP token and the HttpOnly `intro_dp_session` cookie.
-- **CORS / cookies.** All modes call DP `/v1/oauth/exchange` cross-origin with
-  `credentials: include`; the SPA flow also calls CP `/v1/oauth/token`
-  cross-origin. Both must allow `http://localhost:3200`. In production, serve
-  under one registrable domain (the DP sets `SameSite=None; Secure` off-local).
