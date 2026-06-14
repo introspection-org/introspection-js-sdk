@@ -40,8 +40,8 @@ interface FederatedFlow {
  * the authorization server differs. `/callback` resumes whichever ran.
  */
 export default function SpaPage() {
-  // A brokered IdP is "set up for the spa" when the seed provisioned the
-  // per-app customers org (audience + org id). Otherwise fall back to the
+  // A brokered IdP is "set up for the spa" when a per-app customers org
+  // (audience + org id) has been provisioned. Otherwise fall back to the
   // default Introspection hosted login.
   const brokered = Boolean(
     BROKERED_AUDIENCE_CLIENT_ID && BROKERED_EXTERNAL_ORG_ID,

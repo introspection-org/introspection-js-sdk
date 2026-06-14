@@ -17,8 +17,8 @@ import {
  * client_credentials, keeping the client secret server-side; the resulting
  * session has project access but no federated end-user identity. The task
  * instead carries a caller-asserted identity via `metadata.identity`
- * (#823), which the platform turns into the ATTRIBUTION rung of the partner
- * MCP assertion (mcp-endpoints.md §4): `sub: user:{user_id}`,
+ * which the platform turns into the ATTRIBUTION rung of the partner
+ * MCP assertion: `sub: user:{user_id}`,
  * `sub_type: "identity"`, hard-distinct `type: "identity_attribution"` —
  * the sample MCP surfaces all of it in its tool responses.
  */
@@ -57,7 +57,7 @@ export default function ServiceAccountPage() {
         projectId,
         prompt,
         append,
-        // Caller-asserted attribution identity (#823): becomes the task's
+        // Caller-asserted attribution identity: becomes the task's
         // metadata.identity, and the attribution-rung MCP assertion's
         // `sub: user:{user_id}`.
         ...(trimmedUserId ? { identity: { user_id: trimmedUserId } } : {}),

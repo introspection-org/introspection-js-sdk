@@ -71,7 +71,7 @@ prompt ("remember my favorite color…") exercises the MCP round-trip:
 `mcp_get_value` / `mcp_set_value` are auto-discovered as agent tools and the
 assertion is injected at the egress boundary — the agent never sees it.
 
-## Level 3 (RLS) — optional
+## Database-enforced isolation (RLS) — optional
 
 By default the MCP stores values in an in-process Map (`MCP_VALUES_BACKEND=memory`).
 Point it at **Supabase** or **Neon** (`MCP_VALUES_BACKEND=supabase|neon`) to demo

@@ -19,9 +19,8 @@ export const RUNTIME_ID =
 export const FALLBACK_AGENT_NAME = "customer-agent";
 
 /**
- * The application type the seed federated this IdP into (matches the CP
- * `application_type`), which determines how the subject_token is verified
- * (applications-and-oauth.md §5.0★ / §5.0★★). A
+ * The application type this IdP is federated into (matches the CP
+ * `application_type`), which determines how the subject_token is verified. A
  * `jwks` application (the default) signs in at the partner IdP (Supabase)
  * headlessly and presents its session access token directly — NO Zitadel
  * redirect, NO consent page. An `spa` application keeps the as-built brokered
@@ -199,7 +198,7 @@ export async function exchangeDpSession(opts: {
 }
 
 /**
- * Caller identity for attribution (#823): rides `metadata.identity` on the
+ * Caller identity for attribution: rides `metadata.identity` on the
  * task create. For machine (client_credentials) tokens — which carry no
  * identity claim of their own — the DP persists this onto the task, and the
  * platform mints the attribution-rung MCP assertion from it
@@ -221,7 +220,7 @@ export async function runTaskWithToken(opts: {
   projectId: string;
   prompt: string;
   append: Append;
-  /** Optional caller identity, stamped onto `metadata.identity` (#823). */
+  /** Optional caller identity, stamped onto `metadata.identity`. */
   identity?: TaskIdentity;
 }): Promise<WebSocket> {
   const { token, projectId, prompt, append, identity } = opts;

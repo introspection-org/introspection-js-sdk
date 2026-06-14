@@ -1,6 +1,6 @@
 /**
  * The partner MCP server — a reference implementation of identity-assertion
- * auth (level 1: direct JWKS verification). See the MCP endpoints guide at
+ * auth (direct JWKS verification). See the MCP endpoints guide at
  * https://docs.introspection.dev.
  *
  * sample-auth plays the integration partner: this is *their* MCP server, and
@@ -25,7 +25,7 @@
  * signed by any linked application (jwks and spa) verify.
  *
  * This server deliberately accepts BOTH token types — the partner-side
- * opt-in the platform requires (mcp-endpoints.md §4): federation-proven
+ * opt-in the platform requires: federation-proven
  * `type: "identity_assertion"` and caller-asserted
  * `type: "identity_attribution"`. A partner that wants only
  * federation-proven subjects simply rejects the latter.
@@ -37,9 +37,9 @@
  *   - "memory" (default) — an in-memory Map keyed by the verified `sub`,
  *     reset on server restart. Used for every request whose assertion is
  *     not federated-rung (`sub_type: "member"`, or no sub_type rider).
- *   - "supabase" (MCP_VALUES_BACKEND=supabase) — level 3 of §4: values
- *     live in the RLS-protected `public.mcp_values` Supabase table
- *     (scripts/setup-supabase-rls.sh), and this server forwards the
+ *   - "supabase" (MCP_VALUES_BACKEND=supabase) — RLS-delegated authz: values
+ *     live in the RLS-protected `public.mcp_values` Supabase table, and this
+ *     server forwards the
  *     INCOMING identity assertion verbatim as the PostgREST bearer. It
  *     never injects a user_id filter from its own verification — Supabase
  *     RLS (policies on auth.jwt()->>'sub'), not app code, enforces
@@ -54,11 +54,11 @@
  *     backend is configured. Deliberately plain fetch against the PostgREST
  *     REST surface — no platform internals — so this ports unchanged to the
  *     public JS SDK (fetch or supabase-js).
- *   - "neon" (MCP_VALUES_BACKEND=neon) — the same level-3 proof with Neon
+ *   - "neon" (MCP_VALUES_BACKEND=neon) — the same RLS proof with Neon
  *     instead of Supabase: the assertion is forwarded verbatim to the Neon
  *     Data API (NEON_DATA_API_URL, PostgREST-compatible) and Neon RLS
- *     (policies on auth.user_id() via pg_session_jwt — see
- *     scripts/setup-neon-rls.sh) enforces per-user isolation. Same
+ *     (policies on auth.user_id() via pg_session_jwt) enforces per-user
+ *     isolation. Same
  *     partner-rung-only selection rule; same request shapes — the only
  *     difference is the base URL and that Neon takes just the JWT (no
  *     apikey header).
@@ -141,7 +141,7 @@ function backendFor(subType: string): ValuesBackend {
 }
 
 /**
- * The PostgREST surface behind each level-3 backend. `apikey` is sent only
+ * The PostgREST surface behind each RLS backend. `apikey` is sent only
  * when set — Supabase's PostgREST requires it; Neon's Data API uses just
  * the JWT.
  */
@@ -290,7 +290,7 @@ async function verifyAssertion(
 }
 
 /**
- * Level-3 backends (supabase / neon) — plain fetch against a PostgREST
+ * RLS backends (supabase / neon) — plain fetch against a PostgREST
  * surface, identical request shapes for both. The incoming `Authorization`
  * header is forwarded VERBATIM: row visibility and the insert's WITH CHECK
  * are decided by the database's RLS evaluating the assertion's own `sub`
