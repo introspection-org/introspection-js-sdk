@@ -1,4 +1,4 @@
-# sample-auth — B2B2C auth modes & per-application signing keys
+# auth — B2B2C auth modes & per-application signing keys
 
 A minimal Next.js app that shows how a partner application signs its end users
 into Introspection — and how **per-application signing keys** let a partner MCP
