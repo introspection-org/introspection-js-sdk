@@ -33,8 +33,11 @@ https://docs.introspection.dev/platform/applications.
 ## Prerequisites
 
 - **Node ≥ 22** and `pnpm`.
-- An **Introspection project** and an owner **API token** (for the one-time
-  application setup below).
+- An **Introspection project** and **organization owner access** to it.
+  Creating the applications below is an owner/admin operation done from the
+  dashboard (an authenticated owner session) — a standard project API key
+  (`intro_…`) doesn't have permission to create applications, IdPs, or endpoint
+  links.
 - For `/jwks`: a **Supabase project with asymmetric JWT signing keys**
   (ES256/RS256) enabled, so its JWKS is published at
   `{issuer}/.well-known/jwks.json`. Legacy HS256 shared-secret tokens are
@@ -47,8 +50,9 @@ Each mode needs an application on your Introspection project — a `spa`, a
 IdP issuer attached. The partner MCP demo additionally needs this app's
 `/api/mcp` registered as a `kind: mcp` endpoint and linked to the `jwks`
 application (the link installs the app's ES256 assertion signing keys). Create
-them on the Control Plane and note each `client_id` (and the service-account
-`intro_sk_…` secret, shown once) for the env vars below — see the
+them as an organization owner (dashboard / owner session — not a project API
+key) and note each `client_id` (and the service-account `intro_sk_…` secret,
+shown once) for the env vars below — see the
 [Applications & Auth guide](https://docs.introspection.dev/platform/applications).
 The app's assertion
 JWKS, which the sample MCP verifies against, is published at
