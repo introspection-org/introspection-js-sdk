@@ -32,79 +32,25 @@ an Introspection credential. See https://docs.introspection.dev.
 ## Prerequisites
 
 - **Node ≥ 22** and `pnpm`.
-- An **Introspection project** and an owner **API token** (used only for the
-  one-time setup calls below; export it as `INTROSPECTION_TOKEN`).
+- An **Introspection project** and an owner **API token** (for the one-time
+  application setup below).
 - For `/jwks`: a **Supabase project with asymmetric JWT signing keys**
   (ES256/RS256) enabled, so its JWKS is published at
   `{issuer}/.well-known/jwks.json`. Legacy HS256 shared-secret tokens are
   rejected. (`/spa` and `/service-account` need no external IdP.)
 
-`CP` below is your Control Plane base URL — `https://api.introspection.dev`
-hosted, or `http://localhost:8000` self-hosted.
+## Create the applications
 
-## Setup (public API)
-
-Create one application per mode you want to try. All calls are owner-only:
-authenticate with `Authorization: Bearer $INTROSPECTION_TOKEN`.
-
-```bash
-export CP=https://api.introspection.dev
-export INTROSPECTION_TOKEN=intro_…   # owner API token
-
-# 1) SPA — hosted login (register the sample's /callback redirect)
-curl -sf -X POST "$CP/v1/applications" \
-  -H "Authorization: Bearer $INTROSPECTION_TOKEN" -H 'Content-Type: application/json' \
-  -d '{"name":"Hosted SPA","application_type":"spa",
-       "redirect_uris":["http://localhost:3200/callback"],
-       "allowed_origins":["http://localhost:3200"]}'
-# → note client_id → NEXT_PUBLIC_INTROSPECTION_SPA_CLIENT_ID
-
-# 2) Service account — confidential machine; then mint a secret
-curl -sf -X POST "$CP/v1/applications" \
-  -H "Authorization: Bearer $INTROSPECTION_TOKEN" -H 'Content-Type: application/json' \
-  -d '{"name":"SA","application_type":"service_account"}'
-# → note client_id → INTROSPECTION_SERVICE_ACCOUNT_CLIENT_ID
-curl -sf -X POST "$CP/v1/applications/<sa_id>/secrets" \
-  -H "Authorization: Bearer $INTROSPECTION_TOKEN" -H 'Content-Type: application/json' \
-  -d '{"name":"sample-auth"}'
-# → note intro_sk_… (shown ONCE) → INTROSPECTION_SERVICE_ACCOUNT_CLIENT_SECRET
-
-# 3) JWKS — bring-your-own-IdP; needs only the issuer (no client id/secret)
-curl -sf -X POST "$CP/v1/applications" \
-  -H "Authorization: Bearer $INTROSPECTION_TOKEN" -H 'Content-Type: application/json' \
-  -d '{"name":"Partner JWKS","application_type":"jwks",
-       "allowed_origins":["http://localhost:3200"]}'
-# → note client_id → FEDERATED_CLIENT_ID
-curl -sf -X POST "$CP/v1/applications/<jwks_id>/idps" \
-  -H "Authorization: Bearer $INTROSPECTION_TOKEN" -H 'Content-Type: application/json' \
-  -d '{"issuer":"https://<ref>.supabase.co/auth/v1"}'
-```
-
-### Partner MCP endpoint (identity assertion)
-
-Register this app's `/api/mcp` as a `kind: mcp` project endpoint and link it to
-the `jwks` application — the owner-only link installs the application's ES256
-assertion keypair, so the platform mints a per-user assertion for every task and
-injects it at the egress boundary.
-
-```bash
-# Register the endpoint (base_url must be the sandbox-reachable URL of /api/mcp)
-curl -sf -X POST "$CP/v1/endpoints?project_id=<project_id>" \
-  -H "Authorization: Bearer $INTROSPECTION_TOKEN" -H 'Content-Type: application/json' \
-  -d '{"name":"sample-auth partner mcp","host":"host.docker.internal",
-       "base_url":"http://host.docker.internal:3200/api/mcp","kind":"mcp",
-       "headers":{},"assertion_claims":{"role":"authenticated"}}'
-# → note endpoint id
-
-# Link it to the jwks application (installs the assertion signing keys)
-curl -sf -X POST "$CP/v1/applications/<jwks_id>/endpoints" \
-  -H "Authorization: Bearer $INTROSPECTION_TOKEN" -H 'Content-Type: application/json' \
-  -d '{"endpoint_id":"<endpoint_id>"}'
-```
-
-The application's JWKS — which the sample MCP verifies against — is published at
-`$CP/v1/applications/<jwks_client_id>/.well-known/jwks.json`. Put that in
-`MCP_ASSERTION_JWKS_URL`.
+Each mode needs an application on your Introspection project — a `spa`, a
+`service_account` (with a minted secret), and/or a `jwks` application with its
+IdP issuer attached. The partner MCP demo additionally needs this app's
+`/api/mcp` registered as a `kind: mcp` endpoint and linked to the `jwks`
+application (the link installs the app's ES256 assertion signing keys). Create
+them on the Control Plane and note each `client_id` (and the service-account
+`intro_sk_…` secret, shown once) for the env vars below — see
+[docs.introspection.dev](https://docs.introspection.dev). The app's assertion
+JWKS, which the sample MCP verifies against, is published at
+`{CP}/v1/applications/<jwks_client_id>/.well-known/jwks.json`.
 
 ## Configure & run
 
@@ -115,7 +61,7 @@ cp .env.example .env.local
 
 pnpm install                                          # from the repo root
 pnpm --filter introspection-example-sample-auth dev   # → http://localhost:3200
-# or: cd examples/apps/sample-auth && pnpm dev
+# or: cd examples/auth && pnpm dev
 ```
 
 `/jwks` signs in at Supabase headlessly (session reuse or `signInWithPassword`),
