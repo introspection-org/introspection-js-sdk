@@ -125,10 +125,6 @@ see https://docs.introspection.dev/platform/applications.
 
 ## Notes
 
-- **`/jwks` and `/spa` (brokered) can't run fully offline.** `/jwks` needs a
-  reachable Supabase project; brokered `/spa` needs a real federation
-  provisioned for the `spa` application. The hosted-login `/spa` and
-  `/service-account` modes run against just the platform.
 - **No API key in the browser.** Secrets (the service-account secret, the IdP
   client secret) stay server-side; the browser only ever holds the end user's
   own IdP token and the HttpOnly `intro_dp_session` cookie.
