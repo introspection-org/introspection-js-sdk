@@ -63,6 +63,8 @@ const run = await client.tasks.start({
   prompt: "Summarize my latest order",
   agent_name: "support-agent", // or runtime_id: "rt_…"
   identity: { user_id: "u_42" }, // folded into metadata.identity
+  visibility: "identity", // sharing scope; defaults by credential
+  idle_timeout_seconds: 120, // idle window before the sandbox is torn down
 });
 
 for await (const ev of run.stream()) {
@@ -73,6 +75,16 @@ for await (const ev of run.stream()) {
 `client.tasks` exposes the full CRUD surface (`create` / `start` / `get` /
 `list` / `update` / `delete` / `archive` / `unarchive`) plus per-run streaming
 (`run.stream()`, `run.text()`, `run.cancel()`).
+
+Both `create` and `start` accept two optional task controls:
+
+- **`visibility`** (`"identity" | "member" | "project"`) — the task's minimum
+  sharing scope. Defaults to `"identity"` when the credential carries an
+  identity claim, else `"project"`. The owning `identity_key` is always derived
+  from the session JWT, never the request body.
+- **`idle_timeout_seconds`** (`number`) — overrides the interactive idle window
+  before the sandbox is torn down. `0` tears it down as soon as it's
+  provisioned; omit to use the deployment default. Clamped to the task timeout.
 
 > **CORS:** the Data Plane authorizes browser origins against its configured
 > allowlist (`CORS_ORIGINS`). A new SPA origin must be present there for the

@@ -35,6 +35,12 @@ export interface CreateTaskParams {
   title?: string;
   metadata?: Record<string, unknown>;
   visibility?: TaskVisibility;
+  /**
+   * Override the interactive idle window (seconds) before the sandbox is
+   * torn down. `0` tears down as soon as it's provisioned; omit to use the
+   * deployment default. Clamped to the task timeout.
+   */
+  idle_timeout_seconds?: number;
   /** Caller identity for attribution; merged into `metadata.identity`. */
   identity?: RunIdentityInput;
 }
