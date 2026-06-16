@@ -38,6 +38,10 @@ export default defineConfig({
         repoRoot,
         "packages/introspection-openclaw/src/index.ts",
       ),
+      "@introspection-sdk/introspection-browser/api": resolve(
+        repoRoot,
+        "packages/introspection-browser/src/api/index.ts",
+      ),
       "@introspection-sdk/introspection-browser": resolve(
         repoRoot,
         "packages/introspection-browser/src/index.ts",
@@ -45,6 +49,10 @@ export default defineConfig({
       "@introspection-sdk/types": resolve(
         repoRoot,
         "packages/introspection-types/src/index.ts",
+      ),
+      "@introspection-sdk/http": resolve(
+        repoRoot,
+        "packages/introspection-http/src/index.ts",
       ),
     },
   },
@@ -98,6 +106,7 @@ export default defineConfig({
         "packages/introspection-pi/src/**/*.ts",
         "packages/introspection-browser/src/**/*.ts",
         "packages/introspection-types/src/**/*.ts",
+        "packages/introspection-http/src/**/*.ts",
         // introspection-openclaw is a beta package with its own lifecycle;
         // excluded from the coverage gate until it graduates + gets a harness.
       ],

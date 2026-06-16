@@ -100,6 +100,13 @@ export interface TaskCreateParams {
    * credential carries an identity claim, else `"project"`.
    */
   visibility?: TaskVisibility;
+  /**
+   * Override the interactive idle window (seconds) before the sandbox is
+   * torn down. `0` tears down as soon as it's provisioned (e.g. an
+   * empty-prompt warm/bake run); omit to use the deployment default.
+   * Clamped to the task timeout.
+   */
+  idle_timeout_seconds?: number;
 }
 
 export interface TaskUpdateParams {

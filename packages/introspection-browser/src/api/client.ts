@@ -1,0 +1,98 @@
+/**
+ * Browser-side Introspection API client.
+ *
+ * Lets a single-page app create and stream Introspection tasks directly
+ * from the browser, with no API key in JavaScript. The auth boundary:
+ *
+ *   1. The SPA's own backend ("broker") mints an Introspection access
+ *      token — via RFC 8693 token-exchange of the partner IdP token, a
+ *      PKCE `authorization_code`, or `client_credentials`. The IdP
+ *      secret never leaves the backend. The SPA fetches that token
+ *      through the `getToken` callback.
+ *   2. `connect()` redeems the token at the DP `POST /v1/oauth/exchange`
+ *      for the HttpOnly `intro_dp_session` cookie.
+ *   3. Every subsequent call rides that cookie (`credentials: "include"`)
+ *      — `client.tasks.start(...)`, `.get(...)`, run streaming, etc.
+ *
+ * When the session cookie expires, an in-flight request gets a 401, and
+ * the client transparently re-runs `getToken` + the DP exchange once
+ * before retrying.
+ */
+
+import { BrowserHttpClient, stripTrailingSlash, toApiError } from "./http.js";
+import { TasksClient } from "./tasks.js";
+
+export interface IntrospectionApiClientOptions {
+  /** Data Plane REST base URL (e.g. `https://dp.us.introspection.dev`). */
+  dpUrl: string;
+  /** Project the session is scoped to. */
+  projectId: string;
+  /**
+   * Returns a fresh Introspection access token from the app's broker
+   * (its own backend). Called on `connect()` and again whenever the DP
+   * session cookie needs re-minting after a 401.
+   */
+  getToken: () => string | Promise<string>;
+  /** Custom `fetch` (for tests or non-standard runtimes). */
+  fetch?: typeof fetch;
+  /** Extra headers merged into every DP request. */
+  additionalHeaders?: Record<string, string>;
+}
+
+export class IntrospectionApiClient {
+  /** `/v1/tasks` operations bound to the DP session cookie. */
+  readonly tasks: TasksClient;
+
+  private readonly fetchImpl: typeof fetch;
+
+  constructor(private readonly opts: IntrospectionApiClientOptions) {
+    this.fetchImpl = opts.fetch ?? globalThis.fetch;
+    if (!this.fetchImpl) {
+      throw new Error(
+        "global fetch is unavailable; pass `fetch` or run in a modern browser",
+      );
+    }
+    const http = new BrowserHttpClient({
+      apiUrl: opts.dpUrl,
+      additionalHeaders: opts.additionalHeaders,
+      fetch: opts.fetch,
+      onUnauthorized: () => this.reexchange(),
+    });
+    this.tasks = new TasksClient(http);
+  }
+
+  /**
+   * Mint a token via `getToken` and redeem it at the DP for the
+   * `intro_dp_session` cookie. Call once before issuing task requests.
+   */
+  async connect(): Promise<void> {
+    await this.exchange();
+  }
+
+  private async exchange(): Promise<void> {
+    const token = await this.opts.getToken();
+    const res = await this.fetchImpl(
+      `${stripTrailingSlash(this.opts.dpUrl)}/v1/oauth/exchange`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(this.opts.additionalHeaders ?? {}),
+        },
+        body: JSON.stringify({ token, project_id: this.opts.projectId }),
+        credentials: "include",
+      },
+    );
+    if (!res.ok) throw await toApiError(res);
+  }
+
+  /** 401 recovery: re-exchange, reporting success so the call can retry. */
+  private async reexchange(): Promise<boolean> {
+    try {
+      await this.exchange();
+      return true;
+    } catch {
+      return false;
+    }
+  }
+}
