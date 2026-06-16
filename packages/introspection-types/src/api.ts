@@ -418,7 +418,7 @@ export interface RunnerDeployment {
  * CP `/run` response — the customer wire.
  *
  * Sandbox-internal fields (`credentials` for ext_proc egress injection,
- * the `bootstrap` repo manifest, DP `limits`, and the any-llm
+ * the `bootstrap` repo manifest, DP `limits`, and the Otari
  * `llm_proxy` descriptor) live on `InternalRunnerSpec` on the CP→DP
  * internal route. They are never returned to customer callers.
  */
