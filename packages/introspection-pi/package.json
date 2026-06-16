@@ -38,7 +38,7 @@
     }
   },
   "devDependencies": {
-    "@earendil-works/pi-agent-core": "^0.79.0",
+    "@earendil-works/pi-agent-core": "^0.79.4",
     "@earendil-works/pi-ai": "^0.79.4",
     "@repo/eslint-config": "workspace:*",
     "@repo/typescript-config": "workspace:*",
