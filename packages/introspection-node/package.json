@@ -143,6 +143,7 @@
   },
   "dependencies": {
     "@introspection-sdk/types": "workspace:*",
+    "@introspection-sdk/http": "workspace:*",
     "@introspection-sdk/introspection-pi": "workspace:*",
     "@introspection-sdk/introspection-proxy": "workspace:*",
     "@opentelemetry/api": "^1.9.1",
