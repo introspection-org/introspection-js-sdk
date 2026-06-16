@@ -40,6 +40,11 @@ export {
 } from "./tasks.js";
 export { BrowserHttpClient, type BrowserHttpConfig } from "./http.js";
 export { parseSse } from "./sse.js";
+export {
+  Paginator,
+  cursorPaginate,
+  type PageSource,
+} from "@introspection-sdk/http";
 
 // Re-exported wire types for convenience.
 export type {

@@ -12,6 +12,7 @@ import type {
   TaskUpdateParams,
   TaskVisibility,
 } from "@introspection-sdk/types";
+import { Paginator, cursorPaginate } from "@introspection-sdk/http";
 import { BrowserHttpClient } from "./http.js";
 import { parseSse } from "./sse.js";
 
@@ -125,13 +126,25 @@ export class TasksClient {
     this.runs = new TaskRunsClient(http);
   }
 
-  /** First page of tasks matching `params` (cursor in `next`). */
-  list(params?: TaskListParams): Promise<Paginated<Task>> {
-    return this.http.request<Paginated<Task>>({
-      method: "GET",
-      path: "/v1/tasks",
-      query: params as Record<string, unknown> | undefined,
-    });
+  /**
+   * Tasks matching `params`. `await` it for the first page (preserving
+   * the wire envelope's counts + `next` cursor), or `for await` it to
+   * stream every task across pages (fetched lazily — `limit` sets the
+   * page size, `next` the starting cursor; stop early to stop fetching).
+   *
+   * Mirrors the Node SDK's `TasksApi.list`, which is the source of truth
+   * for the `/v1/tasks` shape.
+   */
+  list(params?: TaskListParams): Paginator<Task> {
+    return cursorPaginate(
+      (next) =>
+        this.http.request<Paginated<Task>>({
+          method: "GET",
+          path: "/v1/tasks",
+          query: { ...params, next } as Record<string, unknown>,
+        }),
+      params?.next,
+    );
   }
 
   create(body: CreateTaskParams): Promise<TaskCreateResponse> {

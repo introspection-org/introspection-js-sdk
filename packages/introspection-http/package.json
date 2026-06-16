@@ -1,8 +1,8 @@
 {
-  "name": "@introspection-sdk/introspection-browser",
+  "name": "@introspection-sdk/http",
   "version": "0.1.0",
   "license": "Apache-2.0",
-  "description": "Introspection observability SDK for the browser",
+  "description": "Isomorphic HTTP transport, SSE parsing, error mapping, and cursor pagination shared by the Introspection browser and Node SDKs",
   "engines": {
     "node": ">=22"
   },
@@ -13,16 +13,13 @@
     ".": {
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
-    },
-    "./api": {
-      "types": "./dist/api/index.d.ts",
-      "default": "./dist/api/index.js"
     }
   },
   "scripts": {
     "lint": "eslint . --max-warnings 0",
     "check-types": "tsc --noEmit",
-    "build": "tsc"
+    "build": "tsc",
+    "prepare": "tsc"
   },
   "devDependencies": {
     "@repo/eslint-config": "workspace:*",
@@ -32,11 +29,6 @@
     "typescript": "5.9.3"
   },
   "dependencies": {
-    "@introspection-sdk/types": "workspace:*",
-    "@introspection-sdk/http": "workspace:*",
-    "@opentelemetry/api": "^1.9.1",
-    "@opentelemetry/api-logs": "^0.219.0",
-    "@opentelemetry/sdk-logs": "^0.219.0",
-    "@opentelemetry/exporter-logs-otlp-http": "^0.219.0"
+    "@introspection-sdk/types": "workspace:*"
   }
 }
