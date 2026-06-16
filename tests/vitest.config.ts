@@ -38,6 +38,10 @@ export default defineConfig({
         repoRoot,
         "packages/introspection-openclaw/src/index.ts",
       ),
+      "@introspection-sdk/introspection-browser/api": resolve(
+        repoRoot,
+        "packages/introspection-browser/src/api/index.ts",
+      ),
       "@introspection-sdk/introspection-browser": resolve(
         repoRoot,
         "packages/introspection-browser/src/index.ts",
