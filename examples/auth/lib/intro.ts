@@ -242,12 +242,15 @@ async function verifyConversationLogged(opts: {
       );
       return;
     }
-    const fresh = records.find((c) => !seen.has(c.trace_id));
-    if (fresh) {
-      const label = fresh.conversation_id ?? fresh.trace_id;
-      append("ok", `   ✓ conversation logged: ${label}`);
+    const fresh = records.find(
+      (c) =>
+        typeof c.conversation_id === "string" && !seen.has(c.conversation_id),
+    );
+    if (fresh?.conversation_id) {
+      const conversationId = fresh.conversation_id;
+      append("ok", `   ✓ conversation logged: ${conversationId}`);
       try {
-        const turn = await client.conversations.retrieve(fresh.trace_id);
+        const turn = await client.conversations.retrieve(conversationId);
         if (turn) {
           append(
             "info",
@@ -298,13 +301,13 @@ export async function runTaskWithToken(opts: {
   append("ok", "   ✓ intro_dp_session cookie set");
 
   // Snapshot the identity's existing conversations so we can single out the
-  // new one this task produces once telemetry lands. A conversation summary is
-  // keyed by `trace_id` (always present); the gen_ai `conversation_id` is
-  // optional metadata, so we track by trace_id.
+  // new one this task produces once telemetry lands. Conversations are
+  // addressed by the gen_ai `conversation_id` (the `/v1/conversations/{id}`
+  // path key) — never the raw trace id.
   const seen = new Set(
-    (await client.conversations.list({ limit: 50 })).records.map(
-      (c) => c.trace_id,
-    ),
+    (await client.conversations.list({ limit: 50 })).records
+      .map((c) => c.conversation_id)
+      .filter((id): id is string => typeof id === "string"),
   );
 
   append(
