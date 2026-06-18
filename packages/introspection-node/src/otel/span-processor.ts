@@ -392,6 +392,23 @@ export class IntrospectionSpanProcessor implements SpanProcessor {
       attrs["gen_ai.agent.id"] = baggageAgentId;
     }
 
+    // End-user identity from baggage. Set once at the run root (by the
+    // caller's `identify()` or, for sandbox/agent runs, by the runtime from
+    // the task's `metadata.identity`); every child span — including provider
+    // spans this SDK doesn't author — inherits it via OTel context
+    // propagation. Mirrors the `identify()` attributes so agent-run spans are
+    // identity-scoped the same way directly-instrumented app spans are. The
+    // baggage keys (`identity.user_id` / `identity.anonymous_id`) map to the
+    // semconv span attributes (`identity.user.id` / `identity.anonymous.id`).
+    const baggageUserId = baggage?.getEntry("identity.user_id")?.value;
+    if (baggageUserId) {
+      attrs["identity.user.id"] = baggageUserId;
+    }
+    const baggageAnonId = baggage?.getEntry("identity.anonymous_id")?.value;
+    if (baggageAnonId) {
+      attrs["identity.anonymous.id"] = baggageAnonId;
+    }
+
     // Override resource with service name if provided
     let resource: Resource | undefined;
     if (this._serviceName) {
