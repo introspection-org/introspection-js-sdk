@@ -11,17 +11,17 @@
  * import { IntrospectionApiClient } from "@introspection-sdk/introspection-browser/api";
  *
  * const client = new IntrospectionApiClient({
- *   dpUrl: "https://dp.us.introspection.dev",
+ *   cpUrl: "https://api.introspection.dev",
  *   // your backend mints the Introspection access token (the session's
  *   // project is derived from its claims — no projectId option needed)
  *   getToken: () => fetch("/api/introspection/token").then((r) => r.text()),
  * });
  *
- * await client.connect(); // → intro_dp_session cookie
- * const run = await client.tasks.start({
- *   prompt: "Summarize my latest order",
- *   agent_name: "support-agent",
+ * const runner = await client.runtimes("support-agent").run({
  *   identity: { user_id: "u_42" },
+ * });
+ * const run = await runner.tasks.start({
+ *   prompt: "Summarize my latest order",
  * });
  * for await (const ev of run.stream()) console.log(ev.event, ev.data);
  * ```
@@ -32,6 +32,20 @@ export {
   type IntrospectionApiClientOptions,
 } from "./client.js";
 export {
+  BrowserRunner,
+  Runner,
+  type BrowserRunnerOwner,
+  type BrowserRunnerSource,
+} from "./runner.js";
+export {
+  BrowserRuntimesClient,
+  BrowserRuntimeHandle,
+  attachBrowserRuntimes,
+  isUuid,
+  type BrowserRuntimeHandleFactory,
+  type BrowserRuntimeRunRequestBody,
+} from "./runtimes.js";
+export {
   TasksClient,
   TaskRunsClient,
   RunHandle,
@@ -39,16 +53,20 @@ export {
   type StartTaskParams,
 } from "./tasks.js";
 export {
-  FilesClient,
-  FileVersionsClient,
-  type FileUploadBody,
-} from "./files.js";
-export {
-  ConversationsClient,
   ConversationItemsClient,
-} from "./conversations.js";
-export { SharesClient } from "./shares.js";
-export { BrowserHttpClient, type BrowserHttpConfig } from "./http.js";
+  ConversationsClient,
+  FileVersionsClient,
+  FilesClient,
+  SharesClient,
+  type FileUploadBody,
+} from "@introspection-sdk/http";
+export {
+  BrowserBearerHttpClient,
+  BrowserHttpClient,
+  type BrowserApiHttpClient,
+  type BrowserBearerHttpConfig,
+  type BrowserHttpConfig,
+} from "./http.js";
 export { parseSse } from "./sse.js";
 export {
   Paginator,
@@ -86,6 +104,15 @@ export type {
   ShareResourceType,
   ShareCreateParams,
   ShareListParams,
+  Recipe,
+  RunRequest,
+  RunnerContext,
+  RunnerDeployment,
+  RunnerSpec,
+  Runtime,
+  RuntimeCreate,
+  RuntimeListParams,
+  RuntimeUpdate,
 } from "@introspection-sdk/types";
 export {
   IntrospectionAPIError,
@@ -93,4 +120,5 @@ export {
   InsufficientScopeError,
   NotFoundError,
   NetworkError,
+  RunnerExpiredError,
 } from "@introspection-sdk/types";

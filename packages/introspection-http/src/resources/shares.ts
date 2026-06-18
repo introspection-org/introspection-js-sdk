@@ -1,25 +1,22 @@
-/**
- * Cookie-authenticated Resource Shares client for the browser (`/v1/shares`).
- *
- * Read-sharing grants for files and conversations: `create` / `list` / `get` /
- * `delete` (revoke). A grant carries a `url` (with the `?share_id` capability) —
- * read the shared resource via `client.files.get(id, { shareId })` or
- * `client.conversations.items(id, { shareId })`. To fork a new task from a
- * shared conversation, pass `fork_share_id` to `client.tasks.create(...)`.
- */
-
 import type {
   Paginated,
   ResourceShare,
   ShareCreateParams,
   ShareListParams,
 } from "@introspection-sdk/types";
-import { Paginator, cursorPaginate } from "@introspection-sdk/http";
-import { BrowserHttpClient } from "./http.js";
+import { Paginator, cursorPaginate } from "../pagination.js";
+import type { ResourceHttpClient } from "./types.js";
 
-/** Cookie-authenticated `/v1/shares` client. */
+/**
+ * Runner-bound Resource Shares API (`/v1/shares`).
+ *
+ * Read-sharing grants for files and conversations: `create` / `list` / `get` /
+ * `delete` (revoke). A grant carries a `url` (with the `?share_id` capability)
+ * for reading the shared resource. To fork a new task from a shared
+ * conversation, pass `fork_share_id` to `runner.tasks.create(...)`.
+ */
 export class SharesClient {
-  constructor(private readonly http: BrowserHttpClient) {}
+  constructor(private readonly http: ResourceHttpClient) {}
 
   /**
    * List grants the caller created or that target them. `await` for the first
@@ -63,3 +60,5 @@ export class SharesClient {
     });
   }
 }
+
+export { SharesClient as SharesApi };

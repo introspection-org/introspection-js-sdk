@@ -42,28 +42,26 @@ flow (see the [`sample-auth`](../../examples/apps/sample-auth) example):
    via RFC 8693 token-exchange of the partner IdP token, a PKCE
    `authorization_code`, or `client_credentials`. The IdP secret never leaves
    the backend.
-2. `connect()` redeems that token at the Data Plane
-   (`POST /v1/oauth/exchange`) for the HttpOnly `intro_dp_session` cookie.
-3. Every subsequent call rides that cookie (`credentials: "include"`). When the
-   session expires, the client transparently re-mints it once on a `401`.
+2. `client.runtimes(name).run()` uses that token at the Control Plane to
+   resolve a runtime and mint a short-lived runner token.
+3. The returned runner talks directly to the selected Data Plane endpoint for
+   tasks, files, conversations, and shares.
 
 ```typescript
 import { IntrospectionApiClient } from "@introspection-sdk/introspection-browser/api";
 
 const client = new IntrospectionApiClient({
-  dpUrl: "https://dp.us.introspection.dev",
-  projectId: "proj_…",
+  cpUrl: "https://api.introspection.dev",
   // your backend returns a fresh Introspection access token
   getToken: () => fetch("/api/introspection/token").then((r) => r.text()),
 });
 
-await client.connect(); // → intro_dp_session cookie
+const runner = await client.runtimes("support-agent").run({
+  identity: { user_id: "u_42" },
+});
 
-const run = await client.tasks.start({
+const run = await runner.tasks.start({
   prompt: "Summarize my latest order",
-  agent_name: "support-agent", // or runtime_id: "rt_…"
-  identity: { user_id: "u_42" }, // folded into metadata.identity
-  visibility: "identity", // sharing scope; defaults by credential
   idle_timeout_seconds: 120, // idle window before the sandbox is torn down
 });
 
@@ -72,48 +70,62 @@ for await (const ev of run.stream()) {
 }
 ```
 
-`client.tasks` exposes the full CRUD surface (`create` / `start` / `get` /
+`runner.tasks` exposes the full CRUD surface (`create` / `start` / `get` /
 `list` / `update` / `delete` / `archive` / `unarchive`) plus per-run streaming
 (`run.stream()`, `run.text()`, `run.cancel()`).
 
-Both `create` and `start` accept two optional task controls:
+`create` and `start` accept **`idle_timeout_seconds`** (`number`) to override
+the interactive idle window before the sandbox is torn down. `0` tears it down
+as soon as it's provisioned; omit to use the deployment default. Clamped to the
+task timeout.
 
-- **`visibility`** (`"identity" | "member" | "project"`) — the task's minimum
-  sharing scope. Defaults to `"identity"` when the credential carries an
-  identity claim, else `"project"`. The owning `identity_key` is always derived
-  from the session JWT, never the request body.
-- **`idle_timeout_seconds`** (`number`) — overrides the interactive idle window
-  before the sandbox is torn down. `0` tears it down as soon as it's
-  provisioned; omit to use the deployment default. Clamped to the task timeout.
+The older cookie-session path is still available for apps that already know a
+Data Plane URL:
+
+```typescript
+const client = new IntrospectionApiClient({
+  dpUrl: "https://dp.us.introspection.dev",
+  getToken: () => fetch("/api/introspection/token").then((r) => r.text()),
+});
+
+await client.connect(); // -> intro_dp_session cookie
+await client.tasks.start({
+  prompt: "Summarize my latest order",
+  runtime_id: "019ed295-5d76-7432-863b-f9327af50221",
+});
+```
+
+For new runtime-backed browser apps, prefer
+`client.runtimes("support-agent").run()` so the browser follows the same
+runtime resolution flow as the Node SDK and does not carry runtime ids.
 
 ## Files and conversations
 
-The same identity session also reaches `/v1/files` and (read-only)
-`/v1/conversations` — no extra credential, just the cookie minted by
-`connect()`:
+The same runner session also reaches `/v1/files` and (read-only)
+`/v1/conversations` using the CP-minted runner token:
 
 ```typescript
 // Files — CRUD + upload/download, all identity-scoped
-await client.files.upload({ file: new Blob(["hi"]), name: "hi.txt" });
-const page = await client.files.list({ visibility: "identity" });
-const bytes = await client.files.download(page.records[0].id);
+await runner.files.upload({ file: new Blob(["hi"]), name: "hi.txt" });
+const page = await runner.files.list();
+const bytes = await runner.files.download(page.records[0].id);
 
 // Conversations — read-only projection over the telemetry store
-for await (const summary of client.conversations.list()) {
+for await (const summary of runner.conversations.list()) {
   console.log(summary.conversation_id);
 }
 // Resolve the latest turn of a conversation (Responses-API shape)
-const turn = await client.conversations.retrieve(conversationId);
+const turn = await runner.conversations.retrieve(conversationId);
 console.log(turn?.output_messages);
 ```
 
-`client.files` mirrors the Node SDK's `FilesApi` (`list` / `upload` /
+`runner.files` mirrors the Node SDK's `FilesApi` (`list` / `upload` /
 `createText` / `get` / `update` / `delete` / `download` / `downloadStream`,
-plus `files.versions`). `client.conversations` mirrors `ConversationsApi`
+plus `files.versions`). `runner.conversations` mirrors `ConversationsApi`
 (`list`, `retrieve`, and `conversations.items.list()` / `.get()`). Both `list`
 helpers return a `Paginator` — `await` it for the first page or `for await` it
 to auto-page.
 
-> **CORS:** the Data Plane authorizes browser origins against its configured
-> allowlist (`CORS_ORIGINS`). A new SPA origin must be present there for the
-> cross-origin cookie exchange and task/file/conversation calls to succeed.
+> **CORS:** the Control Plane must allow the SPA origin for runtime resolution,
+> and each selected Data Plane must allow the origin for runner task/file/
+> conversation calls.

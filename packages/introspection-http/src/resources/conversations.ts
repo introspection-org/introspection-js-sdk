@@ -1,15 +1,3 @@
-/**
- * Cookie-authenticated, read-only Conversations client for the browser
- * (`/v1/conversations`).
- *
- * Mirrors the Node SDK's runner-bound `ConversationsApi`, but rides the
- * DP `intro_dp_session` cookie via {@link BrowserHttpClient} instead of a
- * bearer token — so a single-page app reads conversation history with the
- * same identity session it uses for tasks and files. Conversations are a
- * projection over the immutable telemetry store: list summaries, walk a
- * conversation's items, or `retrieve()` the resolved state of one turn.
- */
-
 import type {
   ConversationItem,
   ConversationItemInclude,
@@ -22,8 +10,8 @@ import type {
   Paginated,
   ToolCallResponsePart,
 } from "@introspection-sdk/types";
-import { Paginator, cursorPaginate } from "@introspection-sdk/http";
-import { BrowserHttpClient } from "./http.js";
+import { Paginator, cursorPaginate } from "../pagination.js";
+import type { ResourceHttpClient } from "./types.js";
 
 /** Includes requested when building a {@link ConversationResponse}. */
 const RESPONSE_INCLUDES: ConversationItemInclude[] = [
@@ -40,7 +28,7 @@ const RESPONSE_INCLUDES: ConversationItemInclude[] = [
  * `has_more` is true.
  */
 export class ConversationItemsClient {
-  constructor(private readonly http: BrowserHttpClient) {}
+  constructor(private readonly http: ResourceHttpClient) {}
 
   /**
    * List items of a conversation. `await` the result for the first page
@@ -91,19 +79,19 @@ export class ConversationItemsClient {
 }
 
 /**
- * Read-only Conversations client (`/v1/conversations`).
+ * Read-only Conversations API (`/v1/conversations`).
  *
- * Both `list()` and `items.list()` are auto-paging, but they drive
- * different wire protocols underneath: `list()` walks the standard
- * Introspection cursor envelope's opaque `next` token, while
- * `items.list()` walks an OpenAI-style envelope via `after` = the
- * previous page's `last_id` while `has_more` is true.
+ * Both `list()` and `items.list()` are auto-paging async generators,
+ * but they drive different wire protocols underneath: `list()` walks
+ * the standard Introspection cursor envelope's opaque `next` token,
+ * while `items.list()` walks an OpenAI-style envelope via `after` =
+ * the previous page's `last_id` while `has_more` is true.
  */
 export class ConversationsClient {
   /** Items of a conversation — `conversations.items.list(...)` etc. */
   readonly items: ConversationItemsClient;
 
-  constructor(private readonly http: BrowserHttpClient) {
+  constructor(private readonly http: ResourceHttpClient) {
     this.items = new ConversationItemsClient(http);
   }
 
@@ -212,3 +200,8 @@ function normalizePart(part: MessagePart): MessagePart {
   const { result, ...rest } = legacy;
   return { ...rest, response: result };
 }
+
+export {
+  ConversationsClient as ConversationsApi,
+  ConversationItemsClient as ConversationItemsApi,
+};

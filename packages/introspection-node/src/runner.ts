@@ -6,11 +6,13 @@ import {
   type RunRequest,
   type Uuid,
 } from "@introspection-sdk/types";
+import {
+  ConversationsApi,
+  FilesApi,
+  SharesApi,
+  TasksApi,
+} from "@introspection-sdk/http";
 import { HttpClient } from "./http.js";
-import { TasksApi } from "./runner-resources/tasks.js";
-import { FilesApi } from "./runner-resources/files.js";
-import { ConversationsApi } from "./runner-resources/conversations.js";
-import { SharesApi } from "./runner-resources/shares.js";
 import type { IntrospectionClient } from "./client.js";
 
 /**

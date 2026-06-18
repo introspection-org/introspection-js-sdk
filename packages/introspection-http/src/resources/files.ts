@@ -1,14 +1,3 @@
-/**
- * Cookie-authenticated Files client for the browser (`/v1/files`).
- *
- * Mirrors the Node SDK's runner-bound `FilesApi`, but rides the DP
- * `intro_dp_session` cookie via {@link BrowserHttpClient} instead of a
- * bearer token — so a single-page app reads and writes files with the
- * same identity session it uses for tasks and conversations. The DP
- * derives the owning `identity_key` from the session JWT; per-identity
- * file ownership and access are enforced server-side.
- */
-
 import type {
   File as FileResource,
   FileCreateTextParams,
@@ -18,8 +7,8 @@ import type {
   ListParams,
   Paginated,
 } from "@introspection-sdk/types";
-import { Paginator, cursorPaginate } from "@introspection-sdk/http";
-import { BrowserHttpClient } from "./http.js";
+import { Paginator, cursorPaginate } from "../pagination.js";
+import type { ResourceHttpClient } from "./types.js";
 
 export type FileUploadBody =
   | { file: Blob; name?: string; file_type?: FileType }
@@ -30,9 +19,8 @@ export type FileUploadBody =
       contentType?: string;
     };
 
-/** Versions of a file (`/v1/files/{id}/versions`). */
 export class FileVersionsClient {
-  constructor(private readonly http: BrowserHttpClient) {}
+  constructor(private readonly http: ResourceHttpClient) {}
 
   /**
    * List versions of a file. `await` the result for the first page, or
@@ -68,15 +56,10 @@ export class FileVersionsClient {
   }
 }
 
-/**
- * Cookie-authenticated `/v1/files` client. Mirrors the Node SDK's
- * `FilesApi` shape but is bound to a DP session cookie rather than a
- * bearer token.
- */
 export class FilesClient {
   readonly versions: FileVersionsClient;
 
-  constructor(private readonly http: BrowserHttpClient) {
+  constructor(private readonly http: ResourceHttpClient) {
     this.versions = new FileVersionsClient(http);
   }
 
@@ -177,3 +160,5 @@ function toFormData(body: FileUploadBody): FormData {
   if (body.file_type) fd.append("file_type", body.file_type);
   return fd;
 }
+
+export { FilesClient as FilesApi, FileVersionsClient as FileVersionsApi };

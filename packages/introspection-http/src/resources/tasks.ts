@@ -11,19 +11,29 @@ import type {
   TaskRunResponse,
   TaskUpdateParams,
 } from "@introspection-sdk/types";
-import { HttpClient } from "../http.js";
 import { Paginator, cursorPaginate } from "../pagination.js";
-import { parseSse } from "../streaming.js";
+import { parseSse } from "../sse.js";
+import type { ResourceHttpClient } from "./types.js";
 
 export interface StartParams extends TaskCreateParams {
-  prompt: string; // required for the cursor-style sugar
+  prompt: string;
+}
+
+export type TaskBodyMapper<TCreate> = (
+  body: TCreate,
+) => Record<string, unknown>;
+
+function identityTaskBody<TCreate extends object>(
+  body: TCreate,
+): Record<string, unknown> {
+  return body as Record<string, unknown>;
 }
 
 export class RunHandle {
   constructor(
     public readonly task: Task | null,
     public readonly run: TaskRun,
-    private readonly runs: TaskRunsApi,
+    private readonly runs: TaskRunsClient,
   ) {}
 
   stream(): AsyncIterable<SseEvent> {
@@ -44,8 +54,8 @@ export class RunHandle {
   }
 }
 
-export class TaskRunsApi {
-  constructor(private readonly http: HttpClient) {}
+export class TaskRunsClient {
+  constructor(private readonly http: ResourceHttpClient) {}
 
   async create(taskId: string, body: TaskRunCreateParams): Promise<RunHandle> {
     const res = await this.http.request<TaskRunResponse>({
@@ -78,11 +88,19 @@ export class TaskRunsApi {
   }
 }
 
-export class TasksApi {
-  readonly runs: TaskRunsApi;
+export class TasksClient<
+  TCreate extends object = TaskCreateParams,
+  TStart extends TCreate & { prompt: string } = TCreate & { prompt: string },
+> {
+  readonly runs: TaskRunsClient;
+  private readonly mapTaskBody: TaskBodyMapper<TCreate>;
 
-  constructor(private readonly http: HttpClient) {
-    this.runs = new TaskRunsApi(http);
+  constructor(
+    private readonly http: ResourceHttpClient,
+    mapTaskBody: TaskBodyMapper<TCreate> = identityTaskBody,
+  ) {
+    this.runs = new TaskRunsClient(http);
+    this.mapTaskBody = mapTaskBody;
   }
 
   /**
@@ -103,11 +121,11 @@ export class TasksApi {
     );
   }
 
-  create(body: TaskCreateParams): Promise<TaskCreateResponse> {
+  create(body: TCreate): Promise<TaskCreateResponse> {
     return this.http.request<TaskCreateResponse>({
       method: "POST",
       path: "/v1/tasks",
-      body,
+      body: this.mapTaskBody(body),
     });
   }
 
@@ -151,8 +169,10 @@ export class TasksApi {
   }
 
   /** Cursor-style sugar: create a task + return a handle on its initial run. */
-  async start(params: StartParams): Promise<RunHandle> {
+  async start(params: TStart): Promise<RunHandle> {
     const res = await this.create(params);
     return new RunHandle(res.task, res.run, this.runs);
   }
 }
+
+export { TasksClient as TasksApi, TaskRunsClient as TaskRunsApi };
