@@ -169,6 +169,9 @@ importers:
 
   examples/auth:
     dependencies:
+      '@introspection-sdk/introspection-browser':
+        specifier: workspace:*
+        version: link:../../packages/introspection-browser
       '@supabase/supabase-js':
         specifier: ^2.0.0
         version: 2.107.0

@@ -21,6 +21,8 @@
 
 import { BrowserHttpClient, stripTrailingSlash, toApiError } from "./http.js";
 import { TasksClient } from "./tasks.js";
+import { FilesClient } from "./files.js";
+import { ConversationsClient } from "./conversations.js";
 
 export interface IntrospectionApiClientOptions {
   /** Data Plane REST base URL (e.g. `https://dp.us.introspection.dev`). */
@@ -42,6 +44,10 @@ export interface IntrospectionApiClientOptions {
 export class IntrospectionApiClient {
   /** `/v1/tasks` operations bound to the DP session cookie. */
   readonly tasks: TasksClient;
+  /** `/v1/files` operations bound to the DP session cookie. */
+  readonly files: FilesClient;
+  /** Read-only `/v1/conversations` projection bound to the session cookie. */
+  readonly conversations: ConversationsClient;
 
   private readonly fetchImpl: typeof fetch;
 
@@ -59,6 +65,8 @@ export class IntrospectionApiClient {
       onUnauthorized: () => this.reexchange(),
     });
     this.tasks = new TasksClient(http);
+    this.files = new FilesClient(http);
+    this.conversations = new ConversationsClient(http);
   }
 
   /**

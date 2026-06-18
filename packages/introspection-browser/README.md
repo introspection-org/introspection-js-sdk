@@ -86,6 +86,34 @@ Both `create` and `start` accept two optional task controls:
   before the sandbox is torn down. `0` tears it down as soon as it's
   provisioned; omit to use the deployment default. Clamped to the task timeout.
 
+## Files and conversations
+
+The same identity session also reaches `/v1/files` and (read-only)
+`/v1/conversations` — no extra credential, just the cookie minted by
+`connect()`:
+
+```typescript
+// Files — CRUD + upload/download, all identity-scoped
+await client.files.upload({ file: new Blob(["hi"]), name: "hi.txt" });
+const page = await client.files.list({ visibility: "identity" });
+const bytes = await client.files.download(page.records[0].id);
+
+// Conversations — read-only projection over the telemetry store
+for await (const summary of client.conversations.list()) {
+  console.log(summary.conversation_id);
+}
+// Resolve the latest turn of a conversation (Responses-API shape)
+const turn = await client.conversations.retrieve(conversationId);
+console.log(turn?.output_messages);
+```
+
+`client.files` mirrors the Node SDK's `FilesApi` (`list` / `upload` /
+`createText` / `get` / `update` / `delete` / `download` / `downloadStream`,
+plus `files.versions`). `client.conversations` mirrors `ConversationsApi`
+(`list`, `retrieve`, and `conversations.items.list()` / `.get()`). Both `list`
+helpers return a `Paginator` — `await` it for the first page or `for await` it
+to auto-page.
+
 > **CORS:** the Data Plane authorizes browser origins against its configured
 > allowlist (`CORS_ORIGINS`). A new SPA origin must be present there for the
-> cross-origin cookie exchange and task calls to succeed.
+> cross-origin cookie exchange and task/file/conversation calls to succeed.

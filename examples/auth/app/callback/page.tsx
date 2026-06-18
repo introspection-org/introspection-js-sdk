@@ -11,6 +11,7 @@ import {
   SPA_CLIENT_ID,
   ZITADEL_ISSUER_URL,
   runTaskWithToken,
+  type RunSession,
 } from "@/lib/intro";
 
 const SPA_FLOW_KEY = "intro_spa_flow";
@@ -39,7 +40,7 @@ interface FederatedFlow {
  */
 export default function Callback() {
   const [log, setLog] = useState<LogLine[]>([]);
-  const socketRef = useRef<WebSocket | null>(null);
+  const socketRef = useRef<RunSession | null>(null);
   const startedRef = useRef(false);
 
   useEffect(() => {

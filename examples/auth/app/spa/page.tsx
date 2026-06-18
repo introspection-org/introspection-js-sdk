@@ -19,6 +19,7 @@ import {
   generatePkce,
   randomToken,
   runTaskWithToken,
+  type RunSession,
 } from "@/lib/intro";
 
 /** Persisted across the redirect (sessionStorage). */
@@ -56,7 +57,7 @@ export default function SpaPage() {
   const [subjectToken, setSubjectToken] = useState("");
   const [running, setRunning] = useState(false);
   const [log, setLog] = useState<LogLine[]>([]);
-  const socketRef = useRef<WebSocket | null>(null);
+  const socketRef = useRef<RunSession | null>(null);
 
   const append = useCallback<Append>((kind, text) => {
     setLog((prev) => [...prev, { kind, text }]);
