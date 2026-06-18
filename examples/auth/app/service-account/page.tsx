@@ -50,12 +50,11 @@ export default function ServiceAccountPage() {
         "info",
         "Broker authenticating the service account (client credentials) …",
       );
-      const { token, projectId } = await brokerSession("service_account");
+      const { token } = await brokerSession("service_account");
       append("ok", "   ✓ Introspection token minted");
       const trimmedUserId = userId.trim();
       socketRef.current = await runTaskWithToken({
         token,
-        projectId,
         prompt,
         append,
         // Caller-asserted attribution identity: becomes the task's

@@ -51,20 +51,6 @@ export interface AgentInfo {
   session_id?: string | null;
 }
 
-/**
- * Minimum sharing scope of a task.
- *
- * - `"identity"` — only the caller identity that owns the task (default
- *   when the credential carries an identity claim).
- * - `"member"`   — the owning member's sessions.
- * - `"project"`  — any project principal (default for identity-less
- *   credentials; pre-visibility behaviour).
- *
- * The task's `identity_key` is derived from JWT claims, never the
- * request body.
- */
-export type TaskVisibility = "identity" | "member" | "project";
-
 export interface Task {
   id: Uuid;
   org_id: Uuid;
@@ -84,7 +70,6 @@ export interface Task {
   last_user_message_at?: IsoDate | null;
   metadata?: Record<string, unknown> | null;
   agent?: AgentInfo | null;
-  visibility: TaskVisibility;
   identity_key?: string | null;
 }
 
@@ -96,17 +81,19 @@ export interface TaskCreateParams {
   repository_id?: string;
   metadata?: Record<string, unknown>;
   /**
-   * Sharing scope for the new task. Defaults to `"identity"` when the
-   * credential carries an identity claim, else `"project"`.
-   */
-  visibility?: TaskVisibility;
-  /**
    * Override the interactive idle window (seconds) before the sandbox is
    * torn down. `0` tears down as soon as it's provisioned (e.g. an
    * empty-prompt warm/bake run); omit to use the deployment default.
    * Clamped to the task timeout.
    */
   idle_timeout_seconds?: number;
+  /**
+   * Fork from a shared conversation: the `/v1/shares` grant id for the source
+   * conversation. Its presence makes this create a fork — the new task is seeded
+   * with that conversation's history, read via the share (the permissions
+   * boundary).
+   */
+  fork_share_id?: Uuid;
 }
 
 export interface TaskUpdateParams {
@@ -119,7 +106,6 @@ export interface TaskListParams extends ListParams {
   statuses?: TaskStatus[];
   modes?: TaskMode[];
   require_automation_id?: boolean;
-  visibility?: TaskVisibility;
   /** Privileged credentials only: audit a specific owner identity. */
   identity_key?: string;
 }
@@ -159,21 +145,6 @@ export interface TaskCancelResponse {
 
 export type FileType = "upload" | "filesystem" | "other";
 
-/**
- * Minimum sharing scope of a file row.
- *
- * - `"identity"` — only the caller identity that owns the file (default
- *   when the credential carries an identity claim).
- * - `"member"`   — the owning member's sessions.
- * - `"project"`  — any project principal (default for identity-less
- *   credentials; pre-visibility behaviour).
- *
- * Privileged credentials (API keys / dashboards without an identity
- * claim) always see every row. `task_id` is attribution/accounting,
- * never an access boundary.
- */
-export type FileVisibility = "identity" | "member" | "project";
-
 export interface File {
   id: Uuid;
   org_id: Uuid;
@@ -190,7 +161,6 @@ export interface File {
   version: number;
   parent_id?: Uuid | null;
   storage_version_id?: string | null;
-  visibility: FileVisibility;
   identity_key?: string | null;
   task_id?: Uuid | null;
 }
@@ -199,7 +169,6 @@ export interface FileListParams extends ListParams {
   name?: string;
   file_type?: FileType;
   storage_path?: string;
-  visibility?: FileVisibility;
   /** Accounting view: files stamped with this task. Access rules still apply. */
   task_id?: Uuid;
   /** Privileged credentials only: audit a specific owner identity. */
@@ -209,11 +178,6 @@ export interface FileListParams extends ListParams {
 export interface FileUpdateParams {
   name?: string;
   metadata?: Record<string, unknown>;
-  /**
-   * Change the file's sharing scope. The row must already carry the
-   * matching owner column (PATCH never re-owns a file).
-   */
-  visibility?: FileVisibility;
 }
 
 export interface FileCreateTextParams {
@@ -222,12 +186,47 @@ export interface FileCreateTextParams {
   mime_type?: string;
 }
 
-export interface FileCreateOptions {
+// --- resource shares (/v1/shares) ---
+
+/** Resource families a share grant can target (tasks are not shareable). */
+export type ShareResourceType = "file" | "conversation";
+
+/** A read-sharing grant for a file or conversation (`/v1/shares`). */
+export interface ResourceShare {
+  id: Uuid;
+  org_id: Uuid;
+  project_id: Uuid;
+  created_at: IsoDate;
+  updated_at: IsoDate;
+  resource_type: ShareResourceType;
+  resource_id: string;
+  /** Member-targeted grant; `null` means a project-wide grant (everyone). */
+  granted_member_id?: Uuid | null;
+  /** Grantor (always a member) — the revoke gate. */
+  created_by_member_id: Uuid;
   /**
-   * Sharing scope for the new file. Defaults to `"identity"` when the
-   * credential carries an identity claim, else `"project"`.
+   * Fully-qualified canonical GET URL for the shared resource, carrying the
+   * `?share_id` capability (e.g. `…/v1/files/{id}?share_id=…`). Always present on
+   * `/v1/shares` reads — follow it to read the resource under this grant.
    */
-  visibility?: FileVisibility;
+  url: string;
+}
+
+/** Omit `granted_member_id` for a project-wide grant; set it to target one member. */
+export interface ShareCreateParams {
+  resource_type: ShareResourceType;
+  resource_id: string;
+  /** Target one member; omit for a project-wide grant (everyone in the project). */
+  granted_member_id?: Uuid;
+}
+
+export interface ShareListParams extends ListParams {
+  resource_type?: ShareResourceType;
+  resource_id?: string;
+  /** Only shares the caller created. */
+  created_by_me?: boolean;
+  /** Only shares targeting the caller. */
+  granted_to_me?: boolean;
 }
 
 // --- runtimes / experiments / runner ---

@@ -35,7 +35,6 @@ import { attachRecipes, type RecipesApi } from "./resources/recipes.js";
  * ```typescript
  * const client = new IntrospectionClient({
  *   token: process.env.INTROSPECTION_TOKEN,
- *   projectId: "proj_…",
  * });
  *
  * // Open a runner from a runtime, then drive it.
@@ -54,12 +53,12 @@ export class IntrospectionClient {
   readonly cpHttp: HttpClient;
   /** @internal — passed through to Runner so it can build its own DP HTTP client. */
   readonly advancedOptions: AdvancedOptions;
-  readonly projectId: string | undefined;
 
   /**
    * CRUD on `/v1/runtimes` and the `(idOrName) => RuntimeHandle` factory.
-   * Call as `client.runtimes("customer-agent").run()` or
-   * `client.runtimes.list({ project_id })`.
+   * Call as `client.runtimes("customer-agent").run()`. The project is taken
+   * from the API key server-side; pass `project_id` to a CRUD helper only to
+   * override it per call.
    */
   readonly runtimes: RuntimesApi & RuntimeHandleFactory;
 
@@ -79,8 +78,6 @@ export class IntrospectionClient {
     const token = options.token || process.env.INTROSPECTION_TOKEN || "";
     const advanced = options.advanced || {};
     this.advancedOptions = advanced;
-    this.projectId =
-      options.projectId || process.env.INTROSPECTION_PROJECT_ID || undefined;
     const baseApiUrl =
       advanced.baseApiUrl ||
       process.env.INTROSPECTION_BASE_API_URL ||

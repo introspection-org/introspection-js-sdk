@@ -12,8 +12,8 @@
  *
  * const client = new IntrospectionApiClient({
  *   dpUrl: "https://dp.us.introspection.dev",
- *   projectId: "proj_…",
- *   // your backend mints the Introspection access token
+ *   // your backend mints the Introspection access token (the session's
+ *   // project is derived from its claims — no projectId option needed)
  *   getToken: () => fetch("/api/introspection/token").then((r) => r.text()),
  * });
  *
@@ -47,6 +47,7 @@ export {
   ConversationsClient,
   ConversationItemsClient,
 } from "./conversations.js";
+export { SharesClient } from "./shares.js";
 export { BrowserHttpClient, type BrowserHttpConfig } from "./http.js";
 export { parseSse } from "./sse.js";
 export {
@@ -60,7 +61,6 @@ export type {
   Task,
   TaskRun,
   TaskStatus,
-  TaskVisibility,
   TaskCreateResponse,
   TaskListParams,
   TaskUpdateParams,
@@ -74,7 +74,6 @@ export type {
   FileListParams,
   FileUpdateParams,
   FileCreateTextParams,
-  FileCreateOptions,
   ListParams,
   ConversationSummary,
   ConversationItem,
@@ -83,6 +82,10 @@ export type {
   ConversationItemListParams,
   ConversationItemInclude,
   ConversationResponse,
+  ResourceShare,
+  ShareResourceType,
+  ShareCreateParams,
+  ShareListParams,
 } from "@introspection-sdk/types";
 export {
   IntrospectionAPIError,

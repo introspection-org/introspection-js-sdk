@@ -97,31 +97,31 @@ describe("TasksApi", () => {
     });
   });
 
-  it("create() with visibility includes it in the POST /v1/tasks body", async () => {
+  it("create() with fork_share_id includes it in the POST /v1/tasks body", async () => {
     const http = mockHttp({
       requestResult: { task: TASK_FIXTURE, run: RUN_FIXTURE },
     });
     const api = new TasksApi(http);
-    await api.create({ title: "Scoped task", visibility: "identity" });
+    await api.create({ title: "Forked task", fork_share_id: "share-1" });
 
     expect(http.request).toHaveBeenCalledWith({
       method: "POST",
       path: "/v1/tasks",
-      body: { title: "Scoped task", visibility: "identity" },
+      body: { title: "Forked task", fork_share_id: "share-1" },
     });
   });
 
-  it("list() forwards visibility and identity_key filters", async () => {
+  it("list() forwards the identity_key filter", async () => {
     const http = mockHttp({
       requestResult: { records: [], count: 0, total_count: 0, next: null },
     });
     const api = new TasksApi(http);
-    await api.list({ visibility: "identity", identity_key: "user:u_a" });
+    await api.list({ identity_key: "user:u_a" });
 
     expect(http.request).toHaveBeenCalledWith({
       method: "GET",
       path: "/v1/tasks",
-      query: { visibility: "identity", identity_key: "user:u_a" },
+      query: { identity_key: "user:u_a" },
     });
   });
 

@@ -23,16 +23,17 @@ import { BrowserHttpClient, stripTrailingSlash, toApiError } from "./http.js";
 import { TasksClient } from "./tasks.js";
 import { FilesClient } from "./files.js";
 import { ConversationsClient } from "./conversations.js";
+import { SharesClient } from "./shares.js";
 
 export interface IntrospectionApiClientOptions {
   /** Data Plane REST base URL (e.g. `https://dp.us.introspection.dev`). */
   dpUrl: string;
-  /** Project the session is scoped to. */
-  projectId: string;
   /**
    * Returns a fresh Introspection access token from the app's broker
    * (its own backend). Called on `connect()` and again whenever the DP
-   * session cookie needs re-minting after a 401.
+   * session cookie needs re-minting after a 401. The session's project is
+   * derived from this token's claims server-side — there is no separate
+   * project option.
    */
   getToken: () => string | Promise<string>;
   /** Custom `fetch` (for tests or non-standard runtimes). */
@@ -48,6 +49,8 @@ export class IntrospectionApiClient {
   readonly files: FilesClient;
   /** Read-only `/v1/conversations` projection bound to the session cookie. */
   readonly conversations: ConversationsClient;
+  /** `/v1/shares` read-sharing grants bound to the session cookie. */
+  readonly shares: SharesClient;
 
   private readonly fetchImpl: typeof fetch;
 
@@ -67,6 +70,7 @@ export class IntrospectionApiClient {
     this.tasks = new TasksClient(http);
     this.files = new FilesClient(http);
     this.conversations = new ConversationsClient(http);
+    this.shares = new SharesClient(http);
   }
 
   /**
@@ -87,7 +91,7 @@ export class IntrospectionApiClient {
           "Content-Type": "application/json",
           ...(this.opts.additionalHeaders ?? {}),
         },
-        body: JSON.stringify({ token, project_id: this.opts.projectId }),
+        body: JSON.stringify({ token }),
         credentials: "include",
       },
     );

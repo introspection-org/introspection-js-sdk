@@ -46,14 +46,6 @@ export interface IntrospectionClientOptions {
   token?: string;
   /** Service name for telemetry (env: INTROSPECTION_SERVICE_NAME, default: "introspection-client") */
   serviceName?: string;
-  /**
-   * Default project id. Required by `client.runtimes(name)` when the
-   * argument is a runtime name instead of a UUID — the SDK needs to know
-   * which project to scope the lookup to. May be omitted if you always
-   * pass UUIDs to `runtimes(id)` and pass `project_id` explicitly to the
-   * CRUD helpers.
-   */
-  projectId?: string;
   /** Advanced options for configuration and testing */
   advanced?: AdvancedOptions;
 }

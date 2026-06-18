@@ -10,7 +10,6 @@ import type {
   TaskRunCreateParams,
   TaskRunResponse,
   TaskUpdateParams,
-  TaskVisibility,
 } from "@introspection-sdk/types";
 import { Paginator, cursorPaginate } from "@introspection-sdk/http";
 import { BrowserHttpClient } from "./http.js";
@@ -34,7 +33,6 @@ export interface CreateTaskParams {
   agent_name?: string;
   title?: string;
   metadata?: Record<string, unknown>;
-  visibility?: TaskVisibility;
   /**
    * Override the interactive idle window (seconds) before the sandbox is
    * torn down. `0` tears down as soon as it's provisioned; omit to use the
@@ -43,6 +41,13 @@ export interface CreateTaskParams {
   idle_timeout_seconds?: number;
   /** Caller identity for attribution; merged into `metadata.identity`. */
   identity?: RunIdentityInput;
+  /**
+   * Fork from a shared conversation: the `/v1/shares` grant id for the source
+   * conversation. Its presence makes this create a fork — the server seeds the
+   * new task with that conversation's history, read via the share (the
+   * permissions boundary).
+   */
+  fork_share_id?: string;
 }
 
 export interface StartTaskParams extends CreateTaskParams {

@@ -167,10 +167,9 @@ export class RuntimeHandle {
 
   private async resolveId(): Promise<Uuid> {
     if (this.resolvedId) return this.resolvedId;
-    const runtime = await this.api.resolveByName(
-      this.idOrName,
-      this.client.projectId,
-    );
+    // The project is scoped by the API key server-side — no client-level
+    // project to thread through the name lookup.
+    const runtime = await this.api.resolveByName(this.idOrName);
     this.resolvedId = runtime.id;
     return runtime.id;
   }
