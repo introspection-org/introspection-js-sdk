@@ -30,6 +30,7 @@ export {
   ConversationsApi,
   ConversationItemsApi,
 } from "./runner-resources/conversations.js";
+export { SharesApi } from "./runner-resources/shares.js";
 export { HttpClient } from "./http.js";
 export type { ResolvedApiConfig } from "./http.js";
 export { parseSse } from "./streaming.js";

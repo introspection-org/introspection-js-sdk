@@ -10,6 +10,7 @@ import { HttpClient } from "./http.js";
 import { TasksApi } from "./runner-resources/tasks.js";
 import { FilesApi } from "./runner-resources/files.js";
 import { ConversationsApi } from "./runner-resources/conversations.js";
+import { SharesApi } from "./runner-resources/shares.js";
 import type { IntrospectionClient } from "./client.js";
 
 /**
@@ -41,6 +42,7 @@ export class Runner {
   readonly tasks: TasksApi;
   readonly files: FilesApi;
   readonly conversations: ConversationsApi;
+  readonly shares: SharesApi;
 
   constructor(
     private readonly client: IntrospectionClient,
@@ -52,6 +54,7 @@ export class Runner {
     this.tasks = new TasksApi(this.guardedHttp(this.http));
     this.files = new FilesApi(this.guardedHttp(this.http));
     this.conversations = new ConversationsApi(this.guardedHttp(this.http));
+    this.shares = new SharesApi(this.guardedHttp(this.http));
   }
 
   // --- public accessors ---
