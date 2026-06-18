@@ -86,7 +86,6 @@ export type {
   ConversationResponse,
   ResourceShare,
   ShareResourceType,
-  ShareVisibilityLevel,
   ShareCreateParams,
   ShareListParams,
 } from "@introspection-sdk/types";

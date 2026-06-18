@@ -246,7 +246,6 @@ export interface FileCreateOptions {
 
 /** Resource families a share grant can target (tasks are not shareable). */
 export type ShareResourceType = "file" | "conversation";
-export type ShareVisibilityLevel = "project";
 
 /** A read-sharing grant for a file or conversation (`/v1/shares`). */
 export interface ResourceShare {
@@ -257,11 +256,10 @@ export interface ResourceShare {
   updated_at: IsoDate;
   resource_type: ShareResourceType;
   resource_id: string;
-  /** Set for a project-wide grant; null for a member-targeted grant. */
-  visibility_level?: ShareVisibilityLevel | null;
-  /** Set for a member-targeted grant; null for a project-wide grant. */
+  /** Member-targeted grant; `null` means a project-wide grant (everyone). */
   granted_member_id?: Uuid | null;
-  created_by_member_id?: Uuid | null;
+  /** Grantor (always a member) — the revoke gate. */
+  created_by_member_id: Uuid;
   /**
    * Fully-qualified canonical GET URL for the shared resource, carrying the
    * `?share_id` capability (e.g. `…/v1/files/{id}?share_id=…`). Follow it to
@@ -270,13 +268,11 @@ export interface ResourceShare {
   url?: string | null;
 }
 
-/** Exactly one of `visibility_level` / `granted_member_id` must be set. */
+/** Omit `granted_member_id` for a project-wide grant; set it to target one member. */
 export interface ShareCreateParams {
   resource_type: ShareResourceType;
   resource_id: string;
-  /** Project-wide grant. Mutually exclusive with `granted_member_id`. */
-  visibility_level?: ShareVisibilityLevel;
-  /** Member-targeted grant. Mutually exclusive with `visibility_level`. */
+  /** Target one member; omit for a project-wide grant (everyone in the project). */
   granted_member_id?: Uuid;
 }
 
