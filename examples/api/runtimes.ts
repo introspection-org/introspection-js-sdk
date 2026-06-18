@@ -12,8 +12,10 @@
  *   pnpm api-runtimes
  *
  * Optional env:
- *   INTROSPECTION_PROJECT_ID    - overrides the project inferred from the API key
  *   INTROSPECTION_BASE_API_URL  - CP API host (default https://api.introspection.dev)
+ *
+ * The project is scoped by the API key — there is no client-level project
+ * option or env override.
  */
 
 import { IntrospectionClient } from "@introspection-sdk/introspection-node";
