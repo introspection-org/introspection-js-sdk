@@ -46,7 +46,32 @@ async function main() {
     console.log(`[${event.event}] ${event.data}`);
   }
 
-  // 3) Bonus — upload files via the same runner.
+  // 3) Once the run has drained, the task carries its conversation id in
+  //    metadata. Fetch that conversation, then mint a read-share for it —
+  //    the grant's `url` (carrying the `?share_id` capability) is what you
+  //    hand to someone else, or feed back as `fork_share_id` to branch a
+  //    new task off this conversation.
+  const conversationId = run.task?.metadata?.conversation_id as
+    | string
+    | undefined;
+  if (conversationId) {
+    const response = await runner.conversations.retrieve(conversationId);
+    if (response) {
+      console.log(
+        `completed conversation ${conversationId}: model=${response.model}, ` +
+          `${response.output_messages.length} output message(s)`,
+      );
+    }
+    const share = await runner.shares.create({
+      resource_type: "conversation",
+      resource_id: conversationId,
+    });
+    console.log(`shared conversation -> ${share.url}`);
+    // Branch a fresh task off the shared conversation's history:
+    //   await runner.tasks.create({ prompt: "continue", fork_share_id: share.id });
+  }
+
+  // 4) Bonus — upload files via the same runner.
   const file = await runner.files.createText({
     name: "notes.md",
     content: "# Hello\n\nFrom the Node SDK Runner.",

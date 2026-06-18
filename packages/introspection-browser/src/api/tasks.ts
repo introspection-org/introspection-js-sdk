@@ -10,7 +10,6 @@ import type {
   TaskRunCreateParams,
   TaskRunResponse,
   TaskUpdateParams,
-  TaskVisibility,
 } from "@introspection-sdk/types";
 import { Paginator, cursorPaginate } from "@introspection-sdk/http";
 import { BrowserHttpClient } from "./http.js";
@@ -34,7 +33,6 @@ export interface CreateTaskParams {
   agent_name?: string;
   title?: string;
   metadata?: Record<string, unknown>;
-  visibility?: TaskVisibility;
   /**
    * Override the interactive idle window (seconds) before the sandbox is
    * torn down. `0` tears down as soon as it's provisioned; omit to use the

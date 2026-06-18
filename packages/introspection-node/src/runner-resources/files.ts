@@ -1,6 +1,5 @@
 import type {
   File as FileResource,
-  FileCreateOptions,
   FileCreateTextParams,
   FileListParams,
   FileType,
@@ -47,12 +46,8 @@ export class FileVersionsApi {
     });
   }
 
-  create(
-    fileId: string,
-    body: FileUploadBody,
-    options?: FileCreateOptions,
-  ): Promise<FileResource> {
-    const form = toFormData(body, options);
+  create(fileId: string, body: FileUploadBody): Promise<FileResource> {
+    const form = toFormData(body);
     return this.http.request<FileResource>({
       method: "POST",
       path: `/v1/files/${encodeURIComponent(fileId)}/versions`,
@@ -86,11 +81,8 @@ export class FilesApi {
     );
   }
 
-  upload(
-    body: FileUploadBody,
-    options?: FileCreateOptions,
-  ): Promise<FileResource> {
-    const form = toFormData(body, options);
+  upload(body: FileUploadBody): Promise<FileResource> {
+    const form = toFormData(body);
     return this.http.request<FileResource>({
       method: "POST",
       path: "/v1/files",
@@ -98,16 +90,11 @@ export class FilesApi {
     });
   }
 
-  createText(
-    body: FileCreateTextParams,
-    options?: FileCreateOptions,
-  ): Promise<FileResource> {
+  createText(body: FileCreateTextParams): Promise<FileResource> {
     return this.http.request<FileResource>({
       method: "POST",
       path: "/v1/files",
-      body: options?.visibility
-        ? { ...body, visibility: options.visibility }
-        : body,
+      body,
     });
   }
 
@@ -151,10 +138,7 @@ export class FilesApi {
   }
 }
 
-function toFormData(
-  body: FileUploadBody,
-  options?: FileCreateOptions,
-): FormData {
+function toFormData(body: FileUploadBody): FormData {
   const fd = new FormData();
   if ("file" in body && body.file instanceof Blob) {
     fd.append("file", body.file, body.name);
@@ -174,6 +158,5 @@ function toFormData(
   }
   if (body.name) fd.append("name", body.name);
   if (body.file_type) fd.append("file_type", body.file_type);
-  if (options?.visibility) fd.append("visibility", options.visibility);
   return fd;
 }
