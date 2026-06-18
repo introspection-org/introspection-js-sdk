@@ -38,6 +38,15 @@ export {
   type CreateTaskParams,
   type StartTaskParams,
 } from "./tasks.js";
+export {
+  FilesClient,
+  FileVersionsClient,
+  type FileUploadBody,
+} from "./files.js";
+export {
+  ConversationsClient,
+  ConversationItemsClient,
+} from "./conversations.js";
 export { BrowserHttpClient, type BrowserHttpConfig } from "./http.js";
 export { parseSse } from "./sse.js";
 export {
@@ -60,6 +69,20 @@ export type {
   RunIdentityInput,
   Paginated,
   SseEvent,
+  File,
+  FileType,
+  FileListParams,
+  FileUpdateParams,
+  FileCreateTextParams,
+  FileCreateOptions,
+  ListParams,
+  ConversationSummary,
+  ConversationItem,
+  ConversationItemList,
+  ConversationListParams,
+  ConversationItemListParams,
+  ConversationItemInclude,
+  ConversationResponse,
 } from "@introspection-sdk/types";
 export {
   IntrospectionAPIError,
