@@ -30,7 +30,10 @@ describe("browser FilesClient", () => {
       requestResult: { records: [FILE_FIXTURE], count: 1, next: null },
     });
     const files = new FilesClient(http);
-    const page = await files.list({ visibility: "identity", task_id: "task-1" });
+    const page = await files.list({
+      visibility: "identity",
+      task_id: "task-1",
+    });
 
     expect(http.request).toHaveBeenCalledWith({
       method: "GET",
