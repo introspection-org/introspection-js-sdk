@@ -19,26 +19,24 @@ const FILE_FIXTURE = {
   id: "file-1",
   name: "notes.txt",
   file_type: "document",
-  visibility: "identity",
   created_at: "2025-01-01T00:00:00Z",
   updated_at: "2025-01-01T00:00:00Z",
 };
 
 describe("browser FilesClient", () => {
-  it("list() forwards visibility and task_id filters", async () => {
+  it("list() forwards the task_id filter", async () => {
     const http = mockHttp({
       requestResult: { records: [FILE_FIXTURE], count: 1, next: null },
     });
     const files = new FilesClient(http);
     const page = await files.list({
-      visibility: "identity",
       task_id: "task-1",
     });
 
     expect(http.request).toHaveBeenCalledWith({
       method: "GET",
       path: "/v1/files",
-      query: { visibility: "identity", task_id: "task-1", next: undefined },
+      query: { task_id: "task-1", next: undefined },
     });
     expect(page.records).toHaveLength(1);
   });
@@ -81,30 +79,24 @@ describe("browser FilesClient", () => {
   it("upload() posts multipart FormData with credentials transport", async () => {
     const http = mockHttp({ requestResult: FILE_FIXTURE });
     const files = new FilesClient(http);
-    await files.upload(
-      { file: new Blob(["hi"]), name: "hi.txt" },
-      { visibility: "project" },
-    );
+    await files.upload({ file: new Blob(["hi"]), name: "hi.txt" });
 
     const call = (http.request as ReturnType<typeof vi.fn>).mock.calls[0][0];
     expect(call.method).toBe("POST");
     expect(call.path).toBe("/v1/files");
     expect(call.body).toBeInstanceOf(FormData);
-    expect((call.body as FormData).get("visibility")).toBe("project");
+    expect((call.body as FormData).get("name")).toBe("hi.txt");
   });
 
-  it("createText() folds visibility into the JSON body", async () => {
+  it("createText() posts the JSON body", async () => {
     const http = mockHttp({ requestResult: FILE_FIXTURE });
     const files = new FilesClient(http);
-    await files.createText(
-      { name: "n.txt", content: "hello" },
-      { visibility: "member" },
-    );
+    await files.createText({ name: "n.txt", content: "hello" });
 
     expect(http.request).toHaveBeenCalledWith({
       method: "POST",
       path: "/v1/files",
-      body: { name: "n.txt", content: "hello", visibility: "member" },
+      body: { name: "n.txt", content: "hello" },
     });
   });
 

@@ -44,7 +44,6 @@ const TASK_FIXTURE = {
   mode: "agent" as const,
   status: "running" as const,
   is_archived: false,
-  visibility: "identity" as const,
 };
 
 const RUN_FIXTURE = {
@@ -240,12 +239,12 @@ describe("TasksClient", () => {
       },
     });
     const tasks = new TasksClient(http);
-    const page = await tasks.list({ limit: 10, visibility: "identity" });
+    const page = await tasks.list({ limit: 10, identity_key: "user:u_a" });
 
     expect(http.request).toHaveBeenCalledWith({
       method: "GET",
       path: "/v1/tasks",
-      query: { limit: 10, visibility: "identity" },
+      query: { limit: 10, identity_key: "user:u_a" },
     });
     expect(page.records).toHaveLength(1);
   });
@@ -352,7 +351,6 @@ describe("IntrospectionApiClient", () => {
     const getToken = vi.fn().mockResolvedValue("intro_access_token");
     const client = new IntrospectionApiClient({
       dpUrl: "https://dp.example.com/",
-      projectId: "proj-1",
       getToken,
       fetch: fetchImpl as unknown as typeof fetch,
     });
@@ -362,9 +360,10 @@ describe("IntrospectionApiClient", () => {
     const [url, init] = fetchImpl.mock.calls[0];
     expect(url).toBe("https://dp.example.com/v1/oauth/exchange");
     expect(init.credentials).toBe("include");
+    // The project is derived from the token's claims at the DP — the exchange
+    // body carries only the token.
     expect(JSON.parse(init.body)).toEqual({
       token: "intro_access_token",
-      project_id: "proj-1",
     });
   });
 
