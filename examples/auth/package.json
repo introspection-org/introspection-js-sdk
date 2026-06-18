@@ -12,6 +12,7 @@
     "clean": "rm -rf .next .turbo node_modules"
   },
   "dependencies": {
+    "@introspection-sdk/introspection-browser": "workspace:*",
     "jose": "^5.9.6",
     "next": "^16.1.4",
     "react": "^19.0.0",

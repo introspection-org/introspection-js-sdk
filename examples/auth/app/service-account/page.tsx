@@ -9,6 +9,7 @@ import {
   type LogLine,
   brokerSession,
   runTaskWithToken,
+  type RunSession,
 } from "@/lib/intro";
 
 /**
@@ -30,7 +31,7 @@ export default function ServiceAccountPage() {
   const [userId, setUserId] = useState("sa-demo-user");
   const [running, setRunning] = useState(false);
   const [log, setLog] = useState<LogLine[]>([]);
-  const socketRef = useRef<WebSocket | null>(null);
+  const socketRef = useRef<RunSession | null>(null);
 
   const append = useCallback<Append>((kind, text) => {
     setLog((prev) => [...prev, { kind, text }]);

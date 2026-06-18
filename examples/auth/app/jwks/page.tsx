@@ -13,6 +13,7 @@ import {
   type LogLine,
   brokerSession,
   runTaskWithToken,
+  type RunSession,
 } from "@/lib/intro";
 import { createSupabaseBrowserClient } from "@/lib/supabase";
 
@@ -35,7 +36,7 @@ export default function DirectPage() {
   );
   const [running, setRunning] = useState(false);
   const [log, setLog] = useState<LogLine[]>([]);
-  const socketRef = useRef<WebSocket | null>(null);
+  const socketRef = useRef<RunSession | null>(null);
 
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
 

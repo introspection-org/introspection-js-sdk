@@ -1,9 +1,18 @@
 /**
  * Shared Introspection sample helpers — the config consts, PKCE utilities, and
  * the common "redeem an Introspection token → DP session cookie → create + stream
- * a task" tail used by every auth mode page (/jwks, /spa,
+ * a task → verify it was logged" tail used by every auth mode page (/jwks, /spa,
  * /service-account).
+ *
+ * The DP-facing tail (`runTaskWithToken`) is driven entirely by the browser
+ * SDK's {@link IntrospectionApiClient} — no hand-rolled `/v1/oauth/exchange`,
+ * `/v1/tasks`, or WebSocket plumbing in the app.
  */
+import {
+  IntrospectionApiClient,
+  type SseEvent,
+} from "@introspection-sdk/introspection-browser/api";
+
 export const CP_URL = (
   process.env.NEXT_PUBLIC_INTROSPECTION_CP_URL ?? "http://localhost:8000"
 ).replace(/\/+$/, "");
@@ -72,10 +81,6 @@ export interface LogLine {
   text: string;
 }
 export type Append = (kind: LogKind, text: string) => void;
-
-export function wsUrlFor(dpUrl: string): string {
-  return dpUrl.replace(/^http/, "ws");
-}
 
 function base64url(bytes: Uint8Array): string {
   return btoa(String.fromCharCode(...bytes))
@@ -175,29 +180,6 @@ export async function brokerSession(
 }
 
 /**
- * Redeem an Introspection token at the DP for the HttpOnly `intro_dp_session`
- * cookie. After this the browser talks to the DP directly — no token in JS.
- */
-export async function exchangeDpSession(opts: {
-  token: string;
-  projectId: string;
-  append: Append;
-}): Promise<void> {
-  const { token, projectId, append } = opts;
-  append("info", "Exchanging for a Data Plane session cookie …");
-  const exchangeRes = await fetch(`${DP_URL}/v1/oauth/exchange`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ token, project_id: projectId }),
-    credentials: "include",
-  });
-  if (!exchangeRes.ok) {
-    throw new Error(`DP exchange returned ${exchangeRes.status}`);
-  }
-  append("ok", "   ✓ intro_dp_session cookie set");
-}
-
-/**
  * Caller identity for attribution: rides `metadata.identity` on the
  * task create. For machine (client_credentials) tokens — which carry no
  * identity claim of their own — the DP persists this onto the task, and the
@@ -210,22 +192,120 @@ export interface TaskIdentity {
   conversation_id?: string;
 }
 
+/** A live run the caller can tear down (stops streaming + any pending poll). */
+export interface RunSession {
+  close: () => void;
+}
+
+const CONVERSATION_POLL_INTERVAL_MS = 5_000;
+const CONVERSATION_POLL_TIMEOUT_MS = 30_000;
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function formatEvent(ev: SseEvent): string {
+  const data = ev.data.length > 200 ? `${ev.data.slice(0, 200)}…` : ev.data;
+  return `${ev.event}: ${data}`;
+}
+
 /**
- * The tail shared by all modes: redeem the Introspection token at the DP for a
- * session cookie, create a task (pinned to a runtime when configured), and open
- * the event stream. Returns the WebSocket so the caller can close it.
+ * After the task stream completes, confirm the run actually landed in the
+ * telemetry store by polling the read-only `/v1/conversations` projection
+ * with the SAME identity session. Telemetry is batched, so a fresh
+ * conversation can take ~10–30s to appear — we poll rather than assume.
+ * `seen` is the set of conversation ids that already existed before the run,
+ * so we report only the new one this task produced.
+ */
+async function verifyConversationLogged(opts: {
+  client: IntrospectionApiClient;
+  append: Append;
+  seen: Set<string>;
+  isCancelled: () => boolean;
+}): Promise<void> {
+  const { client, append, seen, isCancelled } = opts;
+  append(
+    "info",
+    "Verifying the run was logged — querying /v1/conversations (telemetry is batched, ~10–30s) …",
+  );
+  const deadline = Date.now() + CONVERSATION_POLL_TIMEOUT_MS;
+  while (Date.now() < deadline) {
+    await sleep(CONVERSATION_POLL_INTERVAL_MS);
+    if (isCancelled()) return;
+    let records;
+    try {
+      records = (await client.conversations.list({ limit: 50 })).records;
+    } catch (err) {
+      append(
+        "err",
+        `   ✗ conversations query failed: ${err instanceof Error ? err.message : String(err)}`,
+      );
+      return;
+    }
+    const fresh = records.find((c) => !seen.has(c.trace_id));
+    if (fresh) {
+      const label = fresh.conversation_id ?? fresh.trace_id;
+      append("ok", `   ✓ conversation logged: ${label}`);
+      try {
+        const turn = await client.conversations.retrieve(fresh.trace_id);
+        if (turn) {
+          append(
+            "info",
+            `   ◂ latest turn — model=${turn.model ?? "?"}, ${turn.output_messages.length} output message(s)`,
+          );
+        }
+      } catch {
+        // retrieve() is a best-effort detail read; the list hit is the proof.
+      }
+      return;
+    }
+    append("info", "   … not visible yet, retrying …");
+  }
+  append(
+    "err",
+    "   ✗ no new conversation within 30s — telemetry may still be batching; re-query /v1/conversations shortly.",
+  );
+}
+
+/**
+ * The tail shared by all modes, driven by the browser SDK: build an
+ * {@link IntrospectionApiClient}, `connect()` for the `intro_dp_session`
+ * cookie, `tasks.start(...)` a run, stream its events, then verify the run
+ * was logged via `/v1/conversations`. Returns a {@link RunSession} the caller
+ * can `close()` to stop streaming.
+ *
+ * The Introspection token is handled only to seed `getToken`; every DP call
+ * after `connect()` rides the HttpOnly cookie.
  */
 export async function runTaskWithToken(opts: {
   token: string;
   projectId: string;
   prompt: string;
   append: Append;
-  /** Optional caller identity, stamped onto `metadata.identity`. */
+  /** Optional caller identity, folded into `metadata.identity`. */
   identity?: TaskIdentity;
-}): Promise<WebSocket> {
+}): Promise<RunSession> {
   const { token, projectId, prompt, append, identity } = opts;
 
-  await exchangeDpSession({ token, projectId, append });
+  const client = new IntrospectionApiClient({
+    dpUrl: DP_URL,
+    projectId,
+    getToken: () => token,
+  });
+
+  append("info", "Exchanging for a Data Plane session cookie …");
+  await client.connect();
+  append("ok", "   ✓ intro_dp_session cookie set");
+
+  // Snapshot the identity's existing conversations so we can single out the
+  // new one this task produces once telemetry lands. A conversation summary is
+  // keyed by `trace_id` (always present); the gen_ai `conversation_id` is
+  // optional metadata, so we track by trace_id.
+  const seen = new Set(
+    (await client.conversations.list({ limit: 50 })).records.map(
+      (c) => c.trace_id,
+    ),
+  );
 
   append(
     "info",
@@ -233,30 +313,49 @@ export async function runTaskWithToken(opts: {
       ? `Creating a task for runtime ${RUNTIME_ID.slice(0, 8)}… …`
       : `Creating a "${FALLBACK_AGENT_NAME}" task …`,
   );
-  const metadata = identity ? { metadata: { identity } } : {};
-  const taskRes = await fetch(`${DP_URL}/v1/tasks`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(
-      RUNTIME_ID
-        ? { prompt, runtime_id: RUNTIME_ID, ...metadata }
-        : { prompt, agent_name: FALLBACK_AGENT_NAME, ...metadata },
-    ),
-    credentials: "include",
+  const run = await client.tasks.start({
+    prompt,
+    ...(RUNTIME_ID
+      ? { runtime_id: RUNTIME_ID }
+      : { agent_name: FALLBACK_AGENT_NAME }),
+    ...(identity ? { identity } : {}),
   });
-  if (!taskRes.ok) throw new Error(`task create returned ${taskRes.status}`);
-  const task = (await taskRes.json()) as { task_id?: string; id?: string };
-  append("ok", `   ✓ task ${task.task_id ?? task.id ?? "(?)"} created`);
+  append("ok", `   ✓ task ${run.task?.id ?? run.run.task_id} created`);
 
-  append("info", "Streaming task events …");
-  const socket = new WebSocket(`${wsUrlFor(DP_URL)}/v1/ws/stream`);
-  socket.onopen = () => append("ok", "   ✓ stream connected");
-  socket.onmessage = (event) => append("info", `   ◂ ${event.data}`);
-  socket.onerror = () => append("err", "   ✗ stream error");
-  socket.onclose = (event) =>
-    append(
-      event.code === 1000 ? "info" : "err",
-      `   stream closed (${event.code}${event.reason ? `: ${event.reason}` : ""})`,
-    );
-  return socket;
+  let cancelled = false;
+
+  // Stream events, then verify logging — in the background so the caller gets
+  // a teardown handle immediately.
+  void (async () => {
+    append("info", "Streaming task events …");
+    try {
+      for await (const ev of run.stream()) {
+        if (cancelled) return;
+        append("info", `   ◂ ${formatEvent(ev)}`);
+      }
+      append("ok", "   ✓ stream complete");
+    } catch (err) {
+      if (!cancelled) {
+        append(
+          "err",
+          `   ✗ stream error: ${err instanceof Error ? err.message : String(err)}`,
+        );
+      }
+      return;
+    }
+    if (!cancelled) {
+      await verifyConversationLogged({
+        client,
+        append,
+        seen,
+        isCancelled: () => cancelled,
+      });
+    }
+  })();
+
+  return {
+    close: () => {
+      cancelled = true;
+    },
+  };
 }
