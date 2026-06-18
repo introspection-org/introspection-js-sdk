@@ -107,6 +107,18 @@ export interface TaskCreateParams {
    * Clamped to the task timeout.
    */
   idle_timeout_seconds?: number;
+  /**
+   * Fork from a shared conversation: the `/v1/shares` grant id for the source
+   * conversation. Its presence makes this create a fork — the new task is
+   * seeded with that conversation's history (the runtime hydrates from
+   * `forked_response_id`). Read access is enforced via the share.
+   */
+  fork_share_id?: Uuid;
+  /**
+   * The conversation item / response id to branch at; defaults to the
+   * conversation's latest item. Only meaningful with `fork_share_id`.
+   */
+  forked_response_id?: string;
 }
 
 export interface TaskUpdateParams {
@@ -228,6 +240,61 @@ export interface FileCreateOptions {
    * credential carries an identity claim, else `"project"`.
    */
   visibility?: FileVisibility;
+}
+
+// --- resource shares (/v1/shares) ---
+
+/** Resource families a share grant can target (tasks are not shareable). */
+export type ShareResourceType = "file" | "conversation";
+export type ShareVisibilityLevel = "project";
+
+/** A read-sharing grant for a file or conversation (`/v1/shares`). */
+export interface ResourceShare {
+  id: Uuid;
+  org_id: Uuid;
+  project_id: Uuid;
+  created_at: IsoDate;
+  updated_at: IsoDate;
+  resource_type: ShareResourceType;
+  resource_id: string;
+  /** Set for a project-wide grant; null for a member-targeted grant. */
+  visibility_level?: ShareVisibilityLevel | null;
+  /** Set for a member-targeted grant; null for a project-wide grant. */
+  granted_member_id?: Uuid | null;
+  created_by_member_id?: Uuid | null;
+  /**
+   * Fully-qualified canonical GET URL for the shared resource, carrying the
+   * `?share_id` capability (e.g. `…/v1/files/{id}?share_id=…`). Follow it to
+   * read the resource under this grant.
+   */
+  url?: string | null;
+}
+
+/** Exactly one of `visibility_level` / `granted_member_id` must be set. */
+export interface ShareCreateParams {
+  resource_type: ShareResourceType;
+  resource_id: string;
+  /** Project-wide grant. Mutually exclusive with `granted_member_id`. */
+  visibility_level?: ShareVisibilityLevel;
+  /** Member-targeted grant. Mutually exclusive with `visibility_level`. */
+  granted_member_id?: Uuid;
+}
+
+export interface ShareListParams extends ListParams {
+  resource_type?: ShareResourceType;
+  resource_id?: string;
+  /** Only shares the caller created. */
+  created_by_me?: boolean;
+  /** Only shares targeting the caller. */
+  granted_to_me?: boolean;
+}
+
+/** Options for forking a task from a shared conversation. */
+export interface ShareForkTaskParams {
+  /** Conversation item / response id to branch at (defaults to the latest). */
+  from_response_id?: string;
+  /** Optional prompt to seed the forked task's first run. */
+  prompt?: string;
 }
 
 // --- runtimes / experiments / runner ---

@@ -23,6 +23,7 @@ import { BrowserHttpClient, stripTrailingSlash, toApiError } from "./http.js";
 import { TasksClient } from "./tasks.js";
 import { FilesClient } from "./files.js";
 import { ConversationsClient } from "./conversations.js";
+import { SharesClient } from "./shares.js";
 
 export interface IntrospectionApiClientOptions {
   /** Data Plane REST base URL (e.g. `https://dp.us.introspection.dev`). */
@@ -48,6 +49,8 @@ export class IntrospectionApiClient {
   readonly files: FilesClient;
   /** Read-only `/v1/conversations` projection bound to the session cookie. */
   readonly conversations: ConversationsClient;
+  /** `/v1/shares` read-sharing grants bound to the session cookie. */
+  readonly shares: SharesClient;
 
   private readonly fetchImpl: typeof fetch;
 
@@ -67,6 +70,7 @@ export class IntrospectionApiClient {
     this.tasks = new TasksClient(http);
     this.files = new FilesClient(http);
     this.conversations = new ConversationsClient(http);
+    this.shares = new SharesClient(http);
   }
 
   /**

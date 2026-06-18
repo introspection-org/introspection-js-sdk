@@ -47,6 +47,7 @@ export {
   ConversationsClient,
   ConversationItemsClient,
 } from "./conversations.js";
+export { SharesClient } from "./shares.js";
 export { BrowserHttpClient, type BrowserHttpConfig } from "./http.js";
 export { parseSse } from "./sse.js";
 export {
@@ -83,6 +84,12 @@ export type {
   ConversationItemListParams,
   ConversationItemInclude,
   ConversationResponse,
+  ResourceShare,
+  ShareResourceType,
+  ShareVisibilityLevel,
+  ShareCreateParams,
+  ShareListParams,
+  ShareForkTaskParams,
 } from "@introspection-sdk/types";
 export {
   IntrospectionAPIError,
