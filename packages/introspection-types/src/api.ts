@@ -262,10 +262,10 @@ export interface ResourceShare {
   created_by_member_id: Uuid;
   /**
    * Fully-qualified canonical GET URL for the shared resource, carrying the
-   * `?share_id` capability (e.g. `…/v1/files/{id}?share_id=…`). Follow it to
-   * read the resource under this grant.
+   * `?share_id` capability (e.g. `…/v1/files/{id}?share_id=…`). Always present on
+   * `/v1/shares` reads — follow it to read the resource under this grant.
    */
-  url?: string | null;
+  url: string;
 }
 
 /** Omit `granted_member_id` for a project-wide grant; set it to target one member. */
