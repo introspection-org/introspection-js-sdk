@@ -1,4 +1,5 @@
-import { context, trace, SpanKind } from "@opentelemetry/api";
+import { context, propagation, trace, SpanKind } from "@opentelemetry/api";
+import { AsyncLocalStorageContextManager } from "@opentelemetry/context-async-hooks";
 import {
   BasicTracerProvider,
   InMemorySpanExporter,
@@ -60,5 +61,50 @@ describe("IntrospectionSpanProcessor", () => {
     );
 
     await provider.shutdown();
+  });
+
+  it("projects end-user identity baggage onto span attributes", async () => {
+    // The processor reads baggage from the active context at span end, so the
+    // test needs a real context manager (production registers AsyncHooks).
+    const contextManager = new AsyncLocalStorageContextManager().enable();
+    context.setGlobalContextManager(contextManager);
+    try {
+      const exporter = new InMemorySpanExporter();
+      const provider = new BasicTracerProvider({
+        idGenerator: new IncrementalIdGenerator(),
+        spanProcessors: [
+          new IntrospectionSpanProcessor({
+            token: "test-token",
+            advanced: { spanExporter: exporter },
+          }),
+        ],
+      });
+      const tracer = provider.getTracer("test");
+
+      // Identity set once on the run-root context as baggage; the processor
+      // projects it onto every span that ends within that context.
+      const baggage = propagation.createBaggage({
+        "identity.user_id": { value: "u_42" },
+        "identity.anonymous_id": { value: "anon_9" },
+      });
+      const ctx = propagation.setBaggage(context.active(), baggage);
+
+      await context.with(ctx, async () => {
+        const span = tracer.startSpan("chat", {
+          kind: SpanKind.INTERNAL,
+          attributes: { "gen_ai.input.messages": "[]" },
+        });
+        span.end();
+      });
+      await provider.forceFlush();
+
+      const span = exporter.getFinishedSpans().find((s) => s.name === "chat");
+      expect(span?.attributes["identity.user.id"]).toBe("u_42");
+      expect(span?.attributes["identity.anonymous.id"]).toBe("anon_9");
+
+      await provider.shutdown();
+    } finally {
+      context.disable();
+    }
   });
 });
