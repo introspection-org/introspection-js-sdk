@@ -35,6 +35,8 @@ export interface BrowserHttpConfig {
   onUnauthorized?: () => Promise<boolean>;
 }
 
+export type BrowserApiHttpClient = Pick<BaseHttpClient, "request" | "stream">;
+
 /**
  * Cookie-authenticated HTTP wrapper bound to one DP endpoint. Has no
  * opinion about which resource it serves — the caller picks the path.
@@ -51,5 +53,59 @@ export class BrowserHttpClient extends BaseHttpClient {
         onUnauthorized: cfg.onUnauthorized,
       },
     });
+  }
+}
+
+export interface BrowserBearerHttpConfig {
+  /** REST base URL every request is prefixed with. */
+  apiUrl: string;
+  /** Bearer token, or a provider returning the latest token before each request. */
+  token: string | (() => string | Promise<string>);
+  /** Extra headers merged into every request. */
+  additionalHeaders?: Record<string, string>;
+  /** Custom `fetch` (for tests or non-standard runtimes). */
+  fetch?: typeof fetch;
+}
+
+/**
+ * Bearer-authenticated browser HTTP wrapper. Used for CP runtime calls with
+ * brokered access tokens and for DP runner calls with CP-minted runner tokens.
+ */
+export class BrowserBearerHttpClient extends BaseHttpClient {
+  private readonly tokenBox: { value: string };
+  private readonly getToken?: () => string | Promise<string>;
+
+  constructor(cfg: BrowserBearerHttpConfig) {
+    const tokenBox = { value: typeof cfg.token === "string" ? cfg.token : "" };
+    super({
+      apiUrl: cfg.apiUrl,
+      additionalHeaders: cfg.additionalHeaders,
+      fetch: cfg.fetch,
+      transport: {
+        authHeaders: (): Record<string, string> => {
+          if (!tokenBox.value) return {};
+          return { Authorization: `Bearer ${tokenBox.value}` };
+        },
+      },
+    });
+    this.tokenBox = tokenBox;
+    this.getToken = typeof cfg.token === "function" ? cfg.token : undefined;
+  }
+
+  private async refreshToken(): Promise<void> {
+    if (!this.getToken) return;
+    this.tokenBox.value = await this.getToken();
+  }
+
+  async request<T>(opts: Parameters<BaseHttpClient["request"]>[0]): Promise<T> {
+    await this.refreshToken();
+    return super.request<T>(opts);
+  }
+
+  async stream(
+    opts: Parameters<BaseHttpClient["stream"]>[0],
+  ): Promise<Response> {
+    await this.refreshToken();
+    return super.stream(opts);
   }
 }

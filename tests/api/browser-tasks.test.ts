@@ -52,6 +52,46 @@ const RUN_FIXTURE = {
   status: "running" as const,
 };
 
+const RUNTIME_FIXTURE = {
+  id: "019ed295-5d76-7432-863b-f9327af50221",
+  org_id: "org-1",
+  project_id: "proj-1",
+  name: "nextplay-agent",
+  description: null,
+  recipe_id: "recipe-1",
+  is_active: true,
+  llm_mode: "managed" as const,
+  created_at: "2025-01-01T00:00:00Z",
+  updated_at: "2025-01-01T00:00:00Z",
+};
+
+const RUNNER_SPEC_FIXTURE = {
+  session_id: "sess-1",
+  deployment: {
+    endpoint: "https://dp.example.com",
+    slug: "dp",
+    region: "us-east-1",
+  },
+  session_token: "runner-token",
+  expires_at: "2025-01-01T01:00:00Z",
+  runtime_context: {
+    runtime_id: RUNTIME_FIXTURE.id,
+    experiment_id: null,
+    recipe_id: "recipe-1",
+    recipe: {
+      repository_id: "repo-1",
+      git_ref: "main",
+      git_commit_sha: "abc123",
+    },
+    arm_label: null,
+    identity: {
+      user_id: "u_42",
+      anonymous_id: null,
+      conversation_id: null,
+    },
+  },
+};
+
 describe("BrowserHttpClient", () => {
   it("sends cookies and omits the Authorization header", async () => {
     const fetchImpl = mockFetch({ ok: true, json: () => Promise.resolve({}) });
@@ -376,7 +416,6 @@ describe("IntrospectionApiClient", () => {
     });
     const client = new IntrospectionApiClient({
       dpUrl: "https://dp.example.com",
-      projectId: "proj-1",
       getToken: () => "t",
       fetch: fetchImpl as unknown as typeof fetch,
     });
@@ -408,7 +447,6 @@ describe("IntrospectionApiClient", () => {
     const getToken = vi.fn().mockResolvedValue("intro_access_token");
     const client = new IntrospectionApiClient({
       dpUrl: "https://dp.example.com",
-      projectId: "proj-1",
       getToken,
       fetch: fetchImpl as unknown as typeof fetch,
     });
@@ -422,5 +460,116 @@ describe("IntrospectionApiClient", () => {
     expect(fetchImpl.mock.calls[1][0]).toBe(
       "https://dp.example.com/v1/oauth/exchange",
     );
+  });
+
+  it("opens a browser runner by runtime name and starts a runner-bound task", async () => {
+    const fetchImpl = vi.fn(async (url: string, init: RequestInit) => {
+      if (
+        url ===
+        "https://api.example.com/v1/runtimes?name=nextplay-agent&limit=2"
+      ) {
+        return {
+          ok: true,
+          status: 200,
+          headers: new Headers({ "content-type": "application/json" }),
+          json: () =>
+            Promise.resolve({
+              records: [RUNTIME_FIXTURE],
+              count: 1,
+              total_count: 1,
+              next: null,
+            }),
+        };
+      }
+      if (
+        url === `https://api.example.com/v1/runtimes/${RUNTIME_FIXTURE.id}/run`
+      ) {
+        expect(init.method).toBe("POST");
+        expect(JSON.parse(init.body as string)).toEqual({
+          identity: { user_id: "u_42" },
+        });
+        return {
+          ok: true,
+          status: 200,
+          headers: new Headers({ "content-type": "application/json" }),
+          json: () => Promise.resolve(RUNNER_SPEC_FIXTURE),
+        };
+      }
+      if (url === "https://dp.example.com/v1/tasks") {
+        expect(init.method).toBe("POST");
+        expect((init.headers as Record<string, string>).Authorization).toBe(
+          "Bearer runner-token",
+        );
+        expect(init.credentials).toBeUndefined();
+        expect(JSON.parse(init.body as string)).toEqual({
+          prompt: "hello",
+        });
+        return {
+          ok: true,
+          status: 201,
+          headers: new Headers({ "content-type": "application/json" }),
+          json: () => Promise.resolve({ task: TASK_FIXTURE, run: RUN_FIXTURE }),
+        };
+      }
+      throw new Error(`unexpected fetch: ${url}`);
+    });
+    const getToken = vi.fn().mockResolvedValue("intro_access_token");
+    const client = new IntrospectionApiClient({
+      cpUrl: "https://api.example.com",
+      getToken,
+      fetch: fetchImpl as unknown as typeof fetch,
+    });
+
+    const runner = await client.runtimes("nextplay-agent").run({
+      identity: { user_id: "u_42" },
+    });
+    const run = await runner.tasks.start({ prompt: "hello" });
+
+    expect(runner.dpEndpoint).toBe("https://dp.example.com");
+    expect(runner.context.runtime_id).toBe(RUNTIME_FIXTURE.id);
+    expect(run.task).toEqual(TASK_FIXTURE);
+    expect(getToken).toHaveBeenCalledTimes(2);
+    expect(fetchImpl).toHaveBeenCalledTimes(3);
+    expect(
+      (fetchImpl.mock.calls[0][1].headers as Record<string, string>)
+        .Authorization,
+    ).toBe("Bearer intro_access_token");
+    expect(
+      (fetchImpl.mock.calls[1][1].headers as Record<string, string>)
+        .Authorization,
+    ).toBe("Bearer intro_access_token");
+  });
+
+  it("opens a browser runner by runtime id without name lookup", async () => {
+    const fetchImpl = vi.fn(async (url: string) => {
+      expect(url).toBe(
+        `https://api.example.com/v1/runtimes/${RUNTIME_FIXTURE.id}/run`,
+      );
+      return {
+        ok: true,
+        status: 200,
+        headers: new Headers({ "content-type": "application/json" }),
+        json: () => Promise.resolve(RUNNER_SPEC_FIXTURE),
+      };
+    });
+    const client = new IntrospectionApiClient({
+      cpUrl: "https://api.example.com",
+      getToken: () => "intro_access_token",
+      fetch: fetchImpl as unknown as typeof fetch,
+    });
+
+    await client.runtimes(RUNTIME_FIXTURE.id).run();
+
+    expect(fetchImpl).toHaveBeenCalledOnce();
+  });
+
+  it("requires dpUrl only for cookie-session APIs", async () => {
+    const client = new IntrospectionApiClient({
+      getToken: () => "intro_access_token",
+      fetch: mockFetch({ ok: true }) as unknown as typeof fetch,
+    });
+
+    expect(() => client.tasks).toThrow(/requires dpUrl/);
+    await expect(client.connect()).rejects.toThrow(/requires dpUrl/);
   });
 });
