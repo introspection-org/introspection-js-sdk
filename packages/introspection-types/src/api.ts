@@ -109,16 +109,11 @@ export interface TaskCreateParams {
   idle_timeout_seconds?: number;
   /**
    * Fork from a shared conversation: the `/v1/shares` grant id for the source
-   * conversation. Its presence makes this create a fork — the new task is
-   * seeded with that conversation's history (the runtime hydrates from
-   * `forked_response_id`). Read access is enforced via the share.
+   * conversation. Its presence makes this create a fork — the new task is seeded
+   * with that conversation's history, read via the share (the permissions
+   * boundary).
    */
   fork_share_id?: Uuid;
-  /**
-   * The conversation item / response id to branch at; defaults to the
-   * conversation's latest item. Only meaningful with `fork_share_id`.
-   */
-  forked_response_id?: string;
 }
 
 export interface TaskUpdateParams {

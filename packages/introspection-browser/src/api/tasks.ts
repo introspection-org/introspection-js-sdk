@@ -45,16 +45,11 @@ export interface CreateTaskParams {
   identity?: RunIdentityInput;
   /**
    * Fork from a shared conversation: the `/v1/shares` grant id for the source
-   * conversation. Its presence makes this create a fork — the server verifies
-   * read access via the share and seeds the new task with that conversation's
-   * history (hydrated from `forked_response_id`).
+   * conversation. Its presence makes this create a fork — the server seeds the
+   * new task with that conversation's history, read via the share (the
+   * permissions boundary).
    */
   fork_share_id?: string;
-  /**
-   * The conversation item / response id to branch at; defaults to the
-   * conversation's latest item. Only meaningful with `fork_share_id`.
-   */
-  forked_response_id?: string;
 }
 
 export interface StartTaskParams extends CreateTaskParams {
