@@ -25,10 +25,12 @@ import {
   stripTrailingSlash,
   toApiError,
 } from "./http.js";
+import {
+  ConversationsClient,
+  FilesClient,
+  SharesClient,
+} from "@introspection-sdk/http";
 import { TasksClient } from "./tasks.js";
-import { FilesClient } from "./files.js";
-import { ConversationsClient } from "./conversations.js";
-import { SharesClient } from "./shares.js";
 import {
   attachBrowserRuntimes,
   type BrowserRuntimeHandleFactory,

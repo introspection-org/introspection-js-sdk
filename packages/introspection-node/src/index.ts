@@ -22,15 +22,17 @@ export type {
 
 // Runner-bound REST namespaces (runner.tasks, runner.files,
 // runner.conversations) + HTTP/SSE.
-export { TasksApi, TaskRunsApi, RunHandle } from "./runner-resources/tasks.js";
-export type { StartParams } from "./runner-resources/tasks.js";
-export { FilesApi, FileVersionsApi } from "./runner-resources/files.js";
-export type { FileUploadBody } from "./runner-resources/files.js";
 export {
-  ConversationsApi,
   ConversationItemsApi,
-} from "./runner-resources/conversations.js";
-export { SharesApi } from "./runner-resources/shares.js";
+  ConversationsApi,
+  FileVersionsApi,
+  FilesApi,
+  RunHandle,
+  SharesApi,
+  TaskRunsApi,
+  TasksApi,
+} from "@introspection-sdk/http";
+export type { FileUploadBody, StartParams } from "@introspection-sdk/http";
 export { HttpClient } from "./http.js";
 export type { ResolvedApiConfig } from "./http.js";
 export { parseSse } from "./streaming.js";

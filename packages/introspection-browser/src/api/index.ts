@@ -53,15 +53,13 @@ export {
   type StartTaskParams,
 } from "./tasks.js";
 export {
-  FilesClient,
-  FileVersionsClient,
-  type FileUploadBody,
-} from "./files.js";
-export {
-  ConversationsClient,
   ConversationItemsClient,
-} from "./conversations.js";
-export { SharesClient } from "./shares.js";
+  ConversationsClient,
+  FileVersionsClient,
+  FilesClient,
+  SharesClient,
+  type FileUploadBody,
+} from "@introspection-sdk/http";
 export {
   BrowserBearerHttpClient,
   BrowserHttpClient,
