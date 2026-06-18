@@ -282,17 +282,17 @@ async function verifyConversationLogged(opts: {
  */
 export async function runTaskWithToken(opts: {
   token: string;
-  projectId: string;
   prompt: string;
   append: Append;
   /** Optional caller identity, folded into `metadata.identity`. */
   identity?: TaskIdentity;
 }): Promise<RunSession> {
-  const { token, projectId, prompt, append, identity } = opts;
+  const { token, prompt, append, identity } = opts;
 
+  // The session's project is derived from the token's claims at exchange —
+  // the client takes no projectId.
   const client = new IntrospectionApiClient({
     dpUrl: DP_URL,
-    projectId,
     getToken: () => token,
   });
 

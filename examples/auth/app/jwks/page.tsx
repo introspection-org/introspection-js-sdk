@@ -80,15 +80,11 @@ export default function DirectPage() {
         "info",
         `Broker exchanging the ${IDP_PROVIDER_LABEL[IDP_PROVIDER]} access token (token-exchange) …`,
       );
-      const { token, projectId } = await brokerSession(
-        "federated",
-        session.access_token,
-      );
+      const { token } = await brokerSession("federated", session.access_token);
       append("ok", "   ✓ Introspection token minted");
 
       socketRef.current = await runTaskWithToken({
         token,
-        projectId,
         prompt,
         append,
       });

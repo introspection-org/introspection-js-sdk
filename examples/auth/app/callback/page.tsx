@@ -7,7 +7,6 @@ import {
   type Append,
   CP_URL,
   type LogLine,
-  PROJECT_ID,
   SPA_CLIENT_ID,
   ZITADEL_ISSUER_URL,
   runTaskWithToken,
@@ -89,7 +88,6 @@ export default function Callback() {
 
           socketRef.current = await runTaskWithToken({
             token: access_token,
-            projectId: PROJECT_ID,
             prompt: flow.prompt,
             append,
           });

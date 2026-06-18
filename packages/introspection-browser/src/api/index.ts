@@ -12,8 +12,8 @@
  *
  * const client = new IntrospectionApiClient({
  *   dpUrl: "https://dp.us.introspection.dev",
- *   projectId: "proj_…",
- *   // your backend mints the Introspection access token
+ *   // your backend mints the Introspection access token (the session's
+ *   // project is derived from its claims — no projectId option needed)
  *   getToken: () => fetch("/api/introspection/token").then((r) => r.text()),
  * });
  *
