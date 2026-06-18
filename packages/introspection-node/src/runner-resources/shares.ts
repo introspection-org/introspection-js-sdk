@@ -2,9 +2,7 @@ import type {
   Paginated,
   ResourceShare,
   ShareCreateParams,
-  ShareForkTaskParams,
   ShareListParams,
-  TaskCreateResponse,
 } from "@introspection-sdk/types";
 import { HttpClient } from "../http.js";
 import { Paginator, cursorPaginate } from "../pagination.js";
@@ -13,9 +11,9 @@ import { Paginator, cursorPaginate } from "../pagination.js";
  * Runner-bound Resource Shares API (`/v1/shares`).
  *
  * Read-sharing grants for files and conversations: `create` / `list` / `get` /
- * `delete` (revoke), plus `forkTask` to branch a new task off a shared
- * conversation. A grant carries a `url` (with the `?share_id` capability) for
- * reading the shared resource.
+ * `delete` (revoke). A grant carries a `url` (with the `?share_id` capability)
+ * for reading the shared resource. To fork a new task from a shared
+ * conversation, pass `fork_share_id` to `runner.tasks.create(...)`.
  */
 export class SharesApi {
   constructor(private readonly http: HttpClient) {}
@@ -59,28 +57,6 @@ export class SharesApi {
       method: "DELETE",
       path: `/v1/shares/${encodeURIComponent(shareId)}`,
       expect: "empty",
-    });
-  }
-
-  /**
-   * Fork a new task from a shared **conversation**: creates a task seeded at
-   * `from_response_id` (default: the conversation's latest item), authorized by
-   * the share. Returns the new task. A *file* share cannot be forked.
-   */
-  forkTask(
-    shareId: string,
-    options?: ShareForkTaskParams,
-  ): Promise<TaskCreateResponse> {
-    return this.http.request<TaskCreateResponse>({
-      method: "POST",
-      path: "/v1/tasks",
-      body: {
-        fork_share_id: shareId,
-        ...(options?.from_response_id
-          ? { forked_response_id: options.from_response_id }
-          : {}),
-        ...(options?.prompt ? { prompt: options.prompt } : {}),
-      },
     });
   }
 }

@@ -289,14 +289,6 @@ export interface ShareListParams extends ListParams {
   granted_to_me?: boolean;
 }
 
-/** Options for forking a task from a shared conversation. */
-export interface ShareForkTaskParams {
-  /** Conversation item / response id to branch at (defaults to the latest). */
-  from_response_id?: string;
-  /** Optional prompt to seed the forked task's first run. */
-  prompt?: string;
-}
-
 // --- runtimes / experiments / runner ---
 
 /**

@@ -89,7 +89,6 @@ export type {
   ShareVisibilityLevel,
   ShareCreateParams,
   ShareListParams,
-  ShareForkTaskParams,
 } from "@introspection-sdk/types";
 export {
   IntrospectionAPIError,
