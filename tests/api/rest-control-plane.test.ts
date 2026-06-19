@@ -16,7 +16,9 @@ import { createServer, type IncomingMessage, type Server } from "node:http";
 import { AddressInfo } from "node:net";
 import {
   IntrospectionClient,
+  authorizationCodeToken,
   serviceAccountToken,
+  tokenExchange,
 } from "@introspection-sdk/introspection-node";
 import {
   NotFoundError,
@@ -137,22 +139,30 @@ beforeAll(async () => {
       next,
     });
 
-    // --- Control-plane: service-account auth (client_credentials) ---
+    // --- Control-plane: OAuth token endpoint (machine + federated grants) ---
     if (path === "/v1/oauth/token" && method === "POST") {
       const form = new URLSearchParams(typeof body === "string" ? body : "");
-      if (
-        form.get("grant_type") !== "client_credentials" ||
-        form.get("client_id") !== "intro_app_test" ||
-        form.get("client_secret") !== "intro_sk_test" ||
-        !form.get("project_id")
-      ) {
+      const grant = form.get("grant_type");
+      const ok =
+        (grant === "client_credentials" &&
+          form.get("client_id") === "intro_app_test" &&
+          form.get("client_secret") === "intro_sk_test" &&
+          !!form.get("project_id")) ||
+        (grant === "urn:ietf:params:oauth:grant-type:token-exchange" &&
+          !!form.get("subject_token") &&
+          !!form.get("client_id")) ||
+        (grant === "authorization_code" &&
+          !!form.get("code") &&
+          !!form.get("code_verifier") &&
+          !!form.get("client_id"));
+      if (!ok) {
         return json(res, 400, {
           detail: "Invalid client credentials",
           code: "invalid_client",
         });
       }
       return json(res, 200, {
-        access_token: "minted-sa-token",
+        access_token: `minted-${grant === "client_credentials" ? "sa" : grant === "authorization_code" ? "code" : "exchange"}-token`,
         token_type: "Bearer",
         expires_in: 3600,
         scope: form.get("scope"),
@@ -392,6 +402,27 @@ describe("IntrospectionClient (REST control-plane, real server)", () => {
       // Form-encoded, unauthenticated (credentials travel in the body).
       expect(tokenReq?.auth).toBeUndefined();
       expect(tokenReq?.body).toContain("grant_type=client_credentials");
+    });
+
+    it("tokenExchange and authorizationCodeToken surface dp_url", async () => {
+      const exchanged = await tokenExchange({
+        subjectToken: "idp-id-token",
+        clientId: "intro_app_federated",
+        projectId: "proj-1",
+        baseApiUrl: baseUrl,
+      });
+      expect(exchanged.access_token).toBe("minted-exchange-token");
+      expect(exchanged.dp_url).toBe("https://dp.example.com");
+
+      const coded = await authorizationCodeToken({
+        code: "auth-code",
+        clientId: "intro_app_spa",
+        redirectUri: "http://localhost:3200/callback",
+        codeVerifier: "verifier",
+        baseApiUrl: baseUrl,
+      });
+      expect(coded.access_token).toBe("minted-code-token");
+      expect(coded.dp_url).toBe("https://dp.example.com");
     });
 
     it("maps bad credentials to a typed ValidationError", async () => {

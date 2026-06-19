@@ -17,6 +17,65 @@ import { stripTrailingSlash, toApiError } from "@introspection-sdk/http";
 
 const DEFAULT_BASE_API_URL = "https://api.introspection.dev";
 const GRANT_TYPE_CLIENT_CREDENTIALS = "client_credentials";
+const GRANT_TYPE_TOKEN_EXCHANGE =
+  "urn:ietf:params:oauth:grant-type:token-exchange";
+const GRANT_TYPE_AUTHORIZATION_CODE = "authorization_code";
+const SUBJECT_TOKEN_TYPE_ID_TOKEN = "urn:ietf:params:oauth:token-type:id_token";
+
+function resolveBaseApiUrl(baseApiUrl?: string): string {
+  return stripTrailingSlash(
+    baseApiUrl ??
+      process.env.INTROSPECTION_BASE_API_URL ??
+      DEFAULT_BASE_API_URL,
+  );
+}
+
+function resolveFetch(custom?: typeof fetch): typeof fetch {
+  const fetchImpl = custom ?? globalThis.fetch;
+  if (!fetchImpl) {
+    throw new Error(
+      "global fetch is unavailable; pass `fetch` or run on Node 18+",
+    );
+  }
+  return fetchImpl;
+}
+
+async function postTokenForm(
+  baseApiUrl: string,
+  form: URLSearchParams,
+  fetchImpl: typeof fetch,
+): Promise<OAuthToken> {
+  const res = await fetchImpl(`${baseApiUrl}/v1/oauth/token`, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: form.toString(),
+    cache: "no-store",
+  });
+  if (!res.ok) throw await toApiError(res);
+  return (await res.json()) as OAuthToken;
+}
+
+/**
+ * CP `POST /v1/oauth/token` response. No refresh token is issued for the
+ * machine grants — re-mint when it expires.
+ */
+export interface OAuthToken {
+  /** Project-scoped RS256 access token (`Authorization: Bearer …`). */
+  access_token: string;
+  /** Always `"Bearer"`. */
+  token_type: string;
+  /** Token lifetime in seconds. */
+  expires_in: number;
+  /** The granted (scope-capped) scope, when the CP returns one. */
+  scope: string | null;
+  /**
+   * Data Plane API base URL for the token's project, resolved by the CP the
+   * same way it is for the CLI login. `null` when the deployment can't be
+   * resolved; the caller then needs an explicit DP URL. Hand this to the
+   * browser SDK as `dpUrl` so the SPA connects without separate DP config.
+   */
+  dp_url: string | null;
+}
 
 export interface ServiceAccountTokenParams {
   /** Confidential Application client id (`intro_app_…`). */
@@ -44,26 +103,10 @@ export interface ServiceAccountTokenParams {
 }
 
 /**
- * CP `POST /v1/oauth/token` response for the `client_credentials` grant.
- * No refresh token is issued — re-mint with the secret when it expires.
+ * Back-compat alias: the `client_credentials` response is the same shape as
+ * every other `/v1/oauth/token` response.
  */
-export interface ServiceAccountToken {
-  /** Project-scoped RS256 CP access token (`Authorization: Bearer …`). */
-  access_token: string;
-  /** Always `"Bearer"`. */
-  token_type: string;
-  /** Token lifetime in seconds. */
-  expires_in: number;
-  /** The granted (scope-capped) scope, when the CP returns one. */
-  scope: string | null;
-  /**
-   * Data Plane API base URL for the token's project, resolved by the CP the
-   * same way it is for the CLI login. `null` when the deployment can't be
-   * resolved; the caller then needs an explicit DP URL. Hand this to the
-   * browser SDK as `dpUrl` so the SPA connects without separate DP config.
-   */
-  dp_url: string | null;
-}
+export type ServiceAccountToken = OAuthToken;
 
 /**
  * Mint a project-scoped CP access token from confidential service-account
@@ -71,7 +114,7 @@ export interface ServiceAccountToken {
  *
  * @example
  * ```typescript
- * const { access_token } = await serviceAccountToken({
+ * const { access_token, dp_url } = await serviceAccountToken({
  *   clientId: process.env.INTROSPECTION_SERVICE_ACCOUNT_CLIENT_ID!,
  *   clientSecret: process.env.INTROSPECTION_SERVICE_ACCOUNT_CLIENT_SECRET!,
  *   projectId: process.env.INTRO_PROJECT_ID!,
@@ -81,19 +124,7 @@ export interface ServiceAccountToken {
  */
 export async function serviceAccountToken(
   params: ServiceAccountTokenParams,
-): Promise<ServiceAccountToken> {
-  const baseApiUrl = stripTrailingSlash(
-    params.baseApiUrl ??
-      process.env.INTROSPECTION_BASE_API_URL ??
-      DEFAULT_BASE_API_URL,
-  );
-  const fetchImpl = params.fetch ?? globalThis.fetch;
-  if (!fetchImpl) {
-    throw new Error(
-      "global fetch is unavailable; pass `fetch` or run on Node 18+",
-    );
-  }
-
+): Promise<OAuthToken> {
   const form = new URLSearchParams({
     grant_type: GRANT_TYPE_CLIENT_CREDENTIALS,
     client_id: params.clientId,
@@ -101,14 +132,105 @@ export async function serviceAccountToken(
     project_id: params.projectId,
   });
   if (params.scope) form.set("scope", params.scope);
+  return postTokenForm(
+    resolveBaseApiUrl(params.baseApiUrl),
+    form,
+    resolveFetch(params.fetch),
+  );
+}
 
-  const res = await fetchImpl(`${baseApiUrl}/v1/oauth/token`, {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: form.toString(),
-    cache: "no-store",
+export interface AuthorizationCodeParams {
+  /** The authorization code returned to the redirect URI. */
+  code: string;
+  /** Public SPA Application `client_id` (PKCE — no secret). */
+  clientId: string;
+  /** The redirect URI the code was issued for (must match the authorize call). */
+  redirectUri: string;
+  /** The PKCE `code_verifier` paired with the authorize-step challenge. */
+  codeVerifier: string;
+  /**
+   * CP API base URL. Defaults to `INTROSPECTION_BASE_API_URL` or
+   * `https://api.introspection.dev`.
+   */
+  baseApiUrl?: string;
+  /** Custom `fetch` (for tests or non-standard runtimes). */
+  fetch?: typeof fetch;
+}
+
+/**
+ * RFC 6749 / PKCE `authorization_code` exchange against CP
+ * `POST /v1/oauth/token`. Run it in your backend so the browser hosted-login
+ * flow does not hand-roll the token POST.
+ */
+export async function authorizationCodeToken(
+  params: AuthorizationCodeParams,
+): Promise<OAuthToken> {
+  const form = new URLSearchParams({
+    grant_type: GRANT_TYPE_AUTHORIZATION_CODE,
+    code: params.code,
+    client_id: params.clientId,
+    redirect_uri: params.redirectUri,
+    code_verifier: params.codeVerifier,
   });
-  if (!res.ok) throw await toApiError(res);
+  return postTokenForm(
+    resolveBaseApiUrl(params.baseApiUrl),
+    form,
+    resolveFetch(params.fetch),
+  );
+}
 
-  return (await res.json()) as ServiceAccountToken;
+export interface TokenExchangeParams {
+  /** The end user's subject token (e.g. a partner-IdP `id_token`). */
+  subjectToken: string;
+  /** The federated Application's `client_id` (public client — no secret). */
+  clientId: string;
+  /** Project the minted DP token is scoped to. */
+  projectId: string;
+  /**
+   * The subject token's type URI. Defaults to
+   * `urn:ietf:params:oauth:token-type:id_token`.
+   */
+  subjectTokenType?: string;
+  /** Optional space-separated scope, capped server-side. */
+  scope?: string;
+  /**
+   * CP API base URL. Defaults to `INTROSPECTION_BASE_API_URL` or
+   * `https://api.introspection.dev`.
+   */
+  baseApiUrl?: string;
+  /** Custom `fetch` (for tests or non-standard runtimes). */
+  fetch?: typeof fetch;
+}
+
+/**
+ * RFC 8693 token-exchange against CP `POST /v1/oauth/token`: trade an end
+ * user's partner-IdP token for a project-scoped DP access token for a
+ * `member_type=customer` member. Intended to run server-side in a broker (the
+ * subject token shouldn't be re-handled in the browser longer than needed).
+ *
+ * @example
+ * ```typescript
+ * const { access_token, dp_url } = await tokenExchange({
+ *   subjectToken: idTokenFromPartnerIdp,
+ *   clientId: process.env.FEDERATED_CLIENT_ID!,
+ *   projectId: process.env.INTRO_PROJECT_ID!,
+ * });
+ * ```
+ */
+export async function tokenExchange(
+  params: TokenExchangeParams,
+): Promise<OAuthToken> {
+  const form = new URLSearchParams({
+    grant_type: GRANT_TYPE_TOKEN_EXCHANGE,
+    subject_token: params.subjectToken,
+    subject_token_type: params.subjectTokenType ?? SUBJECT_TOKEN_TYPE_ID_TOKEN,
+    client_id: params.clientId,
+    project_id: params.projectId,
+  });
+  if (params.scope) form.set("scope", params.scope);
+  return postTokenForm(
+    resolveBaseApiUrl(params.baseApiUrl),
+    form,
+    resolveFetch(params.fetch),
+  );
 }

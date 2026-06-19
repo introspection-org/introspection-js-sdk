@@ -16,16 +16,10 @@ import {
 export const CP_URL = (
   process.env.NEXT_PUBLIC_INTROSPECTION_CP_URL ?? "http://localhost:8000"
 ).replace(/\/+$/, "");
-export const DP_URL = (
-  process.env.NEXT_PUBLIC_INTROSPECTION_DP_URL ?? "http://localhost:8002"
-).replace(/\/+$/, "");
 export const PROJECT_ID =
   process.env.NEXT_PUBLIC_INTROSPECTION_PROJECT_ID ?? "";
 export const SPA_CLIENT_ID =
   process.env.NEXT_PUBLIC_INTROSPECTION_SPA_CLIENT_ID ?? "";
-export const RUNTIME_ID =
-  process.env.NEXT_PUBLIC_INTROSPECTION_RUNTIME_ID ?? "";
-export const FALLBACK_AGENT_NAME = "customer-agent";
 
 /**
  * The application type this IdP is federated into (matches the CP
@@ -106,91 +100,53 @@ export function randomToken(): string {
   return base64url(crypto.getRandomValues(new Uint8Array(16)));
 }
 
-const SUBJECT_TOKEN_TYPE_ID_TOKEN = "urn:ietf:params:oauth:token-type:id_token";
-const GRANT_TYPE_TOKEN_EXCHANGE =
-  "urn:ietf:params:oauth:grant-type:token-exchange";
-
-export interface TokenExchangeRequest {
-  cpUrl: string;
-  clientId: string;
-  projectId: string;
-  /** The end user's id_token from the customer's OWN (brokered) IdP. */
-  subjectToken: string;
-  scope?: string;
-}
-
 /**
- * RFC 8693 token-exchange against CP `/v1/oauth/token`: trade the end user's
- * brokered-IdP id_token for a project-scoped DP access token for a
- * `member_type=customer` member. Same form-encoded fetch + error style as the
- * spa `authorization_code` token call; intended to run server-side in the
- * broker (the id_token shouldn't be re-handled in the browser any longer than
- * needed). Returns the `access_token`.
+ * The session the broker establishes server-side and hands back. Everything
+ * the browser needs to run a task — and nothing more: the access token, the
+ * project, the server-resolved `runtimeId`, and the DP URL from the CP token
+ * response. No CP/DP/runtime config lives in the browser.
  */
-export async function tokenExchange(
-  req: TokenExchangeRequest,
-): Promise<string> {
-  const form = new URLSearchParams({
-    grant_type: GRANT_TYPE_TOKEN_EXCHANGE,
-    subject_token: req.subjectToken,
-    subject_token_type: SUBJECT_TOKEN_TYPE_ID_TOKEN,
-    client_id: req.clientId,
-    project_id: req.projectId,
-  });
-  if (req.scope) form.set("scope", req.scope);
-
-  const res = await fetch(`${req.cpUrl}/v1/oauth/token`, {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: form.toString(),
-    cache: "no-store",
-  });
-  if (!res.ok) {
-    const detail = await res.text();
-    throw new Error(
-      `token-exchange returned ${res.status}: ${detail.slice(0, 500)}`,
-    );
-  }
-  const { access_token } = (await res.json()) as { access_token: string };
-  return access_token;
-}
-
-/**
- * `service_account`: the broker mints a machine token via client_credentials.
- * `federated`: the broker runs the RFC 8693 token-exchange grant on the given
- * partner-IdP `subject_token`. Either way the secret/token stays server-side
- * and the broker returns the Introspection access_token.
- */
-export async function brokerSession(
-  mode: "service_account" | "federated",
-  subjectToken?: string,
-): Promise<{
+export interface BrokerSession {
   token: string;
   projectId: string;
-  runtimeId?: string;
-  dpUrl?: string;
-}> {
+  runtimeId: string;
+  dpUrl: string;
+}
+
+/**
+ * Payload for {@link brokerSession}, one variant per grant the broker runs
+ * through the Node SDK (`serviceAccountToken` / `tokenExchange` /
+ * `authorizationCodeToken`).
+ */
+export type BrokerRequest =
+  | { mode: "service_account" }
+  | { mode: "federated"; subject_token: string }
+  | {
+      mode: "authorization_code";
+      code: string;
+      code_verifier: string;
+      redirect_uri: string;
+    };
+
+/**
+ * Call the app's own broker (`/api/broker/session`). The broker runs the
+ * Introspection token POST server-side via the Node SDK, resolves the runtime
+ * id, and reads the DP URL off the CP response — so every mode returns the same
+ * {@link BrokerSession} and the browser issues no Introspection OAuth calls.
+ */
+export async function brokerSession(
+  req: BrokerRequest,
+): Promise<BrokerSession> {
   const res = await fetch("/api/broker/session", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(
-      mode === "federated" ? { mode, subject_token: subjectToken } : { mode },
-    ),
+    body: JSON.stringify(req),
   });
   if (!res.ok) {
     const { error } = await res.json().catch(() => ({ error: "" }));
     throw new Error(error || `broker returned ${res.status}`);
   }
-  // `runtimeId` is resolved server-side (a Control Plane lookup the browser
-  // never makes); when present, the DP task pins it via `runtime_id`. `dpUrl`
-  // is likewise supplied by the broker, so the SPA needs no DP config of its
-  // own.
-  return (await res.json()) as {
-    token: string;
-    projectId: string;
-    runtimeId?: string;
-    dpUrl?: string;
-  };
+  return (await res.json()) as BrokerSession;
 }
 
 /**
@@ -294,31 +250,26 @@ async function verifyConversationLogged(opts: {
  * The Introspection token is handled only to seed `getToken`; every DP call
  * after `connect()` rides the HttpOnly cookie.
  */
-export async function runTaskWithToken(opts: {
-  token: string;
-  prompt: string;
-  append: Append;
-  /**
-   * Server-resolved runtime id. Pins the task to that runtime via
-   * `runtime_id`; falls back to the `RUNTIME_ID` env or `agent_name` when
-   * absent.
-   */
-  runtimeId?: string;
-  /**
-   * DP base URL supplied by the broker. Falls back to the `DP_URL` env when
-   * the broker doesn't return one.
-   */
-  dpUrl?: string;
-  /** Optional caller identity, folded into `metadata.identity`. */
-  identity?: TaskIdentity;
-}): Promise<RunSession> {
-  const { token, prompt, append, runtimeId, dpUrl, identity } = opts;
+export async function runTaskWithToken(
+  /** DP base URL the CP returned to the broker — the single source for it. */
+  dpUrl: string,
+  opts: {
+    token: string;
+    prompt: string;
+    append: Append;
+    /** Server-resolved runtime id; pins the task via `runtime_id`. */
+    runtimeId: string;
+    /** Optional caller identity, folded into `metadata.identity`. */
+    identity?: TaskIdentity;
+  },
+): Promise<RunSession> {
+  const { token, prompt, append, runtimeId, identity } = opts;
 
   // The session's project is derived from the token's claims at exchange —
-  // the client takes no projectId. The DP URL comes from the broker (with the
-  // token + runtime_id), falling back to the env for local dev.
+  // the client takes no projectId. The DP URL came from the CP token response
+  // (via the broker), so the browser is configured entirely from the server.
   const client = new IntrospectionApiClient({
-    dpUrl: dpUrl ?? DP_URL,
+    dpUrl,
     getToken: () => token,
   });
 
@@ -336,18 +287,10 @@ export async function runTaskWithToken(opts: {
       .filter((id): id is string => typeof id === "string"),
   );
 
-  const resolvedRuntimeId = runtimeId ?? RUNTIME_ID;
-  append(
-    "info",
-    resolvedRuntimeId
-      ? `Creating a task for runtime ${resolvedRuntimeId.slice(0, 8)}… …`
-      : `Creating a "${FALLBACK_AGENT_NAME}" task …`,
-  );
+  append("info", `Creating a task for runtime ${runtimeId.slice(0, 8)}… …`);
   const run = await client.tasks.start({
     prompt,
-    ...(resolvedRuntimeId
-      ? { runtime_id: resolvedRuntimeId }
-      : { agent_name: FALLBACK_AGENT_NAME }),
+    runtime_id: runtimeId,
     ...(identity ? { identity } : {}),
   });
   append("ok", `   ✓ task ${run.task?.id ?? run.run.task_id} created`);

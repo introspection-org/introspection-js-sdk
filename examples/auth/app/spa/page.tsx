@@ -152,10 +152,14 @@ export default function SpaPage() {
         "info",
         `Broker exchanging the ${IDP_PROVIDER_LABEL[IDP_PROVIDER]} id_token (token-exchange) …`,
       );
-      const session = await brokerSession("federated", token);
+      const session = await brokerSession({
+        mode: "federated",
+        subject_token: token,
+      });
       append("ok", "   ✓ Introspection token minted");
-      socketRef.current = await runTaskWithToken({
+      socketRef.current = await runTaskWithToken(session.dpUrl, {
         token: session.token,
+        runtimeId: session.runtimeId,
         prompt,
         append,
       });

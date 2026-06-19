@@ -12,9 +12,19 @@
 // REST client.
 export { IntrospectionClient } from "./client.js";
 
-// Service-account (client_credentials) auth.
-export { serviceAccountToken } from "./auth.js";
-export type { ServiceAccountTokenParams, ServiceAccountToken } from "./auth.js";
+// Machine / federated / hosted-login OAuth token helpers.
+export {
+  serviceAccountToken,
+  tokenExchange,
+  authorizationCodeToken,
+} from "./auth.js";
+export type {
+  ServiceAccountTokenParams,
+  ServiceAccountToken,
+  TokenExchangeParams,
+  AuthorizationCodeParams,
+  OAuthToken,
+} from "./auth.js";
 
 // Configuration / event types shared with the OTel surface.
 export type {

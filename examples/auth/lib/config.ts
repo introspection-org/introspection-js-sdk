@@ -40,6 +40,15 @@ export function federatedClientId(): string {
 }
 
 /**
+ * The public `spa` Application's `client_id` (PKCE — no secret). The browser
+ * uses it for the authorize redirect; the broker uses it to exchange the
+ * returned code server-side. Same value, read from the public var.
+ */
+export function spaClientId(): string {
+  return required("NEXT_PUBLIC_INTROSPECTION_SPA_CLIENT_ID");
+}
+
+/**
  * The runtime the broker resolves to a `runtime_id` server-side (a Control
  * Plane lookup that never happens in the browser). Defaults to the shared
  * sample runtime name.
@@ -49,30 +58,13 @@ export function runtimeName(): string {
 }
 
 /**
- * Control Plane base URL (server-to-server). Prefers the server-only
- * `INTROSPECTION_CP_URL` so it can be overridden per deployment at runtime
- * (staging vs prod) — `NEXT_PUBLIC_*` vars are inlined by Next.js at build
- * time and won't change without a rebuild. Falls back to the public var, then
- * local.
+ * Control Plane base URL. One var for both surfaces: the broker (server) and
+ * the spa hosted-login pages (browser, which redirect to CP directly). The DP
+ * URL is NOT configured here — it comes back from the CP token response.
  */
 export function controlPlaneUrl(): string {
   return (
-    process.env.INTROSPECTION_CP_URL ??
-    process.env.NEXT_PUBLIC_INTROSPECTION_CP_URL ??
-    "http://localhost:8000"
-  ).replace(/\/+$/, "");
-}
-
-/**
- * Data Plane base URL the broker hands back to the browser (with the token +
- * runtime_id) so the SPA never has to be configured with it directly. Same
- * server-only-first precedence as {@link controlPlaneUrl}.
- */
-export function dataPlaneUrl(): string {
-  return (
-    process.env.INTROSPECTION_DP_URL ??
-    process.env.NEXT_PUBLIC_INTROSPECTION_DP_URL ??
-    "http://localhost:8002"
+    process.env.NEXT_PUBLIC_INTROSPECTION_CP_URL ?? "http://localhost:8000"
   ).replace(/\/+$/, "");
 }
 
