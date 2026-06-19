@@ -17,6 +17,8 @@ import {
   toApiError,
 } from "@introspection-sdk/http";
 
+import { resolveBrowserFetch } from "./fetch.js";
+
 // Re-exported for `client.ts`, which redeems the DP session on `connect()`.
 export { stripTrailingSlash, toApiError };
 
@@ -43,8 +45,9 @@ export class BrowserHttpClient extends BaseHttpClient {
   constructor(cfg: BrowserHttpConfig) {
     super({
       apiUrl: cfg.apiUrl,
+      // Resolve a browser-safe `fetch` (native `fetch` brand-checks `this`).
+      fetch: resolveBrowserFetch(cfg.fetch),
       additionalHeaders: cfg.additionalHeaders,
-      fetch: cfg.fetch,
       transport: {
         authHeaders: () => ({}),
         credentials: "include",
