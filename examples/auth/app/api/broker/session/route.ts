@@ -16,14 +16,35 @@
  * browser, exactly like the spa flow.
  */
 import { NextResponse } from "next/server";
+import {
+  IntrospectionClient,
+  serviceAccountToken,
+} from "@introspection-sdk/introspection-node";
 
 import {
   controlPlaneUrl,
   federatedClientId,
   projectId,
+  runtimeName,
   serviceAccountCreds,
 } from "@/lib/config";
 import { tokenExchange } from "@/lib/intro";
+
+/**
+ * Resolve the configured runtime name to its current `runtime_id` using the
+ * Node SDK and the given CP access token. The id changes whenever the runtime
+ * is re-deployed, so the broker resolves it fresh on each session rather than
+ * pinning it — and it stays on the server, keeping the Control Plane off the
+ * browser's CORS surface.
+ */
+async function resolveRuntimeId(token: string): Promise<string> {
+  const cp = new IntrospectionClient({
+    token,
+    advanced: { baseApiUrl: controlPlaneUrl() },
+  });
+  const runtime = await cp.runtimes.resolveByName(runtimeName());
+  return runtime.id;
+}
 
 interface BrokerRequest {
   mode?: "service_account" | "federated";
@@ -43,33 +64,33 @@ export async function POST(request: Request) {
 
   if (body.mode === "service_account") {
     const { clientId, clientSecret } = serviceAccountCreds();
-    const form = new URLSearchParams({
-      grant_type: "client_credentials",
-      client_id: clientId,
-      client_secret: clientSecret,
-      project_id: project,
-    });
-
-    const res = await fetch(`${controlPlaneUrl()}/v1/oauth/token`, {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: form.toString(),
-      cache: "no-store",
-    });
-
-    if (!res.ok) {
-      const detail = await res.text();
+    try {
+      // 1) Mint a machine token via the Node SDK's client_credentials helper.
+      const { access_token } = await serviceAccountToken({
+        clientId,
+        clientSecret,
+        projectId: project,
+        baseApiUrl: controlPlaneUrl(),
+      });
+      // 2) Resolve the runtime id server-side with that same token.
+      const runtimeId = await resolveRuntimeId(access_token);
+      // 3) Hand the browser just the token + resolved id — it talks only to DP.
+      return NextResponse.json({
+        token: access_token,
+        projectId: project,
+        runtimeId,
+      });
+    } catch (err) {
       console.error(
-        `broker ${body.mode} failed (${res.status}): ${detail.slice(0, 500)}`,
+        `broker ${body.mode} failed: ${
+          err instanceof Error ? err.message : String(err)
+        }`,
       );
       return NextResponse.json(
         { error: "Could not mint a token" },
         { status: 502 },
       );
     }
-
-    const token = (await res.json()) as { access_token: string };
-    return NextResponse.json({ token: token.access_token, projectId: project });
   }
 
   if (body.mode === "federated") {

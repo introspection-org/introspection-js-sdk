@@ -39,6 +39,15 @@ export function federatedClientId(): string {
   return required("FEDERATED_CLIENT_ID");
 }
 
+/**
+ * The runtime the broker resolves to a `runtime_id` server-side (a Control
+ * Plane lookup that never happens in the browser). Defaults to the shared
+ * sample runtime name.
+ */
+export function runtimeName(): string {
+  return process.env.INTRO_RUNTIME_NAME ?? "customer-agent";
+}
+
 /** Control Plane base URL (server-to-server; reuses the public var). */
 export function controlPlaneUrl(): string {
   return (

@@ -164,7 +164,7 @@ export async function tokenExchange(
 export async function brokerSession(
   mode: "service_account" | "federated",
   subjectToken?: string,
-): Promise<{ token: string; projectId: string }> {
+): Promise<{ token: string; projectId: string; runtimeId?: string }> {
   const res = await fetch("/api/broker/session", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -176,7 +176,13 @@ export async function brokerSession(
     const { error } = await res.json().catch(() => ({ error: "" }));
     throw new Error(error || `broker returned ${res.status}`);
   }
-  return (await res.json()) as { token: string; projectId: string };
+  // `runtimeId` is resolved server-side (a Control Plane lookup the browser
+  // never makes); when present, the DP task pins it via `runtime_id`.
+  return (await res.json()) as {
+    token: string;
+    projectId: string;
+    runtimeId?: string;
+  };
 }
 
 /**
@@ -284,10 +290,16 @@ export async function runTaskWithToken(opts: {
   token: string;
   prompt: string;
   append: Append;
+  /**
+   * Server-resolved runtime id. Pins the task to that runtime via
+   * `runtime_id`; falls back to the `RUNTIME_ID` env or `agent_name` when
+   * absent.
+   */
+  runtimeId?: string;
   /** Optional caller identity, folded into `metadata.identity`. */
   identity?: TaskIdentity;
 }): Promise<RunSession> {
-  const { token, prompt, append, identity } = opts;
+  const { token, prompt, append, runtimeId, identity } = opts;
 
   // The session's project is derived from the token's claims at exchange —
   // the client takes no projectId.
@@ -310,16 +322,17 @@ export async function runTaskWithToken(opts: {
       .filter((id): id is string => typeof id === "string"),
   );
 
+  const resolvedRuntimeId = runtimeId ?? RUNTIME_ID;
   append(
     "info",
-    RUNTIME_ID
-      ? `Creating a task for runtime ${RUNTIME_ID.slice(0, 8)}… …`
+    resolvedRuntimeId
+      ? `Creating a task for runtime ${resolvedRuntimeId.slice(0, 8)}… …`
       : `Creating a "${FALLBACK_AGENT_NAME}" task …`,
   );
   const run = await client.tasks.start({
     prompt,
-    ...(RUNTIME_ID
-      ? { runtime_id: RUNTIME_ID }
+    ...(resolvedRuntimeId
+      ? { runtime_id: resolvedRuntimeId }
       : { agent_name: FALLBACK_AGENT_NAME }),
     ...(identity ? { identity } : {}),
   });
