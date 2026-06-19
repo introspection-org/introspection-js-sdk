@@ -48,10 +48,31 @@ export function runtimeName(): string {
   return process.env.INTRO_RUNTIME_NAME ?? "customer-agent";
 }
 
-/** Control Plane base URL (server-to-server; reuses the public var). */
+/**
+ * Control Plane base URL (server-to-server). Prefers the server-only
+ * `INTROSPECTION_CP_URL` so it can be overridden per deployment at runtime
+ * (staging vs prod) — `NEXT_PUBLIC_*` vars are inlined by Next.js at build
+ * time and won't change without a rebuild. Falls back to the public var, then
+ * local.
+ */
 export function controlPlaneUrl(): string {
   return (
-    process.env.NEXT_PUBLIC_INTROSPECTION_CP_URL ?? "http://localhost:8000"
+    process.env.INTROSPECTION_CP_URL ??
+    process.env.NEXT_PUBLIC_INTROSPECTION_CP_URL ??
+    "http://localhost:8000"
+  ).replace(/\/+$/, "");
+}
+
+/**
+ * Data Plane base URL the broker hands back to the browser (with the token +
+ * runtime_id) so the SPA never has to be configured with it directly. Same
+ * server-only-first precedence as {@link controlPlaneUrl}.
+ */
+export function dataPlaneUrl(): string {
+  return (
+    process.env.INTROSPECTION_DP_URL ??
+    process.env.NEXT_PUBLIC_INTROSPECTION_DP_URL ??
+    "http://localhost:8002"
   ).replace(/\/+$/, "");
 }
 

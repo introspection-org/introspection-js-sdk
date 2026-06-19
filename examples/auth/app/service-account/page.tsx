@@ -50,7 +50,8 @@ export default function ServiceAccountPage() {
         "info",
         "Broker authenticating the service account (client credentials) …",
       );
-      const { token, runtimeId } = await brokerSession("service_account");
+      const { token, runtimeId, dpUrl } =
+        await brokerSession("service_account");
       append(
         "ok",
         runtimeId
@@ -61,6 +62,7 @@ export default function ServiceAccountPage() {
       socketRef.current = await runTaskWithToken({
         token,
         runtimeId,
+        dpUrl,
         prompt,
         append,
         // Caller-asserted attribution identity: becomes the task's

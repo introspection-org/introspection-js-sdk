@@ -164,7 +164,12 @@ export async function tokenExchange(
 export async function brokerSession(
   mode: "service_account" | "federated",
   subjectToken?: string,
-): Promise<{ token: string; projectId: string; runtimeId?: string }> {
+): Promise<{
+  token: string;
+  projectId: string;
+  runtimeId?: string;
+  dpUrl?: string;
+}> {
   const res = await fetch("/api/broker/session", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -177,11 +182,14 @@ export async function brokerSession(
     throw new Error(error || `broker returned ${res.status}`);
   }
   // `runtimeId` is resolved server-side (a Control Plane lookup the browser
-  // never makes); when present, the DP task pins it via `runtime_id`.
+  // never makes); when present, the DP task pins it via `runtime_id`. `dpUrl`
+  // is likewise supplied by the broker, so the SPA needs no DP config of its
+  // own.
   return (await res.json()) as {
     token: string;
     projectId: string;
     runtimeId?: string;
+    dpUrl?: string;
   };
 }
 
@@ -296,15 +304,21 @@ export async function runTaskWithToken(opts: {
    * absent.
    */
   runtimeId?: string;
+  /**
+   * DP base URL supplied by the broker. Falls back to the `DP_URL` env when
+   * the broker doesn't return one.
+   */
+  dpUrl?: string;
   /** Optional caller identity, folded into `metadata.identity`. */
   identity?: TaskIdentity;
 }): Promise<RunSession> {
-  const { token, prompt, append, runtimeId, identity } = opts;
+  const { token, prompt, append, runtimeId, dpUrl, identity } = opts;
 
   // The session's project is derived from the token's claims at exchange —
-  // the client takes no projectId.
+  // the client takes no projectId. The DP URL comes from the broker (with the
+  // token + runtime_id), falling back to the env for local dev.
   const client = new IntrospectionApiClient({
-    dpUrl: DP_URL,
+    dpUrl: dpUrl ?? DP_URL,
     getToken: () => token,
   });
 

@@ -23,6 +23,7 @@ import {
 
 import {
   controlPlaneUrl,
+  dataPlaneUrl,
   federatedClientId,
   projectId,
   runtimeName,
@@ -74,11 +75,14 @@ export async function POST(request: Request) {
       });
       // 2) Resolve the runtime id server-side with that same token.
       const runtimeId = await resolveRuntimeId(access_token);
-      // 3) Hand the browser just the token + resolved id — it talks only to DP.
+      // 3) Hand the browser the token + resolved id + the DP URL to connect to.
+      //    The browser talks only to the DP and is configured entirely from
+      //    this response — no CP/DP env needed in the SPA.
       return NextResponse.json({
         token: access_token,
         projectId: project,
         runtimeId,
+        dpUrl: dataPlaneUrl(),
       });
     } catch (err) {
       console.error(
