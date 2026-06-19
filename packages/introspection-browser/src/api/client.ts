@@ -25,6 +25,7 @@
  */
 
 import { BrowserHttpClient, stripTrailingSlash, toApiError } from "./http.js";
+import { resolveBrowserFetch } from "./fetch.js";
 import {
   ConversationsClient,
   FilesClient,
@@ -65,19 +66,18 @@ export class IntrospectionApiClient {
   private readonly cookieClients: CookieClients;
 
   constructor(private readonly opts: IntrospectionApiClientOptions) {
-    this.fetchImpl = opts.fetch ?? globalThis.fetch;
-    if (!this.fetchImpl) {
-      throw new Error(
-        "global fetch is unavailable; pass `fetch` or run in a modern browser",
-      );
-    }
+    // Native browser `fetch` throws "Illegal invocation" when called as a
+    // method of this client (`this.fetchImpl(...)`); resolveBrowserFetch
+    // returns a global-safe wrapper. The same impl backs the connect()
+    // exchange here and the cookie-session resource calls via BrowserHttpClient.
+    this.fetchImpl = resolveBrowserFetch(opts.fetch);
     if (!opts.dpUrl) {
       throw new Error("IntrospectionApiClient requires a dpUrl");
     }
     const http = new BrowserHttpClient({
       apiUrl: opts.dpUrl,
       additionalHeaders: opts.additionalHeaders,
-      fetch: opts.fetch,
+      fetch: this.fetchImpl,
       onUnauthorized: () => this.reexchange(),
     });
     this.cookieClients = {
