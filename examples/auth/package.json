@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@introspection-sdk/introspection-browser": "workspace:*",
+    "@introspection-sdk/introspection-node": "workspace:*",
     "jose": "^5.9.6",
     "next": "^16.1.4",
     "react": "^19.0.0",

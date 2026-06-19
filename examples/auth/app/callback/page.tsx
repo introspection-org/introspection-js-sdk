@@ -5,9 +5,8 @@ import { useEffect, useRef, useState } from "react";
 
 import {
   type Append,
-  CP_URL,
+  brokerSession,
   type LogLine,
-  SPA_CLIENT_ID,
   ZITADEL_ISSUER_URL,
   runTaskWithToken,
   type RunSession,
@@ -67,27 +66,22 @@ export default function Callback() {
             throw new Error("State mismatch — possible CSRF");
 
           append("ok", "   ✓ returned from Introspection login");
-          append("info", "Exchanging the authorization code (PKCE) …");
-          const form = new URLSearchParams({
-            grant_type: "authorization_code",
+          append("info", "Broker exchanging the authorization code (PKCE) …");
+          // The PKCE verifier travels from the browser, but the token POST runs
+          // in the broker (via the Node SDK) — the browser issues no
+          // Introspection OAuth call. The broker returns the server-resolved
+          // runtime id and the DP URL too.
+          const { token, runtimeId, dpUrl } = await brokerSession({
+            mode: "authorization_code",
             code,
-            redirect_uri: `${window.location.origin}/callback`,
-            client_id: SPA_CLIENT_ID,
             code_verifier: flow.verifier,
+            redirect_uri: `${window.location.origin}/callback`,
           });
-          const res = await fetch(`${CP_URL}/v1/oauth/token`, {
-            method: "POST",
-            headers: { "Content-Type": "application/x-www-form-urlencoded" },
-            body: form.toString(),
-          });
-          if (!res.ok) throw new Error(`token exchange returned ${res.status}`);
-          const { access_token } = (await res.json()) as {
-            access_token: string;
-          };
           append("ok", "   ✓ Introspection token minted");
 
-          socketRef.current = await runTaskWithToken({
-            token: access_token,
+          socketRef.current = await runTaskWithToken(dpUrl, {
+            token,
+            runtimeId,
             prompt: flow.prompt,
             append,
           });

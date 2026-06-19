@@ -2,42 +2,35 @@
  * Browser-side Introspection API client.
  *
  * Lets a single-page app create and stream Introspection tasks directly
- * from the browser, with no API key in JavaScript. The auth boundary:
+ * from the browser, with no API key in JavaScript. The browser talks only
+ * to the Data Plane — runtime resolution and any other Control Plane work
+ * stays on the app's backend, so the CP never needs to serve CORS to
+ * customer web origins. The auth boundary:
  *
- *   1. The SPA's own backend ("broker") mints an Introspection access
- *      token — via RFC 8693 token-exchange of the partner IdP token, a
- *      PKCE `authorization_code`, or `client_credentials`. The IdP
- *      secret never leaves the backend. The SPA fetches that token
- *      through the `getToken` callback.
+ *   1. The SPA's own backend ("broker") mints a short-lived Introspection
+ *      access token — via RFC 8693 token-exchange of the partner IdP
+ *      token, a PKCE `authorization_code`, or `client_credentials` (the
+ *      IdP secret never leaves the backend) — and, when a specific runtime
+ *      is needed, resolves its `runtime_id` server-side. The SPA fetches
+ *      the token through the `getToken` callback.
  *   2. `connect()` redeems the token at the DP `POST /v1/oauth/exchange`
  *      for the HttpOnly `intro_dp_session` cookie.
  *   3. Every subsequent call rides that cookie (`credentials: "include"`)
- *      — `client.tasks.start(...)`, `.get(...)`, run streaming, etc.
+ *      — `client.tasks.start({ runtime_id })`, `.get(...)`, run streaming,
+ *      etc.
  *
  * When the session cookie expires, an in-flight request gets a 401, and
  * the client transparently re-runs `getToken` + the DP exchange once
  * before retrying.
  */
 
-import {
-  BrowserBearerHttpClient,
-  BrowserHttpClient,
-  stripTrailingSlash,
-  toApiError,
-} from "./http.js";
+import { BrowserHttpClient, stripTrailingSlash, toApiError } from "./http.js";
 import {
   ConversationsClient,
   FilesClient,
   SharesClient,
 } from "@introspection-sdk/http";
 import { TasksClient } from "./tasks.js";
-import {
-  attachBrowserRuntimes,
-  type BrowserRuntimeHandleFactory,
-  type BrowserRuntimesClient,
-} from "./runtimes.js";
-import type { BrowserRunnerSource } from "./runner.js";
-import type { RunnerSpec } from "@introspection-sdk/types";
 
 type CookieClients = {
   tasks: TasksClient;
@@ -48,18 +41,11 @@ type CookieClients = {
 
 export interface IntrospectionApiClientOptions {
   /**
-   * Control Plane REST base URL. Used by `client.runtimes(name).run()` to
-   * resolve runtimes and mint runner specs. Defaults to
-   * `https://api.introspection.dev`.
-   */
-  cpUrl?: string;
-  /**
    * Data Plane REST base URL for the cookie-session APIs (`connect()` and
-   * top-level `client.tasks` / `client.files` / `client.conversations` /
-   * `client.shares`). Runner APIs use the DP endpoint returned by CP and do
-   * not require this option.
+   * `client.tasks` / `client.files` / `client.conversations` /
+   * `client.shares`). Required — the browser only talks to the DP.
    */
-  dpUrl?: string;
+  dpUrl: string;
   /**
    * Returns a fresh Introspection access token from the app's broker
    * (its own backend). Called on `connect()` and again whenever the DP
@@ -75,15 +61,8 @@ export interface IntrospectionApiClientOptions {
 }
 
 export class IntrospectionApiClient {
-  /**
-   * CRUD on CP `/v1/runtimes` and the `(idOrName) => RuntimeHandle` factory.
-   * Call as `client.runtimes("customer-agent").run()`.
-   */
-  readonly runtimes: BrowserRuntimesClient & BrowserRuntimeHandleFactory;
-
   private readonly fetchImpl: typeof fetch;
-  private readonly cpHttp: BrowserBearerHttpClient;
-  private readonly cookieClients: CookieClients | null;
+  private readonly cookieClients: CookieClients;
 
   constructor(private readonly opts: IntrospectionApiClientOptions) {
     this.fetchImpl = opts.fetch ?? globalThis.fetch;
@@ -92,53 +71,41 @@ export class IntrospectionApiClient {
         "global fetch is unavailable; pass `fetch` or run in a modern browser",
       );
     }
-    this.cpHttp = new BrowserBearerHttpClient({
-      apiUrl: opts.cpUrl ?? "https://api.introspection.dev",
-      token: opts.getToken,
-      additionalHeaders: opts.additionalHeaders,
-      fetch: opts.fetch,
-    });
-    this.runtimes = attachBrowserRuntimes(this.cpHttp, {
-      additionalHeaders: opts.additionalHeaders,
-      fetch: opts.fetch,
-      requestFreshRunnerSpec: (source) => this.requestFreshRunnerSpec(source),
-    });
-    if (opts.dpUrl) {
-      const http = new BrowserHttpClient({
-        apiUrl: opts.dpUrl,
-        additionalHeaders: opts.additionalHeaders,
-        fetch: opts.fetch,
-        onUnauthorized: () => this.reexchange(),
-      });
-      this.cookieClients = {
-        tasks: new TasksClient(http),
-        files: new FilesClient(http),
-        conversations: new ConversationsClient(http),
-        shares: new SharesClient(http),
-      };
-    } else {
-      this.cookieClients = null;
+    if (!opts.dpUrl) {
+      throw new Error("IntrospectionApiClient requires a dpUrl");
     }
+    const http = new BrowserHttpClient({
+      apiUrl: opts.dpUrl,
+      additionalHeaders: opts.additionalHeaders,
+      fetch: opts.fetch,
+      onUnauthorized: () => this.reexchange(),
+    });
+    this.cookieClients = {
+      tasks: new TasksClient(http),
+      files: new FilesClient(http),
+      conversations: new ConversationsClient(http),
+      shares: new SharesClient(http),
+    };
   }
 
   /** `/v1/tasks` operations bound to the DP session cookie. */
   get tasks(): TasksClient {
-    return this.requireCookieClient("tasks");
+    return this.cookieClients.tasks;
   }
 
   /** `/v1/files` operations bound to the DP session cookie. */
   get files(): FilesClient {
-    return this.requireCookieClient("files");
+    return this.cookieClients.files;
   }
 
   /** Read-only `/v1/conversations` projection bound to the session cookie. */
   get conversations(): ConversationsClient {
-    return this.requireCookieClient("conversations");
+    return this.cookieClients.conversations;
   }
 
   /** `/v1/shares` read-sharing grants bound to the session cookie. */
   get shares(): SharesClient {
-    return this.requireCookieClient("shares");
+    return this.cookieClients.shares;
   }
 
   /**
@@ -146,15 +113,13 @@ export class IntrospectionApiClient {
    * `intro_dp_session` cookie. Call once before issuing task requests.
    */
   async connect(): Promise<void> {
-    this.requireDpUrl();
     await this.exchange();
   }
 
   private async exchange(): Promise<void> {
-    const dpUrl = this.requireDpUrl();
     const token = await this.opts.getToken();
     const res = await this.fetchImpl(
-      `${stripTrailingSlash(dpUrl)}/v1/oauth/exchange`,
+      `${stripTrailingSlash(this.opts.dpUrl)}/v1/oauth/exchange`,
       {
         method: "POST",
         headers: {
@@ -176,42 +141,5 @@ export class IntrospectionApiClient {
     } catch {
       return false;
     }
-  }
-
-  private requireCookieClient<K extends keyof CookieClients>(
-    key: K,
-  ): CookieClients[K] {
-    if (!this.cookieClients) {
-      throw new Error(
-        `IntrospectionApiClient.${key} requires dpUrl; use client.runtimes(...).run() for runner-bound APIs or pass dpUrl for cookie-session APIs`,
-      );
-    }
-    return this.cookieClients[key];
-  }
-
-  private requireDpUrl(): string {
-    if (!this.opts.dpUrl) {
-      throw new Error(
-        "IntrospectionApiClient.connect() requires dpUrl; use client.runtimes(...).run() for runner-bound APIs or pass dpUrl for cookie-session APIs",
-      );
-    }
-    return this.opts.dpUrl;
-  }
-
-  private async requestFreshRunnerSpec(
-    source: BrowserRunnerSource,
-  ): Promise<RunnerSpec> {
-    if (source.kind === "runtime") {
-      return this.cpHttp.request<RunnerSpec>({
-        method: "POST",
-        path: `/v1/runtimes/${encodeURIComponent(source.id)}/run`,
-        body: source.options ?? {},
-      });
-    }
-    return this.cpHttp.request<RunnerSpec>({
-      method: "POST",
-      path: `/v1/experiments/${encodeURIComponent(source.id)}/run`,
-      body: source.options ?? {},
-    });
   }
 }

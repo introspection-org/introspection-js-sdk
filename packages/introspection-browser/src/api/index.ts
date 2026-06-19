@@ -6,22 +6,30 @@
  * Separate from the package's default telemetry export so apps only pull
  * in what they use.
  *
+ * The browser talks only to the Data Plane. Resolving a runtime by name
+ * (a Control Plane call) stays on your backend, which hands the browser a
+ * short-lived access token plus the resolved `runtime_id`.
+ *
  * @example
  * ```typescript
  * import { IntrospectionApiClient } from "@introspection-sdk/introspection-browser/api";
  *
+ * // Your backend returns { token, runtimeId, dpUrl } — it mints the access
+ * // token, resolves the runtime id, and surfaces the DP URL (e.g. from the
+ * // Node SDK's serviceAccountToken response), so the browser never calls the CP.
+ * const { token, runtimeId, dpUrl } = await fetch(
+ *   "/api/introspection/session",
+ * ).then((r) => r.json());
+ *
  * const client = new IntrospectionApiClient({
- *   cpUrl: "https://api.introspection.dev",
- *   // your backend mints the Introspection access token (the session's
- *   // project is derived from its claims — no projectId option needed)
- *   getToken: () => fetch("/api/introspection/token").then((r) => r.text()),
+ *   dpUrl,
+ *   getToken: () => token,
  * });
  *
- * const runner = await client.runtimes("support-agent").run({
- *   identity: { user_id: "u_42" },
- * });
- * const run = await runner.tasks.start({
+ * await client.connect(); // -> intro_dp_session cookie
+ * const run = await client.tasks.start({
  *   prompt: "Summarize my latest order",
+ *   runtime_id: runtimeId,
  * });
  * for await (const ev of run.stream()) console.log(ev.event, ev.data);
  * ```
@@ -31,20 +39,6 @@ export {
   IntrospectionApiClient,
   type IntrospectionApiClientOptions,
 } from "./client.js";
-export {
-  BrowserRunner,
-  Runner,
-  type BrowserRunnerOwner,
-  type BrowserRunnerSource,
-} from "./runner.js";
-export {
-  BrowserRuntimesClient,
-  BrowserRuntimeHandle,
-  attachBrowserRuntimes,
-  isUuid,
-  type BrowserRuntimeHandleFactory,
-  type BrowserRuntimeRunRequestBody,
-} from "./runtimes.js";
 export {
   TasksClient,
   TaskRunsClient,
@@ -60,13 +54,7 @@ export {
   SharesClient,
   type FileUploadBody,
 } from "@introspection-sdk/http";
-export {
-  BrowserBearerHttpClient,
-  BrowserHttpClient,
-  type BrowserApiHttpClient,
-  type BrowserBearerHttpConfig,
-  type BrowserHttpConfig,
-} from "./http.js";
+export { BrowserHttpClient, type BrowserHttpConfig } from "./http.js";
 export { parseSse } from "./sse.js";
 export {
   Paginator,
@@ -104,15 +92,6 @@ export type {
   ShareResourceType,
   ShareCreateParams,
   ShareListParams,
-  Recipe,
-  RunRequest,
-  RunnerContext,
-  RunnerDeployment,
-  RunnerSpec,
-  Runtime,
-  RuntimeCreate,
-  RuntimeListParams,
-  RuntimeUpdate,
 } from "@introspection-sdk/types";
 export {
   IntrospectionAPIError,
