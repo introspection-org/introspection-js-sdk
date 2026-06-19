@@ -156,6 +156,7 @@ beforeAll(async () => {
         token_type: "Bearer",
         expires_in: 3600,
         scope: form.get("scope"),
+        dp_url: "https://dp.example.com",
       });
     }
 

@@ -45,10 +45,10 @@ customer web origins.
 1. The app's **own backend ("broker")** mints an Introspection access token —
    via RFC 8693 token-exchange of the partner IdP token, a PKCE
    `authorization_code`, or `client_credentials`. The IdP secret never leaves
-   the backend. When a specific runtime is needed, the backend also resolves
-   its `runtime_id` server-side (e.g. with the Node SDK's
-   `client.runtimes.resolveByName("support-agent")`) and returns it alongside
-   the token.
+   the backend. The backend returns **`{ token, runtimeId, dpUrl }`**: it
+   resolves the runtime id server-side (e.g. with the Node SDK's
+   `client.runtimes.resolveByName("support-agent")`) and supplies the Data
+   Plane URL, so the SPA needs no Introspection config of its own.
 2. `client.connect()` redeems the token at the **Data Plane**
    `POST /v1/oauth/exchange` for the HttpOnly `intro_dp_session` cookie.
 3. `client.tasks.start({ runtime_id })` and friends ride that cookie against
@@ -57,14 +57,15 @@ customer web origins.
 ```typescript
 import { IntrospectionApiClient } from "@introspection-sdk/introspection-browser/api";
 
-// Your backend returns { token, runtimeId }: it mints the access token AND
-// resolves the runtime id server-side, so the browser never calls the CP.
-const { token, runtimeId } = await fetch("/api/introspection/session").then(
-  (r) => r.json(),
-);
+// Your backend returns { token, runtimeId, dpUrl }: it mints the access token,
+// resolves the runtime id, and supplies the DP URL — so the browser never
+// calls the CP and carries no Introspection config of its own.
+const { token, runtimeId, dpUrl } = await fetch(
+  "/api/introspection/session",
+).then((r) => r.json());
 
 const client = new IntrospectionApiClient({
-  dpUrl: "https://dp.us.introspection.dev",
+  dpUrl,
   getToken: () => token,
 });
 

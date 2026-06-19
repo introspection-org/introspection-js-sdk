@@ -14,14 +14,15 @@
  * ```typescript
  * import { IntrospectionApiClient } from "@introspection-sdk/introspection-browser/api";
  *
- * // Your backend returns { token, runtimeId } — it mints the access token
- * // and resolves the runtime id server-side (e.g. with the Node SDK).
- * const { token, runtimeId } = await fetch("/api/introspection/session").then(
- *   (r) => r.json(),
- * );
+ * // Your backend returns { token, runtimeId, dpUrl } — it mints the access
+ * // token, resolves the runtime id, and surfaces the DP URL (e.g. from the
+ * // Node SDK's serviceAccountToken response), so the browser never calls the CP.
+ * const { token, runtimeId, dpUrl } = await fetch(
+ *   "/api/introspection/session",
+ * ).then((r) => r.json());
  *
  * const client = new IntrospectionApiClient({
- *   dpUrl: "https://dp.us.introspection.dev",
+ *   dpUrl,
  *   getToken: () => token,
  * });
  *

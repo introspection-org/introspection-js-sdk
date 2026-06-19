@@ -56,6 +56,13 @@ export interface ServiceAccountToken {
   expires_in: number;
   /** The granted (scope-capped) scope, when the CP returns one. */
   scope: string | null;
+  /**
+   * Data Plane API base URL for the token's project, resolved by the CP the
+   * same way it is for the CLI login. `null` when the deployment can't be
+   * resolved; the caller then needs an explicit DP URL. Hand this to the
+   * browser SDK as `dpUrl` so the SPA connects without separate DP config.
+   */
+  dp_url: string | null;
 }
 
 /**

@@ -67,7 +67,9 @@ export async function POST(request: Request) {
     const { clientId, clientSecret } = serviceAccountCreds();
     try {
       // 1) Mint a machine token via the Node SDK's client_credentials helper.
-      const { access_token } = await serviceAccountToken({
+      //    The CP resolves the project's Data Plane URL into the response (the
+      //    same `dp_url` the CLI login persists), so we don't configure it.
+      const { access_token, dp_url } = await serviceAccountToken({
         clientId,
         clientSecret,
         projectId: project,
@@ -77,12 +79,13 @@ export async function POST(request: Request) {
       const runtimeId = await resolveRuntimeId(access_token);
       // 3) Hand the browser the token + resolved id + the DP URL to connect to.
       //    The browser talks only to the DP and is configured entirely from
-      //    this response — no CP/DP env needed in the SPA.
+      //    this response — no CP/DP env needed in the SPA. Fall back to the
+      //    broker's own DP config only if the CP couldn't resolve one.
       return NextResponse.json({
         token: access_token,
         projectId: project,
         runtimeId,
-        dpUrl: dataPlaneUrl(),
+        dpUrl: dp_url ?? dataPlaneUrl(),
       });
     } catch (err) {
       console.error(
