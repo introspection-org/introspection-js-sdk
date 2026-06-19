@@ -14,8 +14,15 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createServer, type IncomingMessage, type Server } from "node:http";
 import { AddressInfo } from "node:net";
-import { IntrospectionClient } from "@introspection-sdk/introspection-node";
-import { NotFoundError, RunnerExpiredError } from "@introspection-sdk/types";
+import {
+  IntrospectionClient,
+  serviceAccountToken,
+} from "@introspection-sdk/introspection-node";
+import {
+  NotFoundError,
+  RunnerExpiredError,
+  ValidationError,
+} from "@introspection-sdk/types";
 
 interface CapturedRequest {
   method: string;
@@ -129,6 +136,28 @@ beforeAll(async () => {
       total_count: records.length,
       next,
     });
+
+    // --- Control-plane: service-account auth (client_credentials) ---
+    if (path === "/v1/oauth/token" && method === "POST") {
+      const form = new URLSearchParams(typeof body === "string" ? body : "");
+      if (
+        form.get("grant_type") !== "client_credentials" ||
+        form.get("client_id") !== "intro_app_test" ||
+        form.get("client_secret") !== "intro_sk_test" ||
+        !form.get("project_id")
+      ) {
+        return json(res, 400, {
+          detail: "Invalid client credentials",
+          code: "invalid_client",
+        });
+      }
+      return json(res, 200, {
+        access_token: "minted-sa-token",
+        token_type: "Bearer",
+        expires_in: 3600,
+        scope: form.get("scope"),
+      });
+    }
 
     // --- Control-plane: runtimes ---
     if (path === "/v1/runtimes" && method === "GET") {
@@ -340,6 +369,60 @@ describe("IntrospectionClient (REST control-plane, real server)", () => {
         .activate({ projectId: "proj-1" });
       expect(rt.is_active).toBe(true);
       expect(requests.some((r) => r.path.endsWith("/activate"))).toBe(true);
+    });
+  });
+
+  describe("service account auth", () => {
+    it("mints a token via client_credentials (form-encoded)", async () => {
+      requests = [];
+      const tok = await serviceAccountToken({
+        clientId: "intro_app_test",
+        clientSecret: "intro_sk_test",
+        projectId: "proj-1",
+        scope: "runtimes:read runtimes:run",
+        baseApiUrl: baseUrl,
+      });
+      expect(tok.access_token).toBe("minted-sa-token");
+      expect(tok.expires_in).toBe(3600);
+      expect(tok.scope).toBe("runtimes:read runtimes:run");
+
+      const tokenReq = requests.find((r) => r.path === "/v1/oauth/token");
+      expect(tokenReq?.method).toBe("POST");
+      // Form-encoded, unauthenticated (credentials travel in the body).
+      expect(tokenReq?.auth).toBeUndefined();
+      expect(tokenReq?.body).toContain("grant_type=client_credentials");
+    });
+
+    it("maps bad credentials to a typed ValidationError", async () => {
+      await expect(
+        serviceAccountToken({
+          clientId: "intro_app_test",
+          clientSecret: "wrong",
+          projectId: "proj-1",
+          baseApiUrl: baseUrl,
+        }),
+      ).rejects.toBeInstanceOf(ValidationError);
+    });
+
+    it("fromServiceAccount mints then resolves a runtime by name", async () => {
+      requests = [];
+      const client = await IntrospectionClient.fromServiceAccount({
+        clientId: "intro_app_test",
+        clientSecret: "intro_sk_test",
+        projectId: "proj-1",
+        baseApiUrl: baseUrl,
+      });
+      const runner = await client.runtimes(RUNTIME.name).run({
+        identity: { user_id: "u_demo" },
+      });
+      expect(runner.context.runtime_id).toBe(RUNTIME.id);
+
+      // The minted token is the bearer on the subsequent CP calls.
+      const runtimeCall = requests.find((r) =>
+        r.path.endsWith(`/runtimes/${RUNTIME.id}/run`),
+      );
+      expect(runtimeCall?.auth).toBe("Bearer minted-sa-token");
+      await runner.close();
     });
   });
 

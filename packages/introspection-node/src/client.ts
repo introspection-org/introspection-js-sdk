@@ -15,6 +15,7 @@
 import type { AdvancedOptions } from "@introspection-sdk/types";
 import { logger as sdkLogger } from "./utils.js";
 import type { IntrospectionClientOptions } from "./types.js";
+import { serviceAccountToken, type ServiceAccountTokenParams } from "./auth.js";
 import { HttpClient } from "./http.js";
 import {
   attachRuntimes,
@@ -104,6 +105,43 @@ export class IntrospectionClient {
     this.recipes = attachRecipes(this.cpHttp);
 
     sdkLogger.info(`IntrospectionClient initialized: api=${baseApiUrl}`);
+  }
+
+  /**
+   * Authenticate as a confidential service account and return a ready
+   * client.
+   *
+   * Mints a short-lived, project-scoped CP access token via the
+   * `client_credentials` grant (see {@link serviceAccountToken}) and wires
+   * it in as the bearer token, so the runtime flow works exactly as it does
+   * with an API key:
+   *
+   * @example
+   * ```typescript
+   * const client = await IntrospectionClient.fromServiceAccount({
+   *   clientId: process.env.INTROSPECTION_SERVICE_ACCOUNT_CLIENT_ID!,
+   *   clientSecret: process.env.INTROSPECTION_SERVICE_ACCOUNT_CLIENT_SECRET!,
+   *   projectId: process.env.INTRO_PROJECT_ID!,
+   * });
+   *
+   * // Resolved fresh from the runtime name on every call.
+   * const runner = await client.runtimes("customer-agent").run({
+   *   identity: { user_id: "u_demo" },
+   * });
+   * ```
+   *
+   * The token is not auto-refreshed: it lives for `expires_in` seconds, so
+   * re-mint (call this again) for long-lived processes once it lapses.
+   */
+  static async fromServiceAccount(
+    params: ServiceAccountTokenParams & { serviceName?: string },
+  ): Promise<IntrospectionClient> {
+    const { access_token } = await serviceAccountToken(params);
+    return new IntrospectionClient({
+      token: access_token,
+      serviceName: params.serviceName,
+      advanced: { baseApiUrl: params.baseApiUrl, fetch: params.fetch },
+    });
   }
 
   /** Close the underlying HTTP client. */
