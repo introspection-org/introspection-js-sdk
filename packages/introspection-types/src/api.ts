@@ -1,3 +1,5 @@
+import type { ResumeEntry } from "@ag-ui/core";
+
 /**
  * Public REST API types for the Introspection DP `/v1` surface.
  *
@@ -40,6 +42,7 @@ export type TaskStatus =
   | "queued"
   | "scheduled"
   | "running"
+  | "awaiting_user"
   | "idle"
   | "completed"
   | "failed"
@@ -115,9 +118,17 @@ export interface TaskPrompt {
   images?: string[];
 }
 
+export type TaskRunKind = "prompt" | "steer" | "clear";
+
 export interface TaskRunCreateParams {
   prompt?: TaskPrompt;
   message?: string;
+  kind?: TaskRunKind;
+  metadata?: Record<string, unknown>;
+}
+
+export interface TaskRunResumeParams {
+  resume: ResumeEntry[];
 }
 
 export interface TaskRun {
@@ -495,13 +506,4 @@ export interface RunRequest {
    * server-side. Populated by {@link RuntimeHandle.pin}.
    */
   recipe_id?: Uuid;
-}
-
-// --- SSE ---
-
-export interface SseEvent {
-  event: string;
-  data: string;
-  id?: string;
-  retry?: number;
 }

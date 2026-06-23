@@ -2,7 +2,7 @@
  * Browser HTTP transport for the Introspection Data Plane `/v1` surface.
  *
  * The request/response machinery — URL joining, query building, body
- * serialization, error mapping, SSE — lives in the shared
+ * serialization, error mapping, AG-UI stream parsing — lives in the shared
  * `@introspection-sdk/http` {@link BaseHttpClient}. This module pins the
  * browser auth strategy on top of it: the DP is reached with the HttpOnly
  * `intro_dp_session` cookie minted by `POST /v1/oauth/exchange`, so every

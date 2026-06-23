@@ -1,6 +1,5 @@
 import type {
   Paginated,
-  SseEvent,
   Task,
   TaskCancelResponse,
   TaskCreateParams,
@@ -8,11 +7,13 @@ import type {
   TaskListParams,
   TaskRun,
   TaskRunCreateParams,
+  TaskRunResumeParams,
   TaskRunResponse,
   TaskUpdateParams,
 } from "@introspection-sdk/types";
+import { EventType, type AGUIEvent } from "@ag-ui/core";
 import { Paginator, cursorPaginate } from "../pagination.js";
-import { parseSse } from "../sse.js";
+import { parseAgUiEvents } from "../agui-stream.js";
 import type { ResourceHttpClient } from "./types.js";
 
 export interface StartParams extends TaskCreateParams {
@@ -36,7 +37,7 @@ export class RunHandle {
     private readonly runs: TaskRunsClient,
   ) {}
 
-  stream(): AsyncIterable<SseEvent> {
+  stream(): AsyncIterable<AGUIEvent> {
     return this.runs.stream(this.run.task_id, this.run.id);
   }
 
@@ -44,11 +45,16 @@ export class RunHandle {
     return this.runs.cancel(this.run.task_id, this.run.id);
   }
 
-  /** Convenience: collect `data` from `event: text`-style frames into a string. */
+  /** Convenience: collect assistant text deltas from the AG-UI stream. */
   async text(): Promise<string> {
     let out = "";
     for await (const ev of this.stream()) {
-      if (ev.event === "text" || ev.event === "message") out += ev.data;
+      if (
+        ev.type === EventType.TEXT_MESSAGE_CONTENT ||
+        ev.type === EventType.TEXT_MESSAGE_CHUNK
+      ) {
+        out += ev.delta ?? "";
+      }
     }
     return out;
   }
@@ -58,6 +64,15 @@ export class TaskRunsClient {
   constructor(private readonly http: ResourceHttpClient) {}
 
   async create(taskId: string, body: TaskRunCreateParams): Promise<RunHandle> {
+    const res = await this.http.request<TaskRunResponse>({
+      method: "POST",
+      path: `/v1/tasks/${encodeURIComponent(taskId)}/runs`,
+      body,
+    });
+    return new RunHandle(null, res.run, this);
+  }
+
+  async resume(taskId: string, body: TaskRunResumeParams): Promise<RunHandle> {
     const res = await this.http.request<TaskRunResponse>({
       method: "POST",
       path: `/v1/tasks/${encodeURIComponent(taskId)}/runs`,
@@ -80,11 +95,11 @@ export class TaskRunsClient {
     });
   }
 
-  async *stream(taskId: string, runId: string): AsyncIterable<SseEvent> {
+  async *stream(taskId: string, runId: string): AsyncIterable<AGUIEvent> {
     const res = await this.http.stream({
       path: `/v1/tasks/${encodeURIComponent(taskId)}/runs/${encodeURIComponent(runId)}/stream`,
     });
-    yield* parseSse(res);
+    yield* parseAgUiEvents(res);
   }
 }
 

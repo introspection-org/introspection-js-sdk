@@ -35,7 +35,7 @@ export type {
 } from "./types.js";
 
 // Runner-bound REST namespaces (runner.tasks, runner.files,
-// runner.conversations) + HTTP/SSE.
+// runner.conversations) + HTTP.
 export {
   ConversationItemsApi,
   ConversationsApi,
@@ -49,7 +49,7 @@ export {
 export type { FileUploadBody, StartParams } from "@introspection-sdk/http";
 export { HttpClient } from "./http.js";
 export type { ResolvedApiConfig } from "./http.js";
-export { parseSse } from "./streaming.js";
+export { EventType } from "@introspection-sdk/types";
 
 // Runner + CP resources.
 export { Runner } from "./runner.js";
@@ -71,6 +71,12 @@ export { RecipesApi, attachRecipes } from "./resources/recipes.js";
 
 // REST API wire types
 export type {
+  AGUIEvent,
+  BaseEvent,
+  Interrupt,
+  Message,
+  ResumeEntry,
+  RunAgentInput,
   Paginated,
   ListParams,
   Task,
@@ -79,9 +85,11 @@ export type {
   TaskListParams,
   TaskMode,
   TaskStatus,
+  TaskRunKind,
   TaskPrompt,
   TaskRun,
   TaskRunCreateParams,
+  TaskRunResumeParams,
   TaskRunResponse,
   TaskCreateResponse,
   TaskCancelResponse,
@@ -91,7 +99,6 @@ export type {
   FileListParams,
   FileUpdateParams,
   FileCreateTextParams,
-  SseEvent,
   Runtime,
   RuntimeCreate,
   RuntimeUpdate,

@@ -5,6 +5,17 @@
 
 import type { SpanExporter } from "@opentelemetry/sdk-trace-base";
 
+export { EventType } from "@ag-ui/core";
+export type {
+  AGUIEvent,
+  AgentCapabilities,
+  BaseEvent,
+  HumanInTheLoopCapabilities,
+  Interrupt,
+  Message,
+  ResumeEntry,
+  RunAgentInput,
+} from "@ag-ui/core";
 export * from "./genai.js";
 export * from "./api.js";
 export * from "./conversations.js";

@@ -108,7 +108,7 @@ export class SandboxUnavailableError extends IntrospectionAPIError {
   }
 }
 
-/** SSE transport blew up mid-stream (after a 2xx open). */
+/** Stream transport failed mid-run after a 2xx open. */
 export class StreamError extends IntrospectionAPIError {
   constructor(
     opts: Omit<

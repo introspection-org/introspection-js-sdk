@@ -20,6 +20,9 @@
     "clean": "rm -rf dist",
     "prepare": "tsc"
   },
+  "dependencies": {
+    "@ag-ui/core": "0.0.57"
+  },
   "devDependencies": {
     "@opentelemetry/sdk-trace-base": "^2.8.0",
     "@repo/typescript-config": "workspace:*",

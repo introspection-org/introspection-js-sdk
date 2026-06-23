@@ -43,7 +43,7 @@ import { attachRecipes, type RecipesApi } from "./resources/recipes.js";
  *   identity: { user_id: "u_42" },
  * });
  * const run = await runner.tasks.create({ prompt: "Summarize this repo" });
- * for await (const ev of run.stream()) console.log(ev);
+ * for await (const ev of run.stream()) console.log(ev.type);
  *
  * await runner.close();
  * await client.shutdown();

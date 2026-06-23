@@ -288,6 +288,9 @@ importers:
 
   packages/introspection-http:
     dependencies:
+      '@ag-ui/core':
+        specifier: 0.0.57
+        version: 0.0.57
       '@introspection-sdk/types':
         specifier: workspace:*
         version: link:../introspection-types

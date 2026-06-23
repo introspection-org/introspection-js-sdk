@@ -9,8 +9,9 @@
  * `/v1/tasks`, or WebSocket plumbing in the app.
  */
 import {
+  EventType,
   IntrospectionApiClient,
-  type SseEvent,
+  type AGUIEvent,
 } from "@introspection-sdk/introspection-browser/api";
 
 export const CP_URL = (
@@ -174,9 +175,22 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-function formatEvent(ev: SseEvent): string {
-  const data = ev.data.length > 200 ? `${ev.data.slice(0, 200)}…` : ev.data;
-  return `${ev.event}: ${data}`;
+function truncate(value: string): string {
+  return value.length > 200 ? `${value.slice(0, 200)}...` : value;
+}
+
+function formatEvent(ev: AGUIEvent): string {
+  switch (ev.type) {
+    case EventType.TEXT_MESSAGE_CONTENT:
+    case EventType.TEXT_MESSAGE_CHUNK:
+      return `${ev.type}: ${truncate(ev.delta ?? "")}`;
+    case EventType.TOOL_CALL_RESULT:
+      return `${ev.type}: ${truncate(ev.content)}`;
+    case EventType.RUN_ERROR:
+      return `${ev.type}: ${truncate(ev.message)}`;
+    default:
+      return ev.type;
+  }
 }
 
 /**
