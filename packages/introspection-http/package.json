@@ -2,7 +2,7 @@
   "name": "@introspection-sdk/http",
   "version": "0.1.0",
   "license": "Apache-2.0",
-  "description": "Isomorphic HTTP transport, SSE parsing, error mapping, and cursor pagination shared by the Introspection browser and Node SDKs",
+  "description": "Isomorphic HTTP transport, AG-UI stream parsing, error mapping, and cursor pagination shared by the Introspection browser and Node SDKs",
   "engines": {
     "node": ">=22"
   },
@@ -29,6 +29,7 @@
     "typescript": "5.9.3"
   },
   "dependencies": {
+    "@ag-ui/core": "0.0.57",
     "@introspection-sdk/types": "workspace:*"
   }
 }

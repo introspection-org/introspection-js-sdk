@@ -31,7 +31,7 @@
  *   prompt: "Summarize my latest order",
  *   runtime_id: runtimeId,
  * });
- * for await (const ev of run.stream()) console.log(ev.event, ev.data);
+ * for await (const ev of run.stream()) console.log(ev.type);
  * ```
  */
 
@@ -55,26 +55,33 @@ export {
   type FileUploadBody,
 } from "@introspection-sdk/http";
 export { BrowserHttpClient, type BrowserHttpConfig } from "./http.js";
-export { parseSse } from "./sse.js";
 export {
   Paginator,
   cursorPaginate,
   type PageSource,
 } from "@introspection-sdk/http";
+export { EventType } from "@introspection-sdk/types";
 
 // Re-exported wire types for convenience.
 export type {
+  AGUIEvent,
+  BaseEvent,
+  Interrupt,
+  Message,
+  ResumeEntry,
+  RunAgentInput,
   Task,
   TaskRun,
   TaskStatus,
+  TaskRunKind,
   TaskCreateResponse,
   TaskListParams,
   TaskUpdateParams,
   TaskRunCreateParams,
+  TaskRunResumeParams,
   TaskCancelResponse,
   RunIdentityInput,
   Paginated,
-  SseEvent,
   File,
   FileType,
   FileListParams,

@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   BrowserHttpClient,
+  EventType,
   IntrospectionApiClient,
   RunHandle,
   TasksClient,
@@ -298,13 +299,24 @@ describe("TasksClient", () => {
 });
 
 describe("RunHandle / TaskRunsClient", () => {
-  it("text() collects text and message SSE frames", async () => {
+  it("text() collects AG-UI text deltas", async () => {
     const encoder = new TextEncoder();
-    const ssePayload =
-      "event: text\ndata: Hello \n\nevent: message\ndata: world\n\n";
+    const streamPayload = [
+      `event: ag_ui\ndata: ${JSON.stringify({
+        type: EventType.TEXT_MESSAGE_CONTENT,
+        messageId: "msg-1",
+        delta: "Hello ",
+      })}\n\n`,
+      "event: heartbeat\ndata: {}\n\n",
+      `event: ag_ui\ndata: ${JSON.stringify({
+        type: EventType.TEXT_MESSAGE_CHUNK,
+        messageId: "msg-1",
+        delta: "world",
+      })}\n\n`,
+    ].join("");
     const stream = new ReadableStream({
       start(controller) {
-        controller.enqueue(encoder.encode(ssePayload));
+        controller.enqueue(encoder.encode(streamPayload));
         controller.close();
       },
     });

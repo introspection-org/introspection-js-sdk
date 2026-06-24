@@ -78,13 +78,13 @@ const run = await client.tasks.start({
 });
 
 for await (const ev of run.stream()) {
-  console.log(ev.event, ev.data);
+  console.log(ev.type);
 }
 ```
 
 `client.tasks` exposes the full CRUD surface (`create` / `start` / `get` /
 `list` / `update` / `delete` / `archive` / `unarchive`) plus per-run streaming
-(`run.stream()`, `run.text()`, `run.cancel()`).
+(`run.stream()` yields AG-UI events, `run.text()`, `run.cancel()`).
 
 `create` and `start` accept **`idle_timeout_seconds`** (`number`) to override
 the interactive idle window before the sandbox is torn down. `0` tears it down

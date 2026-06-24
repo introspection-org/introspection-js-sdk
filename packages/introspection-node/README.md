@@ -35,7 +35,7 @@ const run = await runner.tasks.start({
 });
 
 for await (const event of run.stream()) {
-  console.log(`[${event.event}] ${event.data}`);
+  console.log(event.type);
 }
 
 await runner.close();

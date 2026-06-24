@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import {
+  EventType,
   HttpClient,
   TasksApi,
   TaskRunsApi,
@@ -223,6 +224,24 @@ describe("TaskRunsApi", () => {
     expect(handle.task).toBeNull();
   });
 
+  it("resume() posts AG-UI resume entries to POST /v1/tasks/:id/runs", async () => {
+    const http = mockHttp({ requestResult: { run: RUN_FIXTURE } });
+    const runs = new TaskRunsApi(http);
+    const handle = await runs.resume("task-1", {
+      resume: [{ interruptId: "plan:tool-1", status: "cancelled" }],
+    });
+
+    expect(http.request).toHaveBeenCalledWith({
+      method: "POST",
+      path: "/v1/tasks/task-1/runs",
+      body: {
+        resume: [{ interruptId: "plan:tool-1", status: "cancelled" }],
+      },
+    });
+    expect(handle).toBeInstanceOf(RunHandle);
+    expect(handle.task).toBeNull();
+  });
+
   it("get() calls GET /v1/tasks/:id/runs/:runId", async () => {
     const http = mockHttp({ requestResult: RUN_FIXTURE });
     const runs = new TaskRunsApi(http);
@@ -247,13 +266,23 @@ describe("TaskRunsApi", () => {
 });
 
 describe("RunHandle", () => {
-  it("text() collects text and message events", async () => {
+  it("text() collects AG-UI text deltas", async () => {
     const encoder = new TextEncoder();
-    const ssePayload =
-      "event: text\ndata: Hello \n\nevent: text\ndata: world\n\n";
+    const streamPayload = [
+      `event: ag_ui\ndata: ${JSON.stringify({
+        type: EventType.TEXT_MESSAGE_CONTENT,
+        messageId: "msg-1",
+        delta: "Hello ",
+      })}\n\n`,
+      `event: ag_ui\ndata: ${JSON.stringify({
+        type: EventType.TEXT_MESSAGE_CONTENT,
+        messageId: "msg-1",
+        delta: "world",
+      })}\n\n`,
+    ].join("");
     const stream = new ReadableStream({
       start(controller) {
-        controller.enqueue(encoder.encode(ssePayload));
+        controller.enqueue(encoder.encode(streamPayload));
         controller.close();
       },
     });

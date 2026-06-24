@@ -52,8 +52,7 @@ export interface ConvertOptions {
   /**
    * Known compaction summaries for the session, sourced structurally from
    * pi's session tree (`session.sessionManager.getEntries()` →
-   * `type === "compaction"` → `summary`) or the `session_compact`
-   * extension event. A user message containing one of these verbatim is
+   * `type === "compaction"` → `summary`). A user message containing one of these verbatim is
    * emitted as a `compaction` part with that summary as content,
    * regardless of the prose wrapper pi rendered around it — so this path
    * keeps working if pi rewords its preamble or an extension customizes

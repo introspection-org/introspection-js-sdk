@@ -45,7 +45,7 @@ async function main() {
   console.log(`spawned task=${run.task?.id}, run=${run.run.id}`);
 
   for await (const event of run.stream()) {
-    console.log(`[${event.event}] ${event.data}`);
+    console.log(`[${event.type}]`);
   }
 
   // 3) Once the run has drained, the task carries its conversation id in
