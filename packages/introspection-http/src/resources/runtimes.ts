@@ -106,6 +106,29 @@ export class RuntimesClient<TRunner> {
     });
   }
 
+  /**
+   * Withdraw a runtime so it stops resolving as the active runtime for its
+   * environment. In-flight sticky runs keep using it; new runs fall back to
+   * the previous active runtime (or "none active" until a replacement is
+   * promoted). Pass an optional human-readable `reason`.
+   */
+  yank(id: Uuid, reason?: string): Promise<Runtime> {
+    return this.http.request<Runtime>({
+      method: "PATCH",
+      path: `/v1/runtimes/${encodeURIComponent(id)}`,
+      body: { yanked: true, yanked_reason: reason },
+    });
+  }
+
+  /** Reverse a {@link yank}, making the runtime eligible to resolve again. */
+  unyank(id: Uuid): Promise<Runtime> {
+    return this.http.request<Runtime>({
+      method: "PATCH",
+      path: `/v1/runtimes/${encodeURIComponent(id)}`,
+      body: { yanked: false },
+    });
+  }
+
   /** Resolve a name to a runtime by querying `/v1/runtimes?name=…`. */
   async resolveByName(name: string, projectId?: Uuid): Promise<Runtime> {
     for await (const runtime of this.list({
@@ -211,6 +234,8 @@ export function attachRuntimes<TRunner>(
   hybrid.create = api.create.bind(api);
   hybrid.update = api.update.bind(api);
   hybrid.delete = api.delete.bind(api);
+  hybrid.yank = api.yank.bind(api);
+  hybrid.unyank = api.unyank.bind(api);
   hybrid.resolveByName = api.resolveByName.bind(api);
   hybrid.runById = api.runById.bind(api);
   hybrid.openRunner = api.openRunner.bind(api);
