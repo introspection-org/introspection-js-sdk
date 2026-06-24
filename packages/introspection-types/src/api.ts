@@ -253,6 +253,21 @@ export interface ShareListParams extends ListParams {
  */
 export type RuntimeLlmMode = "managed" | "byok";
 
+/**
+ * How a runtime group resolves which runtime serves a run.
+ *
+ * - `"sticky"` — a run pins the runtime that was active when it started and
+ *   keeps using it for the whole conversation, even after a newer runtime is
+ *   promoted. The production default.
+ * - `"latest"` — every run (including restarts of an existing task) resolves
+ *   the runtime currently active for the environment. The default for
+ *   non-production environments.
+ *
+ * A per-run `resolution_mode` on the run request overrides the group's
+ * setting; a yanked runtime is never resolved under either mode.
+ */
+export type RuntimeResolutionMode = "sticky" | "latest";
+
 export interface Runtime {
   id: Uuid;
   org_id: Uuid;
@@ -264,6 +279,12 @@ export interface Runtime {
   llm_mode: RuntimeLlmMode;
   created_at: IsoDate;
   updated_at: IsoDate;
+  /**
+   * When set, the runtime has been withdrawn and will never resolve as the
+   * active runtime for its environment; in-flight sticky runs keep using it.
+   */
+  yanked_at?: IsoDate | null;
+  yanked_reason?: string | null;
   metadata?: Record<string, unknown> | null;
 }
 
@@ -292,6 +313,10 @@ export interface RuntimeListParams extends ListParams {
   name?: string;
   recipe_id?: Uuid;
   only_active?: boolean;
+  /** Restrict to runtimes serving this environment (e.g. `"production"`). */
+  environment?: string;
+  /** Omit withdrawn runtimes — mirrors the server-side active resolution. */
+  exclude_yanked?: boolean;
 }
 
 // --- recipes ---
