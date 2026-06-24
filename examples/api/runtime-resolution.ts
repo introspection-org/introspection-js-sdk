@@ -70,7 +70,9 @@ async function main() {
   //    (or throws NotFound if nothing else is active for the environment).
   try {
     const fallback = await client.runtimes.resolveByName(runtimeName);
-    console.log(`production now resolves to: ${fallback.name} (${fallback.id})`);
+    console.log(
+      `production now resolves to: ${fallback.name} (${fallback.id})`,
+    );
   } catch {
     console.log(
       "no active runtime for production — promote a replacement before new runs can start",
