@@ -499,6 +499,10 @@ importers:
         version: 5.9.3
 
   packages/introspection-types:
+    dependencies:
+      '@ag-ui/core':
+        specifier: 0.0.57
+        version: 0.0.57
     devDependencies:
       '@opentelemetry/sdk-trace-base':
         specifier: ^2.0.1
@@ -656,6 +660,9 @@ packages:
         optional: true
       express:
         optional: true
+
+  '@ag-ui/core@0.0.57':
+    resolution: {integrity: sha512-gho1OWjNE6E3Rl7ZEZ1wr2CEpUHjLFU0FqzCZZk439TicLu+BfLCMkMokB07bMGlRmbJ60hM6LW60iOVauCx+Q==}
 
   '@ai-sdk/anthropic@3.0.85':
     resolution: {integrity: sha512-fNeDB644l5wbRNQU0FnI+F7UTtOenMnPtACfMPUJaS2zJfuBlseEa1TMg+otHkETZgaJB+6Na51NQEv0+m7czw==}
@@ -6166,6 +6173,10 @@ snapshots:
     optionalDependencies:
       '@grpc/grpc-js': 1.14.4
       express: 5.2.1
+
+  '@ag-ui/core@0.0.57':
+    dependencies:
+      zod: 3.25.76
 
   '@ai-sdk/anthropic@3.0.85(zod@4.4.3)':
     dependencies:
