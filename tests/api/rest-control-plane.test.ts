@@ -458,7 +458,7 @@ describe("IntrospectionClient (REST control-plane, real server)", () => {
     it("CRUD + lifecycle + run", async () => {
       const client = makeClient();
       expect(
-        await collect(client.experiments.list({ project_id: "proj-1" })),
+        await collect(client.experiments.list({ project: "proj-1" })),
       ).toHaveLength(1);
       expect(
         (await client.experiments.create({ name: "exp-a" } as never)).id,
@@ -491,7 +491,7 @@ describe("IntrospectionClient (REST control-plane, real server)", () => {
       const client = makeClient();
       const seen = [];
       for await (const e of client.experiments.list({
-        project_id: "proj-1",
+        project: "proj-1",
       }))
         seen.push(e.id);
       expect(seen).toEqual([EXPERIMENT.id]);

@@ -392,7 +392,7 @@ export interface Experiment {
 }
 
 export interface ExperimentCreate {
-  project_id: Uuid;
+  project: string;
   name: string;
   description?: string;
   arms: Arm[];
@@ -409,7 +409,7 @@ export interface ExperimentUpdate {
 }
 
 export interface ExperimentListParams extends ListParams {
-  project_id?: Uuid;
+  project?: string;
   name?: string;
   status?: ExperimentStatus;
 }

@@ -58,7 +58,7 @@ export class IntrospectionClient {
   /**
    * CRUD on `/v1/runtimes` and the `(idOrSlug) => RuntimeHandle` factory.
    * Call as `client.runtimes("customer-agent").run()`. The project is taken
-   * from the API key server-side; pass `project_id` to a CRUD helper only to
+   * from the API key server-side; pass `project` to a CRUD helper only to
    * override it per call.
    */
   readonly runtimes: RuntimesApi & RuntimeHandleFactory;
