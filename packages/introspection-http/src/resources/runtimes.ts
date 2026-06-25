@@ -212,9 +212,9 @@ export class RuntimeHandle<TRunner> {
     return this.api.runById(id, merged);
   }
 
-  async activate(params?: { projectId?: Uuid }): Promise<Runtime> {
+  async activate(params?: { project?: string }): Promise<Runtime> {
     const id = await this.resolveId();
-    return this.api.activateById(id, { project: params?.projectId });
+    return this.api.activateById(id, { project: params?.project });
   }
 }
 

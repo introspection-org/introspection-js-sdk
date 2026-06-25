@@ -290,7 +290,8 @@ export interface Runtime {
 }
 
 export interface RuntimeCreate {
-  project_id: Uuid;
+  /** Project slug or id. */
+  project_id: string;
   name: string;
   slug?: string;
   recipe_id: Uuid;

@@ -297,8 +297,8 @@ describe("IntrospectionClient (REST control-plane, real server)", () => {
       const created = await client.runtimes.create({
         name: "Customer Agent",
         recipe_id: "rec-1",
-        project_id: "proj-1",
-      } as never);
+        project_id: "main",
+      });
       expect(created.id).toBe(RUNTIME.id);
 
       const got = await client.runtimes.get(RUNTIME.id, {
@@ -374,7 +374,7 @@ describe("IntrospectionClient (REST control-plane, real server)", () => {
       const client = makeClient();
       const rt = await client
         .runtimes(RUNTIME.id)
-        .activate({ projectId: "proj-1" });
+        .activate({ project: "proj-1" });
       expect(rt.is_active).toBe(true);
       expect(requests.some((r) => r.path.endsWith("/activate"))).toBe(true);
     });
