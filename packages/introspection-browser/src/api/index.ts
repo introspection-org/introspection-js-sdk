@@ -6,7 +6,7 @@
  * Separate from the package's default telemetry export so apps only pull
  * in what they use.
  *
- * The browser talks only to the Data Plane. Resolving a runtime by name
+ * The browser talks only to the Data Plane. Resolving a runtime by slug
  * (a Control Plane call) stays on your backend, which hands the browser a
  * short-lived access token plus the resolved `runtime_id`.
  *

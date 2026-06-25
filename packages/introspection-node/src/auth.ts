@@ -11,7 +11,7 @@
  * straight into the existing client surface — pass it to
  * {@link IntrospectionClient}, or use
  * {@link IntrospectionClient.fromServiceAccount} to mint and construct in one
- * call, and the usual `client.runtimes("name").run()` flow works unchanged.
+ * call, and the usual `client.runtimes("runtime-slug").run()` flow works unchanged.
  */
 import { stripTrailingSlash, toApiError } from "@introspection-sdk/http";
 
@@ -87,7 +87,7 @@ export interface ServiceAccountTokenParams {
    * grant — the minted token is project-scoped and the project must belong to
    * the Application's organization.
    */
-  projectId: string;
+  project: string;
   /**
    * Optional space-separated scope. Capped server-side to the Application's
    * `allowed_scopes`; omit to receive the Application's default scope.
@@ -117,7 +117,7 @@ export type ServiceAccountToken = OAuthToken;
  * const { access_token, dp_url } = await serviceAccountToken({
  *   clientId: process.env.INTROSPECTION_SERVICE_ACCOUNT_CLIENT_ID!,
  *   clientSecret: process.env.INTROSPECTION_SERVICE_ACCOUNT_CLIENT_SECRET!,
- *   projectId: process.env.INTRO_PROJECT_ID!,
+ *   project: process.env.INTRO_PROJECT!,
  * });
  * const client = new IntrospectionClient({ token: access_token });
  * ```
@@ -129,7 +129,7 @@ export async function serviceAccountToken(
     grant_type: GRANT_TYPE_CLIENT_CREDENTIALS,
     client_id: params.clientId,
     client_secret: params.clientSecret,
-    project_id: params.projectId,
+    project: params.project,
   });
   if (params.scope) form.set("scope", params.scope);
   return postTokenForm(
@@ -185,7 +185,7 @@ export interface TokenExchangeParams {
   /** The federated Application's `client_id` (public client — no secret). */
   clientId: string;
   /** Project the minted DP token is scoped to. */
-  projectId: string;
+  project: string;
   /**
    * The subject token's type URI. Defaults to
    * `urn:ietf:params:oauth:token-type:id_token`.
@@ -213,7 +213,7 @@ export interface TokenExchangeParams {
  * const { access_token, dp_url } = await tokenExchange({
  *   subjectToken: idTokenFromPartnerIdp,
  *   clientId: process.env.FEDERATED_CLIENT_ID!,
- *   projectId: process.env.INTRO_PROJECT_ID!,
+ *   project: process.env.INTRO_PROJECT!,
  * });
  * ```
  */
@@ -225,7 +225,7 @@ export async function tokenExchange(
     subject_token: params.subjectToken,
     subject_token_type: params.subjectTokenType ?? SUBJECT_TOKEN_TYPE_ID_TOKEN,
     client_id: params.clientId,
-    project_id: params.projectId,
+    project: params.project,
   });
   if (params.scope) form.set("scope", params.scope);
   return postTokenForm(

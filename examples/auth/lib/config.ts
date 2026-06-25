@@ -51,10 +51,10 @@ export function spaClientId(): string {
 /**
  * The runtime the broker resolves to a `runtime_id` server-side (a Control
  * Plane lookup that never happens in the browser). Defaults to the shared
- * sample runtime name.
+ * sample runtime slug.
  */
-export function runtimeName(): string {
-  return process.env.INTRO_RUNTIME_NAME ?? "customer-agent";
+export function runtime(): string {
+  return process.env.INTRO_RUNTIME ?? "customer-agent";
 }
 
 /**
@@ -69,14 +69,14 @@ export function controlPlaneUrl(): string {
 }
 
 /**
- * The Introspection project all modes scope tokens to. The federated broker
- * reads `INTRO_PROJECT_ID` when set (server-only naming) and otherwise falls
- * back to the shared public project id used by spa / service_account.
+ * The Introspection project all modes scope tokens to. Accepts a slug or UUID.
+ * The federated broker reads `INTRO_PROJECT` when set (server-only naming) and
+ * otherwise falls back to the shared public project selector used by spa /
+ * service_account.
  */
-export function projectId(): string {
+export function project(): string {
   return (
-    process.env.INTRO_PROJECT_ID ??
-    required("NEXT_PUBLIC_INTROSPECTION_PROJECT_ID")
+    process.env.INTRO_PROJECT ?? required("NEXT_PUBLIC_INTROSPECTION_PROJECT")
   );
 }
 

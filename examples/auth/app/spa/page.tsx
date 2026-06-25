@@ -12,7 +12,7 @@ import {
   IDP_PROVIDER,
   IDP_PROVIDER_LABEL,
   type LogLine,
-  PROJECT_ID,
+  PROJECT,
   SPA_CLIENT_ID,
   ZITADEL_ISSUER_URL,
   brokerSession,
@@ -81,9 +81,9 @@ export default function SpaPage() {
     setRunning(true);
     setLog([]);
     try {
-      if (!SPA_CLIENT_ID || !PROJECT_ID) {
+      if (!SPA_CLIENT_ID || !PROJECT) {
         throw new Error(
-          "Set NEXT_PUBLIC_INTROSPECTION_SPA_CLIENT_ID and _PROJECT_ID",
+          "Set NEXT_PUBLIC_INTROSPECTION_SPA_CLIENT_ID and NEXT_PUBLIC_INTROSPECTION_PROJECT",
         );
       }
       append("info", "Redirecting to Introspection's hosted login …");
@@ -99,7 +99,7 @@ export default function SpaPage() {
         response_type: "code",
         state,
         scope: "*", // capped server-side to the app's allowed_scopes
-        project_id: PROJECT_ID,
+        project: PROJECT,
         code_challenge: challenge,
         code_challenge_method: "S256",
       });

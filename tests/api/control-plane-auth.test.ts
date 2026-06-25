@@ -26,7 +26,7 @@ function requestedUrl(fetchImpl: ReturnType<typeof captureFetch>): string {
 const CREDS = {
   clientId: "intro_app_1",
   clientSecret: "intro_sk_1",
-  projectId: "proj-1",
+  project: "proj-1",
 };
 
 describe("auth helpers — base URL / fetch resolution", () => {
@@ -74,7 +74,7 @@ describe("auth helpers — base URL / fetch resolution", () => {
     await tokenExchange({
       subjectToken: "partner-id-token",
       clientId: "intro_app_fed",
-      projectId: "proj-1",
+      project: "proj-1",
       scope: "runtimes:run files:read",
     });
 

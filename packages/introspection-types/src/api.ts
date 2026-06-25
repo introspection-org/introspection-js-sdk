@@ -81,7 +81,7 @@ export interface TaskCreateParams {
   prompt?: string;
   mode?: TaskMode;
   system_id?: string;
-  repository_id?: string;
+  repository_id?: Uuid;
   metadata?: Record<string, unknown>;
   /**
    * Override the interactive idle window (seconds) before the sandbox is
@@ -273,6 +273,7 @@ export interface Runtime {
   org_id: Uuid;
   project_id: Uuid;
   name: string;
+  slug: string;
   description?: string | null;
   recipe_id: Uuid;
   is_active: boolean;
@@ -289,8 +290,10 @@ export interface Runtime {
 }
 
 export interface RuntimeCreate {
-  project_id: Uuid;
+  /** Project slug or id. */
+  project: string;
   name: string;
+  slug?: string;
   recipe_id: Uuid;
   description?: string;
   metadata?: Record<string, unknown>;
@@ -309,8 +312,10 @@ export interface RuntimeUpdate {
 }
 
 export interface RuntimeListParams extends ListParams {
-  project_id?: Uuid;
-  name?: string;
+  /** Project slug or id. */
+  project?: string;
+  /** Runtime slug or id. */
+  runtime?: string;
   recipe_id?: Uuid;
   only_active?: boolean;
   /** Restrict to runtimes serving this environment (e.g. `"production"`). */
@@ -338,7 +343,7 @@ export interface Recipe {
 }
 
 export interface RecipeCreate {
-  project_id: Uuid;
+  project: string;
   repository_id: Uuid;
   name: string;
   git_ref: string;
@@ -354,7 +359,7 @@ export interface RecipeUpdate {
 }
 
 export interface RecipeListParams extends ListParams {
-  project_id?: Uuid;
+  project?: string;
   repository_id?: Uuid;
   name?: string;
   git_ref?: string;
@@ -387,7 +392,7 @@ export interface Experiment {
 }
 
 export interface ExperimentCreate {
-  project_id: Uuid;
+  project: string;
   name: string;
   description?: string;
   arms: Arm[];
@@ -404,7 +409,7 @@ export interface ExperimentUpdate {
 }
 
 export interface ExperimentListParams extends ListParams {
-  project_id?: Uuid;
+  project?: string;
   name?: string;
   status?: ExperimentStatus;
 }

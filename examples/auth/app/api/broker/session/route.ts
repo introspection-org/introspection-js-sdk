@@ -1,6 +1,6 @@
 /**
  * Confidential broker — establishes an Introspection session server-side and
- * hands the browser exactly what it needs: `{ token, projectId, runtimeId,
+ * hands the browser exactly what it needs: `{ token, project, runtimeId,
  * dpUrl }`. Every Introspection token POST runs here through the Node SDK, so
  * the browser never hand-rolls an OAuth call. Three modes:
  *
@@ -28,14 +28,14 @@ import {
 import {
   controlPlaneUrl,
   federatedClientId,
-  projectId,
-  runtimeName,
+  project,
+  runtime,
   serviceAccountCreds,
   spaClientId,
 } from "@/lib/config";
 
 /**
- * Resolve the configured runtime name to its current id. Runtime resolution is
+ * Resolve the configured runtime slug to its current id. Runtime resolution is
  * a Control Plane call, so it always uses the service-account (machine)
  * credential server-side — never the end-user/customer token (the member_type
  * wall keeps those off CP routes) and never the browser. The id changes when
@@ -46,14 +46,14 @@ async function resolveRuntimeId(): Promise<string> {
   const { access_token } = await serviceAccountToken({
     clientId,
     clientSecret,
-    projectId: projectId(),
+    project: project(),
     baseApiUrl: controlPlaneUrl(),
   });
   const cp = new IntrospectionClient({
     token: access_token,
     advanced: { baseApiUrl: controlPlaneUrl() },
   });
-  return (await cp.runtimes.resolveByName(runtimeName())).id;
+  return (await cp.runtimes.resolve(runtime())).id;
 }
 
 /** The CP resolves the project's DP URL onto the token response (like the CLI login). */
@@ -75,13 +75,13 @@ interface BrokerRequest {
 }
 
 async function mintUserToken(body: BrokerRequest): Promise<OAuthToken> {
-  const project = projectId();
+  const projectSelector = project();
   if (body.mode === "service_account") {
     const { clientId, clientSecret } = serviceAccountCreds();
     return serviceAccountToken({
       clientId,
       clientSecret,
-      projectId: project,
+      project: projectSelector,
       baseApiUrl: controlPlaneUrl(),
     });
   }
@@ -92,7 +92,7 @@ async function mintUserToken(body: BrokerRequest): Promise<OAuthToken> {
     return tokenExchange({
       subjectToken: body.subject_token,
       clientId: federatedClientId(),
-      projectId: project,
+      project: projectSelector,
       baseApiUrl: controlPlaneUrl(),
     });
   }
@@ -124,7 +124,7 @@ export async function POST(request: Request) {
     const runtimeId = await resolveRuntimeId();
     return NextResponse.json({
       token: token.access_token,
-      projectId: projectId(),
+      project: project(),
       runtimeId,
       dpUrl: dpUrlOrThrow(token),
     });

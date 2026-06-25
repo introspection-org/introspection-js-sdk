@@ -19,7 +19,7 @@ Full runnable apps (their own package + README), not single scripts:
 ## REST API
 
 ```bash
-pnpm api-runtimes                 # Runner walkthrough: resolve by name, tasks + file ops
+pnpm api-runtimes                 # Runner walkthrough: resolve by slug, tasks + file ops
 ```
 
 ## Egress Proxy

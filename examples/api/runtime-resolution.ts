@@ -17,7 +17,7 @@
  *
  * Run with:
  *   INTROSPECTION_TOKEN=intro_xxx
- *   INTROSPECTION_RUNTIME_NAME=<string, optional>   (default "customer-agent")
+ *   INTROSPECTION_RUNTIME=<slug-or-id, optional>   (default "customer-agent")
  *   pnpm api-runtime-resolution
  *
  * Optional env:
@@ -32,12 +32,11 @@ import { IntrospectionClient } from "@introspection-sdk/introspection-node";
 async function main() {
   const client = new IntrospectionClient();
 
-  const runtimeName =
-    process.env.INTROSPECTION_RUNTIME_NAME ?? "customer-agent";
+  const runtime = process.env.INTROSPECTION_RUNTIME ?? "customer-agent";
 
   // 1) Resolve what's currently serving production. `exclude_yanked` mirrors
   //    the server-side active resolution — yanked runtimes never show up here.
-  const active = await client.runtimes.resolveByName(runtimeName);
+  const active = await client.runtimes.resolve(runtime);
   console.log(
     `active production runtime: ${active.name} (${active.id})` +
       (active.yanked_at ? ` — YANKED: ${active.yanked_reason ?? ""}` : ""),
@@ -69,7 +68,7 @@ async function main() {
   // 4) Re-resolve — the group now points production at the previous runtime
   //    (or throws NotFound if nothing else is active for the environment).
   try {
-    const fallback = await client.runtimes.resolveByName(runtimeName);
+    const fallback = await client.runtimes.resolve(runtime);
     console.log(
       `production now resolves to: ${fallback.name} (${fallback.id})`,
     );

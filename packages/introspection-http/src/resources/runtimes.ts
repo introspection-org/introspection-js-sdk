@@ -49,8 +49,9 @@ function toRunBody(opts?: RunRequest): RuntimeRunRequestBody {
 }
 
 /**
- * Shared `/v1/runtimes` client. Runtime CRUD and name resolution are
- * isomorphic; callers supply the environment-specific runner constructor.
+ * Shared `/v1/runtimes` client. Runtime CRUD uses concrete runtime row IDs;
+ * user-facing resolution uses runtime group slug or ID. Callers supply the
+ * environment-specific runner constructor.
  */
 export class RuntimesClient<TRunner> {
   constructor(
@@ -74,7 +75,7 @@ export class RuntimesClient<TRunner> {
     );
   }
 
-  get(id: Uuid, params?: { project_id?: Uuid }): Promise<Runtime> {
+  get(id: Uuid, params?: { project?: string }): Promise<Runtime> {
     return this.http.request<Runtime>({
       method: "GET",
       path: `/v1/runtimes/${encodeURIComponent(id)}`,
@@ -129,17 +130,17 @@ export class RuntimesClient<TRunner> {
     });
   }
 
-  /** Resolve a name to a runtime by querying `/v1/runtimes?name=…`. */
-  async resolveByName(name: string, projectId?: Uuid): Promise<Runtime> {
-    for await (const runtime of this.list({
-      project_id: projectId,
-      name,
+  /** Resolve a runtime group slug or ID by querying `/v1/runtimes?runtime=…`. */
+  async resolve(runtime: string, project?: string): Promise<Runtime> {
+    for await (const match of this.list({
+      project,
+      runtime,
       limit: 2,
     })) {
-      if (runtime.name === name) return runtime;
+      return match;
     }
     throw new NotFoundError({
-      message: `Runtime '${name}' not found${projectId ? ` in project ${projectId}` : ""}`,
+      message: `Runtime '${runtime}' not found${project ? ` in project ${project}` : ""}`,
       status: 404,
       code: "not_found",
     });
@@ -164,7 +165,7 @@ export class RuntimesClient<TRunner> {
     });
   }
 
-  activateById(id: Uuid, params?: { project_id?: Uuid }): Promise<Runtime> {
+  activateById(id: Uuid, params?: { project?: string }): Promise<Runtime> {
     return this.http.request<Runtime>({
       method: "POST",
       path: `/v1/runtimes/${encodeURIComponent(id)}/activate`,
@@ -175,8 +176,8 @@ export class RuntimesClient<TRunner> {
 }
 
 /**
- * Handle returned by `client.runtimes(idOrName)`. Resolves the underlying
- * runtime id lazily.
+ * Handle returned by `client.runtimes(runtime)`. Resolves the underlying
+ * runtime row ID lazily from a runtime group slug or ID.
  */
 export class RuntimeHandle<TRunner> {
   private resolvedId: Uuid | null;
@@ -184,23 +185,23 @@ export class RuntimeHandle<TRunner> {
 
   constructor(
     private readonly api: RuntimesClient<TRunner>,
-    private readonly idOrName: string,
+    private readonly runtime: string,
     pinnedRecipeId: Uuid | null = null,
   ) {
-    this.resolvedId = isUuid(idOrName) ? idOrName : null;
+    this.resolvedId = null;
     this.pinnedRecipeId = pinnedRecipeId;
   }
 
   private async resolveId(): Promise<Uuid> {
     if (this.resolvedId) return this.resolvedId;
-    const runtime = await this.api.resolveByName(this.idOrName);
-    this.resolvedId = runtime.id;
-    return runtime.id;
+    const resolved = await this.api.resolve(this.runtime);
+    this.resolvedId = resolved.id;
+    return resolved.id;
   }
 
   pin(recipe: Recipe | string): RuntimeHandle<TRunner> {
     const recipeId = typeof recipe === "string" ? recipe : recipe.id;
-    return new RuntimeHandle(this.api, this.idOrName, recipeId);
+    return new RuntimeHandle(this.api, this.runtime, recipeId);
   }
 
   async run(opts?: RunRequest): Promise<TRunner> {
@@ -212,21 +213,21 @@ export class RuntimeHandle<TRunner> {
     return this.api.runById(id, merged);
   }
 
-  async activate(params?: { projectId?: Uuid }): Promise<Runtime> {
+  async activate(params?: { project?: string }): Promise<Runtime> {
     const id = await this.resolveId();
-    return this.api.activateById(id, { project_id: params?.projectId });
+    return this.api.activateById(id, { project: params?.project });
   }
 }
 
 export type RuntimeHandleFactory<TRunner> = (
-  idOrName: string,
+  runtime: string,
 ) => RuntimeHandle<TRunner>;
 
 export function attachRuntimes<TRunner>(
   api: RuntimesClient<TRunner>,
 ): RuntimesClient<TRunner> & RuntimeHandleFactory<TRunner> {
-  const factory: RuntimeHandleFactory<TRunner> = (idOrName: string) =>
-    new RuntimeHandle(api, idOrName);
+  const factory: RuntimeHandleFactory<TRunner> = (runtime: string) =>
+    new RuntimeHandle(api, runtime);
   const hybrid = factory as RuntimesClient<TRunner> &
     RuntimeHandleFactory<TRunner>;
   hybrid.list = api.list.bind(api);
@@ -236,7 +237,7 @@ export function attachRuntimes<TRunner>(
   hybrid.delete = api.delete.bind(api);
   hybrid.yank = api.yank.bind(api);
   hybrid.unyank = api.unyank.bind(api);
-  hybrid.resolveByName = api.resolveByName.bind(api);
+  hybrid.resolve = api.resolve.bind(api);
   hybrid.runById = api.runById.bind(api);
   hybrid.openRunner = api.openRunner.bind(api);
   hybrid.activateById = api.activateById.bind(api);

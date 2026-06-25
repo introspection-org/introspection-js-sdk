@@ -1,4 +1,4 @@
-import type { RunIdentityInput } from "@introspection-sdk/types";
+import type { RunIdentityInput, Uuid } from "@introspection-sdk/types";
 import {
   RunHandle,
   TaskRunsClient,
@@ -19,7 +19,7 @@ import {
 export interface CreateTaskParams {
   prompt?: string;
   /** Pin the task to a specific recipe runtime. */
-  runtime_id?: string;
+  runtime_id?: Uuid;
   /** Named recipe agent, when no `runtime_id` is pinned. */
   agent_name?: string;
   title?: string;
