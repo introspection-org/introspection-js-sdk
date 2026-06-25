@@ -53,7 +53,7 @@ export function spaClientId(): string {
  * Plane lookup that never happens in the browser). Defaults to the shared
  * sample runtime slug.
  */
-export function runtimeSlug(): string {
+export function runtime(): string {
   return process.env.INTRO_RUNTIME ?? "customer-agent";
 }
 
