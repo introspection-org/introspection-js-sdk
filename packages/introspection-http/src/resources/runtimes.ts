@@ -49,8 +49,9 @@ function toRunBody(opts?: RunRequest): RuntimeRunRequestBody {
 }
 
 /**
- * Shared `/v1/runtimes` client. Runtime CRUD and slug-or-id resolution are
- * isomorphic; callers supply the environment-specific runner constructor.
+ * Shared `/v1/runtimes` client. Runtime CRUD uses concrete runtime row IDs;
+ * user-facing resolution uses runtime group slug or ID. Callers supply the
+ * environment-specific runner constructor.
  */
 export class RuntimesClient<TRunner> {
   constructor(
@@ -129,7 +130,7 @@ export class RuntimesClient<TRunner> {
     });
   }
 
-  /** Resolve a runtime slug or id by querying `/v1/runtimes?runtime=…`. */
+  /** Resolve a runtime group slug or ID by querying `/v1/runtimes?runtime=…`. */
   async resolve(runtime: string, project?: string): Promise<Runtime> {
     for await (const match of this.list({
       project,
@@ -176,7 +177,7 @@ export class RuntimesClient<TRunner> {
 
 /**
  * Handle returned by `client.runtimes(runtime)`. Resolves the underlying
- * runtime id lazily.
+ * runtime row ID lazily from a runtime group slug or ID.
  */
 export class RuntimeHandle<TRunner> {
   private resolvedId: Uuid | null;
@@ -187,7 +188,7 @@ export class RuntimeHandle<TRunner> {
     private readonly runtime: string,
     pinnedRecipeId: Uuid | null = null,
   ) {
-    this.resolvedId = isUuid(runtime) ? runtime : null;
+    this.resolvedId = null;
     this.pinnedRecipeId = pinnedRecipeId;
   }
 

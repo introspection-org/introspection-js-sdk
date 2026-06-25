@@ -97,7 +97,7 @@ for details.
 ```bash
 cp .env.example .env.local
 # fill in the client ids / secret / issuer for the modes you created above
-# (NEXT_PUBLIC_INTROSPECTION_PROJECT_ID, *_CP_URL, *_DP_URL are required)
+# (NEXT_PUBLIC_INTROSPECTION_PROJECT and *_CP_URL are required)
 
 pnpm install                                   # from the repo root
 pnpm --filter introspection-example-auth dev   # → http://localhost:3200

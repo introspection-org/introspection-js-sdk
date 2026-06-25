@@ -2,13 +2,13 @@
  * End-to-end Runner walkthrough — Node sibling of the Rust
  * `examples/tasks_files.rs` example.
  *
- * Looks up a runtime by slug or id, opens a Runner against it, spawns a
+ * Looks up a runtime by runtime group slug or ID, opens a Runner against it, spawns a
  * task and streams the run, then uploads a couple of files via the
  * same runner-bound `files` namespace.
  *
  * Run with:
  *   INTROSPECTION_TOKEN=intro_xxx
- *   INTROSPECTION_RUNTIME=<runtime slug or id, optional>
+ *   INTROSPECTION_RUNTIME=<runtime group slug or ID, optional>
  *   pnpm api-runtimes
  *
  * Optional env:
@@ -25,7 +25,7 @@ async function main() {
 
   const runtime = process.env.INTROSPECTION_RUNTIME ?? "customer-agent";
 
-  // 1) Open a Runner against the runtime by slug or id. The SDK resolves
+  // 1) Open a Runner against the runtime group slug or ID. The SDK resolves
   //    it via `/v1/runtimes?runtime=…`, then calls
   //    `/v1/runtimes/{id}/run` which mints a short-lived access token
   //    and tells the runner which DP to talk to.

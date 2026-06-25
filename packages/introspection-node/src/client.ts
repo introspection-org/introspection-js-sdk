@@ -121,7 +121,7 @@ export class IntrospectionClient {
    * const client = await IntrospectionClient.fromServiceAccount({
    *   clientId: process.env.INTROSPECTION_SERVICE_ACCOUNT_CLIENT_ID!,
    *   clientSecret: process.env.INTROSPECTION_SERVICE_ACCOUNT_CLIENT_SECRET!,
-   *   projectId: process.env.INTRO_PROJECT_ID!,
+   *   project: process.env.INTRO_PROJECT!,
    * });
    *
    * // Resolved fresh from the runtime slug on every call.

@@ -1,6 +1,6 @@
 /**
  * Confidential broker — establishes an Introspection session server-side and
- * hands the browser exactly what it needs: `{ token, projectId, runtimeId,
+ * hands the browser exactly what it needs: `{ token, project, runtimeId,
  * dpUrl }`. Every Introspection token POST runs here through the Node SDK, so
  * the browser never hand-rolls an OAuth call. Three modes:
  *
@@ -28,7 +28,7 @@ import {
 import {
   controlPlaneUrl,
   federatedClientId,
-  projectId,
+  project,
   runtimeSlug,
   serviceAccountCreds,
   spaClientId,
@@ -46,7 +46,7 @@ async function resolveRuntimeId(): Promise<string> {
   const { access_token } = await serviceAccountToken({
     clientId,
     clientSecret,
-    projectId: projectId(),
+    project: project(),
     baseApiUrl: controlPlaneUrl(),
   });
   const cp = new IntrospectionClient({
@@ -75,13 +75,13 @@ interface BrokerRequest {
 }
 
 async function mintUserToken(body: BrokerRequest): Promise<OAuthToken> {
-  const project = projectId();
+  const projectSelector = project();
   if (body.mode === "service_account") {
     const { clientId, clientSecret } = serviceAccountCreds();
     return serviceAccountToken({
       clientId,
       clientSecret,
-      projectId: project,
+      project: projectSelector,
       baseApiUrl: controlPlaneUrl(),
     });
   }
@@ -92,7 +92,7 @@ async function mintUserToken(body: BrokerRequest): Promise<OAuthToken> {
     return tokenExchange({
       subjectToken: body.subject_token,
       clientId: federatedClientId(),
-      projectId: project,
+      project: projectSelector,
       baseApiUrl: controlPlaneUrl(),
     });
   }
@@ -124,7 +124,7 @@ export async function POST(request: Request) {
     const runtimeId = await resolveRuntimeId();
     return NextResponse.json({
       token: token.access_token,
-      projectId: projectId(),
+      project: project(),
       runtimeId,
       dpUrl: dpUrlOrThrow(token),
     });

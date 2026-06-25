@@ -17,8 +17,7 @@ import {
 export const CP_URL = (
   process.env.NEXT_PUBLIC_INTROSPECTION_CP_URL ?? "http://localhost:8000"
 ).replace(/\/+$/, "");
-export const PROJECT_ID =
-  process.env.NEXT_PUBLIC_INTROSPECTION_PROJECT_ID ?? "";
+export const PROJECT = process.env.NEXT_PUBLIC_INTROSPECTION_PROJECT ?? "";
 export const SPA_CLIENT_ID =
   process.env.NEXT_PUBLIC_INTROSPECTION_SPA_CLIENT_ID ?? "";
 
@@ -109,7 +108,7 @@ export function randomToken(): string {
  */
 export interface BrokerSession {
   token: string;
-  projectId: string;
+  project: string;
   runtimeId: string;
   dpUrl: string;
 }
@@ -280,7 +279,7 @@ export async function runTaskWithToken(
   const { token, prompt, append, runtimeId, identity } = opts;
 
   // The session's project is derived from the token's claims at exchange —
-  // the client takes no projectId. The DP URL came from the CP token response
+  // the client takes no project selector. The DP URL came from the CP token response
   // (via the broker), so the browser is configured entirely from the server.
   const client = new IntrospectionApiClient({
     dpUrl,

@@ -39,6 +39,7 @@ const RUNTIME = {
   id: "11111111-1111-1111-1111-111111111111",
   org_id: "org-1",
   project_id: "proj-1",
+  runtime_group_id: "33333333-3333-3333-3333-333333333333",
   name: "Customer Agent",
   slug: "customer-agent",
   recipe_id: "rec-1",
@@ -149,7 +150,7 @@ beforeAll(async () => {
         (grant === "client_credentials" &&
           form.get("client_id") === "intro_app_test" &&
           form.get("client_secret") === "intro_sk_test" &&
-          !!form.get("project_id")) ||
+          !!form.get("project")) ||
         (grant === "urn:ietf:params:oauth:grant-type:token-exchange" &&
           !!form.get("subject_token") &&
           !!form.get("client_id")) ||
@@ -176,7 +177,11 @@ beforeAll(async () => {
     if (path === "/v1/runtimes" && method === "GET") {
       // resolve path: ?runtime=... returns a match; pagination via ?next=
       const runtime = url.searchParams.get("runtime");
-      if (runtime && runtime !== RUNTIME.slug && runtime !== RUNTIME.id)
+      if (
+        runtime &&
+        runtime !== RUNTIME.slug &&
+        runtime !== RUNTIME.runtime_group_id
+      )
         return json(res, 200, page([]));
       // Two-page pagination when paginate=1 and no cursor yet.
       if (
@@ -258,7 +263,7 @@ afterAll(() => new Promise<void>((resolve) => server.close(() => resolve())));
 function makeClient() {
   return new IntrospectionClient({
     token: "test-token",
-    projectId: "proj-1",
+    project: "proj-1",
     advanced: { baseApiUrl: baseUrl },
   });
 }
@@ -363,7 +368,14 @@ describe("IntrospectionClient (REST control-plane, real server)", () => {
       expect(runner.session_id).toBe("sess-1");
 
       requests = [];
-      await client.runtimes(RUNTIME.id).pin(RECIPE).run();
+      await client.runtimes(RUNTIME.runtime_group_id).pin(RECIPE).run();
+      expect(
+        requests.some(
+          (r) =>
+            r.path === "/v1/runtimes" &&
+            r.query.get("runtime") === RUNTIME.runtime_group_id,
+        ),
+      ).toBe(true);
       const pinned = requests.find((r) => r.path.endsWith("/run"));
       expect((pinned?.body as { recipe_id?: Uuid })?.recipe_id).toBe(RECIPE.id);
     });
@@ -372,9 +384,16 @@ describe("IntrospectionClient (REST control-plane, real server)", () => {
       requests = [];
       const client = makeClient();
       const rt = await client
-        .runtimes(RUNTIME.id)
+        .runtimes(RUNTIME.runtime_group_id)
         .activate({ project: "proj-1" });
       expect(rt.is_active).toBe(true);
+      expect(
+        requests.some(
+          (r) =>
+            r.path === "/v1/runtimes" &&
+            r.query.get("runtime") === RUNTIME.runtime_group_id,
+        ),
+      ).toBe(true);
       expect(requests.some((r) => r.path.endsWith("/activate"))).toBe(true);
     });
   });
@@ -385,7 +404,7 @@ describe("IntrospectionClient (REST control-plane, real server)", () => {
       const tok = await serviceAccountToken({
         clientId: "intro_app_test",
         clientSecret: "intro_sk_test",
-        projectId: "proj-1",
+        project: "proj-1",
         scope: "runtimes:read runtimes:run",
         baseApiUrl: baseUrl,
       });
@@ -404,7 +423,7 @@ describe("IntrospectionClient (REST control-plane, real server)", () => {
       const exchanged = await tokenExchange({
         subjectToken: "idp-id-token",
         clientId: "intro_app_federated",
-        projectId: "proj-1",
+        project: "proj-1",
         baseApiUrl: baseUrl,
       });
       expect(exchanged.access_token).toBe("minted-exchange-token");
@@ -426,7 +445,7 @@ describe("IntrospectionClient (REST control-plane, real server)", () => {
         serviceAccountToken({
           clientId: "intro_app_test",
           clientSecret: "wrong",
-          projectId: "proj-1",
+          project: "proj-1",
           baseApiUrl: baseUrl,
         }),
       ).rejects.toBeInstanceOf(ValidationError);
@@ -437,7 +456,7 @@ describe("IntrospectionClient (REST control-plane, real server)", () => {
       const client = await IntrospectionClient.fromServiceAccount({
         clientId: "intro_app_test",
         clientSecret: "intro_sk_test",
-        projectId: "proj-1",
+        project: "proj-1",
         baseApiUrl: baseUrl,
       });
       const runner = await client.runtimes(RUNTIME.slug).run({
@@ -526,7 +545,7 @@ describe("IntrospectionClient (REST control-plane, real server)", () => {
   describe("runner (data-plane handle)", () => {
     it("exposes accessors, runs DP calls, refresh re-mints, close guards", async () => {
       const client = makeClient();
-      const runner = await client.runtimes(RUNTIME.id).run();
+      const runner = await client.runtimes(RUNTIME.runtime_group_id).run();
 
       expect(runner.dpEndpoint).toBe(baseUrl);
       expect(runner.deployment.slug).toBe("gcp01");
