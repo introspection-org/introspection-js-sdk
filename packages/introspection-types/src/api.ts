@@ -311,9 +311,10 @@ export interface RuntimeUpdate {
 }
 
 export interface RuntimeListParams extends ListParams {
-  project_id?: Uuid;
-  /** Runtime group slug. Sent to the CP as the current `name` query field. */
-  slug?: string;
+  /** Project slug or id. */
+  project?: string;
+  /** Runtime slug or id. */
+  runtime?: string;
   recipe_id?: Uuid;
   only_active?: boolean;
   /** Restrict to runtimes serving this environment (e.g. `"production"`). */

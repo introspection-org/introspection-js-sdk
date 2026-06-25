@@ -47,7 +47,7 @@ customer web origins.
    `authorization_code`, or `client_credentials`. The IdP secret never leaves
    the backend. The backend returns **`{ token, runtimeId, dpUrl }`**: it
    resolves the runtime id server-side (e.g. with the Node SDK's
-   `client.runtimes.resolveBySlug("support-agent")`) and supplies the Data
+   `client.runtimes.resolve("support-agent")`) and supplies the Data
    Plane URL, so the SPA needs no Introspection config of its own.
 2. `client.connect()` redeems the token at the **Data Plane**
    `POST /v1/oauth/exchange` for the HttpOnly `intro_dp_session` cookie.

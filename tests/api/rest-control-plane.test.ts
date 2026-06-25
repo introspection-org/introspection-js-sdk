@@ -38,7 +38,7 @@ const RUNTIME = {
   id: "11111111-1111-1111-1111-111111111111",
   org_id: "org-1",
   project_id: "proj-1",
-  name: "customer-agent",
+  name: "Customer Agent",
   slug: "customer-agent",
   recipe_id: "rec-1",
   is_active: true,
@@ -173,9 +173,10 @@ beforeAll(async () => {
 
     // --- Control-plane: runtimes ---
     if (path === "/v1/runtimes" && method === "GET") {
-      // resolveBySlug path: ?name=... returns a match; pagination via ?next=
-      const name = url.searchParams.get("name");
-      if (name && name !== RUNTIME.slug) return json(res, 200, page([]));
+      // resolve path: ?runtime=... returns a match; pagination via ?next=
+      const runtime = url.searchParams.get("runtime");
+      if (runtime && runtime !== RUNTIME.slug && runtime !== RUNTIME.id)
+        return json(res, 200, page([]));
       // Two-page pagination when paginate=1 and no cursor yet.
       if (
         url.searchParams.get("paginate") === "1" &&
@@ -271,7 +272,7 @@ describe("IntrospectionClient (REST control-plane, real server)", () => {
   it("sends the bearer token and resolves base URL", async () => {
     requests = [];
     const client = makeClient();
-    await collect(client.runtimes.list({ project_id: "proj-1" }));
+    await collect(client.runtimes.list({ project: "proj-1" }));
     expect(requests[0].auth).toBe("Bearer test-token");
     expect(requests[0].path).toBe("/v1/runtimes");
     await client.shutdown();
@@ -290,20 +291,18 @@ describe("IntrospectionClient (REST control-plane, real server)", () => {
   describe("runtimes", () => {
     it("CRUD + activate", async () => {
       const client = makeClient();
-      const listed = await collect(
-        client.runtimes.list({ project_id: "proj-1" }),
-      );
-      expect(listed[0].name).toBe("customer-agent");
+      const listed = await collect(client.runtimes.list({ project: "proj-1" }));
+      expect(listed[0].name).toBe("Customer Agent");
 
       const created = await client.runtimes.create({
-        name: "customer-agent",
+        name: "Customer Agent",
         recipe_id: "rec-1",
         project_id: "proj-1",
       } as never);
       expect(created.id).toBe(RUNTIME.id);
 
       const got = await client.runtimes.get(RUNTIME.id, {
-        project_id: "proj-1",
+        project: "proj-1",
       });
       expect(got.id).toBe(RUNTIME.id);
 
@@ -315,7 +314,7 @@ describe("IntrospectionClient (REST control-plane, real server)", () => {
       await expect(client.runtimes.delete(RUNTIME.id)).resolves.toBeUndefined();
 
       const activated = await client.runtimes.activateById(RUNTIME.id, {
-        project_id: "proj-1",
+        project: "proj-1",
       });
       expect(activated.is_active).toBe(true);
     });
@@ -324,7 +323,7 @@ describe("IntrospectionClient (REST control-plane, real server)", () => {
       const client = makeClient();
       const ids: string[] = [];
       for await (const r of client.runtimes.list({
-        project_id: "proj-1",
+        project: "proj-1",
         paginate: 1,
       } as never)) {
         ids.push(r.id);
@@ -332,27 +331,27 @@ describe("IntrospectionClient (REST control-plane, real server)", () => {
       expect(ids).toEqual([RUNTIME.id, "rt-2"]);
     });
 
-    it("resolveBySlug returns the match, throws NotFoundError otherwise", async () => {
+    it("resolve returns the match, throws NotFoundError otherwise", async () => {
       const client = makeClient();
-      const found = await client.runtimes.resolveBySlug(RUNTIME.slug, "proj-1");
+      const found = await client.runtimes.resolve(RUNTIME.slug, "proj-1");
       expect(found.id).toBe(RUNTIME.id);
       await expect(
-        client.runtimes.resolveBySlug("does-not-exist", "proj-1"),
+        client.runtimes.resolve("does-not-exist", "proj-1"),
       ).rejects.toBeInstanceOf(NotFoundError);
     });
 
-    it("handle resolves a name lazily then runs; pin injects recipe_id", async () => {
+    it("handle resolves a runtime slug lazily then runs; pin injects recipe_id", async () => {
       requests = [];
       const client = makeClient();
       const runner = await client.runtimes("customer-agent").run({
         identity: { user_id: "u-1" },
       });
-      // First request resolves the name, second opens the runner.
+      // First request resolves the runtime, second opens the runner.
       expect(
         requests.some(
           (r) =>
             r.path === "/v1/runtimes" &&
-            r.query.get("name") === "customer-agent",
+            r.query.get("runtime") === "customer-agent",
         ),
       ).toBe(true);
       const runReq = requests.find((r) => r.path.endsWith("/run"));
@@ -434,7 +433,7 @@ describe("IntrospectionClient (REST control-plane, real server)", () => {
       ).rejects.toBeInstanceOf(ValidationError);
     });
 
-    it("fromServiceAccount mints then resolves a runtime by slug", async () => {
+    it("fromServiceAccount mints then resolves a runtime slug", async () => {
       requests = [];
       const client = await IntrospectionClient.fromServiceAccount({
         clientId: "intro_app_test",

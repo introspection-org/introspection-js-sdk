@@ -53,7 +53,7 @@ async function resolveRuntimeId(): Promise<string> {
     token: access_token,
     advanced: { baseApiUrl: controlPlaneUrl() },
   });
-  return (await cp.runtimes.resolveBySlug(runtimeSlug())).id;
+  return (await cp.runtimes.resolve(runtimeSlug())).id;
 }
 
 /** The CP resolves the project's DP URL onto the token response (like the CLI login). */
