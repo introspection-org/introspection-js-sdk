@@ -81,7 +81,7 @@ export interface TaskCreateParams {
   prompt?: string;
   mode?: TaskMode;
   system_id?: string;
-  repository_id?: string;
+  repository_id?: Uuid;
   metadata?: Record<string, unknown>;
   /**
    * Override the interactive idle window (seconds) before the sandbox is
@@ -291,7 +291,7 @@ export interface Runtime {
 
 export interface RuntimeCreate {
   /** Project slug or id. */
-  project_id: string;
+  project: string;
   name: string;
   slug?: string;
   recipe_id: Uuid;
@@ -343,7 +343,7 @@ export interface Recipe {
 }
 
 export interface RecipeCreate {
-  project_id: Uuid;
+  project: string;
   repository_id: Uuid;
   name: string;
   git_ref: string;
@@ -359,7 +359,7 @@ export interface RecipeUpdate {
 }
 
 export interface RecipeListParams extends ListParams {
-  project_id?: Uuid;
+  project?: string;
   repository_id?: Uuid;
   name?: string;
   git_ref?: string;

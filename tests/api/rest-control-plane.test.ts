@@ -23,6 +23,7 @@ import {
 import {
   NotFoundError,
   RunnerExpiredError,
+  type Uuid,
   ValidationError,
 } from "@introspection-sdk/types";
 
@@ -297,7 +298,7 @@ describe("IntrospectionClient (REST control-plane, real server)", () => {
       const created = await client.runtimes.create({
         name: "Customer Agent",
         recipe_id: "rec-1",
-        project_id: "main",
+        project: "main",
       });
       expect(created.id).toBe(RUNTIME.id);
 
@@ -364,9 +365,7 @@ describe("IntrospectionClient (REST control-plane, real server)", () => {
       requests = [];
       await client.runtimes(RUNTIME.id).pin(RECIPE).run();
       const pinned = requests.find((r) => r.path.endsWith("/run"));
-      expect((pinned?.body as { recipe_id?: string })?.recipe_id).toBe(
-        RECIPE.id,
-      );
+      expect((pinned?.body as { recipe_id?: Uuid })?.recipe_id).toBe(RECIPE.id);
     });
 
     it("handle.activate hits the activate route", async () => {
@@ -503,7 +502,7 @@ describe("IntrospectionClient (REST control-plane, real server)", () => {
     it("CRUD + list", async () => {
       const client = makeClient();
       expect(
-        await collect(client.recipes.list({ project_id: "proj-1" })),
+        await collect(client.recipes.list({ project: "proj-1" })),
       ).toHaveLength(1);
       expect(
         (await client.recipes.create({ git_ref: "main" } as never)).id,
@@ -518,7 +517,7 @@ describe("IntrospectionClient (REST control-plane, real server)", () => {
       ).toBe("release");
       await expect(client.recipes.delete(RECIPE.id)).resolves.toBeUndefined();
       const seen = [];
-      for await (const r of client.recipes.list({ project_id: "proj-1" }))
+      for await (const r of client.recipes.list({ project: "proj-1" }))
         seen.push(r.id);
       expect(seen).toEqual([RECIPE.id]);
     });
