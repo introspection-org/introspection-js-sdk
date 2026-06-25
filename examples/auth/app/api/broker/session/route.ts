@@ -29,13 +29,13 @@ import {
   controlPlaneUrl,
   federatedClientId,
   projectId,
-  runtimeName,
+  runtimeSlug,
   serviceAccountCreds,
   spaClientId,
 } from "@/lib/config";
 
 /**
- * Resolve the configured runtime name to its current id. Runtime resolution is
+ * Resolve the configured runtime slug to its current id. Runtime resolution is
  * a Control Plane call, so it always uses the service-account (machine)
  * credential server-side — never the end-user/customer token (the member_type
  * wall keeps those off CP routes) and never the browser. The id changes when
@@ -53,7 +53,7 @@ async function resolveRuntimeId(): Promise<string> {
     token: access_token,
     advanced: { baseApiUrl: controlPlaneUrl() },
   });
-  return (await cp.runtimes.resolveByName(runtimeName())).id;
+  return (await cp.runtimes.resolveBySlug(runtimeSlug())).id;
 }
 
 /** The CP resolves the project's DP URL onto the token response (like the CLI login). */

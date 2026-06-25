@@ -2,7 +2,7 @@
  * Introspection REST Client for Node.js
  *
  * Exposes the Control Plane REST surface for managing runtimes and
- * experiments. Calling `client.runtimes(name).run()` or
+ * experiments. Calling `client.runtimes(slug).run()` or
  * `client.experiments(id).run()` returns a {@link Runner} bound to a Data
  * Plane sandbox.
  *
@@ -56,7 +56,7 @@ export class IntrospectionClient {
   readonly advancedOptions: AdvancedOptions;
 
   /**
-   * CRUD on `/v1/runtimes` and the `(idOrName) => RuntimeHandle` factory.
+   * CRUD on `/v1/runtimes` and the `(idOrSlug) => RuntimeHandle` factory.
    * Call as `client.runtimes("customer-agent").run()`. The project is taken
    * from the API key server-side; pass `project_id` to a CRUD helper only to
    * override it per call.
@@ -124,7 +124,7 @@ export class IntrospectionClient {
    *   projectId: process.env.INTRO_PROJECT_ID!,
    * });
    *
-   * // Resolved fresh from the runtime name on every call.
+   * // Resolved fresh from the runtime slug on every call.
    * const runner = await client.runtimes("customer-agent").run({
    *   identity: { user_id: "u_demo" },
    * });

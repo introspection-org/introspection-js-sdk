@@ -273,6 +273,7 @@ export interface Runtime {
   org_id: Uuid;
   project_id: Uuid;
   name: string;
+  slug: string;
   description?: string | null;
   recipe_id: Uuid;
   is_active: boolean;
@@ -291,6 +292,7 @@ export interface Runtime {
 export interface RuntimeCreate {
   project_id: Uuid;
   name: string;
+  slug?: string;
   recipe_id: Uuid;
   description?: string;
   metadata?: Record<string, unknown>;
@@ -310,7 +312,8 @@ export interface RuntimeUpdate {
 
 export interface RuntimeListParams extends ListParams {
   project_id?: Uuid;
-  name?: string;
+  /** Runtime group slug. Sent to the CP as the current `name` query field. */
+  slug?: string;
   recipe_id?: Uuid;
   only_active?: boolean;
   /** Restrict to runtimes serving this environment (e.g. `"production"`). */

@@ -39,6 +39,7 @@ const RUNTIME = {
   org_id: "org-1",
   project_id: "proj-1",
   name: "customer-agent",
+  slug: "customer-agent",
   recipe_id: "rec-1",
   is_active: true,
   llm_mode: "proxy",
@@ -172,9 +173,9 @@ beforeAll(async () => {
 
     // --- Control-plane: runtimes ---
     if (path === "/v1/runtimes" && method === "GET") {
-      // resolveByName path: ?name=... returns a match; pagination via ?next=
+      // resolveBySlug path: ?name=... returns a match; pagination via ?next=
       const name = url.searchParams.get("name");
-      if (name && name !== RUNTIME.name) return json(res, 200, page([]));
+      if (name && name !== RUNTIME.slug) return json(res, 200, page([]));
       // Two-page pagination when paginate=1 and no cursor yet.
       if (
         url.searchParams.get("paginate") === "1" &&
@@ -331,15 +332,12 @@ describe("IntrospectionClient (REST control-plane, real server)", () => {
       expect(ids).toEqual([RUNTIME.id, "rt-2"]);
     });
 
-    it("resolveByName returns the match, throws NotFoundError otherwise", async () => {
+    it("resolveBySlug returns the match, throws NotFoundError otherwise", async () => {
       const client = makeClient();
-      const found = await client.runtimes.resolveByName(
-        "customer-agent",
-        "proj-1",
-      );
+      const found = await client.runtimes.resolveBySlug(RUNTIME.slug, "proj-1");
       expect(found.id).toBe(RUNTIME.id);
       await expect(
-        client.runtimes.resolveByName("does-not-exist", "proj-1"),
+        client.runtimes.resolveBySlug("does-not-exist", "proj-1"),
       ).rejects.toBeInstanceOf(NotFoundError);
     });
 
@@ -436,7 +434,7 @@ describe("IntrospectionClient (REST control-plane, real server)", () => {
       ).rejects.toBeInstanceOf(ValidationError);
     });
 
-    it("fromServiceAccount mints then resolves a runtime by name", async () => {
+    it("fromServiceAccount mints then resolves a runtime by slug", async () => {
       requests = [];
       const client = await IntrospectionClient.fromServiceAccount({
         clientId: "intro_app_test",
@@ -444,7 +442,7 @@ describe("IntrospectionClient (REST control-plane, real server)", () => {
         projectId: "proj-1",
         baseApiUrl: baseUrl,
       });
-      const runner = await client.runtimes(RUNTIME.name).run({
+      const runner = await client.runtimes(RUNTIME.slug).run({
         identity: { user_id: "u_demo" },
       });
       expect(runner.context.runtime_id).toBe(RUNTIME.id);

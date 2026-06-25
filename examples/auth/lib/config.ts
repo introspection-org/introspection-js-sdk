@@ -51,10 +51,10 @@ export function spaClientId(): string {
 /**
  * The runtime the broker resolves to a `runtime_id` server-side (a Control
  * Plane lookup that never happens in the browser). Defaults to the shared
- * sample runtime name.
+ * sample runtime slug.
  */
-export function runtimeName(): string {
-  return process.env.INTRO_RUNTIME_NAME ?? "customer-agent";
+export function runtimeSlug(): string {
+  return process.env.INTRO_RUNTIME ?? "customer-agent";
 }
 
 /**

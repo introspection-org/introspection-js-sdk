@@ -49,7 +49,7 @@ function toRunBody(opts?: RunRequest): RuntimeRunRequestBody {
 }
 
 /**
- * Shared `/v1/runtimes` client. Runtime CRUD and name resolution are
+ * Shared `/v1/runtimes` client. Runtime CRUD and slug resolution are
  * isomorphic; callers supply the environment-specific runner constructor.
  */
 export class RuntimesClient<TRunner> {
@@ -63,12 +63,13 @@ export class RuntimesClient<TRunner> {
    * page, or `for await` it to stream every runtime across pages.
    */
   list(params: RuntimeListParams = {}): Paginator<Runtime> {
+    const { slug, ...rest } = params;
     return cursorPaginate(
       (next) =>
         this.http.request<Paginated<Runtime>>({
           method: "GET",
           path: "/v1/runtimes",
-          query: { ...params, next } as Record<string, unknown>,
+          query: { ...rest, name: slug, next } as Record<string, unknown>,
         }),
       params.next,
     );
@@ -129,17 +130,17 @@ export class RuntimesClient<TRunner> {
     });
   }
 
-  /** Resolve a name to a runtime by querying `/v1/runtimes?name=…`. */
-  async resolveByName(name: string, projectId?: Uuid): Promise<Runtime> {
+  /** Resolve a runtime group slug by querying `/v1/runtimes?name=…`. */
+  async resolveBySlug(slug: string, projectId?: Uuid): Promise<Runtime> {
     for await (const runtime of this.list({
       project_id: projectId,
-      name,
+      slug,
       limit: 2,
     })) {
-      if (runtime.name === name) return runtime;
+      if (runtime.slug === slug) return runtime;
     }
     throw new NotFoundError({
-      message: `Runtime '${name}' not found${projectId ? ` in project ${projectId}` : ""}`,
+      message: `Runtime slug '${slug}' not found${projectId ? ` in project ${projectId}` : ""}`,
       status: 404,
       code: "not_found",
     });
@@ -175,7 +176,7 @@ export class RuntimesClient<TRunner> {
 }
 
 /**
- * Handle returned by `client.runtimes(idOrName)`. Resolves the underlying
+ * Handle returned by `client.runtimes(idOrSlug)`. Resolves the underlying
  * runtime id lazily.
  */
 export class RuntimeHandle<TRunner> {
@@ -184,23 +185,23 @@ export class RuntimeHandle<TRunner> {
 
   constructor(
     private readonly api: RuntimesClient<TRunner>,
-    private readonly idOrName: string,
+    private readonly idOrSlug: string,
     pinnedRecipeId: Uuid | null = null,
   ) {
-    this.resolvedId = isUuid(idOrName) ? idOrName : null;
+    this.resolvedId = isUuid(idOrSlug) ? idOrSlug : null;
     this.pinnedRecipeId = pinnedRecipeId;
   }
 
   private async resolveId(): Promise<Uuid> {
     if (this.resolvedId) return this.resolvedId;
-    const runtime = await this.api.resolveByName(this.idOrName);
+    const runtime = await this.api.resolveBySlug(this.idOrSlug);
     this.resolvedId = runtime.id;
     return runtime.id;
   }
 
   pin(recipe: Recipe | string): RuntimeHandle<TRunner> {
     const recipeId = typeof recipe === "string" ? recipe : recipe.id;
-    return new RuntimeHandle(this.api, this.idOrName, recipeId);
+    return new RuntimeHandle(this.api, this.idOrSlug, recipeId);
   }
 
   async run(opts?: RunRequest): Promise<TRunner> {
@@ -219,14 +220,14 @@ export class RuntimeHandle<TRunner> {
 }
 
 export type RuntimeHandleFactory<TRunner> = (
-  idOrName: string,
+  idOrSlug: string,
 ) => RuntimeHandle<TRunner>;
 
 export function attachRuntimes<TRunner>(
   api: RuntimesClient<TRunner>,
 ): RuntimesClient<TRunner> & RuntimeHandleFactory<TRunner> {
-  const factory: RuntimeHandleFactory<TRunner> = (idOrName: string) =>
-    new RuntimeHandle(api, idOrName);
+  const factory: RuntimeHandleFactory<TRunner> = (idOrSlug: string) =>
+    new RuntimeHandle(api, idOrSlug);
   const hybrid = factory as RuntimesClient<TRunner> &
     RuntimeHandleFactory<TRunner>;
   hybrid.list = api.list.bind(api);
@@ -236,7 +237,7 @@ export function attachRuntimes<TRunner>(
   hybrid.delete = api.delete.bind(api);
   hybrid.yank = api.yank.bind(api);
   hybrid.unyank = api.unyank.bind(api);
-  hybrid.resolveByName = api.resolveByName.bind(api);
+  hybrid.resolveBySlug = api.resolveBySlug.bind(api);
   hybrid.runById = api.runById.bind(api);
   hybrid.openRunner = api.openRunner.bind(api);
   hybrid.activateById = api.activateById.bind(api);
