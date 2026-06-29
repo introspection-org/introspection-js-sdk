@@ -83,11 +83,10 @@ class FakeHttp {
         : [];
   }
 
-   
   async request<T>(opts: {
     method: string;
     path: string;
-    query?: any;
+    query?: Record<string, unknown>;
   }): Promise<T> {
     if (opts.path.includes("/items")) {
       this.itemsCalls += 1;
