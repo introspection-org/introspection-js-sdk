@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   EventType,
+  RateLimitError,
   TaskRunsApi,
   type ResumableTurnEvent,
   type StreamTurnOptions,
@@ -41,6 +42,22 @@ function severedStream(...frames: string[]): () => Response {
         },
       }),
     );
+}
+
+/**
+ * An attach that the DP rejects with `429` (not attachable yet) — the
+ * readiness contract the client backs off and retries against.
+ */
+function rateLimited(status: string, retryAfterS: number | null): () => never {
+  return () => {
+    throw new RateLimitError({
+      status: 429,
+      code: null,
+      requestId: null,
+      body: { status },
+      retryAfter: retryAfterS,
+    });
+  };
 }
 
 function item(id: string): ConversationItem {
@@ -146,6 +163,19 @@ const transcriptIds = (events: ResumableTurnEvent[]): string[] =>
         e.type === "transcript",
     )
     .map((e) => e.item.id);
+
+const waitingStatuses = (events: ResumableTurnEvent[]): (string | null)[] =>
+  events
+    .filter(
+      (
+        e,
+      ): e is {
+        type: "waiting";
+        status: string | null;
+        retryAfterMs: number | null;
+      } => e.type === "waiting",
+    )
+    .map((e) => e.status);
 
 describe("streamTurn (resumable)", () => {
   it("clean completion → one hydrateGap tail, zero resumes, items once", async () => {
@@ -317,5 +347,53 @@ describe("streamTurn (resumable)", () => {
       ok: true,
       status: "completed",
     });
+  });
+
+  it("429 readiness → backs off per Retry-After, attaches, no resume burned", async () => {
+    // DP not attachable yet on the first two attaches, then live.
+    const http = new FakeHttp({
+      streams: [
+        rateLimited("provisioning", 0),
+        rateLimited("starting", 0),
+        cleanStream(
+          frame({
+            type: EventType.RUN_FINISHED,
+            threadId: "task-1",
+            runId: "run-1",
+          }),
+        ),
+      ],
+      landed: [item("a")],
+    });
+    const events = await collect(http, {
+      resume: true,
+      retryBackoffMs: 1,
+      graceWindowMs: 20,
+      maxResumes: 0, // 429 retries must NOT consume the (zero) resume budget
+    });
+
+    expect(http.streamCalls).toBe(3); // two 429s + one live attach
+    expect(http.statusCalls).toBe(0); // 429 is readiness, never a settle check
+    expect(waitingStatuses(events)).toEqual(["provisioning", "starting"]);
+    expect(transcriptIds(events)).toEqual(["a"]);
+    expect(events.at(-1)).toEqual({
+      type: "settled",
+      ok: true,
+      status: "completed",
+    });
+  });
+
+  it("429 forever → bounded by deadline, returns exhausted", async () => {
+    const http = new FakeHttp({
+      streams: Array.from({ length: 50 }, () => rateLimited("provisioning", 0)),
+    });
+    const events = await collect(http, {
+      resume: true,
+      retryBackoffMs: 1,
+      timeoutMs: 30, // overall deadline bounds the readiness wait
+    });
+
+    expect(events.at(-1)).toEqual({ type: "exhausted" });
+    expect(waitingStatuses(events).length).toBeGreaterThan(0);
   });
 });

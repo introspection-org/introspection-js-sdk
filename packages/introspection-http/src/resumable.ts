@@ -1,5 +1,6 @@
 import {
   EventType,
+  RateLimitError,
   type AGUIEvent,
   type ConversationItem,
   type ConversationItemList,
@@ -15,15 +16,21 @@ import type { ResourceHttpClient } from "./resources/types.js";
  * A turn is consumed over a long-lived SSE stream that can be severed before
  * the turn settles (gateway idle-timeout, LB recycle, network blip). The
  * runtime does **no replay on reconnect by design** — recovery is transcript
- * hydration. On a mid-turn drop this transparently catches the missed output
- * up from the durable transcript (`GET /v1/conversations/{id}/items`) and
- * re-attaches the live stream, delivering a single gap-free, duplicate-free
- * sequence to the caller, bounded by `maxResumes` and an overall deadline so
- * it never reconnects forever.
+ * hydration. On a mid-turn disconnect this transparently catches the missed
+ * output up from the durable transcript (`GET /v1/conversations/{id}/items`)
+ * and re-attaches the live stream, delivering a single gap-free,
+ * duplicate-free sequence to the caller, bounded by `maxResumes` and an
+ * overall deadline so it never reconnects forever.
  *
- * Resume is a **pure client** concern: no server replay buffer, no new API
- * surface, and dedup is by the transcript item's stable `id` only (never by
- * the live frame's ephemeral, connection-local id).
+ * Readiness is the `429`-retry contract (design §6): the attach sends
+ * `wait_for_start=0`, so the DP returns `429` + `Retry-After` + `{status}`
+ * while the run is not yet attachable and `200` + SSE once it is. This honours
+ * `Retry-After` as the floor of a capped-exponential backoff and retries the
+ * attach — surfacing each wait as a {@link ResumableTurnEvent} `waiting` event
+ * — without consuming a resume.
+ *
+ * Resume is a **pure client** concern: no server-side replay buffer, no new
+ * API surface, dedup by the transcript item's stable `id` only.
  */
 
 /** Task statuses that mean this turn settled successfully. */
@@ -40,13 +47,23 @@ const SETTLED_FAILED: ReadonlySet<TaskStatus> = new Set<TaskStatus>([
   "cancelled",
 ]);
 
+/** Cap on the readiness-retry backoff (ms). */
+const MAX_RETRY_BACKOFF_MS = 10000;
+
 export interface StreamTurnOptions {
   /**
    * Opt into graceful resume. When `false` (the default) the turn is streamed
-   * once with no transcript catch-up or reconnect, so existing callers are
-   * unaffected.
+   * once with no transcript catch-up or reconnect after a mid-turn drop, so
+   * existing callers are unaffected. The readiness `429` wait still applies.
    */
   resume?: boolean;
+  /**
+   * Send `wait_for_start=1` (legacy server long-poll) instead of `0`. Default
+   * `false` (`wait_for_start=0`) — the DP returns `429`/`Retry-After` until the
+   * run is attachable and the client backs off (design §6). Set `true` only
+   * against a DP that has not yet shipped the `429` contract.
+   */
+  waitForStart?: boolean;
   /**
    * Conversation id backing the durable transcript. Defaults to `taskId` —
    * correct for tasks created without an explicit conversation identity (the
@@ -59,6 +76,11 @@ export interface StreamTurnOptions {
   graceWindowMs?: number;
   /** Backoff (ms) between empty catch-up polls. Default `500`. */
   pollMs?: number;
+  /**
+   * Base (ms) for the capped-exponential readiness-retry backoff on a `429`.
+   * `Retry-After` is the floor; this is the starting step. Default `500`.
+   */
+  retryBackoffMs?: number;
   /** Transcript page size for catch-up. Default `200`. */
   pageLimit?: number;
   /** Overall turn deadline (ms). Default `300000` (5 min). */
@@ -75,14 +97,16 @@ export interface StreamTurnOptions {
 
 /**
  * One element of the resumable turn sequence: a live AG-UI `stream` event, a
- * durable `transcript` catch-up item, or a terminal `settled` / `exhausted`
- * marker. Live events and transcript items are distinct representations — the
- * live frame id is ephemeral and does not correlate to a transcript id — so
- * dedup applies to `transcript` items only (by stable `id`, across catch-ups).
+ * durable `transcript` catch-up item, a `waiting` readiness notice (the DP is
+ * not attachable yet — `429`), or a terminal `settled` / `exhausted` marker.
+ * Live events and transcript items are distinct representations — the live
+ * frame id is ephemeral and does not correlate to a transcript id — so dedup
+ * applies to `transcript` items only (by stable `id`, across catch-ups).
  */
 export type ResumableTurnEvent =
   | { type: "stream"; event: AGUIEvent }
   | { type: "transcript"; item: ConversationItem }
+  | { type: "waiting"; status: string | null; retryAfterMs: number | null }
   | { type: "settled"; ok: boolean; status: TaskStatus | "completed" }
   | { type: "exhausted" };
 
@@ -112,36 +136,26 @@ function sleep(ms: number, signal?: AbortSignal): Promise<void> {
 }
 
 /**
- * Consume one `/stream` attachment to EOF, yielding AG-UI events. Records
- * whether the stream closed cleanly (turn complete) or was severed (an
- * exception while connecting or reading) into `outcome`.
+ * Readiness backoff: `Retry-After` (ms) as the floor of a capped-exponential
+ * step (`base * 2^n`). `n` is the consecutive-429 count, reset on a successful
+ * attach.
  */
-async function* consumeStream(
-  http: ResourceHttpClient,
-  taskId: string,
-  runId: string,
-  signal: AbortSignal | undefined,
-  outcome: StreamOutcome,
-): AsyncIterable<AGUIEvent> {
-  try {
-    const res = await http.stream({
-      // Keep `wait_for_start` until the server advertises the 429-retry
-      // contract (spec §6 phased migration) — do not drop it pre-emptively.
-      path: `/v1/tasks/${encodeURIComponent(taskId)}/runs/${encodeURIComponent(runId)}/stream`,
-      query: { wait_for_start: true },
-      signal,
-    });
-    for await (const ev of parseAgUiEvents(res)) {
-      if (ev.type === EventType.RUN_ERROR) outcome.sawRunError = true;
-      yield ev;
-    }
-    // Reader reached `done` without throwing: the DP closed the stream on
-    // turn completion. A clean close with no error frame = the turn completed.
-    outcome.closedCleanly = true;
-  } catch {
-    // Severed before completion (network blip, idle-timeout, abort).
-    outcome.closedCleanly = false;
+function retryBackoff(
+  n: number,
+  retryAfterMs: number | null,
+  baseMs: number,
+): number {
+  const exp = Math.min(baseMs * 2 ** n, MAX_RETRY_BACKOFF_MS);
+  return Math.max(retryAfterMs ?? 0, exp);
+}
+
+/** The DP's readiness phase, if the `429` body carries a `status`. */
+function phaseOf(body: unknown): string | null {
+  if (body && typeof body === "object") {
+    const s = (body as Record<string, unknown>).status;
+    if (typeof s === "string") return s;
   }
+  return null;
 }
 
 /**
@@ -213,10 +227,10 @@ async function getTaskStatus(
 
 /**
  * Resumable turn consumer — see {@link ResumableTurnEvent} and the module
- * docstring. Yields live AG-UI events and durable transcript catch-up items as
- * a single sequence, ending with a terminal `settled` (turn finished) or
- * `exhausted` (`maxResumes`/deadline hit — surfaced, never an infinite loop)
- * event.
+ * docstring. Yields live AG-UI events, durable transcript catch-up items, and
+ * `waiting` readiness notices as a single sequence, ending with a terminal
+ * `settled` (turn finished) or `exhausted` (`maxResumes`/deadline hit —
+ * surfaced, never an infinite loop) event.
  */
 export async function* streamTurnResumable(
   http: ResourceHttpClient,
@@ -226,6 +240,7 @@ export async function* streamTurnResumable(
 ): AsyncIterable<ResumableTurnEvent> {
   const conversationId = opts.conversationId ?? taskId;
   const maxResumes = opts.maxResumes ?? 3;
+  const retryBackoffMs = opts.retryBackoffMs ?? 500;
   const hydrateOpts = {
     graceWindowMs: opts.graceWindowMs ?? 5000,
     pollMs: opts.pollMs ?? 500,
@@ -237,45 +252,63 @@ export async function* streamTurnResumable(
     bookmark: opts.afterId ?? null,
     seen: new Set<string>(),
   };
-
-  // Pure passthrough when resume is opt-out: stream once, no catch-up, no
-  // status reads — existing callers are unaffected.
-  if (!opts.resume) {
-    const outcome: StreamOutcome = { closedCleanly: false, sawRunError: false };
-    for await (const ev of consumeStream(
-      http,
-      taskId,
-      runId,
-      opts.signal,
-      outcome,
-    )) {
-      yield { type: "stream", event: ev };
-    }
-    yield {
-      type: "settled",
-      ok: outcome.closedCleanly && !outcome.sawRunError,
-      status: "completed",
-    };
-    return;
-  }
+  const streamPath = `/v1/tasks/${encodeURIComponent(taskId)}/runs/${encodeURIComponent(runId)}/stream`;
+  // Default to `wait_for_start=0` so the DP advertises readiness via 429
+  // rather than holding the connection open (design §6).
+  const waitFlag = opts.waitForStart ? 1 : 0;
 
   let attempts = 0;
-  while (
-    attempts <= maxResumes &&
-    Date.now() - start < deadlineMs &&
-    !opts.signal?.aborted
-  ) {
+  let retry429 = 0;
+  while (Date.now() - start < deadlineMs && !opts.signal?.aborted) {
+    // --- attach: open /stream, honouring the 429 "not live yet" contract ---
+    let res: Response | null = null;
+    try {
+      res = await http.stream({
+        path: streamPath,
+        query: { wait_for_start: waitFlag },
+        signal: opts.signal,
+      });
+    } catch (err) {
+      if (err instanceof RateLimitError) {
+        const retryAfterMs =
+          err.retryAfter != null ? err.retryAfter * 1000 : null;
+        yield { type: "waiting", status: phaseOf(err.body), retryAfterMs };
+        const remaining = deadlineMs - (Date.now() - start);
+        if (remaining <= 0) break;
+        const wait = retryBackoff(retry429++, retryAfterMs, retryBackoffMs);
+        await sleep(Math.min(wait, remaining), opts.signal);
+        continue; // retry the attach — a readiness wait, not a resume
+      }
+      // Connect failed before a 200 (network blip) — treat as a severed turn.
+    }
+    retry429 = 0; // got past the readiness wait
+
+    // --- consume the attached stream to EOF ---
     const outcome: StreamOutcome = { closedCleanly: false, sawRunError: false };
-    for await (const ev of consumeStream(
-      http,
-      taskId,
-      runId,
-      opts.signal,
-      outcome,
-    )) {
-      yield { type: "stream", event: ev };
+    if (res) {
+      try {
+        for await (const ev of parseAgUiEvents(res)) {
+          if (ev.type === EventType.RUN_ERROR) outcome.sawRunError = true;
+          yield { type: "stream", event: ev };
+        }
+        // Clean EOF: the DP closed the stream on turn completion. A clean
+        // close with no error frame = the turn completed.
+        outcome.closedCleanly = true;
+      } catch {
+        outcome.closedCleanly = false; // severed mid-read
+      }
     }
     attempts += 1;
+
+    // Resume opt-out: stream once, no catch-up, no reconnect.
+    if (!opts.resume) {
+      yield {
+        type: "settled",
+        ok: outcome.closedCleanly && !outcome.sawRunError,
+        status: "completed",
+      };
+      return;
+    }
 
     if (outcome.closedCleanly) {
       // Clean close = turn complete; one final catch-up closes the ingest-lag
@@ -289,11 +322,7 @@ export async function* streamTurnResumable(
       )) {
         yield { type: "transcript", item };
       }
-      yield {
-        type: "settled",
-        ok: !outcome.sawRunError,
-        status: "completed",
-      };
+      yield { type: "settled", ok: !outcome.sawRunError, status: "completed" };
       return;
     }
 
@@ -319,7 +348,8 @@ export async function* streamTurnResumable(
       return;
     }
     // pending|queued|scheduled|running|awaiting_user|cancelling → still live;
-    // loop to re-open /stream for the rest of the turn.
+    // re-open /stream for the rest of the turn, bounded by maxResumes.
+    if (attempts > maxResumes) break;
   }
 
   // Exhausted maxResumes / deadline — surface it, do not loop forever.
