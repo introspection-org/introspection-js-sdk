@@ -58,6 +58,47 @@ await runner.close();
 await client.shutdown();
 ```
 
+#### Resilient streaming (graceful resume)
+
+`run.stream()` surfaces a mid-turn disconnect — gateway idle-timeout,
+load-balancer recycle, network blip — as a turn failure, losing every event
+between the drop and a manual retry. Opt into `runner.tasks.streamTurn(taskId,
+runId, { resume: true })` for a single gap-free, duplicate-free sequence: on a
+drop it catches the missed output up from the durable transcript and re-attaches
+the live stream, bounded by `maxResumes`/`timeoutMs` so it never reconnects
+forever.
+
+```typescript
+for await (const ev of runner.tasks.streamTurn(taskId, runId, {
+  resume: true,
+})) {
+  switch (ev.type) {
+    case "stream":
+      // live AG-UI event in ev.event
+      break;
+    case "transcript":
+      // durable catch-up item delivered after a drop (deduped by stable id)
+      break;
+    case "waiting":
+      // run not attachable yet (readiness) — ev.status is the phase
+      break;
+    case "settled":
+      // turn finished — ev.ok is success vs failure
+      break;
+    case "exhausted":
+      // maxResumes / deadline hit before the turn settled
+      break;
+  }
+}
+```
+
+Readiness follows the server's phased migration: `streamTurn` sends
+`wait_for_start=1` (the DP long-polls until the run is live) by default. Pass
+`waitForStart: false` to opt into the target contract, where the DP returns
+`429` + `Retry-After` until the run is attachable and the client backs off
+(surfaced as `waiting` events). Resume is opt-in (`resume` defaults to `false`),
+so existing `stream()` callers are unaffected.
+
 ### OTel auto-instrumentation
 
 `init()` auto-detects installed LLM frameworks (Anthropic, Gemini, OpenAI Agents, Vercel AI SDK, Claude Agent SDK, LangChain, Mastra, Pi) and wires them into a single shared trace pipeline:
