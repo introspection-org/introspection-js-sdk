@@ -103,6 +103,7 @@ export class BaseHttpClient {
     body?: unknown;
     headers?: Record<string, string>;
     expect?: "json" | "empty" | "bytes" | "stream";
+    signal?: AbortSignal;
   }): Promise<T> {
     const url = joinUrl(this.cfg.apiUrl, opts.path) + buildQuery(opts.query);
     let body: BodyInit | undefined;
@@ -120,6 +121,7 @@ export class BaseHttpClient {
         headers,
         body,
         credentials: this.cfg.transport.credentials,
+        signal: opts.signal,
       }),
     );
     const expect = opts.expect ?? "json";
@@ -132,6 +134,7 @@ export class BaseHttpClient {
   async stream(opts: {
     path: string;
     query?: Record<string, unknown>;
+    signal?: AbortSignal;
   }): Promise<Response> {
     const url = joinUrl(this.cfg.apiUrl, opts.path) + buildQuery(opts.query);
     return this.send(() =>
@@ -139,6 +142,7 @@ export class BaseHttpClient {
         method: "GET",
         headers: this.headers({ Accept: "text/event-stream" }),
         credentials: this.cfg.transport.credentials,
+        signal: opts.signal,
       }),
     );
   }
