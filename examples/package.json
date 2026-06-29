@@ -87,7 +87,7 @@
     "@ai-sdk/openai": "^3.0.73",
     "@anthropic-ai/claude-agent-sdk": "^0.3.185",
     "@anthropic-ai/sdk": "^0.105.0",
-    "@google/genai": "^2.8.0",
+    "@google/genai": "^2.10.0",
     "@earendil-works/pi-agent-core": "^0.79.4",
     "@earendil-works/pi-ai": "^0.79.9",
     "@arizeai/openinference-instrumentation-langchain": "^4.0.12",
