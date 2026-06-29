@@ -58,46 +58,28 @@ await runner.close();
 await client.shutdown();
 ```
 
-#### Resilient streaming (graceful resume)
+#### Resilient streaming
 
-`run.stream()` surfaces a mid-turn disconnect — gateway idle-timeout,
-load-balancer recycle, network blip — as a turn failure, losing every event
-between the drop and a manual retry. Opt into `runner.tasks.streamTurn(taskId,
-runId, { resume: true })` for a single gap-free, duplicate-free sequence: on a
-drop it catches the missed output up from the durable transcript and re-attaches
-the live stream, bounded by `maxResumes`/`timeoutMs` so it never reconnects
-forever.
+`run.stream()` **resumes transparently** across a mid-turn disconnect — gateway
+idle-timeout, load-balancer recycle, network blip. On a drop it re-attaches with
+the SSE-standard `Last-Event-ID` so the server replays the frames you missed,
+and the iterator yields one gap-free `AGUIEvent` sequence. There is no
+consumer-visible change: the loop above just keeps working, completing when the
+turn finishes and throwing only if recovery is exhausted. Pass an options object
+to tune the recovery bounds:
 
 ```typescript
-for await (const ev of runner.tasks.streamTurn(taskId, runId, {
-  resume: true,
+for await (const event of run.stream({
+  maxReconnects: 5,
+  timeoutMs: 300_000,
 })) {
-  switch (ev.type) {
-    case "stream":
-      // live AG-UI event in ev.event
-      break;
-    case "transcript":
-      // durable catch-up item delivered after a drop (deduped by stable id)
-      break;
-    case "waiting":
-      // run not attachable yet (readiness) — ev.status is the phase
-      break;
-    case "settled":
-      // turn finished — ev.ok is success vs failure
-      break;
-    case "exhausted":
-      // maxResumes / deadline hit before the turn settled
-      break;
-  }
+  console.log(`[${event.event}] ${event.data}`);
 }
 ```
 
-Readiness follows the server's phased migration: `streamTurn` sends
-`wait_for_start=1` (the DP long-polls until the run is live) by default. Pass
-`waitForStart: false` to opt into the target contract, where the DP returns
-`429` + `Retry-After` until the run is attachable and the client backs off
-(surfaced as `waiting` events). Resume is opt-in (`resume` defaults to `false`),
-so existing `stream()` callers are unaffected.
+Readiness folds in the same way: while a run is not yet attachable the server
+answers with `429` + `Retry-After`, which the stream honours as a backoff floor
+and retries — never surfaced to the caller.
 
 ### OTel auto-instrumentation
 

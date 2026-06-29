@@ -46,12 +46,11 @@ export {
   TaskRunsApi,
   TasksApi,
 } from "@introspection-sdk/http";
-export { streamTurnResumable } from "@introspection-sdk/http";
+export { streamResumable } from "@introspection-sdk/http";
 export type {
   FileUploadBody,
-  ResumableTurnEvent,
   StartParams,
-  StreamTurnOptions,
+  StreamOptions,
 } from "@introspection-sdk/http";
 export { HttpClient } from "./http.js";
 export type { ResolvedApiConfig } from "./http.js";

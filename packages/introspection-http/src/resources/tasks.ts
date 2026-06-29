@@ -13,12 +13,7 @@ import type {
 } from "@introspection-sdk/types";
 import { EventType, type AGUIEvent } from "@ag-ui/core";
 import { Paginator, cursorPaginate } from "../pagination.js";
-import { parseAgUiEvents } from "../agui-stream.js";
-import {
-  streamTurnResumable,
-  type ResumableTurnEvent,
-  type StreamTurnOptions,
-} from "../resumable.js";
+import { streamResumable, type StreamOptions } from "../resumable.js";
 import type { ResourceHttpClient } from "./types.js";
 
 export interface StartParams extends TaskCreateParams {
@@ -42,17 +37,8 @@ export class RunHandle {
     private readonly runs: TaskRunsClient,
   ) {}
 
-  stream(): AsyncIterable<AGUIEvent> {
-    return this.runs.stream(this.run.task_id, this.run.id);
-  }
-
-  /**
-   * Consume this run as a resilient turn (see
-   * {@link TaskRunsClient.streamTurn}). With `resume: true` a mid-turn
-   * disconnect is transparently recovered from the durable transcript.
-   */
-  streamTurn(opts?: StreamTurnOptions): AsyncIterable<ResumableTurnEvent> {
-    return this.runs.streamTurn(this.run.task_id, this.run.id, opts);
+  stream(opts?: StreamOptions): AsyncIterable<AGUIEvent> {
+    return this.runs.stream(this.run.task_id, this.run.id, opts);
   }
 
   cancel(): Promise<TaskCancelResponse> {
@@ -109,32 +95,22 @@ export class TaskRunsClient {
     });
   }
 
-  async *stream(taskId: string, runId: string): AsyncIterable<AGUIEvent> {
-    const res = await this.http.stream({
-      path: `/v1/tasks/${encodeURIComponent(taskId)}/runs/${encodeURIComponent(runId)}/stream`,
-    });
-    yield* parseAgUiEvents(res);
-  }
-
   /**
-   * Consume a run as a resilient turn with graceful resume (INT-252, see
-   * `docs/design/sdk-resumable-streams.md`). The plain {@link stream} surfaces
-   * a mid-turn disconnect as a turn failure and loses every event between the
-   * drop and a manual retry; with `opts.resume = true` this transparently
-   * catches the missed output up from the durable transcript and re-attaches
-   * the live stream, yielding a single gap-free, duplicate-free sequence of
-   * {@link ResumableTurnEvent}s — bounded by `maxResumes`/`timeoutMs` so it
-   * never reconnects forever.
-   *
-   * Resume is opt-in (`resume` defaults to `false`); the default behaviour is
-   * a single streamed turn, unchanged from {@link stream}.
+   * Stream a run's AG-UI events. The stream resumes **transparently** across a
+   * mid-turn disconnect (gateway idle-timeout, load-balancer recycle, network
+   * blip): it re-attaches with the SSE-standard `Last-Event-ID` so the server
+   * replays the missed frames, yielding a single gap-free `AGUIEvent` sequence
+   * (INT-252, see `docs/design/sdk-resumable-streams.md`). The iterator
+   * completes when the turn finishes and throws only once recovery is
+   * exhausted — there is no consumer-visible change from a plain stream.
+   * `opts` tunes the recovery bounds.
    */
-  streamTurn(
+  stream(
     taskId: string,
     runId: string,
-    opts?: StreamTurnOptions,
-  ): AsyncIterable<ResumableTurnEvent> {
-    return streamTurnResumable(this.http, taskId, runId, opts);
+    opts?: StreamOptions,
+  ): AsyncIterable<AGUIEvent> {
+    return streamResumable(this.http, taskId, runId, opts);
   }
 }
 
@@ -216,20 +192,6 @@ export class TasksClient<
       path: `/v1/tasks/${encodeURIComponent(taskId)}/unarchive`,
       expect: "empty",
     });
-  }
-
-  /**
-   * Consume a run as a resilient turn with graceful resume — sugar for
-   * {@link TaskRunsClient.streamTurn}. With `opts.resume = true` a mid-turn
-   * disconnect is recovered transparently from the durable transcript; resume
-   * is opt-in and defaults off.
-   */
-  streamTurn(
-    taskId: string,
-    runId: string,
-    opts?: StreamTurnOptions,
-  ): AsyncIterable<ResumableTurnEvent> {
-    return this.runs.streamTurn(taskId, runId, opts);
   }
 
   /** Cursor-style sugar: create a task + return a handle on its initial run. */

@@ -134,13 +134,17 @@ export class BaseHttpClient {
   async stream(opts: {
     path: string;
     query?: Record<string, unknown>;
+    headers?: Record<string, string>;
     signal?: AbortSignal;
   }): Promise<Response> {
     const url = joinUrl(this.cfg.apiUrl, opts.path) + buildQuery(opts.query);
     return this.send(() =>
       this.fetchImpl(url, {
         method: "GET",
-        headers: this.headers({ Accept: "text/event-stream" }),
+        headers: this.headers({
+          Accept: "text/event-stream",
+          ...(opts.headers ?? {}),
+        }),
         credentials: this.cfg.transport.credentials,
         signal: opts.signal,
       }),

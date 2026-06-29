@@ -11,8 +11,8 @@
 export { stripTrailingSlash, joinUrl, buildQuery } from "./url.js";
 export { toApiError } from "./errors.js";
 export { parseAgUiEvents } from "./agui-stream.js";
-export { streamTurnResumable } from "./resumable.js";
-export type { ResumableTurnEvent, StreamTurnOptions } from "./resumable.js";
+export { streamResumable } from "./resumable.js";
+export type { StreamOptions } from "./resumable.js";
 export { EventType } from "@ag-ui/core";
 export type { AGUIEvent, BaseEvent } from "@ag-ui/core";
 export { Paginator, cursorPaginate, type PageSource } from "./pagination.js";

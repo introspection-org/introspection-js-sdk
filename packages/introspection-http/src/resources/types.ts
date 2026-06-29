@@ -12,6 +12,7 @@ export interface ResourceHttpClient {
   stream(opts: {
     path: string;
     query?: Record<string, unknown>;
+    headers?: Record<string, string>;
     signal?: AbortSignal;
   }): Promise<Response>;
 }
