@@ -133,8 +133,8 @@ importers:
         specifier: ^2.8.0
         version: 2.8.0(@opentelemetry/api@1.9.1)
       '@pydantic/logfire-node':
-        specifier: ^0.18.1
-        version: 0.18.1(@opentelemetry/api-logs@0.219.0)(@opentelemetry/api@1.9.1)(@opentelemetry/auto-instrumentations-node@0.76.0(@opentelemetry/api@1.9.1)(@opentelemetry/core@2.8.0(@opentelemetry/api@1.9.1)))(@opentelemetry/context-async-hooks@2.8.0(@opentelemetry/api@1.9.1))(@opentelemetry/core@2.8.0(@opentelemetry/api@1.9.1))(@opentelemetry/exporter-logs-otlp-proto@0.219.0(@opentelemetry/api@1.9.1))(@opentelemetry/exporter-metrics-otlp-proto@0.218.0(@opentelemetry/api@1.9.1))(@opentelemetry/exporter-trace-otlp-proto@0.219.0(@opentelemetry/api@1.9.1))(@opentelemetry/instrumentation@0.219.0(@opentelemetry/api@1.9.1))(@opentelemetry/resources@2.8.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-logs@0.219.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-metrics@2.8.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-node@0.218.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.8.0(@opentelemetry/api@1.9.1))(@opentelemetry/semantic-conventions@1.41.1)
+        specifier: ^0.18.2
+        version: 0.18.2(@opentelemetry/api-logs@0.219.0)(@opentelemetry/api@1.9.1)(@opentelemetry/auto-instrumentations-node@0.76.0(@opentelemetry/api@1.9.1)(@opentelemetry/core@2.8.0(@opentelemetry/api@1.9.1)))(@opentelemetry/context-async-hooks@2.8.0(@opentelemetry/api@1.9.1))(@opentelemetry/core@2.8.0(@opentelemetry/api@1.9.1))(@opentelemetry/exporter-metrics-otlp-proto@0.218.0(@opentelemetry/api@1.9.1))(@opentelemetry/exporter-trace-otlp-proto@0.219.0(@opentelemetry/api@1.9.1))(@opentelemetry/instrumentation@0.219.0(@opentelemetry/api@1.9.1))(@opentelemetry/resources@2.8.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-logs@0.219.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-metrics@2.8.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-node@0.218.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.8.0(@opentelemetry/api@1.9.1))(@opentelemetry/semantic-conventions@1.41.1)
       ai:
         specifier: ^6.0.214
         version: 6.0.214(zod@4.4.3)
@@ -2520,22 +2520,22 @@ packages:
   '@protobufjs/utf8@1.1.1':
     resolution: {integrity: sha512-oOAWABowe8EAbMyWKM0tYDKi8Yaox52D+HWZhAIJqQXbqe0xI/GV7FhLWqlEKreMkfDjshR5FKgi3mnle0h6Eg==}
 
-  '@pydantic/logfire-node@0.18.1':
-    resolution: {integrity: sha512-MCA6EonhbR4cUA3qFufBdl32y/OvE60zEMG8GsF6pG6bXojaWCdbDpYIPTP7fWz5mg8m+oNRLb7LZVGf7jbOEw==}
+  '@pydantic/logfire-node@0.18.2':
+    resolution: {integrity: sha512-/XfqOhrXYMoU4YeIC80S7tPxcF+GDkyaQCe1ULfs2emJbuP25OA9IZW93ra6YMW8JKLPwtY5w8rHy5jwx+gkwQ==}
     peerDependencies:
       '@opentelemetry/api': ^1.9.1
       '@opentelemetry/api-logs': '>=0.217.0 <0.300.0'
-      '@opentelemetry/auto-instrumentations-node': '>=0.75.0 <0.100.0'
-      '@opentelemetry/context-async-hooks': ^2.7.1
-      '@opentelemetry/core': ^2.7.1
-      '@opentelemetry/exporter-logs-otlp-proto': '>=0.217.0 <0.300.0'
-      '@opentelemetry/exporter-metrics-otlp-proto': '>=0.217.0 <0.300.0'
-      '@opentelemetry/exporter-trace-otlp-proto': '>=0.217.0 <0.300.0'
-      '@opentelemetry/instrumentation': '>=0.217.0 <0.300.0'
-      '@opentelemetry/resources': ^2.7.1
-      '@opentelemetry/sdk-logs': '>=0.217.0 <0.300.0'
-      '@opentelemetry/sdk-metrics': ^2.7.1
-      '@opentelemetry/sdk-node': '>=0.217.0 <0.300.0'
+      '@opentelemetry/auto-instrumentations-node': '>=0.77.0 <0.100.0'
+      '@opentelemetry/context-async-hooks': ^2.8.0
+      '@opentelemetry/core': ^2.8.0
+      '@opentelemetry/exporter-logs-otlp-proto': '>=0.219.0 <0.300.0'
+      '@opentelemetry/exporter-metrics-otlp-proto': '>=0.219.0 <0.300.0'
+      '@opentelemetry/exporter-trace-otlp-proto': '>=0.219.0 <0.300.0'
+      '@opentelemetry/instrumentation': '>=0.219.0 <0.300.0'
+      '@opentelemetry/resources': ^2.8.0
+      '@opentelemetry/sdk-logs': '>=0.219.0 <0.300.0'
+      '@opentelemetry/sdk-metrics': ^2.8.0
+      '@opentelemetry/sdk-node': '>=0.219.0 <0.300.0'
       '@opentelemetry/sdk-trace-base': ^2.0.1
       '@opentelemetry/semantic-conventions': ^1.41.1
 
@@ -4521,6 +4521,10 @@ packages:
     resolution: {integrity: sha512-ePWsvanv0DWuDRsW8dnt+R4jQ31SCRCQ7hhNcPXZPsoBZiemuZNYGf7adZdqX2D86j6rvKp3RpCxVTSb8WQlOw==}
     hasBin: true
 
+  js-yaml@4.3.0:
+    resolution: {integrity: sha512-1td788aAnnZ5qs7V2QIRl1owjtYpbKt749Y3xauqQgwIIGF/xXWz1wMTEBx5O3LK3lXLVuqXPdPxj2BoFHaW9Q==}
+    hasBin: true
+
   jsesc@3.1.0:
     resolution: {integrity: sha512-/sM3dO2FOzXjKQhJuo0Q173wf2KOo8t4I8vHy6lF9poUp7bKT0/NHE8fPX23PwfhnykfqnC2xRxOnVw5XuGIaA==}
     engines: {node: '>=6'}
@@ -4718,8 +4722,8 @@ packages:
     resolution: {integrity: sha512-9ie8ItPR6tjY5uYJh8K/Zrv/RMZ5VOlOWvtZdEHYSTFKZfIBPQa9tOAEeAWhd+AnIneLJ22w5fjOYtoutpWq5w==}
     engines: {node: '>=18'}
 
-  logfire@0.20.0:
-    resolution: {integrity: sha512-Z0JoMt8KHl71JUSciaAnnCvC2vnpBq942jXirnwoRcmPLp234kek93hQVaxFsm4mGNSVrVWGWp/xE/Nruom4gQ==}
+  logfire@0.20.1:
+    resolution: {integrity: sha512-hINNzdQoNBoqEkxjj8wtfBQrhVX94ZYIzUDjHIm6nFukfZcF8CSRRvuQrFxUgIHKjsB6imUMVN8qnT1uioV+Ng==}
     hasBin: true
     peerDependencies:
       '@opentelemetry/api': ^1.9.1
@@ -8615,14 +8619,13 @@ snapshots:
 
   '@protobufjs/utf8@1.1.1': {}
 
-  '@pydantic/logfire-node@0.18.1(@opentelemetry/api-logs@0.219.0)(@opentelemetry/api@1.9.1)(@opentelemetry/auto-instrumentations-node@0.76.0(@opentelemetry/api@1.9.1)(@opentelemetry/core@2.8.0(@opentelemetry/api@1.9.1)))(@opentelemetry/context-async-hooks@2.8.0(@opentelemetry/api@1.9.1))(@opentelemetry/core@2.8.0(@opentelemetry/api@1.9.1))(@opentelemetry/exporter-logs-otlp-proto@0.219.0(@opentelemetry/api@1.9.1))(@opentelemetry/exporter-metrics-otlp-proto@0.218.0(@opentelemetry/api@1.9.1))(@opentelemetry/exporter-trace-otlp-proto@0.219.0(@opentelemetry/api@1.9.1))(@opentelemetry/instrumentation@0.219.0(@opentelemetry/api@1.9.1))(@opentelemetry/resources@2.8.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-logs@0.219.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-metrics@2.8.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-node@0.218.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.8.0(@opentelemetry/api@1.9.1))(@opentelemetry/semantic-conventions@1.41.1)':
+  '@pydantic/logfire-node@0.18.2(@opentelemetry/api-logs@0.219.0)(@opentelemetry/api@1.9.1)(@opentelemetry/auto-instrumentations-node@0.76.0(@opentelemetry/api@1.9.1)(@opentelemetry/core@2.8.0(@opentelemetry/api@1.9.1)))(@opentelemetry/context-async-hooks@2.8.0(@opentelemetry/api@1.9.1))(@opentelemetry/core@2.8.0(@opentelemetry/api@1.9.1))(@opentelemetry/exporter-metrics-otlp-proto@0.218.0(@opentelemetry/api@1.9.1))(@opentelemetry/exporter-trace-otlp-proto@0.219.0(@opentelemetry/api@1.9.1))(@opentelemetry/instrumentation@0.219.0(@opentelemetry/api@1.9.1))(@opentelemetry/resources@2.8.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-logs@0.219.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-metrics@2.8.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-node@0.218.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.8.0(@opentelemetry/api@1.9.1))(@opentelemetry/semantic-conventions@1.41.1)':
     dependencies:
       '@opentelemetry/api': 1.9.1
       '@opentelemetry/api-logs': 0.219.0
       '@opentelemetry/auto-instrumentations-node': 0.76.0(@opentelemetry/api@1.9.1)(@opentelemetry/core@2.8.0(@opentelemetry/api@1.9.1))
       '@opentelemetry/context-async-hooks': 2.8.0(@opentelemetry/api@1.9.1)
       '@opentelemetry/core': 2.8.0(@opentelemetry/api@1.9.1)
-      '@opentelemetry/exporter-logs-otlp-proto': 0.219.0(@opentelemetry/api@1.9.1)
       '@opentelemetry/exporter-metrics-otlp-proto': 0.218.0(@opentelemetry/api@1.9.1)
       '@opentelemetry/exporter-trace-otlp-proto': 0.219.0(@opentelemetry/api@1.9.1)
       '@opentelemetry/instrumentation': 0.219.0(@opentelemetry/api@1.9.1)
@@ -8632,7 +8635,7 @@ snapshots:
       '@opentelemetry/sdk-node': 0.218.0(@opentelemetry/api@1.9.1)
       '@opentelemetry/sdk-trace-base': 2.8.0(@opentelemetry/api@1.9.1)
       '@opentelemetry/semantic-conventions': 1.41.1
-      logfire: 0.20.0(@opentelemetry/api-logs@0.219.0)(@opentelemetry/api@1.9.1)(@opentelemetry/sdk-trace-base@2.8.0(@opentelemetry/api@1.9.1))(@opentelemetry/semantic-conventions@1.41.1)
+      logfire: 0.20.1(@opentelemetry/api-logs@0.219.0)(@opentelemetry/api@1.9.1)(@opentelemetry/sdk-trace-base@2.8.0(@opentelemetry/api@1.9.1))(@opentelemetry/semantic-conventions@1.41.1)
       picocolors: 1.1.1
     optional: true
 
@@ -10953,6 +10956,11 @@ snapshots:
     dependencies:
       argparse: 2.0.1
 
+  js-yaml@4.3.0:
+    dependencies:
+      argparse: 2.0.1
+    optional: true
+
   jsesc@3.1.0: {}
 
   json-bigint@1.0.0:
@@ -11131,13 +11139,13 @@ snapshots:
       strip-ansi: 7.2.0
       wrap-ansi: 9.0.2
 
-  logfire@0.20.0(@opentelemetry/api-logs@0.219.0)(@opentelemetry/api@1.9.1)(@opentelemetry/sdk-trace-base@2.8.0(@opentelemetry/api@1.9.1))(@opentelemetry/semantic-conventions@1.41.1):
+  logfire@0.20.1(@opentelemetry/api-logs@0.219.0)(@opentelemetry/api@1.9.1)(@opentelemetry/sdk-trace-base@2.8.0(@opentelemetry/api@1.9.1))(@opentelemetry/semantic-conventions@1.41.1):
     dependencies:
       '@opentelemetry/api': 1.9.1
       '@opentelemetry/sdk-trace-base': 2.8.0(@opentelemetry/api@1.9.1)
       '@opentelemetry/semantic-conventions': 1.41.1
       handlebars: 4.7.9
-      js-yaml: 4.2.0
+      js-yaml: 4.3.0
       p-retry: 6.2.1
       zod: 3.25.76
     optionalDependencies:

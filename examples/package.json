@@ -104,7 +104,7 @@
     "@opentelemetry/exporter-trace-otlp-http": "^0.219.0",
     "@opentelemetry/sdk-trace-base": "^2.8.0",
     "@opentelemetry/sdk-trace-node": "^2.8.0",
-    "@pydantic/logfire-node": "^0.18.1",
+    "@pydantic/logfire-node": "^0.18.2",
     "ai": "^6.0.214",
     "zod": "^4.4.3"
   }
