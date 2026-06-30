@@ -1,4 +1,4 @@
-import { EventSchemas, type AGUIEvent } from "@ag-ui/core";
+import { EventSchemas, EventType, type AGUIEvent } from "@ag-ui/core";
 import { RateLimitError } from "@introspection-sdk/types";
 import { parseStreamFrames } from "./agui-stream.js";
 import type { ResourceHttpClient } from "./resources/types.js";
@@ -37,8 +37,39 @@ export interface StreamOptions {
   backoffMs?: number;
   /** Overall wall-clock deadline (ms) for the whole turn. Default `300000` (5 min). */
   timeoutMs?: number;
+  /**
+   * Emit an opt-in AG-UI `CUSTOM` event (`name: "introspection.reconnect"`)
+   * into the stream on each reconnect / readiness wait, so consumers can show a
+   * "reconnecting…" affordance or record telemetry. Default `false` — the
+   * stream is otherwise fully transparent. The marker rides the same `CUSTOM`
+   * channel the DP uses for `resume_gap`, so it is expressible identically
+   * across the JS/Python/Rust SDKs.
+   */
+  emitReconnectEvents?: boolean;
   /** Abort the stream (and any in-flight reconnect). */
   signal?: AbortSignal;
+}
+
+/** The readiness phase from a `429` body, when present. */
+function phaseOf(body: unknown): string | null {
+  if (body && typeof body === "object") {
+    const s = (body as Record<string, unknown>).status;
+    if (typeof s === "string") return s;
+  }
+  return null;
+}
+
+/**
+ * Build the `introspection.reconnect` AG-UI `CUSTOM` event. Validated through
+ * the AG-UI schema so it is a well-formed `AGUIEvent` the caller can switch on
+ * (`ev.type === EventType.CUSTOM && ev.name === "introspection.reconnect"`).
+ */
+function reconnectEvent(value: Record<string, unknown>): AGUIEvent {
+  return EventSchemas.parse({
+    type: EventType.CUSTOM,
+    name: "introspection.reconnect",
+    value,
+  } as unknown);
 }
 
 function sleep(ms: number, signal?: AbortSignal): Promise<void> {
@@ -106,14 +137,22 @@ export async function* streamResumable(
         signal: opts.signal,
       });
     } catch (err) {
+      const isRateLimit = err instanceof RateLimitError;
       const retryAfterMs =
-        err instanceof RateLimitError && err.retryAfter != null
-          ? err.retryAfter * 1000
-          : null;
+        isRateLimit && err.retryAfter != null ? err.retryAfter * 1000 : null;
       // A 429 (not attachable yet) is a readiness wait, not a failed attempt;
       // any other connect error counts toward the no-progress reconnect budget.
-      if (!(err instanceof RateLimitError)) reconnects += 1;
+      if (!isRateLimit) reconnects += 1;
       if (reconnects > maxReconnects || Date.now() >= deadline) throw err;
+      if (opts.emitReconnectEvents) {
+        yield reconnectEvent({
+          reason: isRateLimit ? "readiness" : "connect_error",
+          attempt: reconnects,
+          lastEventId,
+          phase: isRateLimit ? phaseOf(err.body) : null,
+          retryAfterMs,
+        });
+      }
       await sleep(
         Math.min(
           backoff(reconnects, retryAfterMs, baseMs),
@@ -141,6 +180,13 @@ export async function* streamResumable(
       // delivers nothing counts down.
       reconnects = progressed ? 0 : reconnects + 1;
       if (reconnects > maxReconnects || Date.now() >= deadline) throw err;
+      if (opts.emitReconnectEvents) {
+        yield reconnectEvent({
+          reason: "severed",
+          attempt: reconnects,
+          lastEventId,
+        });
+      }
       await sleep(
         Math.min(backoff(reconnects, null, baseMs), deadline - Date.now()),
         opts.signal,
