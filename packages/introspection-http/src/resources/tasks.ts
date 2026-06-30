@@ -45,6 +45,10 @@ export class RunHandle {
     return this.runs.cancel(this.run.task_id, this.run.id);
   }
 
+  abort(): Promise<TaskCancelResponse> {
+    return this.runs.abort(this.run.task_id, this.run.id);
+  }
+
   /** Convenience: collect assistant text deltas from the AG-UI stream. */
   async text(): Promise<string> {
     let out = "";
@@ -92,6 +96,13 @@ export class TaskRunsClient {
     return this.http.request<TaskCancelResponse>({
       method: "POST",
       path: `/v1/tasks/${encodeURIComponent(taskId)}/runs/${encodeURIComponent(runId)}/cancel`,
+    });
+  }
+
+  abort(taskId: string, runId: string): Promise<TaskCancelResponse> {
+    return this.http.request<TaskCancelResponse>({
+      method: "POST",
+      path: `/v1/tasks/${encodeURIComponent(taskId)}/runs/${encodeURIComponent(runId)}/abort`,
     });
   }
 

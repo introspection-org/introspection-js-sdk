@@ -263,6 +263,17 @@ describe("TaskRunsApi", () => {
       path: "/v1/tasks/task-1/runs/run-1/cancel",
     });
   });
+
+  it("abort() calls POST /v1/tasks/:id/runs/:runId/abort", async () => {
+    const http = mockHttp({ requestResult: { id: "run-1" } });
+    const runs = new TaskRunsApi(http);
+    await runs.abort("task-1", "run-1");
+
+    expect(http.request).toHaveBeenCalledWith({
+      method: "POST",
+      path: "/v1/tasks/task-1/runs/run-1/abort",
+    });
+  });
 });
 
 describe("RunHandle", () => {
@@ -305,6 +316,18 @@ describe("RunHandle", () => {
     expect(http.request).toHaveBeenCalledWith({
       method: "POST",
       path: "/v1/tasks/task-1/runs/run-1/cancel",
+    });
+  });
+
+  it("abort() delegates to runs.abort()", async () => {
+    const http = mockHttp({ requestResult: { id: "run-1" } });
+    const runs = new TaskRunsApi(http);
+    const handle = new RunHandle(TASK_FIXTURE, RUN_FIXTURE, runs);
+    await handle.abort();
+
+    expect(http.request).toHaveBeenCalledWith({
+      method: "POST",
+      path: "/v1/tasks/task-1/runs/run-1/abort",
     });
   });
 });
