@@ -58,6 +58,40 @@ await runner.close();
 await client.shutdown();
 ```
 
+#### Resilient streaming
+
+`run.stream()` **resumes transparently** across a mid-turn disconnect — gateway
+idle-timeout, load-balancer recycle, network blip. On a drop it re-attaches with
+the SSE-standard `Last-Event-ID` so the server replays the frames you missed,
+and the iterator yields one gap-free `AGUIEvent` sequence. There is no
+consumer-visible change: the loop above just keeps working, completing when the
+turn finishes and throwing only if recovery is exhausted. Pass an options object
+to tune the recovery bounds:
+
+```typescript
+for await (const event of run.stream({
+  maxReconnects: 5,
+  timeoutMs: 300_000,
+})) {
+  console.log(`[${event.event}] ${event.data}`);
+}
+```
+
+Readiness folds in the same way: while a run is not yet attachable the server
+answers with `429` + `Retry-After`, which the stream honours as a backoff floor
+and retries — never surfaced to the caller.
+
+#### Rate limits (429)
+
+The unary calls — `tasks.get` (status polling), lists, create, cancel, delete,
+file metadata/content — **auto-retry on `429 Too Many Requests`**, honouring the
+server's `Retry-After` as the floor of a capped-exponential backoff. A status
+poller that trips the limit slows down and keeps working instead of throwing.
+Retries are bounded (`maxRetries`, default 2; set `0` to disable) and once the
+budget is spent the `429` surfaces as a `RateLimitError` (with `retryAfter`) so
+you can back off further. Streaming has its own resume budget (above); multipart
+uploads are not auto-retried.
+
 ### OTel auto-instrumentation
 
 `init()` auto-detects installed LLM frameworks (Anthropic, Gemini, OpenAI Agents, Vercel AI SDK, Claude Agent SDK, LangChain, Mastra, Pi) and wires them into a single shared trace pipeline:

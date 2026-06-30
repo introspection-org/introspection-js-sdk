@@ -46,7 +46,12 @@ export {
   TaskRunsApi,
   TasksApi,
 } from "@introspection-sdk/http";
-export type { FileUploadBody, StartParams } from "@introspection-sdk/http";
+export { streamResumable } from "@introspection-sdk/http";
+export type {
+  FileUploadBody,
+  StartParams,
+  StreamOptions,
+} from "@introspection-sdk/http";
 export { HttpClient } from "./http.js";
 export type { ResolvedApiConfig } from "./http.js";
 export { EventType } from "@introspection-sdk/types";

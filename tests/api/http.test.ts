@@ -1,6 +1,38 @@
 import { describe, expect, it, vi } from "vitest";
 import { HttpClient } from "@introspection-sdk/introspection-node";
-import { IntrospectionAPIError } from "@introspection-sdk/types";
+import {
+  IntrospectionAPIError,
+  RateLimitError,
+} from "@introspection-sdk/types";
+
+/** A minimal Response-like object for a single fetch resolution. */
+function makeResponse(opts: {
+  status: number;
+  json?: unknown;
+  headers?: Record<string, string>;
+}): Response {
+  return {
+    ok: opts.status >= 200 && opts.status < 300,
+    status: opts.status,
+    headers: new Headers(
+      opts.headers ?? { "content-type": "application/json" },
+    ),
+    json: () => Promise.resolve(opts.json ?? {}),
+    text: () => Promise.resolve(""),
+    arrayBuffer: () => Promise.resolve(new ArrayBuffer(0)),
+    body: null,
+  } as unknown as Response;
+}
+
+/** A fetch mock that returns `responses` in order, repeating the last. */
+function seqFetch(responses: Response[]) {
+  let i = 0;
+  return vi.fn(() => {
+    const res = responses[Math.min(i, responses.length - 1)];
+    i += 1;
+    return Promise.resolve(res);
+  });
+}
 
 function mockFetch(response: Partial<Response> & { ok: boolean }) {
   const headers = new Headers(
@@ -280,6 +312,75 @@ describe("HttpClient", () => {
       await expect(
         client.stream({ path: "/v1/tasks/t1/runs/r1/stream" }),
       ).rejects.toThrow(IntrospectionAPIError);
+    });
+  });
+
+  describe("429 retry", () => {
+    it("retries a unary call on 429, then returns the success body", async () => {
+      const fetchImpl = seqFetch([
+        makeResponse({
+          status: 429,
+          headers: { "content-type": "application/json", "retry-after": "0" },
+          json: { detail: "rate limited" },
+        }),
+        makeResponse({ status: 200, json: { id: "task_1" } }),
+      ]);
+      const client = new HttpClient({
+        apiUrl: "https://api.example.com",
+        token: "t",
+        retryBaseMs: 1,
+        fetch: fetchImpl as unknown as typeof fetch,
+      });
+
+      const out = await client.request<{ id: string }>({
+        method: "GET",
+        path: "/v1/tasks/task_1",
+      });
+      expect(out.id).toBe("task_1");
+      expect(fetchImpl).toHaveBeenCalledTimes(2); // one retry
+    });
+
+    it("surfaces RateLimitError once the retry budget is spent", async () => {
+      const fetchImpl = seqFetch([
+        makeResponse({
+          status: 429,
+          headers: { "content-type": "application/json", "retry-after": "0" },
+          json: { detail: "rate limited" },
+        }),
+      ]);
+      const client = new HttpClient({
+        apiUrl: "https://api.example.com",
+        token: "t",
+        maxRetries: 1,
+        retryBaseMs: 1,
+        fetch: fetchImpl as unknown as typeof fetch,
+      });
+
+      await expect(
+        client.request({ method: "GET", path: "/v1/tasks/task_1" }),
+      ).rejects.toBeInstanceOf(RateLimitError);
+      expect(fetchImpl).toHaveBeenCalledTimes(2); // initial + 1 retry
+    });
+
+    it("does not retry when maxRetries is 0", async () => {
+      const fetchImpl = seqFetch([
+        makeResponse({
+          status: 429,
+          headers: { "content-type": "application/json", "retry-after": "0" },
+          json: { detail: "rate limited" },
+        }),
+      ]);
+      const client = new HttpClient({
+        apiUrl: "https://api.example.com",
+        token: "t",
+        maxRetries: 0,
+        fetch: fetchImpl as unknown as typeof fetch,
+      });
+
+      await expect(
+        client.request({ method: "GET", path: "/v1/tasks/task_1" }),
+      ).rejects.toBeInstanceOf(RateLimitError);
+      expect(fetchImpl).toHaveBeenCalledTimes(1); // no retry
     });
   });
 });

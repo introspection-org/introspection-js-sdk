@@ -1,6 +1,6 @@
 import { EventSchemas, type AGUIEvent } from "@ag-ui/core";
 
-interface StreamFrame {
+export interface StreamFrame {
   name: string;
   data: string;
   id?: string;
@@ -8,10 +8,14 @@ interface StreamFrame {
 }
 
 /**
- * Parse the HTTP stream transport frames. This stays private so the SDK does
- * not expose raw stream frames; public task streaming yields AG-UI events.
+ * Parse the HTTP stream transport frames. Package-internal: the public task
+ * streaming surface yields AG-UI events, but the resumable consumer
+ * (`resumable.ts`) needs the frame `id` to track its `Last-Event-ID` resume
+ * cursor, so this is exported within the package (not re-exported publicly).
  */
-async function* parseStreamFrames(res: Response): AsyncIterable<StreamFrame> {
+export async function* parseStreamFrames(
+  res: Response,
+): AsyncIterable<StreamFrame> {
   if (!res.body) return;
   const reader = res.body.getReader();
   const decoder = new TextDecoder();

@@ -11,6 +11,14 @@ export interface ResolvedApiConfig {
   token: string;
   additionalHeaders?: Record<string, string>;
   fetch?: typeof fetch;
+  /**
+   * Automatic retries on a `429 Too Many Requests` for unary requests
+   * (honouring `Retry-After`). `0` disables. Defaults to the shared client
+   * default. Streaming has its own resume budget.
+   */
+  maxRetries?: number;
+  /** Base step (ms) of the capped-exponential `429` retry backoff. */
+  retryBaseMs?: number;
 }
 
 /**
@@ -25,6 +33,8 @@ export class HttpClient extends BaseHttpClient {
       apiUrl: cfg.apiUrl,
       additionalHeaders: cfg.additionalHeaders,
       fetch: cfg.fetch,
+      maxRetries: cfg.maxRetries,
+      retryBaseMs: cfg.retryBaseMs,
       transport: {
         authHeaders: () => ({ Authorization: `Bearer ${cfg.token}` }),
       },

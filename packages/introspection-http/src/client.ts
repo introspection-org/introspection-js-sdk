@@ -1,6 +1,41 @@
-import { NetworkError } from "@introspection-sdk/types";
+import { NetworkError, RateLimitError } from "@introspection-sdk/types";
 import { buildQuery, joinUrl } from "./url.js";
 import { toApiError } from "./errors.js";
+
+/** Default automatic retries on a `429` for unary requests. */
+const DEFAULT_MAX_RETRIES = 2;
+/** Default base step (ms) of the capped-exponential `429` retry backoff. */
+const DEFAULT_RETRY_BASE_MS = 500;
+/** Cap on the `429` retry backoff (ms). */
+const MAX_RETRY_BACKOFF_MS = 10000;
+
+/** `Retry-After` (s) as the floor of a capped-exponential step (`base * 2^n`). */
+function retryDelayMs(
+  attempt: number,
+  retryAfterSec: number | null,
+  baseMs: number,
+): number {
+  const exp = Math.min(baseMs * 2 ** attempt, MAX_RETRY_BACKOFF_MS);
+  return Math.max((retryAfterSec ?? 0) * 1000, exp);
+}
+
+function sleep(ms: number, signal?: AbortSignal): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (signal?.aborted) {
+      reject(signal.reason ?? new DOMException("Aborted", "AbortError"));
+      return;
+    }
+    const timer = setTimeout(() => {
+      signal?.removeEventListener("abort", onAbort);
+      resolve();
+    }, ms);
+    const onAbort = () => {
+      clearTimeout(timer);
+      reject(signal?.reason ?? new DOMException("Aborted", "AbortError"));
+    };
+    signal?.addEventListener("abort", onAbort, { once: true });
+  });
+}
 
 /**
  * The one thing that differs between the Node and browser transports:
@@ -40,6 +75,14 @@ export interface BaseHttpConfig {
   additionalHeaders?: Record<string, string>;
   /** Custom `fetch` (for tests or non-standard runtimes). */
   fetch?: typeof fetch;
+  /**
+   * Automatic retries on a `429 Too Many Requests` for unary requests
+   * (honouring `Retry-After`). `0` disables retrying. Default
+   * {@link DEFAULT_MAX_RETRIES}. Streaming has its own resume budget.
+   */
+  maxRetries?: number;
+  /** Base step (ms) of the capped-exponential `429` retry backoff. Default 500. */
+  retryBaseMs?: number;
 }
 
 /**
@@ -103,42 +146,78 @@ export class BaseHttpClient {
     body?: unknown;
     headers?: Record<string, string>;
     expect?: "json" | "empty" | "bytes" | "stream";
+    signal?: AbortSignal;
   }): Promise<T> {
     const url = joinUrl(this.cfg.apiUrl, opts.path) + buildQuery(opts.query);
     let body: BodyInit | undefined;
     const headers = this.headers(opts.headers);
-    if (opts.body instanceof FormData) {
-      body = opts.body;
+    const isMultipart = opts.body instanceof FormData;
+    if (isMultipart) {
+      body = opts.body as FormData;
       // let fetch set the multipart boundary
     } else if (opts.body !== undefined) {
       headers["Content-Type"] = headers["Content-Type"] ?? "application/json";
       body = JSON.stringify(opts.body);
     }
-    const res = await this.send(() =>
-      this.fetchImpl(url, {
-        method: opts.method,
-        headers,
-        body,
-        credentials: this.cfg.transport.credentials,
-      }),
-    );
     const expect = opts.expect ?? "json";
-    if (expect === "empty") return undefined as T;
-    if (expect === "bytes") return new Uint8Array(await res.arrayBuffer()) as T;
-    if (expect === "stream") return res.body as T;
-    return (await res.json()) as T;
+    // Auto-retry on a `429 Too Many Requests`, honouring `Retry-After` as the
+    // floor of a capped-exponential backoff, so a spammed status poll slows
+    // down instead of erroring. A `429` means the request was rejected and
+    // never processed, so retrying is side-effect-safe for writes too.
+    // Multipart uploads aren't retried (the body would have to be rebuilt).
+    const maxRetries = isMultipart
+      ? 0
+      : (this.cfg.maxRetries ?? DEFAULT_MAX_RETRIES);
+    const baseMs = this.cfg.retryBaseMs ?? DEFAULT_RETRY_BASE_MS;
+    for (let attempt = 0; ; attempt++) {
+      try {
+        const res = await this.send(() =>
+          this.fetchImpl(url, {
+            method: opts.method,
+            headers,
+            body,
+            credentials: this.cfg.transport.credentials,
+            signal: opts.signal,
+          }),
+        );
+        if (expect === "empty") return undefined as T;
+        if (expect === "bytes")
+          return new Uint8Array(await res.arrayBuffer()) as T;
+        if (expect === "stream") return res.body as T;
+        return (await res.json()) as T;
+      } catch (err) {
+        if (
+          err instanceof RateLimitError &&
+          attempt < maxRetries &&
+          !opts.signal?.aborted
+        ) {
+          await sleep(
+            retryDelayMs(attempt, err.retryAfter, baseMs),
+            opts.signal,
+          );
+          continue;
+        }
+        throw err;
+      }
+    }
   }
 
   async stream(opts: {
     path: string;
     query?: Record<string, unknown>;
+    headers?: Record<string, string>;
+    signal?: AbortSignal;
   }): Promise<Response> {
     const url = joinUrl(this.cfg.apiUrl, opts.path) + buildQuery(opts.query);
     return this.send(() =>
       this.fetchImpl(url, {
         method: "GET",
-        headers: this.headers({ Accept: "text/event-stream" }),
+        headers: this.headers({
+          Accept: "text/event-stream",
+          ...(opts.headers ?? {}),
+        }),
         credentials: this.cfg.transport.credentials,
+        signal: opts.signal,
       }),
     );
   }

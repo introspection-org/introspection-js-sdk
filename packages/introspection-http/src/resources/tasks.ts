@@ -13,7 +13,7 @@ import type {
 } from "@introspection-sdk/types";
 import { EventType, type AGUIEvent } from "@ag-ui/core";
 import { Paginator, cursorPaginate } from "../pagination.js";
-import { parseAgUiEvents } from "../agui-stream.js";
+import { streamResumable, type StreamOptions } from "../resumable.js";
 import type { ResourceHttpClient } from "./types.js";
 
 export interface StartParams extends TaskCreateParams {
@@ -37,8 +37,8 @@ export class RunHandle {
     private readonly runs: TaskRunsClient,
   ) {}
 
-  stream(): AsyncIterable<AGUIEvent> {
-    return this.runs.stream(this.run.task_id, this.run.id);
+  stream(opts?: StreamOptions): AsyncIterable<AGUIEvent> {
+    return this.runs.stream(this.run.task_id, this.run.id, opts);
   }
 
   cancel(): Promise<TaskCancelResponse> {
@@ -95,11 +95,22 @@ export class TaskRunsClient {
     });
   }
 
-  async *stream(taskId: string, runId: string): AsyncIterable<AGUIEvent> {
-    const res = await this.http.stream({
-      path: `/v1/tasks/${encodeURIComponent(taskId)}/runs/${encodeURIComponent(runId)}/stream`,
-    });
-    yield* parseAgUiEvents(res);
+  /**
+   * Stream a run's AG-UI events. The stream resumes **transparently** across a
+   * mid-turn disconnect (gateway idle-timeout, load-balancer recycle, network
+   * blip): it re-attaches with the SSE-standard `Last-Event-ID` so the server
+   * replays the missed frames, yielding a single gap-free `AGUIEvent` sequence
+   * (INT-252, see `docs/design/sdk-resumable-streams.md`). The iterator
+   * completes when the turn finishes and throws only once recovery is
+   * exhausted — there is no consumer-visible change from a plain stream.
+   * `opts` tunes the recovery bounds.
+   */
+  stream(
+    taskId: string,
+    runId: string,
+    opts?: StreamOptions,
+  ): AsyncIterable<AGUIEvent> {
+    return streamResumable(this.http, taskId, runId, opts);
   }
 }
 
