@@ -81,6 +81,17 @@ Readiness folds in the same way: while a run is not yet attachable the server
 answers with `429` + `Retry-After`, which the stream honours as a backoff floor
 and retries — never surfaced to the caller.
 
+#### Rate limits (429)
+
+The unary calls — `tasks.get` (status polling), lists, create, cancel, delete,
+file metadata/content — **auto-retry on `429 Too Many Requests`**, honouring the
+server's `Retry-After` as the floor of a capped-exponential backoff. A status
+poller that trips the limit slows down and keeps working instead of throwing.
+Retries are bounded (`maxRetries`, default 2; set `0` to disable) and once the
+budget is spent the `429` surfaces as a `RateLimitError` (with `retryAfter`) so
+you can back off further. Streaming has its own resume budget (above); multipart
+uploads are not auto-retried.
+
 ### OTel auto-instrumentation
 
 `init()` auto-detects installed LLM frameworks (Anthropic, Gemini, OpenAI Agents, Vercel AI SDK, Claude Agent SDK, LangChain, Mastra, Pi) and wires them into a single shared trace pipeline:
