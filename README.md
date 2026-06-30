@@ -81,16 +81,23 @@ Readiness folds in the same way: while a run is not yet attachable the server
 answers with `429` + `Retry-After`, which the stream honours as a backoff floor
 and retries — never surfaced to the caller.
 
-#### Rate limits (429)
+#### Retries (429 / 5xx)
 
-The unary calls — `tasks.get` (status polling), lists, create, cancel, delete,
-file metadata/content — **auto-retry on `429 Too Many Requests`**, honouring the
-server's `Retry-After` as the floor of a capped-exponential backoff. A status
-poller that trips the limit slows down and keeps working instead of throwing.
-Retries are bounded (`maxRetries`, default 2; set `0` to disable) and once the
-budget is spent the `429` surfaces as a `RateLimitError` (with `retryAfter`) so
-you can back off further. Streaming has its own resume budget (above); multipart
-uploads are not auto-retried.
+Unary calls auto-retry on transient statuses with a capped-exponential backoff
+(the server's `Retry-After` is honoured as a floor when present; if it's absent
+the retry still happens, just on the plain exponential schedule):
+
+- **`429 Too Many Requests`** — retried for **every** method (the request was
+  rejected, not processed, so re-sending is safe even for writes). Covers
+  `tasks.get` (status polling), lists, create, cancel, delete, file metadata.
+- **`502` / `503` / `504`** — retried for **GET only** (idempotent reads); a
+  transient gateway error on a write is surfaced rather than re-sent.
+
+Retries are bounded (`maxRetries`, default 2; set `0` to disable). Once the
+budget is spent the error surfaces (`RateLimitError` for 429,
+`SandboxUnavailableError` for 503/504), each carrying `status`, `retryAfter`,
+and `body` so you can decide how to back off further. Streaming has its own
+resume budget (above); multipart uploads are not auto-retried.
 
 ### OTel auto-instrumentation
 

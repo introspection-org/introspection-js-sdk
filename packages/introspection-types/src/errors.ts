@@ -2,9 +2,9 @@
  * Typed error hierarchy raised by the Introspection SDK.
  *
  * All HTTP errors extend `IntrospectionAPIError` and carry `status`,
- * `requestId`, `code`, and `body`. Specific subclasses are picked from the
- * combination of HTTP status + the `code` field on the JSON error body so
- * callers can `instanceof`-discriminate the common failure modes.
+ * `requestId`, `code`, `body`, and `retryAfter`. Specific subclasses are
+ * picked from the combination of HTTP status + the `code` field on the JSON
+ * error body so callers can `instanceof`-discriminate the common failure modes.
  *
  * Unknown 4xx/5xx codes fall through to the base `IntrospectionAPIError`.
  */
@@ -13,6 +13,8 @@ export class IntrospectionAPIError extends Error {
   readonly code: string | null;
   readonly requestId: string | null;
   readonly body: unknown;
+  /** `Retry-After` hint (seconds) from the response, when the server sent one. */
+  readonly retryAfter: number | null;
 
   constructor(opts: {
     message: string;
@@ -20,6 +22,7 @@ export class IntrospectionAPIError extends Error {
     code?: string | null;
     requestId?: string | null;
     body?: unknown;
+    retryAfter?: number | null;
   }) {
     super(opts.message);
     this.name = "IntrospectionAPIError";
@@ -27,6 +30,7 @@ export class IntrospectionAPIError extends Error {
     this.code = opts.code ?? null;
     this.requestId = opts.requestId ?? null;
     this.body = opts.body;
+    this.retryAfter = opts.retryAfter ?? null;
   }
 }
 
@@ -85,18 +89,12 @@ export class ValidationError extends IntrospectionAPIError {
   }
 }
 
-/** 429. Carries the `retryAfter` hint (seconds) from `Retry-After` if present. */
+/** 429. Carries the `retryAfter` hint (seconds) from `Retry-After`, inherited
+ * from {@link IntrospectionAPIError}. */
 export class RateLimitError extends IntrospectionAPIError {
-  readonly retryAfter: number | null;
-
-  constructor(
-    opts: ConstructorParameters<typeof IntrospectionAPIError>[0] & {
-      retryAfter?: number | null;
-    },
-  ) {
+  constructor(opts: ConstructorParameters<typeof IntrospectionAPIError>[0]) {
     super(opts);
     this.name = "RateLimitError";
-    this.retryAfter = opts.retryAfter ?? null;
   }
 }
 
@@ -169,11 +167,7 @@ export function apiErrorFromResponse(
   if (status === 404) return new NotFoundError(input);
   if (status === 409) return new ConflictError(input);
   if (status === 400 || status === 422) return new ValidationError(input);
-  if (status === 429)
-    return new RateLimitError({
-      ...input,
-      retryAfter: input.retryAfter ?? null,
-    });
+  if (status === 429) return new RateLimitError(input);
   if (status === 503 || status === 504)
     return new SandboxUnavailableError(input);
   return new IntrospectionAPIError(input);

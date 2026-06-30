@@ -1,6 +1,27 @@
-import { NetworkError, RateLimitError } from "@introspection-sdk/types";
+import {
+  IntrospectionAPIError,
+  NetworkError,
+  RateLimitError,
+} from "@introspection-sdk/types";
 import { buildQuery, joinUrl } from "./url.js";
 import { toApiError } from "./errors.js";
+
+/** Statuses retried only for idempotent (GET) requests. */
+const IDEMPOTENT_RETRY_STATUSES = new Set([502, 503, 504]);
+
+/**
+ * Whether a thrown error is worth retrying. `429` is retried for any method
+ * (the request was rejected and never processed, so re-sending is safe even
+ * for writes); transient gateway/upstream errors (`502`/`503`/`504`) are
+ * retried only for idempotent `GET` requests.
+ */
+function isRetryableError(err: unknown, method: string): boolean {
+  if (err instanceof RateLimitError) return true;
+  if (err instanceof IntrospectionAPIError && method.toUpperCase() === "GET") {
+    return IDEMPOTENT_RETRY_STATUSES.has(err.status);
+  }
+  return false;
+}
 
 /** Default automatic retries on a `429` for unary requests. */
 const DEFAULT_MAX_RETRIES = 2;
@@ -187,14 +208,13 @@ export class BaseHttpClient {
         return (await res.json()) as T;
       } catch (err) {
         if (
-          err instanceof RateLimitError &&
+          isRetryableError(err, opts.method) &&
           attempt < maxRetries &&
           !opts.signal?.aborted
         ) {
-          await sleep(
-            retryDelayMs(attempt, err.retryAfter, baseMs),
-            opts.signal,
-          );
+          const retryAfter =
+            err instanceof IntrospectionAPIError ? err.retryAfter : null;
+          await sleep(retryDelayMs(attempt, retryAfter, baseMs), opts.signal);
           continue;
         }
         throw err;
