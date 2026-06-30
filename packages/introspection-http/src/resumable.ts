@@ -1,5 +1,6 @@
 import { EventSchemas, EventType, type AGUIEvent } from "@ag-ui/core";
 import { RateLimitError } from "@introspection-sdk/types";
+import { backoffMs, sleep } from "./backoff.js";
 import { parseStreamFrames } from "./agui-stream.js";
 import type { ResourceHttpClient } from "./resources/types.js";
 
@@ -22,9 +23,6 @@ import type { ResourceHttpClient } from "./resources/types.js";
  * with `429` + `Retry-After`, which is honoured as a backoff floor and retried
  * — never surfaced to the caller.
  */
-
-/** Cap on the reconnect/readiness backoff (ms). */
-const MAX_BACKOFF_MS = 10000;
 
 export interface StreamOptions {
   /**
@@ -70,34 +68,6 @@ function reconnectEvent(value: Record<string, unknown>): AGUIEvent {
     name: "introspection.reconnect",
     value,
   } as unknown);
-}
-
-function sleep(ms: number, signal?: AbortSignal): Promise<void> {
-  return new Promise((resolve, reject) => {
-    if (signal?.aborted) {
-      reject(signal.reason ?? new DOMException("Aborted", "AbortError"));
-      return;
-    }
-    const timer = setTimeout(() => {
-      signal?.removeEventListener("abort", onAbort);
-      resolve();
-    }, ms);
-    const onAbort = () => {
-      clearTimeout(timer);
-      reject(signal?.reason ?? new DOMException("Aborted", "AbortError"));
-    };
-    signal?.addEventListener("abort", onAbort, { once: true });
-  });
-}
-
-/** `Retry-After` (ms) as the floor of a capped-exponential step (`base * 2^n`). */
-function backoff(
-  n: number,
-  retryAfterMs: number | null,
-  baseMs: number,
-): number {
-  const exp = Math.min(baseMs * 2 ** n, MAX_BACKOFF_MS);
-  return Math.max(retryAfterMs ?? 0, exp);
 }
 
 /**
@@ -155,7 +125,7 @@ export async function* streamResumable(
       }
       await sleep(
         Math.min(
-          backoff(reconnects, retryAfterMs, baseMs),
+          backoffMs(reconnects, retryAfterMs, baseMs),
           deadline - Date.now(),
         ),
         opts.signal,
@@ -188,7 +158,7 @@ export async function* streamResumable(
         });
       }
       await sleep(
-        Math.min(backoff(reconnects, null, baseMs), deadline - Date.now()),
+        Math.min(backoffMs(reconnects, null, baseMs), deadline - Date.now()),
         opts.signal,
       );
     }
