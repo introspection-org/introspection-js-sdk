@@ -334,6 +334,22 @@ export const GenAi = {
   TOOL_CALL_RESULT: "gen_ai.tool.call.result",
 } as const;
 
+/**
+ * Introspection-namespaced span attribute names (companions to the GenAI
+ * semconv attributes above).
+ */
+export const IntrospectionAttr = {
+  TERMINATION_REASON: "introspection.termination_reason",
+} as const;
+
+/**
+ * How a requested abort is classified on a span
+ * (`introspection.termination_reason`): `cancelled` for a user/runtime stop,
+ * `awaiting_user` for a turn paused on an interrupt. Turn (`invoke_agent`)
+ * spans additionally use `completed` and `error` for non-aborted endings.
+ */
+export type AbortTerminationReason = "cancelled" | "awaiting_user";
+
 /** Default span name builders for chat / execute_tool / invoke_agent. */
 export const GenAiSpanName = {
   chat: (provider: string): string => `chat ${provider}`,
