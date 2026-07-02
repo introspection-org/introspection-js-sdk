@@ -70,11 +70,9 @@ function extractTokenCounts(attrs: Attributes): {
     input: attrs[OI.TOKEN_COUNT_PROMPT] as number | undefined,
     output: attrs[OI.TOKEN_COUNT_COMPLETION] as number | undefined,
     cacheCreation: attrs["llm.token_count.prompt_details.cache_write"] as
-      | number
-      | undefined,
+      number | undefined,
     cacheRead: attrs["llm.token_count.prompt_details.cache_read"] as
-      | number
-      | undefined,
+      number | undefined,
   };
 }
 
@@ -568,8 +566,7 @@ export function addOpenInferenceAttributes(span: ReadableSpan): ReadableSpan {
 
   const inputTokens = attrs["gen_ai.usage.input_tokens"] as number | undefined;
   const outputTokens = attrs["gen_ai.usage.output_tokens"] as
-    | number
-    | undefined;
+    number | undefined;
   if (inputTokens !== undefined) {
     attrs[OI.TOKEN_COUNT_PROMPT] = inputTokens;
   }

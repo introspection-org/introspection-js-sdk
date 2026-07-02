@@ -131,8 +131,7 @@ function convertContentBlocksToParts(
     } else if (block.type === "thinking" && "thinking" in block) {
       const thinking = block.thinking as string | undefined;
       const signature = (block as Record<string, unknown>).signature as
-        | string
-        | undefined;
+        string | undefined;
       const thinkingPart: ReasoningPart = {
         type: "thinking",
         content: thinking || undefined,
@@ -298,9 +297,9 @@ export function convertClaudeSessionToGenAI(
 
   // Set tool definitions from tool names
   if (data.toolNames && data.toolNames.length > 0) {
-    result.toolDefinitions = data.toolNames.map(
-      (name): ToolDefinition => ({ name }),
-    );
+    result.toolDefinitions = data.toolNames.map((name): ToolDefinition => ({
+      name,
+    }));
   }
 
   // Set system instructions

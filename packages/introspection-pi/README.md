@@ -32,9 +32,7 @@ const meta: AgentMeta = {
   agentName: "Support",
 };
 
-const agent = new Agent({
-  /* … */
-});
+const agent = new Agent({/* … */});
 
 // One chat span per LLM call
 agent.streamFn = instrumentStream(agent.streamFn, { tracer, meta });

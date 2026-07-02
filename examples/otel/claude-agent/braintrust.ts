@@ -195,8 +195,7 @@ for await (const message of stream) {
       console.log(`Output: ${message.result}`);
     }
     const usage = message.usage as
-      | { input_tokens?: number; output_tokens?: number }
-      | undefined;
+      { input_tokens?: number; output_tokens?: number } | undefined;
     if (usage) {
       console.log(
         `Tokens: ${usage.input_tokens || 0} input, ${usage.output_tokens || 0} output`,

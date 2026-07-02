@@ -358,8 +358,7 @@ export class IntrospectionSpanProcessor implements SpanProcessor {
     // Conversation ID: baggage > existing attr > auto-generate per trace
     const baggageConvId = baggage?.getEntry("gen_ai.conversation.id")?.value;
     const existingConvId = attrs["gen_ai.conversation.id"] as
-      | string
-      | undefined;
+      string | undefined;
     if (baggageConvId) {
       attrs["gen_ai.conversation.id"] = baggageConvId;
     } else if (!existingConvId) {

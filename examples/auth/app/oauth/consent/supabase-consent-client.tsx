@@ -9,8 +9,7 @@ interface ConsentDetails {
 }
 
 type ConsentState =
-  | { status: "working"; message: string }
-  | { status: "error"; message: string };
+  { status: "working"; message: string } | { status: "error"; message: string };
 
 /**
  * Headless consent hop for the brokered sign-in flow.

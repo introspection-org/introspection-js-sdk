@@ -516,8 +516,7 @@ export class IntrospectionTracingProcessor implements TracingProcessor {
     // response ID, response model, and the actual assistant message from it.
     if (!spanData.usage) {
       const rawResponse = spanData.output?.[0] as
-        | Record<string, unknown>
-        | undefined;
+        Record<string, unknown> | undefined;
 
       // Response ID — required by the backend processor to register this span
       // as a conversation item (build_request returns None without it).
@@ -533,8 +532,7 @@ export class IntrospectionTracingProcessor implements TracingProcessor {
       }
 
       const rawUsage = rawResponse?.usage as
-        | Record<string, unknown>
-        | undefined;
+        Record<string, unknown> | undefined;
       if (rawUsage) {
         const promptTokens = rawUsage.prompt_tokens;
         const completionTokens = rawUsage.completion_tokens;
@@ -545,8 +543,7 @@ export class IntrospectionTracingProcessor implements TracingProcessor {
           otelSpan.setAttribute("gen_ai.usage.output_tokens", completionTokens);
         }
         const promptDetails = rawUsage.prompt_tokens_details as
-          | Record<string, unknown>
-          | undefined;
+          Record<string, unknown> | undefined;
         const cachedTokens = promptDetails?.cached_tokens;
         if (typeof cachedTokens === "number" && cachedTokens > 0) {
           otelSpan.setAttribute(
@@ -560,11 +557,9 @@ export class IntrospectionTracingProcessor implements TracingProcessor {
       // gen_ai.output.messages is a proper [{role, content}] array rather than
       // the full ChatCompletion envelope (which the backend cannot parse).
       const choices = rawResponse?.choices as
-        | Array<Record<string, unknown>>
-        | undefined;
+        Array<Record<string, unknown>> | undefined;
       const assistantMessage = choices?.[0]?.message as
-        | Record<string, unknown>
-        | undefined;
+        Record<string, unknown> | undefined;
       if (assistantMessage) {
         otelSpan.setAttribute(
           "gen_ai.output.messages",
