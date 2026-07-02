@@ -100,11 +100,12 @@ describe("Pi Agent SDK baggage — real Agent against Polly-recorded Anthropic",
 
   async function makeAgent(systemPrompt = "Answer in one word.") {
     const { Agent } = await import("@earendil-works/pi-agent-core");
-    const { getModel } = await import("@earendil-works/pi-ai");
+    const { getBuiltinModel } =
+      await import("@earendil-works/pi-ai/providers/all");
     // Force baseUrl so the request URL is deterministic across record/replay,
     // independent of any ANTHROPIC_BASE_URL leaking in from the host env.
     const model = {
-      ...getModel("anthropic", "claude-haiku-4-5"),
+      ...getBuiltinModel("anthropic", "claude-haiku-4-5"),
       baseUrl: pollyEndpoints.anthropic.node,
     };
     return new Agent({

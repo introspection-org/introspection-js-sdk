@@ -17,7 +17,8 @@
  */
 
 import { Agent, type AgentTool } from "@earendil-works/pi-agent-core";
-import { getModel, Type } from "@earendil-works/pi-ai";
+import { Type } from "@earendil-works/pi-ai";
+import { getBuiltinModel } from "@earendil-works/pi-ai/providers/all";
 import * as introspection from "@introspection-sdk/introspection-node/otel";
 import {
   IntrospectionSpanProcessor,
@@ -76,7 +77,7 @@ async function main() {
 
   const agent = new Agent({
     initialState: {
-      model: getModel("anthropic", "claude-sonnet-4-6"),
+      model: getBuiltinModel("anthropic", "claude-sonnet-4-6"),
       systemPrompt:
         "You are a weather assistant. Always call get_weather before answering.",
       tools: [weatherTool],
