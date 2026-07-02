@@ -53,8 +53,7 @@ async function main() {
   //    hand to someone else, or feed back as `fork_share_id` to branch a
   //    new task off this conversation.
   const conversationId = run.task?.metadata?.conversation_id as
-    | string
-    | undefined;
+    string | undefined;
   if (conversationId) {
     const response = await runner.conversations.retrieve(conversationId);
     if (response) {

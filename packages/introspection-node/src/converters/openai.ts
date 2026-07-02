@@ -167,8 +167,7 @@ export function convertResponsesOutputsToSemconv(
       // Skip — tool discovery metadata, not a user-facing message
     } else if (typ === "reasoning") {
       const summary = item.summary as
-        | Array<Record<string, unknown>>
-        | undefined;
+        Array<Record<string, unknown>> | undefined;
       const texts = (summary ?? [])
         .map((s) => (s.text as string) || "")
         .filter(Boolean);
@@ -200,8 +199,7 @@ export function convertResponsesOutputsToSemconv(
         for (const ci of contentItems) {
           const rec = asRecord(ci);
           const anns = rec.annotations as
-            | Array<Record<string, unknown>>
-            | undefined;
+            Array<Record<string, unknown>> | undefined;
           if (anns) {
             for (const ann of anns) {
               if (ann.title && ann.url) {

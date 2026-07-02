@@ -339,15 +339,13 @@ export class IntrospectionMastraExporter extends BaseExporter {
 
     // Model info lives in metadata.modelMetadata (set by Mastra)
     const modelMeta = span.metadata?.["modelMetadata"] as
-      | Record<string, unknown>
-      | undefined;
+      Record<string, unknown> | undefined;
     const model = (modelMeta?.["modelId"] as string) || "";
     const provider = (modelMeta?.["modelProvider"] as string) || "";
 
     // Response metadata from metadata.body (the API response)
     const respBody = span.metadata?.["body"] as
-      | Record<string, unknown>
-      | undefined;
+      Record<string, unknown> | undefined;
     const responseModel = (respBody?.["model"] as string) || "";
     const responseId = (respBody?.["id"] as string) || "";
 
@@ -455,8 +453,7 @@ export class IntrospectionMastraExporter extends BaseExporter {
           usage["outputTokens"],
         );
       const inputDetails = usage["inputDetails"] as
-        | Record<string, unknown>
-        | undefined;
+        Record<string, unknown> | undefined;
       if (typeof inputDetails?.["cacheRead"] === "number")
         otelSpan.setAttribute(
           "gen_ai.usage.cache_read.input_tokens",
@@ -512,8 +509,7 @@ export class IntrospectionMastraExporter extends BaseExporter {
 
   private _getConversationId(span: AnyExportedSpan): string {
     const metaConvId = span.metadata?.["gen_ai.conversation.id"] as
-      | string
-      | undefined;
+      string | undefined;
     if (metaConvId) return metaConvId;
 
     const attrs = span.attributes as Record<string, unknown> | undefined;

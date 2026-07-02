@@ -226,8 +226,7 @@ function setRequestAttrs(span: Span, kwargs: Record<string, unknown>): void {
 
 function setResponseAttrs(span: Span, response: Record<string, unknown>): void {
   const content = response.content as
-    | Array<Record<string, unknown>>
-    | undefined;
+    Array<Record<string, unknown>> | undefined;
   if (content) {
     const outputMsgs = convertAnthropicOutput(content);
     if (outputMsgs.length > 0) {
@@ -346,8 +345,7 @@ class TracedStream {
       }
     } else if (event.type === "message_delta") {
       const usage = (event as unknown as Record<string, unknown>).usage as
-        | Record<string, number>
-        | undefined;
+        Record<string, number> | undefined;
       if (usage) this.outputTokens = usage.output_tokens || 0;
     }
   }

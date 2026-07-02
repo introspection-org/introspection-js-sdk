@@ -320,12 +320,10 @@ export class IntrospectionCallbackHandler extends BaseCallbackHandler {
     }
 
     const invocationParams = extraParams?.["invocation_params"] as
-      | Record<string, unknown>
-      | undefined;
+      Record<string, unknown> | undefined;
 
     const tools = invocationParams?.["tools"] as
-      | Array<Record<string, unknown>>
-      | undefined;
+      Array<Record<string, unknown>> | undefined;
     if (tools && tools.length > 0) {
       otelSpan.setAttribute(
         "gen_ai.tool.definitions",
@@ -408,14 +406,11 @@ export class IntrospectionCallbackHandler extends BaseCallbackHandler {
           parts.push({ type: "text", content: gen.text });
         }
         const msg = (gen as unknown as Record<string, unknown>).message as
-          | Record<string, unknown>
-          | undefined;
+          Record<string, unknown> | undefined;
         const kwargs = (msg?.["kwargs"] || msg) as
-          | Record<string, unknown>
-          | undefined;
+          Record<string, unknown> | undefined;
         const additionalKwargs = kwargs?.["additional_kwargs"] as
-          | Record<string, unknown>
-          | undefined;
+          Record<string, unknown> | undefined;
         const toolCalls = (additionalKwargs?.["tool_calls"] ||
           kwargs?.["tool_calls"]) as Array<Record<string, unknown>> | undefined;
         if (toolCalls) {
@@ -461,8 +456,7 @@ export class IntrospectionCallbackHandler extends BaseCallbackHandler {
       }
       // Flat field (legacy format) or nested cache_creation object (Claude 4+).
       const cacheCreationObj = tokenUsage["cache_creation"] as
-        | Record<string, unknown>
-        | undefined;
+        Record<string, unknown> | undefined;
       const cacheWriteTokens =
         tokenUsage["cache_creation_input_tokens"] ||
         tokenUsage["cacheCreationInputTokens"] ||
@@ -639,8 +633,7 @@ export class IntrospectionCallbackHandler extends BaseCallbackHandler {
     extraParams?: Record<string, unknown>,
   ): string | undefined {
     const invocationParams = extraParams?.["invocation_params"] as
-      | Record<string, unknown>
-      | undefined;
+      Record<string, unknown> | undefined;
     if (invocationParams) {
       const model =
         invocationParams["model"] ||
@@ -650,8 +643,7 @@ export class IntrospectionCallbackHandler extends BaseCallbackHandler {
     }
 
     const kwargs = (llm as unknown as Record<string, unknown>)?.kwargs as
-      | Record<string, unknown>
-      | undefined;
+      Record<string, unknown> | undefined;
     if (kwargs) {
       const model =
         kwargs["model"] || kwargs["model_name"] || kwargs["modelName"];

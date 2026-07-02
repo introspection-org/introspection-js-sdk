@@ -128,8 +128,7 @@ export function withIntrospection(
     // Merge instrumentation hooks with any user-provided hooks
     const introspectionHooks = hooks.getHooks();
     const userHooks = opts.hooks as
-      | Partial<Record<string, unknown[]>>
-      | undefined;
+      Partial<Record<string, unknown[]>> | undefined;
     const mergedHooks = mergeHooks(introspectionHooks, userHooks);
 
     // Call original query with merged hooks

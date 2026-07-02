@@ -30,19 +30,11 @@ export type SpanStatus = "Ok" | "Error" | "Unset";
 
 /** OpenTelemetry span kind values. */
 export type SpanKind =
-  | "UNSPECIFIED"
-  | "INTERNAL"
-  | "SERVER"
-  | "CLIENT"
-  | "PRODUCER"
-  | "CONSUMER";
+  "UNSPECIFIED" | "INTERNAL" | "SERVER" | "CLIENT" | "PRODUCER" | "CONSUMER";
 
 /** Lightweight node type for conversation item trees. */
 export type ConversationItemNodeType =
-  | "agent"
-  | "assistant"
-  | "tool_call"
-  | "span";
+  "agent" | "assistant" | "tool_call" | "span";
 
 /**
  * Optional conversation item expansions, passed as a repeated `include`

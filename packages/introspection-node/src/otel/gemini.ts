@@ -77,10 +77,7 @@ function startSpan(
 
 function setRequestAttrs(span: Span, kwargs: Record<string, unknown>): void {
   const contents = kwargs.contents as
-    | string
-    | GeminiContent[]
-    | GeminiContent
-    | undefined;
+    string | GeminiContent[] | GeminiContent | undefined;
   const inputMsgs = convertGeminiContentsToInputMessages(contents);
   if (inputMsgs.length > 0) {
     span.setAttribute("gen_ai.input.messages", serializeMessages(inputMsgs));
@@ -89,9 +86,7 @@ function setRequestAttrs(span: Span, kwargs: Record<string, unknown>): void {
   const config = (kwargs.config as Record<string, unknown> | undefined) || {};
 
   const systemInstruction = config.systemInstruction as
-    | string
-    | GeminiContent
-    | undefined;
+    string | GeminiContent | undefined;
   const systemInstructions =
     convertGeminiSystemInstructionToSemconv(systemInstruction);
   if (systemInstructions && systemInstructions.length > 0) {
