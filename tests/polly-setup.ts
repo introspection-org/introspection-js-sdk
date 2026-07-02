@@ -38,6 +38,39 @@ const SENSITIVE_HEADERS = [
   "openai-project",
 ];
 
+// Belt-and-suspenders over the explicit list: any header whose name *looks*
+// like a credential is redacted too, so a new provider's auth header can never
+// slip into a recording just because it wasn't enumerated above.
+const SENSITIVE_HEADER_PATTERN =
+  /(authorization|api[-_]?key|access[-_]?token|refresh[-_]?token|\btoken\b|secret|password|credential|cookie|x-goog-user-project|session)/i;
+
+function isSensitiveHeader(name: string): boolean {
+  const n = name.toLowerCase();
+  return SENSITIVE_HEADERS.includes(n) || SENSITIVE_HEADER_PATTERN.test(n);
+}
+
+// Secret-shaped values that must never be persisted in a recording body or
+// URL, regardless of where they appear (a provider echoing a key, a token in a
+// query string, an OAuth response body, ...). Scrubbing runs only on record
+// (beforePersist); replay never mutates committed fixtures.
+const SECRET_VALUE_PATTERNS: RegExp[] = [
+  /sk-ant-[A-Za-z0-9_-]{8,}/g, // Anthropic
+  /sk-proj-[A-Za-z0-9_-]{8,}/g, // OpenAI project keys
+  /sk-[A-Za-z0-9]{20,}/g, // OpenAI / generic sk- keys
+  /AIza[A-Za-z0-9_-]{20,}/g, // Google API keys
+  /ya29\.[A-Za-z0-9_-]+/g, // Google OAuth access tokens
+  /eyJ[A-Za-z0-9_-]{6,}\.[A-Za-z0-9_-]{6,}\.[A-Za-z0-9_-]{6,}/g, // JWTs
+  /intro_[a-z]+_[A-Za-z0-9]{10,}/g, // Introspection tokens/keys
+  /\bBearer\s+[A-Za-z0-9._-]{20,}/gi, // bearer tokens anywhere
+];
+
+function scrubSecrets(text: string | undefined | null): string | undefined {
+  if (!text) return text ?? undefined;
+  let out = text;
+  for (const re of SECRET_VALUE_PATTERNS) out = out.replace(re, "REDACTED");
+  return out;
+}
+
 export interface SetupPollyOptions {
   recordingName: string;
   adapters?: ("fetch" | "node-http")[];
@@ -89,25 +122,36 @@ export function setupPolly({
     },
   });
 
-  // Sanitize sensitive headers and cookies from recordings before persisting
+  // Sanitize sensitive headers, cookies, and secret-shaped values from
+  // recordings before persisting, so no credential is ever committed.
   polly.server.any().on("beforePersist", (_req: unknown, recording: any) => {
-    if (recording.request?.headers) {
-      for (const header of recording.request.headers) {
-        if (SENSITIVE_HEADERS.includes(header.name.toLowerCase())) {
-          header.value = "REDACTED";
-        }
-      }
+    for (const header of recording.request?.headers ?? []) {
+      if (isSensitiveHeader(header.name)) header.value = "REDACTED";
     }
-    if (recording.response?.headers) {
-      for (const header of recording.response.headers) {
-        if (SENSITIVE_HEADERS.includes(header.name.toLowerCase())) {
-          header.value = "REDACTED";
-        }
-      }
+    for (const header of recording.response?.headers ?? []) {
+      if (isSensitiveHeader(header.name)) header.value = "REDACTED";
     }
     // Strip cookies from response (Polly stores them as a separate array)
     if (recording.response?.cookies) {
       recording.response.cookies = [];
+    }
+    // Scrub secret-shaped tokens from request/response bodies and the URL,
+    // in case a provider echoes a credential outside the known headers.
+    if (recording.request?.postData?.text !== undefined) {
+      recording.request.postData.text = scrubSecrets(
+        recording.request.postData.text,
+      );
+    }
+    if (recording.response?.content?.text !== undefined) {
+      recording.response.content.text = scrubSecrets(
+        recording.response.content.text,
+      );
+    }
+    if (typeof recording.request?.url === "string") {
+      recording.request.url = scrubSecrets(recording.request.url);
+    }
+    for (const q of recording.request?.queryString ?? []) {
+      if (typeof q.value === "string") q.value = scrubSecrets(q.value);
     }
   });
 
