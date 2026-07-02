@@ -56,7 +56,22 @@ export interface InstrumentStreamOptions {
    * depend on the prose wrapper pi renders around the summary.
    */
   getCompactionSummaries?: () => readonly string[];
+  /**
+   * Classify a stream that ended with stop reason `"aborted"` (the caller's
+   * AbortSignal fired mid-generation; pi never maps provider timeouts to
+   * `"aborted"`). Called at span end. Return the
+   * `introspection.termination_reason` to stamp on the span — typically
+   * `"cancelled"` (user/runtime stop) or `"awaiting_user"` (paused for an
+   * interrupt) — and the span ends with status Unset and no exception:
+   * a requested cancellation is an outcome, not a failure. Return `null`
+   * to keep the abort classified as an error (the host did not request
+   * this cancellation). When omitted, aborts default to `"cancelled"`.
+   */
+  abortTerminationReason?: () => string | null;
 }
+
+/** Span attribute mirroring the invoke_agent turn span's termination vocabulary. */
+const TERMINATION_REASON_ATTRIBUTE = "introspection.termination_reason";
 
 /**
  * Wrap a {@link StreamFn} to emit `chat ${provider}` spans.
@@ -111,6 +126,7 @@ export function instrumentStream(
       spanContext,
       span,
       proxy,
+      abortTerminationReason: opts.abortTerminationReason,
     });
 
     return proxy;
@@ -125,6 +141,7 @@ interface RunUpstreamArgs {
   spanContext: OtelContext;
   span: Span;
   proxy: AssistantMessageEventStream;
+  abortTerminationReason?: () => string | null;
 }
 
 async function runUpstream({
@@ -135,6 +152,7 @@ async function runUpstream({
   spanContext,
   span,
   proxy,
+  abortTerminationReason,
 }: RunUpstreamArgs): Promise<void> {
   let finished = false;
 
@@ -147,7 +165,7 @@ async function runUpstream({
       proxy.push(event);
       if (!finished && (event.type === "done" || event.type === "error")) {
         finished = true;
-        finishSpan(span, event);
+        finishSpan(span, event, abortTerminationReason);
       }
     }
   } catch (err) {
@@ -161,7 +179,7 @@ async function runUpstream({
     proxy.push(errorEvent);
     if (!finished) {
       finished = true;
-      finishSpan(span, errorEvent);
+      finishSpan(span, errorEvent, abortTerminationReason);
     }
   } finally {
     if (!finished) {
@@ -176,11 +194,32 @@ async function runUpstream({
 function finishSpan(
   span: Span,
   event: Extract<AssistantMessageEvent, { type: "done" | "error" }>,
+  abortTerminationReason?: () => string | null,
 ): void {
   const message = event.type === "done" ? event.message : event.error;
   span.setAttributes(chatResponseAttributes(message));
 
-  if (event.type === "error" || message.stopReason === "error") {
+  const aborted =
+    (event.type === "error" && event.reason === "aborted") ||
+    message.stopReason === "aborted";
+  if (aborted) {
+    const terminationReason = abortTerminationReason
+      ? abortTerminationReason()
+      : "cancelled";
+    if (terminationReason !== null) {
+      // A requested cancellation is an outcome, not a failure: status stays
+      // Unset (no success assertion over a truncated generation, no error),
+      // no synthetic exception. finish_reasons=["aborted"] is already on the
+      // span via chatResponseAttributes.
+      span.setAttribute(TERMINATION_REASON_ATTRIBUTE, terminationReason);
+      span.end();
+      return;
+    }
+    // Unconfirmed abort (host says it did not request one): fall through and
+    // classify as an error — fail toward a false error, never a hidden one.
+  }
+
+  if (event.type === "error" || message.stopReason === "error" || aborted) {
     const errorMessage = message.errorMessage ?? "Unknown error";
     span.recordException(new Error(errorMessage));
     span.setStatus({ code: SpanStatusCode.ERROR, message: errorMessage });
