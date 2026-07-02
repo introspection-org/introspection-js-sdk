@@ -18,7 +18,8 @@
  */
 
 import { Agent, type AgentTool } from "@earendil-works/pi-agent-core";
-import { getModel, Type } from "@earendil-works/pi-ai";
+import { Type } from "@earendil-works/pi-ai";
+import { getBuiltinModel } from "@earendil-works/pi-ai/providers/all";
 import {
   IntrospectionPiInstrumentor,
   setupTracing,
@@ -55,7 +56,7 @@ async function main() {
 
   const agent = new Agent({
     initialState: {
-      model: getModel("anthropic", "claude-sonnet-4-6"),
+      model: getBuiltinModel("anthropic", "claude-sonnet-4-6"),
       systemPrompt: `You are a professional weather assistant for a global travel and logistics platform. Your role is to provide accurate, actionable weather information to users planning trips, managing supply chains, scheduling outdoor events, or making any decision that depends on current or forecast conditions.
 
 ## Core responsibilities

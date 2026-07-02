@@ -18,7 +18,7 @@
  */
 
 import { Agent } from "@earendil-works/pi-agent-core";
-import { getModel } from "@earendil-works/pi-ai";
+import { getBuiltinModel } from "@earendil-works/pi-ai/providers/all";
 import { randomUUID } from "crypto";
 import {
   IntrospectionPiInstrumentor,
@@ -36,7 +36,7 @@ const introspect = new IntrospectionLogs({
 });
 const piInstrumentor = new IntrospectionPiInstrumentor();
 
-const MODEL = getModel("anthropic", "claude-sonnet-4-6");
+const MODEL = getBuiltinModel("anthropic", "claude-sonnet-4-6");
 
 const SYSTEM_PROMPT =
   "You are a concise research assistant. " +
