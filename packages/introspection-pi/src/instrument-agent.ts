@@ -13,7 +13,7 @@ import {
   type Tracer,
 } from "@opentelemetry/api";
 import type { Agent, AgentEvent } from "@earendil-works/pi-agent-core";
-import { GenAiSpanName } from "@introspection-sdk/types";
+import { GenAiSpanName, IntrospectionAttr } from "@introspection-sdk/types";
 import {
   executeToolAttributes,
   executeToolResultAttribute,
@@ -62,8 +62,8 @@ export function instrumentAgent(
   const buildSpanName = opts.spanName ?? GenAiSpanName.executeTool;
   const activeSpans = new Map<string, Span>();
 
-  const unsubscribe = agent.subscribe((event) => {
-    handleEvent(event, opts, activeSpans, buildSpanName);
+  const unsubscribe = agent.subscribe((event, signal) => {
+    handleEvent(event, opts, activeSpans, buildSpanName, signal);
   });
 
   return {
@@ -83,6 +83,7 @@ function handleEvent(
   opts: InstrumentAgentOptions,
   activeSpans: Map<string, Span>,
   buildSpanName: (toolName: string) => string,
+  signal?: AbortSignal,
 ): void {
   switch (event.type) {
     case "tool_execution_start": {
@@ -116,7 +117,13 @@ function handleEvent(
       activeSpans.delete(event.toolCallId);
 
       span.setAttributes(executeToolResultAttribute(event.result));
-      if (event.isError) {
+      if (event.isError && signal?.aborted) {
+        // The run's AbortSignal fired: pi synthesizes "Operation aborted"
+        // error results for tool calls cut short by a requested abort. A
+        // cancelled tool call is an outcome, not a failure — status stays
+        // Unset, and the cancellation is queryable via the attribute.
+        span.setAttribute(IntrospectionAttr.TERMINATION_REASON, "cancelled");
+      } else if (event.isError) {
         span.setStatus({
           code: SpanStatusCode.ERROR,
           message:
