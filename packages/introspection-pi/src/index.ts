@@ -51,6 +51,7 @@ export {
 
 // Re-export the GenAI types so consumers don't need a second import.
 export type {
+  AbortTerminationReason,
   GenAiAttributes,
   InputMessage,
   MessagePart,
@@ -63,4 +64,9 @@ export type {
   ToolCallResponsePart,
   ToolDefinition,
 } from "@introspection-sdk/types";
-export { GenAi, GenAiSpanName, toAttributes } from "@introspection-sdk/types";
+export {
+  GenAi,
+  GenAiSpanName,
+  IntrospectionAttr,
+  toAttributes,
+} from "@introspection-sdk/types";

@@ -23,7 +23,11 @@ import {
   type Model,
 } from "@earendil-works/pi-ai";
 import type { StreamFn } from "@earendil-works/pi-agent-core";
-import { GenAiSpanName } from "@introspection-sdk/types";
+import {
+  GenAiSpanName,
+  IntrospectionAttr,
+  type AbortTerminationReason,
+} from "@introspection-sdk/types";
 import {
   chatRequestAttributes,
   chatResponseAttributes,
@@ -60,18 +64,15 @@ export interface InstrumentStreamOptions {
    * Classify a stream that ended with stop reason `"aborted"` (the caller's
    * AbortSignal fired mid-generation; pi never maps provider timeouts to
    * `"aborted"`). Called at span end. Return the
-   * `introspection.termination_reason` to stamp on the span — typically
+   * `introspection.termination_reason` to stamp on the span —
    * `"cancelled"` (user/runtime stop) or `"awaiting_user"` (paused for an
    * interrupt) — and the span ends with status Unset and no exception:
    * a requested cancellation is an outcome, not a failure. Return `null`
    * to keep the abort classified as an error (the host did not request
    * this cancellation). When omitted, aborts default to `"cancelled"`.
    */
-  abortTerminationReason?: () => string | null;
+  abortTerminationReason?: () => AbortTerminationReason | null;
 }
-
-/** Span attribute mirroring the invoke_agent turn span's termination vocabulary. */
-const TERMINATION_REASON_ATTRIBUTE = "introspection.termination_reason";
 
 /**
  * Wrap a {@link StreamFn} to emit `chat ${provider}` spans.
@@ -141,7 +142,7 @@ interface RunUpstreamArgs {
   spanContext: OtelContext;
   span: Span;
   proxy: AssistantMessageEventStream;
-  abortTerminationReason?: () => string | null;
+  abortTerminationReason?: () => AbortTerminationReason | null;
 }
 
 async function runUpstream({
@@ -194,7 +195,7 @@ async function runUpstream({
 function finishSpan(
   span: Span,
   event: Extract<AssistantMessageEvent, { type: "done" | "error" }>,
-  abortTerminationReason?: () => string | null,
+  abortTerminationReason?: () => AbortTerminationReason | null,
 ): void {
   const message = event.type === "done" ? event.message : event.error;
   span.setAttributes(chatResponseAttributes(message));
@@ -202,24 +203,26 @@ function finishSpan(
   const aborted =
     (event.type === "error" && event.reason === "aborted") ||
     message.stopReason === "aborted";
-  if (aborted) {
-    const terminationReason = abortTerminationReason
+  const terminationReason = !aborted
+    ? null
+    : abortTerminationReason
       ? abortTerminationReason()
       : "cancelled";
-    if (terminationReason !== null) {
-      // A requested cancellation is an outcome, not a failure: status stays
-      // Unset (no success assertion over a truncated generation, no error),
-      // no synthetic exception. finish_reasons=["aborted"] is already on the
-      // span via chatResponseAttributes.
-      span.setAttribute(TERMINATION_REASON_ATTRIBUTE, terminationReason);
-      span.end();
-      return;
-    }
-    // Unconfirmed abort (host says it did not request one): fall through and
-    // classify as an error — fail toward a false error, never a hidden one.
-  }
 
-  if (event.type === "error" || message.stopReason === "error" || aborted) {
+  if (terminationReason !== null) {
+    // A requested cancellation is an outcome, not a failure: status stays
+    // Unset (no success assertion over a truncated generation, no error),
+    // no synthetic exception. finish_reasons=["aborted"] is already on the
+    // span via chatResponseAttributes.
+    span.setAttribute(IntrospectionAttr.TERMINATION_REASON, terminationReason);
+  } else if (
+    aborted ||
+    event.type === "error" ||
+    message.stopReason === "error"
+  ) {
+    // An aborted stream lands here only when the host did not claim the
+    // abort (callback returned null) — fail toward a false error, never a
+    // hidden one.
     const errorMessage = message.errorMessage ?? "Unknown error";
     span.recordException(new Error(errorMessage));
     span.setStatus({ code: SpanStatusCode.ERROR, message: errorMessage });

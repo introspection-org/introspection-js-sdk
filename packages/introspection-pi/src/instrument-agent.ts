@@ -13,7 +13,7 @@ import {
   type Tracer,
 } from "@opentelemetry/api";
 import type { Agent, AgentEvent } from "@earendil-works/pi-agent-core";
-import { GenAiSpanName } from "@introspection-sdk/types";
+import { GenAiSpanName, IntrospectionAttr } from "@introspection-sdk/types";
 import {
   executeToolAttributes,
   executeToolResultAttribute,
@@ -78,9 +78,6 @@ export function instrumentAgent(
   };
 }
 
-/** Span attribute mirroring the invoke_agent turn span's termination vocabulary. */
-const TERMINATION_REASON_ATTRIBUTE = "introspection.termination_reason";
-
 function handleEvent(
   event: AgentEvent,
   opts: InstrumentAgentOptions,
@@ -125,7 +122,7 @@ function handleEvent(
         // error results for tool calls cut short by a requested abort. A
         // cancelled tool call is an outcome, not a failure — status stays
         // Unset, and the cancellation is queryable via the attribute.
-        span.setAttribute(TERMINATION_REASON_ATTRIBUTE, "cancelled");
+        span.setAttribute(IntrospectionAttr.TERMINATION_REASON, "cancelled");
       } else if (event.isError) {
         span.setStatus({
           code: SpanStatusCode.ERROR,
