@@ -22,16 +22,22 @@ Polly.register(FSPersister);
 
 type PollyMode = "record" | "replay" | "passthrough";
 
+// Kept in sync with the Python SDK's cassette scrubbing
+// (introspection-python-sdk `tests/conftest.py` SENSITIVE_HEADERS) so both
+// SDKs redact the same credential headers from recordings.
 const SENSITIVE_HEADERS = [
   "authorization",
   "api-key",
-  "x-api-key",
   "api_key",
-  "space_id",
+  "x-api-key",
+  "x-bt-api-key",
   "x-stainless-api-key",
   "anthropic-api-key",
+  "anthropic-organization-id",
   "x-goog-api-key",
   "x-goog-user-project",
+  "x-langfuse-public-key",
+  "space_id",
   "cookie",
   "set-cookie",
   "openai-organization",
@@ -49,25 +55,30 @@ function isSensitiveHeader(name: string): boolean {
   return SENSITIVE_HEADERS.includes(n) || SENSITIVE_HEADER_PATTERN.test(n);
 }
 
-// Secret-shaped values that must never be persisted in a recording body or
-// URL, regardless of where they appear (a provider echoing a key, a token in a
-// query string, an OAuth response body, ...). Scrubbing runs only on record
+// Mirror of the Python SDK's single source of truth for secret scrubbing
+// (introspection-python-sdk `introspection_sdk/testing/redaction.py`
+// SECRET_PATTERNS): identical regexes and identical REDACTED_* placeholders,
+// so a secret is scrubbed the same way whether it lands in a JS or Python
+// cassette. Keep the two lists in lockstep. Scrubbing runs only on record
 // (beforePersist); replay never mutates committed fixtures.
-const SECRET_VALUE_PATTERNS: RegExp[] = [
-  /sk-ant-[A-Za-z0-9_-]{8,}/g, // Anthropic
-  /sk-proj-[A-Za-z0-9_-]{8,}/g, // OpenAI project keys
-  /sk-[A-Za-z0-9]{20,}/g, // OpenAI / generic sk- keys
-  /AIza[A-Za-z0-9_-]{20,}/g, // Google API keys
-  /ya29\.[A-Za-z0-9_-]+/g, // Google OAuth access tokens
-  /eyJ[A-Za-z0-9_-]{6,}\.[A-Za-z0-9_-]{6,}\.[A-Za-z0-9_-]{6,}/g, // JWTs
-  /intro_[a-z]+_[A-Za-z0-9]{10,}/g, // Introspection tokens/keys
-  /\bBearer\s+[A-Za-z0-9._-]{20,}/gi, // bearer tokens anywhere
+const SECRET_PATTERNS: [RegExp, string][] = [
+  [/sk-proj-[A-Za-z0-9_-]{20,}/g, "REDACTED_OPENAI_KEY"],
+  [/AIza[A-Za-z0-9_-]{35}/g, "REDACTED_GOOGLE_KEY"],
+  [/sk-ant-api\d+-[A-Za-z0-9_-]{20,}/g, "REDACTED_ANTHROPIC_KEY"],
+  [/sk-D8K[A-Za-z0-9_-]{20,}/g, "REDACTED_BRAINTRUST_KEY"],
+  [/lsv2_pt_[a-f0-9]{32}_[a-f0-9]+/g, "REDACTED_LANGSMITH_KEY"],
+  [/sk-lf-[a-f0-9-]{36}/g, "REDACTED_LANGFUSE_SECRET"],
+  [/pk-lf-[a-f0-9-]{36}/g, "REDACTED_LANGFUSE_PUBLIC"],
+  [/ak-[a-f0-9-]{36}-[A-Za-z0-9_-]+/g, "REDACTED_ARIZE_KEY"],
+  [/intro_dev_[A-Za-z0-9_-]{20,}/g, "REDACTED_INTROSPECTION_TOKEN"],
 ];
 
 function scrubSecrets(text: string | undefined | null): string | undefined {
   if (!text) return text ?? undefined;
   let out = text;
-  for (const re of SECRET_VALUE_PATTERNS) out = out.replace(re, "REDACTED");
+  for (const [re, replacement] of SECRET_PATTERNS) {
+    out = out.replace(re, replacement);
+  }
   return out;
 }
 
