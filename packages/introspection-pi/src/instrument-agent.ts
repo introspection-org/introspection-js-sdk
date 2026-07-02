@@ -62,8 +62,8 @@ export function instrumentAgent(
   const buildSpanName = opts.spanName ?? GenAiSpanName.executeTool;
   const activeSpans = new Map<string, Span>();
 
-  const unsubscribe = agent.subscribe((event) => {
-    handleEvent(event, opts, activeSpans, buildSpanName);
+  const unsubscribe = agent.subscribe((event, signal) => {
+    handleEvent(event, opts, activeSpans, buildSpanName, signal);
   });
 
   return {
@@ -78,11 +78,15 @@ export function instrumentAgent(
   };
 }
 
+/** Span attribute mirroring the invoke_agent turn span's termination vocabulary. */
+const TERMINATION_REASON_ATTRIBUTE = "introspection.termination_reason";
+
 function handleEvent(
   event: AgentEvent,
   opts: InstrumentAgentOptions,
   activeSpans: Map<string, Span>,
   buildSpanName: (toolName: string) => string,
+  signal?: AbortSignal,
 ): void {
   switch (event.type) {
     case "tool_execution_start": {
@@ -116,7 +120,13 @@ function handleEvent(
       activeSpans.delete(event.toolCallId);
 
       span.setAttributes(executeToolResultAttribute(event.result));
-      if (event.isError) {
+      if (event.isError && signal?.aborted) {
+        // The run's AbortSignal fired: pi synthesizes "Operation aborted"
+        // error results for tool calls cut short by a requested abort. A
+        // cancelled tool call is an outcome, not a failure — status stays
+        // Unset, and the cancellation is queryable via the attribute.
+        span.setAttribute(TERMINATION_REASON_ATTRIBUTE, "cancelled");
+      } else if (event.isError) {
         span.setStatus({
           code: SpanStatusCode.ERROR,
           message:

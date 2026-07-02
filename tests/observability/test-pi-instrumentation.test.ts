@@ -222,22 +222,133 @@ describe("instrumentStream", () => {
     expect(span?.status.message).toBe("boom");
     expect(span?.events.some((e) => e.name === "exception")).toBe(true);
   });
+
+  it("classifies an aborted stream as cancelled, not an error, by default", async () => {
+    const { exporter, tracer, provider } = setupTracer();
+
+    const upstream = () => {
+      const stream = createAssistantMessageEventStream();
+      stream.push({
+        type: "error",
+        reason: "aborted",
+        error: {
+          ...assistantMessage("aborted"),
+          errorMessage: "Request was aborted",
+        },
+      });
+      return stream;
+    };
+
+    const wrapped = instrumentStream(upstream, { tracer, meta: META });
+    await wrapped(MODEL, {
+      messages: [{ role: "user", content: "hi", timestamp: 0 }],
+    }).result();
+    await provider.forceFlush();
+
+    const span = exporter
+      .getFinishedSpans()
+      .find((s) => s.name === "chat anthropic");
+    expect(span?.status.code).toBe(0); // UNSET — not a failure, not asserted success
+    expect(span?.events.some((e) => e.name === "exception")).toBe(false);
+    expect(span?.attributes["introspection.termination_reason"]).toBe(
+      "cancelled",
+    );
+    // The mechanical stop reason stays queryable on the span.
+    expect(span?.attributes["gen_ai.response.finish_reasons"]).toEqual([
+      "aborted",
+    ]);
+  });
+
+  it("stamps the abortTerminationReason callback's value on aborted spans", async () => {
+    const { exporter, tracer, provider } = setupTracer();
+
+    const upstream = () => {
+      const stream = createAssistantMessageEventStream();
+      stream.push({
+        type: "error",
+        reason: "aborted",
+        error: {
+          ...assistantMessage("aborted"),
+          errorMessage: "Request was aborted",
+        },
+      });
+      return stream;
+    };
+
+    const wrapped = instrumentStream(upstream, {
+      tracer,
+      meta: META,
+      abortTerminationReason: () => "awaiting_user",
+    });
+    await wrapped(MODEL, {
+      messages: [{ role: "user", content: "hi", timestamp: 0 }],
+    }).result();
+    await provider.forceFlush();
+
+    const span = exporter
+      .getFinishedSpans()
+      .find((s) => s.name === "chat anthropic");
+    expect(span?.status.code).toBe(0); // UNSET
+    expect(span?.attributes["introspection.termination_reason"]).toBe(
+      "awaiting_user",
+    );
+  });
+
+  it("keeps an abort classified as an error when abortTerminationReason returns null", async () => {
+    const { exporter, tracer, provider } = setupTracer();
+
+    const upstream = () => {
+      const stream = createAssistantMessageEventStream();
+      stream.push({
+        type: "error",
+        reason: "aborted",
+        error: {
+          ...assistantMessage("aborted"),
+          errorMessage: "Request was aborted",
+        },
+      });
+      return stream;
+    };
+
+    const wrapped = instrumentStream(upstream, {
+      tracer,
+      meta: META,
+      abortTerminationReason: () => null,
+    });
+    await wrapped(MODEL, {
+      messages: [{ role: "user", content: "hi", timestamp: 0 }],
+    }).result();
+    await provider.forceFlush();
+
+    const span = exporter
+      .getFinishedSpans()
+      .find((s) => s.name === "chat anthropic");
+    expect(span?.status.code).toBe(2); // ERROR — unconfirmed abort fails loud
+    expect(span?.status.message).toBe("Request was aborted");
+    expect(span?.events.some((e) => e.name === "exception")).toBe(true);
+    expect(
+      span?.attributes["introspection.termination_reason"],
+    ).toBeUndefined();
+  });
 });
 
 describe("instrumentAgent", () => {
-  // Minimal AgentLike that the instrumentAgent helper subscribes to.
+  // Minimal AgentLike that the instrumentAgent helper subscribes to. The
+  // real pi Agent invokes listeners with (event, signal) — the run's
+  // AbortSignal — so the fake threads an optional signal through.
   function fakeAgent() {
-    const subscribers: Array<(event: unknown) => void> = [];
+    const subscribers: Array<(event: unknown, signal?: AbortSignal) => void> =
+      [];
     const agent = {
-      subscribe(fn: (event: unknown) => void) {
+      subscribe(fn: (event: unknown, signal?: AbortSignal) => void) {
         subscribers.push(fn);
         return () => {
           const idx = subscribers.indexOf(fn);
           if (idx >= 0) subscribers.splice(idx, 1);
         };
       },
-      emit(event: unknown) {
-        for (const fn of subscribers) fn(event);
+      emit(event: unknown, signal?: AbortSignal) {
+        for (const fn of subscribers) fn(event, signal);
       },
     };
     return agent;
@@ -348,6 +459,49 @@ describe("instrumentAgent", () => {
       .find((s) => s.name === "execute_tool read");
     expect(span?.status.code).toBe(2); // ERROR
     expect(span?.status.message).toContain("ENOENT");
+  });
+
+  it("marks an errored tool end as cancelled when the run's abort signal fired", async () => {
+    const { exporter, tracer, provider } = setupTracer();
+    const agent = fakeAgent();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const tools = instrumentAgent(agent as any, { tracer, meta: META });
+
+    const abortController = new AbortController();
+    agent.emit(
+      {
+        type: "tool_execution_start",
+        toolCallId: "call-1",
+        toolName: "shell",
+        args: { cmd: "sleep 999" },
+      },
+      abortController.signal,
+    );
+    abortController.abort();
+    agent.emit(
+      {
+        type: "tool_execution_end",
+        toolCallId: "call-1",
+        toolName: "shell",
+        result: "Operation aborted",
+        isError: true,
+      },
+      abortController.signal,
+    );
+
+    tools.stop();
+    await provider.forceFlush();
+
+    const span = exporter
+      .getFinishedSpans()
+      .find((s) => s.name === "execute_tool shell");
+    expect(span?.status.code).toBe(0); // UNSET — cancelled, not failed
+    expect(span?.attributes["introspection.termination_reason"]).toBe(
+      "cancelled",
+    );
+    expect(span?.attributes["gen_ai.tool.call.result"]).toBe(
+      "Operation aborted",
+    );
   });
 
   it("stop() closes any tool spans still open (e.g. an aborted run)", async () => {
