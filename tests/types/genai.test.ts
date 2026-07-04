@@ -9,6 +9,8 @@ import { describe, expect, it } from "vitest";
 import {
   GenAi,
   GenAiSpanName,
+  IntrospectionAttr,
+  providerCostAttributes,
   toAttributes,
   type GenAiAttributes,
   type InputMessage,
@@ -144,5 +146,100 @@ describe("GenAiSpanName", () => {
     expect(GenAiSpanName.chat("anthropic")).toBe("chat anthropic");
     expect(GenAiSpanName.executeTool("shell")).toBe("execute_tool shell");
     expect(GenAiSpanName.invokeAgent("Support")).toBe("invoke_agent Support");
+  });
+});
+
+describe("providerCostAttributes", () => {
+  it("extracts all three attributes from an OpenRouter-style usage block", () => {
+    const attrs = providerCostAttributes({
+      prompt_tokens: 100,
+      completion_tokens: 50,
+      cost: 0.95,
+      cost_details: { upstream_inference_cost: 0.9 },
+      completion_tokens_details: { reasoning_tokens: 42 },
+    });
+
+    expect(attrs).toEqual({
+      [IntrospectionAttr.LLM_COST_USD]: 0.95,
+      [IntrospectionAttr.LLM_UPSTREAM_COST_USD]: 0.9,
+      [GenAi.USAGE_REASONING_TOKENS]: 42,
+    });
+  });
+
+  it("uses the documented attribute names", () => {
+    expect(IntrospectionAttr.LLM_COST_USD).toBe("introspection.llm.cost_usd");
+    expect(IntrospectionAttr.LLM_UPSTREAM_COST_USD).toBe(
+      "introspection.llm.upstream_cost_usd",
+    );
+    expect(GenAi.USAGE_REASONING_TOKENS).toBe("gen_ai.usage.reasoning_tokens");
+  });
+
+  it("keeps a zero cost (free-tier calls are still provider-reported)", () => {
+    expect(providerCostAttributes({ cost: 0 })).toEqual({
+      [IntrospectionAttr.LLM_COST_USD]: 0,
+    });
+  });
+
+  it("extracts each field independently when the others are absent", () => {
+    expect(providerCostAttributes({ cost: 0.5 })).toEqual({
+      [IntrospectionAttr.LLM_COST_USD]: 0.5,
+    });
+    expect(
+      providerCostAttributes({
+        cost_details: { upstream_inference_cost: 0.25 },
+      }),
+    ).toEqual({ [IntrospectionAttr.LLM_UPSTREAM_COST_USD]: 0.25 });
+    expect(
+      providerCostAttributes({
+        completion_tokens_details: { reasoning_tokens: 7 },
+      }),
+    ).toEqual({ [GenAi.USAGE_REASONING_TOKENS]: 7 });
+  });
+
+  it("emits nothing when the cost fields are absent", () => {
+    expect(
+      providerCostAttributes({ prompt_tokens: 10, completion_tokens: 5 }),
+    ).toEqual({});
+    expect(providerCostAttributes({})).toEqual({});
+  });
+
+  it("emits nothing for a missing or non-object usage payload", () => {
+    expect(providerCostAttributes(undefined)).toEqual({});
+    expect(providerCostAttributes(null)).toEqual({});
+    expect(providerCostAttributes("usage")).toEqual({});
+    expect(providerCostAttributes(42)).toEqual({});
+  });
+
+  it("skips non-numeric and non-finite values safely", () => {
+    expect(
+      providerCostAttributes({
+        cost: "0.95",
+        cost_details: { upstream_inference_cost: "0.9" },
+        completion_tokens_details: { reasoning_tokens: "42" },
+      }),
+    ).toEqual({});
+    expect(
+      providerCostAttributes({
+        cost: Number.NaN,
+        cost_details: { upstream_inference_cost: Number.POSITIVE_INFINITY },
+        completion_tokens_details: { reasoning_tokens: Number.NaN },
+      }),
+    ).toEqual({});
+  });
+
+  it("skips malformed detail blocks without throwing", () => {
+    expect(
+      providerCostAttributes({
+        cost: 0.1,
+        cost_details: "not-an-object",
+        completion_tokens_details: null,
+      }),
+    ).toEqual({ [IntrospectionAttr.LLM_COST_USD]: 0.1 });
+    expect(
+      providerCostAttributes({
+        cost_details: {},
+        completion_tokens_details: {},
+      }),
+    ).toEqual({});
   });
 });

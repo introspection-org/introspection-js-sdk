@@ -27,6 +27,7 @@ import type { Tracer, Span } from "@opentelemetry/api";
 import type { BasicTracerProvider } from "@opentelemetry/sdk-trace-base";
 
 import type { InputMessage, OutputMessage } from "@introspection-sdk/types";
+import { providerCostAttributes } from "@introspection-sdk/types";
 import {
   convertGeminiContentsToInputMessages,
   convertGeminiCandidatesToOutputMessages,
@@ -126,6 +127,8 @@ function setUsageAttrs(
   if (typeof cachedTokens === "number") {
     span.setAttribute("gen_ai.usage.cache_read.input_tokens", cachedTokens);
   }
+  // Provider-reported cost (e.g. OpenRouter usage.cost) when present.
+  span.setAttributes(providerCostAttributes(usage));
 }
 
 function setResponseAttrs(span: Span, response: Record<string, unknown>): void {

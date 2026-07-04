@@ -23,6 +23,7 @@ import type {
   MessagePart,
   ReasoningPart,
 } from "@introspection-sdk/types";
+import { providerCostAttributes } from "@introspection-sdk/types";
 
 import {
   trace,
@@ -257,6 +258,8 @@ function setResponseAttrs(span: Span, response: Record<string, unknown>): void {
         "gen_ai.usage.cache_creation.input_tokens",
         usage.cache_creation_input_tokens,
       );
+    // Provider-reported cost (e.g. OpenRouter usage.cost) when present.
+    span.setAttributes(providerCostAttributes(usage));
   }
 
   span.setStatus({ code: SpanStatusCode.OK });
@@ -285,6 +288,7 @@ class TracedStream {
   private outputTokens = 0;
   private cacheReadInputTokens = 0;
   private cacheCreationInputTokens = 0;
+  private costAttrs: Record<string, number> = {};
   private finalized = false;
 
   constructor(inner: AsyncIterable<StreamEvent>, span: Span) {
@@ -312,6 +316,7 @@ class TracedStream {
         this.inputTokens = usage.input_tokens || 0;
         this.cacheReadInputTokens = usage.cache_read_input_tokens || 0;
         this.cacheCreationInputTokens = usage.cache_creation_input_tokens || 0;
+        Object.assign(this.costAttrs, providerCostAttributes(usage));
       }
     } else if (event.type === "content_block_start" && event.content_block) {
       const bt = (event.content_block.type as string) || "";
@@ -346,7 +351,10 @@ class TracedStream {
     } else if (event.type === "message_delta") {
       const usage = (event as unknown as Record<string, unknown>).usage as
         Record<string, number> | undefined;
-      if (usage) this.outputTokens = usage.output_tokens || 0;
+      if (usage) {
+        this.outputTokens = usage.output_tokens || 0;
+        Object.assign(this.costAttrs, providerCostAttributes(usage));
+      }
     }
   }
 
@@ -381,6 +389,8 @@ class TracedStream {
         "gen_ai.usage.cache_creation.input_tokens",
         this.cacheCreationInputTokens,
       );
+    // Provider-reported cost (e.g. OpenRouter usage.cost) when present.
+    this.span.setAttributes(this.costAttrs);
     this.span.setStatus({ code: SpanStatusCode.OK });
     this.span.end();
   }

@@ -322,6 +322,7 @@ export const GenAi = {
   USAGE_OUTPUT_TOKENS: "gen_ai.usage.output_tokens",
   USAGE_CACHE_READ_INPUT_TOKENS: "gen_ai.usage.cache_read.input_tokens",
   USAGE_CACHE_CREATION_INPUT_TOKENS: "gen_ai.usage.cache_creation.input_tokens",
+  USAGE_REASONING_TOKENS: "gen_ai.usage.reasoning_tokens",
   COST_USD: "gen_ai.cost.usd",
   INPUT_MESSAGES: "gen_ai.input.messages",
   OUTPUT_MESSAGES: "gen_ai.output.messages",
@@ -340,7 +341,64 @@ export const GenAi = {
  */
 export const IntrospectionAttr = {
   TERMINATION_REASON: "introspection.termination_reason",
+  /** Provider-reported total cost of the call in USD (e.g. OpenRouter `usage.cost`). */
+  LLM_COST_USD: "introspection.llm.cost_usd",
+  /** Provider-reported upstream inference cost in USD (OpenRouter `usage.cost_details.upstream_inference_cost`). */
+  LLM_UPSTREAM_COST_USD: "introspection.llm.upstream_cost_usd",
 } as const;
+
+/**
+ * Extract provider-reported cost attributes from a raw LLM usage block.
+ *
+ * OpenAI-compatible gateways (e.g. OpenRouter with `usage: {include: true}`)
+ * report the price charged for the call directly inside the usage payload.
+ * Provider-reported cost is the ceiling comparison point vs table pricing in
+ * platform billing, so instrumentations attach it whenever the provider
+ * surfaces it:
+ *
+ * - `usage.cost` → `introspection.llm.cost_usd`
+ * - `usage.cost_details.upstream_inference_cost` →
+ *   `introspection.llm.upstream_cost_usd`
+ * - `usage.completion_tokens_details.reasoning_tokens` →
+ *   `gen_ai.usage.reasoning_tokens`
+ *
+ * Fields that are absent or non-numeric are skipped: the result only ever
+ * contains attributes whose source value was present and a finite number, so
+ * callers can pass the returned record straight to `span.setAttributes()`.
+ */
+export function providerCostAttributes(usage: unknown): Record<string, number> {
+  const attrs: Record<string, number> = {};
+  if (usage === null || typeof usage !== "object") return attrs;
+  const usageRecord = usage as Record<string, unknown>;
+
+  if (isFiniteNumber(usageRecord.cost)) {
+    attrs[IntrospectionAttr.LLM_COST_USD] = usageRecord.cost;
+  }
+
+  const costDetails = usageRecord.cost_details;
+  if (costDetails !== null && typeof costDetails === "object") {
+    const upstreamCost = (costDetails as Record<string, unknown>)
+      .upstream_inference_cost;
+    if (isFiniteNumber(upstreamCost)) {
+      attrs[IntrospectionAttr.LLM_UPSTREAM_COST_USD] = upstreamCost;
+    }
+  }
+
+  const completionDetails = usageRecord.completion_tokens_details;
+  if (completionDetails !== null && typeof completionDetails === "object") {
+    const reasoningTokens = (completionDetails as Record<string, unknown>)
+      .reasoning_tokens;
+    if (isFiniteNumber(reasoningTokens)) {
+      attrs[GenAi.USAGE_REASONING_TOKENS] = reasoningTokens;
+    }
+  }
+
+  return attrs;
+}
+
+function isFiniteNumber(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value);
+}
 
 /**
  * How a requested abort is classified on a span

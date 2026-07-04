@@ -216,4 +216,71 @@ describe("IntrospectionMastraExporter span conversion", () => {
     expect(exporter.getFinishedSpans()).toHaveLength(0);
     await mastra.shutdown();
   });
+
+  it("captures provider-reported cost fields from the usage block", async () => {
+    const { exporter, mastra, feed } = makeExporter();
+
+    await feed({
+      type: "model_step",
+      traceId: "trace-4",
+      name: "llm",
+      startTime: t0,
+      endTime: t1,
+      metadata: { modelMetadata: { modelId: "or-model" } },
+      output: { text: "hi" },
+      attributes: {
+        usage: {
+          inputTokens: 10,
+          outputTokens: 2,
+          cost: 0.95,
+          cost_details: { upstream_inference_cost: 0.9 },
+          completion_tokens_details: { reasoning_tokens: 17 },
+        },
+      },
+    });
+
+    const spans = exporter.getFinishedSpans();
+    const llm = byName(spans, "chat or-model");
+    expect(llm, "model_step span").toBeDefined();
+    expect(llm!.attributes["introspection.llm.cost_usd"]).toBe(0.95);
+    expect(llm!.attributes["introspection.llm.upstream_cost_usd"]).toBe(0.9);
+    expect(llm!.attributes["gen_ai.usage.reasoning_tokens"]).toBe(17);
+
+    await mastra.shutdown();
+  });
+
+  it("emits no cost attributes when the usage cost fields are absent or non-numeric", async () => {
+    const { exporter, mastra, feed } = makeExporter();
+
+    await feed({
+      type: "model_step",
+      traceId: "trace-5",
+      name: "llm",
+      startTime: t0,
+      endTime: t1,
+      metadata: { modelMetadata: { modelId: "or-model" } },
+      output: { text: "hi" },
+      attributes: {
+        usage: {
+          inputTokens: 10,
+          outputTokens: 2,
+          cost: "0.95",
+          cost_details: { upstream_inference_cost: "0.9" },
+          completion_tokens_details: { reasoning_tokens: "17" },
+        },
+      },
+    });
+
+    const spans = exporter.getFinishedSpans();
+    const llm = byName(spans, "chat or-model");
+    expect(llm, "model_step span").toBeDefined();
+    expect(llm!.attributes["gen_ai.usage.input_tokens"]).toBe(10);
+    expect(llm!.attributes).not.toHaveProperty("introspection.llm.cost_usd");
+    expect(llm!.attributes).not.toHaveProperty(
+      "introspection.llm.upstream_cost_usd",
+    );
+    expect(llm!.attributes).not.toHaveProperty("gen_ai.usage.reasoning_tokens");
+
+    await mastra.shutdown();
+  });
 });

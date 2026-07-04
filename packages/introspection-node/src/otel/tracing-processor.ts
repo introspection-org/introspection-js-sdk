@@ -32,6 +32,8 @@ import type {
   Response as OpenAIResponse,
   ResponseInputItem,
 } from "../converters/openai.js";
+import { providerCostAttributes } from "@introspection-sdk/types";
+
 import { logger, withOtlpHttpsProxy } from "../utils.js";
 import { VERSION } from "../version.js";
 
@@ -455,6 +457,8 @@ export class IntrospectionTracingProcessor implements TracingProcessor {
           cachedTokens,
         );
       }
+      // Provider-reported cost (e.g. OpenRouter usage.cost) when present.
+      otelSpan.setAttributes(providerCostAttributes(usage));
     }
 
     // Model info
@@ -510,6 +514,10 @@ export class IntrospectionTracingProcessor implements TracingProcessor {
         spanData.usage.output_tokens,
       );
     }
+    if (spanData.usage) {
+      // Provider-reported cost (e.g. OpenRouter usage.cost) when present.
+      otelSpan.setAttributes(providerCostAttributes(spanData.usage));
+    }
 
     // OpenAIChatCompletionsModel stores the raw ChatCompletion response object
     // in spanData.output[0] (it never sets spanData.usage). Extract usage,
@@ -551,6 +559,9 @@ export class IntrospectionTracingProcessor implements TracingProcessor {
             cachedTokens,
           );
         }
+        // OpenRouter-style gateways report the charged price and reasoning
+        // token split inside the Chat Completions usage block.
+        otelSpan.setAttributes(providerCostAttributes(rawUsage));
       }
 
       // Extract the actual assistant message from choices[0].message so that
