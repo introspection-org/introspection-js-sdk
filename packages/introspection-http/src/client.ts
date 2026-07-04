@@ -1,41 +1,33 @@
-import { NetworkError, RateLimitError } from "@introspection-sdk/types";
+import {
+  IntrospectionAPIError,
+  NetworkError,
+  RateLimitError,
+} from "@introspection-sdk/types";
+import { backoffMs, sleep } from "./backoff.js";
 import { buildQuery, joinUrl } from "./url.js";
 import { toApiError } from "./errors.js";
+
+/** Statuses retried only for idempotent (GET) requests. */
+const IDEMPOTENT_RETRY_STATUSES = new Set([502, 503, 504]);
+
+/**
+ * Whether a thrown error is worth retrying. `429` is retried for any method
+ * (the request was rejected and never processed, so re-sending is safe even
+ * for writes); transient gateway/upstream errors (`502`/`503`/`504`) are
+ * retried only for idempotent `GET` requests.
+ */
+function isRetryableError(err: unknown, method: string): boolean {
+  if (err instanceof RateLimitError) return true;
+  if (err instanceof IntrospectionAPIError && method.toUpperCase() === "GET") {
+    return IDEMPOTENT_RETRY_STATUSES.has(err.status);
+  }
+  return false;
+}
 
 /** Default automatic retries on a `429` for unary requests. */
 const DEFAULT_MAX_RETRIES = 2;
 /** Default base step (ms) of the capped-exponential `429` retry backoff. */
 const DEFAULT_RETRY_BASE_MS = 500;
-/** Cap on the `429` retry backoff (ms). */
-const MAX_RETRY_BACKOFF_MS = 10000;
-
-/** `Retry-After` (s) as the floor of a capped-exponential step (`base * 2^n`). */
-function retryDelayMs(
-  attempt: number,
-  retryAfterSec: number | null,
-  baseMs: number,
-): number {
-  const exp = Math.min(baseMs * 2 ** attempt, MAX_RETRY_BACKOFF_MS);
-  return Math.max((retryAfterSec ?? 0) * 1000, exp);
-}
-
-function sleep(ms: number, signal?: AbortSignal): Promise<void> {
-  return new Promise((resolve, reject) => {
-    if (signal?.aborted) {
-      reject(signal.reason ?? new DOMException("Aborted", "AbortError"));
-      return;
-    }
-    const timer = setTimeout(() => {
-      signal?.removeEventListener("abort", onAbort);
-      resolve();
-    }, ms);
-    const onAbort = () => {
-      clearTimeout(timer);
-      reject(signal?.reason ?? new DOMException("Aborted", "AbortError"));
-    };
-    signal?.addEventListener("abort", onAbort, { once: true });
-  });
-}
 
 /**
  * The one thing that differs between the Node and browser transports:
@@ -187,14 +179,16 @@ export class BaseHttpClient {
         return (await res.json()) as T;
       } catch (err) {
         if (
-          err instanceof RateLimitError &&
+          isRetryableError(err, opts.method) &&
           attempt < maxRetries &&
           !opts.signal?.aborted
         ) {
-          await sleep(
-            retryDelayMs(attempt, err.retryAfter, baseMs),
-            opts.signal,
-          );
+          // `retryAfter` is in seconds; `backoffMs` works in ms.
+          const retryAfterMs =
+            err instanceof IntrospectionAPIError && err.retryAfter != null
+              ? err.retryAfter * 1000
+              : null;
+          await sleep(backoffMs(attempt, retryAfterMs, baseMs), opts.signal);
           continue;
         }
         throw err;

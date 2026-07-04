@@ -3,6 +3,7 @@ import { HttpClient } from "@introspection-sdk/introspection-node";
 import {
   IntrospectionAPIError,
   RateLimitError,
+  SandboxUnavailableError,
 } from "@introspection-sdk/types";
 
 /** A minimal Response-like object for a single fetch resolution. */
@@ -381,6 +382,61 @@ describe("HttpClient", () => {
         client.request({ method: "GET", path: "/v1/tasks/task_1" }),
       ).rejects.toBeInstanceOf(RateLimitError);
       expect(fetchImpl).toHaveBeenCalledTimes(1); // no retry
+    });
+  });
+
+  describe("5xx retry (GET only)", () => {
+    it("retries a GET on 503 (no Retry-After needed), then succeeds", async () => {
+      const fetchImpl = seqFetch([
+        makeResponse({ status: 503, json: { detail: "sandbox unavailable" } }),
+        makeResponse({ status: 200, json: { id: "task_1" } }),
+      ]);
+      const client = new HttpClient({
+        apiUrl: "https://api.example.com",
+        token: "t",
+        retryBaseMs: 1,
+        fetch: fetchImpl as unknown as typeof fetch,
+      });
+
+      const out = await client.request<{ id: string }>({
+        method: "GET",
+        path: "/v1/tasks/task_1",
+      });
+      expect(out.id).toBe("task_1");
+      expect(fetchImpl).toHaveBeenCalledTimes(2); // retried without a Retry-After header
+    });
+
+    it("retries a GET on 504", async () => {
+      const fetchImpl = seqFetch([
+        makeResponse({ status: 504, json: { detail: "gateway timeout" } }),
+        makeResponse({ status: 200, json: { id: "task_1" } }),
+      ]);
+      const client = new HttpClient({
+        apiUrl: "https://api.example.com",
+        token: "t",
+        retryBaseMs: 1,
+        fetch: fetchImpl as unknown as typeof fetch,
+      });
+
+      await client.request({ method: "GET", path: "/v1/tasks/task_1" });
+      expect(fetchImpl).toHaveBeenCalledTimes(2);
+    });
+
+    it("does NOT retry a non-idempotent write on 503", async () => {
+      const fetchImpl = seqFetch([
+        makeResponse({ status: 503, json: { detail: "unavailable" } }),
+      ]);
+      const client = new HttpClient({
+        apiUrl: "https://api.example.com",
+        token: "t",
+        retryBaseMs: 1,
+        fetch: fetchImpl as unknown as typeof fetch,
+      });
+
+      await expect(
+        client.request({ method: "POST", path: "/v1/tasks", body: {} }),
+      ).rejects.toBeInstanceOf(SandboxUnavailableError);
+      expect(fetchImpl).toHaveBeenCalledTimes(1); // write not retried on 5xx
     });
   });
 });

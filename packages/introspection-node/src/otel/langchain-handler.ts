@@ -59,6 +59,7 @@ import type {
   OutputMessage,
   MessagePart,
 } from "@introspection-sdk/types";
+import { providerCostAttributes } from "@introspection-sdk/types";
 
 // ---------------------------------------------------------------------------
 // Configuration
@@ -478,6 +479,8 @@ export class IntrospectionCallbackHandler extends BaseCallbackHandler {
           cacheReadTokens,
         );
       }
+      // Provider-reported cost (e.g. OpenRouter usage.cost) when present.
+      otelSpan.setAttributes(providerCostAttributes(tokenUsage));
     }
 
     const model = usage?.["model"] || usage?.["model_name"];

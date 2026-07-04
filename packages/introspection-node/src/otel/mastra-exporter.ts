@@ -58,6 +58,7 @@ import type {
   OutputMessage,
   MessagePart,
 } from "@introspection-sdk/types";
+import { providerCostAttributes } from "@introspection-sdk/types";
 
 // ---------------------------------------------------------------------------
 // Configuration
@@ -464,6 +465,8 @@ export class IntrospectionMastraExporter extends BaseExporter {
           "gen_ai.usage.cache_creation.input_tokens",
           inputDetails["cacheWrite"],
         );
+      // Provider-reported cost (e.g. OpenRouter usage.cost) when present.
+      otelSpan.setAttributes(providerCostAttributes(usage));
     }
 
     // Finish reason
