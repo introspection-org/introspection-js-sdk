@@ -125,7 +125,7 @@ jobs:
         run: |
           if git diff HEAD~1 --name-only | grep -q '^VERSION$'; then
             echo "changed=true" >> "$GITHUB_OUTPUT"
-            echo "version=$(tr -d '[:space:]' < VERSION)" >> "$GITHUB_OUTPUT"
+            echo "version=$(tr -d '[:space:]' < version.txt)" >> "$GITHUB_OUTPUT"
           else
             echo "changed=false" >> "$GITHUB_OUTPUT"
           fi
