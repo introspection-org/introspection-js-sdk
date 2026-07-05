@@ -1,16 +1,16 @@
 name: "Release: Tag"
 
-run-name: "${{ inputs.version && format('Tag v{0}', inputs.version) || 'Validate VERSION' }}"
+run-name: "${{ inputs.version && format('Tag v{0}', inputs.version) || 'Validate version.txt' }}"
 
 on:
   pull_request:
     branches: [main]
     paths:
-      - VERSION
+      - version.txt
   workflow_dispatch:
     inputs:
       version:
-        description: "Version to tag (without v prefix). Defaults to VERSION file."
+        description: "Version to tag (without v prefix). Defaults to version.txt."
         required: false
         type: string
 
@@ -21,7 +21,7 @@ concurrency:
 jobs:
   # ── Validate version bump (runs on PRs) ────────────────────────────
   validate-version:
-    name: Validate VERSION bump
+    name: Validate version.txt bump
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     permissions:
@@ -36,10 +36,10 @@ jobs:
           MAIN_COMMIT=$(git rev-parse origin/main)
           PR_COMMIT=${{ github.event.pull_request.head.sha }}
 
-          PREVIOUS_VERSION=$(git show "${MAIN_COMMIT}:VERSION" | tr -d '[:space:]')
+          PREVIOUS_VERSION=$(git show "${MAIN_COMMIT}:version.txt" | tr -d '[:space:]')
           echo "Previous version: ${PREVIOUS_VERSION}"
 
-          NEW_VERSION=$(git show "${PR_COMMIT}:VERSION" | tr -d '[:space:]')
+          NEW_VERSION=$(git show "${PR_COMMIT}:version.txt" | tr -d '[:space:]')
           echo "New version: ${NEW_VERSION}"
 
           if [[ ! "${NEW_VERSION}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
@@ -84,7 +84,7 @@ jobs:
         id: resolve
         run: |
           VERSION="${{ inputs.version }}"
-          VERSION="${VERSION:-$(tr -d '[:space:]' < VERSION)}"
+          VERSION="${VERSION:-$(tr -d '[:space:]' < version.txt)}"
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
           echo "Version: ${VERSION}"
 
