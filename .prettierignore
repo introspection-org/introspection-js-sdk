@@ -3,3 +3,5 @@ node_modules
 vendor
 coverage
 .pytest_cache
+# release-please generates this; its style is the bot's, not prettier's
+CHANGELOG.md
