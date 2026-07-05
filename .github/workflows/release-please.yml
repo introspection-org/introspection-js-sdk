@@ -8,6 +8,7 @@ name: Release Please
 on:
   push:
     branches: [main]
+  workflow_dispatch: # manual run — also reconciles a merged release PR that missed its tag/release
 
 permissions:
   contents: write
