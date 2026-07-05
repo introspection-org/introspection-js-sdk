@@ -5,7 +5,6 @@
     ".": {
       "release-type": "simple",
       "changelog-path": "CHANGELOG.md",
-      "skip-github-release": true,
       "bump-minor-pre-major": true,
       "bump-patch-for-minor-pre-major": false
     }

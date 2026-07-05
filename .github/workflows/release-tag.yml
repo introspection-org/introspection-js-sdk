@@ -2,11 +2,9 @@ name: "Release: Tag"
 
 run-name: "${{ inputs.version && format('Tag v{0}', inputs.version) || 'Validate version.txt' }}"
 
+# Break-glass manual tagger only: release-please cuts the tag when the
+# release PR merges. Dispatch this to cut a tag out-of-band.
 on:
-  pull_request:
-    branches: [main]
-    paths:
-      - version.txt
   workflow_dispatch:
     inputs:
       version:
