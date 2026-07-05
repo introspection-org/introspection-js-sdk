@@ -1,15 +1,14 @@
 name: Release Please
 
-# Maintains the release PR only: accumulates the conventional-commit
-# changelog and bumps version.txt. Deliberately does NOT tag or publish
-# (skip-github-release) — merging the release PR changes version.txt, which
-# triggers release-tag.yml's existing validate/wait gates to cut the v* tag
-# that publish.yml consumes. The release flow is unchanged; "edit VERSION by
-# hand" is replaced by "merge the release PR".
+# Maintains the release PR (changelog + version.txt bump) AND cuts the
+# vX.Y.Z tag + GitHub Release when that PR merges — the release-PR merge IS
+# the release. The tag (app-token push) triggers publish.yml as before.
+# release-tag.yml remains as a dispatch-only break-glass tagger.
 
 on:
   push:
     branches: [main]
+  workflow_dispatch: # manual run — also reconciles a merged release PR that missed its tag/release
 
 permissions:
   contents: write
