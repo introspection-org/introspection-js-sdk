@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.7.1](https://github.com/introspection-org/introspection-js-sdk/compare/v0.7.0...v0.7.1) (2026-07-06)
+
+
+### Bug Fixes
+
+* trigger patch release ([d5e0309](https://github.com/introspection-org/introspection-js-sdk/commit/d5e0309278221440dc4c7a6e6ddfd053a7c6acfb))
+
 ## [0.7.0](https://github.com/introspection-org/introspection-js-sdk/compare/v0.6.5...v0.7.0) (2026-07-05)
 
 ### Features
