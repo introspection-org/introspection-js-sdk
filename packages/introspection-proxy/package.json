@@ -23,7 +23,7 @@
     "prepare": "tsc"
   },
   "dependencies": {
-    "undici": "^8.5.0"
+    "undici": "^8.7.0"
   },
   "devDependencies": {
     "@repo/eslint-config": "workspace:*",

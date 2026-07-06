@@ -479,8 +479,8 @@ importers:
   packages/introspection-proxy:
     dependencies:
       undici:
-        specifier: ^8.5.0
-        version: 8.5.0
+        specifier: ^8.7.0
+        version: 8.7.0
     devDependencies:
       '@repo/eslint-config':
         specifier: workspace:*
@@ -5961,6 +5961,10 @@ packages:
 
   undici@8.5.0:
     resolution: {integrity: sha512-xamtWoB1EshgjpmlXd7GGm2VfdDtw1+rD8uhry8pSNW3If6S8E0m2T2+orSKeZXEn/aPJMviCpDBA65WJt8zhg==}
+    engines: {node: '>=22.19.0'}
+
+  undici@8.7.0:
+    resolution: {integrity: sha512-N7iQtfyLhIMOFgQubvmLV26svHpO0bqKnAiWotTQCVKCmWrcGbBotPuW1x+xwYZ2VHdSTVUfPQQnlEt1/LouTQ==}
     engines: {node: '>=22.19.0'}
 
   unicorn-magic@0.3.0:
@@ -12654,6 +12658,8 @@ snapshots:
   undici-types@6.21.0: {}
 
   undici@8.5.0: {}
+
+  undici@8.7.0: {}
 
   unicorn-magic@0.3.0: {}
 
