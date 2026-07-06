@@ -32,8 +32,7 @@ import {
   SpanKind,
   SpanStatusCode,
 } from "@opentelemetry/api";
-import type { Tracer, Span } from "@opentelemetry/api";
-import type { BasicTracerProvider } from "@opentelemetry/sdk-trace-base";
+import type { Tracer, Span, TracerProvider } from "@opentelemetry/api";
 
 // ---------------------------------------------------------------------------
 // Converters
@@ -535,7 +534,7 @@ export class AnthropicInstrumentor {
   private conversationId: string | undefined;
 
   instrument(opts: {
-    tracerProvider?: BasicTracerProvider;
+    tracerProvider?: TracerProvider;
     /** The Anthropic client instance to instrument. */
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     client: any;
@@ -557,9 +556,7 @@ export class AnthropicInstrumentor {
     this.conversationId = opts.conversationId ?? crypto.randomUUID();
 
     const provider = opts.tracerProvider ?? trace.getTracerProvider();
-    this.tracer = (provider as BasicTracerProvider).getTracer(
-      "introspection-anthropic",
-    );
+    this.tracer = provider.getTracer("introspection-anthropic");
 
     const origCreate = client.messages.create.bind(client.messages);
     this.patchedClients.push({ client, originalCreate: origCreate });
@@ -582,7 +579,7 @@ export class AnthropicInstrumentor {
   instrumentClass(opts: {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     anthropic: any;
-    tracerProvider?: BasicTracerProvider;
+    tracerProvider?: TracerProvider;
     conversationId?: string;
   }): void {
     const Messages = opts.anthropic?.Messages;
@@ -596,9 +593,7 @@ export class AnthropicInstrumentor {
 
     this.conversationId = opts.conversationId ?? crypto.randomUUID();
     const provider = opts.tracerProvider ?? trace.getTracerProvider();
-    this.tracer = (provider as BasicTracerProvider).getTracer(
-      "introspection-anthropic",
-    );
+    this.tracer = provider.getTracer("introspection-anthropic");
 
     const origCreate = proto.create;
     const patched = buildTracedCreate(

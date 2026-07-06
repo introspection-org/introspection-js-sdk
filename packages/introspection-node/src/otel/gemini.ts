@@ -23,8 +23,7 @@
  */
 
 import { trace, SpanKind, SpanStatusCode } from "@opentelemetry/api";
-import type { Tracer, Span } from "@opentelemetry/api";
-import type { BasicTracerProvider } from "@opentelemetry/sdk-trace-base";
+import type { Tracer, Span, TracerProvider } from "@opentelemetry/api";
 
 import type { InputMessage, OutputMessage } from "@introspection-sdk/types";
 import { providerCostAttributes } from "@introspection-sdk/types";
@@ -374,7 +373,7 @@ export class GeminiInstrumentor {
   private conversationId: string | undefined;
 
   instrument(opts: {
-    tracerProvider?: BasicTracerProvider;
+    tracerProvider?: TracerProvider;
     /** A `@google/genai` `GoogleGenAI` client instance. */
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     client: any;
@@ -394,9 +393,7 @@ export class GeminiInstrumentor {
     this.conversationId = opts.conversationId ?? crypto.randomUUID();
 
     const provider = opts.tracerProvider ?? trace.getTracerProvider();
-    this.tracer = (provider as BasicTracerProvider).getTracer(
-      "introspection-gemini",
-    );
+    this.tracer = provider.getTracer("introspection-gemini");
     const tracer = this.tracer;
     const conversationId = this.conversationId;
 
@@ -436,7 +433,7 @@ export class GeminiInstrumentor {
   instrumentClass(opts: {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     genai: any;
-    tracerProvider?: BasicTracerProvider;
+    tracerProvider?: TracerProvider;
     conversationId?: string;
   }): void {
     const proto = opts.genai?.Models?.prototype;
@@ -449,9 +446,7 @@ export class GeminiInstrumentor {
 
     this.conversationId = opts.conversationId ?? crypto.randomUUID();
     const provider = opts.tracerProvider ?? trace.getTracerProvider();
-    this.tracer = (provider as BasicTracerProvider).getTracer(
-      "introspection-gemini",
-    );
+    this.tracer = provider.getTracer("introspection-gemini");
     const conversationId = this.conversationId;
 
     const origGenerate = proto.generateContentInternal;

@@ -113,7 +113,8 @@ export class IntrospectionLogs {
       }),
     );
 
-    const processor = new BatchLogRecordProcessor(exporter, {
+    const processor = new BatchLogRecordProcessor({
+      exporter,
       maxQueueSize: options.maxBatchSize ?? 100,
       scheduledDelayMillis: options.flushInterval ?? 5000,
     });

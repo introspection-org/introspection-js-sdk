@@ -24,7 +24,7 @@
     "@ag-ui/core": "0.0.57"
   },
   "devDependencies": {
-    "@opentelemetry/sdk-trace-base": "^2.8.0",
+    "@opentelemetry/sdk-trace-base": "^2.9.0",
     "@repo/typescript-config": "workspace:*",
     "typescript": "5.9.3"
   }
