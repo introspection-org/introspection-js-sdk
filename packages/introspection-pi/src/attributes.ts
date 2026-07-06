@@ -11,6 +11,7 @@ import type {
   AssistantMessage,
   Context,
   Model,
+  SimpleStreamOptions,
   Tool,
 } from "@earendil-works/pi-ai";
 import { GenAi, type ToolDefinition } from "@introspection-sdk/types";
@@ -30,12 +31,19 @@ export interface AgentMeta {
   agentName: string;
 }
 
+interface ChatRequestAttributeOptions extends ConvertOptions {
+  streamOptions?: Pick<
+    SimpleStreamOptions,
+    "temperature" | "maxTokens" | "reasoning"
+  >;
+}
+
 /** Attributes set on a chat span at request time, before the model has streamed. */
 export function chatRequestAttributes(
   model: Model<string>,
   context: Context,
   meta: AgentMeta,
-  options?: ConvertOptions,
+  options?: ChatRequestAttributeOptions,
 ): Attributes {
   const attributes: Attributes = {
     [GenAi.CONVERSATION_ID]: meta.conversationId,
@@ -44,6 +52,7 @@ export function chatRequestAttributes(
     [GenAi.OPERATION_NAME]: "chat",
     [GenAi.PROVIDER_NAME]: model.provider,
     [GenAi.REQUEST_MODEL]: model.id,
+    "gen_ai.request.stream": true,
   };
 
   if (context.systemPrompt) {
@@ -62,9 +71,26 @@ export function chatRequestAttributes(
     attributes[GenAi.TOOL_DEFINITIONS] = toolDefinitions;
   }
 
-  attributes[GenAi.INPUT_MESSAGES] = JSON.stringify(
-    messagesToInputMessages(context.messages, options),
-  );
+  const inputMessages = messagesToInputMessages(context.messages, options);
+  attributes[GenAi.INPUT_MESSAGES] = JSON.stringify(inputMessages);
+  if (
+    inputMessages.some((message) =>
+      message.parts.some((part) => part.type === "compaction"),
+    )
+  ) {
+    attributes["gen_ai.conversation.compacted"] = true;
+  }
+  if (typeof options?.streamOptions?.temperature === "number") {
+    attributes["gen_ai.request.temperature"] =
+      options.streamOptions.temperature;
+  }
+  if (typeof options?.streamOptions?.maxTokens === "number") {
+    attributes["gen_ai.request.max_tokens"] = options.streamOptions.maxTokens;
+  }
+  if (typeof options?.streamOptions?.reasoning === "string") {
+    attributes["gen_ai.request.reasoning.level"] =
+      options.streamOptions.reasoning;
+  }
 
   return attributes;
 }
@@ -92,6 +118,21 @@ export function chatResponseAttributes(message: AssistantMessage): Attributes {
   }
   if (message.usage.cost?.total) {
     attributes[GenAi.COST_USD] = message.usage.cost.total;
+  }
+  const reasoningOutputTokens =
+    (
+      message.usage as typeof message.usage & {
+        reasoningOutput?: number;
+        reasoningOutputTokens?: number;
+      }
+    ).reasoningOutputTokens ??
+    (
+      message.usage as typeof message.usage & {
+        reasoningOutput?: number;
+      }
+    ).reasoningOutput;
+  if (typeof reasoningOutputTokens === "number" && reasoningOutputTokens > 0) {
+    attributes["gen_ai.usage.reasoning.output_tokens"] = reasoningOutputTokens;
   }
   if (message.responseId) {
     attributes[GenAi.RESPONSE_ID] = message.responseId;

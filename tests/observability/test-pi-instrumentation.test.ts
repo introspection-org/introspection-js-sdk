@@ -88,6 +88,10 @@ describe("instrumentStream", () => {
     const upstream = vi.fn(() => {
       const stream = createAssistantMessageEventStream();
       stream.push({
+        type: "start",
+        partial: assistantMessage(),
+      });
+      stream.push({
         type: "done",
         reason: "stop",
         message: assistantMessage(),
@@ -96,10 +100,18 @@ describe("instrumentStream", () => {
     });
 
     const wrapped = instrumentStream(upstream, { tracer, meta: META });
-    const stream = wrapped(MODEL, {
-      systemPrompt: "Be concise.",
-      messages: [{ role: "user", content: "Inspect", timestamp: 0 }],
-    });
+    const stream = wrapped(
+      MODEL,
+      {
+        systemPrompt: "Be concise.",
+        messages: [{ role: "user", content: "Inspect", timestamp: 0 }],
+      },
+      {
+        temperature: 0.2,
+        maxTokens: 1024,
+        reasoning: "high",
+      },
+    );
     await stream.result();
     await provider.forceFlush();
 
@@ -109,6 +121,13 @@ describe("instrumentStream", () => {
     expect(span).toBeDefined();
     expect(span?.attributes["gen_ai.conversation.id"]).toBe("conv_123");
     expect(span?.attributes["gen_ai.request.model"]).toBe("claude-sonnet-4-6");
+    expect(span?.attributes["gen_ai.request.stream"]).toBe(true);
+    expect(span?.attributes["gen_ai.request.temperature"]).toBe(0.2);
+    expect(span?.attributes["gen_ai.request.max_tokens"]).toBe(1024);
+    expect(span?.attributes["gen_ai.request.reasoning.level"]).toBe("high");
+    expect(typeof span?.attributes["gen_ai.response.time_to_first_chunk"]).toBe(
+      "number",
+    );
     expect(span?.attributes["gen_ai.usage.input_tokens"]).toBe(100);
     expect(span?.attributes["gen_ai.usage.cache_read.input_tokens"]).toBe(50);
     expect(
@@ -220,7 +239,47 @@ describe("instrumentStream", () => {
       .find((s) => s.name === "chat anthropic");
     expect(span?.status.code).toBe(2); // ERROR
     expect(span?.status.message).toBe("boom");
+    expect(span?.attributes["error.type"]).toBe("model_error");
     expect(span?.events.some((e) => e.name === "exception")).toBe(true);
+    expect(
+      span?.events.some((e) => e.name === "gen_ai.client.operation.exception"),
+    ).toBe(true);
+  });
+
+  it("treats an aborted stream as a manual terminal state, not an error", async () => {
+    const { exporter, tracer, provider } = setupTracer();
+
+    const upstream = () => {
+      const stream = createAssistantMessageEventStream();
+      stream.push({
+        type: "error",
+        reason: "aborted",
+        error: {
+          ...assistantMessage("aborted"),
+          errorMessage: "Request was aborted",
+        },
+      });
+      return stream;
+    };
+
+    const wrapped = instrumentStream(upstream, { tracer, meta: META });
+    await wrapped(MODEL, {
+      messages: [{ role: "user", content: "hi", timestamp: 0 }],
+    }).result();
+    await provider.forceFlush();
+
+    const span = exporter
+      .getFinishedSpans()
+      .find((s) => s.name === "chat anthropic");
+    expect(span?.status.code).toBe(0); // UNSET — manual abort, not success or failure
+    expect(span?.attributes["gen_ai.response.finish_reasons"]).toEqual([
+      "aborted",
+    ]);
+    expect(span?.attributes["error.type"]).toBeUndefined();
+    expect(span?.events.some((e) => e.name === "exception")).toBe(false);
+    expect(
+      span?.events.some((e) => e.name === "gen_ai.client.operation.exception"),
+    ).toBe(false);
   });
 
   it("classifies an aborted stream as cancelled, not an error, by default", async () => {
@@ -458,6 +517,7 @@ describe("instrumentAgent", () => {
       .getFinishedSpans()
       .find((s) => s.name === "execute_tool read");
     expect(span?.status.code).toBe(2); // ERROR
+    expect(span?.attributes["error.type"]).toBe("tool_error");
     expect(span?.status.message).toContain("ENOENT");
   });
 
