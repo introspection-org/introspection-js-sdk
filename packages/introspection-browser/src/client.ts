@@ -150,7 +150,8 @@ export class IntrospectionClient {
     });
 
     // Create batch processor
-    const processor = new BatchLogRecordProcessor(exporter, {
+    const processor = new BatchLogRecordProcessor({
+      exporter,
       maxQueueSize: advanced.maxBatchSize ?? 100,
       scheduledDelayMillis: advanced.flushInterval ?? 5000,
     });
