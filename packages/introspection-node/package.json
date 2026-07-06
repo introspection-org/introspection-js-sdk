@@ -54,7 +54,7 @@
     "@types/node": "^22.20.0",
     "eslint": "^9.39.4",
     "@langchain/core": "^1.2.1",
-    "@mastra/core": "^1.47.0",
+    "@mastra/core": "^1.49.0",
     "@mastra/observability": "^1.15.2",
     "@earendil-works/pi-agent-core": "^0.80.2",
     "@earendil-works/pi-ai": "^0.80.2",
