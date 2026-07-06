@@ -124,6 +124,7 @@ function handleEvent(
         // Unset, and the cancellation is queryable via the attribute.
         span.setAttribute(IntrospectionAttr.TERMINATION_REASON, "cancelled");
       } else if (event.isError) {
+        span.setAttribute("error.type", "tool_error");
         span.setStatus({
           code: SpanStatusCode.ERROR,
           message:

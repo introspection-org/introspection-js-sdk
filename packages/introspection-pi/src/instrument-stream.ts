@@ -106,6 +106,7 @@ export function instrumentStream(
     span.setAttributes(
       chatRequestAttributes(model, context, opts.meta, {
         compactionSummaries: opts.getCompactionSummaries?.(),
+        streamOptions: options,
       }),
     );
     const extra = opts.extraAttributes?.(model, context);
@@ -156,6 +157,8 @@ async function runUpstream({
   abortTerminationReason,
 }: RunUpstreamArgs): Promise<void> {
   let finished = false;
+  const startedAt = Date.now();
+  let sawFirstChunk = false;
 
   try {
     const upstream = await otelContext.with(spanContext, () =>
@@ -163,6 +166,13 @@ async function runUpstream({
     );
 
     for await (const event of upstream) {
+      if (!sawFirstChunk && event.type !== "done" && event.type !== "error") {
+        sawFirstChunk = true;
+        span.setAttribute(
+          "gen_ai.response.time_to_first_chunk",
+          (Date.now() - startedAt) / 1000,
+        );
+      }
       proxy.push(event);
       if (!finished && (event.type === "done" || event.type === "error")) {
         finished = true;
@@ -173,10 +183,16 @@ async function runUpstream({
     const errorMessage = err instanceof Error ? err.message : String(err);
     const errorEvent: Extract<AssistantMessageEvent, { type: "error" }> = {
       type: "error",
-      reason: "error",
-      error: assistantErrorMessage(model, errorMessage),
+      reason: options?.signal?.aborted === true ? "aborted" : "error",
+      error: assistantErrorMessage(
+        model,
+        errorMessage,
+        options?.signal?.aborted === true,
+      ),
     };
-    span.recordException(err instanceof Error ? err : new Error(errorMessage));
+    if (options?.signal?.aborted !== true) {
+      recordGenAiException(span, err, "exception");
+    }
     proxy.push(errorEvent);
     if (!finished) {
       finished = true;
@@ -224,7 +240,7 @@ function finishSpan(
     // abort (callback returned null) — fail toward a false error, never a
     // hidden one.
     const errorMessage = message.errorMessage ?? "Unknown error";
-    span.recordException(new Error(errorMessage));
+    recordGenAiException(span, new Error(errorMessage), "model_error");
     span.setStatus({ code: SpanStatusCode.ERROR, message: errorMessage });
   } else {
     span.setStatus({ code: SpanStatusCode.OK });
@@ -233,9 +249,24 @@ function finishSpan(
   span.end();
 }
 
+function recordGenAiException(
+  span: Span,
+  error: unknown,
+  errorType: string,
+): void {
+  const exception = error instanceof Error ? error : new Error(String(error));
+  span.setAttribute("error.type", errorType);
+  span.recordException(exception);
+  span.addEvent("gen_ai.client.operation.exception", {
+    "exception.type": exception.name || "Error",
+    "exception.message": exception.message,
+  });
+}
+
 function assistantErrorMessage(
   model: Model<Api>,
   errorMessage: string,
+  aborted = false,
 ): AssistantMessage {
   return {
     role: "assistant",
@@ -251,7 +282,7 @@ function assistantErrorMessage(
       totalTokens: 0,
       cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
     },
-    stopReason: "error",
+    stopReason: aborted ? "aborted" : "error",
     errorMessage,
     timestamp: Date.now(),
   };

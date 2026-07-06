@@ -72,7 +72,13 @@ function assistantMessage(
 
 describe("chatRequestAttributes", () => {
   it("emits the documented identification attributes", () => {
-    const attrs = chatRequestAttributes(MODEL, ctx(), META);
+    const attrs = chatRequestAttributes(MODEL, ctx(), META, {
+      streamOptions: {
+        temperature: 0.2,
+        maxTokens: 1024,
+        reasoning: "high",
+      },
+    });
     expect(attrs).toMatchObject({
       "gen_ai.conversation.id": "conv_123",
       "gen_ai.agent.id": "agent-1",
@@ -80,6 +86,10 @@ describe("chatRequestAttributes", () => {
       "gen_ai.operation.name": "chat",
       "gen_ai.provider.name": "anthropic",
       "gen_ai.request.model": "claude-sonnet-4-6",
+      "gen_ai.request.stream": true,
+      "gen_ai.request.temperature": 0.2,
+      "gen_ai.request.max_tokens": 1024,
+      "gen_ai.request.reasoning.level": "high",
     });
   });
 
@@ -121,6 +131,34 @@ describe("chatRequestAttributes", () => {
     expect(attrs["gen_ai.system_instructions"]).toBeUndefined();
   });
 
+  it("marks requests with compacted context", () => {
+    const attrs = chatRequestAttributes(
+      MODEL,
+      ctx({
+        messages: [
+          {
+            role: "user",
+            content: `The conversation history before this point was compacted into the following summary:
+
+<summary>
+Earlier context.
+</summary>`,
+            timestamp: 0,
+          },
+        ],
+      }),
+      META,
+    );
+
+    expect(attrs["gen_ai.conversation.compacted"]).toBe(true);
+    expect(JSON.parse(String(attrs["gen_ai.input.messages"]))).toEqual([
+      {
+        role: "user",
+        parts: [{ type: "compaction", content: "Earlier context." }],
+      },
+    ]);
+  });
+
   it("falls back to the compact tool list when the detailed payload exceeds the size cap", () => {
     const bigDescription = "x".repeat(70_000);
     const attrs = chatRequestAttributes(
@@ -152,6 +190,7 @@ describe("chatResponseAttributes", () => {
         usage: {
           input: 321,
           output: 12,
+          reasoningOutputTokens: 7,
           cacheRead: 34,
           cacheWrite: 0,
           totalTokens: 367,
@@ -169,6 +208,7 @@ describe("chatResponseAttributes", () => {
 
     expect(attrs["gen_ai.usage.input_tokens"]).toBe(321);
     expect(attrs["gen_ai.usage.output_tokens"]).toBe(12);
+    expect(attrs["gen_ai.usage.reasoning.output_tokens"]).toBe(7);
     expect(attrs["gen_ai.usage.cache_read.input_tokens"]).toBe(34);
     // cache_creation should be absent when 0
     expect(attrs["gen_ai.usage.cache_creation.input_tokens"]).toBeUndefined();
