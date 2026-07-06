@@ -83,12 +83,23 @@ For each LLM call (`chat ${provider}` span):
 - `gen_ai.conversation.id`, `gen_ai.agent.id`, `gen_ai.agent.name`
 - `gen_ai.operation.name = "chat"`
 - `gen_ai.provider.name`, `gen_ai.request.model`, `gen_ai.response.model`
+- `gen_ai.request.stream = true`
 - `gen_ai.system_instructions`, `gen_ai.tool.definitions`
 - `gen_ai.input.messages`, `gen_ai.output.messages`
 - `gen_ai.response.id`, `gen_ai.response.finish_reasons`
+- `gen_ai.response.time_to_first_chunk`
+- `gen_ai.conversation.compacted` when compacted history was sent
 - `gen_ai.usage.input_tokens`, `gen_ai.usage.output_tokens`
+- `gen_ai.usage.reasoning.output_tokens` when reported
 - `gen_ai.usage.cache_read.input_tokens`, `gen_ai.usage.cache_creation.input_tokens` (when > 0)
 - `gen_ai.cost.usd` (when reported)
+- `introspection.termination_reason = "cancelled" | "awaiting_user"` for requested aborts
+
+Requested aborts are not recorded as errors. A user/runtime cancellation or an
+interrupt pause ends the span with `gen_ai.response.finish_reasons = ["aborted"]`
+and `introspection.termination_reason`, but without `setStatus(ERROR)` or a
+synthetic exception. Unclaimed aborts and provider/model failures are still
+recorded as errors with a `gen_ai.client.operation.exception` event.
 
 For each tool call (`execute_tool ${tool_name}` span):
 
@@ -96,7 +107,9 @@ For each tool call (`execute_tool ${tool_name}` span):
 - `gen_ai.operation.name = "execute_tool"`
 - `gen_ai.tool.name`, `gen_ai.tool.type`, `gen_ai.tool.call.id`
 - `gen_ai.tool.call.arguments`, `gen_ai.tool.call.result`
-- Errors are recorded via `span.recordException` and `setStatus(ERROR)`
+- Tool errors are recorded with `setStatus(ERROR)`. Tool calls cut short by a
+  requested abort are marked with `introspection.termination_reason =
+"cancelled"` and are not marked as errors.
 
 ## License
 
