@@ -18,10 +18,10 @@
     "@introspection-sdk/introspection-pi": "workspace:*"
   },
   "devDependencies": {
-    "@ai-sdk/anthropic": "^3.0.89",
-    "@ai-sdk/openai": "^3.0.77",
-    "@anthropic-ai/claude-agent-sdk": "^0.3.195",
-    "@anthropic-ai/sdk": "^0.106.0",
+    "@ai-sdk/anthropic": "^3.0.93",
+    "@ai-sdk/openai": "^3.0.80",
+    "@anthropic-ai/claude-agent-sdk": "^0.3.201",
+    "@anthropic-ai/sdk": "^0.110.0",
     "@google/genai": "^2.10.0",
     "@langchain/anthropic": "^1.5.1",
     "@langchain/core": "^1.2.1",
@@ -45,7 +45,7 @@
     "@pollyjs/persister-fs": "^6.0.6",
     "@types/node": "^22.20.0",
     "@vitest/coverage-v8": "^4.1.9",
-    "ai": "^6.0.214",
+    "ai": "^6.0.219",
     "dotenv": "^16.4.0",
     "openai": "^6.45.0",
     "typescript": "^5.9.3",
