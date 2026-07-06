@@ -78,7 +78,7 @@
     "@opentelemetry/resources": "^2.8.0",
     "@supabase/supabase-js": "^2.108.2",
     "@types/node": "^22.20.0",
-    "tsx": "^4.22.5",
+    "tsx": "^4.23.0",
     "typesense": "^3.0.6",
     "typescript": "^5.9.3"
   },
