@@ -46,13 +46,13 @@ importers:
         version: link:../packages/introspection-proxy
       '@mastra/braintrust':
         specifier: ^1.2.2
-        version: 1.2.2(@aws-sdk/credential-provider-web-identity@3.972.54)(@mastra/core@1.47.0(@cfworker/json-schema@4.1.1)(@grpc/grpc-js@1.14.4)(ai@6.0.219(zod@4.4.3))(express@5.2.1)(zod@4.4.3))(zod@4.4.3)
+        version: 1.2.2(@aws-sdk/credential-provider-web-identity@3.972.54)(@mastra/core@1.49.0(@cfworker/json-schema@4.1.1)(@grpc/grpc-js@1.14.4)(ai@6.0.219(zod@4.4.3))(express@5.2.1)(zod@4.4.3))(zod@4.4.3)
       '@mastra/observability':
         specifier: ^1.15.2
-        version: 1.15.2(@mastra/core@1.47.0(@cfworker/json-schema@4.1.1)(@grpc/grpc-js@1.14.4)(ai@6.0.219(zod@4.4.3))(express@5.2.1)(zod@4.4.3))(zod@4.4.3)
+        version: 1.15.2(@mastra/core@1.49.0(@cfworker/json-schema@4.1.1)(@grpc/grpc-js@1.14.4)(ai@6.0.219(zod@4.4.3))(express@5.2.1)(zod@4.4.3))(zod@4.4.3)
       '@mastra/otel-exporter':
         specifier: ^1.3.2
-        version: 1.3.2(@mastra/core@1.47.0(@cfworker/json-schema@4.1.1)(@grpc/grpc-js@1.14.4)(ai@6.0.219(zod@4.4.3))(express@5.2.1)(zod@4.4.3))(zod@4.4.3)
+        version: 1.3.2(@mastra/core@1.49.0(@cfworker/json-schema@4.1.1)(@grpc/grpc-js@1.14.4)(ai@6.0.219(zod@4.4.3))(express@5.2.1)(zod@4.4.3))(zod@4.4.3)
       '@opentelemetry/instrumentation':
         specifier: ^0.219.0
         version: 0.219.0(@opentelemetry/api@1.9.1)
@@ -112,8 +112,8 @@ importers:
         specifier: ^1.5.3
         version: 1.5.3(@aws-sdk/credential-provider-node@3.972.57)(@langchain/core@1.2.1(@opentelemetry/api@1.9.1)(@opentelemetry/exporter-trace-otlp-proto@0.219.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.8.0(@opentelemetry/api@1.9.1))(openai@6.45.0(@aws-sdk/credential-provider-node@3.972.57)(@smithy/signature-v4@5.5.1)(ws@8.21.0)(zod@4.4.3))(ws@8.21.0))(@smithy/signature-v4@5.5.1)(ws@8.21.0)
       '@mastra/core':
-        specifier: ^1.47.0
-        version: 1.47.0(@cfworker/json-schema@4.1.1)(@grpc/grpc-js@1.14.4)(ai@6.0.219(zod@4.4.3))(express@5.2.1)(zod@4.4.3)
+        specifier: ^1.49.0
+        version: 1.49.0(@cfworker/json-schema@4.1.1)(@grpc/grpc-js@1.14.4)(ai@6.0.219(zod@4.4.3))(express@5.2.1)(zod@4.4.3)
       '@openai/agents':
         specifier: ^0.12.0
         version: 0.12.0(@aws-sdk/credential-provider-node@3.972.57)(@cfworker/json-schema@4.1.1)(@smithy/signature-v4@5.5.1)(ws@8.21.0)(zod@4.4.3)
@@ -354,11 +354,11 @@ importers:
         specifier: ^1.2.1
         version: 1.2.1(@opentelemetry/api@1.9.1)(@opentelemetry/exporter-trace-otlp-proto@0.219.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.8.0(@opentelemetry/api@1.9.1))(openai@6.45.0(@aws-sdk/credential-provider-node@3.972.57)(@smithy/signature-v4@5.5.1)(ws@8.21.0)(zod@4.4.3))(ws@8.21.0)
       '@mastra/core':
-        specifier: ^1.47.0
-        version: 1.47.0(@cfworker/json-schema@4.1.1)(@grpc/grpc-js@1.14.4)(ai@6.0.219(zod@4.4.3))(express@5.2.1)(zod@4.4.3)
+        specifier: ^1.49.0
+        version: 1.49.0(@cfworker/json-schema@4.1.1)(@grpc/grpc-js@1.14.4)(ai@6.0.219(zod@4.4.3))(express@5.2.1)(zod@4.4.3)
       '@mastra/observability':
         specifier: ^1.15.2
-        version: 1.15.2(@mastra/core@1.47.0(@cfworker/json-schema@4.1.1)(@grpc/grpc-js@1.14.4)(ai@6.0.219(zod@4.4.3))(express@5.2.1)(zod@4.4.3))(zod@4.4.3)
+        version: 1.15.2(@mastra/core@1.49.0(@cfworker/json-schema@4.1.1)(@grpc/grpc-js@1.14.4)(ai@6.0.219(zod@4.4.3))(express@5.2.1)(zod@4.4.3))(zod@4.4.3)
       '@openai/agents':
         specifier: ^0.12.0
         version: 0.12.0(@aws-sdk/credential-provider-node@3.972.57)(@cfworker/json-schema@4.1.1)(@smithy/signature-v4@5.5.1)(ws@8.21.0)(zod@4.4.3)
@@ -535,14 +535,14 @@ importers:
         specifier: ^2.8.1
         version: 2.8.1(@opentelemetry/api@1.9.1)(@opentelemetry/semantic-conventions@1.41.1)
       '@mastra/core':
-        specifier: ^1.47.0
-        version: 1.47.0(@cfworker/json-schema@4.1.1)(@grpc/grpc-js@1.14.4)(ai@6.0.219(zod@4.4.3))(express@5.2.1)(zod@4.4.3)
+        specifier: ^1.49.0
+        version: 1.49.0(@cfworker/json-schema@4.1.1)(@grpc/grpc-js@1.14.4)(ai@6.0.219(zod@4.4.3))(express@5.2.1)(zod@4.4.3)
       '@mastra/observability':
         specifier: ^1.15.2
-        version: 1.15.2(@mastra/core@1.47.0(@cfworker/json-schema@4.1.1)(@grpc/grpc-js@1.14.4)(ai@6.0.219(zod@4.4.3))(express@5.2.1)(zod@4.4.3))(zod@4.4.3)
+        version: 1.15.2(@mastra/core@1.49.0(@cfworker/json-schema@4.1.1)(@grpc/grpc-js@1.14.4)(ai@6.0.219(zod@4.4.3))(express@5.2.1)(zod@4.4.3))(zod@4.4.3)
       '@mastra/otel-exporter':
         specifier: ^1.3.2
-        version: 1.3.2(@mastra/core@1.47.0(@cfworker/json-schema@4.1.1)(@grpc/grpc-js@1.14.4)(ai@6.0.219(zod@4.4.3))(express@5.2.1)(zod@4.4.3))(zod@4.4.3)
+        version: 1.3.2(@mastra/core@1.49.0(@cfworker/json-schema@4.1.1)(@grpc/grpc-js@1.14.4)(ai@6.0.219(zod@4.4.3))(express@5.2.1)(zod@4.4.3))(zod@4.4.3)
     devDependencies:
       '@ai-sdk/anthropic':
         specifier: ^3.0.93
@@ -1718,8 +1718,8 @@ packages:
       '@mastra/core': '>=1.16.0-0 <2.0.0-0'
       zod: ^3.25.34 || ^4.0.0
 
-  '@mastra/core@1.47.0':
-    resolution: {integrity: sha512-Xof13mCdwxOjNQywMWUG1ELTZuvJgAhE4m+67C6Cp4Y5XRfXD8Knb4CKv1M/JEfsPvaHLkUYZgBkwqTbf9zDzg==}
+  '@mastra/core@1.49.0':
+    resolution: {integrity: sha512-ZZGiPY317qIMv4qpSdxpOdEz9IbBiFJEexDBN0ALV7vK5yAAbT7AlN40SZEObc8bVxpjnI8jZTcEZQZGsQ8PmQ==}
     engines: {node: '>=22.13.0'}
     peerDependencies:
       zod: ^3.25.0 || ^4.0.0
@@ -1737,8 +1737,8 @@ packages:
     peerDependencies:
       '@mastra/core': '>=1.16.0-0 <2.0.0-0'
 
-  '@mastra/schema-compat@1.3.1':
-    resolution: {integrity: sha512-OEQ2jak1OvWiWCgm13Qps4IHNNGeHS4Hx+3+uh0Zw1SsCA9f3gZBd6hNAXGJcxXHO0AT/4aqO94UDZEPQSNfCQ==}
+  '@mastra/schema-compat@1.3.3':
+    resolution: {integrity: sha512-NqptophFxMB8Z3vXjnLAMbj2OMbspAA6Tqf3DQkxxNmlBH9RYhA4xqwK8/fum0lrgmYzVrsSkw7SwHrgVDcg6g==}
     engines: {node: '>=22.13.0'}
     peerDependencies:
       zod: ^3.25.0 || ^4.0.0
@@ -2505,11 +2505,11 @@ packages:
   '@pollyjs/utils@6.0.6':
     resolution: {integrity: sha512-nhVJoI3nRgRimE0V2DVSvsXXNROUH6iyJbroDu4IdsOIOFC1Ds0w+ANMB4NMwFaqE+AisWOmXFzwAGdAfyiQVg==}
 
-  '@posthog/core@1.38.0':
-    resolution: {integrity: sha512-QLrJh0hMVpEJXHNyiJR9YhvIO5tzLDedw4UHdvB+ub4fXHMtHCA8H44qgl11HWR3ajpjxtJ8hs3HyOGVF3Zc1w==}
+  '@posthog/core@1.39.6':
+    resolution: {integrity: sha512-o6ajIwN5zXoNP0D4H/QPmOyibNTUkSyOR6ya7AG5U2ywXx4awo72L2KnCoiZPQM5x/bXv6jPBdimH8M18Ax0aw==}
 
-  '@posthog/types@1.391.1':
-    resolution: {integrity: sha512-ASwd7Nf4pViqdYRYaNRyPYRVKWa1CcHUAUWR0XeQJLGdNnsWACBwe0sSieb/cHnKsRXjRwO/23KIY83lm/Ccpw==}
+  '@posthog/types@1.392.1':
+    resolution: {integrity: sha512-Qg6Gl7/1vlr8+gPtBi5gwnLgAgiyFoKOVmTvTtDcvya9cpTwZfna7rQmkGQ4B63CunUYNNbOlqcwiUwUDyTK6w==}
 
   '@protobufjs/aspromise@1.1.2':
     resolution: {integrity: sha512-j+gKExEuLmKwvz3OgROXtrJ2UG2x8Ch2YZUxahh+s1F2HZ+wAceUNLkvy6zKCPVRkU++ZWQrdxsUeQXmcg4uoQ==}
@@ -3447,8 +3447,8 @@ packages:
   character-entities@2.0.2:
     resolution: {integrity: sha512-shx7oQ0Awen/BRIdkjkvz54PnEEI/EjwXDSIZp86/KKdbafHh1Df/RYGBhn4hbe2+uKC9FnT5UCEdyPz3ai9hQ==}
 
-  chat@4.31.0:
-    resolution: {integrity: sha512-F6oJq9JUraLFkITS96/NKgwZwBfZX8aOwOj5qMs5NNwnOGHrSXZ5+osK+EA4HjzfyUEDfFTNiOSmyzgtFLpuWg==}
+  chat@4.32.0:
+    resolution: {integrity: sha512-0NlJcCLycTy8kytRsZEnW4Gzomm+SNh1Yg7y9GVYB5fTjyhOxCcnzqrythgXNn2dvv7VeihDIISpNU0WZdOKKg==}
     engines: {node: '>=20'}
     peerDependencies:
       ai: ^6.0.182
@@ -3979,8 +3979,8 @@ packages:
   fast-sha256@1.3.0:
     resolution: {integrity: sha512-n11RGP/lrWEFI/bWdygLxhI+pVeo1ZYIVwvvPkW7azl/rOy+F3HYRZ2K5zeE9mmkhQppyv9sQFx0JM9UabnpPQ==}
 
-  fast-uri@3.1.2:
-    resolution: {integrity: sha512-rVjf7ArG3LTk+FS6Yw81V1DLuZl1bRbNrev6Tmd/9RaroeeRRJhAt7jg/6YFxbvAQXUCavSoZhPPj6oOx+5KjQ==}
+  fast-uri@3.1.3:
+    resolution: {integrity: sha512-i70LwGWUduXqzicKXWshooq+sWL1K3WUU5rKZNG/0i3a1OSoX3HqhH5WbWwTmqWfor4urUakGPiRQcleRZTwOg==}
 
   fast-xml-builder@1.2.0:
     resolution: {integrity: sha512-00aAWieqff+ZJhsXA4g1g7M8k+7AYoMUUHF+/zFb5U6Uv/P0Vl4QZo84/IcufzYalLuEj9928bXN9PbbFzMF0Q==}
@@ -4297,6 +4297,10 @@ packages:
 
   iconv-lite@0.7.2:
     resolution: {integrity: sha512-im9DjEDQ55s9fL4EYzOAv0yMqmMBSZp6G0VvFyTMPKWxiSBHUj9NW/qqLmXUwXrrM7AvqSlTCfvqRb0cM8yYqw==}
+    engines: {node: '>=0.10.0'}
+
+  iconv-lite@0.7.3:
+    resolution: {integrity: sha512-IKXpvIzjnC9XTAUbVBcMfGS0EPaIXtW6v+zr+RRp+hqULEpo0owZax6wyRwPOJbWbzjYspQwusTsfVr0ifh4uQ==}
     engines: {node: '>=0.10.0'}
 
   ignore@5.3.2:
@@ -5216,8 +5220,8 @@ packages:
     resolution: {integrity: sha512-LaNjtRWUBY++zB5nE/NwcaoMylSPk+S+ZHNB1TzdbMJMny6dynpAGt7X/tl/QYq3TIeE6nxHppbo2LGymrG5Pw==}
     engines: {node: '>=10'}
 
-  p-map@7.0.4:
-    resolution: {integrity: sha512-tkAQEw8ysMzmkhgw8k+1U/iPhWNhykKnSk4Rd5zLoPJCuJaGRPo6YposrZgaxHKzDHdDWWZvE/Sk7hsL2X/CpQ==}
+  p-map@7.0.5:
+    resolution: {integrity: sha512-e8vJF4XdVkzqqSHguEMz41mQO1wKwxKm5ENrUJQUu9kLDCtn83cxbyHZcszr4QC5zEA7WffRRC4gsTecC7J9oA==}
     engines: {node: '>=18'}
 
   p-queue@6.6.2:
@@ -5361,8 +5365,8 @@ packages:
     resolution: {integrity: sha512-9ZhXKM/rw350N1ovuWHbGxnGh/SNJ4cnxHiM0rxE4VN41wsg8P8zWn9hv/buK00RP4WvlOyr/RBDiptyxVbkZQ==}
     engines: {node: '>=0.10.0'}
 
-  posthog-node@5.38.6:
-    resolution: {integrity: sha512-Sm2mCAa9/lTTYppnKyy0AhQrriq8fOd8B2vwd3EE/9uihyIx9qkJ1xGYbvADxQJlF7HqM1/TIFCKsI0JvF8gjQ==}
+  posthog-node@5.39.4:
+    resolution: {integrity: sha512-+fCQ7htBFRQQFbIzl1T0TA7bDwYyaB9XP308ZFMCUoB5LzTzOFxBa6TYVrxdH/VQl43WXTp6sf0QsG2Z4XlNBg==}
     engines: {node: ^20.20.0 || >=22.22.0}
     peerDependencies:
       rxjs: ^7.0.0
@@ -7358,10 +7362,10 @@ snapshots:
       '@mariozechner/clipboard-win32-x64-msvc': 0.3.9
     optional: true
 
-  '@mastra/braintrust@1.2.2(@aws-sdk/credential-provider-web-identity@3.972.54)(@mastra/core@1.47.0(@cfworker/json-schema@4.1.1)(@grpc/grpc-js@1.14.4)(ai@6.0.219(zod@4.4.3))(express@5.2.1)(zod@4.4.3))(zod@4.4.3)':
+  '@mastra/braintrust@1.2.2(@aws-sdk/credential-provider-web-identity@3.972.54)(@mastra/core@1.49.0(@cfworker/json-schema@4.1.1)(@grpc/grpc-js@1.14.4)(ai@6.0.219(zod@4.4.3))(express@5.2.1)(zod@4.4.3))(zod@4.4.3)':
     dependencies:
-      '@mastra/core': 1.47.0(@cfworker/json-schema@4.1.1)(@grpc/grpc-js@1.14.4)(ai@6.0.219(zod@4.4.3))(express@5.2.1)(zod@4.4.3)
-      '@mastra/observability': 1.15.2(@mastra/core@1.47.0(@cfworker/json-schema@4.1.1)(@grpc/grpc-js@1.14.4)(ai@6.0.219(zod@4.4.3))(express@5.2.1)(zod@4.4.3))(zod@4.4.3)
+      '@mastra/core': 1.49.0(@cfworker/json-schema@4.1.1)(@grpc/grpc-js@1.14.4)(ai@6.0.219(zod@4.4.3))(express@5.2.1)(zod@4.4.3)
+      '@mastra/observability': 1.15.2(@mastra/core@1.49.0(@cfworker/json-schema@4.1.1)(@grpc/grpc-js@1.14.4)(ai@6.0.219(zod@4.4.3))(express@5.2.1)(zod@4.4.3))(zod@4.4.3)
       braintrust: 2.2.2(@aws-sdk/credential-provider-web-identity@3.972.54)(zod@4.4.3)
       zod: 4.4.3
     transitivePeerDependencies:
@@ -7369,7 +7373,7 @@ snapshots:
       - chokidar
       - supports-color
 
-  '@mastra/core@1.47.0(@cfworker/json-schema@4.1.1)(@grpc/grpc-js@1.14.4)(ai@6.0.219(zod@4.4.3))(express@5.2.1)(zod@4.4.3)':
+  '@mastra/core@1.49.0(@cfworker/json-schema@4.1.1)(@grpc/grpc-js@1.14.4)(ai@6.0.219(zod@4.4.3))(express@5.2.1)(zod@4.4.3)':
     dependencies:
       '@a2a-js/sdk': 0.3.13(@grpc/grpc-js@1.14.4)(express@5.2.1)
       '@ai-sdk/provider-utils-v5': '@ai-sdk/provider-utils@3.0.25(zod@4.4.3)'
@@ -7381,12 +7385,12 @@ snapshots:
       '@ai-sdk/ui-utils-v5': '@ai-sdk/ui-utils@1.2.11(zod@4.4.3)'
       '@isaacs/ttlcache': 2.1.5
       '@lukeed/uuid': 2.0.1
-      '@mastra/schema-compat': 1.3.1(zod@4.4.3)
+      '@mastra/schema-compat': 1.3.3(zod@4.4.3)
       '@modelcontextprotocol/sdk': 1.29.0(@cfworker/json-schema@4.1.1)(zod@4.4.3)
       '@sindresorhus/slugify': 2.2.1
       '@standard-schema/spec': 1.1.0
       ajv: 8.20.0
-      chat: 4.31.0(ai@6.0.219(zod@4.4.3))(zod@4.4.3)
+      chat: 4.32.0(ai@6.0.219(zod@4.4.3))(zod@4.4.3)
       croner: 10.0.1
       dotenv: 17.4.2
       execa: 9.6.1
@@ -7396,10 +7400,10 @@ snapshots:
       jpeg-js: 0.4.4
       json-schema: 0.4.0
       lru-cache: 11.5.1
-      p-map: 7.0.4
+      p-map: 7.0.5
       p-retry: 7.1.1
-      picomatch: 4.0.4
-      posthog-node: 5.38.6
+      picomatch: 4.0.5
+      posthog-node: 5.39.4
       tokenx: 1.3.0
       ws: 8.21.0
       xxhash-wasm: 1.1.0
@@ -7415,15 +7419,15 @@ snapshots:
       - supports-color
       - utf-8-validate
 
-  '@mastra/observability@1.15.2(@mastra/core@1.47.0(@cfworker/json-schema@4.1.1)(@grpc/grpc-js@1.14.4)(ai@6.0.219(zod@4.4.3))(express@5.2.1)(zod@4.4.3))(zod@4.4.3)':
+  '@mastra/observability@1.15.2(@mastra/core@1.49.0(@cfworker/json-schema@4.1.1)(@grpc/grpc-js@1.14.4)(ai@6.0.219(zod@4.4.3))(express@5.2.1)(zod@4.4.3))(zod@4.4.3)':
     dependencies:
-      '@mastra/core': 1.47.0(@cfworker/json-schema@4.1.1)(@grpc/grpc-js@1.14.4)(ai@6.0.219(zod@4.4.3))(express@5.2.1)(zod@4.4.3)
+      '@mastra/core': 1.49.0(@cfworker/json-schema@4.1.1)(@grpc/grpc-js@1.14.4)(ai@6.0.219(zod@4.4.3))(express@5.2.1)(zod@4.4.3)
       zod: 4.4.3
 
-  '@mastra/otel-exporter@1.3.2(@mastra/core@1.47.0(@cfworker/json-schema@4.1.1)(@grpc/grpc-js@1.14.4)(ai@6.0.219(zod@4.4.3))(express@5.2.1)(zod@4.4.3))(zod@4.4.3)':
+  '@mastra/otel-exporter@1.3.2(@mastra/core@1.49.0(@cfworker/json-schema@4.1.1)(@grpc/grpc-js@1.14.4)(ai@6.0.219(zod@4.4.3))(express@5.2.1)(zod@4.4.3))(zod@4.4.3)':
     dependencies:
-      '@mastra/core': 1.47.0(@cfworker/json-schema@4.1.1)(@grpc/grpc-js@1.14.4)(ai@6.0.219(zod@4.4.3))(express@5.2.1)(zod@4.4.3)
-      '@mastra/observability': 1.15.2(@mastra/core@1.47.0(@cfworker/json-schema@4.1.1)(@grpc/grpc-js@1.14.4)(ai@6.0.219(zod@4.4.3))(express@5.2.1)(zod@4.4.3))(zod@4.4.3)
+      '@mastra/core': 1.49.0(@cfworker/json-schema@4.1.1)(@grpc/grpc-js@1.14.4)(ai@6.0.219(zod@4.4.3))(express@5.2.1)(zod@4.4.3)
+      '@mastra/observability': 1.15.2(@mastra/core@1.49.0(@cfworker/json-schema@4.1.1)(@grpc/grpc-js@1.14.4)(ai@6.0.219(zod@4.4.3))(express@5.2.1)(zod@4.4.3))(zod@4.4.3)
       '@opentelemetry/api': 1.9.1
       '@opentelemetry/api-logs': 0.218.0
       '@opentelemetry/core': 2.8.0(@opentelemetry/api@1.9.1)
@@ -7444,7 +7448,7 @@ snapshots:
     transitivePeerDependencies:
       - zod
 
-  '@mastra/schema-compat@1.3.1(zod@4.4.3)':
+  '@mastra/schema-compat@1.3.3(zod@4.4.3)':
     dependencies:
       json-schema-to-zod: 2.8.1
       zod: 4.4.3
@@ -8620,11 +8624,11 @@ snapshots:
       qs: 6.15.2
       url-parse: 1.5.10
 
-  '@posthog/core@1.38.0':
+  '@posthog/core@1.39.6':
     dependencies:
-      '@posthog/types': 1.391.1
+      '@posthog/types': 1.392.1
 
-  '@posthog/types@1.391.1': {}
+  '@posthog/types@1.392.1': {}
 
   '@protobufjs/aspromise@1.1.2': {}
 
@@ -9340,7 +9344,7 @@ snapshots:
   ajv@8.20.0:
     dependencies:
       fast-deep-equal: 3.1.3
-      fast-uri: 3.1.2
+      fast-uri: 3.1.3
       json-schema-traverse: 1.0.0
       require-from-string: 2.0.2
 
@@ -9636,7 +9640,7 @@ snapshots:
 
   character-entities@2.0.2: {}
 
-  chat@4.31.0(ai@6.0.219(zod@4.4.3))(zod@4.4.3):
+  chat@4.32.0(ai@6.0.219(zod@4.4.3))(zod@4.4.3):
     dependencies:
       '@workflow/serde': 4.1.0-beta.2
       mdast-util-to-string: 4.0.0
@@ -10380,7 +10384,7 @@ snapshots:
 
   fast-sha256@1.3.0: {}
 
-  fast-uri@3.1.2: {}
+  fast-uri@3.1.3: {}
 
   fast-xml-builder@1.2.0:
     dependencies:
@@ -10398,9 +10402,9 @@ snapshots:
     dependencies:
       reusify: 1.1.0
 
-  fdir@6.5.0(picomatch@4.0.4):
+  fdir@6.5.0(picomatch@4.0.5):
     optionalDependencies:
-      picomatch: 4.0.4
+      picomatch: 4.0.5
 
   fetch-blob@3.2.0:
     dependencies:
@@ -10743,6 +10747,10 @@ snapshots:
       safer-buffer: 2.1.2
 
   iconv-lite@0.7.2:
+    dependencies:
+      safer-buffer: 2.1.2
+
+  iconv-lite@0.7.3:
     dependencies:
       safer-buffer: 2.1.2
 
@@ -11769,7 +11777,7 @@ snapshots:
     dependencies:
       p-limit: 3.1.0
 
-  p-map@7.0.4: {}
+  p-map@7.0.5: {}
 
   p-queue@6.6.2:
     dependencies:
@@ -11893,9 +11901,9 @@ snapshots:
       xtend: 4.0.2
     optional: true
 
-  posthog-node@5.38.6:
+  posthog-node@5.39.4:
     dependencies:
-      '@posthog/core': 1.38.0
+      '@posthog/core': 1.39.6
 
   prelude-ls@1.2.1: {}
 
@@ -11970,7 +11978,7 @@ snapshots:
     dependencies:
       bytes: 3.1.2
       http-errors: 2.0.1
-      iconv-lite: 0.7.2
+      iconv-lite: 0.7.3
       unpipe: 1.0.0
 
   react-dom@19.2.7(react@19.2.7):
@@ -12500,8 +12508,8 @@ snapshots:
 
   tinyglobby@0.2.17:
     dependencies:
-      fdir: 6.5.0(picomatch@4.0.4)
-      picomatch: 4.0.4
+      fdir: 6.5.0(picomatch@4.0.5)
+      picomatch: 4.0.5
 
   tinyrainbow@3.1.0: {}
 
