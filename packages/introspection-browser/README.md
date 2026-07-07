@@ -122,3 +122,13 @@ to auto-page.
 > **CORS:** the browser only calls the Data Plane, so just the selected Data
 > Plane needs to allow the SPA origin. The Control Plane never receives browser
 > requests — runtime resolution happens on your backend.
+>
+> The allow-list is a property of the Data Plane **deployment** (enforced at
+> both its edge gateway and the API) and is not self-serve: the shared
+> multi-tenant Data Plane carries only Introspection's own platform origins,
+> so running this flow from your own web origin requires a **dedicated Data
+> Plane** with your origins registered by Introspection. If the SPA origin
+> isn't on the list, the very first call (`POST /v1/oauth/exchange`) fails in
+> the browser with a CORS error. See the docs on
+> [browser origins](https://docs.introspection.dev/sdk/authentication#browser-origins-cors)
+> and [deployment models](https://docs.introspection.dev/platform/deployment).
