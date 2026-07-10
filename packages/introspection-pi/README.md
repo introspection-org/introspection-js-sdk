@@ -19,6 +19,7 @@ npm install @introspection-sdk/introspection-pi \
 ```ts
 import { trace } from "@opentelemetry/api";
 import { Agent } from "@earendil-works/pi-agent-core";
+import { getBuiltinModel } from "@earendil-works/pi-ai/providers/all";
 import {
   instrumentAgent,
   instrumentStream,
@@ -32,13 +33,20 @@ const meta: AgentMeta = {
   agentName: "Support",
 };
 
-const agent = new Agent({/* … */});
+const agent = new Agent({
+  initialState: {
+    model: getBuiltinModel("anthropic", "claude-sonnet-4-6"),
+    systemPrompt: "You are a helpful support agent.",
+  },
+});
 
 // One chat span per LLM call
 agent.streamFn = instrumentStream(agent.streamFn, { tracer, meta });
 
 // One execute_tool span per tool call
 const tools = instrumentAgent(agent, { tracer, meta });
+
+await agent.prompt("Help me understand my latest invoice.");
 
 // Later, on shutdown:
 tools.stop();

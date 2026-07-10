@@ -1,5 +1,7 @@
 # introspection-openclaw
 
+> **Experimental integration.**
+
 OpenClaw plugin for [Introspection](https://introspection.dev) — captures agent lifecycle spans so Introspection can analyze and improve your AI system. Exports using OTEL Gen AI semantic conventions.
 
 ## What it does

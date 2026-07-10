@@ -48,15 +48,20 @@ no per-client `fetch` option (its built-in fetch adapter always uses the global
 fetch), so `installProxyFetch()` + `axiosAdapter: "fetch"` is the recommended
 pattern. `fetch`-native clients (supabase-js, the MCP SDK) can use either.
 
-## First-Party Integrations (OTel)
+## Pi instrumentation
 
-Each framework ships two patterns: a one-liner `introspection.init()` example
-(`*-init`) that auto-wires every installed framework, and dual-export examples
-that fan the same spans out to a third-party backend alongside Introspection.
-For the frameworks whose spans flow through the OTel provider (Vercel, Anthropic,
-Gemini, Pi) the `*-langfuse` example uses the explicit bring-your-own-provider
-form; the others (OpenAI Agents, Claude Agent, Mastra) use each framework's
-native multi-exporter.
+Pi is the supported agent-instrumentation path.
+
+```bash
+pnpm pi-native                    # IntrospectionPiInstrumentor
+pnpm pi-init                      # introspection.init() + instrumentPi(agent, meta)
+pnpm pi-langfuse                  # + Langfuse dual export (explicit provider)
+pnpm pi-subagents                 # Multi-agent baggage
+```
+
+## Experimental support for other frameworks
+
+These framework examples are experimental.
 
 ### OpenAI Agents SDK
 
@@ -141,15 +146,6 @@ pnpm gemini-langfuse              # + Langfuse dual export (explicit provider)
 Captures per-part `thoughtSignature` payloads (Gemini 2.5+ / 3.x) that must be
 replayed on subsequent turns to preserve the model's chain of thought across
 tool calls. See `otel/gemini/native.ts` for the multi-turn replay pattern.
-
-### Pi Agent
-
-```bash
-pnpm pi-native                    # IntrospectionPiInstrumentor
-pnpm pi-init                      # introspection.init() + instrumentPi(agent, meta)
-pnpm pi-langfuse                  # + Langfuse dual export (explicit provider)
-pnpm pi-subagents                 # Multi-agent baggage
-```
 
 ## OpenInference (Third-Party / Unsupported Frameworks)
 
