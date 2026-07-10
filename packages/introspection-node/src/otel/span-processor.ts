@@ -300,16 +300,27 @@ export class IntrospectionSpanProcessor implements SpanProcessor {
       (compatSpan.instrumentationScope as { name?: string })?.name ||
       (compatSpan.instrumentationLibrary as { name?: string })?.name;
 
-    // Introspection's own infra spans bypass the gen_ai gate below. They are
-    // correlated via `gen_ai.conversation.id` from baggage (in-process) or a
-    // pre-stamped attribute (the sandbox CLI preload reads it from the
-    // environment). A conversation id is never auto-generated for them — an
-    // uncorrelated infra span must not mint a synthetic conversation.
+    // Introspection's own infra spans bypass the gen_ai gate below. Every
+    // `gen_ai.*` / `introspection.*` baggage entry in scope is projected onto
+    // the span (baggage wins over a pre-stamped attribute, matching the
+    // gen_ai path), and end-user identity baggage maps to its semconv
+    // attributes the same way. Out-of-process emitters (the sandbox CLI
+    // preload) have no baggage and pre-stamp the same attributes from the
+    // environment instead. A conversation id is never auto-generated for
+    // infra spans — an uncorrelated span must not mint a synthetic
+    // conversation.
     if (scopeName && INTROSPECTION_INFRA_SCOPES.has(scopeName)) {
       const infraBaggage = propagation.getBaggage(otelContext.active());
-      const infraConvId = infraBaggage?.getEntry(
-        "gen_ai.conversation.id",
-      )?.value;
+      const baggageAttrs: Record<string, string> = {};
+      for (const [key, entry] of infraBaggage?.getAllEntries() ?? []) {
+        if (key.startsWith("gen_ai.") || key.startsWith("introspection.")) {
+          baggageAttrs[key] = entry.value;
+        } else if (key === "identity.user_id") {
+          baggageAttrs["identity.user.id"] = entry.value;
+        } else if (key === "identity.anonymous_id") {
+          baggageAttrs["identity.anonymous.id"] = entry.value;
+        }
+      }
       let infraResource: Resource | undefined;
       if (this._serviceName) {
         infraResource = span.resource.merge(
@@ -317,15 +328,10 @@ export class IntrospectionSpanProcessor implements SpanProcessor {
         );
       }
       this._spanProcessor.onEnd(
-        infraConvId || infraResource
+        Object.keys(baggageAttrs).length > 0 || infraResource
           ? new ConvertedReadableSpan(
               span,
-              {
-                ...span.attributes,
-                ...(infraConvId
-                  ? { "gen_ai.conversation.id": infraConvId }
-                  : {}),
-              } as Attributes,
+              { ...span.attributes, ...baggageAttrs } as Attributes,
               infraResource,
             )
           : span,

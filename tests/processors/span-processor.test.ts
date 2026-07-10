@@ -165,7 +165,7 @@ describe("IntrospectionSpanProcessor infra spans", () => {
     await provider.shutdown();
   });
 
-  it("stamps gen_ai.conversation.id from baggage onto infra spans", async () => {
+  it("projects gen_ai.*, introspection.*, and identity baggage onto infra spans", async () => {
     const contextManager = new AsyncLocalStorageContextManager().enable();
     context.setGlobalContextManager(contextManager);
     try {
@@ -174,6 +174,13 @@ describe("IntrospectionSpanProcessor infra spans", () => {
 
       const baggage = propagation.createBaggage({
         "gen_ai.conversation.id": { value: "conv-123" },
+        "gen_ai.agent.name": { value: "Runtime Agent" },
+        "introspection.run.id": { value: "run-9" },
+        "introspection.task.id": { value: "task-7" },
+        "identity.user_id": { value: "u_42" },
+        "identity.anonymous_id": { value: "anon_9" },
+        // Unrelated baggage must not leak onto the span.
+        "unrelated.key": { value: "nope" },
       });
       context.with(propagation.setBaggage(context.active(), baggage), () => {
         tracer.startSpan("introspection-api-call").end();
@@ -182,7 +189,14 @@ describe("IntrospectionSpanProcessor infra spans", () => {
 
       const spans = exporter.getFinishedSpans();
       expect(spans).toHaveLength(1);
-      expect(spans[0].attributes["gen_ai.conversation.id"]).toBe("conv-123");
+      const attrs = spans[0].attributes;
+      expect(attrs["gen_ai.conversation.id"]).toBe("conv-123");
+      expect(attrs["gen_ai.agent.name"]).toBe("Runtime Agent");
+      expect(attrs["introspection.run.id"]).toBe("run-9");
+      expect(attrs["introspection.task.id"]).toBe("task-7");
+      expect(attrs["identity.user.id"]).toBe("u_42");
+      expect(attrs["identity.anonymous.id"]).toBe("anon_9");
+      expect(attrs["unrelated.key"]).toBeUndefined();
 
       await provider.shutdown();
     } finally {
