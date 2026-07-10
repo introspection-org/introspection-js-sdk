@@ -198,7 +198,12 @@ export function createProxyFetch(
         ? input.method
         : "GET")
     ).toUpperCase();
-    return tracedProxyCall(useEgress ? "egress" : "forward", method, url, execute);
+    return tracedProxyCall(
+      useEgress ? "egress" : "forward",
+      method,
+      url,
+      execute,
+    );
   };
 }
 

@@ -69,8 +69,7 @@ export function tracedProxyCall(
   execute: () => Promise<Response>,
 ): Promise<Response> {
   const tracer = trace.getTracer(PROXY_TRACER_NAME);
-  const port =
-    Number(url.port) || (url.protocol === "https:" ? 443 : 80);
+  const port = Number(url.port) || (url.protocol === "https:" ? 443 : 80);
   return tracer.startActiveSpan(
     PROXY_CALL_SPAN_NAME,
     {

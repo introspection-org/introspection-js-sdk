@@ -17,8 +17,5 @@ export {
   resolveForwardProxyUrl,
 } from "./proxy.js";
 export type { ProxyFetchOptions } from "./proxy.js";
-export {
-  PROXY_CALL_SPAN_NAME,
-  PROXY_TRACER_NAME,
-} from "./tracing.js";
+export { PROXY_CALL_SPAN_NAME, PROXY_TRACER_NAME } from "./tracing.js";
 export type { ProxyMode } from "./tracing.js";
