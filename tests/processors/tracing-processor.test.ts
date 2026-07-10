@@ -118,8 +118,7 @@ describe("IntrospectionTracingProcessor", () => {
       {
         trace_id: expect.any(String),
         span_id: expect.any(String),
-      },
-      `
+      }, `
       {
         "attributes": {
           "gen_ai.agent.handoffs": "[]",
@@ -127,7 +126,7 @@ describe("IntrospectionTracingProcessor", () => {
           "gen_ai.agent.output_type": "text",
           "gen_ai.conversation.id": "<conversation_id>",
           "gen_ai.provider.name": "openai",
-          "gen_ai.tool.definitions": "[{"name":"get_weather"}]",
+          "gen_ai.tool.definitions": "[{"type":"function","name":"get_weather"}]",
           "openai_agents.span_data": "<span_data>",
           "openinference.span.kind": "AGENT",
         },
@@ -135,8 +134,7 @@ describe("IntrospectionTracingProcessor", () => {
         "span_id": Any<String>,
         "trace_id": Any<String>,
       }
-    `,
-    );
+    `);
 
     // First response span — initial user message with gen_ai attributes
     const responseSpans = simplified.filter((s) => s.name === "response");
@@ -145,8 +143,7 @@ describe("IntrospectionTracingProcessor", () => {
       {
         trace_id: expect.any(String),
         span_id: expect.any(String),
-      },
-      `
+      }, `
       {
         "attributes": {
           "gen_ai.conversation.id": "<conversation_id>",
@@ -157,7 +154,7 @@ describe("IntrospectionTracingProcessor", () => {
           "gen_ai.request.model": "gpt-5-nano-2025-08-07",
           "gen_ai.response.id": "<response_id>",
           "gen_ai.system_instructions": "[{"type":"text","content":"You are a helpful weather assistant. When asked about weather, use the get_weather tool."}]",
-          "gen_ai.tool.definitions": "[{"name":"get_weather","description":"Get the current weather for a city","parameters":{"type":"object","properties":{"city":{"type":"string","description":"The city to get weather for"}},"required":["city"],"additionalProperties":false}}]",
+          "gen_ai.tool.definitions": "[{"type":"function","name":"get_weather","description":"Get the current weather for a city","parameters":{"type":"object","properties":{"city":{"type":"string","description":"The city to get weather for"}},"required":["city"],"additionalProperties":false}}]",
           "gen_ai.usage.input_tokens": "<input_tokens>",
           "gen_ai.usage.output_tokens": "<output_tokens>",
           "openai_agents.span_data": "<span_data>",
@@ -167,33 +164,34 @@ describe("IntrospectionTracingProcessor", () => {
         "span_id": Any<String>,
         "trace_id": Any<String>,
       }
-    `,
-    );
+    `);
 
     // Function/tool span — tool execution
-    const functionSpan = simplified.find((s) => s.name === "get_weather");
+    const functionSpan = simplified.find(
+      (s) => s.name === "execute_tool get_weather",
+    );
     expect(functionSpan).toBeDefined();
     expect(functionSpan).toMatchInlineSnapshot(
       {
         trace_id: expect.any(String),
         span_id: expect.any(String),
-      },
-      `
+      }, `
       {
         "attributes": {
           "gen_ai.conversation.id": "<conversation_id>",
-          "gen_ai.tool.input": "{"city":"Tokyo"}",
+          "gen_ai.operation.name": "execute_tool",
+          "gen_ai.tool.call.arguments": "{"city":"Tokyo"}",
+          "gen_ai.tool.call.result": "{"city":"Tokyo","temperature_range":"14-20C","conditions":"Sunny with light wind"}",
           "gen_ai.tool.name": "get_weather",
-          "gen_ai.tool.output": "{"city":"Tokyo","temperature_range":"14-20C","conditions":"Sunny with light wind"}",
+          "gen_ai.tool.type": "function",
           "openai_agents.span_data": "<span_data>",
           "openinference.span.kind": "TOOL",
         },
-        "name": "get_weather",
+        "name": "execute_tool get_weather",
         "span_id": Any<String>,
         "trace_id": Any<String>,
       }
-    `,
-    );
+    `);
 
     // Validate dynamic values on original (non-normalized) response spans
     const rawResponseSpans = sortedSpans.filter((s) => s.name === "response");

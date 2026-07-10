@@ -254,9 +254,9 @@ describe("chatResponseAttributes", () => {
       }),
     );
 
-    // Cache-exclusive input tokens (platform-wide semantics; deliberate
-    // semconv deviation — aggregations add cache counts back on top).
-    expect(attrs["gen_ai.usage.input_tokens"]).toBe(321);
+    // Semconv input tokens include uncached, cache-read, and cache-created
+    // input tokens.
+    expect(attrs["gen_ai.usage.input_tokens"]).toBe(355);
     expect(attrs["gen_ai.usage.output_tokens"]).toBe(12);
     expect(attrs["gen_ai.usage.reasoning.output_tokens"]).toBe(7);
     expect(attrs["gen_ai.usage.cache_read.input_tokens"]).toBe(34);

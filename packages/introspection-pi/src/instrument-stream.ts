@@ -247,7 +247,6 @@ async function runUpstream({
     if (!finished) {
       // Upstream ended without a terminal event — close the span anyway so
       // we don't leak.
-      span.setStatus({ code: SpanStatusCode.OK });
       span.end();
     }
   }
@@ -310,8 +309,6 @@ function finishSpan({
     errorType = classifyErrorType(errorMessage, "model_error");
     recordGenAiException(span, new Error(errorMessage), errorType);
     span.setStatus({ code: SpanStatusCode.ERROR, message: errorMessage });
-  } else {
-    span.setStatus({ code: SpanStatusCode.OK });
   }
 
   if (metrics) {
@@ -350,10 +347,12 @@ function recordCompletionMetrics(
     durationAttributes,
   );
 
-  // Cache-exclusive, matching the gen_ai.usage.input_tokens span attribute
-  // (see chatResponseAttributes for why this deviates from semconv).
-  if (message.usage.input > 0) {
-    metrics.tokenUsage.record(message.usage.input, {
+  const inputTokens =
+    message.usage.input +
+    message.usage.cacheRead +
+    message.usage.cacheWrite;
+  if (inputTokens > 0) {
+    metrics.tokenUsage.record(inputTokens, {
       ...attributes,
       "gen_ai.token.type": "input",
     });

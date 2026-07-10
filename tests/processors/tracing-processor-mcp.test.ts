@@ -134,8 +134,7 @@ describe("Responses API - MCP DeepWiki", () => {
       {
         trace_id: expect.any(String),
         span_id: expect.any(String),
-      },
-      `
+      }, `
       {
         "attributes": {
           "gen_ai.conversation.id": "<conversation_id>",
@@ -146,7 +145,7 @@ describe("Responses API - MCP DeepWiki", () => {
           "gen_ai.request.model": "gpt-4o-2024-08-06",
           "gen_ai.response.id": "<response_id>",
           "gen_ai.system_instructions": "[{"type":"text","content":"Use the DeepWiki MCP tools to answer questions about code repositories. Be very concise."}]",
-          "gen_ai.tool.definitions": "[{"name":"mcp"}]",
+          "gen_ai.tool.definitions": "[{"type":"mcp","name":"mcp"}]",
           "gen_ai.usage.input_tokens": "<input_tokens>",
           "gen_ai.usage.output_tokens": "<output_tokens>",
           "openai_agents.span_data": "<span_data>",
@@ -156,8 +155,7 @@ describe("Responses API - MCP DeepWiki", () => {
         "span_id": Any<String>,
         "trace_id": Any<String>,
       }
-    `,
-    );
+    `);
 
     // Validate MCP tool calls in raw (non-normalized) output messages
     const rawResponseSpans = sortedSpans.filter((s) => s.name === "response");

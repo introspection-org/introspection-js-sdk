@@ -293,6 +293,7 @@ describe("convertResponsesOutputsToSemconv", () => {
           parts: [
             {
               type: "reasoning",
+              content: "[redacted]",
               signature: "opaque-blob",
               provider_name: "openai",
             },

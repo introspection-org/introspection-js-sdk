@@ -51,7 +51,7 @@ function blockToParts(block: Record<string, unknown>): MessagePart[] {
   if (bt === "thinking") {
     const part: ReasoningPart = {
       type: "reasoning",
-      content: (block.thinking as string) || undefined,
+      content: (block.thinking as string) || REDACTED_THINKING_CONTENT,
       signature: (block.signature as string) || undefined,
       provider_name: "anthropic",
     };

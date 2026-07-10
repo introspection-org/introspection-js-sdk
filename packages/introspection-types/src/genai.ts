@@ -40,7 +40,7 @@ export interface ReasoningPart {
   /** Discriminator — always `"reasoning"`. */
   type: "reasoning";
   /** The reasoning / thinking summary content. */
-  content?: string;
+  content: string;
   /** Encrypted reasoning signature (Anthropic signature / redacted_thinking, OpenAI encrypted_content). */
   signature?: string;
   /** Provider that produced this thinking block (e.g. `"anthropic"`, `"openai"`). Used to reconstruct the correct wire format on replay. */
@@ -113,11 +113,11 @@ export interface BlobPart {
   /** Discriminator — always `"blob"`. */
   type: "blob";
   /** General modality of the data (e.g. `"image"`, `"audio"`). */
-  modality?: string;
+  modality: string;
   /** IANA MIME type of the data (e.g. `"image/png"`). */
   mime_type?: string;
   /** Base64-encoded payload, when captured. */
-  content?: string;
+  content: string;
 }
 
 /**
@@ -189,6 +189,8 @@ export interface OutputMessage {
 
 /** A tool definition for the `gen_ai.tool.definitions` attribute. */
 export interface ToolDefinition {
+  /** Tool type. Function tools use the canonical `"function"` value. */
+  type: string;
   /** Tool / function name. */
   name: string;
   /** Human-readable description of what the tool does. */

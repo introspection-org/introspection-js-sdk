@@ -149,7 +149,7 @@ describe("instrumentAgent — invoke_agent run spans", () => {
     // Multi-model agents: no request.model / provider on invoke_agent.
     expect(span?.attributes["gen_ai.request.model"]).toBeUndefined();
     expect(span?.attributes["gen_ai.provider.name"]).toBeUndefined();
-    expect(span?.status.code).toBe(1); // OK
+    expect(span?.status.code).toBe(0); // UNSET
   });
 
   it("parents tool spans under the active run span", async () => {
@@ -329,8 +329,8 @@ describe("metrics", () => {
     const output = tokens.find(
       (r) => r.attributes?.["gen_ai.token.type"] === "output",
     );
-    // Cache-exclusive, matching the span attribute semantics.
-    expect(input?.value).toBe(100);
+    // Semconv input includes uncached and cache-read tokens.
+    expect(input?.value).toBe(155);
     expect(output?.value).toBe(20);
   });
 

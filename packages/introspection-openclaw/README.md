@@ -125,7 +125,7 @@ All config options can be set in `plugins.entries.introspection-openclaw.config`
 
 - `gen_ai.operation.name` = `"execute_tool"`
 - `gen_ai.tool.name`, `gen_ai.tool.type` = `"function"`
-- `gen_ai.tool.input` — tool call arguments (truncated to `maxCaptureLength`)
-- `gen_ai.tool.output` — tool result (truncated to `maxCaptureLength`)
+- `gen_ai.tool.call.arguments` — tool call arguments (truncated to `maxCaptureLength`)
+- `gen_ai.tool.call.result` — tool result (truncated to `maxCaptureLength`)
 - `openclaw.tool.sequence`, `openclaw.tool.duration_ms`
 - `openclaw.tool.input_size`, `openclaw.tool.output_size`

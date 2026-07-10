@@ -179,7 +179,7 @@ describe("IntrospectionClaudeHooks.recordUsage", () => {
     });
 
     const names = exporter.getFinishedSpans().map((s) => s.name);
-    expect(names).toContain("tool.Bash");
+    expect(names).toContain("execute_tool Bash");
     expect(names).toContain("claude.session");
 
     await hooks.shutdown();

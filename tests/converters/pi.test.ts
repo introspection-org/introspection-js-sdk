@@ -89,7 +89,7 @@ describe("messagesToInputMessages", () => {
     ]);
   });
 
-  it("encodes user images as blob parts without the payload", () => {
+  it("encodes user images as schema-compliant blob parts", () => {
     const message: UserMessage = {
       role: "user",
       content: [
@@ -105,7 +105,12 @@ describe("messagesToInputMessages", () => {
         parts: [
           { type: "text", content: "What is in this screenshot?" },
           // Base64 payload intentionally omitted — structure only.
-          { type: "blob", modality: "image", mime_type: "image/png" },
+          {
+            type: "blob",
+            modality: "image",
+            mime_type: "image/png",
+            content: "aGVsbG8=",
+          },
         ],
       },
     ]);

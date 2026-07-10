@@ -134,7 +134,7 @@ function convertContentBlocksToParts(
         string | undefined;
       const thinkingPart: ReasoningPart = {
         type: "reasoning",
-        content: thinking || undefined,
+        content: thinking || "[redacted]",
         signature: signature || undefined,
         provider_name: "anthropic",
       };
@@ -297,6 +297,7 @@ export function convertClaudeSessionToGenAI(
   // Set tool definitions from tool names
   if (data.toolNames && data.toolNames.length > 0) {
     result.toolDefinitions = data.toolNames.map((name): ToolDefinition => ({
+      type: "function",
       name,
     }));
   }

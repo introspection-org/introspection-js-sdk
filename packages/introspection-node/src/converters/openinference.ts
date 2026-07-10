@@ -121,11 +121,6 @@ function extractResponseId(attrs: Attributes): string | undefined {
   }
 }
 
-/** Local extended tool definition that includes the optional `type` field from OpenInference. */
-interface OIToolDefinition extends ToolDefinition {
-  type?: string;
-}
-
 function extractSystemInstructions(
   attrs: Attributes,
 ): SystemInstruction[] | undefined {
@@ -160,7 +155,7 @@ function extractSystemInstructions(
 function extractToolDefinitions(
   attrs: Attributes,
 ): ToolDefinition[] | undefined {
-  const tools: OIToolDefinition[] = [];
+  const tools: ToolDefinition[] = [];
 
   for (const [key, value] of Object.entries(attrs)) {
     const match = key.match(/^llm\.tools\.(\d+)\.tool\.json_schema$/);

@@ -481,14 +481,16 @@ export class IntrospectionMastraExporter extends BaseExporter {
     const conversationId = this._getConversationId(span);
     const toolName = span.entityName || span.name || "tool";
 
-    const otelSpan = this._createSpan(span, toolName);
+    const otelSpan = this._createSpan(span, `execute_tool ${toolName}`);
+    otelSpan.setAttribute("gen_ai.operation.name", "execute_tool");
     otelSpan.setAttribute("gen_ai.tool.name", toolName);
+    otelSpan.setAttribute("gen_ai.tool.type", "function");
     otelSpan.setAttribute("gen_ai.conversation.id", conversationId);
     otelSpan.setAttribute("openinference.span.kind", "TOOL");
 
     if (span.input != null) {
       otelSpan.setAttribute(
-        "gen_ai.tool.input",
+        "gen_ai.tool.call.arguments",
         typeof span.input === "string"
           ? span.input
           : JSON.stringify(span.input),
@@ -496,7 +498,7 @@ export class IntrospectionMastraExporter extends BaseExporter {
     }
     if (span.output != null) {
       otelSpan.setAttribute(
-        "gen_ai.tool.output",
+        "gen_ai.tool.call.result",
         typeof span.output === "string"
           ? span.output
           : JSON.stringify(span.output),

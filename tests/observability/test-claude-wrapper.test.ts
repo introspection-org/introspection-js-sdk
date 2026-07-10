@@ -144,7 +144,7 @@ describe("withIntrospection() Wrapper Tests", () => {
               "gen_ai.request.model": "claude-sonnet-4-6",
               "gen_ai.response.id": "msg_01ABC123",
               "gen_ai.system_instructions": "[{"type":"text","content":"You are a calculator."}]",
-              "gen_ai.tool.definitions": "[{"name":"Bash"},{"name":"Read"},{"name":"Write"}]",
+              "gen_ai.tool.definitions": "[{"type":"function","name":"Bash"},{"type":"function","name":"Read"},{"type":"function","name":"Write"}]",
               "gen_ai.usage.input_tokens": 150,
               "gen_ai.usage.output_tokens": 10,
             },

@@ -321,7 +321,7 @@ function serializeToolDefinitions(
   const detailed = serializeBounded(tools);
   if (detailed) return detailed;
   // Compact fallback — drop description / parameters and try again.
-  return serializeBounded(tools.map((t) => ({ name: t.name })));
+  return serializeBounded(tools.map((t) => ({ type: t.type, name: t.name })));
 }
 
 function byteLength(s: string): number {

@@ -135,15 +135,15 @@ describe("IntrospectionMastraExporter span conversion", () => {
       "tool-calls",
     ]);
 
-    const tool = byName(spans, "get_weather");
+    const tool = byName(spans, "execute_tool get_weather");
     expect(tool, "tool_call span").toBeDefined();
     expect(tool!.attributes["gen_ai.tool.name"]).toBe("get_weather");
     expect(tool!.attributes["openinference.span.kind"]).toBe("TOOL");
-    expect(tool!.attributes["gen_ai.tool.output"]).toBe("sunny, 22C");
+    expect(tool!.attributes["gen_ai.tool.call.result"]).toBe("sunny, 22C");
 
-    const mcp = byName(spans, "mcp__search");
+    const mcp = byName(spans, "execute_tool mcp__search");
     expect(mcp, "mcp_tool_call span").toBeDefined();
-    expect(mcp!.attributes["gen_ai.tool.input"]).toBe("query");
+    expect(mcp!.attributes["gen_ai.tool.call.arguments"]).toBe("query");
 
     const root = byName(spans, "trace");
     expect(root, "synthetic root span").toBeDefined();

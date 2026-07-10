@@ -133,12 +133,10 @@ export function instrumentAgent(
     stop: () => {
       unsubscribe();
       for (const { span } of activeSpans.values()) {
-        span.setStatus({ code: SpanStatusCode.OK });
         span.end();
       }
       activeSpans.clear();
       if (state.run) {
-        state.run.span.setStatus({ code: SpanStatusCode.OK });
         state.run.span.end();
         state.run = undefined;
       }
@@ -258,7 +256,6 @@ function handleEvent(
         // Semconv scopes gen_ai.tool.call.result to successful executions;
         // error text is carried on the span status instead.
         span.setAttributes(executeToolResultAttribute(event.result));
-        span.setStatus({ code: SpanStatusCode.OK });
       }
       span.end();
 
@@ -308,8 +305,6 @@ function finishRunSpan(
     span.setAttribute("error.type", errorType);
     span.recordException(new Error(errorMessage));
     span.setStatus({ code: SpanStatusCode.ERROR, message: errorMessage });
-  } else {
-    span.setStatus({ code: SpanStatusCode.OK });
   }
   span.end();
 

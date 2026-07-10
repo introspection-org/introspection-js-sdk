@@ -283,6 +283,7 @@ describe("convertGeminiToolsToToolDefinitions", () => {
 
     expect(result).toEqual([
       {
+        type: "function",
         name: "get_current_temperature",
         description: "Get the temperature for a city.",
         parameters: {
@@ -291,7 +292,7 @@ describe("convertGeminiToolsToToolDefinitions", () => {
           required: ["city"],
         },
       },
-      { name: "send_email" },
+      { type: "function", name: "send_email" },
     ]);
   });
 

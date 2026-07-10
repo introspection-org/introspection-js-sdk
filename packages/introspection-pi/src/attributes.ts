@@ -74,10 +74,6 @@ export function chatRequestAttributes(
     [GenAi.AGENT_ID]: meta.agentId,
     [GenAi.AGENT_NAME]: meta.agentName,
     [GenAi.OPERATION_NAME]: "chat",
-    // pi-ai's provider id verbatim. Some ids have differently-spelled
-    // semconv well-known values (e.g. `google` vs `gcp.gemini`), but the
-    // raw id is what the rest of the platform keys on — deliberately not
-    // translated.
     [GenAi.PROVIDER_NAME]: model.provider,
     [GenAi.REQUEST_MODEL]: model.id,
     "gen_ai.request.stream": true,
@@ -139,12 +135,13 @@ export function chatRequestAttributes(
 export function chatResponseAttributes(message: AssistantMessage): Attributes {
   const attributes: Attributes = {
     [GenAi.RESPONSE_FINISH_REASONS]: [semconvFinishReason(message.stopReason)],
-    // Deliberate semconv deviation: the spec defines cache_read /
-    // cache_creation as SUBSETS of input_tokens, but every emitter this
-    // platform ingests reports input_tokens EXCLUSIVE of cache tokens and
-    // the platform's aggregations add the cache counts back on top.
-    // Switching pi alone would double-count cache in those sums.
-    [GenAi.USAGE_INPUT_TOKENS]: message.usage.input,
+    // Anthropic reports uncached, cache-read, and cache-creation input
+    // separately. Semconv defines both cache attributes as subsets of the
+    // total input token count.
+    [GenAi.USAGE_INPUT_TOKENS]:
+      message.usage.input +
+      message.usage.cacheRead +
+      message.usage.cacheWrite,
     [GenAi.USAGE_OUTPUT_TOKENS]: message.usage.output,
   };
 
@@ -239,16 +236,17 @@ function serializeToolDefinitions(
   if (!tools || tools.length === 0) return undefined;
 
   const detailed: ToolDefinition[] = tools.map((tool) => ({
+    type: "function",
     name: tool.name,
     description: tool.description,
     parameters: tool.parameters,
   }));
 
   return serializeWithCap(
-    () => JSON.stringify(detailed.map((def) => ({ type: "function", ...def }))),
+    () => JSON.stringify(detailed),
     () =>
       JSON.stringify(
-        detailed.map((def) => ({ type: "function", name: def.name })),
+        detailed.map((def) => ({ type: def.type, name: def.name })),
       ),
     GenAi.TOOL_DEFINITIONS,
   );

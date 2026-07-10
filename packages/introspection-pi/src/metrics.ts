@@ -21,6 +21,12 @@ const DURATION_BUCKETS = [
   40.96, 81.92,
 ];
 
+/** Spec advice for in-process agent invocation durations. */
+const AGENT_DURATION_BUCKETS = [
+  0.1, 0.2, 0.4, 0.8, 1.6, 3.2, 6.4, 12.8, 25.6, 51.2, 102.4, 204.8,
+  409.6,
+];
+
 export interface GenAiMetrics {
   /** `gen_ai.client.token.usage` — record once per token type per call. */
   tokenUsage: Histogram;
@@ -75,15 +81,16 @@ export function genAiMetrics(meter: Meter): GenAiMetrics {
         advice: { explicitBucketBoundaries: DURATION_BUCKETS },
       },
     ),
-    // The spec defines no bucket advice for the two agent-level durations.
     executeToolDuration: meter.createHistogram("gen_ai.execute_tool.duration", {
       description: "The duration of a single tool execution.",
       unit: "s",
+      advice: { explicitBucketBoundaries: DURATION_BUCKETS },
     }),
     invokeAgentDuration: meter.createHistogram("gen_ai.invoke_agent.duration", {
       description:
         "The end-to-end duration of a single in-process agent invocation.",
       unit: "s",
+      advice: { explicitBucketBoundaries: AGENT_DURATION_BUCKETS },
     }),
   };
 

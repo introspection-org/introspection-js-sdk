@@ -232,7 +232,7 @@ export function convertGeminiToolsToToolDefinitions(
   for (const tool of tools) {
     for (const fn of tool.functionDeclarations || []) {
       if (!fn.name) continue;
-      const def: ToolDefinition = { name: fn.name };
+      const def: ToolDefinition = { type: "function", name: fn.name };
       if (fn.description) def.description = fn.description;
       const params = fn.parametersJsonSchema ?? fn.parameters;
       if (params) def.parameters = params;

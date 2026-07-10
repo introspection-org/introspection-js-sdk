@@ -146,8 +146,8 @@ describe("instrumentStream", () => {
     expect(
       Number(span?.attributes["gen_ai.response.time_to_first_chunk"]),
     ).toBeGreaterThanOrEqual(0.004);
-    // Cache-exclusive input tokens (platform-wide semantics).
-    expect(span?.attributes["gen_ai.usage.input_tokens"]).toBe(100);
+    // Semconv input includes uncached and cache-read tokens.
+    expect(span?.attributes["gen_ai.usage.input_tokens"]).toBe(150);
     expect(span?.attributes["gen_ai.usage.cache_read.input_tokens"]).toBe(50);
     expect(
       span?.attributes["gen_ai.usage.cache_creation.input_tokens"],
@@ -157,7 +157,7 @@ describe("instrumentStream", () => {
     ).toEqual([
       { role: "user", parts: [{ type: "text", content: "Inspect" }] },
     ]);
-    expect(span?.status.code).toBe(1); // SpanStatusCode.OK
+    expect(span?.status.code).toBe(0); // SpanStatusCode.UNSET
   });
 
   it("invokes extraAttributes and merges its output onto the chat span", async () => {
@@ -471,7 +471,7 @@ describe("instrumentAgent", () => {
     expect(
       JSON.parse(String(span?.attributes["gen_ai.tool.call.result"])),
     ).toEqual({ stdout: "ok" });
-    expect(span?.status.code).toBe(1); // OK
+    expect(span?.status.code).toBe(0); // UNSET
   });
 
   it("invokes extraAttributes and merges its output onto the tool span", async () => {

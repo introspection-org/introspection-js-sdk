@@ -145,16 +145,18 @@ function userMessageToSemconv(
       parts: [{ type: "text", content: message.content }],
     };
   }
-  // Block-array content: preserve part order, including images. Image
-  // payloads (base64) are intentionally omitted — only the modality and
-  // MIME type are recorded, keeping attribute sizes bounded while the
-  // message structure stays visible.
+  // Block-array content: preserve part order, including image payloads.
+  // The bounded message serializer truncates oversized content later.
   const parts: MessagePart[] = [];
   for (const block of message.content) {
     if (block.type === "text") {
       if (block.text) parts.push({ type: "text", content: block.text });
     } else {
-      const blob: BlobPart = { type: "blob", modality: "image" };
+      const blob: BlobPart = {
+        type: "blob",
+        modality: "image",
+        content: block.data,
+      };
       if (block.mimeType) blob.mime_type = block.mimeType;
       parts.push(blob);
     }
