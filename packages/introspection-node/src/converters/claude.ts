@@ -133,8 +133,8 @@ function convertContentBlocksToParts(
       const signature = (block as Record<string, unknown>).signature as
         string | undefined;
       const thinkingPart: ReasoningPart = {
-        type: "thinking",
-        content: thinking || undefined,
+        type: "reasoning",
+        content: thinking || "[redacted]",
         signature: signature || undefined,
         provider_name: "anthropic",
       };
@@ -250,8 +250,7 @@ export function convertClaudeSessionToGenAI(
 ): GenAiAttributes {
   const result: GenAiAttributes = {};
 
-  // Set system
-  result.system = "anthropic";
+  result.providerName = "anthropic";
 
   // Set model
   if (data.model) {
@@ -298,6 +297,7 @@ export function convertClaudeSessionToGenAI(
   // Set tool definitions from tool names
   if (data.toolNames && data.toolNames.length > 0) {
     result.toolDefinitions = data.toolNames.map((name): ToolDefinition => ({
+      type: "function",
       name,
     }));
   }

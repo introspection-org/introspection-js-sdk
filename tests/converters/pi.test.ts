@@ -76,7 +76,7 @@ describe("messagesToInputMessages", () => {
     expect(inputs[0]?.parts).toEqual([
       { type: "text", content: "Let me look.", text_signature: "sig-1" },
       {
-        type: "thinking",
+        type: "reasoning",
         content: "thinking out loud",
         signature: "thinking-sig",
       },
@@ -85,6 +85,33 @@ describe("messagesToInputMessages", () => {
         id: "call-1",
         name: "shell",
         arguments: { cmd: "ls" },
+      },
+    ]);
+  });
+
+  it("encodes user images as schema-compliant blob parts", () => {
+    const message: UserMessage = {
+      role: "user",
+      content: [
+        { type: "text", text: "What is in this screenshot?" },
+        { type: "image", data: "aGVsbG8=", mimeType: "image/png" },
+      ],
+      timestamp: 0,
+    };
+    const inputs = messagesToInputMessages([message]);
+    expect(inputs).toEqual([
+      {
+        role: "user",
+        parts: [
+          { type: "text", content: "What is in this screenshot?" },
+          // Base64 payload intentionally omitted — structure only.
+          {
+            type: "blob",
+            modality: "image",
+            mime_type: "image/png",
+            content: "aGVsbG8=",
+          },
+        ],
       },
     ]);
   });
@@ -117,6 +144,23 @@ describe("messagesToInputMessages", () => {
 });
 
 describe("assistantToOutputMessages", () => {
+  it("maps the toolUse stop reason to the semconv tool_call value", () => {
+    const out = assistantToOutputMessages(
+      assistantMessage({
+        content: [
+          {
+            type: "toolCall",
+            id: "call-1",
+            name: "shell",
+            arguments: { cmd: "ls" },
+          },
+        ],
+        stopReason: "toolUse",
+      }),
+    );
+    expect(out[0]?.finish_reason).toBe("tool_call");
+  });
+
   it("preserves provider / model / response_id / finish_reason", () => {
     const out = assistantToOutputMessages(
       assistantMessage({
@@ -192,6 +236,24 @@ describe("inputMessagesToMessages (semconv → pi-ai)", () => {
     const tool = replayed[2] as ToolResultMessage;
     expect(tool.toolCallId).toBe("call-1");
     expect(tool.toolName).toBe("shell");
+  });
+
+  it("hydrates semconv reasoning parts", () => {
+    const replayed = inputMessagesToMessages([
+      {
+        role: "assistant",
+        parts: [
+          { type: "reasoning", content: "new spans", signature: "sig-new" },
+          { type: "text", content: "Done." },
+        ],
+      },
+    ]);
+
+    const assistant = replayed[0] as AssistantMessage;
+    expect(assistant.content).toEqual([
+      { type: "thinking", thinking: "new spans", thinkingSignature: "sig-new" },
+      { type: "text", text: "Done." },
+    ]);
   });
 
   it("drops orphaned tool results with no matching assistant tool call", () => {

@@ -93,6 +93,54 @@ describe("chatRequestAttributes", () => {
     });
   });
 
+  it("passes the pi-ai provider id through unmapped", () => {
+    const attrs = chatRequestAttributes(
+      {
+        ...MODEL,
+        provider: "google" as Model<"anthropic-messages">["provider"],
+      },
+      ctx(),
+      META,
+    );
+    // Deliberately NOT translated to the semconv well-known value
+    // (gcp.gemini) — the platform keys on pi-ai's raw provider ids.
+    expect(attrs["gen_ai.provider.name"]).toBe("google");
+  });
+
+  it("emits server.address and server.port from the model base URL", () => {
+    const attrs = chatRequestAttributes(MODEL, ctx(), META);
+    expect(attrs["server.address"]).toBe("api.anthropic.com");
+    expect(attrs["server.port"]).toBe(443);
+
+    const custom = chatRequestAttributes(
+      { ...MODEL, baseUrl: "http://localhost:11434/v1" },
+      ctx(),
+      META,
+    );
+    expect(custom["server.address"]).toBe("localhost");
+    expect(custom["server.port"]).toBe(11434);
+  });
+
+  it("truncates oversized input message contents while preserving structure", () => {
+    const bigText = "x".repeat(70_000);
+    const attrs = chatRequestAttributes(
+      MODEL,
+      ctx({
+        messages: [
+          { role: "user", content: bigText, timestamp: 0 },
+          { role: "user", content: "small trailing message", timestamp: 0 },
+        ],
+      }),
+      META,
+    );
+    const serialized = String(attrs["gen_ai.input.messages"]);
+    expect(Buffer.byteLength(serialized)).toBeLessThanOrEqual(64_000);
+    const messages = JSON.parse(serialized);
+    expect(messages).toHaveLength(2);
+    expect(messages[0].parts[0].content.endsWith("…[truncated]")).toBe(true);
+    expect(messages[1].parts[0].content).toBe("small trailing message");
+  });
+
   it("serializes input messages, system instructions, and tool definitions", () => {
     const attrs = chatRequestAttributes(
       MODEL,
@@ -190,7 +238,7 @@ describe("chatResponseAttributes", () => {
         usage: {
           input: 321,
           output: 12,
-          reasoningOutputTokens: 7,
+          reasoning: 7,
           cacheRead: 34,
           cacheWrite: 0,
           totalTokens: 367,
@@ -206,7 +254,9 @@ describe("chatResponseAttributes", () => {
       }),
     );
 
-    expect(attrs["gen_ai.usage.input_tokens"]).toBe(321);
+    // Semconv input tokens include uncached, cache-read, and cache-created
+    // input tokens.
+    expect(attrs["gen_ai.usage.input_tokens"]).toBe(355);
     expect(attrs["gen_ai.usage.output_tokens"]).toBe(12);
     expect(attrs["gen_ai.usage.reasoning.output_tokens"]).toBe(7);
     expect(attrs["gen_ai.usage.cache_read.input_tokens"]).toBe(34);
@@ -229,7 +279,39 @@ describe("chatResponseAttributes", () => {
   });
 });
 
+describe("chatResponseAttributes — finish reason mapping", () => {
+  it("maps toolUse to the semconv tool_call finish reason", () => {
+    const attrs = chatResponseAttributes(
+      assistantMessage({
+        content: [
+          {
+            type: "toolCall",
+            id: "call-1",
+            name: "shell",
+            arguments: { cmd: "ls" },
+          },
+        ],
+        stopReason: "toolUse",
+      }),
+    );
+    expect(attrs["gen_ai.response.finish_reasons"]).toEqual(["tool_call"]);
+    const outputs = JSON.parse(String(attrs["gen_ai.output.messages"]));
+    expect(outputs[0].finish_reason).toBe("tool_call");
+  });
+});
+
 describe("executeToolAttributes / executeToolResultAttribute", () => {
+  it("records gen_ai.tool.description when provided", () => {
+    const attrs = executeToolAttributes(
+      "shell",
+      "call-1",
+      { cmd: "ls" },
+      META,
+      "Run a shell command",
+    );
+    expect(attrs["gen_ai.tool.description"]).toBe("Run a shell command");
+  });
+
   it("emits the GenAI tool-call attribute set", () => {
     const attrs = executeToolAttributes("shell", "call-1", { cmd: "ls" }, META);
     expect(attrs).toMatchObject({

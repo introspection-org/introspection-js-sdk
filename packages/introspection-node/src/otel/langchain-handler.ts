@@ -317,7 +317,7 @@ export class IntrospectionCallbackHandler extends BaseCallbackHandler {
 
     const provider = this._extractProvider(llm);
     if (provider) {
-      otelSpan.setAttribute("gen_ai.system", provider);
+      otelSpan.setAttribute("gen_ai.provider.name", provider);
     }
 
     const invocationParams = extraParams?.["invocation_params"] as
@@ -571,15 +571,22 @@ export class IntrospectionCallbackHandler extends BaseCallbackHandler {
     const toolName =
       runName || tool?.name || tool?.id?.[tool.id.length - 1] || "tool";
 
-    const otelSpan = this._createChildSpan(toolName, runId, parentRunId);
+    const otelSpan = this._createChildSpan(
+      `execute_tool ${toolName}`,
+      runId,
+      parentRunId,
+    );
     this._spans.set(runId, otelSpan);
 
     const conversationId = this._getConversationId(metadata);
     this._setRootConversationId(conversationId, runId, parentRunId);
 
+    otelSpan.setAttribute("gen_ai.operation.name", "execute_tool");
     otelSpan.setAttribute("gen_ai.tool.name", toolName);
+    otelSpan.setAttribute("gen_ai.tool.type", "function");
+    otelSpan.setAttribute("gen_ai.tool.call.id", runId);
     otelSpan.setAttribute("openinference.span.kind", "TOOL");
-    otelSpan.setAttribute("gen_ai.tool.input", input);
+    otelSpan.setAttribute("gen_ai.tool.call.arguments", input);
     otelSpan.setAttribute("gen_ai.conversation.id", conversationId);
   }
 
@@ -591,7 +598,7 @@ export class IntrospectionCallbackHandler extends BaseCallbackHandler {
 
     if (output != null) {
       otelSpan.setAttribute(
-        "gen_ai.tool.output",
+        "gen_ai.tool.call.result",
         typeof output === "string" ? output : JSON.stringify(output),
       );
     }

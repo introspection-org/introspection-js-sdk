@@ -90,14 +90,14 @@ export function convertVercelAIToGenAI(
     result["gen_ai.conversation.id"] = metadataConvId;
   }
 
-  // gen_ai.request.model and gen_ai.system from ai.model.*
+  // gen_ai.request.model and gen_ai.provider.name from ai.model.*
   const modelId = attrs["ai.model.id"];
   if (typeof modelId === "string" && !attrs["gen_ai.request.model"]) {
     result["gen_ai.request.model"] = modelId;
   }
   const modelProvider = attrs["ai.model.provider"];
-  if (typeof modelProvider === "string" && !attrs["gen_ai.system"]) {
-    result["gen_ai.system"] = modelProvider;
+  if (typeof modelProvider === "string" && !attrs["gen_ai.provider.name"]) {
+    result["gen_ai.provider.name"] = modelProvider;
   }
 
   // Vercel AI SDK stores prompt data in two formats:
@@ -141,7 +141,7 @@ export function convertVercelAIToGenAI(
   if (typeof responseText === "string" && responseText) {
     const parts: GenAIPart[] = [];
     if (typeof responseReasoning === "string" && responseReasoning) {
-      parts.push({ type: "thinking", content: responseReasoning });
+      parts.push({ type: "reasoning", content: responseReasoning });
     }
     parts.push({ type: "text", content: responseText });
     result["gen_ai.output.messages"] = JSON.stringify([

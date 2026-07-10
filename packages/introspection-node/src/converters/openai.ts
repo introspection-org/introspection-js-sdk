@@ -175,8 +175,8 @@ export function convertResponsesOutputsToSemconv(
       const signature =
         (item.encrypted_content as string | undefined) || undefined;
       const thinkingPart: ReasoningPart = {
-        type: "thinking",
-        content,
+        type: "reasoning",
+        content: content ?? "[redacted]",
         signature,
         provider_name: "openai",
       };
@@ -262,14 +262,14 @@ export function convertResponsesToolsToSemconv(
   const toolDefs: ToolDefinition[] = [];
   for (const tool of tools) {
     if (tool.type === "function") {
-      const toolDef: ToolDefinition = { name: tool.name };
+      const toolDef: ToolDefinition = { type: "function", name: tool.name };
       if (tool.description) toolDef.description = tool.description;
       if (tool.parameters)
         toolDef.parameters = tool.parameters as Record<string, unknown>;
       toolDefs.push(toolDef);
     } else {
       // For non-function tools (web_search, file_search, etc.)
-      toolDefs.push({ name: tool.type });
+      toolDefs.push({ type: tool.type, name: tool.type });
     }
   }
   return toolDefs;

@@ -110,7 +110,7 @@ describe("Responses API - Encrypted Reasoning", () => {
           "gen_ai.agent.name": "Encrypted Reasoning Agent",
           "gen_ai.agent.output_type": "text",
           "gen_ai.conversation.id": "<conversation_id>",
-          "gen_ai.system": "openai",
+          "gen_ai.provider.name": "openai",
           "gen_ai.tool.definitions": "[]",
           "openai_agents.span_data": "<span_data>",
           "openinference.span.kind": "AGENT",
@@ -137,9 +137,9 @@ describe("Responses API - Encrypted Reasoning", () => {
           "gen_ai.input.messages": "[{"role":"user","parts":[{"type":"text","content":"If a train travels at 120 km/h for 2.5 hours, then slows to 80 km/h for 1.75 hours, what is the total distance and average speed?"}]}]",
           "gen_ai.operation.name": "chat",
           "gen_ai.output.messages": "<output_messages>",
+          "gen_ai.provider.name": "openai",
           "gen_ai.request.model": "gpt-5.4-2026-03-05",
           "gen_ai.response.id": "<response_id>",
-          "gen_ai.system": "openai",
           "gen_ai.system_instructions": "[{"type":"text","content":"Think carefully before answering."}]",
           "gen_ai.usage.input_tokens": "<input_tokens>",
           "gen_ai.usage.output_tokens": "<output_tokens>",
@@ -167,7 +167,7 @@ describe("Responses API - Encrypted Reasoning", () => {
     const allParts = outputMessages.flatMap((msg) => msg.parts || []);
 
     // Should have thinking parts (from reasoning output)
-    const thinkingParts = allParts.filter((p) => p.type === "thinking");
+    const thinkingParts = allParts.filter((p) => p.type === "reasoning");
     expect(thinkingParts.length).toBeGreaterThanOrEqual(1);
 
     // At least one thinking part should have a signature (encrypted content)

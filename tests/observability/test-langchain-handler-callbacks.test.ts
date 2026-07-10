@@ -142,11 +142,13 @@ describe("IntrospectionCallbackHandler callbacks", () => {
     );
     expect(chat!.attributes["gen_ai.request.temperature"]).toBe(0.5);
 
-    const tool = byName(spans, "get_weather");
+    const tool = byName(spans, "execute_tool get_weather");
     expect(tool, "tool span").toBeDefined();
     expect(tool!.attributes["gen_ai.tool.name"]).toBe("get_weather");
-    expect(tool!.attributes["gen_ai.tool.input"]).toBe('{"city":"NYC"}');
-    expect(tool!.attributes["gen_ai.tool.output"]).toBe('{"temp":22}');
+    expect(tool!.attributes["gen_ai.tool.call.arguments"]).toBe(
+      '{"city":"NYC"}',
+    );
+    expect(tool!.attributes["gen_ai.tool.call.result"]).toBe('{"temp":22}');
 
     expect(byName(spans, "agent"), "chain span").toBeDefined();
   });

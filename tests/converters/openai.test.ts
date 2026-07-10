@@ -257,7 +257,7 @@ describe("convertResponsesOutputsToSemconv", () => {
           role: "assistant",
           parts: [
             {
-              type: "thinking",
+              type: "reasoning",
               content:
                 "Thinking about the problem...\nBreaking it down step by step.",
               provider_name: "openai",
@@ -292,7 +292,8 @@ describe("convertResponsesOutputsToSemconv", () => {
           role: "assistant",
           parts: [
             {
-              type: "thinking",
+              type: "reasoning",
+              content: "[redacted]",
               signature: "opaque-blob",
               provider_name: "openai",
             },

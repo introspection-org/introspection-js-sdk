@@ -121,11 +121,6 @@ function extractResponseId(attrs: Attributes): string | undefined {
   }
 }
 
-/** Local extended tool definition that includes the optional `type` field from OpenInference. */
-interface OIToolDefinition extends ToolDefinition {
-  type?: string;
-}
-
 function extractSystemInstructions(
   attrs: Attributes,
 ): SystemInstruction[] | undefined {
@@ -160,7 +155,7 @@ function extractSystemInstructions(
 function extractToolDefinitions(
   attrs: Attributes,
 ): ToolDefinition[] | undefined {
-  const tools: OIToolDefinition[] = [];
+  const tools: ToolDefinition[] = [];
 
   for (const [key, value] of Object.entries(attrs)) {
     const match = key.match(/^llm\.tools\.(\d+)\.tool\.json_schema$/);
@@ -315,7 +310,7 @@ function extractOutputMessages(attrs: Attributes): OutputMessage[] | undefined {
             const parsed = JSON.parse(toolArgs) as Record<string, unknown>;
             if (typeof parsed.thinking === "string" && parsed.thinking) {
               const reasoningPart: ReasoningPart = {
-                type: "thinking",
+                type: "reasoning",
                 content: parsed.thinking,
               };
               parts.push(reasoningPart);
@@ -385,8 +380,8 @@ export function convertOpenInferenceToGenAI(
   const model = extractModel(attrs);
   if (model) result.requestModel = model;
 
-  const system = extractSystem(attrs);
-  if (system) result.system = system;
+  const providerName = extractSystem(attrs);
+  if (providerName) result.providerName = providerName;
 
   const responseId = extractResponseId(attrs);
   if (responseId) result.responseId = responseId;

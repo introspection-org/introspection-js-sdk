@@ -20,7 +20,7 @@ describe("convertClaudeResponseToOutputMessages", () => {
           role: "assistant",
           parts: [
             {
-              type: "thinking",
+              type: "reasoning",
               content: "Let me work through this step by step...",
               signature: "ErUBCkEYs123",
               provider_name: "anthropic",
@@ -46,7 +46,7 @@ describe("convertClaudeResponseToOutputMessages", () => {
           role: "assistant",
           parts: [
             {
-              type: "thinking",
+              type: "reasoning",
               content: "Reasoning about the problem...",
               provider_name: "anthropic",
             },
@@ -76,7 +76,7 @@ describe("convertClaudeResponseToOutputMessages", () => {
           role: "assistant",
           parts: [
             {
-              type: "thinking",
+              type: "reasoning",
               content: "I need to search...",
               signature: "sig1",
               provider_name: "anthropic",

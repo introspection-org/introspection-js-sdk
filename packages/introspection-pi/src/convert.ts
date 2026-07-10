@@ -17,6 +17,7 @@ import type {
   UserMessage,
 } from "@earendil-works/pi-ai";
 import type {
+  BlobPart,
   CompactionPart,
   InputMessage,
   MessagePart,
@@ -94,6 +95,17 @@ export function systemPromptToInstructions(
   return [{ type: "text", content: systemPrompt }];
 }
 
+/**
+ * Map a pi-ai stop reason to the semconv `FinishReason` value
+ * (gen-ai-output-messages.json). Only `"toolUse"` needs translation — the
+ * schema enum calls it `"tool_call"`. The remaining pi values are either
+ * enum members already (`stop`, `length`, `error`) or intentionally kept
+ * as custom strings (`aborted`; the schema allows free-form values).
+ */
+export function semconvFinishReason(stopReason: string): string {
+  return stopReason === "toolUse" ? "tool_call" : stopReason;
+}
+
 function messageToSemconv(
   message: Message,
   options?: ConvertOptions,
@@ -127,10 +139,32 @@ function userMessageToSemconv(
       parts: [{ type: "compaction", content: summary }],
     };
   }
-  return {
-    role: "user",
-    parts: [{ type: "text", content: text }],
-  };
+  if (typeof message.content === "string") {
+    return {
+      role: "user",
+      parts: [{ type: "text", content: message.content }],
+    };
+  }
+  // Block-array content: preserve part order, including image payloads.
+  // The bounded message serializer truncates oversized content later.
+  const parts: MessagePart[] = [];
+  for (const block of message.content) {
+    if (block.type === "text") {
+      if (block.text) parts.push({ type: "text", content: block.text });
+    } else {
+      const blob: BlobPart = {
+        type: "blob",
+        modality: "image",
+        content: block.data,
+      };
+      if (block.mimeType) blob.mime_type = block.mimeType;
+      parts.push(blob);
+    }
+  }
+  if (parts.length === 0) {
+    parts.push({ type: "text", content: "" });
+  }
+  return { role: "user", parts };
 }
 
 /**
@@ -183,7 +217,9 @@ function assistantMessageToSemconv(
   }
 
   const result: SemconvAssistant = { parts };
-  if (message.stopReason) result.finish_reason = message.stopReason;
+  if (message.stopReason) {
+    result.finish_reason = semconvFinishReason(message.stopReason);
+  }
   if (message.api) result.api = message.api;
   if (message.provider) result.provider = message.provider;
   if (message.model) result.model = message.model;
@@ -240,7 +276,7 @@ function assistantBlockToPart(
     case "thinking": {
       if (!block.thinking && !block.thinkingSignature) return null;
       const part: ReasoningPart = {
-        type: "thinking",
+        type: "reasoning",
         content: block.thinking ?? "",
       };
       if (block.thinkingSignature) {
@@ -499,7 +535,7 @@ function isCompactionPart(part: MessagePart): part is CompactionPart {
 }
 
 function isReasoningPart(part: MessagePart): part is ReasoningPart {
-  return part.type === "thinking";
+  return part.type === "reasoning";
 }
 
 function isToolCallRequestPart(part: MessagePart): part is ToolCallRequestPart {

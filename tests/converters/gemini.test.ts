@@ -49,7 +49,7 @@ describe("convertGeminiCandidatesToOutputMessages", () => {
           role: "assistant",
           parts: [
             {
-              type: "thinking",
+              type: "reasoning",
               content: "[redacted]",
               signature: "Signature_A",
               provider_name: "gemini",
@@ -97,7 +97,7 @@ describe("convertGeminiCandidatesToOutputMessages", () => {
           role: "assistant",
           parts: [
             {
-              type: "thinking",
+              type: "reasoning",
               content: "Let me work through this step by step...",
               signature: "Signature_T",
               provider_name: "gemini",
@@ -128,7 +128,7 @@ describe("convertGeminiCandidatesToOutputMessages", () => {
         role: "assistant",
         parts: [
           {
-            type: "thinking",
+            type: "reasoning",
             content: "[redacted]",
             signature: "sig_text",
             provider_name: "gemini",
@@ -211,7 +211,7 @@ describe("convertGeminiContentsToInputMessages", () => {
         role: "assistant",
         parts: [
           {
-            type: "thinking",
+            type: "reasoning",
             content: "[redacted]",
             signature: "Signature_A",
             provider_name: "gemini",
@@ -283,6 +283,7 @@ describe("convertGeminiToolsToToolDefinitions", () => {
 
     expect(result).toEqual([
       {
+        type: "function",
         name: "get_current_temperature",
         description: "Get the temperature for a city.",
         parameters: {
@@ -291,7 +292,7 @@ describe("convertGeminiToolsToToolDefinitions", () => {
           required: ["city"],
         },
       },
-      { name: "send_email" },
+      { type: "function", name: "send_email" },
     ]);
   });
 

@@ -117,11 +117,11 @@ describe("Claude Agent SDK Tests", () => {
               "gen_ai.input.messages": "[{"role":"user","parts":[{"type":"text","content":"What is 2 + 2? Just give me the number."}]}]",
               "gen_ai.operation.name": "chat",
               "gen_ai.output.messages": "[{"role":"assistant","parts":[{"type":"text","content":"4"}],"finish_reason":"success"}]",
+              "gen_ai.provider.name": "anthropic",
               "gen_ai.request.model": "claude-sonnet-4-6",
               "gen_ai.response.id": "msg_01ABC123",
-              "gen_ai.system": "anthropic",
               "gen_ai.system_instructions": "[{"type":"text","content":"You are a calculator."}]",
-              "gen_ai.tool.definitions": "[{"name":"Bash"},{"name":"Read"},{"name":"Write"}]",
+              "gen_ai.tool.definitions": "[{"type":"function","name":"Bash"},{"type":"function","name":"Read"},{"type":"function","name":"Write"}]",
               "gen_ai.usage.input_tokens": 150,
               "gen_ai.usage.output_tokens": 10,
             },
@@ -235,9 +235,9 @@ describe("Claude Agent SDK Tests", () => {
               "gen_ai.input.messages": "[{"role":"user","parts":[{"type":"text","content":"List files in the current directory"}]}]",
               "gen_ai.operation.name": "chat",
               "gen_ai.output.messages": "[{"role":"assistant","parts":[{"type":"text","content":"The directory contains file1.txt and file2.txt."}],"finish_reason":"success"}]",
+              "gen_ai.provider.name": "anthropic",
               "gen_ai.request.model": "claude-sonnet-4-6",
               "gen_ai.response.id": "msg_02DEF456",
-              "gen_ai.system": "anthropic",
               "gen_ai.usage.input_tokens": 200,
               "gen_ai.usage.output_tokens": 50,
             },
@@ -249,11 +249,14 @@ describe("Claude Agent SDK Tests", () => {
             "attributes": {
               "claude.session_id": "test-session-456",
               "claude.tool_use_id": "tool-use-1",
-              "gen_ai.tool.input": "{"command":"ls -la"}",
+              "gen_ai.operation.name": "execute_tool",
+              "gen_ai.tool.call.arguments": "{"command":"ls -la"}",
+              "gen_ai.tool.call.id": "tool-use-1",
+              "gen_ai.tool.call.result": ""file1.txt\\nfile2.txt\\n"",
               "gen_ai.tool.name": "Bash",
-              "gen_ai.tool.output": ""file1.txt\\nfile2.txt\\n"",
+              "gen_ai.tool.type": "function",
             },
-            "name": "tool.Bash",
+            "name": "execute_tool Bash",
             "span_id": Any<String>,
             "trace_id": Any<String>,
           },
@@ -302,7 +305,7 @@ describe("Claude Agent SDK Tests", () => {
     expect(sessionSpan).toBeDefined();
 
     const attrs = sessionSpan!.attributes;
-    expect(attrs["gen_ai.system"]).toBe("anthropic");
+    expect(attrs["gen_ai.provider.name"]).toBe("anthropic");
     expect(attrs["gen_ai.request.model"]).toEqual(expect.any(String));
     expect(attrs["gen_ai.usage.input_tokens"]).toEqual(expect.any(Number));
     expect(attrs["gen_ai.usage.output_tokens"]).toEqual(expect.any(Number));

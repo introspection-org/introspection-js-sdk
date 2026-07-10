@@ -50,8 +50,8 @@ function blockToParts(block: Record<string, unknown>): MessagePart[] {
 
   if (bt === "thinking") {
     const part: ReasoningPart = {
-      type: "thinking",
-      content: (block.thinking as string) || undefined,
+      type: "reasoning",
+      content: (block.thinking as string) || REDACTED_THINKING_CONTENT,
       signature: (block.signature as string) || undefined,
       provider_name: "anthropic",
     };
@@ -61,11 +61,11 @@ function blockToParts(block: Record<string, unknown>): MessagePart[] {
   if (bt === "redacted_thinking") {
     return [
       {
-        type: "thinking",
+        type: "reasoning",
         content: REDACTED_THINKING_CONTENT,
         signature: (block.data as string) || undefined,
         provider_name: "anthropic",
-      } as ReasoningPart,
+      },
     ];
   }
 
@@ -168,7 +168,6 @@ function startSpan(
   const span = tracer.startSpan("chat", {
     kind: SpanKind.CLIENT,
     attributes: {
-      "gen_ai.system": "anthropic",
       "gen_ai.provider.name": "anthropic",
       "gen_ai.operation.name": "chat",
       "gen_ai.request.model": model,

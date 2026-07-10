@@ -120,7 +120,7 @@ describe("IntrospectionMastraExporter span conversion", () => {
     const llm = byName(spans, "chat gpt-4o");
     expect(llm, "model_step span").toBeDefined();
     expect(llm!.attributes["gen_ai.request.model"]).toBe("gpt-4o");
-    expect(llm!.attributes["gen_ai.system"]).toBe("openai");
+    expect(llm!.attributes["gen_ai.provider.name"]).toBe("openai");
     expect(llm!.attributes["gen_ai.response.model"]).toBe("gpt-4o-2024");
     expect(llm!.attributes["gen_ai.usage.input_tokens"]).toBe(30);
     expect(llm!.attributes["gen_ai.usage.cache_read.input_tokens"]).toBe(5);
@@ -135,15 +135,15 @@ describe("IntrospectionMastraExporter span conversion", () => {
       "tool-calls",
     ]);
 
-    const tool = byName(spans, "get_weather");
+    const tool = byName(spans, "execute_tool get_weather");
     expect(tool, "tool_call span").toBeDefined();
     expect(tool!.attributes["gen_ai.tool.name"]).toBe("get_weather");
     expect(tool!.attributes["openinference.span.kind"]).toBe("TOOL");
-    expect(tool!.attributes["gen_ai.tool.output"]).toBe("sunny, 22C");
+    expect(tool!.attributes["gen_ai.tool.call.result"]).toBe("sunny, 22C");
 
-    const mcp = byName(spans, "mcp__search");
+    const mcp = byName(spans, "execute_tool mcp__search");
     expect(mcp, "mcp_tool_call span").toBeDefined();
-    expect(mcp!.attributes["gen_ai.tool.input"]).toBe("query");
+    expect(mcp!.attributes["gen_ai.tool.call.arguments"]).toBe("query");
 
     const root = byName(spans, "trace");
     expect(root, "synthetic root span").toBeDefined();
@@ -244,7 +244,7 @@ describe("IntrospectionMastraExporter span conversion", () => {
     expect(llm, "model_step span").toBeDefined();
     expect(llm!.attributes["introspection.llm.cost_usd"]).toBe(0.95);
     expect(llm!.attributes["introspection.llm.upstream_cost_usd"]).toBe(0.9);
-    expect(llm!.attributes["gen_ai.usage.reasoning_tokens"]).toBe(17);
+    expect(llm!.attributes["gen_ai.usage.reasoning.output_tokens"]).toBe(17);
 
     await mastra.shutdown();
   });

@@ -48,7 +48,7 @@ describe("convertOpenInferenceToGenAI", () => {
       "llm.system": "openai",
     };
     const result = convertOpenInferenceToGenAI(attrs);
-    expect(result.system).toBe("openai");
+    expect(result.providerName).toBe("openai");
   });
 
   it("should extract token counts", () => {
@@ -228,7 +228,7 @@ describe("replaceOpenInferenceWithGenAI", () => {
 
     // gen_ai attributes should be present
     expect(result["gen_ai.request.model"]).toBe("gpt-4o");
-    expect(result["gen_ai.system"]).toBe("openai");
+    expect(result["gen_ai.provider.name"]).toBe("openai");
     expect(result["gen_ai.usage.input_tokens"]).toBe(10);
     expect(result["gen_ai.usage.output_tokens"]).toBe(20);
     expect(result["gen_ai.input.messages"]).toBe(

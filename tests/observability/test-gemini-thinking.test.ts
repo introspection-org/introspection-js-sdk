@@ -132,7 +132,6 @@ describe("Gemini Thinking Tests", () => {
                 ],
                 "gen_ai.response.id": "<response_id>",
                 "gen_ai.response.model": "<response_model>",
-                "gen_ai.system": "gemini",
                 "gen_ai.usage.input_tokens": "<input_tokens>",
                 "gen_ai.usage.output_tokens": "<output_tokens>",
                 "openinference.span.kind": "LLM",
@@ -149,7 +148,7 @@ describe("Gemini Thinking Tests", () => {
         spans[0].attributes["gen_ai.output.messages"],
       ) as any[];
       const thinkingParts = outputMsgs[0].parts.filter(
-        (p: any) => p.type === "thinking",
+        (p: any) => p.type === "reasoning",
       );
       expect(thinkingParts.length).toBeGreaterThanOrEqual(1);
       expect(thinkingParts[0].content).toEqual(expect.any(String));
@@ -222,7 +221,7 @@ describe("Gemini Thinking Tests", () => {
       // emitted just before a tool_call (the part the signature was attached to).
       const redactedThinking = outParts.filter(
         (p: any) =>
-          p.type === "thinking" &&
+          p.type === "reasoning" &&
           p.content === "[redacted]" &&
           typeof p.signature === "string" &&
           p.signature.length > 0,
@@ -290,7 +289,6 @@ describe("Gemini Thinking Tests", () => {
                 ],
                 "gen_ai.response.id": "<response_id>",
                 "gen_ai.response.model": "<response_model>",
-                "gen_ai.system": "gemini",
                 "gen_ai.usage.input_tokens": "<input_tokens>",
                 "gen_ai.usage.output_tokens": "<output_tokens>",
                 "openinference.span.kind": "LLM",
@@ -307,7 +305,7 @@ describe("Gemini Thinking Tests", () => {
         spans[0].attributes["gen_ai.output.messages"],
       ) as any[];
       const thinkingParts = outputMsgs[0].parts.filter(
-        (p: any) => p.type === "thinking",
+        (p: any) => p.type === "reasoning",
       );
       expect(thinkingParts.length).toBeGreaterThanOrEqual(1);
       expect(thinkingParts[0].provider_name).toBe("gemini");
@@ -406,7 +404,7 @@ describe("Gemini Thinking Tests", () => {
         spans[0].attributes["gen_ai.output.messages"],
       ) as any[];
       expect(
-        turn1Output[0].parts.filter((p: any) => p.type === "thinking").length,
+        turn1Output[0].parts.filter((p: any) => p.type === "reasoning").length,
       ).toBeGreaterThanOrEqual(1);
       expect(
         turn1Output[0].parts.filter((p: any) => p.type === "tool_call").length,
@@ -421,7 +419,7 @@ describe("Gemini Thinking Tests", () => {
         .filter((m: any) => m.role === "assistant")
         .flatMap((m: any) => m.parts);
       const replayedThinking = replayedAssistantParts.filter(
-        (p: any) => p.type === "thinking",
+        (p: any) => p.type === "reasoning",
       );
       expect(replayedThinking.length).toBeGreaterThanOrEqual(1);
       expect(

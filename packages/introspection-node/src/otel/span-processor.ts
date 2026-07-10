@@ -308,7 +308,7 @@ export class IntrospectionSpanProcessor implements SpanProcessor {
     const hasGenAi =
       isOI ||
       isVercel ||
-      span.attributes["gen_ai.system"] != null ||
+      span.attributes["gen_ai.provider.name"] != null ||
       span.attributes["gen_ai.operation.name"] != null ||
       span.attributes["gen_ai.request.model"] != null ||
       span.attributes["gen_ai.input.messages"] != null ||
@@ -333,7 +333,7 @@ export class IntrospectionSpanProcessor implements SpanProcessor {
           if (
             key === "gen_ai.output.messages" &&
             typeof value === "string" &&
-            value.includes('"thinking"')
+            value.includes('"reasoning"')
           ) {
             attrs[key] = value;
           } else if (attrs[key] === undefined) {
@@ -351,6 +351,7 @@ export class IntrospectionSpanProcessor implements SpanProcessor {
     } else {
       attrs = { ...span.attributes };
     }
+    delete attrs["gen_ai.system"];
 
     // Read baggage from active context
     const baggage = propagation.getBaggage(otelContext.active());

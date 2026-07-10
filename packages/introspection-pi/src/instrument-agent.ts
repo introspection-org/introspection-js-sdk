@@ -1,24 +1,34 @@
 /**
  * Subscribe to a pi-agent {@link Agent} to emit `execute_tool` spans for every
- * tool call the loop runs.
+ * tool call the loop runs, and (optionally) one `invoke_agent` span per run.
  */
 
 import {
   context as otelContext,
   SpanKind,
   SpanStatusCode,
+  trace,
   type Attributes,
   type Context as OtelContext,
+  type Meter,
   type Span,
   type Tracer,
 } from "@opentelemetry/api";
 import type { Agent, AgentEvent } from "@earendil-works/pi-agent-core";
-import { GenAiSpanName, IntrospectionAttr } from "@introspection-sdk/types";
+import {
+  GenAi,
+  GenAiSpanName,
+  IntrospectionAttr,
+} from "@introspection-sdk/types";
 import {
   executeToolAttributes,
   executeToolResultAttribute,
+  invokeAgentAttributes,
   type AgentMeta,
 } from "./attributes.js";
+import { semconvFinishReason } from "./convert.js";
+import { classifyErrorType } from "./error-type.js";
+import { genAiMetrics, type GenAiMetrics } from "./metrics.js";
 
 export interface InstrumentAgentOptions {
   /** Tracer to start the execute_tool spans on. */
@@ -26,8 +36,30 @@ export interface InstrumentAgentOptions {
   /** Required metadata stamped onto every execute_tool span. */
   meta: AgentMeta;
   /**
+   * Optional meter. When set, the wrapper also records
+   * `gen_ai.execute_tool.duration` per tool call and (when `runSpans` is
+   * enabled) `gen_ai.invoke_agent.duration` per run.
+   */
+  meter?: Meter;
+  /**
+   * Emit one `invoke_agent {agent.name}` span per agent run
+   * (`agent_start` → `agent_end`), carrying conversation/agent identity
+   * and the final finish reason. Usage attributes stay on the chat spans
+   * only, so aggregations that sum a whole trace don't double-count.
+   *
+   * Off by default: hosts that already create their own turn/run spans
+   * (and parent chat spans onto them via `getParentContext`) would get
+   * duplicate run spans otherwise. When enabled, wire the chat spans under
+   * the run span with
+   * `instrumentStream(fn, { getParentContext: () => handle.getRunContext() })`;
+   * tool spans parent onto the run span automatically unless
+   * `getParentContext` is provided.
+   */
+  runSpans?: boolean;
+  /**
    * Returns the parent OTel context for the next tool span. If undefined or
-   * returns null, `context.active()` is used at the time the start event fires.
+   * returns null, the active run span (when `runSpans` is enabled) or
+   * `context.active()` is used at the time the start event fires.
    */
   getParentContext?: () => OtelContext | null | undefined;
   /**
@@ -42,14 +74,34 @@ export interface InstrumentAgentOptions {
 }
 
 export interface AgentInstrumentation {
-  /** Stop subscribing and finalize any tool spans still open. */
+  /** Stop subscribing and finalize any spans still open. */
   stop: () => void;
+  /**
+   * OTel context of the active `invoke_agent` span, when `runSpans` is
+   * enabled and a run is in flight. Pass to `instrumentStream`'s
+   * `getParentContext` so chat spans nest under the run span.
+   */
+  getRunContext: () => OtelContext | undefined;
+}
+
+interface ActiveToolSpan {
+  span: Span;
+  startedAt: number;
+}
+
+interface ActiveRun {
+  span: Span;
+  context: OtelContext;
+  startedAt: number;
+  lastStopReason?: string;
+  errorMessage?: string;
 }
 
 /**
  * Subscribe to {@link Agent.subscribe} and emit one `execute_tool ${name}`
- * span per tool call. Returns a handle whose `stop()` unsubscribes and
- * finalizes any still-open spans.
+ * span per tool call (plus one `invoke_agent` span per run when enabled).
+ * Returns a handle whose `stop()` unsubscribes and finalizes any still-open
+ * spans.
  *
  * Tool call IDs are assumed unique per agent run; concurrent tool execution
  * (`ToolExecutionMode = "parallel"`) is supported because each id keys its
@@ -60,63 +112,128 @@ export function instrumentAgent(
   opts: InstrumentAgentOptions,
 ): AgentInstrumentation {
   const buildSpanName = opts.spanName ?? GenAiSpanName.executeTool;
-  const activeSpans = new Map<string, Span>();
+  const activeSpans = new Map<string, ActiveToolSpan>();
+  const metrics = opts.meter ? genAiMetrics(opts.meter) : undefined;
+  const state: { run: ActiveRun | undefined } = { run: undefined };
 
   const unsubscribe = agent.subscribe((event, signal) => {
-    handleEvent(event, opts, activeSpans, buildSpanName, signal);
+    handleEvent(
+      event,
+      agent,
+      opts,
+      activeSpans,
+      state,
+      metrics,
+      buildSpanName,
+      signal,
+    );
   });
 
   return {
     stop: () => {
       unsubscribe();
-      for (const span of activeSpans.values()) {
-        span.setStatus({ code: SpanStatusCode.OK });
+      for (const { span } of activeSpans.values()) {
         span.end();
       }
       activeSpans.clear();
+      if (state.run) {
+        state.run.span.end();
+        state.run = undefined;
+      }
     },
+    getRunContext: () => state.run?.context,
   };
 }
 
 function handleEvent(
   event: AgentEvent,
+  agent: Agent,
   opts: InstrumentAgentOptions,
-  activeSpans: Map<string, Span>,
+  activeSpans: Map<string, ActiveToolSpan>,
+  state: { run: ActiveRun | undefined },
+  metrics: GenAiMetrics | undefined,
   buildSpanName: (toolName: string) => string,
   signal?: AbortSignal,
 ): void {
   switch (event.type) {
-    case "tool_execution_start": {
+    case "agent_start": {
+      if (!opts.runSpans) return;
       const parentContext = opts.getParentContext?.() ?? otelContext.active();
-
       const span = opts.tracer.startSpan(
-        buildSpanName(event.toolName),
-        { kind: SpanKind.INTERNAL },
+        GenAiSpanName.invokeAgent(opts.meta.agentName),
+        {
+          kind: SpanKind.INTERNAL,
+          attributes: invokeAgentAttributes(opts.meta),
+        },
         parentContext ?? undefined,
       );
-      span.setAttributes(
-        executeToolAttributes(
+      state.run = {
+        span,
+        context: trace.setSpan(parentContext ?? otelContext.active(), span),
+        startedAt: Date.now(),
+      };
+      return;
+    }
+
+    case "message_end": {
+      const run = state.run;
+      const message = event.message;
+      if (!run || message.role !== "assistant" || !("usage" in message)) {
+        return;
+      }
+      // Track outcome only. The run span deliberately carries NO
+      // gen_ai.usage.* attributes: platform aggregations sum usage across
+      // every span in a conversation, so aggregated usage on the run span
+      // would double-count the chat spans beneath it.
+      run.lastStopReason = message.stopReason;
+      run.errorMessage = message.errorMessage;
+      return;
+    }
+
+    case "agent_end": {
+      const run = state.run;
+      if (!run) return;
+      state.run = undefined;
+      finishRunSpan(run, opts.meta, metrics, signal);
+      return;
+    }
+
+    case "tool_execution_start": {
+      const parentContext =
+        opts.getParentContext?.() ?? state.run?.context ?? otelContext.active();
+
+      const description = lookupToolDescription(agent, event.toolName);
+
+      // Full attribute set at span creation time so samplers see
+      // gen_ai.operation.name / tool.name / tool.type.
+      const attributes: Attributes = {
+        ...executeToolAttributes(
           event.toolName,
           event.toolCallId,
           event.args,
           opts.meta,
+          description,
         ),
-      );
-      const extra = opts.extraAttributes?.(event);
-      if (extra) {
-        span.setAttributes(extra);
-      }
+        ...opts.extraAttributes?.(event),
+      };
 
-      activeSpans.set(event.toolCallId, span);
+      const span = opts.tracer.startSpan(
+        buildSpanName(event.toolName),
+        { kind: SpanKind.INTERNAL, attributes },
+        parentContext ?? undefined,
+      );
+
+      activeSpans.set(event.toolCallId, { span, startedAt: Date.now() });
       return;
     }
 
     case "tool_execution_end": {
-      const span = activeSpans.get(event.toolCallId);
-      if (!span) return;
+      const active = activeSpans.get(event.toolCallId);
+      if (!active) return;
       activeSpans.delete(event.toolCallId);
+      const { span, startedAt } = active;
 
-      span.setAttributes(executeToolResultAttribute(event.result));
+      let errorType: string | undefined;
       if (event.isError && signal?.aborted) {
         // The run's AbortSignal fired: pi synthesizes "Operation aborted"
         // error results for tool calls cut short by a requested abort. A
@@ -124,7 +241,8 @@ function handleEvent(
         // Unset, and the cancellation is queryable via the attribute.
         span.setAttribute(IntrospectionAttr.TERMINATION_REASON, "cancelled");
       } else if (event.isError) {
-        span.setAttribute("error.type", "tool_error");
+        errorType = "tool_error";
+        span.setAttribute("error.type", errorType);
         span.setStatus({
           code: SpanStatusCode.ERROR,
           message:
@@ -135,14 +253,85 @@ function handleEvent(
                 : undefined,
         });
       } else {
-        span.setStatus({ code: SpanStatusCode.OK });
+        // Semconv scopes gen_ai.tool.call.result to successful executions;
+        // error text is carried on the span status instead.
+        span.setAttributes(executeToolResultAttribute(event.result));
       }
       span.end();
+
+      if (metrics) {
+        const attributes: Attributes = {
+          [GenAi.TOOL_NAME]: event.toolName,
+          [GenAi.TOOL_TYPE]: "function",
+          [GenAi.AGENT_NAME]: opts.meta.agentName,
+        };
+        if (errorType) attributes["error.type"] = errorType;
+        metrics.executeToolDuration.record(
+          (Date.now() - startedAt) / 1000,
+          attributes,
+        );
+      }
       return;
     }
 
     default:
       return;
+  }
+}
+
+function finishRunSpan(
+  run: ActiveRun,
+  meta: AgentMeta,
+  metrics: GenAiMetrics | undefined,
+  signal?: AbortSignal,
+): void {
+  const { span } = run;
+
+  if (run.lastStopReason) {
+    span.setAttribute(GenAi.RESPONSE_FINISH_REASONS, [
+      semconvFinishReason(run.lastStopReason),
+    ]);
+  }
+
+  let errorType: string | undefined;
+  const aborted = run.lastStopReason === "aborted" || signal?.aborted === true;
+  if (aborted) {
+    // Mirrors the chat-span contract: a requested cancellation is an
+    // outcome, not a failure.
+    span.setAttribute(IntrospectionAttr.TERMINATION_REASON, "cancelled");
+  } else if (run.lastStopReason === "error") {
+    const errorMessage = run.errorMessage ?? "Unknown error";
+    errorType = classifyErrorType(errorMessage, "model_error");
+    span.setAttribute("error.type", errorType);
+    span.recordException(new Error(errorMessage));
+    span.setStatus({ code: SpanStatusCode.ERROR, message: errorMessage });
+  }
+  span.end();
+
+  if (metrics) {
+    const attributes: Attributes = { [GenAi.AGENT_NAME]: meta.agentName };
+    if (errorType) attributes["error.type"] = errorType;
+    metrics.invokeAgentDuration.record(
+      (Date.now() - run.startedAt) / 1000,
+      attributes,
+    );
+  }
+}
+
+/**
+ * Best-effort `gen_ai.tool.description` lookup from the agent's tool
+ * registry. Defensive against partial Agent implementations (tests, mocks)
+ * that don't expose `state.tools`.
+ */
+function lookupToolDescription(
+  agent: Agent,
+  toolName: string,
+): string | undefined {
+  try {
+    return agent.state?.tools?.find((tool) => tool.name === toolName)
+      ?.description;
+  } catch {
+    return undefined;
   }
 }
 

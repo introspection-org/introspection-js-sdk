@@ -358,7 +358,7 @@ export class IntrospectionMastraExporter extends BaseExporter {
     otelSpan.setAttribute("openinference.span.kind", "LLM");
 
     if (model) otelSpan.setAttribute("gen_ai.request.model", model);
-    if (provider) otelSpan.setAttribute("gen_ai.system", provider);
+    if (provider) otelSpan.setAttribute("gen_ai.provider.name", provider);
     if (responseModel)
       otelSpan.setAttribute("gen_ai.response.model", responseModel);
     if (responseId) otelSpan.setAttribute("gen_ai.response.id", responseId);
@@ -481,14 +481,16 @@ export class IntrospectionMastraExporter extends BaseExporter {
     const conversationId = this._getConversationId(span);
     const toolName = span.entityName || span.name || "tool";
 
-    const otelSpan = this._createSpan(span, toolName);
+    const otelSpan = this._createSpan(span, `execute_tool ${toolName}`);
+    otelSpan.setAttribute("gen_ai.operation.name", "execute_tool");
     otelSpan.setAttribute("gen_ai.tool.name", toolName);
+    otelSpan.setAttribute("gen_ai.tool.type", "function");
     otelSpan.setAttribute("gen_ai.conversation.id", conversationId);
     otelSpan.setAttribute("openinference.span.kind", "TOOL");
 
     if (span.input != null) {
       otelSpan.setAttribute(
-        "gen_ai.tool.input",
+        "gen_ai.tool.call.arguments",
         typeof span.input === "string"
           ? span.input
           : JSON.stringify(span.input),
@@ -496,7 +498,7 @@ export class IntrospectionMastraExporter extends BaseExporter {
     }
     if (span.output != null) {
       otelSpan.setAttribute(
-        "gen_ai.tool.output",
+        "gen_ai.tool.call.result",
         typeof span.output === "string"
           ? span.output
           : JSON.stringify(span.output),
@@ -600,7 +602,7 @@ export class IntrospectionMastraExporter extends BaseExporter {
       if (Array.isArray(out.reasoning)) {
         for (const r of out.reasoning as Record<string, unknown>[]) {
           const text = (r.text || r.content || "") as string;
-          if (text) parts.push({ type: "thinking", content: text });
+          if (text) parts.push({ type: "reasoning", content: text });
         }
       }
 

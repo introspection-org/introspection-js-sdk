@@ -72,7 +72,7 @@ function isFiniteNumber(v: unknown): v is number {
  */
 function parseToolsFromSystemPrompt(
   prompt: string,
-): Array<{ name: string; description: string }> {
+): Array<{ type: "function"; name: string; description: string }> {
   const sectionStart = prompt.indexOf("Tool availability");
   if (sectionStart === -1) return [];
   const sectionEnd = prompt.indexOf("\n##", sectionStart + 20);
@@ -81,12 +81,20 @@ function parseToolsFromSystemPrompt(
       ? prompt.slice(sectionStart, sectionEnd)
       : prompt.slice(sectionStart, sectionStart + 2000);
 
-  const result: Array<{ name: string; description: string }> = [];
+  const result: Array<{
+    type: "function";
+    name: string;
+    description: string;
+  }> = [];
   const re = /^- (\w+): (.+)$/gm;
   let match: RegExpExecArray | null;
   // biome-ignore lint/suspicious/noAssignInExpressions: idiomatic exec loop
   while ((match = re.exec(section)) !== null) {
-    result.push({ name: match[1]!, description: match[2]! });
+    result.push({
+      type: "function",
+      name: match[1]!,
+      description: match[2]!,
+    });
   }
   return result;
 }
@@ -94,9 +102,11 @@ function parseToolsFromSystemPrompt(
 /** Read tool definitions from the event; fall back to parsing the system prompt. */
 function toolDefsFromEvent(
   event: AnyEvent,
-): Array<{ name: string; description?: string }> | undefined {
+): Array<{ type: string; name: string; description?: string }> | undefined {
   if (Array.isArray(event.tools) && event.tools.length > 0) {
-    return event.tools as Array<{ name: string; description?: string }>;
+    return (event.tools as Array<{ name: string; description?: string }>).map(
+      (tool) => ({ type: "function", ...tool }),
+    );
   }
   if (typeof event.systemPrompt === "string") {
     const parsed = parseToolsFromSystemPrompt(event.systemPrompt);

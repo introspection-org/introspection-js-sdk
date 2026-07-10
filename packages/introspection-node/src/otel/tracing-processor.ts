@@ -97,7 +97,7 @@ export interface IntrospectionTracingProcessorOptions {
  *
  * Extracts OTel Gen AI semantic convention attributes from span data:
  * - Agent spans: `gen_ai.agent.name`, `gen_ai.tool.definitions`, `gen_ai.agent.handoffs`
- * - Function spans: `gen_ai.tool.name`, `gen_ai.tool.input`, `gen_ai.tool.output`
+ * - Function spans: `gen_ai.tool.name`, `gen_ai.tool.call.arguments`, `gen_ai.tool.call.result`
  * - Response spans: `gen_ai.input/output.messages`, `gen_ai.usage.*`, `gen_ai.request.model`
  * - Generation spans: `gen_ai.request.model`, `gen_ai.usage.*`
  * - Handoff spans: `gen_ai.handoff.from_agent`, `gen_ai.handoff.to_agent`
@@ -336,12 +336,15 @@ export class IntrospectionTracingProcessor implements TracingProcessor {
    */
   private _processAgentSpan(otelSpan: OtelSpan, spanData: AgentSpanData): void {
     otelSpan.setAttribute("gen_ai.agent.name", spanData.name);
-    otelSpan.setAttribute("gen_ai.system", "openai");
+    otelSpan.setAttribute("gen_ai.provider.name", "openai");
     otelSpan.setAttribute("openinference.span.kind", "AGENT");
 
     if (spanData.tools) {
       // Wrap tool names as objects for ClickHouse Array(JSON) compatibility
-      const toolDefs = spanData.tools.map((t: string) => ({ name: t }));
+      const toolDefs = spanData.tools.map((t: string) => ({
+        type: "function",
+        name: t,
+      }));
       otelSpan.setAttribute(
         "gen_ai.tool.definitions",
         JSON.stringify(toolDefs),
@@ -367,15 +370,18 @@ export class IntrospectionTracingProcessor implements TracingProcessor {
     otelSpan: OtelSpan,
     spanData: FunctionSpanData,
   ): void {
+    otelSpan.updateName(`execute_tool ${spanData.name}`);
+    otelSpan.setAttribute("gen_ai.operation.name", "execute_tool");
     otelSpan.setAttribute("gen_ai.tool.name", spanData.name);
+    otelSpan.setAttribute("gen_ai.tool.type", "function");
     otelSpan.setAttribute("openinference.span.kind", "TOOL");
 
     if (spanData.input) {
-      otelSpan.setAttribute("gen_ai.tool.input", spanData.input);
+      otelSpan.setAttribute("gen_ai.tool.call.arguments", spanData.input);
     }
 
     if (spanData.output) {
-      otelSpan.setAttribute("gen_ai.tool.output", String(spanData.output));
+      otelSpan.setAttribute("gen_ai.tool.call.result", String(spanData.output));
     }
   }
 
@@ -388,7 +394,7 @@ export class IntrospectionTracingProcessor implements TracingProcessor {
     spanData: ResponseSpanData,
   ): void {
     otelSpan.setAttribute("gen_ai.operation.name", "chat");
-    otelSpan.setAttribute("gen_ai.system", "openai");
+    otelSpan.setAttribute("gen_ai.provider.name", "openai");
     otelSpan.setAttribute("openinference.span.kind", "LLM");
 
     // Response ID (from span_data directly)
@@ -494,7 +500,7 @@ export class IntrospectionTracingProcessor implements TracingProcessor {
     spanData: GenerationSpanData,
   ): void {
     otelSpan.setAttribute("gen_ai.operation.name", "chat");
-    otelSpan.setAttribute("gen_ai.system", "openai");
+    otelSpan.setAttribute("gen_ai.provider.name", "openai");
     otelSpan.setAttribute("openinference.span.kind", "LLM");
 
     if (spanData.model) {

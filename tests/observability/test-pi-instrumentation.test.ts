@@ -87,15 +87,30 @@ describe("instrumentStream", () => {
 
     const upstream = vi.fn(() => {
       const stream = createAssistantMessageEventStream();
-      stream.push({
-        type: "start",
-        partial: assistantMessage(),
-      });
-      stream.push({
-        type: "done",
-        reason: "stop",
-        message: assistantMessage(),
-      });
+      setTimeout(() => {
+        stream.push({
+          type: "start",
+          partial: assistantMessage(),
+        });
+        stream.push({
+          type: "text_start",
+          contentIndex: 0,
+          partial: assistantMessage(),
+        });
+      }, 1);
+      setTimeout(() => {
+        stream.push({
+          type: "text_delta",
+          contentIndex: 0,
+          delta: "ok",
+          partial: assistantMessage(),
+        });
+        stream.push({
+          type: "done",
+          reason: "stop",
+          message: assistantMessage(),
+        });
+      }, 5);
       return stream;
     });
 
@@ -117,7 +132,7 @@ describe("instrumentStream", () => {
 
     const span = exporter
       .getFinishedSpans()
-      .find((candidate) => candidate.name === "chat anthropic");
+      .find((candidate) => candidate.name === "chat claude-sonnet-4-6");
     expect(span).toBeDefined();
     expect(span?.attributes["gen_ai.conversation.id"]).toBe("conv_123");
     expect(span?.attributes["gen_ai.request.model"]).toBe("claude-sonnet-4-6");
@@ -125,10 +140,14 @@ describe("instrumentStream", () => {
     expect(span?.attributes["gen_ai.request.temperature"]).toBe(0.2);
     expect(span?.attributes["gen_ai.request.max_tokens"]).toBe(1024);
     expect(span?.attributes["gen_ai.request.reasoning.level"]).toBe("high");
-    expect(typeof span?.attributes["gen_ai.response.time_to_first_chunk"]).toBe(
-      "number",
+    expect(span?.attributes["gen_ai.response.time_to_first_chunk"]).toEqual(
+      expect.any(Number),
     );
-    expect(span?.attributes["gen_ai.usage.input_tokens"]).toBe(100);
+    expect(
+      Number(span?.attributes["gen_ai.response.time_to_first_chunk"]),
+    ).toBeGreaterThanOrEqual(0.004);
+    // Semconv input includes uncached and cache-read tokens.
+    expect(span?.attributes["gen_ai.usage.input_tokens"]).toBe(150);
     expect(span?.attributes["gen_ai.usage.cache_read.input_tokens"]).toBe(50);
     expect(
       span?.attributes["gen_ai.usage.cache_creation.input_tokens"],
@@ -138,7 +157,7 @@ describe("instrumentStream", () => {
     ).toEqual([
       { role: "user", parts: [{ type: "text", content: "Inspect" }] },
     ]);
-    expect(span?.status.code).toBe(1); // SpanStatusCode.OK
+    expect(span?.status.code).toBe(0); // SpanStatusCode.UNSET
   });
 
   it("invokes extraAttributes and merges its output onto the chat span", async () => {
@@ -169,7 +188,7 @@ describe("instrumentStream", () => {
 
     const span = exporter
       .getFinishedSpans()
-      .find((candidate) => candidate.name === "chat anthropic");
+      .find((candidate) => candidate.name === "chat claude-sonnet-4-6");
     expect(span?.attributes["introspection.byok"]).toBe(true);
     expect(span?.attributes["introspection.client_message_id"]).toBe("msg_42");
   });
@@ -209,7 +228,7 @@ describe("instrumentStream", () => {
     await provider.forceFlush();
     const chat = exporter
       .getFinishedSpans()
-      .find((s) => s.name === "chat anthropic");
+      .find((s) => s.name === "chat claude-sonnet-4-6");
     expect(chat?.spanContext().traceId).toBe(parentTraceId);
     expect(chat?.parentSpanContext?.spanId).toBe(parentSpanId);
   });
@@ -236,14 +255,16 @@ describe("instrumentStream", () => {
 
     const span = exporter
       .getFinishedSpans()
-      .find((s) => s.name === "chat anthropic");
+      .find((s) => s.name === "chat claude-sonnet-4-6");
     expect(span?.status.code).toBe(2); // ERROR
     expect(span?.status.message).toBe("boom");
     expect(span?.attributes["error.type"]).toBe("model_error");
     expect(span?.events.some((e) => e.name === "exception")).toBe(true);
+    // The semconv gen_ai.client.operation.exception signal is a LOG event;
+    // it must not be duplicated as a span event on top of recordException.
     expect(
       span?.events.some((e) => e.name === "gen_ai.client.operation.exception"),
-    ).toBe(true);
+    ).toBe(false);
   });
 
   it("treats an aborted stream as a manual terminal state, not an error", async () => {
@@ -270,7 +291,7 @@ describe("instrumentStream", () => {
 
     const span = exporter
       .getFinishedSpans()
-      .find((s) => s.name === "chat anthropic");
+      .find((s) => s.name === "chat claude-sonnet-4-6");
     expect(span?.status.code).toBe(0); // UNSET — manual abort, not success or failure
     expect(span?.attributes["gen_ai.response.finish_reasons"]).toEqual([
       "aborted",
@@ -306,7 +327,7 @@ describe("instrumentStream", () => {
 
     const span = exporter
       .getFinishedSpans()
-      .find((s) => s.name === "chat anthropic");
+      .find((s) => s.name === "chat claude-sonnet-4-6");
     expect(span?.status.code).toBe(0); // UNSET — not a failure, not asserted success
     expect(span?.events.some((e) => e.name === "exception")).toBe(false);
     expect(span?.attributes["introspection.termination_reason"]).toBe(
@@ -346,7 +367,7 @@ describe("instrumentStream", () => {
 
     const span = exporter
       .getFinishedSpans()
-      .find((s) => s.name === "chat anthropic");
+      .find((s) => s.name === "chat claude-sonnet-4-6");
     expect(span?.status.code).toBe(0); // UNSET
     expect(span?.attributes["introspection.termination_reason"]).toBe(
       "awaiting_user",
@@ -381,7 +402,7 @@ describe("instrumentStream", () => {
 
     const span = exporter
       .getFinishedSpans()
-      .find((s) => s.name === "chat anthropic");
+      .find((s) => s.name === "chat claude-sonnet-4-6");
     expect(span?.status.code).toBe(2); // ERROR — unconfirmed abort fails loud
     expect(span?.status.message).toBe("Request was aborted");
     expect(span?.events.some((e) => e.name === "exception")).toBe(true);
@@ -450,7 +471,7 @@ describe("instrumentAgent", () => {
     expect(
       JSON.parse(String(span?.attributes["gen_ai.tool.call.result"])),
     ).toEqual({ stdout: "ok" });
-    expect(span?.status.code).toBe(1); // OK
+    expect(span?.status.code).toBe(0); // UNSET
   });
 
   it("invokes extraAttributes and merges its output onto the tool span", async () => {
@@ -559,9 +580,9 @@ describe("instrumentAgent", () => {
     expect(span?.attributes["introspection.termination_reason"]).toBe(
       "cancelled",
     );
-    expect(span?.attributes["gen_ai.tool.call.result"]).toBe(
-      "Operation aborted",
-    );
+    // Semconv scopes gen_ai.tool.call.result to successful executions; the
+    // synthetic "Operation aborted" text is not a real tool result.
+    expect(span?.attributes["gen_ai.tool.call.result"]).toBeUndefined();
   });
 
   it("stop() closes any tool spans still open (e.g. an aborted run)", async () => {
