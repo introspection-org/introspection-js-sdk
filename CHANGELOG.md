@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.0](https://github.com/introspection-org/introspection-js-sdk/compare/v0.7.2...v0.8.0) (2026-07-10)
+
+
+### Features
+
+* **proxy:** emit introspection-proxy-call OTel spans for proxied requests ([#180](https://github.com/introspection-org/introspection-js-sdk/issues/180)) ([d5b5412](https://github.com/introspection-org/introspection-js-sdk/commit/d5b5412d55c2323cf3ed7aa041449c0d8e25be39))
+
 ## [0.7.2](https://github.com/introspection-org/introspection-js-sdk/compare/v0.7.1...v0.7.2) (2026-07-10)
 
 
