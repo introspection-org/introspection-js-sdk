@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.2](https://github.com/introspection-org/introspection-js-sdk/compare/v0.8.1...v0.8.2) (2026-07-10)
+
+
+### Bug Fixes
+
+* **node:** project all gen_ai/introspection/identity baggage onto infra spans ([#184](https://github.com/introspection-org/introspection-js-sdk/issues/184)) ([a3c4122](https://github.com/introspection-org/introspection-js-sdk/commit/a3c41220208c3408e07ec888915f169c27350676))
+
 ## [0.8.1](https://github.com/introspection-org/introspection-js-sdk/compare/v0.8.0...v0.8.1) (2026-07-10)
 
 
