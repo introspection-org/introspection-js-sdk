@@ -49,6 +49,17 @@ const INTROSPECTION_INFRA_SCOPES: ReadonlySet<string> = new Set([
 ]);
 
 /**
+ * End-user identity baggage keys → their semconv span-attribute keys. The
+ * baggage keys use the `identify()` underscore form; the span attributes use
+ * the dotted semconv form. Shared by the gen_ai and infra-span paths so the
+ * translation cannot drift between them.
+ */
+const IDENTITY_BAGGAGE_TO_ATTRIBUTE: Readonly<Record<string, string>> = {
+  "identity.user_id": "identity.user.id",
+  "identity.anonymous_id": "identity.anonymous.id",
+};
+
+/**
  * A {@link ReadableSpan} wrapper that substitutes the original attributes with
  * a converted set while delegating every other property to the original span.
  *
@@ -315,10 +326,11 @@ export class IntrospectionSpanProcessor implements SpanProcessor {
       for (const [key, entry] of infraBaggage?.getAllEntries() ?? []) {
         if (key.startsWith("gen_ai.") || key.startsWith("introspection.")) {
           baggageAttrs[key] = entry.value;
-        } else if (key === "identity.user_id") {
-          baggageAttrs["identity.user.id"] = entry.value;
-        } else if (key === "identity.anonymous_id") {
-          baggageAttrs["identity.anonymous.id"] = entry.value;
+          continue;
+        }
+        const identityKey = IDENTITY_BAGGAGE_TO_ATTRIBUTE[key];
+        if (identityKey) {
+          baggageAttrs[identityKey] = entry.value;
         }
       }
       let infraResource: Resource | undefined;
@@ -451,15 +463,15 @@ export class IntrospectionSpanProcessor implements SpanProcessor {
     // spans this SDK doesn't author — inherits it via OTel context
     // propagation. Mirrors the `identify()` attributes so agent-run spans are
     // identity-scoped the same way directly-instrumented app spans are. The
-    // baggage keys (`identity.user_id` / `identity.anonymous_id`) map to the
-    // semconv span attributes (`identity.user.id` / `identity.anonymous.id`).
-    const baggageUserId = baggage?.getEntry("identity.user_id")?.value;
-    if (baggageUserId) {
-      attrs["identity.user.id"] = baggageUserId;
-    }
-    const baggageAnonId = baggage?.getEntry("identity.anonymous_id")?.value;
-    if (baggageAnonId) {
-      attrs["identity.anonymous.id"] = baggageAnonId;
+    // baggage→attribute key translation is shared with the infra-span path
+    // via IDENTITY_BAGGAGE_TO_ATTRIBUTE.
+    for (const [baggageKey, attributeKey] of Object.entries(
+      IDENTITY_BAGGAGE_TO_ATTRIBUTE,
+    )) {
+      const value = baggage?.getEntry(baggageKey)?.value;
+      if (value) {
+        attrs[attributeKey] = value;
+      }
     }
 
     // Override resource with service name if provided
