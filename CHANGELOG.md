@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.7.2](https://github.com/introspection-org/introspection-js-sdk/compare/v0.7.1...v0.7.2) (2026-07-10)
+
+
+### Bug Fixes
+
+* **genai:** align SDK telemetry with current OTel semantic conventions ([#177](https://github.com/introspection-org/introspection-js-sdk/issues/177)) ([fe4f723](https://github.com/introspection-org/introspection-js-sdk/commit/fe4f7237f0e0af5fcb0e008a4627137ae9bdc7d4))
+
 ## [0.7.1](https://github.com/introspection-org/introspection-js-sdk/compare/v0.7.0...v0.7.1) (2026-07-06)
 
 
