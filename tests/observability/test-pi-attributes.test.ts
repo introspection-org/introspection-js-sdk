@@ -93,6 +93,31 @@ describe("chatRequestAttributes", () => {
     });
   });
 
+  it("maps pi provider ids to semconv well-known provider names", () => {
+    const cases: Array<[string, string]> = [
+      ["google", "gcp.gemini"],
+      ["google-vertex", "gcp.vertex_ai"],
+      ["xai", "x_ai"],
+      ["mistral", "mistral_ai"],
+      ["moonshotai", "moonshot_ai"],
+      ["amazon-bedrock", "aws.bedrock"],
+      ["azure-openai-responses", "azure.ai.openai"],
+      // No well-known value in the registry — passes through unchanged.
+      ["openrouter", "openrouter"],
+    ];
+    for (const [piProvider, semconvName] of cases) {
+      const attrs = chatRequestAttributes(
+        {
+          ...MODEL,
+          provider: piProvider as Model<"anthropic-messages">["provider"],
+        },
+        ctx(),
+        META,
+      );
+      expect(attrs["gen_ai.provider.name"]).toBe(semconvName);
+    }
+  });
+
   it("serializes input messages, system instructions, and tool definitions", () => {
     const attrs = chatRequestAttributes(
       MODEL,
@@ -206,7 +231,9 @@ describe("chatResponseAttributes", () => {
       }),
     );
 
-    expect(attrs["gen_ai.usage.input_tokens"]).toBe(321);
+    // input_tokens must include cache tokens (semconv: cache_read /
+    // cache_creation are subsets of input_tokens): 321 + 34 cacheRead.
+    expect(attrs["gen_ai.usage.input_tokens"]).toBe(355);
     expect(attrs["gen_ai.usage.output_tokens"]).toBe(12);
     expect(attrs["gen_ai.usage.reasoning.output_tokens"]).toBe(7);
     expect(attrs["gen_ai.usage.cache_read.input_tokens"]).toBe(34);
@@ -226,6 +253,27 @@ describe("chatResponseAttributes", () => {
       response_id: "resp_pi_123",
       parts: [{ type: "text", content: "Done." }],
     });
+  });
+});
+
+describe("chatResponseAttributes — finish reason mapping", () => {
+  it("maps toolUse to the semconv tool_call finish reason", () => {
+    const attrs = chatResponseAttributes(
+      assistantMessage({
+        content: [
+          {
+            type: "toolCall",
+            id: "call-1",
+            name: "shell",
+            arguments: { cmd: "ls" },
+          },
+        ],
+        stopReason: "toolUse",
+      }),
+    );
+    expect(attrs["gen_ai.response.finish_reasons"]).toEqual(["tool_call"]);
+    const outputs = JSON.parse(String(attrs["gen_ai.output.messages"]));
+    expect(outputs[0].finish_reason).toBe("tool_call");
   });
 });
 

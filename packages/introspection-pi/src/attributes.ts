@@ -18,11 +18,33 @@ import { GenAi, type ToolDefinition } from "@introspection-sdk/types";
 import {
   assistantToOutputMessages,
   messagesToInputMessages,
+  semconvFinishReason,
   systemPromptToInstructions,
   type ConvertOptions,
 } from "./convert.js";
 
 const MAX_BYTES = 64_000;
+
+/**
+ * pi-ai provider ids whose semconv `gen_ai.provider.name` well-known value
+ * spells differently. The spec requires the well-known value whenever one
+ * applies; ids without an entry (including pi providers the registry has no
+ * value for, e.g. `openrouter`, `cerebras`) pass through unchanged.
+ */
+const SEMCONV_PROVIDER_NAMES: Record<string, string> = {
+  "amazon-bedrock": "aws.bedrock",
+  "azure-openai-responses": "azure.ai.openai",
+  google: "gcp.gemini",
+  "google-vertex": "gcp.vertex_ai",
+  mistral: "mistral_ai",
+  moonshotai: "moonshot_ai",
+  "moonshotai-cn": "moonshot_ai",
+  xai: "x_ai",
+};
+
+function semconvProviderName(provider: string): string {
+  return SEMCONV_PROVIDER_NAMES[provider] ?? provider;
+}
 
 /** Metadata that the consumer attaches to every chat / tool span. */
 export interface AgentMeta {
@@ -50,7 +72,7 @@ export function chatRequestAttributes(
     [GenAi.AGENT_ID]: meta.agentId,
     [GenAi.AGENT_NAME]: meta.agentName,
     [GenAi.OPERATION_NAME]: "chat",
-    [GenAi.PROVIDER_NAME]: model.provider,
+    [GenAi.PROVIDER_NAME]: semconvProviderName(model.provider),
     [GenAi.REQUEST_MODEL]: model.id,
     "gen_ai.request.stream": true,
   };
@@ -104,8 +126,12 @@ export function chatRequestAttributes(
 export function chatResponseAttributes(message: AssistantMessage): Attributes {
   const attributes: Attributes = {
     [GenAi.OUTPUT_MESSAGES]: JSON.stringify(assistantToOutputMessages(message)),
-    [GenAi.RESPONSE_FINISH_REASONS]: [message.stopReason],
-    [GenAi.USAGE_INPUT_TOKENS]: message.usage.input,
+    [GenAi.RESPONSE_FINISH_REASONS]: [semconvFinishReason(message.stopReason)],
+    // Semconv: input_tokens covers ALL input tokens; cache_read /
+    // cache_creation are subsets of it. pi-ai normalizes usage.input to
+    // EXCLUDE cache tokens on every provider, so re-add them here.
+    [GenAi.USAGE_INPUT_TOKENS]:
+      message.usage.input + message.usage.cacheRead + message.usage.cacheWrite,
     [GenAi.USAGE_OUTPUT_TOKENS]: message.usage.output,
   };
 

@@ -76,7 +76,7 @@ describe("messagesToInputMessages", () => {
     expect(inputs[0]?.parts).toEqual([
       { type: "text", content: "Let me look.", text_signature: "sig-1" },
       {
-        type: "thinking",
+        type: "reasoning",
         content: "thinking out loud",
         signature: "thinking-sig",
       },
@@ -117,6 +117,23 @@ describe("messagesToInputMessages", () => {
 });
 
 describe("assistantToOutputMessages", () => {
+  it("maps the toolUse stop reason to the semconv tool_call value", () => {
+    const out = assistantToOutputMessages(
+      assistantMessage({
+        content: [
+          {
+            type: "toolCall",
+            id: "call-1",
+            name: "shell",
+            arguments: { cmd: "ls" },
+          },
+        ],
+        stopReason: "toolUse",
+      }),
+    );
+    expect(out[0]?.finish_reason).toBe("tool_call");
+  });
+
   it("preserves provider / model / response_id / finish_reason", () => {
     const out = assistantToOutputMessages(
       assistantMessage({
@@ -192,6 +209,27 @@ describe("inputMessagesToMessages (semconv → pi-ai)", () => {
     const tool = replayed[2] as ToolResultMessage;
     expect(tool.toolCallId).toBe("call-1");
     expect(tool.toolName).toBe("shell");
+  });
+
+  it("hydrates reasoning parts from both the semconv and legacy discriminators", () => {
+    const replayed = inputMessagesToMessages([
+      {
+        role: "assistant",
+        parts: [
+          { type: "reasoning", content: "new spans", signature: "sig-new" },
+          // Spans recorded before the semconv rename used "thinking".
+          { type: "thinking", content: "old spans", signature: "sig-old" },
+          { type: "text", content: "Done." },
+        ],
+      },
+    ]);
+
+    const assistant = replayed[0] as AssistantMessage;
+    expect(assistant.content).toEqual([
+      { type: "thinking", thinking: "new spans", thinkingSignature: "sig-new" },
+      { type: "thinking", thinking: "old spans", thinkingSignature: "sig-old" },
+      { type: "text", text: "Done." },
+    ]);
   });
 
   it("drops orphaned tool results with no matching assistant tool call", () => {

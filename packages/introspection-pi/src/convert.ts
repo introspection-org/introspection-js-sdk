@@ -94,6 +94,17 @@ export function systemPromptToInstructions(
   return [{ type: "text", content: systemPrompt }];
 }
 
+/**
+ * Map a pi-ai stop reason to the semconv `FinishReason` value
+ * (gen-ai-output-messages.json). Only `"toolUse"` needs translation — the
+ * schema enum calls it `"tool_call"`. The remaining pi values are either
+ * enum members already (`stop`, `length`, `error`) or intentionally kept
+ * as custom strings (`aborted`; the schema allows free-form values).
+ */
+export function semconvFinishReason(stopReason: string): string {
+  return stopReason === "toolUse" ? "tool_call" : stopReason;
+}
+
 function messageToSemconv(
   message: Message,
   options?: ConvertOptions,
@@ -183,7 +194,9 @@ function assistantMessageToSemconv(
   }
 
   const result: SemconvAssistant = { parts };
-  if (message.stopReason) result.finish_reason = message.stopReason;
+  if (message.stopReason) {
+    result.finish_reason = semconvFinishReason(message.stopReason);
+  }
   if (message.api) result.api = message.api;
   if (message.provider) result.provider = message.provider;
   if (message.model) result.model = message.model;
@@ -240,7 +253,7 @@ function assistantBlockToPart(
     case "thinking": {
       if (!block.thinking && !block.thinkingSignature) return null;
       const part: ReasoningPart = {
-        type: "thinking",
+        type: "reasoning",
         content: block.thinking ?? "",
       };
       if (block.thinkingSignature) {
@@ -499,7 +512,10 @@ function isCompactionPart(part: MessagePart): part is CompactionPart {
 }
 
 function isReasoningPart(part: MessagePart): part is ReasoningPart {
-  return part.type === "thinking";
+  // "reasoning" is the semconv discriminator; "thinking" is the legacy
+  // value this package emitted before — keep hydrating stored spans that
+  // used it.
+  return part.type === "reasoning" || part.type === "thinking";
 }
 
 function isToolCallRequestPart(part: MessagePart): part is ToolCallRequestPart {

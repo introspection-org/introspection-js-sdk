@@ -31,14 +31,18 @@ export interface TextPart {
 /**
  * A reasoning / thinking content part in a message.
  *
+ * The OTel GenAI semconv message schemas define this part with the
+ * `"reasoning"` discriminator; `"thinking"` is a legacy value that older
+ * converters emitted and readers must keep accepting.
+ *
  * `signature` carries the encrypted reasoning payload (Anthropic
  * `signature` / `redacted_thinking`, OpenAI `encrypted_content`).
  * `redacted` is set when the upstream provider redacted the visible
  * content but kept the signed payload.
  */
 export interface ReasoningPart {
-  /** Discriminator — always `"thinking"`. */
-  type: "thinking";
+  /** Discriminator — `"reasoning"` (semconv) or `"thinking"` (legacy). */
+  type: "reasoning" | "thinking";
   /** The reasoning / thinking summary content. */
   content?: string;
   /** Encrypted reasoning signature (Anthropic signature / redacted_thinking, OpenAI encrypted_content). */

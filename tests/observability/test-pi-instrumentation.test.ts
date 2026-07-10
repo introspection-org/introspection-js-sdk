@@ -128,7 +128,8 @@ describe("instrumentStream", () => {
     expect(typeof span?.attributes["gen_ai.response.time_to_first_chunk"]).toBe(
       "number",
     );
-    expect(span?.attributes["gen_ai.usage.input_tokens"]).toBe(100);
+    // 100 uncached + 50 cacheRead — semconv input_tokens includes cache.
+    expect(span?.attributes["gen_ai.usage.input_tokens"]).toBe(150);
     expect(span?.attributes["gen_ai.usage.cache_read.input_tokens"]).toBe(50);
     expect(
       span?.attributes["gen_ai.usage.cache_creation.input_tokens"],
