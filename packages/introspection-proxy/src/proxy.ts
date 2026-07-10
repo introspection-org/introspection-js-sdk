@@ -22,11 +22,23 @@ import {
   fetch as undiciFetch,
   type Dispatcher,
 } from "undici";
+import {
+  matchesNoProxy,
+  parseNoProxyEntries,
+  tracedProxyCall,
+} from "./tracing.js";
 
 export interface ProxyFetchOptions {
   egressProxyUrl?: string;
   egressProxyHosts?: string;
   forwardProxyUrl?: string;
+  /**
+   * Emit an `introspection-proxy-call` OTel span per proxied request
+   * (default true). Spans no-op unless the host process registered a tracer
+   * provider. Direct requests (no proxy, or `NO_PROXY` hosts) never get a
+   * span regardless of this flag.
+   */
+  tracing?: boolean;
 }
 
 function resolveEgressUrl(options: ProxyFetchOptions): string | undefined {
@@ -127,8 +139,14 @@ export function createProxyFetch(
 
   if (!egress && !forward) return base;
 
+  const tracing = options.tracing ?? true;
+  // Snapshot NO_PROXY once, like EnvHttpProxyAgent does at construction. Used
+  // only to decide span emission — undici owns the actual routing.
+  const noProxyEntries = parseNoProxyEntries(process.env);
+
   return (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
-    const hostname = new URL(toUrlString(input)).hostname.toLowerCase();
+    const url = new URL(toUrlString(input));
+    const hostname = url.hostname.toLowerCase();
 
     const useEgress =
       !!egress && egressHosts.size > 0 && egressHosts.has(hostname);
@@ -161,10 +179,26 @@ export function createProxyFetch(
       target = downgradeToHttp(target);
     }
 
-    return undiciFetch(
-      target as unknown as Parameters<typeof undiciFetch>[0],
-      opts as unknown as Parameters<typeof undiciFetch>[1],
-    ) as unknown as Promise<Response>;
+    const execute = () =>
+      undiciFetch(
+        target as unknown as Parameters<typeof undiciFetch>[0],
+        opts as unknown as Parameters<typeof undiciFetch>[1],
+      ) as unknown as Promise<Response>;
+
+    // A forward-dispatched request to a NO_PROXY host goes direct inside
+    // EnvHttpProxyAgent — no proxy hop, so no proxy span (in-cluster clients
+    // trace those calls themselves as `introspection-api-call`).
+    const viaProxy =
+      useEgress || !matchesNoProxy(hostname, url.port, noProxyEntries);
+    if (!tracing || !viaProxy) return execute();
+
+    const method = (
+      init?.method ??
+      (typeof Request !== "undefined" && input instanceof Request
+        ? input.method
+        : "GET")
+    ).toUpperCase();
+    return tracedProxyCall(useEgress ? "egress" : "forward", method, url, execute);
   };
 }
 
