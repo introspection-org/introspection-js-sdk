@@ -89,6 +89,28 @@ describe("messagesToInputMessages", () => {
     ]);
   });
 
+  it("encodes user images as blob parts without the payload", () => {
+    const message: UserMessage = {
+      role: "user",
+      content: [
+        { type: "text", text: "What is in this screenshot?" },
+        { type: "image", data: "aGVsbG8=", mimeType: "image/png" },
+      ],
+      timestamp: 0,
+    };
+    const inputs = messagesToInputMessages([message]);
+    expect(inputs).toEqual([
+      {
+        role: "user",
+        parts: [
+          { type: "text", content: "What is in this screenshot?" },
+          // Base64 payload intentionally omitted — structure only.
+          { type: "blob", modality: "image", mime_type: "image/png" },
+        ],
+      },
+    ]);
+  });
+
   it("encodes toolResult into a tool message with response field", () => {
     const message: ToolResultMessage = {
       role: "toolResult",

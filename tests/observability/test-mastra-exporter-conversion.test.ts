@@ -244,7 +244,7 @@ describe("IntrospectionMastraExporter span conversion", () => {
     expect(llm, "model_step span").toBeDefined();
     expect(llm!.attributes["introspection.llm.cost_usd"]).toBe(0.95);
     expect(llm!.attributes["introspection.llm.upstream_cost_usd"]).toBe(0.9);
-    expect(llm!.attributes["gen_ai.usage.reasoning_tokens"]).toBe(17);
+    expect(llm!.attributes["gen_ai.usage.reasoning.output_tokens"]).toBe(17);
 
     await mastra.shutdown();
   });

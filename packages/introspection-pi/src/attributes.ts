@@ -14,7 +14,12 @@ import type {
   SimpleStreamOptions,
   Tool,
 } from "@earendil-works/pi-ai";
-import { GenAi, type ToolDefinition } from "@introspection-sdk/types";
+import {
+  GenAi,
+  type InputMessage,
+  type OutputMessage,
+  type ToolDefinition,
+} from "@introspection-sdk/types";
 import {
   assistantToOutputMessages,
   messagesToInputMessages,
@@ -42,8 +47,27 @@ const SEMCONV_PROVIDER_NAMES: Record<string, string> = {
   xai: "x_ai",
 };
 
-function semconvProviderName(provider: string): string {
+/** Map a pi-ai provider id to the semconv `gen_ai.provider.name` value. */
+export function semconvProviderName(provider: string): string {
   return SEMCONV_PROVIDER_NAMES[provider] ?? provider;
+}
+
+/**
+ * `server.address` / `server.port` derived from the model's base URL.
+ * Returns an empty record when the URL cannot be parsed.
+ */
+export function serverAttributes(baseUrl: string): Attributes {
+  try {
+    const url = new URL(baseUrl);
+    const port = url.port
+      ? Number(url.port)
+      : url.protocol === "http:"
+        ? 80
+        : 443;
+    return { "server.address": url.hostname, "server.port": port };
+  } catch {
+    return {};
+  }
 }
 
 /** Metadata that the consumer attaches to every chat / tool span. */
@@ -75,6 +99,7 @@ export function chatRequestAttributes(
     [GenAi.PROVIDER_NAME]: semconvProviderName(model.provider),
     [GenAi.REQUEST_MODEL]: model.id,
     "gen_ai.request.stream": true,
+    ...serverAttributes(model.baseUrl),
   };
 
   if (context.systemPrompt) {
@@ -94,7 +119,13 @@ export function chatRequestAttributes(
   }
 
   const inputMessages = messagesToInputMessages(context.messages, options);
-  attributes[GenAi.INPUT_MESSAGES] = JSON.stringify(inputMessages);
+  const serializedInput = serializeMessagesWithCap(
+    inputMessages,
+    GenAi.INPUT_MESSAGES,
+  );
+  if (serializedInput) {
+    attributes[GenAi.INPUT_MESSAGES] = serializedInput;
+  }
   if (
     inputMessages.some((message) =>
       message.parts.some((part) => part.type === "compaction"),
@@ -125,7 +156,6 @@ export function chatRequestAttributes(
  */
 export function chatResponseAttributes(message: AssistantMessage): Attributes {
   const attributes: Attributes = {
-    [GenAi.OUTPUT_MESSAGES]: JSON.stringify(assistantToOutputMessages(message)),
     [GenAi.RESPONSE_FINISH_REASONS]: [semconvFinishReason(message.stopReason)],
     // Semconv: input_tokens covers ALL input tokens; cache_read /
     // cache_creation are subsets of it. pi-ai normalizes usage.input to
@@ -134,6 +164,14 @@ export function chatResponseAttributes(message: AssistantMessage): Attributes {
       message.usage.input + message.usage.cacheRead + message.usage.cacheWrite,
     [GenAi.USAGE_OUTPUT_TOKENS]: message.usage.output,
   };
+
+  const serializedOutput = serializeMessagesWithCap(
+    assistantToOutputMessages(message),
+    GenAi.OUTPUT_MESSAGES,
+  );
+  if (serializedOutput) {
+    attributes[GenAi.OUTPUT_MESSAGES] = serializedOutput;
+  }
 
   if (message.usage.cacheRead > 0) {
     attributes[GenAi.USAGE_CACHE_READ_INPUT_TOKENS] = message.usage.cacheRead;
@@ -158,7 +196,7 @@ export function chatResponseAttributes(message: AssistantMessage): Attributes {
       }
     ).reasoningOutput;
   if (typeof reasoningOutputTokens === "number" && reasoningOutputTokens > 0) {
-    attributes["gen_ai.usage.reasoning.output_tokens"] = reasoningOutputTokens;
+    attributes[GenAi.USAGE_REASONING_TOKENS] = reasoningOutputTokens;
   }
   if (message.responseId) {
     attributes[GenAi.RESPONSE_ID] = message.responseId;
@@ -176,6 +214,7 @@ export function executeToolAttributes(
   toolCallId: string,
   args: unknown,
   meta: AgentMeta,
+  description?: string,
 ): Attributes {
   const attributes: Attributes = {
     [GenAi.CONVERSATION_ID]: meta.conversationId,
@@ -186,10 +225,30 @@ export function executeToolAttributes(
     [GenAi.TOOL_TYPE]: "function",
     [GenAi.TOOL_CALL_ID]: toolCallId,
   };
+  if (description) {
+    attributes[GenAi.TOOL_DESCRIPTION] = description;
+  }
   if (args !== undefined) {
     attributes[GenAi.TOOL_CALL_ARGUMENTS] = stringify(args);
   }
   return attributes;
+}
+
+/**
+ * Attributes for an `invoke_agent` span (set at start).
+ *
+ * Per the semconv agent-span table for in-process invocation, model and
+ * provider are intentionally NOT recorded: pi agents can switch models
+ * mid-run, and the spec says `gen_ai.request.model` SHOULD NOT be
+ * populated for agents that support dynamic model selection.
+ */
+export function invokeAgentAttributes(meta: AgentMeta): Attributes {
+  return {
+    [GenAi.CONVERSATION_ID]: meta.conversationId,
+    [GenAi.AGENT_ID]: meta.agentId,
+    [GenAi.AGENT_NAME]: meta.agentName,
+    [GenAi.OPERATION_NAME]: "invoke_agent",
+  };
 }
 
 /** Result attribute for an execute_tool span (set at end). */
@@ -221,6 +280,52 @@ function serializeToolDefinitions(
       ),
     GenAi.TOOL_DEFINITIONS,
   );
+}
+
+/**
+ * Cap chars per part-content string in the truncation fallback for
+ * `gen_ai.input.messages` / `gen_ai.output.messages`. Chosen so even long
+ * transcripts stay within MAX_BYTES once every part is clamped.
+ */
+const MAX_PART_CONTENT_CHARS = 8_000;
+
+/**
+ * Serialize an input/output message array under the size cap, per the
+ * semconv guidance that instrumentations may truncate individual message
+ * contents while preserving JSON structure: full payload first, then a
+ * fallback with each part's content clamped, then drop the attribute.
+ */
+function serializeMessagesWithCap(
+  messages: readonly (InputMessage | OutputMessage)[],
+  attributeName: string,
+): string | undefined {
+  return serializeWithCap(
+    () => JSON.stringify(messages),
+    () => JSON.stringify(messages.map(truncateMessageParts)),
+    attributeName,
+  );
+}
+
+function truncateMessageParts<T extends InputMessage | OutputMessage>(
+  message: T,
+): T {
+  return {
+    ...message,
+    parts: message.parts.map((part) => {
+      const truncated: Record<string, unknown> = { ...part };
+      for (const key of ["content", "response"]) {
+        const value = truncated[key];
+        if (
+          typeof value === "string" &&
+          value.length > MAX_PART_CONTENT_CHARS
+        ) {
+          truncated[key] =
+            value.slice(0, MAX_PART_CONTENT_CHARS) + "…[truncated]";
+        }
+      }
+      return truncated as unknown as typeof part;
+    }),
+  };
 }
 
 /**

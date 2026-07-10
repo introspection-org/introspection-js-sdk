@@ -106,6 +106,25 @@ export interface BinaryDataPart {
 }
 
 /**
+ * A blob part per the OTel GenAI message schemas (inline binary data such
+ * as an image sent to the model).
+ *
+ * `content` (base64) is optional in this SDK: instrumentations omit the
+ * payload to keep span attribute sizes bounded, recording only the
+ * modality / MIME type so the message structure is preserved.
+ */
+export interface BlobPart {
+  /** Discriminator — always `"blob"`. */
+  type: "blob";
+  /** General modality of the data (e.g. `"image"`, `"audio"`). */
+  modality?: string;
+  /** IANA MIME type of the data (e.g. `"image/png"`). */
+  mime_type?: string;
+  /** Base64-encoded payload, when captured. */
+  content?: string;
+}
+
+/**
  * A compacted-history summary part.
  *
  * Emitted when an agent compacts its conversation history: the model-visible
@@ -128,7 +147,8 @@ export type MessagePart =
   | ToolCallResponsePart
   | CompactionPart
   | MediaUrlPart
-  | BinaryDataPart;
+  | BinaryDataPart
+  | BlobPart;
 
 /** A system instruction entry for `gen_ai.system_instructions`. */
 export interface SystemInstruction {
@@ -326,8 +346,15 @@ export const GenAi = {
   USAGE_OUTPUT_TOKENS: "gen_ai.usage.output_tokens",
   USAGE_CACHE_READ_INPUT_TOKENS: "gen_ai.usage.cache_read.input_tokens",
   USAGE_CACHE_CREATION_INPUT_TOKENS: "gen_ai.usage.cache_creation.input_tokens",
-  USAGE_REASONING_TOKENS: "gen_ai.usage.reasoning_tokens",
+  USAGE_REASONING_TOKENS: "gen_ai.usage.reasoning.output_tokens",
+  /**
+   * Extension attribute (not part of the GenAI semconv registry): total
+   * computed cost of the call in USD. Kept under `gen_ai.` for downstream
+   * compatibility; a coordinated move to the `introspection.` namespace is
+   * pending.
+   */
   COST_USD: "gen_ai.cost.usd",
+  TOOL_DESCRIPTION: "gen_ai.tool.description",
   INPUT_MESSAGES: "gen_ai.input.messages",
   OUTPUT_MESSAGES: "gen_ai.output.messages",
   SYSTEM_INSTRUCTIONS: "gen_ai.system_instructions",
@@ -364,7 +391,7 @@ export const IntrospectionAttr = {
  * - `usage.cost_details.upstream_inference_cost` →
  *   `introspection.llm.upstream_cost_usd`
  * - `usage.completion_tokens_details.reasoning_tokens` →
- *   `gen_ai.usage.reasoning_tokens`
+ *   `gen_ai.usage.reasoning.output_tokens`
  *
  * Fields that are absent or non-numeric are skipped: the result only ever
  * contains attributes whose source value was present and a finite number, so

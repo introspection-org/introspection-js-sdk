@@ -118,6 +118,40 @@ describe("chatRequestAttributes", () => {
     }
   });
 
+  it("emits server.address and server.port from the model base URL", () => {
+    const attrs = chatRequestAttributes(MODEL, ctx(), META);
+    expect(attrs["server.address"]).toBe("api.anthropic.com");
+    expect(attrs["server.port"]).toBe(443);
+
+    const custom = chatRequestAttributes(
+      { ...MODEL, baseUrl: "http://localhost:11434/v1" },
+      ctx(),
+      META,
+    );
+    expect(custom["server.address"]).toBe("localhost");
+    expect(custom["server.port"]).toBe(11434);
+  });
+
+  it("truncates oversized input message contents while preserving structure", () => {
+    const bigText = "x".repeat(70_000);
+    const attrs = chatRequestAttributes(
+      MODEL,
+      ctx({
+        messages: [
+          { role: "user", content: bigText, timestamp: 0 },
+          { role: "user", content: "small trailing message", timestamp: 0 },
+        ],
+      }),
+      META,
+    );
+    const serialized = String(attrs["gen_ai.input.messages"]);
+    expect(Buffer.byteLength(serialized)).toBeLessThanOrEqual(64_000);
+    const messages = JSON.parse(serialized);
+    expect(messages).toHaveLength(2);
+    expect(messages[0].parts[0].content.endsWith("…[truncated]")).toBe(true);
+    expect(messages[1].parts[0].content).toBe("small trailing message");
+  });
+
   it("serializes input messages, system instructions, and tool definitions", () => {
     const attrs = chatRequestAttributes(
       MODEL,
@@ -278,6 +312,17 @@ describe("chatResponseAttributes — finish reason mapping", () => {
 });
 
 describe("executeToolAttributes / executeToolResultAttribute", () => {
+  it("records gen_ai.tool.description when provided", () => {
+    const attrs = executeToolAttributes(
+      "shell",
+      "call-1",
+      { cmd: "ls" },
+      META,
+      "Run a shell command",
+    );
+    expect(attrs["gen_ai.tool.description"]).toBe("Run a shell command");
+  });
+
   it("emits the GenAI tool-call attribute set", () => {
     const attrs = executeToolAttributes("shell", "call-1", { cmd: "ls" }, META);
     expect(attrs).toMatchObject({

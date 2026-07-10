@@ -17,6 +17,7 @@ import type {
   UserMessage,
 } from "@earendil-works/pi-ai";
 import type {
+  BlobPart,
   CompactionPart,
   InputMessage,
   MessagePart,
@@ -138,10 +139,30 @@ function userMessageToSemconv(
       parts: [{ type: "compaction", content: summary }],
     };
   }
-  return {
-    role: "user",
-    parts: [{ type: "text", content: text }],
-  };
+  if (typeof message.content === "string") {
+    return {
+      role: "user",
+      parts: [{ type: "text", content: message.content }],
+    };
+  }
+  // Block-array content: preserve part order, including images. Image
+  // payloads (base64) are intentionally omitted — only the modality and
+  // MIME type are recorded, keeping attribute sizes bounded while the
+  // message structure stays visible.
+  const parts: MessagePart[] = [];
+  for (const block of message.content) {
+    if (block.type === "text") {
+      if (block.text) parts.push({ type: "text", content: block.text });
+    } else {
+      const blob: BlobPart = { type: "blob", modality: "image" };
+      if (block.mimeType) blob.mime_type = block.mimeType;
+      parts.push(blob);
+    }
+  }
+  if (parts.length === 0) {
+    parts.push({ type: "text", content: "" });
+  }
+  return { role: "user", parts };
 }
 
 /**

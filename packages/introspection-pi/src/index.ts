@@ -5,7 +5,9 @@
  * (`@earendil-works/pi-ai`, `@earendil-works/pi-agent-core`).
  *
  * Emits OTel GenAI semantic-convention spans for chat completions
- * (`chat ${provider}`) and tool execution (`execute_tool ${tool_name}`).
+ * (`chat ${model}`), tool execution (`execute_tool ${tool_name}`), and —
+ * optionally — agent runs (`invoke_agent ${agent_name}`), plus the GenAI
+ * client metrics when a meter is provided.
  *
  * @example
  * ```ts
@@ -35,8 +37,14 @@ export {
   chatResponseAttributes,
   executeToolAttributes,
   executeToolResultAttribute,
+  invokeAgentAttributes,
+  semconvProviderName,
+  serverAttributes,
   type AgentMeta,
 } from "./attributes.js";
+
+// Metric instruments — exposed for callers that record their own measurements
+export { genAiMetrics, type GenAiMetrics } from "./metrics.js";
 
 // Converters — exposed for telemetry replay (rebuilding pi-ai message arrays
 // from stored span attributes) and downstream consumers that want the raw
@@ -45,6 +53,7 @@ export {
   assistantToOutputMessages,
   inputMessagesToMessages,
   messagesToInputMessages,
+  semconvFinishReason,
   systemPromptToInstructions,
   type ConvertOptions,
 } from "./convert.js";

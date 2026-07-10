@@ -171,7 +171,9 @@ describe("providerCostAttributes", () => {
     expect(IntrospectionAttr.LLM_UPSTREAM_COST_USD).toBe(
       "introspection.llm.upstream_cost_usd",
     );
-    expect(GenAi.USAGE_REASONING_TOKENS).toBe("gen_ai.usage.reasoning_tokens");
+    expect(GenAi.USAGE_REASONING_TOKENS).toBe(
+      "gen_ai.usage.reasoning.output_tokens",
+    );
   });
 
   it("keeps a zero cost (free-tier calls are still provider-reported)", () => {
