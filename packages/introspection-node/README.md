@@ -1,6 +1,7 @@
 # @introspection-sdk/introspection-node
 
-Node.js SDK for [Introspection](https://introspection.dev) — API client, analytics events, and OpenTelemetry trace instrumentation.
+Node.js platform SDK for [Introspection](https://introspection.dev) — open runtimes,
+drive tasks, and manage experiments, recipes, files, conversations, and shares.
 
 ## Install
 
@@ -42,26 +43,34 @@ await runner.close();
 await client.shutdown();
 ```
 
-## One-liner `introspection.init()`
+## Pi instrumentation
 
-`init()` auto-detects installed LLM frameworks (Anthropic, Gemini, OpenAI Agents, Vercel AI SDK, Claude Agent SDK, LangChain, Mastra, Pi) and wires them into a single shared trace pipeline:
+Pi is the supported agent-instrumentation path:
+
+```shell
+pnpm add @earendil-works/pi-agent-core @earendil-works/pi-ai
+```
 
 ```typescript
 import * as introspection from "@introspection-sdk/introspection-node/otel";
-import Anthropic from "@anthropic-ai/sdk";
+import { Agent } from "@earendil-works/pi-agent-core";
+import { getBuiltinModel } from "@earendil-works/pi-ai/providers/all";
 
 await introspection.init({ serviceName: "my-app" });
 
-const client = new Anthropic();
-await introspection.conversation(() =>
-  client.messages.create({
-    model: "claude-sonnet-4-6",
-    max_tokens: 256,
-    messages: [{ role: "user", content: "Hello!" }],
-  }),
-);
+const agent = new Agent({
+  initialState: {
+    model: getBuiltinModel("anthropic", "claude-sonnet-4-6"),
+    systemPrompt: "You are a helpful support agent.",
+  },
+});
+introspection.instrumentPi(agent, {
+  conversationId: "conv_123",
+  agentId: "support-agent",
+  agentName: "Support",
+});
 
-introspection.track("Signed up", { plan: "pro" });
+await agent.prompt("Help me understand my latest invoice.");
 await introspection.shutdown();
 ```
 
@@ -97,7 +106,7 @@ await introspection.init({ tracerProvider: provider });
 
 `IntrospectionSpanProcessor` exports its own converted copy of each span, so the vendor processor receives the raw span and processor order is irrelevant. For a quick alternative: `init({ spanProcessors: [new BatchSpanProcessor(langfuseExporter)] })`.
 
-Frameworks whose hooks are attached per-call (LangChain), per-config (Mastra), or per-instance (Pi, Claude Agent SDK) are bound by `init()` and exposed via accessors — `introspection.getLangchainHandler()`, `introspection.getMastraExporter()`, `introspection.instrumentPi(agent, meta)`, `introspection.instrumentClaudeAgent(sdk)`.
+Support for other frameworks is experimental.
 
 ## Analytics events (track, feedback, identify)
 
@@ -141,9 +150,7 @@ await logs.shutdown();
 | `withAnonymousId(id, callback)`                | Set anonymous ID             |
 | `withBaggage(values, callback)`                | Set arbitrary baggage values |
 
-## Framework integrations
-
-### OpenTelemetry Span Processor
+## OpenTelemetry span processor
 
 ```typescript
 import { IntrospectionSpanProcessor } from "@introspection-sdk/introspection-node/otel";
@@ -157,100 +164,6 @@ logfire.configure({
 
 logfire.instrumentOpenAI();
 ```
-
-### OpenAI Agents SDK
-
-```typescript
-import { Agent, run, addTraceProcessor } from "@openai/agents";
-import { IntrospectionTracingProcessor } from "@introspection-sdk/introspection-node/otel";
-
-const processor = new IntrospectionTracingProcessor();
-addTraceProcessor(processor);
-
-const agent = new Agent({ name: "my-agent", model: "gpt-4o" });
-const result = await run(agent, "Hello!");
-
-await processor.shutdown();
-```
-
-### Claude Agent SDK
-
-```typescript
-import * as sdk from "@anthropic-ai/claude-agent-sdk";
-import { withIntrospection } from "@introspection-sdk/introspection-node/otel";
-
-const tracedSdk = withIntrospection(sdk);
-const stream = tracedSdk.query({
-  prompt: "What is 2 + 2?",
-  options: { model: "claude-sonnet-4-5-20250929", maxTurns: 1 },
-});
-
-for await (const message of stream) {
-  /* ... */
-}
-await tracedSdk.shutdown();
-```
-
-### Vercel AI SDK
-
-```typescript
-import { setupTracing } from "@introspection-sdk/introspection-node/otel";
-import { generateText } from "ai";
-import { openai } from "@ai-sdk/openai";
-
-const provider = setupTracing({ serviceName: "my-app" });
-
-const { text } = await generateText({
-  model: openai("gpt-4o"),
-  prompt: "Hello!",
-  experimental_telemetry: { isEnabled: true },
-});
-
-await provider.shutdown();
-```
-
-### Mastra
-
-```typescript
-import { Mastra } from "@mastra/core/mastra";
-import { IntrospectionMastraExporter } from "@introspection-sdk/introspection-node/mastra";
-
-const mastra = new Mastra({
-  agents: { myAgent },
-  observability: {
-    configs: {
-      otel: {
-        serviceName: "my-mastra-app",
-        exporters: [new IntrospectionMastraExporter()],
-      },
-    },
-  },
-});
-```
-
-### LangChain / LangGraph
-
-```typescript
-import { IntrospectionCallbackHandler } from "@introspection-sdk/introspection-node/langchain";
-import { ChatOpenAI } from "@langchain/openai";
-
-const handler = new IntrospectionCallbackHandler();
-const model = new ChatOpenAI({ modelName: "gpt-4o" });
-const response = await model.invoke("Hello!", { callbacks: [handler] });
-
-await handler.shutdown();
-```
-
-For LangGraph, pass the app's session id as `thread_id`:
-
-```typescript
-await graph.invoke(input, {
-  callbacks: [handler],
-  configurable: { thread_id: "user-session-123" },
-});
-```
-
-> See [examples/](../../examples/) for complete integration patterns including dual-export with Arize, Langfuse, Braintrust, and LangSmith.
 
 ## Environment variables
 

@@ -13,6 +13,11 @@ Package: `@introspection-sdk/introspection-node`
   the per-framework instrumentors, and the integration registry. This mirrors
   the Python SDK's `introspection_sdk.otel` package.
 
+Product support boundary:
+- Pi is the only supported agent-framework instrumentor.
+- Anthropic, Gemini, OpenAI Agents, Claude Agent, Vercel AI SDK, LangChain,
+  Mastra, and OpenClaw integrations are experimental.
+
 ## 1. The core model (read this first)
 
 There is **one process-global OTel `TracerProvider`**. `init()` / `setupTracing()`
