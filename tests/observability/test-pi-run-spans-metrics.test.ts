@@ -283,6 +283,12 @@ describe("metrics", () => {
       const stream = createAssistantMessageEventStream();
       stream.push({ type: "start", partial: assistantMessage() });
       stream.push({
+        type: "text_delta",
+        contentIndex: 0,
+        delta: "ok",
+        partial: assistantMessage(),
+      });
+      stream.push({
         type: "done",
         reason: "stop",
         message: assistantMessage(),

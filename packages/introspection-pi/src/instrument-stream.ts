@@ -184,7 +184,7 @@ async function runUpstream({
     );
 
     for await (const event of upstream) {
-      if (event.type !== "done" && event.type !== "error") {
+      if (isOutputChunk(event)) {
         const now = performance.now();
         if (lastChunkAt === undefined) {
           const timeToFirstChunk = (now - startedAtMonotonic) / 1000;
@@ -251,6 +251,15 @@ async function runUpstream({
       span.end();
     }
   }
+}
+
+function isOutputChunk(event: AssistantMessageEvent): boolean {
+  return (
+    (event.type === "text_delta" ||
+      event.type === "thinking_delta" ||
+      event.type === "toolcall_delta") &&
+    event.delta.length > 0
+  );
 }
 
 interface FinishSpanArgs {

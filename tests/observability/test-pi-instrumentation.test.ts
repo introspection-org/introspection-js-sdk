@@ -93,6 +93,19 @@ describe("instrumentStream", () => {
           partial: assistantMessage(),
         });
         stream.push({
+          type: "text_start",
+          contentIndex: 0,
+          partial: assistantMessage(),
+        });
+      }, 1);
+      setTimeout(() => {
+        stream.push({
+          type: "text_delta",
+          contentIndex: 0,
+          delta: "ok",
+          partial: assistantMessage(),
+        });
+        stream.push({
           type: "done",
           reason: "stop",
           message: assistantMessage(),
