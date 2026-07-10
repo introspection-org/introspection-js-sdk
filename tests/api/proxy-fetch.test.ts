@@ -1,12 +1,27 @@
+import { createServer, type Server } from "node:http";
+import type { AddressInfo } from "node:net";
+
+import { SpanStatusCode, trace } from "@opentelemetry/api";
+import {
+  BasicTracerProvider,
+  InMemorySpanExporter,
+  SimpleSpanProcessor,
+} from "@opentelemetry/sdk-trace-base";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { installProxyFetch } from "../../packages/introspection-proxy/src/index";
+import {
+  createProxyFetch,
+  installProxyFetch,
+  PROXY_CALL_SPAN_NAME,
+} from "../../packages/introspection-proxy/src/index";
 
 const ORIGINAL_ENV = {
   HTTP_PROXY: process.env.HTTP_PROXY,
   HTTPS_PROXY: process.env.HTTPS_PROXY,
   http_proxy: process.env.http_proxy,
   https_proxy: process.env.https_proxy,
+  NO_PROXY: process.env.NO_PROXY,
+  no_proxy: process.env.no_proxy,
   INTROSPECTION_EGRESS_URL: process.env.INTROSPECTION_EGRESS_URL,
   INTROSPECTION_ENDPOINT_HOSTS: process.env.INTROSPECTION_ENDPOINT_HOSTS,
 };
@@ -50,5 +65,107 @@ describe("installProxyFetch", () => {
     }
 
     expect(globalThis.fetch).toBe(originalFetch);
+  });
+});
+
+describe("introspection-proxy-call spans", () => {
+  const exporter = new InMemorySpanExporter();
+  const provider = new BasicTracerProvider({
+    spanProcessors: [new SimpleSpanProcessor(exporter)],
+  });
+  trace.setGlobalTracerProvider(provider);
+
+  let server: Server | undefined;
+
+  afterEach(async () => {
+    restoreEnv();
+    exporter.reset();
+    if (server) {
+      await new Promise((resolve) => server?.close(resolve));
+      server = undefined;
+    }
+  });
+
+  /** Local HTTP server standing in for the egress / forward proxy hop. */
+  async function listen(status = 200): Promise<number> {
+    server = createServer((_req, res) => {
+      res.statusCode = status;
+      res.end("ok");
+    });
+    await new Promise<void>((resolve) => server?.listen(0, resolve));
+    return (server.address() as AddressInfo).port;
+  }
+
+  function clearProxyEnv(): void {
+    for (const key of Object.keys(ORIGINAL_ENV)) delete process.env[key];
+  }
+
+  it("emits an egress-mode span with query-stripped URL and status", async () => {
+    clearProxyEnv();
+    const port = await listen(200);
+    process.env.INTROSPECTION_EGRESS_URL = `http://127.0.0.1:${port}`;
+    process.env.INTROSPECTION_ENDPOINT_HOSTS = "endpoint.example.test";
+
+    const proxyFetch = createProxyFetch();
+    const response = await proxyFetch(
+      "http://endpoint.example.test/v1/things?secret=capability",
+      { method: "POST", body: "{}" },
+    );
+    expect(response.status).toBe(200);
+
+    const spans = exporter.getFinishedSpans();
+    expect(spans).toHaveLength(1);
+    const span = spans[0];
+    expect(span.name).toBe(PROXY_CALL_SPAN_NAME);
+    expect(span.attributes["introspection.proxy.mode"]).toBe("egress");
+    expect(span.attributes["http.request.method"]).toBe("POST");
+    expect(span.attributes["server.address"]).toBe("endpoint.example.test");
+    expect(span.attributes["http.response.status_code"]).toBe(200);
+    expect(span.attributes["url.full"]).toBe(
+      "http://endpoint.example.test/v1/things",
+    );
+    expect(String(span.attributes["url.full"])).not.toContain("secret");
+  });
+
+  it("emits a forward-mode error-status span for a 5xx response", async () => {
+    clearProxyEnv();
+    const port = await listen(503);
+    process.env.HTTP_PROXY = `http://127.0.0.1:${port}`;
+
+    const proxyFetch = createProxyFetch();
+    const response = await proxyFetch("http://forwarded.example.test/health");
+    expect(response.status).toBe(503);
+
+    const spans = exporter.getFinishedSpans();
+    expect(spans).toHaveLength(1);
+    expect(spans[0].attributes["introspection.proxy.mode"]).toBe("forward");
+    expect(spans[0].attributes["http.response.status_code"]).toBe(503);
+    expect(spans[0].status.code).toBe(SpanStatusCode.ERROR);
+  });
+
+  it("does not span a NO_PROXY host that EnvHttpProxyAgent sends direct", async () => {
+    clearProxyEnv();
+    const port = await listen(200);
+    // Bogus forward proxy: if the request were actually proxied it would fail.
+    process.env.HTTP_PROXY = "http://127.0.0.1:1";
+    process.env.NO_PROXY = "127.0.0.1";
+
+    const proxyFetch = createProxyFetch();
+    const response = await proxyFetch(`http://127.0.0.1:${port}/direct`);
+    expect(response.status).toBe(200);
+
+    expect(exporter.getFinishedSpans()).toHaveLength(0);
+  });
+
+  it("does not span when tracing is disabled", async () => {
+    clearProxyEnv();
+    const port = await listen(200);
+    process.env.HTTP_PROXY = `http://127.0.0.1:${port}`;
+
+    const proxyFetch = createProxyFetch({ tracing: false });
+    const response = await proxyFetch("http://forwarded.example.test/health");
+    expect(response.status).toBe(200);
+
+    expect(exporter.getFinishedSpans()).toHaveLength(0);
   });
 });
