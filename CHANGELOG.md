@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.8.1](https://github.com/introspection-org/introspection-js-sdk/compare/v0.8.0...v0.8.1) (2026-07-10)
+
+
+### Features
+
+* **node:** export introspection infra spans through IntrospectionSpanProcessor ([#182](https://github.com/introspection-org/introspection-js-sdk/issues/182)) ([0732f97](https://github.com/introspection-org/introspection-js-sdk/commit/0732f97d36bd3f92d50de065ddd5fc9757cc81a1))
+
+
+### Miscellaneous Chores
+
+* release 0.8.1 ([d574422](https://github.com/introspection-org/introspection-js-sdk/commit/d574422611ac27533a58647891534742a0a64109))
+
 ## [0.8.0](https://github.com/introspection-org/introspection-js-sdk/compare/v0.7.2...v0.8.0) (2026-07-10)
 
 
