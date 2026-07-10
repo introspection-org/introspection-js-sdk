@@ -41,6 +41,7 @@ pnpm proxy-supabase-global        # installProxyFetch(): swaps global fetch, who
 pnpm proxy-supabase-manual        # createProxyFetch(): scoped to one supabase-js client
 pnpm proxy-typesense              # Typesense (axios): installProxyFetch + axiosAdapter "fetch"
 pnpm proxy-deepwiki               # DeepWiki MCP (@modelcontextprotocol/sdk) via transport fetch
+pnpm proxy-deepwiki-mcporter      # DeepWiki MCP (mcporter): installProxyFetch + introspection-proxy-call spans
 ```
 
 For **axios-based clients (e.g. Typesense), use the global install** — axios has

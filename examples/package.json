@@ -55,7 +55,8 @@
     "proxy-supabase-global": "node --import tsx proxy/supabase-global.ts",
     "proxy-supabase-manual": "node --import tsx proxy/supabase-manual.ts",
     "proxy-typesense": "node --import tsx proxy/typesense.ts",
-    "proxy-deepwiki": "node --import tsx proxy/deepwiki-mcp.ts"
+    "proxy-deepwiki": "node --import tsx proxy/deepwiki-mcp.ts",
+    "proxy-deepwiki-mcporter": "node --import tsx proxy/deepwiki-mcporter.ts"
   },
   "dependencies": {
     "@arizeai/openinference-semantic-conventions": "^2.5.0",
@@ -74,6 +75,7 @@
   },
   "devDependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
+    "mcporter": "^0.12.3",
     "@opentelemetry/exporter-trace-otlp-proto": "^0.220.0",
     "@opentelemetry/resources": "^2.9.0",
     "@supabase/supabase-js": "^2.110.0",
