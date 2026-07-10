@@ -35,6 +35,20 @@ type CompatibleSpan = ReadableSpan & {
 };
 
 /**
+ * Instrumentation scopes of Introspection's own infrastructure spans — the
+ * proxy layer's `introspection-proxy-call` spans
+ * (`@introspection-sdk/introspection-proxy`) and the runtime's
+ * `introspection-api-call` spans (`introspection-api-client`). These are
+ * exempt from the gen_ai-only export gate: they carry transport shape only
+ * and are correlated to a conversation via baggage or a pre-stamped
+ * `gen_ai.conversation.id` attribute.
+ */
+const INTROSPECTION_INFRA_SCOPES: ReadonlySet<string> = new Set([
+  "@introspection-sdk/introspection-proxy",
+  "introspection-api-client",
+]);
+
+/**
  * A {@link ReadableSpan} wrapper that substitutes the original attributes with
  * a converted set while delegating every other property to the original span.
  *
@@ -285,6 +299,39 @@ export class IntrospectionSpanProcessor implements SpanProcessor {
     const scopeName =
       (compatSpan.instrumentationScope as { name?: string })?.name ||
       (compatSpan.instrumentationLibrary as { name?: string })?.name;
+
+    // Introspection's own infra spans bypass the gen_ai gate below. They are
+    // correlated via `gen_ai.conversation.id` from baggage (in-process) or a
+    // pre-stamped attribute (the sandbox CLI preload reads it from the
+    // environment). A conversation id is never auto-generated for them — an
+    // uncorrelated infra span must not mint a synthetic conversation.
+    if (scopeName && INTROSPECTION_INFRA_SCOPES.has(scopeName)) {
+      const infraBaggage = propagation.getBaggage(otelContext.active());
+      const infraConvId = infraBaggage?.getEntry(
+        "gen_ai.conversation.id",
+      )?.value;
+      let infraResource: Resource | undefined;
+      if (this._serviceName) {
+        infraResource = span.resource.merge(
+          resourceFromAttributes({ [ATTR_SERVICE_NAME]: this._serviceName }),
+        );
+      }
+      this._spanProcessor.onEnd(
+        infraConvId || infraResource
+          ? new ConvertedReadableSpan(
+              span,
+              {
+                ...span.attributes,
+                ...(infraConvId
+                  ? { "gen_ai.conversation.id": infraConvId }
+                  : {}),
+              } as Attributes,
+              infraResource,
+            )
+          : span,
+      );
+      return;
+    }
 
     const isOI =
       isOpenInferenceSpan(scopeName) ||
