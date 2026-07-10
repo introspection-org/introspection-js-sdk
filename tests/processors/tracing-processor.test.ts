@@ -118,7 +118,8 @@ describe("IntrospectionTracingProcessor", () => {
       {
         trace_id: expect.any(String),
         span_id: expect.any(String),
-      }, `
+      },
+      `
       {
         "attributes": {
           "gen_ai.agent.handoffs": "[]",
@@ -134,7 +135,8 @@ describe("IntrospectionTracingProcessor", () => {
         "span_id": Any<String>,
         "trace_id": Any<String>,
       }
-    `);
+    `,
+    );
 
     // First response span — initial user message with gen_ai attributes
     const responseSpans = simplified.filter((s) => s.name === "response");
@@ -143,7 +145,8 @@ describe("IntrospectionTracingProcessor", () => {
       {
         trace_id: expect.any(String),
         span_id: expect.any(String),
-      }, `
+      },
+      `
       {
         "attributes": {
           "gen_ai.conversation.id": "<conversation_id>",
@@ -164,7 +167,8 @@ describe("IntrospectionTracingProcessor", () => {
         "span_id": Any<String>,
         "trace_id": Any<String>,
       }
-    `);
+    `,
+    );
 
     // Function/tool span — tool execution
     const functionSpan = simplified.find(
@@ -175,7 +179,8 @@ describe("IntrospectionTracingProcessor", () => {
       {
         trace_id: expect.any(String),
         span_id: expect.any(String),
-      }, `
+      },
+      `
       {
         "attributes": {
           "gen_ai.conversation.id": "<conversation_id>",
@@ -191,7 +196,8 @@ describe("IntrospectionTracingProcessor", () => {
         "span_id": Any<String>,
         "trace_id": Any<String>,
       }
-    `);
+    `,
+    );
 
     // Validate dynamic values on original (non-normalized) response spans
     const rawResponseSpans = sortedSpans.filter((s) => s.name === "response");

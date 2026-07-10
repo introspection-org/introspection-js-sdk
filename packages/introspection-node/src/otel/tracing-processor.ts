@@ -381,10 +381,7 @@ export class IntrospectionTracingProcessor implements TracingProcessor {
     }
 
     if (spanData.output) {
-      otelSpan.setAttribute(
-        "gen_ai.tool.call.result",
-        String(spanData.output),
-      );
+      otelSpan.setAttribute("gen_ai.tool.call.result", String(spanData.output));
     }
   }
 

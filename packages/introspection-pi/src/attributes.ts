@@ -139,9 +139,7 @@ export function chatResponseAttributes(message: AssistantMessage): Attributes {
     // separately. Semconv defines both cache attributes as subsets of the
     // total input token count.
     [GenAi.USAGE_INPUT_TOKENS]:
-      message.usage.input +
-      message.usage.cacheRead +
-      message.usage.cacheWrite,
+      message.usage.input + message.usage.cacheRead + message.usage.cacheWrite,
     [GenAi.USAGE_OUTPUT_TOKENS]: message.usage.output,
   };
 

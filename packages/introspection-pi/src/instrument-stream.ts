@@ -348,9 +348,7 @@ function recordCompletionMetrics(
   );
 
   const inputTokens =
-    message.usage.input +
-    message.usage.cacheRead +
-    message.usage.cacheWrite;
+    message.usage.input + message.usage.cacheRead + message.usage.cacheWrite;
   if (inputTokens > 0) {
     metrics.tokenUsage.record(inputTokens, {
       ...attributes,

@@ -23,8 +23,7 @@ const DURATION_BUCKETS = [
 
 /** Spec advice for in-process agent invocation durations. */
 const AGENT_DURATION_BUCKETS = [
-  0.1, 0.2, 0.4, 0.8, 1.6, 3.2, 6.4, 12.8, 25.6, 51.2, 102.4, 204.8,
-  409.6,
+  0.1, 0.2, 0.4, 0.8, 1.6, 3.2, 6.4, 12.8, 25.6, 51.2, 102.4, 204.8, 409.6,
 ];
 
 export interface GenAiMetrics {

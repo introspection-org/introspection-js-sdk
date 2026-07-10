@@ -134,7 +134,8 @@ describe("Responses API - MCP DeepWiki", () => {
       {
         trace_id: expect.any(String),
         span_id: expect.any(String),
-      }, `
+      },
+      `
       {
         "attributes": {
           "gen_ai.conversation.id": "<conversation_id>",
@@ -155,7 +156,8 @@ describe("Responses API - MCP DeepWiki", () => {
         "span_id": Any<String>,
         "trace_id": Any<String>,
       }
-    `);
+    `,
+    );
 
     // Validate MCP tool calls in raw (non-normalized) output messages
     const rawResponseSpans = sortedSpans.filter((s) => s.name === "response");
