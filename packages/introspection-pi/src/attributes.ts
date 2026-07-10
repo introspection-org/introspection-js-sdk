@@ -31,28 +31,6 @@ import {
 const MAX_BYTES = 64_000;
 
 /**
- * pi-ai provider ids whose semconv `gen_ai.provider.name` well-known value
- * spells differently. The spec requires the well-known value whenever one
- * applies; ids without an entry (including pi providers the registry has no
- * value for, e.g. `openrouter`, `cerebras`) pass through unchanged.
- */
-const SEMCONV_PROVIDER_NAMES: Record<string, string> = {
-  "amazon-bedrock": "aws.bedrock",
-  "azure-openai-responses": "azure.ai.openai",
-  google: "gcp.gemini",
-  "google-vertex": "gcp.vertex_ai",
-  mistral: "mistral_ai",
-  moonshotai: "moonshot_ai",
-  "moonshotai-cn": "moonshot_ai",
-  xai: "x_ai",
-};
-
-/** Map a pi-ai provider id to the semconv `gen_ai.provider.name` value. */
-export function semconvProviderName(provider: string): string {
-  return SEMCONV_PROVIDER_NAMES[provider] ?? provider;
-}
-
-/**
  * `server.address` / `server.port` derived from the model's base URL.
  * Returns an empty record when the URL cannot be parsed.
  */
@@ -96,7 +74,11 @@ export function chatRequestAttributes(
     [GenAi.AGENT_ID]: meta.agentId,
     [GenAi.AGENT_NAME]: meta.agentName,
     [GenAi.OPERATION_NAME]: "chat",
-    [GenAi.PROVIDER_NAME]: semconvProviderName(model.provider),
+    // pi-ai's provider id verbatim. Some ids have differently-spelled
+    // semconv well-known values (e.g. `google` vs `gcp.gemini`), but the
+    // raw id is what the rest of the platform keys on — deliberately not
+    // translated.
+    [GenAi.PROVIDER_NAME]: model.provider,
     [GenAi.REQUEST_MODEL]: model.id,
     "gen_ai.request.stream": true,
     ...serverAttributes(model.baseUrl),
@@ -157,11 +139,12 @@ export function chatRequestAttributes(
 export function chatResponseAttributes(message: AssistantMessage): Attributes {
   const attributes: Attributes = {
     [GenAi.RESPONSE_FINISH_REASONS]: [semconvFinishReason(message.stopReason)],
-    // Semconv: input_tokens covers ALL input tokens; cache_read /
-    // cache_creation are subsets of it. pi-ai normalizes usage.input to
-    // EXCLUDE cache tokens on every provider, so re-add them here.
-    [GenAi.USAGE_INPUT_TOKENS]:
-      message.usage.input + message.usage.cacheRead + message.usage.cacheWrite,
+    // Deliberate semconv deviation: the spec defines cache_read /
+    // cache_creation as SUBSETS of input_tokens, but every emitter this
+    // platform ingests reports input_tokens EXCLUSIVE of cache tokens and
+    // the platform's aggregations add the cache counts back on top.
+    // Switching pi alone would double-count cache in those sums.
+    [GenAi.USAGE_INPUT_TOKENS]: message.usage.input,
     [GenAi.USAGE_OUTPUT_TOKENS]: message.usage.output,
   };
 
@@ -184,10 +167,11 @@ export function chatResponseAttributes(message: AssistantMessage): Attributes {
     attributes[GenAi.COST_USD] = message.usage.cost.total;
   }
   const reasoningOutputTokens =
+    message.usage.reasoning ??
     (
       message.usage as typeof message.usage & {
-        reasoningOutput?: number;
         reasoningOutputTokens?: number;
+        reasoningOutput?: number;
       }
     ).reasoningOutputTokens ??
     (

@@ -43,8 +43,9 @@ export interface InstrumentAgentOptions {
   meter?: Meter;
   /**
    * Emit one `invoke_agent {agent.name}` span per agent run
-   * (`agent_start` → `agent_end`), carrying conversation/agent identity,
-   * aggregated token usage, and the final finish reason.
+   * (`agent_start` → `agent_end`), carrying conversation/agent identity
+   * and the final finish reason. Usage attributes stay on the chat spans
+   * only, so aggregations that sum a whole trace don't double-count.
    *
    * Off by default: hosts that already create their own turn/run spans
    * (and parent chat spans onto them via `getParentContext`) would get
@@ -92,9 +93,6 @@ interface ActiveRun {
   span: Span;
   context: OtelContext;
   startedAt: number;
-  inputTokens: number;
-  outputTokens: number;
-  sawUsage: boolean;
   lastStopReason?: string;
   errorMessage?: string;
 }
@@ -175,9 +173,6 @@ function handleEvent(
         span,
         context: trace.setSpan(parentContext ?? otelContext.active(), span),
         startedAt: Date.now(),
-        inputTokens: 0,
-        outputTokens: 0,
-        sawUsage: false,
       };
       return;
     }
@@ -188,13 +183,10 @@ function handleEvent(
       if (!run || message.role !== "assistant" || !("usage" in message)) {
         return;
       }
-      // Semconv: input token counts include cache reads/writes.
-      run.inputTokens +=
-        message.usage.input +
-        message.usage.cacheRead +
-        message.usage.cacheWrite;
-      run.outputTokens += message.usage.output;
-      run.sawUsage = true;
+      // Track outcome only. The run span deliberately carries NO
+      // gen_ai.usage.* attributes: platform aggregations sum usage across
+      // every span in a conversation, so aggregated usage on the run span
+      // would double-count the chat spans beneath it.
       run.lastStopReason = message.stopReason;
       run.errorMessage = message.errorMessage;
       return;
@@ -298,10 +290,6 @@ function finishRunSpan(
 ): void {
   const { span } = run;
 
-  if (run.sawUsage) {
-    span.setAttribute(GenAi.USAGE_INPUT_TOKENS, run.inputTokens);
-    span.setAttribute(GenAi.USAGE_OUTPUT_TOKENS, run.outputTokens);
-  }
   if (run.lastStopReason) {
     span.setAttribute(GenAi.RESPONSE_FINISH_REASONS, [
       semconvFinishReason(run.lastStopReason),

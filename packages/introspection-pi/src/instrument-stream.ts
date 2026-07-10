@@ -33,7 +33,6 @@ import {
 import {
   chatRequestAttributes,
   chatResponseAttributes,
-  semconvProviderName,
   serverAttributes,
   type AgentMeta,
 } from "./attributes.js";
@@ -176,6 +175,7 @@ async function runUpstream({
 }: RunUpstreamArgs): Promise<void> {
   let finished = false;
   const startedAt = Date.now();
+  const startedAtMonotonic = performance.now();
   let lastChunkAt: number | undefined;
 
   try {
@@ -185,14 +185,15 @@ async function runUpstream({
 
     for await (const event of upstream) {
       if (event.type !== "done" && event.type !== "error") {
-        const now = Date.now();
+        const now = performance.now();
         if (lastChunkAt === undefined) {
+          const timeToFirstChunk = (now - startedAtMonotonic) / 1000;
           span.setAttribute(
             "gen_ai.response.time_to_first_chunk",
-            (now - startedAt) / 1000,
+            timeToFirstChunk,
           );
           metrics?.timeToFirstChunk.record(
-            (now - startedAt) / 1000,
+            timeToFirstChunk,
             chatMetricAttributes(model),
           );
         } else {
@@ -314,7 +315,7 @@ function finishSpan({
 function chatMetricAttributes(model: Model<Api>): Attributes {
   return {
     [GenAi.OPERATION_NAME]: "chat",
-    [GenAi.PROVIDER_NAME]: semconvProviderName(model.provider),
+    [GenAi.PROVIDER_NAME]: model.provider,
     [GenAi.REQUEST_MODEL]: model.id,
     ...serverAttributes(model.baseUrl),
   };
@@ -340,11 +341,10 @@ function recordCompletionMetrics(
     durationAttributes,
   );
 
-  // Semconv: input token counts include cache reads/writes.
-  const inputTokens =
-    message.usage.input + message.usage.cacheRead + message.usage.cacheWrite;
-  if (inputTokens > 0) {
-    metrics.tokenUsage.record(inputTokens, {
+  // Cache-exclusive, matching the gen_ai.usage.input_tokens span attribute
+  // (see chatResponseAttributes for why this deviates from semconv).
+  if (message.usage.input > 0) {
+    metrics.tokenUsage.record(message.usage.input, {
       ...attributes,
       "gen_ai.token.type": "input",
     });

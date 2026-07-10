@@ -139,9 +139,10 @@ describe("instrumentAgent — invoke_agent run spans", () => {
     expect(span?.attributes["gen_ai.agent.name"]).toBe("Test Agent");
     expect(span?.attributes["gen_ai.agent.id"]).toBe("agent-1");
     expect(span?.attributes["gen_ai.conversation.id"]).toBe("conv_123");
-    // Two assistant turns × (100 input + 50 cacheRead + 5 cacheWrite).
-    expect(span?.attributes["gen_ai.usage.input_tokens"]).toBe(310);
-    expect(span?.attributes["gen_ai.usage.output_tokens"]).toBe(40);
+    // No usage on the run span — platform aggregations sum every span in a
+    // conversation, so run-span usage would double-count the chat spans.
+    expect(span?.attributes["gen_ai.usage.input_tokens"]).toBeUndefined();
+    expect(span?.attributes["gen_ai.usage.output_tokens"]).toBeUndefined();
     expect(span?.attributes["gen_ai.response.finish_reasons"]).toEqual([
       "stop",
     ]);
@@ -322,8 +323,8 @@ describe("metrics", () => {
     const output = tokens.find(
       (r) => r.attributes?.["gen_ai.token.type"] === "output",
     );
-    // 100 input + 50 cacheRead + 5 cacheWrite.
-    expect(input?.value).toBe(155);
+    // Cache-exclusive, matching the span attribute semantics.
+    expect(input?.value).toBe(100);
     expect(output?.value).toBe(20);
   });
 

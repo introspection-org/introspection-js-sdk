@@ -38,7 +38,6 @@ export {
   executeToolAttributes,
   executeToolResultAttribute,
   invokeAgentAttributes,
-  semconvProviderName,
   serverAttributes,
   type AgentMeta,
 } from "./attributes.js";

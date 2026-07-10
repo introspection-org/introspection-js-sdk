@@ -87,15 +87,17 @@ describe("instrumentStream", () => {
 
     const upstream = vi.fn(() => {
       const stream = createAssistantMessageEventStream();
-      stream.push({
-        type: "start",
-        partial: assistantMessage(),
-      });
-      stream.push({
-        type: "done",
-        reason: "stop",
-        message: assistantMessage(),
-      });
+      setTimeout(() => {
+        stream.push({
+          type: "start",
+          partial: assistantMessage(),
+        });
+        stream.push({
+          type: "done",
+          reason: "stop",
+          message: assistantMessage(),
+        });
+      }, 5);
       return stream;
     });
 
@@ -125,11 +127,14 @@ describe("instrumentStream", () => {
     expect(span?.attributes["gen_ai.request.temperature"]).toBe(0.2);
     expect(span?.attributes["gen_ai.request.max_tokens"]).toBe(1024);
     expect(span?.attributes["gen_ai.request.reasoning.level"]).toBe("high");
-    expect(typeof span?.attributes["gen_ai.response.time_to_first_chunk"]).toBe(
-      "number",
+    expect(span?.attributes["gen_ai.response.time_to_first_chunk"]).toEqual(
+      expect.any(Number),
     );
-    // 100 uncached + 50 cacheRead — semconv input_tokens includes cache.
-    expect(span?.attributes["gen_ai.usage.input_tokens"]).toBe(150);
+    expect(
+      Number(span?.attributes["gen_ai.response.time_to_first_chunk"]),
+    ).toBeGreaterThanOrEqual(0.004);
+    // Cache-exclusive input tokens (platform-wide semantics).
+    expect(span?.attributes["gen_ai.usage.input_tokens"]).toBe(100);
     expect(span?.attributes["gen_ai.usage.cache_read.input_tokens"]).toBe(50);
     expect(
       span?.attributes["gen_ai.usage.cache_creation.input_tokens"],

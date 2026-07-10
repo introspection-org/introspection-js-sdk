@@ -93,29 +93,18 @@ describe("chatRequestAttributes", () => {
     });
   });
 
-  it("maps pi provider ids to semconv well-known provider names", () => {
-    const cases: Array<[string, string]> = [
-      ["google", "gcp.gemini"],
-      ["google-vertex", "gcp.vertex_ai"],
-      ["xai", "x_ai"],
-      ["mistral", "mistral_ai"],
-      ["moonshotai", "moonshot_ai"],
-      ["amazon-bedrock", "aws.bedrock"],
-      ["azure-openai-responses", "azure.ai.openai"],
-      // No well-known value in the registry — passes through unchanged.
-      ["openrouter", "openrouter"],
-    ];
-    for (const [piProvider, semconvName] of cases) {
-      const attrs = chatRequestAttributes(
-        {
-          ...MODEL,
-          provider: piProvider as Model<"anthropic-messages">["provider"],
-        },
-        ctx(),
-        META,
-      );
-      expect(attrs["gen_ai.provider.name"]).toBe(semconvName);
-    }
+  it("passes the pi-ai provider id through unmapped", () => {
+    const attrs = chatRequestAttributes(
+      {
+        ...MODEL,
+        provider: "google" as Model<"anthropic-messages">["provider"],
+      },
+      ctx(),
+      META,
+    );
+    // Deliberately NOT translated to the semconv well-known value
+    // (gcp.gemini) — the platform keys on pi-ai's raw provider ids.
+    expect(attrs["gen_ai.provider.name"]).toBe("google");
   });
 
   it("emits server.address and server.port from the model base URL", () => {
@@ -249,7 +238,7 @@ describe("chatResponseAttributes", () => {
         usage: {
           input: 321,
           output: 12,
-          reasoningOutputTokens: 7,
+          reasoning: 7,
           cacheRead: 34,
           cacheWrite: 0,
           totalTokens: 367,
@@ -265,9 +254,9 @@ describe("chatResponseAttributes", () => {
       }),
     );
 
-    // input_tokens must include cache tokens (semconv: cache_read /
-    // cache_creation are subsets of input_tokens): 321 + 34 cacheRead.
-    expect(attrs["gen_ai.usage.input_tokens"]).toBe(355);
+    // Cache-exclusive input tokens (platform-wide semantics; deliberate
+    // semconv deviation — aggregations add cache counts back on top).
+    expect(attrs["gen_ai.usage.input_tokens"]).toBe(321);
     expect(attrs["gen_ai.usage.output_tokens"]).toBe(12);
     expect(attrs["gen_ai.usage.reasoning.output_tokens"]).toBe(7);
     expect(attrs["gen_ai.usage.cache_read.input_tokens"]).toBe(34);
