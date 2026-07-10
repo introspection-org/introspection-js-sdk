@@ -133,7 +133,7 @@ function convertContentBlocksToParts(
       const signature = (block as Record<string, unknown>).signature as
         string | undefined;
       const thinkingPart: ReasoningPart = {
-        type: "thinking",
+        type: "reasoning",
         content: thinking || undefined,
         signature: signature || undefined,
         provider_name: "anthropic",
@@ -250,8 +250,7 @@ export function convertClaudeSessionToGenAI(
 ): GenAiAttributes {
   const result: GenAiAttributes = {};
 
-  // Set system
-  result.system = "anthropic";
+  result.providerName = "anthropic";
 
   // Set model
   if (data.model) {

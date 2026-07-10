@@ -336,7 +336,7 @@ export class IntrospectionTracingProcessor implements TracingProcessor {
    */
   private _processAgentSpan(otelSpan: OtelSpan, spanData: AgentSpanData): void {
     otelSpan.setAttribute("gen_ai.agent.name", spanData.name);
-    otelSpan.setAttribute("gen_ai.system", "openai");
+    otelSpan.setAttribute("gen_ai.provider.name", "openai");
     otelSpan.setAttribute("openinference.span.kind", "AGENT");
 
     if (spanData.tools) {
@@ -388,7 +388,7 @@ export class IntrospectionTracingProcessor implements TracingProcessor {
     spanData: ResponseSpanData,
   ): void {
     otelSpan.setAttribute("gen_ai.operation.name", "chat");
-    otelSpan.setAttribute("gen_ai.system", "openai");
+    otelSpan.setAttribute("gen_ai.provider.name", "openai");
     otelSpan.setAttribute("openinference.span.kind", "LLM");
 
     // Response ID (from span_data directly)
@@ -494,7 +494,7 @@ export class IntrospectionTracingProcessor implements TracingProcessor {
     spanData: GenerationSpanData,
   ): void {
     otelSpan.setAttribute("gen_ai.operation.name", "chat");
-    otelSpan.setAttribute("gen_ai.system", "openai");
+    otelSpan.setAttribute("gen_ai.provider.name", "openai");
     otelSpan.setAttribute("openinference.span.kind", "LLM");
 
     if (spanData.model) {

@@ -315,7 +315,7 @@ function extractOutputMessages(attrs: Attributes): OutputMessage[] | undefined {
             const parsed = JSON.parse(toolArgs) as Record<string, unknown>;
             if (typeof parsed.thinking === "string" && parsed.thinking) {
               const reasoningPart: ReasoningPart = {
-                type: "thinking",
+                type: "reasoning",
                 content: parsed.thinking,
               };
               parts.push(reasoningPart);
@@ -385,8 +385,8 @@ export function convertOpenInferenceToGenAI(
   const model = extractModel(attrs);
   if (model) result.requestModel = model;
 
-  const system = extractSystem(attrs);
-  if (system) result.system = system;
+  const providerName = extractSystem(attrs);
+  if (providerName) result.providerName = providerName;
 
   const responseId = extractResponseId(attrs);
   if (responseId) result.responseId = responseId;

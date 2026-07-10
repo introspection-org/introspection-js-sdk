@@ -358,7 +358,7 @@ export class IntrospectionMastraExporter extends BaseExporter {
     otelSpan.setAttribute("openinference.span.kind", "LLM");
 
     if (model) otelSpan.setAttribute("gen_ai.request.model", model);
-    if (provider) otelSpan.setAttribute("gen_ai.system", provider);
+    if (provider) otelSpan.setAttribute("gen_ai.provider.name", provider);
     if (responseModel)
       otelSpan.setAttribute("gen_ai.response.model", responseModel);
     if (responseId) otelSpan.setAttribute("gen_ai.response.id", responseId);
@@ -600,7 +600,7 @@ export class IntrospectionMastraExporter extends BaseExporter {
       if (Array.isArray(out.reasoning)) {
         for (const r of out.reasoning as Record<string, unknown>[]) {
           const text = (r.text || r.content || "") as string;
-          if (text) parts.push({ type: "thinking", content: text });
+          if (text) parts.push({ type: "reasoning", content: text });
         }
       }
 

@@ -295,7 +295,7 @@ export interface IntrospectionClaudeHooksOptions {
  * Provides instrumented hooks for Claude Agent SDK.
  *
  * Creates OpenTelemetry spans with gen_ai.* semantic convention attributes:
- * - Session spans: gen_ai.system, gen_ai.request.model
+ * - Session spans: gen_ai.provider.name, gen_ai.request.model
  * - Tool spans: gen_ai.tool.name, gen_ai.tool.input, gen_ai.tool.output
  * - Subagent spans: gen_ai.agent.name
  *
@@ -689,7 +689,7 @@ export class IntrospectionClaudeHooks {
     logger.debug(`Starting session span from init message: ${sessionId}`);
     const ids = this._resolveIdentity(sessionId);
     const attrs: Attributes = {
-      "gen_ai.system": "anthropic",
+      "gen_ai.provider.name": "anthropic",
       "gen_ai.operation.name": "chat",
       "gen_ai.agent.name": ids.agentName,
       "gen_ai.conversation.id": ids.conversationId,
@@ -835,7 +835,7 @@ export class IntrospectionClaudeHooks {
     // when the caller wrapped the query in withAgent() / withConversation().
     const ids = this._resolveIdentity(sessionInput.session_id);
     const attrs: Attributes = {
-      "gen_ai.system": "anthropic",
+      "gen_ai.provider.name": "anthropic",
       "gen_ai.operation.name": "chat",
       "gen_ai.agent.name": ids.agentName,
       "gen_ai.conversation.id": ids.conversationId,

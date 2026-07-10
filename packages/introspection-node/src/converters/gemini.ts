@@ -10,7 +10,7 @@
  * @see https://ai.google.dev/gemini-api/docs/thought-signatures
  *
  * Whenever a Gemini part carries a `thoughtSignature`, this converter emits a
- * `thinking` gen_ai part preceding the visible content. If the part is itself a
+ * `reasoning` gen_ai part preceding the visible content. If the part is itself a
  * thought summary (`thought: true`), the visible thought text is used as the
  * thinking content; otherwise the signed-but-redacted sentinel
  * `REDACTED_THINKING_CONTENT` (`"[redacted]"`) is used — mirroring the way the
@@ -86,7 +86,7 @@ function normalizeRole(role: string | undefined): InputMessage["role"] {
 /**
  * Convert a single Gemini part into zero-or-more gen_ai message parts.
  *
- * A part carrying a `thoughtSignature` always produces a leading `thinking`
+ * A part carrying a `thoughtSignature` always produces a leading `reasoning`
  * part so the signed reasoning payload is preserved alongside whatever visible
  * content the part contains.
  */
@@ -98,7 +98,7 @@ function partToGenAiParts(part: GeminiPart): MessagePart[] {
   if (isThought) {
     // Visible thought summary (Gemini emits these when `includeThoughts: true`).
     const reasoning: ReasoningPart = {
-      type: "thinking",
+      type: "reasoning",
       content: part.text || REDACTED_THINKING_CONTENT,
       signature,
       provider_name: GEMINI_PROVIDER_NAME,
@@ -108,9 +108,9 @@ function partToGenAiParts(part: GeminiPart): MessagePart[] {
   }
 
   if (signature) {
-    // Signed but non-thought part — emit a redacted thinking prefix carrying the signature.
+    // Signed but non-thought part — emit a redacted reasoning prefix carrying the signature.
     const reasoning: ReasoningPart = {
-      type: "thinking",
+      type: "reasoning",
       content: REDACTED_THINKING_CONTENT,
       signature,
       provider_name: GEMINI_PROVIDER_NAME,

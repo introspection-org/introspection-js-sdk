@@ -100,11 +100,6 @@ describe("toAttributes", () => {
     const parsed = JSON.parse(String(result["gen_ai.tool.definitions"]));
     expect(parsed).toEqual([{ name: "shell", parameters: { type: "object" } }]);
   });
-
-  it("emits the legacy gen_ai.system field when explicitly set", () => {
-    const result = toAttributes({ system: "anthropic" });
-    expect(result).toEqual({ "gen_ai.system": "anthropic" });
-  });
 });
 
 describe("GenAi attribute-name constants", () => {

@@ -128,7 +128,6 @@ describe("Anthropic Thinking Tests", () => {
                 "gen_ai.request.model": "claude-sonnet-4-6",
                 "gen_ai.response.id": "<response_id>",
                 "gen_ai.response.model": "<response_model>",
-                "gen_ai.system": "anthropic",
                 "gen_ai.usage.cache_creation.input_tokens": 0,
                 "gen_ai.usage.input_tokens": "<input_tokens>",
                 "gen_ai.usage.output_tokens": "<output_tokens>",
@@ -147,7 +146,7 @@ describe("Anthropic Thinking Tests", () => {
         spans[0].attributes["gen_ai.output.messages"],
       ) as any[];
       const thinkingParts = outputMsgs[0].parts.filter(
-        (p: any) => p.type === "thinking",
+        (p: any) => p.type === "reasoning",
       );
       expect(thinkingParts.length).toBeGreaterThanOrEqual(1);
       expect(thinkingParts[0].content).toEqual(expect.any(String));
@@ -276,7 +275,6 @@ describe("Anthropic Thinking Tests", () => {
                 "gen_ai.request.model": "claude-sonnet-4-6",
                 "gen_ai.response.id": "<response_id>",
                 "gen_ai.response.model": "<response_model>",
-                "gen_ai.system": "anthropic",
                 "gen_ai.tool.definitions": "[{"name":"get_weather","description":"Get weather for a city. Returns conditions and temperature in Celsius.","parameters":{"type":"object","properties":{"city":{"type":"string","description":"City name"}},"required":["city"]}}]",
                 "gen_ai.usage.cache_creation.input_tokens": 0,
                 "gen_ai.usage.input_tokens": "<input_tokens>",
@@ -297,7 +295,6 @@ describe("Anthropic Thinking Tests", () => {
                 "gen_ai.request.model": "claude-sonnet-4-6",
                 "gen_ai.response.id": "<response_id>",
                 "gen_ai.response.model": "<response_model>",
-                "gen_ai.system": "anthropic",
                 "gen_ai.tool.definitions": "[{"name":"get_weather","description":"Get weather for a city. Returns conditions and temperature in Celsius.","parameters":{"type":"object","properties":{"city":{"type":"string","description":"City name"}},"required":["city"]}}]",
                 "gen_ai.usage.cache_creation.input_tokens": 0,
                 "gen_ai.usage.input_tokens": "<input_tokens>",
@@ -318,7 +315,6 @@ describe("Anthropic Thinking Tests", () => {
                 "gen_ai.request.model": "claude-sonnet-4-6",
                 "gen_ai.response.id": "<response_id>",
                 "gen_ai.response.model": "<response_model>",
-                "gen_ai.system": "anthropic",
                 "gen_ai.usage.cache_creation.input_tokens": 0,
                 "gen_ai.usage.input_tokens": "<input_tokens>",
                 "gen_ai.usage.output_tokens": "<output_tokens>",
@@ -339,7 +335,7 @@ describe("Anthropic Thinking Tests", () => {
       ) as any[];
       expect(turn1Output[0].finish_reason).toBe("tool-calls");
       expect(
-        turn1Output[0].parts.filter((p: any) => p.type === "thinking").length,
+        turn1Output[0].parts.filter((p: any) => p.type === "reasoning").length,
       ).toBeGreaterThanOrEqual(1);
 
       // Turn 2 input: should contain thinking blocks from history
@@ -353,7 +349,7 @@ describe("Anthropic Thinking Tests", () => {
         }
       }
       expect(
-        assistantParts.filter((p: any) => p.type === "thinking").length,
+        assistantParts.filter((p: any) => p.type === "reasoning").length,
       ).toBeGreaterThanOrEqual(1);
 
       // Turn 3 output: thinking (model reasoning about conversion)
@@ -362,7 +358,7 @@ describe("Anthropic Thinking Tests", () => {
       ) as any[];
       expect(turn3Output[0].finish_reason).toBe("stop");
       expect(
-        turn3Output[0].parts.filter((p: any) => p.type === "thinking").length,
+        turn3Output[0].parts.filter((p: any) => p.type === "reasoning").length,
       ).toBeGreaterThanOrEqual(1);
     } finally {
       await h.cleanup();
@@ -412,7 +408,6 @@ describe("Anthropic Thinking Tests", () => {
                 "gen_ai.request.model": "claude-sonnet-4-6",
                 "gen_ai.response.id": "<response_id>",
                 "gen_ai.response.model": "<response_model>",
-                "gen_ai.system": "anthropic",
                 "gen_ai.usage.input_tokens": "<input_tokens>",
                 "gen_ai.usage.output_tokens": "<output_tokens>",
                 "openinference.span.kind": "LLM",
@@ -430,7 +425,7 @@ describe("Anthropic Thinking Tests", () => {
         spans[0].attributes["gen_ai.output.messages"],
       ) as any[];
       const thinkingParts = outputMsgs[0].parts.filter(
-        (p: any) => p.type === "thinking",
+        (p: any) => p.type === "reasoning",
       );
       expect(thinkingParts.length).toBeGreaterThanOrEqual(1);
       expect(thinkingParts[0].content).toEqual(expect.any(String));

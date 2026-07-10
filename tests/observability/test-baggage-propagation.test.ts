@@ -59,7 +59,7 @@ describe("baggage propagation — IntrospectionSpanProcessor", () => {
       introspect.withConversation("conv-primes", undefined, async () => {
         const span = tracer.startSpan("chat", {
           attributes: {
-            "gen_ai.system": "anthropic",
+            "gen_ai.provider.name": "anthropic",
             "gen_ai.operation.name": "chat",
             "gen_ai.request.model": "claude-sonnet-4-6",
           },
@@ -101,7 +101,9 @@ describe("baggage propagation — IntrospectionSpanProcessor", () => {
           // forks baggage per branch rather than depending on call ordering.
           await new Promise((r) => setImmediate(r));
           tracer
-            .startSpan("chat", { attributes: { "gen_ai.system": "anthropic" } })
+            .startSpan("chat", {
+              attributes: { "gen_ai.provider.name": "anthropic" },
+            })
             .end();
         }),
       );

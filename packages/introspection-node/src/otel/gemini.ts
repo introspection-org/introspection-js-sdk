@@ -2,7 +2,7 @@
  * Lightweight Google Gemini (`@google/genai`) instrumentor for Introspection SDK.
  *
  * Captures the full Gemini response including per-part `thoughtSignature`
- * payloads (Gemini 3.x extended thinking) as gen_ai `thinking` parts with
+ * payloads (Gemini 3.x extended thinking) as gen_ai `reasoning` parts with
  * `signature` set — mirroring how the {@link AnthropicInstrumentor} captures
  * Anthropic thinking blocks.
  *
@@ -63,7 +63,6 @@ function startSpan(
   return tracer.startSpan("chat", {
     kind: SpanKind.CLIENT,
     attributes: {
-      "gen_ai.system": GEMINI_PROVIDER_NAME,
       "gen_ai.provider.name": GEMINI_PROVIDER_NAME,
       "gen_ai.operation.name": "chat",
       "gen_ai.request.model": model,

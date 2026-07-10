@@ -31,18 +31,14 @@ export interface TextPart {
 /**
  * A reasoning / thinking content part in a message.
  *
- * The OTel GenAI semconv message schemas define this part with the
- * `"reasoning"` discriminator; `"thinking"` is a legacy value that older
- * converters emitted and readers must keep accepting.
- *
  * `signature` carries the encrypted reasoning payload (Anthropic
  * `signature` / `redacted_thinking`, OpenAI `encrypted_content`).
  * `redacted` is set when the upstream provider redacted the visible
  * content but kept the signed payload.
  */
 export interface ReasoningPart {
-  /** Discriminator — `"reasoning"` (semconv) or `"thinking"` (legacy). */
-  type: "reasoning" | "thinking";
+  /** Discriminator — always `"reasoning"`. */
+  type: "reasoning";
   /** The reasoning / thinking summary content. */
   content?: string;
   /** Encrypted reasoning signature (Anthropic signature / redacted_thinking, OpenAI encrypted_content). */
@@ -214,11 +210,6 @@ export interface GenAiAttributes {
   requestModel?: string;
   /** Provider name (gen_ai.provider.name) */
   providerName?: string;
-  /**
-   * Legacy provider name (gen_ai.system).
-   * @deprecated Prefer {@link GenAiAttributes.providerName} (`gen_ai.provider.name`).
-   */
-  system?: string;
   /** Operation name (gen_ai.operation.name) */
   operationName?: string;
   /** Tool definitions (gen_ai.tool.definitions) — serialized to JSON by {@link toAttributes}. */
@@ -250,7 +241,6 @@ export interface GenAiAttributes {
 const ATTRIBUTE_NAMES: Record<keyof GenAiAttributes, string> = {
   requestModel: "gen_ai.request.model",
   providerName: "gen_ai.provider.name",
-  system: "gen_ai.system",
   operationName: "gen_ai.operation.name",
   toolDefinitions: "gen_ai.tool.definitions",
   inputMessages: "gen_ai.input.messages",

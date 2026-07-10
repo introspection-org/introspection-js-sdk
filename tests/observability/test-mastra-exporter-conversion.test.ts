@@ -120,7 +120,7 @@ describe("IntrospectionMastraExporter span conversion", () => {
     const llm = byName(spans, "chat gpt-4o");
     expect(llm, "model_step span").toBeDefined();
     expect(llm!.attributes["gen_ai.request.model"]).toBe("gpt-4o");
-    expect(llm!.attributes["gen_ai.system"]).toBe("openai");
+    expect(llm!.attributes["gen_ai.provider.name"]).toBe("openai");
     expect(llm!.attributes["gen_ai.response.model"]).toBe("gpt-4o-2024");
     expect(llm!.attributes["gen_ai.usage.input_tokens"]).toBe(30);
     expect(llm!.attributes["gen_ai.usage.cache_read.input_tokens"]).toBe(5);

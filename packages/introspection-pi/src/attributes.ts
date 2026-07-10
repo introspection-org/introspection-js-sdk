@@ -166,21 +166,9 @@ export function chatResponseAttributes(message: AssistantMessage): Attributes {
   if (message.usage.cost?.total) {
     attributes[GenAi.COST_USD] = message.usage.cost.total;
   }
-  const reasoningOutputTokens =
-    message.usage.reasoning ??
-    (
-      message.usage as typeof message.usage & {
-        reasoningOutputTokens?: number;
-        reasoningOutput?: number;
-      }
-    ).reasoningOutputTokens ??
-    (
-      message.usage as typeof message.usage & {
-        reasoningOutput?: number;
-      }
-    ).reasoningOutput;
-  if (typeof reasoningOutputTokens === "number" && reasoningOutputTokens > 0) {
-    attributes[GenAi.USAGE_REASONING_TOKENS] = reasoningOutputTokens;
+  const reasoningTokens = message.usage.reasoning;
+  if (typeof reasoningTokens === "number" && reasoningTokens > 0) {
+    attributes[GenAi.USAGE_REASONING_TOKENS] = reasoningTokens;
   }
   if (message.responseId) {
     attributes[GenAi.RESPONSE_ID] = message.responseId;

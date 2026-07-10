@@ -317,7 +317,7 @@ export class IntrospectionCallbackHandler extends BaseCallbackHandler {
 
     const provider = this._extractProvider(llm);
     if (provider) {
-      otelSpan.setAttribute("gen_ai.system", provider);
+      otelSpan.setAttribute("gen_ai.provider.name", provider);
     }
 
     const invocationParams = extraParams?.["invocation_params"] as

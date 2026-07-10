@@ -117,9 +117,9 @@ describe("Claude Agent SDK Tests", () => {
               "gen_ai.input.messages": "[{"role":"user","parts":[{"type":"text","content":"What is 2 + 2? Just give me the number."}]}]",
               "gen_ai.operation.name": "chat",
               "gen_ai.output.messages": "[{"role":"assistant","parts":[{"type":"text","content":"4"}],"finish_reason":"success"}]",
+              "gen_ai.provider.name": "anthropic",
               "gen_ai.request.model": "claude-sonnet-4-6",
               "gen_ai.response.id": "msg_01ABC123",
-              "gen_ai.system": "anthropic",
               "gen_ai.system_instructions": "[{"type":"text","content":"You are a calculator."}]",
               "gen_ai.tool.definitions": "[{"name":"Bash"},{"name":"Read"},{"name":"Write"}]",
               "gen_ai.usage.input_tokens": 150,
@@ -235,9 +235,9 @@ describe("Claude Agent SDK Tests", () => {
               "gen_ai.input.messages": "[{"role":"user","parts":[{"type":"text","content":"List files in the current directory"}]}]",
               "gen_ai.operation.name": "chat",
               "gen_ai.output.messages": "[{"role":"assistant","parts":[{"type":"text","content":"The directory contains file1.txt and file2.txt."}],"finish_reason":"success"}]",
+              "gen_ai.provider.name": "anthropic",
               "gen_ai.request.model": "claude-sonnet-4-6",
               "gen_ai.response.id": "msg_02DEF456",
-              "gen_ai.system": "anthropic",
               "gen_ai.usage.input_tokens": 200,
               "gen_ai.usage.output_tokens": 50,
             },
@@ -302,7 +302,7 @@ describe("Claude Agent SDK Tests", () => {
     expect(sessionSpan).toBeDefined();
 
     const attrs = sessionSpan!.attributes;
-    expect(attrs["gen_ai.system"]).toBe("anthropic");
+    expect(attrs["gen_ai.provider.name"]).toBe("anthropic");
     expect(attrs["gen_ai.request.model"]).toEqual(expect.any(String));
     expect(attrs["gen_ai.usage.input_tokens"]).toEqual(expect.any(Number));
     expect(attrs["gen_ai.usage.output_tokens"]).toEqual(expect.any(Number));

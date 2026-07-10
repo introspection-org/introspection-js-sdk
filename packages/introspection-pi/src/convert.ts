@@ -533,10 +533,7 @@ function isCompactionPart(part: MessagePart): part is CompactionPart {
 }
 
 function isReasoningPart(part: MessagePart): part is ReasoningPart {
-  // "reasoning" is the semconv discriminator; "thinking" is the legacy
-  // value this package emitted before — keep hydrating stored spans that
-  // used it.
-  return part.type === "reasoning" || part.type === "thinking";
+  return part.type === "reasoning";
 }
 
 function isToolCallRequestPart(part: MessagePart): part is ToolCallRequestPart {

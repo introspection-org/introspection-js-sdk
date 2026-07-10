@@ -175,7 +175,7 @@ export function convertResponsesOutputsToSemconv(
       const signature =
         (item.encrypted_content as string | undefined) || undefined;
       const thinkingPart: ReasoningPart = {
-        type: "thinking",
+        type: "reasoning",
         content,
         signature,
         provider_name: "openai",

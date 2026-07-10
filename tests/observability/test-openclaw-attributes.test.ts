@@ -115,6 +115,7 @@ describe("chatResponseAttributes", () => {
       usage: { input: 10, output: 5 },
     });
     expect("gen_ai.system" in attrs).toBe(false);
+    expect("gen_ai.provider.name" in attrs).toBe(false);
   });
 
   it("does not emit the legacy underscore-only cache attribute names", () => {
