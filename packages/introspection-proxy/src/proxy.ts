@@ -15,6 +15,7 @@
  */
 import { Socket } from "node:net";
 import { connect as tlsConnect } from "node:tls";
+import { context, propagation } from "@opentelemetry/api";
 import {
   Agent,
   EnvHttpProxyAgent,
@@ -39,6 +40,13 @@ export interface ProxyFetchOptions {
    * span regardless of this flag.
    */
   tracing?: boolean;
+  /**
+   * Propagate active OTel baggage alongside trace context (default false).
+   * Enable only for trusted application endpoints; baggage can contain
+   * conversation or identity correlation and must not be sent to arbitrary
+   * third-party hosts.
+   */
+  propagateBaggage?: boolean;
 }
 
 function resolveEgressUrl(options: ProxyFetchOptions): string | undefined {
@@ -120,6 +128,20 @@ function downgradeToHttp(url: string | URL): string {
   return s.startsWith("https://") ? "http://" + s.slice(8) : s;
 }
 
+function withInjectedTraceContext(
+  opts: Record<string, unknown>,
+  propagateBaggage: boolean,
+): Record<string, unknown> {
+  const headers = new Headers(opts.headers as HeadersInit | undefined);
+  propagation.inject(context.active(), headers, {
+    set(carrier, key, value) {
+      if (!propagateBaggage && key.toLowerCase() === "baggage") return;
+      carrier.set(key, value);
+    },
+  });
+  return { ...opts, headers };
+}
+
 export function createProxyFetch(
   options: ProxyFetchOptions = {},
 ): typeof fetch {
@@ -182,7 +204,10 @@ export function createProxyFetch(
     const execute = () =>
       undiciFetch(
         target as unknown as Parameters<typeof undiciFetch>[0],
-        opts as unknown as Parameters<typeof undiciFetch>[1],
+        withInjectedTraceContext(
+          opts,
+          options.propagateBaggage ?? false,
+        ) as unknown as Parameters<typeof undiciFetch>[1],
       ) as unknown as Promise<Response>;
 
     // A forward-dispatched request to a NO_PROXY host goes direct inside

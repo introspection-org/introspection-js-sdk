@@ -1,7 +1,18 @@
 import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 
-import { SpanStatusCode, trace } from "@opentelemetry/api";
+import {
+  context,
+  propagation,
+  SpanStatusCode,
+  trace,
+} from "@opentelemetry/api";
+import { AsyncLocalStorageContextManager } from "@opentelemetry/context-async-hooks";
+import {
+  CompositePropagator,
+  W3CBaggagePropagator,
+  W3CTraceContextPropagator,
+} from "@opentelemetry/core";
 import {
   BasicTracerProvider,
   InMemorySpanExporter,
@@ -74,6 +85,17 @@ describe("introspection-proxy-call spans", () => {
     spanProcessors: [new SimpleSpanProcessor(exporter)],
   });
   trace.setGlobalTracerProvider(provider);
+  context.setGlobalContextManager(
+    new AsyncLocalStorageContextManager().enable(),
+  );
+  propagation.setGlobalPropagator(
+    new CompositePropagator({
+      propagators: [
+        new W3CTraceContextPropagator(),
+        new W3CBaggagePropagator(),
+      ],
+    }),
+  );
 
   let server: Server | undefined;
 
@@ -125,6 +147,65 @@ describe("introspection-proxy-call spans", () => {
       "http://endpoint.example.test/v1/things",
     );
     expect(String(span.attributes["url.full"])).not.toContain("secret");
+  });
+
+  it("injects the proxy span context into the upstream request", async () => {
+    clearProxyEnv();
+    let traceparent: string | undefined;
+    server = createServer((req, res) => {
+      traceparent = req.headers.traceparent;
+      res.end("ok");
+    });
+    await new Promise<void>((resolve) => server?.listen(0, resolve));
+    const port = (server.address() as AddressInfo).port;
+    process.env.INTROSPECTION_EGRESS_URL = `http://127.0.0.1:${port}`;
+    process.env.INTROSPECTION_ENDPOINT_HOSTS = "endpoint.example.test";
+
+    const response = await createProxyFetch()(
+      "http://endpoint.example.test/mcp",
+      { method: "POST", body: "{}" },
+    );
+
+    expect(response.status).toBe(200);
+    const span = exporter.getFinishedSpans()[0];
+    expect(traceparent).toMatch(
+      new RegExp(
+        `^00-${span.spanContext().traceId}-${span.spanContext().spanId}-01$`,
+      ),
+    );
+  });
+
+  it("propagates baggage only when explicitly enabled", async () => {
+    clearProxyEnv();
+    const baggageHeaders: Array<string | undefined> = [];
+    server = createServer((req, res) => {
+      baggageHeaders.push(req.headers.baggage);
+      res.end("ok");
+    });
+    await new Promise<void>((resolve) => server?.listen(0, resolve));
+    const port = (server.address() as AddressInfo).port;
+    process.env.INTROSPECTION_EGRESS_URL = `http://127.0.0.1:${port}`;
+    process.env.INTROSPECTION_ENDPOINT_HOSTS = "endpoint.example.test";
+    const baggageContext = propagation.setBaggage(
+      context.active(),
+      propagation.createBaggage({
+        "gen_ai.conversation.id": { value: "conversation-1" },
+      }),
+    );
+
+    await context.with(baggageContext, () =>
+      createProxyFetch()("http://endpoint.example.test/mcp"),
+    );
+    await context.with(baggageContext, () =>
+      createProxyFetch({ propagateBaggage: true })(
+        "http://endpoint.example.test/mcp",
+      ),
+    );
+
+    expect(baggageHeaders).toEqual([
+      undefined,
+      "gen_ai.conversation.id=conversation-1",
+    ]);
   });
 
   it("emits a forward-mode error-status span for a 5xx response", async () => {

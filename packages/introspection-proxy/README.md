@@ -36,6 +36,15 @@ const supabase = createClient(url, key, {
 });
 ```
 
+Active W3C trace context is injected into proxied requests. OTel baggage is
+excluded by default because it can contain conversation or identity metadata.
+Enable it only for a trusted application endpoint that participates in the
+same distributed trace:
+
+```ts
+const mcpFetch = createProxyFetch({ propagateBaggage: true });
+```
+
 ## How it works
 
 Two proxy modes, selected per-request:
