@@ -17,6 +17,7 @@ import {
   InMemorySpanExporter,
   SimpleSpanProcessor,
 } from "@opentelemetry/sdk-trace-base";
+import { AsyncLocalStorageContextManager } from "@opentelemetry/context-async-hooks";
 import {
   createAssistantMessageEventStream,
   type AssistantMessage,
@@ -472,6 +473,56 @@ describe("instrumentAgent", () => {
       JSON.parse(String(span?.attributes["gen_ai.tool.call.result"])),
     ).toEqual({ stdout: "ok" });
     expect(span?.status.code).toBe(0); // UNSET
+  });
+
+  it("makes the execute_tool span active while the tool handler runs", async () => {
+    const contextManager = new AsyncLocalStorageContextManager().enable();
+    otelContext.setGlobalContextManager(contextManager);
+    try {
+      const { exporter, tracer, provider } = setupTracer();
+      let activeSpanId: string | undefined;
+      const tool = {
+        name: "shell",
+        description: "Run a shell command",
+        execute: vi.fn(async (_toolCallId: string, _params: unknown) => {
+          activeSpanId = trace
+            .getSpan(otelContext.active())
+            ?.spanContext().spanId;
+          return { content: [], details: {} };
+        }),
+      };
+      const agent = fakeAgent() as ReturnType<typeof fakeAgent> & {
+        state: { tools: (typeof tool)[] };
+      };
+      agent.state = { tools: [tool] };
+      const handle = instrumentAgent(agent as any, { tracer, meta: META });
+
+      agent.emit({
+        type: "tool_execution_start",
+        toolCallId: "call-1",
+        toolName: "shell",
+        args: { cmd: "mcp call nextplay.search_profiles" },
+      });
+      await tool.execute("call-1", {
+        cmd: "mcp call nextplay.search_profiles",
+      });
+      agent.emit({
+        type: "tool_execution_end",
+        toolCallId: "call-1",
+        toolName: "shell",
+        result: { stdout: "ok" },
+        isError: false,
+      });
+
+      handle.stop();
+      await provider.forceFlush();
+      const span = exporter
+        .getFinishedSpans()
+        .find((candidate) => candidate.name === "execute_tool shell");
+      expect(activeSpanId).toBe(span?.spanContext().spanId);
+    } finally {
+      otelContext.disable();
+    }
   });
 
   it("invokes extraAttributes and merges its output onto the tool span", async () => {

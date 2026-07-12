@@ -14,7 +14,11 @@ import {
   type Span,
   type Tracer,
 } from "@opentelemetry/api";
-import type { Agent, AgentEvent } from "@earendil-works/pi-agent-core";
+import type {
+  Agent,
+  AgentEvent,
+  AgentTool,
+} from "@earendil-works/pi-agent-core";
 import {
   GenAi,
   GenAiSpanName,
@@ -86,8 +90,11 @@ export interface AgentInstrumentation {
 
 interface ActiveToolSpan {
   span: Span;
+  context: OtelContext;
   startedAt: number;
 }
+
+type ToolExecute = AgentTool["execute"];
 
 interface ActiveRun {
   span: Span;
@@ -113,6 +120,7 @@ export function instrumentAgent(
 ): AgentInstrumentation {
   const buildSpanName = opts.spanName ?? GenAiSpanName.executeTool;
   const activeSpans = new Map<string, ActiveToolSpan>();
+  const wrappedTools = new Map<AgentTool, ToolExecute>();
   const metrics = opts.meter ? genAiMetrics(opts.meter) : undefined;
   const state: { run: ActiveRun | undefined } = { run: undefined };
 
@@ -125,6 +133,7 @@ export function instrumentAgent(
       state,
       metrics,
       buildSpanName,
+      wrappedTools,
       signal,
     );
   });
@@ -132,6 +141,10 @@ export function instrumentAgent(
   return {
     stop: () => {
       unsubscribe();
+      for (const [tool, execute] of wrappedTools) {
+        tool.execute = execute;
+      }
+      wrappedTools.clear();
       for (const { span } of activeSpans.values()) {
         span.end();
       }
@@ -153,6 +166,7 @@ function handleEvent(
   state: { run: ActiveRun | undefined },
   metrics: GenAiMetrics | undefined,
   buildSpanName: (toolName: string) => string,
+  wrappedTools: Map<AgentTool, ToolExecute>,
   signal?: AbortSignal,
 ): void {
   switch (event.type) {
@@ -223,7 +237,12 @@ function handleEvent(
         parentContext ?? undefined,
       );
 
-      activeSpans.set(event.toolCallId, { span, startedAt: Date.now() });
+      activeSpans.set(event.toolCallId, {
+        span,
+        context: trace.setSpan(parentContext ?? otelContext.active(), span),
+        startedAt: Date.now(),
+      });
+      wrapToolExecution(agent, event.toolName, activeSpans, wrappedTools);
       return;
     }
 
@@ -277,6 +296,34 @@ function handleEvent(
     default:
       return;
   }
+}
+
+/**
+ * Pi emits `tool_execution_start` immediately before invoking the matching
+ * tool's `execute()` function. Wrap that function so any work performed by the
+ * tool (subprocesses, HTTP clients, MCP clients, and their propagated context)
+ * runs with the existing `execute_tool` span active.
+ */
+function wrapToolExecution(
+  agent: Agent,
+  toolName: string,
+  activeSpans: Map<string, ActiveToolSpan>,
+  wrappedTools: Map<AgentTool, ToolExecute>,
+): void {
+  const tool = agent.state?.tools?.find(
+    (candidate) => candidate.name === toolName,
+  );
+  if (!tool || wrappedTools.has(tool)) return;
+
+  const execute = tool.execute;
+  wrappedTools.set(tool, execute);
+  tool.execute = async function instrumentedToolExecute(
+    ...args: Parameters<ToolExecute>
+  ): ReturnType<ToolExecute> {
+    const active = activeSpans.get(args[0]);
+    if (!active) return execute.apply(tool, args);
+    return otelContext.with(active.context, () => execute.apply(tool, args));
+  };
 }
 
 function finishRunSpan(
