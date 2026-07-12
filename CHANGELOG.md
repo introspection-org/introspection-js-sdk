@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.3](https://github.com/introspection-org/introspection-js-sdk/compare/v0.8.2...v0.8.3) (2026-07-12)
+
+
+### Bug Fixes
+
+* Propagate trace context through proxy and Pi tools ([#186](https://github.com/introspection-org/introspection-js-sdk/issues/186)) ([e6f8ba5](https://github.com/introspection-org/introspection-js-sdk/commit/e6f8ba5c9637a8403fdc82d843936772b0c36153))
+
 ## [0.8.2](https://github.com/introspection-org/introspection-js-sdk/compare/v0.8.1...v0.8.2) (2026-07-10)
 
 
