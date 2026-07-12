@@ -134,6 +134,7 @@ export type {
   ConversationItemList,
   ConversationItemInclude,
   ConversationItemNodeType,
+  ConversationSortField,
   ConversationListParams,
   ConversationItemListParams,
   ConversationResponse,

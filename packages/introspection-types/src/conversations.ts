@@ -36,6 +36,10 @@ export type SpanKind =
 export type ConversationItemNodeType =
   "agent" | "assistant" | "tool_call" | "span";
 
+/** Allow-listed `sort` fields for `GET /v1/conversations`. */
+export type ConversationSortField =
+  "created" | "duration" | "turns" | "tokens" | "cost";
+
 /**
  * Optional conversation item expansions, passed as a repeated `include`
  * query param on the items routes.
@@ -215,18 +219,38 @@ export interface ConversationSummary {
   duration_ms: number;
   /** OTel `service.name` from the trace. */
   service_name?: string | null;
-  /** Requested model name. */
-  model?: string | null;
-  /** Actual model name returned by the provider. */
-  response_model?: string | null;
-  /** Agent name. */
-  agent_name?: string | null;
-  /** Primary operation type. */
-  operation_name?: string | null;
+  /** Runtime environment lane. */
+  environment?: string | null;
+  /** Runtime version ID. */
+  runtime_id?: Uuid | null;
+  /** Stable runtime group ID. */
+  runtime_group_id?: Uuid | null;
+  /** Experiment ID when traffic is experiment-routed. */
+  experiment_id?: Uuid | null;
+  /** Recipe git commit SHA. */
+  recipe_git_commit_sha?: string | null;
+  /**
+   * First requested model observed in the conversation — a stable
+   * preview identity, not a "primary" model classification.
+   */
+  first_request_model?: string | null;
+  /**
+   * First agent name observed in the conversation — a stable preview
+   * identity, not a "primary" agent classification.
+   */
+  first_agent_name?: string | null;
   /** Sum of input tokens across spans. */
   total_input_tokens: number;
   /** Sum of output tokens across spans. */
   total_output_tokens: number;
+  /** Sum of input and output tokens across spans. */
+  total_tokens: number;
+  /** Sum of model cost in USD across spans. */
+  total_cost_usd: number;
+  /** Number of `execute_tool` spans in the conversation. */
+  tool_use_count: number;
+  /** Number of failed `execute_tool` spans in the conversation. */
+  failed_tool_use_count: number;
   /** Number of traces in the conversation. */
   trace_count: number;
   /** Number of spans in the trace. */
@@ -235,8 +259,6 @@ export interface ConversationSummary {
   status: SpanStatus;
   /** Whether any span has errors. */
   has_errors: boolean;
-  /** Detected signal categories. */
-  signal_categories: string[];
   /** New input messages from the first span. */
   input_messages: InputMessage[];
   /** Output messages from the last span. */
@@ -251,8 +273,14 @@ export interface ConversationSummary {
  * combined with AND logic; date range filters are inclusive.
  */
 export interface ConversationListParams extends ListParams {
-  /** Filter: model name (exact match). */
-  model?: string;
+  /** Filter: conversation ID (exact match). */
+  conversation_id?: string;
+  /** Summary field to order by (server default `"created"`). */
+  sort?: ConversationSortField;
+  /** Sort direction (server default `"desc"`). */
+  direction?: "asc" | "desc";
+  /** Filter: requested model on any span (exact match). */
+  request_model?: string;
   /** Filter: agent name (exact match). */
   agent_name?: string;
   /** Filter: status — `"Ok"` or `"Error"`. */
@@ -261,6 +289,16 @@ export interface ConversationListParams extends ListParams {
   service_name?: string;
   /** Filter: OTel service names (exact match, repeated param). */
   service_names?: string[];
+  /** Filter: runtime environment lane. */
+  environment?: string;
+  /** Filter: runtime version ID. */
+  runtime_id?: Uuid;
+  /** Filter: stable runtime group ID. */
+  runtime_group_id?: Uuid;
+  /** Filter: experiment ID. */
+  experiment_id?: Uuid;
+  /** Filter: recipe git commit SHA. */
+  recipe_git_commit_sha?: string;
   /** Start of date range (inclusive). */
   start_date?: IsoDate;
   /** End of date range (inclusive). */

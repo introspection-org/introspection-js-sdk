@@ -89,6 +89,7 @@ export type {
   FileCreateTextParams,
   ListParams,
   ConversationSummary,
+  ConversationSortField,
   ConversationItem,
   ConversationItemList,
   ConversationListParams,
