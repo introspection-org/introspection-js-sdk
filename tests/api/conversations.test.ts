@@ -23,13 +23,18 @@ const SUMMARY_FIXTURE = {
   start_time: "2025-01-01T00:00:00Z",
   end_time: "2025-01-01T00:00:05Z",
   duration_ms: 5000,
+  first_request_model: "claude-x",
+  first_agent_name: "agent",
   total_input_tokens: 10,
   total_output_tokens: 20,
+  total_tokens: 30,
+  total_cost_usd: 0.01,
+  tool_use_count: 0,
+  failed_tool_use_count: 0,
   trace_count: 1,
   span_count: 3,
   status: "Ok" as const,
   has_errors: false,
-  signal_categories: [],
   input_messages: [],
   output_messages: [],
 };
@@ -75,14 +80,18 @@ describe("ConversationsApi", () => {
     });
     const api = new ConversationsApi(http);
     const summaries = [];
-    for await (const c of api.list({ limit: 10, status: "Error" })) {
+    for await (const c of api.list({
+      limit: 10,
+      status: "Error",
+      request_model: "claude-x",
+    })) {
       summaries.push(c);
     }
 
     expect(http.request).toHaveBeenCalledWith({
       method: "GET",
       path: "/v1/conversations",
-      query: { limit: 10, status: "Error" },
+      query: { limit: 10, status: "Error", request_model: "claude-x" },
     });
     expect(summaries).toHaveLength(1);
   });
