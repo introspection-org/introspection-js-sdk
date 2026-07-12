@@ -310,7 +310,7 @@ function wrapToolExecution(
   activeSpans: Map<string, ActiveToolSpan>,
   wrappedTools: Map<AgentTool, ToolExecute>,
 ): void {
-  const tool = agent.state?.tools?.find(
+  const tool = agent.state.tools.find(
     (candidate) => candidate.name === toolName,
   );
   if (!tool || wrappedTools.has(tool)) return;
@@ -365,21 +365,11 @@ function finishRunSpan(
   }
 }
 
-/**
- * Best-effort `gen_ai.tool.description` lookup from the agent's tool
- * registry. Defensive against partial Agent implementations (tests, mocks)
- * that don't expose `state.tools`.
- */
 function lookupToolDescription(
   agent: Agent,
   toolName: string,
 ): string | undefined {
-  try {
-    return agent.state?.tools?.find((tool) => tool.name === toolName)
-      ?.description;
-  } catch {
-    return undefined;
-  }
+  return agent.state.tools.find((tool) => tool.name === toolName)?.description;
 }
 
 function safeStringify(value: unknown): string {

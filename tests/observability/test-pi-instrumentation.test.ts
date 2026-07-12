@@ -421,6 +421,7 @@ describe("instrumentAgent", () => {
     const subscribers: Array<(event: unknown, signal?: AbortSignal) => void> =
       [];
     const agent = {
+      state: { tools: [] as unknown[] },
       subscribe(fn: (event: unknown, signal?: AbortSignal) => void) {
         subscribers.push(fn);
         return () => {
