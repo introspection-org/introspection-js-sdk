@@ -13,6 +13,7 @@ import {
   TasksApi,
 } from "@introspection-sdk/http";
 import { HttpClient } from "./http.js";
+import { RunnerConnectionsApi } from "./resources/connections.js";
 import type { IntrospectionClient } from "./client.js";
 
 /**
@@ -45,6 +46,13 @@ export class Runner {
   readonly files: FilesApi;
   readonly conversations: ConversationsApi;
   readonly shares: SharesApi;
+  /**
+   * In-sandbox connection surface. `authorize(connector, { action, mission })`
+   * ensures a grant; the token is materialized into the session and injected
+   * at egress (never returned). `person_authorized` returns `pending` with an
+   * approval URL — use `waitForGrant` to block until approved.
+   */
+  readonly connections: RunnerConnectionsApi;
 
   constructor(
     private readonly client: IntrospectionClient,
@@ -57,6 +65,7 @@ export class Runner {
     this.files = new FilesApi(this.guardedHttp(this.http));
     this.conversations = new ConversationsApi(this.guardedHttp(this.http));
     this.shares = new SharesApi(this.guardedHttp(this.http));
+    this.connections = new RunnerConnectionsApi(this.guardedHttp(this.http));
   }
 
   // --- public accessors ---

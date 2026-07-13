@@ -73,6 +73,13 @@ export {
 } from "./resources/experiments.js";
 export type { ExperimentHandleFactory } from "./resources/experiments.js";
 export { RecipesApi, attachRecipes } from "./resources/recipes.js";
+export { ConnectorsApi, attachConnectors } from "./resources/connectors.js";
+export {
+  ConnectionsApi,
+  attachConnections,
+  RunnerConnectionsApi,
+  attachRunnerConnections,
+} from "./resources/connections.js";
 
 // REST API wire types
 export type {
