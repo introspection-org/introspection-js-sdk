@@ -28,6 +28,14 @@ import {
   type ExperimentsApi,
 } from "./resources/experiments.js";
 import { attachRecipes, type RecipesApi } from "./resources/recipes.js";
+import {
+  attachConnectors,
+  type ConnectorsApi,
+} from "./resources/connectors.js";
+import {
+  attachConnections,
+  type ConnectionsApi,
+} from "./resources/connections.js";
 
 /**
  * Introspection REST client.
@@ -75,6 +83,20 @@ export class IntrospectionClient {
    */
   readonly recipes: RecipesApi;
 
+  /**
+   * CRUD on `/v1/connectors` — the org-side connector definitions (outbound
+   * provider config: endpoints, credentials, scopes, approval policy).
+   */
+  readonly connectors: ConnectorsApi;
+
+  /**
+   * The connection surface for **backends** that call providers directly:
+   * `connections.getToken(connector, …)` mints a token (or returns a
+   * `pending` approval for `person_authorized`). In-sandbox agents use
+   * `runner.connections.authorize` instead.
+   */
+  readonly connections: ConnectionsApi;
+
   constructor(options: IntrospectionClientOptions = {}) {
     const token = options.token || process.env.INTROSPECTION_TOKEN || "";
     const advanced = options.advanced || {};
@@ -103,6 +125,8 @@ export class IntrospectionClient {
     this.runtimes = attachRuntimes(this, this.cpHttp);
     this.experiments = attachExperiments(this, this.cpHttp);
     this.recipes = attachRecipes(this.cpHttp);
+    this.connectors = attachConnectors(this.cpHttp);
+    this.connections = attachConnections(this.cpHttp);
 
     sdkLogger.info(`IntrospectionClient initialized: api=${baseApiUrl}`);
   }

@@ -482,7 +482,7 @@ importers:
   packages/introspection-proxy:
     dependencies:
       '@opentelemetry/api':
-        specifier: ^1.9.0
+        specifier: ^1.9.1
         version: 1.9.1
       undici:
         specifier: ^8.7.0
