@@ -29,6 +29,11 @@ import {
   tracedProxyCall,
 } from "./tracing.js";
 
+// Agent sessions commonly pause for tools or user input between model calls.
+// Undici's 4-second default closes the otherwise reusable egress connection
+// before the next call, forcing another proxy socket handshake.
+const EGRESS_KEEP_ALIVE_TIMEOUT_MS = 10 * 60 * 1000;
+
 export interface ProxyFetchOptions {
   egressProxyUrl?: string;
   egressProxyHosts?: string;
@@ -81,6 +86,8 @@ function buildEgressDispatcher(proxyUrl: string): Dispatcher {
   const host = url.hostname;
 
   return new Agent({
+    keepAliveTimeout: EGRESS_KEEP_ALIVE_TIMEOUT_MS,
+    keepAliveMaxTimeout: EGRESS_KEEP_ALIVE_TIMEOUT_MS,
     connect(
       _options: buildConnector.Options,
       callback: buildConnector.Callback,
