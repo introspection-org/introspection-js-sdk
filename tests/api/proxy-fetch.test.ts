@@ -149,6 +149,29 @@ describe("introspection-proxy-call spans", () => {
     expect(String(span.attributes["url.full"])).not.toContain("secret");
   });
 
+  it("keeps the egress connection open between model calls", async () => {
+    clearProxyEnv();
+    let connections = 0;
+    server = createServer((_req, res) => {
+      res.setHeader("Connection", "keep-alive");
+      res.end("ok");
+    });
+    server.on("connection", () => {
+      connections += 1;
+    });
+    await new Promise<void>((resolve) => server?.listen(0, resolve));
+    const port = (server.address() as AddressInfo).port;
+    process.env.INTROSPECTION_EGRESS_URL = `http://127.0.0.1:${port}`;
+    process.env.INTROSPECTION_ENDPOINT_HOSTS = "endpoint.example.test";
+
+    const proxyFetch = createProxyFetch({ tracing: false });
+    await (await proxyFetch("http://endpoint.example.test/first")).text();
+    await new Promise((resolve) => setTimeout(resolve, 4_100));
+    await (await proxyFetch("http://endpoint.example.test/second")).text();
+
+    expect(connections).toBe(1);
+  }, 10_000);
+
   it("injects the proxy span context into the upstream request", async () => {
     clearProxyEnv();
     let traceparent: string | undefined;
