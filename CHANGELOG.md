@@ -5,11 +5,11 @@
 
 ### ⚠ BREAKING CHANGES
 
-* conversations.list `model` param is now `request_model`; ConversationSummary drops model/response_model/agent_name/operation_name/ signal_categories in favor of first_request_model/first_agent_name and the new identity + usage fields.
+* `ConversationSummary` no longer exposes `response_model`, `operation_name`, or `signal_categories`. The existing `model` and `agent_name` fields remain available and now represent the first requested model and first agent observed in the conversation.
 
 ### Bug Fixes
 
-* align conversations types with the DP metrics API surface (PR introspection-cloud[#1417](https://github.com/introspection-org/introspection-js-sdk/issues/1417)) ([#188](https://github.com/introspection-org/introspection-js-sdk/issues/188)) ([ee83700](https://github.com/introspection-org/introspection-js-sdk/commit/ee83700e2b2f3a3e833721b27d7941f30b89b4ed))
+* align conversations types with the metrics API surface ([#188](https://github.com/introspection-org/introspection-js-sdk/pull/188)) ([ee83700](https://github.com/introspection-org/introspection-js-sdk/commit/ee83700e2b2f3a3e833721b27d7941f30b89b4ed))
 * keep egress proxy connections warm ([#202](https://github.com/introspection-org/introspection-js-sdk/issues/202)) ([1693a33](https://github.com/introspection-org/introspection-js-sdk/commit/1693a331fa06fa1dab181e6b6a5c38777261fc7d))
 * preserve conversation summary field names ([#205](https://github.com/introspection-org/introspection-js-sdk/issues/205)) ([affbf2a](https://github.com/introspection-org/introspection-js-sdk/commit/affbf2a0c34253aeb39aefc71ca3f312d8f80607))
 
