@@ -112,6 +112,8 @@ jobs:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
   # ── GitHub Release ─────────────────────────────────────────────────
+  # Release Please creates the tag and GitHub Release when its release PR
+  # merges. Keep this as a fallback for manually dispatched releases.
   github-release:
     name: Create GitHub Release
     needs: [resolve-version, publish]
@@ -127,6 +129,11 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "v${{ needs.resolve-version.outputs.version }}" \
-            --title "v${{ needs.resolve-version.outputs.version }}" \
+          TAG="v${{ needs.resolve-version.outputs.version }}"
+          if gh release view "${TAG}" --json tagName >/dev/null 2>&1; then
+            echo "Release ${TAG} already exists; skipping creation."
+            exit 0
+          fi
+          gh release create "${TAG}" \
+            --title "${TAG}" \
             --generate-notes
