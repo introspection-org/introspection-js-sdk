@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.9.1](https://github.com/introspection-org/introspection-js-sdk/compare/v0.9.0...v0.9.1) (2026-07-15)
+
+
+### Bug Fixes
+
+* make GitHub release creation idempotent ([#206](https://github.com/introspection-org/introspection-js-sdk/issues/206)) ([bf8f1c4](https://github.com/introspection-org/introspection-js-sdk/commit/bf8f1c4812194f53596fb1b64024b2e9850be6cb))
+
 ## [0.9.0](https://github.com/introspection-org/introspection-js-sdk/compare/v0.8.3...v0.9.0) (2026-07-15)
 
 
