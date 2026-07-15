@@ -107,7 +107,7 @@ Requested aborts are not recorded as errors. A user/runtime cancellation or an
 interrupt pause ends the span with `gen_ai.response.finish_reasons = ["aborted"]`
 and `introspection.termination_reason`, but without `setStatus(ERROR)` or a
 synthetic exception. Unclaimed aborts and provider/model failures are still
-recorded as errors with a `gen_ai.client.operation.exception` event.
+recorded as errors with a standard exception span event.
 
 For each tool call (`execute_tool ${tool_name}` span):
 
@@ -115,7 +115,9 @@ For each tool call (`execute_tool ${tool_name}` span):
 - `gen_ai.operation.name = "execute_tool"`
 - `gen_ai.tool.name`, `gen_ai.tool.type`, `gen_ai.tool.call.id`
 - `gen_ai.tool.call.arguments`, `gen_ai.tool.call.result`
-- Tool errors are recorded with `setStatus(ERROR)`. Tool calls cut short by a
+- Tool results are retained for both successful and failed executions so the
+  conversation can be reconstructed losslessly. Tool errors are recorded with
+  `setStatus(ERROR)`. Tool calls cut short by a
   requested abort are marked with `introspection.termination_reason =
 "cancelled"` and are not marked as errors.
 

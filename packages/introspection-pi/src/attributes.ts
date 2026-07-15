@@ -14,12 +14,7 @@ import type {
   SimpleStreamOptions,
   Tool,
 } from "@earendil-works/pi-ai";
-import {
-  GenAi,
-  type InputMessage,
-  type OutputMessage,
-  type ToolDefinition,
-} from "@introspection-sdk/types";
+import { GenAi, type ToolDefinition } from "@introspection-sdk/types";
 import {
   assistantToOutputMessages,
   messagesToInputMessages,
@@ -97,13 +92,10 @@ export function chatRequestAttributes(
   }
 
   const inputMessages = messagesToInputMessages(context.messages, options);
-  const serializedInput = serializeMessagesWithCap(
-    inputMessages,
-    GenAi.INPUT_MESSAGES,
-  );
-  if (serializedInput) {
-    attributes[GenAi.INPUT_MESSAGES] = serializedInput;
-  }
+  // Conversation consumers reconstruct durable history from these messages.
+  // Never drop the attribute because the transcript exceeds a telemetry-size
+  // heuristic; downstream storage already owns its payload limits.
+  attributes[GenAi.INPUT_MESSAGES] = JSON.stringify(inputMessages);
   if (
     inputMessages.some((message) =>
       message.parts.some((part) => part.type === "compaction"),
@@ -143,13 +135,9 @@ export function chatResponseAttributes(message: AssistantMessage): Attributes {
     [GenAi.USAGE_OUTPUT_TOKENS]: message.usage.output,
   };
 
-  const serializedOutput = serializeMessagesWithCap(
+  attributes[GenAi.OUTPUT_MESSAGES] = JSON.stringify(
     assistantToOutputMessages(message),
-    GenAi.OUTPUT_MESSAGES,
   );
-  if (serializedOutput) {
-    attributes[GenAi.OUTPUT_MESSAGES] = serializedOutput;
-  }
 
   if (message.usage.cacheRead > 0) {
     attributes[GenAi.USAGE_CACHE_READ_INPUT_TOKENS] = message.usage.cacheRead;
@@ -248,52 +236,6 @@ function serializeToolDefinitions(
       ),
     GenAi.TOOL_DEFINITIONS,
   );
-}
-
-/**
- * Cap chars per part-content string in the truncation fallback for
- * `gen_ai.input.messages` / `gen_ai.output.messages`. Chosen so even long
- * transcripts stay within MAX_BYTES once every part is clamped.
- */
-const MAX_PART_CONTENT_CHARS = 8_000;
-
-/**
- * Serialize an input/output message array under the size cap, per the
- * semconv guidance that instrumentations may truncate individual message
- * contents while preserving JSON structure: full payload first, then a
- * fallback with each part's content clamped, then drop the attribute.
- */
-function serializeMessagesWithCap(
-  messages: readonly (InputMessage | OutputMessage)[],
-  attributeName: string,
-): string | undefined {
-  return serializeWithCap(
-    () => JSON.stringify(messages),
-    () => JSON.stringify(messages.map(truncateMessageParts)),
-    attributeName,
-  );
-}
-
-function truncateMessageParts<T extends InputMessage | OutputMessage>(
-  message: T,
-): T {
-  return {
-    ...message,
-    parts: message.parts.map((part) => {
-      const truncated: Record<string, unknown> = { ...part };
-      for (const key of ["content", "response"]) {
-        const value = truncated[key];
-        if (
-          typeof value === "string" &&
-          value.length > MAX_PART_CONTENT_CHARS
-        ) {
-          truncated[key] =
-            value.slice(0, MAX_PART_CONTENT_CHARS) + "…[truncated]";
-        }
-      }
-      return truncated as unknown as typeof part;
-    }),
-  };
 }
 
 /**
