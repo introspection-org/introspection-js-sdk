@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.9.2](https://github.com/introspection-org/introspection-js-sdk/compare/v0.9.1...v0.9.2) (2026-07-15)
+
+
+### Bug Fixes
+
+* preserve complete Pi telemetry results ([#208](https://github.com/introspection-org/introspection-js-sdk/issues/208)) ([7eb0cdc](https://github.com/introspection-org/introspection-js-sdk/commit/7eb0cdcc4bbfef9c68112f4686ed071161c03ce7))
+
 ## [0.9.1](https://github.com/introspection-org/introspection-js-sdk/compare/v0.9.0...v0.9.1) (2026-07-15)
 
 
