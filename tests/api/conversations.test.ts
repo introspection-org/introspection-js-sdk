@@ -23,8 +23,8 @@ const SUMMARY_FIXTURE = {
   start_time: "2025-01-01T00:00:00Z",
   end_time: "2025-01-01T00:00:05Z",
   duration_ms: 5000,
-  first_request_model: "claude-x",
-  first_agent_name: "agent",
+  model: "claude-x",
+  agent_name: "agent",
   total_input_tokens: 10,
   total_output_tokens: 20,
   total_tokens: 30,
@@ -83,7 +83,7 @@ describe("ConversationsApi", () => {
     for await (const c of api.list({
       limit: 10,
       status: "Error",
-      request_model: "claude-x",
+      model: "claude-x",
     })) {
       summaries.push(c);
     }
@@ -91,7 +91,7 @@ describe("ConversationsApi", () => {
     expect(http.request).toHaveBeenCalledWith({
       method: "GET",
       path: "/v1/conversations",
-      query: { limit: 10, status: "Error", request_model: "claude-x" },
+      query: { limit: 10, status: "Error", model: "claude-x" },
     });
     expect(summaries).toHaveLength(1);
   });

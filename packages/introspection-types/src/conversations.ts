@@ -233,12 +233,12 @@ export interface ConversationSummary {
    * First requested model observed in the conversation — a stable
    * preview identity, not a "primary" model classification.
    */
-  first_request_model?: string | null;
+  model?: string | null;
   /**
    * First agent name observed in the conversation — a stable preview
    * identity, not a "primary" agent classification.
    */
-  first_agent_name?: string | null;
+  agent_name?: string | null;
   /** Sum of input tokens across spans. */
   total_input_tokens: number;
   /** Sum of output tokens across spans. */
@@ -280,7 +280,7 @@ export interface ConversationListParams extends ListParams {
   /** Sort direction (server default `"desc"`). */
   direction?: "asc" | "desc";
   /** Filter: requested model on any span (exact match). */
-  request_model?: string;
+  model?: string;
   /** Filter: agent name (exact match). */
   agent_name?: string;
   /** Filter: status — `"Ok"` or `"Error"`. */
