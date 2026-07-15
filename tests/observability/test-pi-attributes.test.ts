@@ -121,7 +121,7 @@ describe("chatRequestAttributes", () => {
     expect(custom["server.port"]).toBe(11434);
   });
 
-  it("truncates oversized input message contents while preserving structure", () => {
+  it("preserves oversized input message contents losslessly", () => {
     const bigText = "x".repeat(70_000);
     const attrs = chatRequestAttributes(
       MODEL,
@@ -134,10 +134,10 @@ describe("chatRequestAttributes", () => {
       META,
     );
     const serialized = String(attrs["gen_ai.input.messages"]);
-    expect(Buffer.byteLength(serialized)).toBeLessThanOrEqual(64_000);
+    expect(Buffer.byteLength(serialized)).toBeGreaterThan(64_000);
     const messages = JSON.parse(serialized);
     expect(messages).toHaveLength(2);
-    expect(messages[0].parts[0].content.endsWith("…[truncated]")).toBe(true);
+    expect(messages[0].parts[0].content).toBe(bigText);
     expect(messages[1].parts[0].content).toBe("small trailing message");
   });
 
@@ -231,6 +231,16 @@ Earlier context.
 });
 
 describe("chatResponseAttributes", () => {
+  it("preserves oversized output message contents losslessly", () => {
+    const bigText = "y".repeat(70_000);
+    const attrs = chatResponseAttributes(
+      assistantMessage({ content: [{ type: "text", text: bigText }] }),
+    );
+    const serialized = String(attrs["gen_ai.output.messages"]);
+    expect(Buffer.byteLength(serialized)).toBeGreaterThan(64_000);
+    expect(JSON.parse(serialized)[0].parts[0].content).toBe(bigText);
+  });
+
   it("emits usage / finish reason / output messages", () => {
     const attrs = chatResponseAttributes(
       assistantMessage({

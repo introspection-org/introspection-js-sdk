@@ -6,7 +6,7 @@
  * emitted by the wrappers without a real backend.
  */
 
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   context as otelContext,
   trace,
@@ -261,11 +261,6 @@ describe("instrumentStream", () => {
     expect(span?.status.message).toBe("boom");
     expect(span?.attributes["error.type"]).toBe("model_error");
     expect(span?.events.some((e) => e.name === "exception")).toBe(true);
-    // The semconv gen_ai.client.operation.exception signal is a LOG event;
-    // it must not be duplicated as a span event on top of recordException.
-    expect(
-      span?.events.some((e) => e.name === "gen_ai.client.operation.exception"),
-    ).toBe(false);
   });
 
   it("treats an aborted stream as a manual terminal state, not an error", async () => {
@@ -299,9 +294,6 @@ describe("instrumentStream", () => {
     ]);
     expect(span?.attributes["error.type"]).toBeUndefined();
     expect(span?.events.some((e) => e.name === "exception")).toBe(false);
-    expect(
-      span?.events.some((e) => e.name === "gen_ai.client.operation.exception"),
-    ).toBe(false);
   });
 
   it("classifies an aborted stream as cancelled, not an error, by default", async () => {
@@ -592,6 +584,7 @@ describe("instrumentAgent", () => {
     expect(span?.status.code).toBe(2); // ERROR
     expect(span?.attributes["error.type"]).toBe("tool_error");
     expect(span?.status.message).toContain("ENOENT");
+    expect(span?.attributes["gen_ai.tool.call.result"]).toBe("ENOENT");
   });
 
   it("marks an errored tool end as cancelled when the run's abort signal fired", async () => {
@@ -632,9 +625,9 @@ describe("instrumentAgent", () => {
     expect(span?.attributes["introspection.termination_reason"]).toBe(
       "cancelled",
     );
-    // Semconv scopes gen_ai.tool.call.result to successful executions; the
-    // synthetic "Operation aborted" text is not a real tool result.
-    expect(span?.attributes["gen_ai.tool.call.result"]).toBeUndefined();
+    expect(span?.attributes["gen_ai.tool.call.result"]).toBe(
+      "Operation aborted",
+    );
   });
 
   it("stop() closes any tool spans still open (e.g. an aborted run)", async () => {
@@ -660,7 +653,3 @@ describe("instrumentAgent", () => {
     expect(span?.endTime).not.toEqual([0, 0]);
   });
 });
-
-// vitest's vi is auto-imported in vitest >= 1, but make it explicit here
-// for editors / readers that don't pick it up from globals.
-import { vi } from "vitest";

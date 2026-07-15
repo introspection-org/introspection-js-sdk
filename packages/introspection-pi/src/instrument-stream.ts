@@ -228,9 +228,6 @@ async function runUpstream({
         options?.signal?.aborted === true,
       ),
     };
-    if (options?.signal?.aborted !== true) {
-      recordGenAiException(span, err, classifyThrownErrorType(err));
-    }
     proxy.push(errorEvent);
     if (!finished) {
       finished = true;
@@ -241,6 +238,11 @@ async function runUpstream({
         startedAt,
         metrics,
         abortTerminationReason,
+        exception: options?.signal?.aborted === true ? undefined : err,
+        errorTypeOverride:
+          options?.signal?.aborted === true
+            ? undefined
+            : classifyThrownErrorType(err),
       });
     }
   } finally {
@@ -268,6 +270,8 @@ interface FinishSpanArgs {
   startedAt: number;
   metrics?: GenAiMetrics;
   abortTerminationReason?: () => AbortTerminationReason | null;
+  exception?: unknown;
+  errorTypeOverride?: string;
 }
 
 function finishSpan({
@@ -277,6 +281,8 @@ function finishSpan({
   startedAt,
   metrics,
   abortTerminationReason,
+  exception,
+  errorTypeOverride,
 }: FinishSpanArgs): void {
   const message = event.type === "done" ? event.message : event.error;
   span.setAttributes(chatResponseAttributes(message));
@@ -306,8 +312,9 @@ function finishSpan({
     // abort (callback returned null) — fail toward a false error, never a
     // hidden one.
     const errorMessage = message.errorMessage ?? "Unknown error";
-    errorType = classifyErrorType(errorMessage, "model_error");
-    recordGenAiException(span, new Error(errorMessage), errorType);
+    errorType =
+      errorTypeOverride ?? classifyErrorType(errorMessage, "model_error");
+    recordSpanException(span, exception ?? new Error(errorMessage), errorType);
     span.setStatus({ code: SpanStatusCode.ERROR, message: errorMessage });
   }
 
@@ -363,18 +370,13 @@ function recordCompletionMetrics(
   }
 }
 
-function recordGenAiException(
+function recordSpanException(
   span: Span,
   error: unknown,
   errorType: string,
 ): void {
   const exception = error instanceof Error ? error : new Error(String(error));
   span.setAttribute("error.type", errorType);
-  // recordException writes the standard `exception` span event
-  // (exception.type / exception.message / exception.stacktrace). The
-  // semconv `gen_ai.client.operation.exception` signal is a *log* event —
-  // duplicating it as a second span event is not part of the convention,
-  // so only the standard exception event is recorded here.
   span.recordException(exception);
 }
 

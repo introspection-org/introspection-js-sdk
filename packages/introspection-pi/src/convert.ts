@@ -146,7 +146,8 @@ function userMessageToSemconv(
     };
   }
   // Block-array content: preserve part order, including image payloads.
-  // The bounded message serializer truncates oversized content later.
+  // Message telemetry preserves the complete content for durable conversation
+  // reconstruction; downstream storage owns any payload limits.
   const parts: MessagePart[] = [];
   for (const block of message.content) {
     if (block.type === "text") {

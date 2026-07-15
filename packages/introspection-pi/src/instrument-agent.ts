@@ -252,6 +252,11 @@ function handleEvent(
       activeSpans.delete(event.toolCallId);
       const { span, startedAt } = active;
 
+      // Tool results are also conversation state. Preserve the structured
+      // payload for failed executions so consumers can reconstruct the tool
+      // response instead of relying on the lossy span-status description.
+      span.setAttributes(executeToolResultAttribute(event.result));
+
       let errorType: string | undefined;
       if (event.isError && signal?.aborted) {
         // The run's AbortSignal fired: pi synthesizes "Operation aborted"
@@ -271,10 +276,6 @@ function handleEvent(
                 ? safeStringify(event.result)
                 : undefined,
         });
-      } else {
-        // Semconv scopes gen_ai.tool.call.result to successful executions;
-        // error text is carried on the span status instead.
-        span.setAttributes(executeToolResultAttribute(event.result));
       }
       span.end();
 
