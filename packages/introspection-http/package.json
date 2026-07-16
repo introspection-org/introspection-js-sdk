@@ -25,12 +25,20 @@
     "@repo/eslint-config": "workspace:*",
     "@repo/typescript-config": "workspace:*",
     "@types/node": "^22.20.1",
+    "apache-arrow": "^21.0.0",
     "eslint": "^9.39.5",
     "typescript": "5.9.3"
   },
   "dependencies": {
     "@ag-ui/core": "0.0.57",
-    "@introspection-sdk/types": "workspace:*",
+    "@introspection-sdk/types": "workspace:*"
+  },
+  "peerDependencies": {
     "apache-arrow": "^21.0.0"
+  },
+  "peerDependenciesMeta": {
+    "apache-arrow": {
+      "optional": true
+    }
   }
 }

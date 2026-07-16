@@ -19,7 +19,6 @@
  */
 
 import { ValidationError, type Paginated } from "@introspection-sdk/types";
-import { tableFromIPC } from "apache-arrow";
 import { Paginator, cursorPaginate } from "../pagination.js";
 import type { ResourceHttpClient } from "./types.js";
 
@@ -147,12 +146,25 @@ export async function fetchArrowPage<T>(
     signal,
   });
   const bytes = new Uint8Array(await res.arrayBuffer());
-  const records =
-    bytes.byteLength === 0
-      ? []
-      : tableFromIPC(bytes)
-          .toArray()
-          .map((row) => row.toJSON() as T);
+  let records: T[] = [];
+  if (bytes.byteLength > 0) {
+    // `apache-arrow` is an optional peer dependency — the JSON path never needs
+    // it, so it is loaded on demand only when `format: "arrow"` is used.
+    let arrow: typeof import("apache-arrow");
+    try {
+      arrow = await import("apache-arrow");
+    } catch (err) {
+      throw new Error(
+        "format: 'arrow' requires the optional 'apache-arrow' peer dependency. " +
+          "Install it with `npm install apache-arrow`.",
+        { cause: err },
+      );
+    }
+    records = arrow
+      .tableFromIPC(bytes)
+      .toArray()
+      .map((row) => row.toJSON() as T);
+  }
 
   const next = res.headers.get("x-next-cursor");
   const count = res.headers.get("x-result-count");

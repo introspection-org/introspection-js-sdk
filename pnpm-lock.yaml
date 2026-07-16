@@ -296,9 +296,6 @@ importers:
       "@introspection-sdk/types":
         specifier: workspace:*
         version: link:../introspection-types
-      apache-arrow:
-        specifier: ^21.0.0
-        version: 21.1.0
     devDependencies:
       "@repo/eslint-config":
         specifier: workspace:*
@@ -309,6 +306,9 @@ importers:
       "@types/node":
         specifier: ^22.20.1
         version: 22.20.1
+      apache-arrow:
+        specifier: ^21.0.0
+        version: 21.1.0
       eslint:
         specifier: ^9.39.5
         version: 9.39.5(jiti@2.7.0)
