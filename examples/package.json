@@ -79,8 +79,8 @@
     "@opentelemetry/exporter-trace-otlp-proto": "^0.220.0",
     "@opentelemetry/resources": "^2.9.0",
     "@supabase/supabase-js": "^2.110.0",
-    "@types/node": "^22.20.0",
-    "tsx": "^4.23.0",
+    "@types/node": "^22.20.1",
+    "tsx": "^4.23.1",
     "typesense": "^3.0.6",
     "typescript": "^5.9.3"
   },

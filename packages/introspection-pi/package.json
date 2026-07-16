@@ -42,8 +42,8 @@
     "@earendil-works/pi-ai": "^0.80.7",
     "@repo/eslint-config": "workspace:*",
     "@repo/typescript-config": "workspace:*",
-    "@types/node": "^22.20.0",
-    "eslint": "^9.39.4",
+    "@types/node": "^22.20.1",
+    "eslint": "^9.39.5",
     "typescript": "5.9.3"
   },
   "engines": {
