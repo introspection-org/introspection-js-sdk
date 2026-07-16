@@ -164,15 +164,6 @@ export class RuntimesClient<TRunner> {
       body: toRunBody(opts),
     });
   }
-
-  activateById(id: Uuid, params?: { project?: string }): Promise<Runtime> {
-    return this.http.request<Runtime>({
-      method: "POST",
-      path: `/v1/runtimes/${encodeURIComponent(id)}/activate`,
-      query: params as Record<string, unknown> | undefined,
-      body: {},
-    });
-  }
 }
 
 /**
@@ -212,11 +203,6 @@ export class RuntimeHandle<TRunner> {
         : opts;
     return this.api.runById(id, merged);
   }
-
-  async activate(params?: { project?: string }): Promise<Runtime> {
-    const id = await this.resolveId();
-    return this.api.activateById(id, { project: params?.project });
-  }
 }
 
 export type RuntimeHandleFactory<TRunner> = (
@@ -240,7 +226,6 @@ export function attachRuntimes<TRunner>(
   hybrid.resolve = api.resolve.bind(api);
   hybrid.runById = api.runById.bind(api);
   hybrid.openRunner = api.openRunner.bind(api);
-  hybrid.activateById = api.activateById.bind(api);
   return hybrid;
 }
 
