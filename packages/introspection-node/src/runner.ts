@@ -8,7 +8,9 @@ import {
 } from "@introspection-sdk/types";
 import {
   ConversationsApi,
+  EventsApi,
   FilesApi,
+  MetricsApi,
   SharesApi,
   TasksApi,
 } from "@introspection-sdk/http";
@@ -27,7 +29,9 @@ export type RunnerSource =
 /**
  * Live handle to a Data Plane sandbox. Holds the bearer JWT, the DP
  * endpoint URL, and the runtime/experiment context, and exposes the
- * runner-bound `tasks`, `files`, and `conversations` namespaces.
+ * runner-bound `tasks`, `files`, `conversations`, `events`, and
+ * `metrics` namespaces (the telemetry reads are Data-Plane-scoped and so
+ * hang off the runner, which carries the DP bearer + `events:read`).
  *
  * In v1 of the agent-session-based design, token refresh is handled
  * server-side by the DP materializer attached to the agent session — the
@@ -44,6 +48,8 @@ export class Runner {
   readonly tasks: TasksApi;
   readonly files: FilesApi;
   readonly conversations: ConversationsApi;
+  readonly events: EventsApi;
+  readonly metrics: MetricsApi;
   readonly shares: SharesApi;
 
   constructor(
@@ -56,6 +62,8 @@ export class Runner {
     this.tasks = new TasksApi(this.guardedHttp(this.http));
     this.files = new FilesApi(this.guardedHttp(this.http));
     this.conversations = new ConversationsApi(this.guardedHttp(this.http));
+    this.events = new EventsApi(this.guardedHttp(this.http));
+    this.metrics = new MetricsApi(this.guardedHttp(this.http));
     this.shares = new SharesApi(this.guardedHttp(this.http));
   }
 

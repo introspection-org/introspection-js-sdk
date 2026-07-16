@@ -7,10 +7,10 @@ import type {
   ConversationResponse,
   ConversationSummary,
   MessagePart,
-  Paginated,
   ToolCallResponsePart,
 } from "@introspection-sdk/types";
-import { Paginator, cursorPaginate } from "../pagination.js";
+import { Paginator } from "../pagination.js";
+import { listRead } from "./reads.js";
 import type { ResourceHttpClient } from "./types.js";
 
 /** Includes requested when building a {@link ConversationResponse}. */
@@ -100,16 +100,18 @@ export class ConversationsClient {
    * the first page, or `for await` it to stream every summary across
    * pages (fetched lazily — `limit` sets the page size, `next` the
    * starting cursor; stop early to stop fetching).
+   *
+   * Accepts the ergonomic ordering/window params (`order`, `start`,
+   * `end`, `lookback`) and an optional `format: "arrow"` that negotiates
+   * an Apache Arrow IPC stream while exposing the identical page shape.
+   * `lookback` is mutually exclusive with `start`/`end` and throws a
+   * `ValidationError` before any request is sent.
    */
   list(params?: ConversationListParams): Paginator<ConversationSummary> {
-    return cursorPaginate(
-      (next) =>
-        this.http.request<Paginated<ConversationSummary>>({
-          method: "GET",
-          path: "/v1/conversations",
-          query: { ...params, next } as Record<string, unknown>,
-        }),
-      params?.next,
+    return listRead<ConversationSummary>(
+      this.http,
+      "/v1/conversations",
+      params,
     );
   }
 

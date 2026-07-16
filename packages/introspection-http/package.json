@@ -30,6 +30,7 @@
   },
   "dependencies": {
     "@ag-ui/core": "0.0.57",
-    "@introspection-sdk/types": "workspace:*"
+    "@introspection-sdk/types": "workspace:*",
+    "apache-arrow": "^21.0.0"
   }
 }
