@@ -70,7 +70,7 @@
     "@opentelemetry/instrumentation": "^0.220.0",
     "@opentelemetry/semantic-conventions": "^1.43.0",
     "braintrust": "^2.2.2",
-    "langsmith": "^0.7.15",
+    "langsmith": "^0.8.3",
     "openai": "^6.45.0"
   },
   "devDependencies": {
@@ -97,8 +97,8 @@
     "@arizeai/openinference-vercel": "^2.8.1",
     "@grpc/grpc-js": "^1.14.4",
     "@langchain/anthropic": "^1.5.1",
-    "@langchain/core": "^1.2.1",
-    "@langchain/openai": "^1.5.3",
+    "@langchain/core": "^1.2.3",
+    "@langchain/openai": "^1.5.5",
     "@mastra/core": "^1.49.0",
     "@openai/agents": "^0.12.0",
     "@opentelemetry/api": "^1.9.1",
