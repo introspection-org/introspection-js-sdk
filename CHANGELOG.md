@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.9.3](https://github.com/introspection-org/introspection-js-sdk/compare/v0.9.2...v0.9.3) (2026-07-16)
+
+
+### Bug Fixes
+
+* add lazy proxy bootstrap ([#210](https://github.com/introspection-org/introspection-js-sdk/issues/210)) ([7351655](https://github.com/introspection-org/introspection-js-sdk/commit/73516556625242dcc53b1f13ddc32ab0131632f9))
+
 ## [0.9.2](https://github.com/introspection-org/introspection-js-sdk/compare/v0.9.1...v0.9.2) (2026-07-15)
 
 
