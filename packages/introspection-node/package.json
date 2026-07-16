@@ -53,7 +53,7 @@
     "@repo/typescript-config": "workspace:*",
     "@types/node": "^22.20.1",
     "eslint": "^9.39.5",
-    "@langchain/core": "^1.2.1",
+    "@langchain/core": "^1.2.3",
     "@mastra/core": "^1.49.0",
     "@mastra/observability": "^1.15.2",
     "@earendil-works/pi-agent-core": "^0.80.7",
