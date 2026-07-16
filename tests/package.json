@@ -6,6 +6,7 @@
   "scripts": {
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:contracts": "vitest run contracts/",
     "test:processors": "vitest run processors/",
     "test:observability": "vitest run observability/",
     "test:record": "POLLY_MODE=record vitest run",

@@ -1,0 +1,239 @@
+# Hand-curated public API surface for the OpenAPI contract artifacts.
+#
+# Consumed by scripts/export_openapi.py (make contracts): the full generated
+# documents (contracts/*.full.v1.json) are filtered down to exactly these
+# (method, path) operations to produce contracts/*.public.v1.json. Every entry
+# must exist in the matching full document -- the export fails on a typo or a
+# route that was removed/renamed, which makes this file a tripwire for
+# accidental public-surface changes (API surface changes are
+# escalation-required, see AGENTS.md).
+#
+# Audience labels:
+#   [sdk, cli] -- the app-SDK surface. The CLI drives the same runner/task
+#                 lifecycle, so everything the SDK uses is available to the
+#                 CLI as well.
+#   [cli]      -- operator/admin additions the CLI exposes on top of the SDK
+#                 surface (project/org administration, deployments, audit,
+#                 telemetry browsing, device-flow login).
+#
+# Curation principles (and judgment calls, marked JC below):
+#   - Only /v1/... routes. /internal/* (service/worker), /v1/webhooks/*
+#     (third-party ingress), and websocket surfaces are never public contract.
+#   - Excluded on the Control Plane: billing/subscriptions/invoices (dashboard
+#     plumbing), releases, channel-bindings, POST /v1/tokens (dashboard token
+#     mint), impersonation, browser OIDC redirects (login/callback/logout),
+#     browser OAuth authorize/consent, dynamic client registration
+#     (POST /v1/oauth/register) and POST /v1/oauth/revoke (JC: both currently
+#     serve the SPA/broker flows, not SDK/CLI callers), and the
+#     unauthenticated discovery documents (application issuer JWKS/openid
+#     configuration, deployment locator JWKS) which are key-material
+#     endpoints for verifiers, not client API surface.
+#   - Excluded on the Data Plane: the MCP mount (/v1/mcp*, protocol surface,
+#     experimental flag-gated), remotes (/v1/remotes*, introspection-remote
+#     protocol surface), websockets (/v1/ws*), POST /v1/oauth/logout (browser
+#     session plumbing; exchange/refresh/me are the programmatic session
+#     surface), and the project-repository runtime hooks
+#     (POST /v1/projects/{p}/repositories/{r}/access-token, PATCH .../index --
+#     JC: consumed by the sandbox/runtime with locator identity, not by
+#     SDK/CLI clients; the CLI manages repositories via the CP resource).
+#
+# version: bump only if the schema of this file itself changes shape.
+version: 1
+
+planes:
+  controlplane:
+    operations:
+      # --- runners / runtimes (app-SDK core) --------------------------------
+      - {method: GET, path: "/v1/runtimes", audience: [sdk, cli]}
+      - {method: POST, path: "/v1/runtimes", audience: [sdk, cli]}
+      - {method: GET, path: "/v1/runtimes/{runtime_id}", audience: [sdk, cli]}
+      - {method: PATCH, path: "/v1/runtimes/{runtime_id}", audience: [sdk, cli]}
+      - {method: DELETE, path: "/v1/runtimes/{runtime_id}", audience: [sdk, cli]}
+      - {method: POST, path: "/v1/runtimes/{runtime_id}/run", audience: [sdk, cli]}
+      # --- experiments (incl. lifecycle verbs, sanctioned) ------------------
+      - {method: GET, path: "/v1/experiments", audience: [sdk, cli]}
+      - {method: POST, path: "/v1/experiments", audience: [sdk, cli]}
+      - {method: GET, path: "/v1/experiments/{experiment_id}", audience: [sdk, cli]}
+      - {method: PATCH, path: "/v1/experiments/{experiment_id}", audience: [sdk, cli]}
+      - {method: DELETE, path: "/v1/experiments/{experiment_id}", audience: [sdk, cli]}
+      - {method: POST, path: "/v1/experiments/{experiment_id}/run", audience: [sdk, cli]}
+      - {method: POST, path: "/v1/experiments/{experiment_id}/start", audience: [sdk, cli]}
+      - {method: POST, path: "/v1/experiments/{experiment_id}/end", audience: [sdk, cli]}
+      - {method: POST, path: "/v1/experiments/{experiment_id}/cancel", audience: [sdk, cli]}
+      # --- recipes -----------------------------------------------------------
+      - {method: GET, path: "/v1/recipes", audience: [sdk, cli]}
+      - {method: POST, path: "/v1/recipes", audience: [sdk, cli]}
+      - {method: GET, path: "/v1/recipes/{recipe_id}", audience: [sdk, cli]}
+      - {method: PATCH, path: "/v1/recipes/{recipe_id}", audience: [sdk, cli]}
+      - {method: DELETE, path: "/v1/recipes/{recipe_id}", audience: [sdk, cli]}
+      # --- oauth: programmatic token endpoint + CLI device flow --------------
+      - {method: POST, path: "/v1/oauth/token", audience: [sdk, cli]}
+      - {method: GET, path: "/v1/oauth/device/authorization", audience: [cli]}
+      - {method: POST, path: "/v1/oauth/device/authorization", audience: [cli]}
+      - {method: POST, path: "/v1/oauth/device/code", audience: [cli]}
+      - {method: GET, path: "/v1/oidc/me", audience: [cli]}
+      # --- organizations (read-only for the CLI) ----------------------------
+      # JC: only the reads; PATCH/DELETE /current, flags, and org switch are
+      # dashboard/session plumbing.
+      - {method: GET, path: "/v1/organizations/current", audience: [cli]}
+      - {method: GET, path: "/v1/organizations/memberships", audience: [cli]}
+      # --- projects ----------------------------------------------------------
+      - {method: GET, path: "/v1/projects", audience: [cli]}
+      - {method: POST, path: "/v1/projects", audience: [cli]}
+      - {method: GET, path: "/v1/projects/{project}", audience: [cli]}
+      - {method: PATCH, path: "/v1/projects/{project}", audience: [cli]}
+      - {method: DELETE, path: "/v1/projects/{project}", audience: [cli]}
+      # --- repositories ------------------------------------------------------
+      - {method: GET, path: "/v1/repositories", audience: [cli]}
+      - {method: POST, path: "/v1/repositories", audience: [cli]}
+      - {method: DELETE, path: "/v1/repositories/{repository_id}", audience: [cli]}
+      # JC: reindex is a PATCH on the index subresource, not a verb route;
+      # the CLI needs it after pushing recipe changes.
+      - {method: PATCH, path: "/v1/repositories/{repository_id}/index", audience: [cli]}
+      # --- integrations ------------------------------------------------------
+      - {method: GET, path: "/v1/integrations", audience: [cli]}
+      - {method: POST, path: "/v1/integrations", audience: [cli]}
+      - {method: GET, path: "/v1/integrations/{integration_id}", audience: [cli]}
+      - {method: PATCH, path: "/v1/integrations/{integration_id}", audience: [cli]}
+      - {method: DELETE, path: "/v1/integrations/{integration_id}", audience: [cli]}
+      # JC: access-token/channels are reads on the integration resource used
+      # when wiring repos/channels from the CLI; kept, but they return live
+      # credentials so revisit if the CLI never grows that flow.
+      - {method: GET, path: "/v1/integrations/{integration_id}/access-token", audience: [cli]}
+      - {method: GET, path: "/v1/integrations/{integration_id}/channels", audience: [cli]}
+      # --- api-keys ----------------------------------------------------------
+      - {method: GET, path: "/v1/api-keys", audience: [cli]}
+      - {method: POST, path: "/v1/api-keys", audience: [cli]}
+      - {method: PATCH, path: "/v1/api-keys/{api_key_id}", audience: [cli]}
+      - {method: DELETE, path: "/v1/api-keys/{api_key_id}", audience: [cli]}
+      # JC: acknowledge is part of the key rotation lifecycle (billing.md);
+      # included so a CLI-driven rotation can complete it.
+      - {method: POST, path: "/v1/api-keys/{api_key_id}/acknowledge", audience: [cli]}
+      # --- judges ------------------------------------------------------------
+      - {method: GET, path: "/v1/judges", audience: [cli]}
+      - {method: GET, path: "/v1/judges/{judge_id}", audience: [cli]}
+      - {method: PATCH, path: "/v1/judges/{judge_id}", audience: [cli]}
+      # --- endpoints ----------------------------------------------------------
+      - {method: GET, path: "/v1/endpoints", audience: [cli]}
+      - {method: POST, path: "/v1/endpoints", audience: [cli]}
+      - {method: GET, path: "/v1/endpoints/{endpoint_id}", audience: [cli]}
+      - {method: PATCH, path: "/v1/endpoints/{endpoint_id}", audience: [cli]}
+      - {method: DELETE, path: "/v1/endpoints/{endpoint_id}", audience: [cli]}
+      # --- applications (+ secrets / idps / keys) ----------------------------
+      - {method: GET, path: "/v1/applications", audience: [cli]}
+      - {method: POST, path: "/v1/applications", audience: [cli]}
+      - {method: GET, path: "/v1/applications/{application_id}", audience: [cli]}
+      - {method: PATCH, path: "/v1/applications/{application_id}", audience: [cli]}
+      - {method: DELETE, path: "/v1/applications/{application_id}", audience: [cli]}
+      - {method: GET, path: "/v1/applications/{application_id}/secrets", audience: [cli]}
+      - {method: POST, path: "/v1/applications/{application_id}/secrets", audience: [cli]}
+      - {method: DELETE, path: "/v1/applications/{application_id}/secrets/{secret_id}", audience: [cli]}
+      - {method: GET, path: "/v1/applications/{application_id}/idps", audience: [cli]}
+      - {method: POST, path: "/v1/applications/{application_id}/idps", audience: [cli]}
+      - {method: DELETE, path: "/v1/applications/{application_id}/idps/{application_idp_id}", audience: [cli]}
+      - {method: GET, path: "/v1/applications/{application_id}/keys", audience: [cli]}
+      - {method: POST, path: "/v1/applications/{application_id}/keys", audience: [cli]}
+      - {method: DELETE, path: "/v1/applications/{application_id}/keys/{application_key_id}", audience: [cli]}
+      # --- automations (+ trigger) --------------------------------------------
+      - {method: GET, path: "/v1/automations", audience: [cli]}
+      - {method: POST, path: "/v1/automations", audience: [cli]}
+      - {method: GET, path: "/v1/automations/{automation_id}", audience: [cli]}
+      - {method: PATCH, path: "/v1/automations/{automation_id}", audience: [cli]}
+      - {method: DELETE, path: "/v1/automations/{automation_id}", audience: [cli]}
+      - {method: POST, path: "/v1/automations/{automation_id}/trigger", audience: [cli]}
+      # --- audit ---------------------------------------------------------------
+      - {method: GET, path: "/v1/audit", audience: [cli]}
+      - {method: GET, path: "/v1/audit/counts", audience: [cli]}
+      - {method: POST, path: "/v1/audit/export", audience: [cli]}
+      - {method: GET, path: "/v1/audit/exports/{export_id}", audience: [cli]}
+      # --- members -------------------------------------------------------------
+      - {method: GET, path: "/v1/members", audience: [cli]}
+      - {method: POST, path: "/v1/members", audience: [cli]}
+      - {method: GET, path: "/v1/members/{member_id}", audience: [cli]}
+      - {method: PATCH, path: "/v1/members/{member_id}", audience: [cli]}
+      - {method: DELETE, path: "/v1/members/{member_id}", audience: [cli]}
+      # JC: member lifecycle verbs kept with the resource -- an admin CLI
+      # without enable/disable/resend-invite can't manage membership.
+      - {method: POST, path: "/v1/members/{member_id}/enable", audience: [cli]}
+      - {method: POST, path: "/v1/members/{member_id}/disable", audience: [cli]}
+      - {method: POST, path: "/v1/members/{member_id}/resend-invite", audience: [cli]}
+      # --- variables -------------------------------------------------------------
+      - {method: GET, path: "/v1/variables", audience: [cli]}
+      - {method: POST, path: "/v1/variables", audience: [cli]}
+      - {method: PATCH, path: "/v1/variables/{variable_id}", audience: [cli]}
+      - {method: DELETE, path: "/v1/variables/{variable_id}", audience: [cli]}
+      # --- deployments (+ lifecycle) ----------------------------------------------
+      - {method: GET, path: "/v1/deployments", audience: [cli]}
+      - {method: POST, path: "/v1/deployments", audience: [cli]}
+      - {method: GET, path: "/v1/deployments/{deployment_id}", audience: [cli]}
+      - {method: DELETE, path: "/v1/deployments/{deployment_id}", audience: [cli]}
+      - {method: POST, path: "/v1/deployments/check", audience: [cli]}
+      - {method: POST, path: "/v1/deployments/validate-credentials", audience: [cli]}
+      - {method: POST, path: "/v1/deployments/{deployment_id}/provision", audience: [cli]}
+      - {method: POST, path: "/v1/deployments/{deployment_id}/action", audience: [cli]}
+      - {method: POST, path: "/v1/deployments/{deployment_id}/destroy", audience: [cli]}
+      - {method: GET, path: "/v1/deployments/{deployment_id}/status", audience: [cli]}
+      - {method: GET, path: "/v1/deployments/{deployment_id}/outputs", audience: [cli]}
+      - {method: GET, path: "/v1/deployments/{deployment_id}/logs", audience: [cli]}
+      - {method: GET, path: "/v1/deployments/{deployment_id}/logs/stream", audience: [cli]}
+
+  dataplane:
+    operations:
+      # --- tasks (+ runs / stream / archive) ---------------------------------
+      - {method: GET, path: "/v1/tasks", audience: [sdk, cli]}
+      - {method: POST, path: "/v1/tasks", audience: [sdk, cli]}
+      - {method: GET, path: "/v1/tasks/{task_id}", audience: [sdk, cli]}
+      - {method: PATCH, path: "/v1/tasks/{task_id}", audience: [sdk, cli]}
+      - {method: DELETE, path: "/v1/tasks/{task_id}", audience: [sdk, cli]}
+      - {method: POST, path: "/v1/tasks/{task_id}/archive", audience: [sdk, cli]}
+      - {method: POST, path: "/v1/tasks/{task_id}/unarchive", audience: [sdk, cli]}
+      - {method: POST, path: "/v1/tasks/{task_id}/runs", audience: [sdk, cli]}
+      - {method: GET, path: "/v1/tasks/{task_id}/runs/{run_id}", audience: [sdk, cli]}
+      - {method: POST, path: "/v1/tasks/{task_id}/runs/{run_id}/cancel", audience: [sdk, cli]}
+      - {method: GET, path: "/v1/tasks/{task_id}/runs/{run_id}/stream", audience: [sdk, cli]}
+      # --- files (+ versions / content) --------------------------------------
+      - {method: GET, path: "/v1/files", audience: [sdk, cli]}
+      - {method: POST, path: "/v1/files", audience: [sdk, cli]}
+      - {method: GET, path: "/v1/files/{file_id}", audience: [sdk, cli]}
+      - {method: PATCH, path: "/v1/files/{file_id}", audience: [sdk, cli]}
+      - {method: DELETE, path: "/v1/files/{file_id}", audience: [sdk, cli]}
+      - {method: GET, path: "/v1/files/{file_id}/content", audience: [sdk, cli]}
+      - {method: GET, path: "/v1/files/{file_id}/versions", audience: [sdk, cli]}
+      - {method: POST, path: "/v1/files/{file_id}/versions", audience: [sdk, cli]}
+      - {method: GET, path: "/v1/files/{file_id}/versions/{file_version_id}", audience: [sdk, cli]}
+      # --- conversations (+ items) --------------------------------------------
+      - {method: GET, path: "/v1/conversations", audience: [sdk, cli]}
+      - {method: GET, path: "/v1/conversations/{conversation_id}", audience: [sdk, cli]}
+      - {method: GET, path: "/v1/conversations/{conversation_id}/items", audience: [sdk, cli]}
+      - {method: GET, path: "/v1/conversations/{conversation_id}/items/{item_id}", audience: [sdk, cli]}
+      # --- shares ---------------------------------------------------------------
+      - {method: GET, path: "/v1/shares", audience: [sdk, cli]}
+      - {method: POST, path: "/v1/shares", audience: [sdk, cli]}
+      - {method: GET, path: "/v1/shares/{share_id}", audience: [sdk, cli]}
+      - {method: DELETE, path: "/v1/shares/{share_id}", audience: [sdk, cli]}
+      # --- metrics ----------------------------------------------------------------
+      - {method: POST, path: "/v1/metrics", audience: [sdk, cli]}
+      # --- oauth session management (programmatic) ---------------------------------
+      - {method: POST, path: "/v1/oauth/exchange", audience: [sdk, cli]}
+      - {method: POST, path: "/v1/oauth/refresh", audience: [sdk, cli]}
+      - {method: GET, path: "/v1/oauth/me", audience: [sdk, cli]}
+      # --- api-keys (verification) --------------------------------------------------
+      # JC: ping/me are the "who am I / is this key valid" probes; primarily a
+      # CLI doctor/whoami surface, so labelled cli-only for now.
+      - {method: GET, path: "/v1/api-keys/ping", audience: [cli]}
+      - {method: GET, path: "/v1/api-keys/me", audience: [cli]}
+      # --- events (telemetry read surface) -------------------------------------------
+      - {method: GET, path: "/v1/events", audience: [cli]}
+      - {method: GET, path: "/v1/events/{event_id}", audience: [cli]}
+      # --- issues ---------------------------------------------------------------------
+      - {method: GET, path: "/v1/issues", audience: [cli]}
+      - {method: POST, path: "/v1/issues", audience: [cli]}
+      - {method: GET, path: "/v1/issues/{issue_id}", audience: [cli]}
+      - {method: PATCH, path: "/v1/issues/{issue_id}", audience: [cli]}
+      - {method: DELETE, path: "/v1/issues/{issue_id}", audience: [cli]}
+      # --- reports ----------------------------------------------------------------------
+      - {method: GET, path: "/v1/reports", audience: [cli]}
+      - {method: POST, path: "/v1/reports", audience: [cli]}
+      - {method: GET, path: "/v1/reports/{report_id}", audience: [cli]}
+      - {method: PATCH, path: "/v1/reports/{report_id}", audience: [cli]}
+      - {method: DELETE, path: "/v1/reports/{report_id}", audience: [cli]}

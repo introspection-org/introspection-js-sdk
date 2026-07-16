@@ -1,0 +1,7 @@
+{
+  "status": 404,
+  "headers": {},
+  "body": {
+    "detail": "Task not found"
+  }
+}

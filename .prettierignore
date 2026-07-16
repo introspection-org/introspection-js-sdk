@@ -5,3 +5,9 @@ coverage
 .pytest_cache
 # release-please generates this; its style is the bot's, not prettier's
 CHANGELOG.md
+# Vendored platform contract snapshot — byte-identity is checked against
+# contracts/manifest.json sha256s (tests/contracts/), so never reformat.
+# contracts/README.md is authored here and stays formatted.
+contracts/*.json
+contracts/*.yaml
+contracts/fixtures/

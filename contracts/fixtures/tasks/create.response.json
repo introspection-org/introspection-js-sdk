@@ -1,0 +1,38 @@
+{
+  "task": {
+    "id": "019f6988-ad0d-75c7-b7f3-c90ef69db56e",
+    "org_id": "019f6988-ad0d-75c7-b7f3-c90f973c5f6b",
+    "project_id": "019f6988-ad0d-75c7-b7f3-c910a8411d52",
+    "created_at": "2026-07-16T05:30:00.000000Z",
+    "updated_at": "2026-07-16T05:30:00.000000Z",
+    "title": "Summarize the latest support escalations",
+    "display_index": 42,
+    "status": "queued",
+    "kind": "agent",
+    "member_id": "019f6988-ad0d-75c7-b7f3-c911cf9fe867",
+    "automation_id": null,
+    "runtime_id": "019f6988-ad0d-75c7-b7f3-c912a56178fe",
+    "is_archived": false,
+    "identity_key": "user:usr_2941",
+    "started_at": null,
+    "completed_at": null,
+    "last_user_message_at": "2026-07-16T05:30:00.000000Z",
+    "metadata": {
+      "prompt": "Summarize the latest support escalations",
+      "agent_name": "agent",
+      "active_run_id": "019f6988-ad0d-75c7-b7f3-c91332573fa4",
+      "latest_run_id": "019f6988-ad0d-75c7-b7f3-c91332573fa4"
+    },
+    "agent": {
+      "sandbox_status": "queued",
+      "session_id": "019f6988-ad0d-75c7-b7f3-c91462bc97a7"
+    }
+  },
+  "run": {
+    "id": "019f6988-ad0d-75c7-b7f3-c91332573fa4",
+    "task_id": "019f6988-ad0d-75c7-b7f3-c90ef69db56e",
+    "status": "queued",
+    "created_at": "2026-07-16T05:30:00.000000Z",
+    "updated_at": "2026-07-16T05:30:00.000000Z"
+  }
+}

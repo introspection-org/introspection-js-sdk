@@ -1,0 +1,27 @@
+{
+  "session_id": "019f6988-ad0d-75c7-b7f3-c9152e55d493",
+  "deployment": {
+    "endpoint": "https://api.gcp01.introspection.dev",
+    "slug": "gcp01",
+    "region": "us-central1"
+  },
+  "session_token": "<session-locator-jwt-placeholder>",
+  "expires_at": "2026-07-17T05:30:00.000000Z",
+  "runtime_context": {
+    "runtime_id": "019f6988-ad0d-75c7-b7f3-c912a56178fe",
+    "runtime_group_id": "019f6988-ad0d-75c7-b7f3-c916ea9178ab",
+    "experiment_id": null,
+    "recipe_id": "019f6988-ad0d-75c7-b7f3-c917a3de6785",
+    "recipe_repository_id": null,
+    "recipe_git_ref": "main",
+    "recipe_git_commit_sha": "0682b98f2c1a4d5e6b7c8d9e0f1a2b3c4d5e6f70",
+    "arm_label": null,
+    "agent_name": "agent",
+    "identity": {
+      "user_id": "usr_2941",
+      "anonymous_id": null,
+      "conversation_id": null
+    },
+    "caller": null
+  }
+}

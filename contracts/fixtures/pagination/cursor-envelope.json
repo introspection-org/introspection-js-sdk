@@ -1,0 +1,15 @@
+{
+  "records": [
+    {
+      "id": "019f6988-ad0d-75c7-b7f3-c90ef69db56e",
+      "title": "First record on this page"
+    },
+    {
+      "id": "019f6988-ad0d-75c7-b7f3-c91332573fa4",
+      "title": "Second record on this page"
+    }
+  ],
+  "count": 2,
+  "total_count": 150,
+  "next": "eyJpIjoiMDE5ZjY5ODgtYWQwZC03NWM3LWI3ZjMtYzkxMzMyNTczZmE0In0"
+}

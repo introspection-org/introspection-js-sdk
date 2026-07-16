@@ -1,0 +1,7 @@
+{"id": "c-0", "event": "ag_ui", "data": {"type": "RUN_STARTED", "threadId": "019f6988-ad0d-75c7-b7f3-c90ef69db56e", "runId": "019f6988-ad0d-75c7-b7f3-c91332573fa4"}}
+{"id": "c-1", "event": "ag_ui", "data": {"type": "CUSTOM", "name": "resume_gap", "value": {"since": 41, "buffered_from": 57}}}
+{"id": "57", "event": "ag_ui", "data": {"type": "TEXT_MESSAGE_START", "messageId": "msg_019f6988ad0d7601", "role": "assistant"}}
+{"id": "58", "event": "ag_ui", "data": {"type": "TEXT_MESSAGE_CONTENT", "messageId": "msg_019f6988ad0d7601", "delta": "Here is a summary of the three escalations opened this week."}}
+{"id": "59", "event": "ag_ui", "data": {"type": "TEXT_MESSAGE_END", "messageId": "msg_019f6988ad0d7601"}}
+{"id": "c-2", "event": "heartbeat", "data": {"runId": "019f6988-ad0d-75c7-b7f3-c91332573fa4"}}
+{"id": "c-3", "event": "ag_ui", "data": {"type": "RUN_FINISHED", "threadId": "019f6988-ad0d-75c7-b7f3-c90ef69db56e", "runId": "019f6988-ad0d-75c7-b7f3-c91332573fa4"}}
