@@ -149,13 +149,15 @@ function withInjectedTraceContext(
   return { ...opts, headers };
 }
 
-export function createProxyFetch(
+/** @internal Used by the lazy installer to preserve the pre-install fetch. */
+export function createProxyFetchWithBase(
   options: ProxyFetchOptions = {},
+  baseFetch: typeof fetch,
 ): typeof fetch {
   // Capture the real fetch now, before installProxyFetch swaps
   // globalThis.fetch to this wrapper. The per-request fallback below must not
   // re-read the global, or it would recurse into the installed proxy.
-  const base = globalThis.fetch;
+  const base = baseFetch;
   const egressUrl = resolveEgressUrl(options);
   const egressHosts = resolveEgressHosts(options);
   const egressIsPlainHttp =
@@ -237,6 +239,12 @@ export function createProxyFetch(
       execute,
     );
   };
+}
+
+export function createProxyFetch(
+  options: ProxyFetchOptions = {},
+): typeof fetch {
+  return createProxyFetchWithBase(options, globalThis.fetch);
 }
 
 export function installProxyFetch(options: ProxyFetchOptions = {}): () => void {

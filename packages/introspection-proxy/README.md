@@ -45,6 +45,25 @@ same distributed trace:
 const mcpFetch = createProxyFetch({ propagateBaggage: true });
 ```
 
+## Lazy process bootstrap
+
+Processes that must install proxy enforcement before serving traffic can defer
+loading Undici until after their listener binds:
+
+```ts
+import { installLazyProxyFetch } from "@introspection-sdk/introspection-proxy/lazy";
+
+const proxyFetch = installLazyProxyFetch();
+
+server.listen(port, () => {
+  void proxyFetch.ready();
+});
+```
+
+The guard replaces `globalThis.fetch` synchronously. Requests made before
+`ready()` completes wait for the same promise, so initialization cannot be
+bypassed or duplicated.
+
 ## How it works
 
 Two proxy modes, selected per-request:
