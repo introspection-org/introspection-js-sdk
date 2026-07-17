@@ -22,8 +22,9 @@ const EVENT_FIXTURE = {
   id: "ev-1",
   timestamp: "2025-01-01T00:00:00Z",
   conversation_id: "conv-1",
-  event_name: "chat",
+  event_name: "introspection.feedback",
   service_name: "svc",
+  payload: { name: "thumbs_up" },
 };
 
 describe("EventsApi.list", () => {
@@ -35,8 +36,8 @@ describe("EventsApi.list", () => {
     const events = [];
     for await (const ev of api.list({
       limit: 10,
-      grain: "raw",
-      event_name: "chat",
+      event_name: "introspection.feedback",
+      conversation_id: "conv-1",
     })) {
       events.push(ev);
     }
@@ -44,7 +45,11 @@ describe("EventsApi.list", () => {
     expect(http.request).toHaveBeenCalledWith({
       method: "GET",
       path: "/v1/events",
-      query: { limit: 10, grain: "raw", event_name: "chat" },
+      query: {
+        limit: 10,
+        event_name: "introspection.feedback",
+        conversation_id: "conv-1",
+      },
       signal: undefined,
     });
     expect(events).toHaveLength(1);
@@ -57,13 +62,15 @@ describe("EventsApi.list", () => {
     });
     const api = new EventsApi(http);
     await api.list({
+      event_name: "introspection.judgement",
       order: "asc",
       start: "2025-01-01T00:00:00Z",
       end: "2025-01-02T00:00:00Z",
-    } as EventListParams);
+    } as EventListParams & { event_name: "introspection.judgement" });
 
     const query = (http.request as ReturnType<typeof vi.fn>).mock.calls[0][0]
       .query;
+    expect(query.event_name).toBe("introspection.judgement");
     expect(query.direction).toBe("asc");
     expect(query.start_date).toBe("2025-01-01T00:00:00Z");
     expect(query.end_date).toBe("2025-01-02T00:00:00Z");
@@ -80,7 +87,7 @@ describe("EventsApi.list", () => {
       requestResult: { records: [], count: 0, next: null },
     });
     const api = new EventsApi(http);
-    await api.list({ lookback: "24h" });
+    await api.list({ event_name: "introspection.feedback", lookback: "24h" });
     const query = (http.request as ReturnType<typeof vi.fn>).mock.calls[0][0]
       .query;
     expect(query.start_date).toBe("2025-01-01T00:00:00.000Z");
@@ -91,7 +98,11 @@ describe("EventsApi.list", () => {
     const http = mockHttp();
     const api = new EventsApi(http);
     expect(() =>
-      api.list({ lookback: "24h", start: "2025-01-01T00:00:00Z" }),
+      api.list({
+        event_name: "introspection.feedback",
+        lookback: "24h",
+        start: "2025-01-01T00:00:00Z",
+      }),
     ).toThrow(ValidationError);
     expect(http.request).not.toHaveBeenCalled();
   });
@@ -101,7 +112,9 @@ describe("EventsApi.list", () => {
       requestResult: { records: [], count: 0, next: null },
     });
     const api = new EventsApi(http);
-    expect(() => api.list({ lookback: "soon" })).toThrow(ValidationError);
+    expect(() =>
+      api.list({ event_name: "introspection.feedback", lookback: "soon" }),
+    ).toThrow(ValidationError);
     expect(http.request).not.toHaveBeenCalled();
   });
 
@@ -124,7 +137,8 @@ describe("EventsApi.list", () => {
       .mockResolvedValueOnce(page2);
     const api = new EventsApi(http);
     const events = [];
-    for await (const ev of api.list()) events.push(ev);
+    for await (const ev of api.list({ event_name: "introspection.feedback" }))
+      events.push(ev);
 
     expect(events).toHaveLength(2);
     expect(events[1].id).toBe("ev-2");
@@ -146,7 +160,10 @@ describe("EventsApi.list — Arrow format", () => {
   it("negotiates Arrow and rebuilds the Paginated shape from headers", async () => {
     const http = mockHttp({
       streamResult: arrowResponse(
-        { id: ["ev-1", "ev-2"], event_name: ["chat", "chat"] },
+        {
+          id: ["ev-1", "ev-2"],
+          event_name: ["introspection.feedback", "introspection.feedback"],
+        },
         {
           "x-result-count": "2",
           "x-truncated": "true",
@@ -156,18 +173,22 @@ describe("EventsApi.list — Arrow format", () => {
       ),
     });
     const api = new EventsApi(http);
-    const page = await api.list({ format: "arrow", limit: 2 });
+    const page = await api.list({
+      event_name: "introspection.feedback",
+      format: "arrow",
+      limit: 2,
+    });
 
     // Accept header negotiated, and ergonomic/control keys stripped.
     expect(http.stream).toHaveBeenCalledWith({
       path: "/v1/events",
-      query: { limit: 2 },
+      query: { event_name: "introspection.feedback", limit: 2 },
       headers: { Accept: "application/vnd.apache.arrow.stream" },
       signal: undefined,
     });
     expect(page.records).toEqual([
-      { id: "ev-1", event_name: "chat" },
-      { id: "ev-2", event_name: "chat" },
+      { id: "ev-1", event_name: "introspection.feedback" },
+      { id: "ev-2", event_name: "introspection.feedback" },
     ]);
     expect(page.count).toBe(2);
     expect(page.total_count).toBe(9);
@@ -182,7 +203,10 @@ describe("EventsApi.list — Arrow format", () => {
       ),
     });
     const api = new EventsApi(http);
-    const page = await api.list({ format: "arrow" });
+    const page = await api.list({
+      event_name: "introspection.feedback",
+      format: "arrow",
+    });
     expect(page.next).toBeNull();
     expect(page.total_count).toBeNull();
     expect(page.records).toEqual([{ id: "ev-1" }]);

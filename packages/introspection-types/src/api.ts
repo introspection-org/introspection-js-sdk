@@ -585,34 +585,50 @@ export interface RunRequest {
 
 // --- events ---
 
-/** Readable projections exposed through `GET /v1/events`. */
-export type EventGrain =
-  "raw" | "introspection.observation" | "introspection.pattern";
+/**
+ * The six canonical platform event families served by `GET /v1/events` —
+ * a closed, typed set. Legacy stored names (e.g.
+ * `introspection.observation.generated`, `introspection.pattern.created`)
+ * are normalized server-side to these canonical names; anything outside
+ * the set (customer `track()` events, `gen_ai.*`) is not enumerable via
+ * `/v1/events` and is reachable through `POST /v1/metrics` only.
+ */
+export const IntrospectionEventNames = {
+  FEEDBACK: "introspection.feedback",
+  OBSERVATION: "introspection.observation",
+  OBSERVATION_CLUSTERING_RUN: "introspection.observation_clustering.run",
+  JUDGEMENT: "introspection.judgement",
+  PATTERN: "introspection.pattern",
+  PATTERN_ASSIGNMENT: "introspection.pattern.assignment",
+} as const;
 
-/** Optional raw-event expansions (repeated `include` param). */
-export type EventInclude = "attributes" | "body";
-
-/** Allow-listed fields for event ordering. */
-export type EventSortField = "created";
+/** Union of the canonical family names in {@link IntrospectionEventNames}. */
+export type IntrospectionEventName =
+  (typeof IntrospectionEventNames)[keyof typeof IntrospectionEventNames];
 
 /**
- * One raw event record from `otel_logs`, returned by `GET /v1/events`
- * (default / `grain=raw`) inside the standard cursor envelope
- * `Paginated<RawEvent>`.
+ * Common event envelope — the queryable surface shared by every family.
+ * `org_id` / `project_id` are never serialized: tenant scope is implied
+ * by the bearer token. The `event_name` discriminator lives here at the
+ * top level; each family member narrows it to its literal.
  */
-export interface RawEvent {
-  /** Event ID (`LogAttributes.event.id`). */
+export interface IntrospectionEventEnvelope {
+  /** Event ID (globally unique). */
   id: string;
-  /** Event timestamp. */
+  /**
+   * Envelope timestamp. Per-family semantics: `observed_at` for
+   * observations (fold), `updated_at` for patterns (catalog cursor),
+   * emit/observed time for the stream families.
+   */
   timestamp: IsoDate;
+  /** Canonical family name — the union discriminator. */
+  event_name: string;
   /** Trace ID (hex string). */
   trace_id?: string | null;
   /** Span ID (hex string). */
   span_id?: string | null;
   /** GenAI conversation ID. */
   conversation_id?: string | null;
-  /** Resolved event name. */
-  event_name?: string | null;
   /** OTel service name. */
   service_name?: string | null;
   /** Environment lane. */
@@ -625,22 +641,231 @@ export interface RawEvent {
   experiment_id?: Uuid | null;
   /** Recipe git commit SHA. */
   recipe_git_commit_sha?: string | null;
-  /** Log body text (only when `include=body`). */
-  body?: string | null;
-  /** Raw log attributes (only when `include=attributes`). */
-  attributes?: Record<string, unknown> | null;
 }
+
+/**
+ * One resolved observation — the server-side fold: supersession applied
+ * and the CURRENT pattern assignment joined from later assignment events.
+ */
+export interface ObservationPayload {
+  observation_id: Uuid;
+  lens: string;
+  label?: string | null;
+  summary?: string | null;
+  severity?: string | null;
+  confidence?: number | null;
+  segment?: number | null;
+  sentiment?: string | null;
+  resolution?: string | null;
+  evidence_refs?: string[] | null;
+  prompt_version?: string | null;
+  model?: string | null;
+  source_hash?: string | null;
+  replaces_observation_id?: Uuid | null;
+  /** CURRENT pattern assignment (fold). */
+  pattern_id?: string | null;
+  /** Score of the current assignment (fold). */
+  assignment_score?: number | null;
+  /** Method of the current assignment (fold). */
+  assignment_method?: string | null;
+  metadata?: Record<string, unknown> | null;
+}
+
+/**
+ * One folded pattern catalog row — the pattern *as it currently is*
+ * (latest lifecycle action + fold timestamps).
+ */
+export interface PatternPayload {
+  pattern_id: string;
+  /** Latest lifecycle action (`created` | `updated` | `retired`). */
+  action?: string | null;
+  name?: string | null;
+  description?: string | null;
+  lens?: string | null;
+  /** Current status (fold): `active` | `retired`. */
+  status?: string | null;
+  /** Fold timestamps. */
+  created_at?: IsoDate | null;
+  updated_at?: IsoDate | null;
+  retired_at?: IsoDate | null;
+  last_detected_at?: IsoDate | null;
+  reason?: string | null;
+  replacement_pattern_id?: string | null;
+  derived_from_pattern_id?: string | null;
+  run_id?: string | null;
+}
+
+/** One observation → pattern assignment event. */
+export interface PatternAssignmentPayload {
+  observation_id: Uuid;
+  pattern_id: string;
+  method?: string | null;
+  run_id?: string | null;
+  score?: number | null;
+}
+
+/** One clustering run over observations. */
+export interface ClusteringRunPayload {
+  run_id: string;
+  lens?: string | null;
+  status?: string | null;
+  trigger?: string | null;
+  observation_count?: number | null;
+  pattern_count?: number | null;
+  noise_count?: number | null;
+  params?: Record<string, unknown> | null;
+  replaces_run_id?: string | null;
+  error?: string | null;
+}
+
+/**
+ * One feedback event, mirroring the SDK `feedback()` emitters:
+ * `properties.name` / `properties.comments` / `properties.value` plus the
+ * `identity.*` attributes. `sentiment` is an optional EMITTED field —
+ * never derived server-side.
+ */
+export interface FeedbackPayload {
+  /** The feedback label (`"thumbs_up"`, …). */
+  name: string;
+  comments?: string | null;
+  /** Numeric axis, when present. */
+  value?: number | null;
+  user_id?: string | null;
+  anonymous_id?: string | null;
+  /** `positive` | `negative` | `neutral`, when emitted. */
+  sentiment?: string | null;
+  /** Remaining `properties.*` extras. */
+  properties?: Record<string, unknown> | null;
+}
+
+/** One judgement, mirroring the runtime-agent judges emitter. */
+export interface JudgementPayload {
+  judgement_id: string;
+  judge_id?: string | null;
+  result?: string | null;
+  definition_hash?: string | null;
+  contract_version?: string | null;
+  sequence_hash?: string | null;
+  experiment_arm_id?: Uuid | null;
+}
+
+// --- whole-event members: envelope + typed payload, literal discriminator ---
+
+export interface ObservationEvent extends IntrospectionEventEnvelope {
+  event_name: typeof IntrospectionEventNames.OBSERVATION;
+  payload: ObservationPayload;
+}
+
+export interface PatternEvent extends IntrospectionEventEnvelope {
+  event_name: typeof IntrospectionEventNames.PATTERN;
+  payload: PatternPayload;
+}
+
+export interface PatternAssignmentEvent extends IntrospectionEventEnvelope {
+  event_name: typeof IntrospectionEventNames.PATTERN_ASSIGNMENT;
+  payload: PatternAssignmentPayload;
+}
+
+export interface ClusteringRunEvent extends IntrospectionEventEnvelope {
+  event_name: typeof IntrospectionEventNames.OBSERVATION_CLUSTERING_RUN;
+  payload: ClusteringRunPayload;
+}
+
+export interface FeedbackEvent extends IntrospectionEventEnvelope {
+  event_name: typeof IntrospectionEventNames.FEEDBACK;
+  payload: FeedbackPayload;
+}
+
+export interface JudgementEvent extends IntrospectionEventEnvelope {
+  event_name: typeof IntrospectionEventNames.JUDGEMENT;
+  payload: JudgementPayload;
+}
+
+/**
+ * The discriminated union of the six canonical families. Narrow on the
+ * top-level `event_name`:
+ *
+ * ```ts
+ * if (ev.event_name === "introspection.feedback") ev.payload.name;
+ * ```
+ *
+ * The union is deliberately closed so TypeScript discriminant narrowing
+ * works (a `string`-discriminant tail member would disable narrowing for
+ * every member). Rows from a family this SDK version doesn't know surface
+ * as {@link UnknownEvent} instead — see {@link EventForName}.
+ */
+export type Event =
+  | ObservationEvent
+  | PatternEvent
+  | PatternAssignmentEvent
+  | ClusteringRunEvent
+  | FeedbackEvent
+  | JudgementEvent;
+
+/**
+ * Structurally-typed fallback for forward compatibility: a row whose
+ * `event_name` isn't one of the {@link IntrospectionEventNames} this SDK
+ * version knows (e.g. a seventh family added server-side). Such rows are
+ * surfaced as-is — never dropped, never a thrown error.
+ */
+export interface UnknownEvent extends IntrospectionEventEnvelope {
+  event_name: string;
+  payload?: unknown;
+}
+
+/** True when `ev` belongs to one of the six known families. */
+export function isKnownEvent(ev: {
+  event_name: string;
+}): ev is Event & { event_name: IntrospectionEventName } {
+  return (Object.values(IntrospectionEventNames) as string[]).includes(
+    ev.event_name,
+  );
+}
+
+/**
+ * Maps a requested `event_name` to its typed union member. Unknown names
+ * fall back to {@link UnknownEvent}; a non-literal `string` yields the
+ * whole {@link Event} union.
+ */
+export type EventForName<N extends string> = [
+  Extract<Event, { event_name: N }>,
+] extends [never]
+  ? UnknownEvent
+  : Extract<Event, { event_name: N }>;
+
+/**
+ * Allow-listed fields for event ordering — per-family: observation sorts
+ * by `observed_at` (default); pattern by `updated_at` (default),
+ * `created_at`, or `last_detected_at`; the stream families by
+ * `timestamp` (default).
+ */
+export type EventSortField =
+  | "timestamp"
+  | "observed_at"
+  | "created_at"
+  | "updated_at"
+  | "last_detected_at";
 
 /**
  * Query params for `GET /v1/events` (cursor paging — `limit` / `next`
  * come from {@link ListParams}; ordering + window come from
- * {@link ReadWindowParams}). All filters are optional and combined with
- * AND logic; date-range filters are inclusive.
+ * {@link ReadWindowParams}).
+ *
+ * `event_name` is REQUIRED and names exactly one family, so every
+ * response page is homogeneous. Envelope filters apply to all families;
+ * the family-scoped filters are validated server-side against an
+ * allow-map keyed by the requested family (an out-of-family filter is a
+ * 422 naming the family). All filters are combined with AND logic;
+ * date-range filters are inclusive.
  */
 export interface EventListParams extends ListParams, ReadWindowParams {
-  /** Event grain projection (server default `"raw"`). */
-  grain?: EventGrain;
-  /** Event field to order by (server default `"created"`). */
+  /**
+   * The family to list — required, exactly one. Unknown strings are
+   * allowed for forward compatibility and type the rows as
+   * {@link UnknownEvent}.
+   */
+  event_name: IntrospectionEventName | (string & Record<never, never>);
+  /** Event field to order by (per-family default — see {@link EventSortField}). */
   sort?: EventSortField;
   /** Sort direction (server default `"desc"`). Prefer `order` from {@link ReadWindowParams}. */
   direction?: "asc" | "desc";
@@ -650,42 +875,33 @@ export interface EventListParams extends ListParams, ReadWindowParams {
   end_date?: IsoDate;
   /** Filter by conversation ID. */
   conversation_id?: string;
-  /** Filter observations by conversation IDs (repeated param). */
-  conversation_ids?: string[];
   /** Filter by service name. */
   service_name?: string;
   /** Filter by environment lane. */
   environment?: string;
   /** Filter by runtime group ID. */
   runtime_group_id?: Uuid;
-  /** Filter observations with no runtime group. */
-  runtime_group_unattributed?: boolean;
-  /** Observation/pattern lens filter. */
-  lens?: string;
-  /** Observation pattern assignment filter. */
-  pattern_id?: Uuid;
-  /** Pattern status filter. */
-  status?: string;
-  /** Include superseded observations. */
-  include_superseded?: boolean;
-  /** Observation severity filters (repeated param). */
-  severities?: string[];
-  /** Filter by exact event name. */
-  event_name?: string;
-  /** Filter by event name prefix. */
-  event_name_prefix?: string;
   /** Filter by trace ID. */
   trace_id?: string;
   /** Filter by span ID. */
   span_id?: string;
   /** Filter by event IDs (repeated param, max 500). */
   event_id?: string[];
-  /** Full-text search over the event body. */
-  q?: string;
-  /** RE2 regex search over the event body. */
-  q_regex?: string;
-  /** Optional expansions: `attributes`, `body` (repeated param). */
-  include?: EventInclude[];
+  // --- family-scoped filters (server-validated allow-map, one family each) ---
+  /** observation: filter by conversation IDs (repeated param, max 500). */
+  conversation_ids?: string[];
+  /** observation / pattern: lens filter. */
+  lens?: string;
+  /** observation: current pattern assignment filter. */
+  pattern_id?: string;
+  /** observation: include superseded versions (default: resolved state only). */
+  include_superseded?: boolean;
+  /** observation: severity filters (repeated param). */
+  severities?: string[];
+  /** observation: only rows with no runtime group. */
+  runtime_group_unattributed?: boolean;
+  /** pattern: status filter (`active` | `retired`). */
+  status?: string;
 }
 
 // --- metrics ---
