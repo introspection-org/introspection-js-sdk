@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.10.0](https://github.com/introspection-org/introspection-js-sdk/compare/v0.9.3...v0.10.0) (2026-07-17)
+
+
+### Features
+
+* runner-scoped events/metrics reads + Arrow decode ([#213](https://github.com/introspection-org/introspection-js-sdk/issues/213)) ([924d235](https://github.com/introspection-org/introspection-js-sdk/commit/924d2359e40b8d9f6bfddc845adfd50943481a2a))
+
 ## [0.9.3](https://github.com/introspection-org/introspection-js-sdk/compare/v0.9.2...v0.9.3) (2026-07-16)
 
 
