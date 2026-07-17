@@ -19,6 +19,7 @@
  */
 
 import { ValidationError, type Paginated } from "@introspection-sdk/types";
+import type { Table } from "apache-arrow";
 import { Paginator, cursorPaginate } from "../pagination.js";
 import type { ResourceHttpClient } from "./types.js";
 
@@ -124,14 +125,135 @@ export function serializeReadParams(
 }
 
 /**
+ * Load the optional `apache-arrow` peer dependency on demand — the JSON
+ * path never needs it, so it is imported only when `format: "arrow"` or
+ * the columnar `.arrow()` accessor is used.
+ */
+async function loadArrow(): Promise<typeof import("apache-arrow")> {
+  try {
+    return await import("apache-arrow");
+  } catch (err) {
+    throw new Error(
+      "format: 'arrow' requires the optional 'apache-arrow' peer dependency. " +
+        "Install it with `npm install apache-arrow`.",
+      { cause: err },
+    );
+  }
+}
+
+/**
+ * Deep-convert one decoded Arrow cell value to the plain JSON shape the
+ * JSON transport returns. Arrow's `Row.toJSON()` is shallow: nested
+ * `struct` columns (e.g. the typed event `payload`), maps, and list
+ * columns come back as `StructRow` / `MapRow` / `Vector` proxies rather
+ * than plain objects/arrays. Recursing through each container's own
+ * `toJSON()` flattens them so JSON and Arrow rows are interchangeable.
+ */
+function arrowValueToPlain(value: unknown): unknown {
+  if (value === null || typeof value !== "object") return value;
+  if (value instanceof Date || value instanceof Uint8Array) return value;
+  if (Array.isArray(value)) return value.map(arrowValueToPlain);
+  const withToJSON = value as { toJSON?: () => unknown };
+  const json =
+    typeof withToJSON.toJSON === "function" ? withToJSON.toJSON() : value;
+  if (json !== value) return arrowValueToPlain(json);
+  const out: Record<string, unknown> = {};
+  for (const [key, entry] of Object.entries(value)) {
+    out[key] = arrowValueToPlain(entry);
+  }
+  return out;
+}
+
+const EVENT_PAYLOAD_JSON_FIELDS = new Set(["metadata", "params", "properties"]);
+
+const EVENT_PAYLOAD_DATETIME_FIELDS = new Set([
+  "created_at",
+  "updated_at",
+  "retired_at",
+  "last_detected_at",
+]);
+
+/**
+ * Restore the JSON representation promised by the row-oriented events API.
+ *
+ * The server's typed Arrow schema uses native timestamp columns and encodes
+ * open dict-shaped payload fields as JSON strings. apache-arrow exposes the
+ * former as epoch-millisecond numbers and leaves the latter as strings, so a
+ * plain structural conversion is not enough to make `format: "arrow"` match
+ * the JSON transport.
+ */
+function normalizeEventArrowRow(value: unknown): unknown {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) {
+    return value;
+  }
+
+  const row = value as Record<string, unknown>;
+  const timestamp = row.timestamp;
+  if (timestamp instanceof Date) {
+    row.timestamp = timestamp.toISOString();
+  } else if (typeof timestamp === "number" && Number.isFinite(timestamp)) {
+    row.timestamp = new Date(timestamp).toISOString();
+  }
+
+  const payload = row.payload;
+  if (
+    payload === null ||
+    typeof payload !== "object" ||
+    Array.isArray(payload)
+  ) {
+    return row;
+  }
+
+  const payloadRecord = payload as Record<string, unknown>;
+  for (const field of EVENT_PAYLOAD_DATETIME_FIELDS) {
+    const fieldValue = payloadRecord[field];
+    if (fieldValue instanceof Date) {
+      payloadRecord[field] = fieldValue.toISOString();
+    } else if (typeof fieldValue === "number" && Number.isFinite(fieldValue)) {
+      payloadRecord[field] = new Date(fieldValue).toISOString();
+    }
+  }
+  for (const field of EVENT_PAYLOAD_JSON_FIELDS) {
+    const fieldValue = payloadRecord[field];
+    if (typeof fieldValue !== "string") continue;
+    try {
+      payloadRecord[field] = JSON.parse(fieldValue) as unknown;
+    } catch {
+      // Preserve malformed values. The JSON transport is boundary-tolerant,
+      // and turning a single bad optional field into a page-level failure
+      // would make the Arrow path less robust than JSON.
+    }
+  }
+  return row;
+}
+
+/** Read the pagination metadata headers off an Arrow response. */
+function paginationFromHeaders(
+  headers: Headers,
+  recordCount: number,
+): { count: number; total_count: number | null; next: string | null } {
+  const next = headers.get("x-next-cursor");
+  const count = headers.get("x-result-count");
+  const totalCount = headers.get("x-total-count");
+  return {
+    count: count !== null ? Number(count) : recordCount,
+    total_count: totalCount !== null ? Number(totalCount) : null,
+    next: next ?? null,
+  };
+}
+
+/**
  * Fetch one page as an Apache Arrow IPC stream and rebuild the
  * {@link Paginated} envelope the JSON path returns.
  *
- * The row values live in the columnar body; the pagination metadata moves
- * to response headers (`X-Next-Cursor`, `X-Result-Count`, `X-Truncated`,
- * `X-Total-Count`). Reading them back into {@link Paginated} keeps the
- * paginator format-agnostic. A `406` from a server that can't produce
- * Arrow surfaces as the usual typed HTTP error.
+ * The row values live in the columnar body — envelope fields as native
+ * typed columns plus (for events) a typed `payload` struct column, which
+ * is deep-converted back to plain nested objects so decoded rows match
+ * the JSON shape. The pagination metadata moves to response headers
+ * (`X-Next-Cursor`, `X-Result-Count`, `X-Truncated`, `X-Total-Count`).
+ * Reading them back into {@link Paginated} keeps the paginator
+ * format-agnostic. A `406` from a server that can't produce Arrow
+ * surfaces as the usual typed HTTP error.
  */
 export async function fetchArrowPage<T>(
   http: ResourceHttpClient,
@@ -148,33 +270,83 @@ export async function fetchArrowPage<T>(
   const bytes = new Uint8Array(await res.arrayBuffer());
   let records: T[] = [];
   if (bytes.byteLength > 0) {
-    // `apache-arrow` is an optional peer dependency — the JSON path never needs
-    // it, so it is loaded on demand only when `format: "arrow"` is used.
-    let arrow: typeof import("apache-arrow");
-    try {
-      arrow = await import("apache-arrow");
-    } catch (err) {
-      throw new Error(
-        "format: 'arrow' requires the optional 'apache-arrow' peer dependency. " +
-          "Install it with `npm install apache-arrow`.",
-        { cause: err },
-      );
-    }
+    const arrow = await loadArrow();
     records = arrow
       .tableFromIPC(bytes)
       .toArray()
-      .map((row) => row.toJSON() as T);
+      .map((row) => {
+        const plain = arrowValueToPlain(row.toJSON());
+        return (
+          path === "/v1/events" ? normalizeEventArrowRow(plain) : plain
+        ) as T;
+      });
+  }
+  return { records, ...paginationFromHeaders(res.headers, records.length) };
+}
+
+/**
+ * Columnar accessor over a Data-Plane telemetry list read: an async
+ * iterable of one Apache Arrow `Table` per page, walking the same
+ * `X-Next-Cursor` pagination as the row-oriented paths. Use
+ * {@link readAll} to fetch and concatenate every page into a single
+ * `Table` (zero pages yield an empty one).
+ */
+export class ArrowPages implements AsyncIterable<Table> {
+  constructor(
+    private readonly fetchPage: (
+      next: string | undefined,
+    ) => Promise<{ table: Table; next: string | undefined }>,
+    private readonly start?: string,
+  ) {}
+
+  async *[Symbol.asyncIterator](): AsyncIterator<Table> {
+    let cursor = this.start;
+    do {
+      const { table, next } = await this.fetchPage(cursor);
+      yield table;
+      cursor = next;
+    } while (cursor !== undefined);
   }
 
-  const next = res.headers.get("x-next-cursor");
-  const count = res.headers.get("x-result-count");
-  const totalCount = res.headers.get("x-total-count");
-  return {
-    records,
-    count: count !== null ? Number(count) : records.length,
-    total_count: totalCount !== null ? Number(totalCount) : null,
-    next: next ?? null,
-  };
+  /** Fetch every page and concatenate into one `Table`. */
+  async readAll(): Promise<Table> {
+    const arrow = await loadArrow();
+    const tables: Table[] = [];
+    for await (const table of this) tables.push(table);
+    const [first, ...rest] = tables;
+    if (first === undefined) return new arrow.Table();
+    return first.concat(...rest);
+  }
+}
+
+/**
+ * Build an {@link ArrowPages} columnar read over a telemetry list route.
+ * Accepts the same ergonomic params as {@link listRead} (minus `format`,
+ * which is implied); validation and `lookback` pinning behave
+ * identically.
+ */
+export function arrowRead(
+  http: ResourceHttpClient,
+  path: string,
+  params?: ListReadParams,
+): ArrowPages {
+  const source = params as Record<string, unknown> | undefined;
+  const signal = params?.signal;
+  const baseQuery = serializeReadParams(source, undefined);
+  return new ArrowPages(async (next) => {
+    const query = next !== undefined ? { ...baseQuery, next } : baseQuery;
+    const res = await http.stream({
+      path,
+      query,
+      headers: { Accept: ARROW_STREAM_MEDIA_TYPE },
+      signal,
+    });
+    const arrow = await loadArrow();
+    const bytes = new Uint8Array(await res.arrayBuffer());
+    const table =
+      bytes.byteLength > 0 ? arrow.tableFromIPC(bytes) : new arrow.Table();
+    return { table, next: res.headers.get("x-next-cursor") ?? undefined };
+  }, params?.next);
 }
 
 /**

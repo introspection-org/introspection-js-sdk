@@ -10,7 +10,7 @@ import type {
   ToolCallResponsePart,
 } from "@introspection-sdk/types";
 import { Paginator } from "../pagination.js";
-import { listRead } from "./reads.js";
+import { ArrowPages, arrowRead, listRead } from "./reads.js";
 import type { ResourceHttpClient } from "./types.js";
 
 /** Includes requested when building a {@link ConversationResponse}. */
@@ -113,6 +113,18 @@ export class ConversationsClient {
       "/v1/conversations",
       params,
     );
+  }
+
+  /**
+   * Columnar read: async-iterate one Apache Arrow `Table` per page, or
+   * call `.readAll()` to fetch and concatenate every page into a single
+   * `Table`. Accepts the same params as {@link list} minus `format`
+   * (Arrow is implied).
+   *
+   * Requires the optional `apache-arrow` peer dependency.
+   */
+  arrow(params?: Omit<ConversationListParams, "format">): ArrowPages {
+    return arrowRead(this.http, "/v1/conversations", params);
   }
 
   /**

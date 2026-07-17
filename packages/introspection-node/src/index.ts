@@ -49,7 +49,9 @@ export {
   TasksApi,
 } from "@introspection-sdk/http";
 export { streamResumable } from "@introspection-sdk/http";
+export { ArrowPages } from "@introspection-sdk/http";
 export type {
+  EventArrowParams,
   FileUploadBody,
   ListReadParams,
   StartParams,
@@ -148,9 +150,23 @@ export type {
   SpanStatus,
   ReadFormat,
   ReadWindowParams,
-  RawEvent,
-  EventGrain,
-  EventInclude,
+  IntrospectionEventName,
+  IntrospectionEventEnvelope,
+  ObservationPayload,
+  PatternPayload,
+  PatternAssignmentPayload,
+  ClusteringRunPayload,
+  FeedbackPayload,
+  JudgementPayload,
+  ObservationEvent,
+  PatternEvent,
+  PatternAssignmentEvent,
+  ClusteringRunEvent,
+  FeedbackEvent,
+  JudgementEvent,
+  Event,
+  UnknownEvent,
+  EventForName,
   EventSortField,
   EventListParams,
   MetricView,
@@ -172,7 +188,11 @@ export type {
   MetricQueryMeta,
   MetricQueryResponse,
 } from "@introspection-sdk/types";
-export { ConversationsMethods } from "@introspection-sdk/types";
+export {
+  ConversationsMethods,
+  IntrospectionEventNames,
+  isKnownEvent,
+} from "@introspection-sdk/types";
 export {
   IntrospectionAPIError,
   AuthenticationError,

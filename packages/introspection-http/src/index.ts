@@ -44,9 +44,12 @@ export {
   ConversationsClient,
 } from "./resources/conversations.js";
 export { EventsApi, EventsClient } from "./resources/events.js";
+export type { EventArrowParams } from "./resources/events.js";
 export { MetricsApi, MetricsClient } from "./resources/metrics.js";
 export {
   ARROW_STREAM_MEDIA_TYPE,
+  ArrowPages,
+  arrowRead,
   fetchArrowPage,
   listRead,
   serializeReadParams,
