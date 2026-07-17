@@ -17,7 +17,7 @@
  *   `has_more` is true.
  */
 
-import type { IsoDate, ListParams, Uuid } from "./api.js";
+import type { IsoDate, ListParams, ReadWindowParams, Uuid } from "./api.js";
 import type {
   InputMessage,
   OutputMessage,
@@ -272,12 +272,15 @@ export interface ConversationSummary {
  * `next` come from {@link ListParams}). All filters are optional and
  * combined with AND logic; date range filters are inclusive.
  */
-export interface ConversationListParams extends ListParams {
+export interface ConversationListParams extends ListParams, ReadWindowParams {
   /** Filter: conversation ID (exact match). */
   conversation_id?: string;
   /** Summary field to order by (server default `"created"`). */
   sort?: ConversationSortField;
-  /** Sort direction (server default `"desc"`). */
+  /**
+   * Sort direction (server default `"desc"`). Prefer `order` from
+   * {@link ReadWindowParams}; when both are set `order` wins.
+   */
   direction?: "asc" | "desc";
   /** Filter: requested model on any span (exact match). */
   model?: string;

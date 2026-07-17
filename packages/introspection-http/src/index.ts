@@ -43,6 +43,15 @@ export {
   ConversationsApi,
   ConversationsClient,
 } from "./resources/conversations.js";
+export { EventsApi, EventsClient } from "./resources/events.js";
+export { MetricsApi, MetricsClient } from "./resources/metrics.js";
+export {
+  ARROW_STREAM_MEDIA_TYPE,
+  fetchArrowPage,
+  listRead,
+  serializeReadParams,
+} from "./resources/reads.js";
+export type { ListReadParams } from "./resources/reads.js";
 export { SharesApi, SharesClient } from "./resources/shares.js";
 export {
   RuntimeHandle,

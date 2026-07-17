@@ -23,6 +23,9 @@ describe("public export barrels", () => {
     expect(mod.HttpClient).toBeTypeOf("function");
     expect(mod.Runner).toBeTypeOf("function");
     expect(mod.RuntimesApi).toBeTypeOf("function");
+    expect(mod.ConversationsApi).toBeTypeOf("function");
+    expect(mod.EventsApi).toBeTypeOf("function");
+    expect(mod.MetricsApi).toBeTypeOf("function");
   });
 
   it("@introspection-sdk/introspection-node/otel (traces surface)", async () => {

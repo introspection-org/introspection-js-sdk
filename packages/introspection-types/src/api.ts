@@ -23,6 +23,51 @@ export interface ListParams {
   include_total?: boolean;
 }
 
+/**
+ * Response representation for the bounded telemetry list reads
+ * (`GET /v1/conversations`, `GET /v1/events`). `"json"` (the default)
+ * returns the {@link Paginated} envelope; `"arrow"` negotiates an Apache
+ * Arrow IPC stream via the `Accept` header and reconstructs the same
+ * {@link Paginated} shape from the response body + pagination headers, so
+ * paging is identical across formats. See cloud
+ * `docs/design/agent-cli-machine-contract.md`.
+ */
+export type ReadFormat = "json" | "arrow";
+
+/**
+ * Ergonomic ordering + time-window params shared by the Data-Plane list
+ * reads. The client serializes these to the wire query args before
+ * sending: `order` → `direction`, `start` → `start_date`, `end` →
+ * `end_date`, and `lookback` (a relative duration like `"24h"`) →
+ * `start_date = now - lookback`.
+ *
+ * `lookback` is mutually exclusive with `start`/`end`; passing both
+ * throws a {@link ValidationError} client-side before any request.
+ */
+export interface ReadWindowParams {
+  /** Sort direction (server default `"desc"`). Maps to `direction`. */
+  order?: "asc" | "desc";
+  /**
+   * Start of the (inclusive) time window as an ISO-8601 datetime. Maps to
+   * `start_date`. Mutually exclusive with {@link lookback}.
+   */
+  start?: IsoDate;
+  /**
+   * End of the (inclusive) time window as an ISO-8601 datetime. Maps to
+   * `end_date`. Mutually exclusive with {@link lookback}.
+   */
+  end?: IsoDate;
+  /**
+   * Relative window as a duration string — `"<n><unit>"` where unit is one
+   * of `ms`, `s`, `m`, `h`, `d`, `w` (e.g. `"24h"`, `"7d"`, `"500ms"`).
+   * Computed client-side into `start_date = now - lookback`. Mutually
+   * exclusive with {@link start} / {@link end}.
+   */
+  lookback?: string;
+  /** Response encoding: `"json"` (default) or `"arrow"`. */
+  format?: ReadFormat;
+}
+
 // --- tasks ---
 
 export type TaskMode =
@@ -536,4 +581,281 @@ export interface RunRequest {
    * server-side. Populated by {@link RuntimeHandle.pin}.
    */
   recipe_id?: Uuid;
+}
+
+// --- events ---
+
+/** Readable projections exposed through `GET /v1/events`. */
+export type EventGrain =
+  "raw" | "introspection.observation" | "introspection.pattern";
+
+/** Optional raw-event expansions (repeated `include` param). */
+export type EventInclude = "attributes" | "body";
+
+/** Allow-listed fields for event ordering. */
+export type EventSortField = "created";
+
+/**
+ * One raw event record from `otel_logs`, returned by `GET /v1/events`
+ * (default / `grain=raw`) inside the standard cursor envelope
+ * `Paginated<RawEvent>`.
+ */
+export interface RawEvent {
+  /** Event ID (`LogAttributes.event.id`). */
+  id: string;
+  /** Event timestamp. */
+  timestamp: IsoDate;
+  /** Trace ID (hex string). */
+  trace_id?: string | null;
+  /** Span ID (hex string). */
+  span_id?: string | null;
+  /** GenAI conversation ID. */
+  conversation_id?: string | null;
+  /** Resolved event name. */
+  event_name?: string | null;
+  /** OTel service name. */
+  service_name?: string | null;
+  /** Environment lane. */
+  environment?: string | null;
+  /** Resolved runtime group ID. */
+  runtime_group_id?: Uuid | null;
+  /** Resolved runtime ID. */
+  runtime_id?: Uuid | null;
+  /** Resolved experiment ID. */
+  experiment_id?: Uuid | null;
+  /** Recipe git commit SHA. */
+  recipe_git_commit_sha?: string | null;
+  /** Log body text (only when `include=body`). */
+  body?: string | null;
+  /** Raw log attributes (only when `include=attributes`). */
+  attributes?: Record<string, unknown> | null;
+}
+
+/**
+ * Query params for `GET /v1/events` (cursor paging — `limit` / `next`
+ * come from {@link ListParams}; ordering + window come from
+ * {@link ReadWindowParams}). All filters are optional and combined with
+ * AND logic; date-range filters are inclusive.
+ */
+export interface EventListParams extends ListParams, ReadWindowParams {
+  /** Event grain projection (server default `"raw"`). */
+  grain?: EventGrain;
+  /** Event field to order by (server default `"created"`). */
+  sort?: EventSortField;
+  /** Sort direction (server default `"desc"`). Prefer `order` from {@link ReadWindowParams}. */
+  direction?: "asc" | "desc";
+  /** Lower bound (inclusive) on timestamp. Prefer `start` / `lookback`. */
+  start_date?: IsoDate;
+  /** Upper bound (inclusive) on timestamp. Prefer `end`. */
+  end_date?: IsoDate;
+  /** Filter by conversation ID. */
+  conversation_id?: string;
+  /** Filter observations by conversation IDs (repeated param). */
+  conversation_ids?: string[];
+  /** Filter by service name. */
+  service_name?: string;
+  /** Filter by environment lane. */
+  environment?: string;
+  /** Filter by runtime group ID. */
+  runtime_group_id?: Uuid;
+  /** Filter observations with no runtime group. */
+  runtime_group_unattributed?: boolean;
+  /** Observation/pattern lens filter. */
+  lens?: string;
+  /** Observation pattern assignment filter. */
+  pattern_id?: Uuid;
+  /** Pattern status filter. */
+  status?: string;
+  /** Include superseded observations. */
+  include_superseded?: boolean;
+  /** Observation severity filters (repeated param). */
+  severities?: string[];
+  /** Filter by exact event name. */
+  event_name?: string;
+  /** Filter by event name prefix. */
+  event_name_prefix?: string;
+  /** Filter by trace ID. */
+  trace_id?: string;
+  /** Filter by span ID. */
+  span_id?: string;
+  /** Filter by event IDs (repeated param, max 500). */
+  event_id?: string[];
+  /** Full-text search over the event body. */
+  q?: string;
+  /** RE2 regex search over the event body. */
+  q_regex?: string;
+  /** Optional expansions: `attributes`, `body` (repeated param). */
+  include?: EventInclude[];
+}
+
+// --- metrics ---
+
+/** Aggregation views selectable in a `POST /v1/metrics` request. */
+export type MetricView =
+  | "spans"
+  | "conversations"
+  | "events"
+  | "judgements"
+  | "observations"
+  | "patterns";
+
+/** Aggregation operators. */
+export type MetricAggregation =
+  | "count"
+  | "count_distinct"
+  | "sum"
+  | "avg"
+  | "min"
+  | "max"
+  | "p50"
+  | "p75"
+  | "p90"
+  | "p95"
+  | "p99";
+
+/** Filter operators for a metrics query. */
+export type MetricFilterOperator =
+  | "eq"
+  | "neq"
+  | "gt"
+  | "gte"
+  | "lt"
+  | "lte"
+  | "in"
+  | "nin"
+  | "exists"
+  | "contains";
+
+/** Named time-bucket widths. */
+export type MetricInterval =
+  | "10s"
+  | "30s"
+  | "1m"
+  | "5m"
+  | "15m"
+  | "30m"
+  | "1h"
+  | "2h"
+  | "3h"
+  | "6h"
+  | "12h"
+  | "1d"
+  | "2d"
+  | "1w"
+  | "1mo";
+
+/** One requested metric: an aggregation over an optional measure field. */
+export interface MetricSpec {
+  /** Measure field. Omit for `count`; required for every other aggregation. */
+  measure?: string | null;
+  aggregation: MetricAggregation;
+}
+
+/** A group-by dimension. */
+export interface MetricDimension {
+  field: string;
+}
+
+/** A pre-aggregation row filter. */
+export interface MetricFilter {
+  field: string;
+  operator: MetricFilterOperator;
+  /** Scalar for comparison ops, list for `in`/`nin`, omitted for `exists`. */
+  value?: string | number | boolean | Array<string | number | boolean> | null;
+}
+
+/** Time bucketing — supply `granularity` (named/`auto`) or `bins` (count). */
+export interface MetricTimeDimension {
+  granularity?: MetricInterval | "auto" | null;
+  bins?: number | null;
+}
+
+/** Ordering term: reference a metric by index, a dimension by field, or time. */
+export interface MetricOrderBy {
+  type: "metric" | "dimension" | "time";
+  direction?: "asc" | "desc";
+  metric_index?: number | null;
+  field?: string | null;
+}
+
+/** Post-aggregation filter on a metric by request index. */
+export interface MetricHaving {
+  metric_index: number;
+  operator: "eq" | "neq" | "gt" | "gte" | "lt" | "lte";
+  value: number;
+}
+
+/** Row/series limits for a metrics query. */
+export interface MetricQueryConfig {
+  row_limit?: number;
+  series_limit?: number | null;
+}
+
+/**
+ * Request body for `POST /v1/metrics` — the bounded, allow-listed
+ * telemetry aggregation contract. Unknown fields are rejected server-side.
+ * See cloud `docs/design/metrics-api.md`.
+ */
+export interface MetricQueryRequest {
+  view: MetricView;
+  metrics: MetricSpec[];
+  dimensions?: MetricDimension[];
+  filters?: MetricFilter[];
+  time_dimension?: MetricTimeDimension | null;
+  order_by?: MetricOrderBy[];
+  having?: MetricHaving[];
+  /** Window start (inclusive), ISO-8601 datetime. */
+  from_timestamp: IsoDate;
+  /** Window end (exclusive), ISO-8601 datetime. */
+  to_timestamp: IsoDate;
+  config?: MetricQueryConfig;
+}
+
+/** One resolved dimension field/value on a metrics result row. */
+export interface MetricDimensionValue {
+  field: string;
+  value: string;
+}
+
+/** One resolved metric value on a metrics result row. */
+export interface MetricResultValue {
+  metric_index: number;
+  measure: string | null;
+  aggregation: MetricAggregation;
+  value: number;
+}
+
+/** A single aggregated row of a metrics result. */
+export interface MetricResultRow {
+  /** Bucket start (epoch ms) when the query is time-bucketed, else `null`. */
+  timestamp?: number | null;
+  dimensions: MetricDimensionValue[];
+  metrics: MetricResultValue[];
+}
+
+/** The time window actually applied to a metrics query. */
+export interface MetricEffectiveWindow {
+  start: IsoDate;
+  end: IsoDate;
+}
+
+/** Metadata describing an executed metrics query. */
+export interface MetricQueryMeta {
+  view: MetricView;
+  window: MetricEffectiveWindow;
+  row_count: number;
+  row_limit: number;
+  interval?: MetricInterval | null;
+  step_seconds?: number | null;
+  /** True when a percentile aggregation used approximate state. */
+  approximate: boolean;
+  /** True when the result hit the row/series limit. */
+  truncated: boolean;
+  order_by: MetricOrderBy[];
+}
+
+/** Response body for `POST /v1/metrics`. */
+export interface MetricQueryResponse {
+  data: MetricResultRow[];
+  meta: MetricQueryMeta;
 }

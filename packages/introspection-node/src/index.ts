@@ -39,8 +39,10 @@ export type {
 export {
   ConversationItemsApi,
   ConversationsApi,
+  EventsApi,
   FileVersionsApi,
   FilesApi,
+  MetricsApi,
   RunHandle,
   SharesApi,
   TaskRunsApi,
@@ -49,6 +51,7 @@ export {
 export { streamResumable } from "@introspection-sdk/http";
 export type {
   FileUploadBody,
+  ListReadParams,
   StartParams,
   StreamOptions,
 } from "@introspection-sdk/http";
@@ -143,6 +146,31 @@ export type {
   SpanEvent,
   SpanKind,
   SpanStatus,
+  ReadFormat,
+  ReadWindowParams,
+  RawEvent,
+  EventGrain,
+  EventInclude,
+  EventSortField,
+  EventListParams,
+  MetricView,
+  MetricAggregation,
+  MetricFilterOperator,
+  MetricInterval,
+  MetricSpec,
+  MetricDimension,
+  MetricFilter,
+  MetricTimeDimension,
+  MetricOrderBy,
+  MetricHaving,
+  MetricQueryConfig,
+  MetricQueryRequest,
+  MetricDimensionValue,
+  MetricResultValue,
+  MetricResultRow,
+  MetricEffectiveWindow,
+  MetricQueryMeta,
+  MetricQueryResponse,
 } from "@introspection-sdk/types";
 export { ConversationsMethods } from "@introspection-sdk/types";
 export {
