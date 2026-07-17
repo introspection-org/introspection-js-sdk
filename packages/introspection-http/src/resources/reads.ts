@@ -150,6 +150,17 @@ async function loadArrow(): Promise<typeof import("apache-arrow")> {
  * `toJSON()` flattens them so JSON and Arrow rows are interchangeable.
  */
 function arrowValueToPlain(value: unknown): unknown {
+  // Arrow int64/uint64 cells decode to `bigint`, but the JSON transport
+  // parses the same values to plain numbers. Convert when exact so JSON
+  // and Arrow rows are interchangeable; values outside the safe-integer
+  // range stay `bigint` rather than silently losing precision.
+  if (
+    typeof value === "bigint" &&
+    value >= BigInt(Number.MIN_SAFE_INTEGER) &&
+    value <= BigInt(Number.MAX_SAFE_INTEGER)
+  ) {
+    return Number(value);
+  }
   if (value === null || typeof value !== "object") return value;
   if (value instanceof Date || value instanceof Uint8Array) return value;
   if (Array.isArray(value)) return value.map(arrowValueToPlain);
