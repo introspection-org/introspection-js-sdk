@@ -187,6 +187,62 @@ describe("EventsApi.list — Arrow format", () => {
     expect(page.total_count).toBeNull();
     expect(page.records).toEqual([{ id: "ev-1" }]);
   });
+
+  it("decodes an empty Arrow page (empty body) to zero records without touching Arrow", async () => {
+    // A zero-byte body must skip the `apache-arrow` decode entirely
+    // (the `if (bytes.byteLength > 0)` guard in reads.ts) and still yield
+    // a sane, exhausted Paginated envelope from the headers alone.
+    const http = mockHttp({
+      streamResult: new Response(new Uint8Array(0), {
+        headers: { "x-result-count": "0", "x-truncated": "false" },
+      }),
+    });
+    const api = new EventsApi(http);
+    const page = await api.list({ format: "arrow" });
+
+    expect(page.records).toEqual([]);
+    expect(page.count).toBe(0);
+    expect(page.total_count).toBeNull();
+    expect(page.next).toBeNull();
+  });
+
+  it("auto-pages `for await` across two Arrow pages until the cursor is exhausted", async () => {
+    const http = mockHttp();
+    (http.stream as ReturnType<typeof vi.fn>)
+      .mockResolvedValueOnce(
+        arrowResponse(
+          { id: ["ev-1"], event_name: ["chat"] },
+          {
+            "x-result-count": "1",
+            "x-truncated": "true",
+            "x-next-cursor": "cursor-2",
+            "x-total-count": "2",
+          },
+        ),
+      )
+      // Page 2 carries no `x-next-cursor` header, so iteration terminates.
+      .mockResolvedValueOnce(
+        arrowResponse(
+          { id: ["ev-2"], event_name: ["chat"] },
+          {
+            "x-result-count": "1",
+            "x-truncated": "false",
+            "x-total-count": "2",
+          },
+        ),
+      );
+
+    const api = new EventsApi(http);
+    const events = [];
+    for await (const ev of api.list({ format: "arrow" })) events.push(ev);
+
+    expect(events.map((e) => e.id)).toEqual(["ev-1", "ev-2"]);
+    expect(http.stream).toHaveBeenCalledTimes(2);
+    // The paginator threads the first page's cursor onto the second request.
+    expect(
+      (http.stream as ReturnType<typeof vi.fn>).mock.calls[1][0].query.next,
+    ).toBe("cursor-2");
+  });
 });
 
 describe("MetricsApi.query", () => {

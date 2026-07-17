@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { tableFromArrays, tableToIPC } from "apache-arrow";
 import {
   ConversationsApi,
   HttpClient,
@@ -336,6 +337,43 @@ describe("ConversationsApi", () => {
 
     expect(response).toBeNull();
     expect(http.request).toHaveBeenCalledTimes(1);
+  });
+
+  it("list() negotiates Arrow and rebuilds conversation summaries from the IPC stream + headers", async () => {
+    const ipc = tableToIPC(
+      tableFromArrays({
+        trace_id: ["trace-1", "trace-2"],
+        conversation_id: ["conv-1", "conv-2"],
+        model: ["claude-x", "claude-y"],
+      }),
+      "stream",
+    );
+    const http = mockHttp({
+      streamResult: new Response(ipc, {
+        headers: {
+          "x-result-count": "2",
+          "x-truncated": "true",
+          "x-next-cursor": "cursor-2",
+          "x-total-count": "7",
+        },
+      }),
+    });
+    const api = new ConversationsApi(http);
+    const page = await api.list({ format: "arrow", limit: 2 });
+
+    expect(http.stream).toHaveBeenCalledWith({
+      path: "/v1/conversations",
+      query: { limit: 2 },
+      headers: { Accept: "application/vnd.apache.arrow.stream" },
+      signal: undefined,
+    });
+    expect(page.records).toEqual([
+      { trace_id: "trace-1", conversation_id: "conv-1", model: "claude-x" },
+      { trace_id: "trace-2", conversation_id: "conv-2", model: "claude-y" },
+    ]);
+    expect(page.count).toBe(2);
+    expect(page.total_count).toBe(7);
+    expect(page.next).toBe("cursor-2");
   });
 
   it("retrieve() maps legacy `result` keys on tool_call_response parts to `response`", async () => {
