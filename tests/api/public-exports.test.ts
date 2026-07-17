@@ -30,6 +30,13 @@ describe("public export barrels", () => {
     expect(mod).not.toHaveProperty("RecipesApi");
   });
 
+  it("@introspection-sdk/http does not expose runtime control-plane helpers", async () => {
+    const mod = await import("@introspection-sdk/http");
+    expect(mod).not.toHaveProperty("RuntimesApi");
+    expect(mod).not.toHaveProperty("RuntimesClient");
+    expect(mod).not.toHaveProperty("attachRuntimes");
+  });
+
   it("@introspection-sdk/introspection-node/otel (traces surface)", async () => {
     const mod = await import("@introspection-sdk/introspection-node/otel");
     for (const name of [

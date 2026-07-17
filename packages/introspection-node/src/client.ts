@@ -19,12 +19,10 @@ import { HttpClient } from "./http.js";
 import {
   attachRuntimes,
   type RuntimeHandleFactory,
-  type RuntimesApi,
 } from "./resources/runtimes.js";
 import {
   attachExperiments,
   type ExperimentHandleFactory,
-  type ExperimentsApi,
 } from "./resources/experiments.js";
 
 /**
@@ -54,10 +52,10 @@ export class IntrospectionClient {
   readonly advancedOptions: AdvancedOptions;
 
   /** Internal runtime resolver used by `runtime(ref)`. */
-  private readonly runtimeHandles: RuntimesApi & RuntimeHandleFactory;
+  private readonly runtimeHandles: RuntimeHandleFactory;
 
   /** Internal experiment runner opener used by `experiment(id)`. */
-  private readonly experimentHandles: ExperimentsApi & ExperimentHandleFactory;
+  private readonly experimentHandles: ExperimentHandleFactory;
 
   constructor(options: IntrospectionClientOptions = {}) {
     const token = options.token || process.env.INTROSPECTION_TOKEN || "";

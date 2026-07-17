@@ -70,8 +70,6 @@ export interface ReadWindowParams {
 
 // --- tasks ---
 
-export type TaskKind = "agent" | "process";
-
 export type TaskStatus =
   | "pending"
   | "queued"
@@ -97,7 +95,6 @@ export interface Task {
   updated_at: IsoDate;
   title?: string | null;
   display_index?: number | null;
-  kind: TaskKind;
   status: TaskStatus;
   member_id?: Uuid | null;
   automation_id?: Uuid | null;

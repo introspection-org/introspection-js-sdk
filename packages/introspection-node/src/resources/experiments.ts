@@ -26,7 +26,7 @@ function toRunBody(opts?: RunRequest): ExperimentRunRequestBody | undefined {
   return out;
 }
 
-export class ExperimentsApi {
+class ExperimentsApi {
   constructor(
     private readonly http: HttpClient,
     private readonly client: IntrospectionClient,
@@ -63,11 +63,7 @@ export type ExperimentHandleFactory = (id: Uuid) => ExperimentHandle;
 export function attachExperiments(
   client: IntrospectionClient,
   http: HttpClient,
-): ExperimentsApi & ExperimentHandleFactory {
+): ExperimentHandleFactory {
   const api = new ExperimentsApi(http, client);
-  const factory: ExperimentHandleFactory = (id: Uuid) =>
-    new ExperimentHandle(api, id);
-  const hybrid = factory as ExperimentsApi & ExperimentHandleFactory;
-  hybrid.runById = api.runById.bind(api);
-  return hybrid;
+  return (id: Uuid) => new ExperimentHandle(api, id);
 }

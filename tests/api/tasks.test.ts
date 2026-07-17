@@ -20,7 +20,6 @@ const TASK_FIXTURE = {
   project_id: "proj-1",
   created_at: "2025-01-01T00:00:00Z",
   updated_at: "2025-01-01T00:00:00Z",
-  kind: "agent" as const,
   status: "running" as const,
   is_archived: false,
 };

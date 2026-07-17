@@ -56,15 +56,3 @@ export {
 } from "./resources/reads.js";
 export type { ListReadParams } from "./resources/reads.js";
 export { SharesApi, SharesClient } from "./resources/shares.js";
-export {
-  RuntimeHandle,
-  RuntimesClient,
-  attachRuntimes,
-  isUuid,
-} from "./resources/runtimes.js";
-export type {
-  RuntimeHandleFactory,
-  RuntimeRunRequestBody,
-  RuntimeRunnerFactory,
-  RuntimeRunnerSource,
-} from "./resources/runtimes.js";
