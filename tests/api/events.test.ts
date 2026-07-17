@@ -411,6 +411,78 @@ describe("EventsApi.list — Arrow with a struct payload column", () => {
     expect(page.records[0].timestamp).toBe("2026-07-17T00:00:00.000Z");
     expect(page.records[0].payload.properties).toEqual({ surface: "chat" });
   });
+
+  it("decodes the server's exact column encodings: dictionary strings, tz timestamps, list<string>, int64, JSON dict fields", async () => {
+    // Mirrors the DP Arrow writer's schema traits: envelope
+    // `event_name`/`environment`/`service_name` are DICTIONARY-encoded,
+    // `timestamp` is timestamp('us', tz=UTC), `evidence_refs` is
+    // list<string>, `segment` is int64, and open dict-shaped payload
+    // fields (`metadata`) are JSON-encoded strings inside the struct.
+    // Each dictionary-encoded column needs its own dictionary id.
+    const dictUtf8 = (id: number) =>
+      new arrow.Dictionary(new arrow.Utf8(), new arrow.Int32(), id);
+    const payloadType = new arrow.Struct([
+      new arrow.Field("observation_id", new arrow.Utf8(), false),
+      new arrow.Field("lens", new arrow.Utf8(), true),
+      new arrow.Field("segment", new arrow.Int64(), true),
+      new arrow.Field(
+        "evidence_refs",
+        new arrow.List(new arrow.Field("item", new arrow.Utf8(), true)),
+        true,
+      ),
+      new arrow.Field("metadata", new arrow.Utf8(), true),
+    ]);
+    const table = new arrow.Table({
+      id: arrow.vectorFromArray(["ev-1"], new arrow.Utf8()),
+      timestamp: arrow.vectorFromArray(
+        [new Date("2026-07-17T03:00:00.000Z")],
+        new arrow.TimestampMicrosecond("UTC"),
+      ),
+      event_name: arrow.vectorFromArray(
+        ["introspection.observation"],
+        dictUtf8(1),
+      ),
+      environment: arrow.vectorFromArray(["production"], dictUtf8(2)),
+      service_name: arrow.vectorFromArray(["checkout-agent"], dictUtf8(3)),
+      payload: arrow.vectorFromArray(
+        [
+          {
+            observation_id: "obs-1",
+            lens: "task_resolution",
+            segment: 0n,
+            evidence_refs: ["item-1", "item-2"],
+            metadata: JSON.stringify({ k: "v", n: 2 }),
+          },
+        ],
+        payloadType,
+      ),
+    });
+    const http = mockHttp({
+      streamResult: new Response(arrow.tableToIPC(table, "stream")),
+    });
+
+    const page = await new EventsApi(http).list({
+      event_name: "introspection.observation",
+      format: "arrow",
+    });
+
+    const ev = page.records[0];
+    // Dictionary columns decode to plain strings, not index proxies.
+    expect(ev.event_name).toBe("introspection.observation");
+    expect(ev.environment).toBe("production");
+    expect(ev.service_name).toBe("checkout-agent");
+    // tz-aware microsecond timestamp normalizes to the ISO string the
+    // JSON transport returns (the `Event` type declares `string`).
+    expect(ev.timestamp).toBe("2026-07-17T03:00:00.000Z");
+    if (ev.event_name !== "introspection.observation") throw new Error();
+    // int64 decodes to a plain number, matching JSON (not a bigint).
+    expect(ev.payload.segment).toBe(0);
+    expect(typeof ev.payload.segment).toBe("number");
+    // list<string> flattens to a plain array.
+    expect(ev.payload.evidence_refs).toEqual(["item-1", "item-2"]);
+    // JSON-encoded dict fields re-parse to objects, matching JSON.
+    expect(ev.payload.metadata).toEqual({ k: "v", n: 2 });
+  });
 });
 
 describe("EventsApi.arrow — columnar accessor", () => {
