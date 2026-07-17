@@ -697,8 +697,10 @@ export interface PatternPayload {
 
 /** One observation → pattern assignment event. */
 export interface PatternAssignmentPayload {
+  /** Identity — the observation the (un)assignment applies to. */
   observation_id: Uuid;
-  pattern_id: string;
+  /** Assigned pattern; `null` = explicitly unassigned. */
+  pattern_id?: string | null;
   method?: string | null;
   run_id?: string | null;
   score?: number | null;
@@ -734,6 +736,12 @@ export interface FeedbackPayload {
   anonymous_id?: string | null;
   /** `positive` | `negative` | `neutral`, when emitted. */
   sentiment?: string | null;
+  /** Response the feedback anchors to (`gen_ai.request.previous_response_id`). */
+  previous_response_id?: string | null;
+  /** Emitting agent name (`gen_ai.agent.name`). */
+  agent_name?: string | null;
+  /** Emitting agent ID (`gen_ai.agent.id`). */
+  agent_id?: string | null;
   /** Remaining `properties.*` extras. */
   properties?: Record<string, unknown> | null;
 }

@@ -76,6 +76,9 @@ describe("EventsApi.list — typed families (JSON)", () => {
               user_id: "user-1",
               anonymous_id: null,
               sentiment: "positive",
+              previous_response_id: "resp-42",
+              agent_name: "support-agent",
+              agent_id: "agent-7",
               properties: { surface: "chat" },
             },
           },
@@ -95,9 +98,52 @@ describe("EventsApi.list — typed families (JSON)", () => {
     expect(ev.payload.value).toBe(1);
     expect(ev.payload.user_id).toBe("user-1");
     expect(ev.payload.sentiment).toBe("positive");
+    expect(ev.payload.previous_response_id).toBe("resp-42");
+    expect(ev.payload.agent_name).toBe("support-agent");
+    expect(ev.payload.agent_id).toBe("agent-7");
     expect(ev.payload.properties).toEqual({ surface: "chat" });
     expect(isKnownEvent(ev)).toBe(true);
     expect(narrowEvent(ev)).toBe("thumbs_up");
+  });
+
+  it("decodes an unassignment (pattern_id null) into the typed PatternAssignment member", async () => {
+    const http = mockHttp({
+      requestResult: {
+        records: [
+          {
+            ...ENVELOPE,
+            id: "ev-pa-1",
+            event_name: "introspection.pattern.assignment",
+            payload: {
+              observation_id: "0195fb1a-0000-7000-8000-000000000002",
+              // null = explicitly unassigned; observation_id alone is identity.
+              pattern_id: null,
+              method: "manual",
+              run_id: "run-3",
+              score: null,
+            },
+          },
+        ],
+        count: 1,
+        next: null,
+      },
+    });
+    const api = new EventsApi(http);
+    const page = await api.list({
+      event_name: "introspection.pattern.assignment",
+    });
+    const ev = page.records[0];
+
+    expect(ev.event_name).toBe(IntrospectionEventNames.PATTERN_ASSIGNMENT);
+    expect(ev.payload.observation_id).toBe(
+      "0195fb1a-0000-7000-8000-000000000002",
+    );
+    expect(ev.payload.pattern_id).toBeNull();
+    expect(ev.payload.method).toBe("manual");
+    expect(isKnownEvent(ev)).toBe(true);
+    // Narrowing on the discriminant still compiles with the nullable
+    // pattern_id (narrowEvent returns it from the assignment branch).
+    expect(narrowEvent(ev)).toBeNull();
   });
 
   it("returns ObservationEvent rows with the fold fields in the payload", async () => {
