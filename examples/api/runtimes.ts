@@ -29,7 +29,7 @@ async function main() {
   //    it via `/v1/runtimes?runtime=…`, then calls
   //    `/v1/runtimes/{id}/run` which mints a short-lived access token
   //    and tells the runner which DP to talk to.
-  const runner = await client.runtimes(runtime).run({
+  const runner = await client.runtime(runtime).run({
     identity: { user_id: "u_demo" },
   });
   console.log(

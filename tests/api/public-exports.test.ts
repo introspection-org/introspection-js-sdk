@@ -22,10 +22,12 @@ describe("public export barrels", () => {
     expect(mod.IntrospectionClient).toBeTypeOf("function");
     expect(mod.HttpClient).toBeTypeOf("function");
     expect(mod.Runner).toBeTypeOf("function");
-    expect(mod.RuntimesApi).toBeTypeOf("function");
     expect(mod.ConversationsApi).toBeTypeOf("function");
     expect(mod.EventsApi).toBeTypeOf("function");
     expect(mod.MetricsApi).toBeTypeOf("function");
+    expect(mod).not.toHaveProperty("RuntimesApi");
+    expect(mod).not.toHaveProperty("ExperimentsApi");
+    expect(mod).not.toHaveProperty("RecipesApi");
   });
 
   it("@introspection-sdk/introspection-node/otel (traces surface)", async () => {

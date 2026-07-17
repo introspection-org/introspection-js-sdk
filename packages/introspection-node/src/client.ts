@@ -1,9 +1,8 @@
 /**
  * Introspection REST Client for Node.js
  *
- * Exposes the Control Plane REST surface for managing runtimes and
- * experiments. Calling `client.runtimes(slug).run()` or
- * `client.experiments(id).run()` returns a {@link Runner} bound to a Data
+ * Opens runners for configured runtimes and experiments. Calling
+ * `client.runtime(ref).run()` or `client.experiment(id).run()` returns a {@link Runner} bound to a Data
  * Plane sandbox.
  *
  * This class is **REST-only** and does not depend on the OpenTelemetry
@@ -27,7 +26,6 @@ import {
   type ExperimentHandleFactory,
   type ExperimentsApi,
 } from "./resources/experiments.js";
-import { attachRecipes, type RecipesApi } from "./resources/recipes.js";
 
 /**
  * Introspection REST client.
@@ -39,7 +37,7 @@ import { attachRecipes, type RecipesApi } from "./resources/recipes.js";
  * });
  *
  * // Open a runner from a runtime, then drive it.
- * const runner = await client.runtimes("customer-agent").run({
+ * const runner = await client.runtime("customer-agent").run({
  *   identity: { user_id: "u_42" },
  * });
  * const run = await runner.tasks.create({ prompt: "Summarize this repo" });
@@ -55,25 +53,11 @@ export class IntrospectionClient {
   /** @internal — passed through to Runner so it can build its own DP HTTP client. */
   readonly advancedOptions: AdvancedOptions;
 
-  /**
-   * CRUD on `/v1/runtimes` and the `(idOrSlug) => RuntimeHandle` factory.
-   * Call as `client.runtimes("customer-agent").run()`. The project is taken
-   * from the API key server-side; pass `project` to a CRUD helper only to
-   * override it per call.
-   */
-  readonly runtimes: RuntimesApi & RuntimeHandleFactory;
+  /** Internal runtime resolver used by `runtime(ref)`. */
+  private readonly runtimeHandles: RuntimesApi & RuntimeHandleFactory;
 
-  /**
-   * CRUD on `/v1/experiments` and the `(id) => ExperimentHandle` factory.
-   */
-  readonly experiments: ExperimentsApi & ExperimentHandleFactory;
-
-  /**
-   * CRUD on `/v1/recipes`. Recipes are immutable build artefacts
-   * (repository + git ref + commit sha) referenced by runtimes and
-   * experiment arms.
-   */
-  readonly recipes: RecipesApi;
+  /** Internal experiment runner opener used by `experiment(id)`. */
+  private readonly experimentHandles: ExperimentsApi & ExperimentHandleFactory;
 
   constructor(options: IntrospectionClientOptions = {}) {
     const token = options.token || process.env.INTROSPECTION_TOKEN || "";
@@ -100,11 +84,20 @@ export class IntrospectionClient {
       fetch: advanced.fetch,
     });
 
-    this.runtimes = attachRuntimes(this, this.cpHttp);
-    this.experiments = attachExperiments(this, this.cpHttp);
-    this.recipes = attachRecipes(this.cpHttp);
+    this.runtimeHandles = attachRuntimes(this, this.cpHttp);
+    this.experimentHandles = attachExperiments(this, this.cpHttp);
 
     sdkLogger.info(`IntrospectionClient initialized: api=${baseApiUrl}`);
+  }
+
+  /** Open a runner from a configured runtime group slug or id. */
+  runtime(ref: string) {
+    return this.runtimeHandles(ref);
+  }
+
+  /** Open a runner from an existing experiment id. */
+  experiment(id: string) {
+    return this.experimentHandles(id);
   }
 
   /**
@@ -125,7 +118,7 @@ export class IntrospectionClient {
    * });
    *
    * // Resolved fresh from the runtime slug on every call.
-   * const runner = await client.runtimes("customer-agent").run({
+   * const runner = await client.runtime("customer-agent").run({
    *   identity: { user_id: "u_demo" },
    * });
    * ```

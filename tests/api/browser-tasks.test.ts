@@ -42,7 +42,7 @@ const TASK_FIXTURE = {
   project_id: "proj-1",
   created_at: "2025-01-01T00:00:00Z",
   updated_at: "2025-01-01T00:00:00Z",
-  mode: "agent" as const,
+  kind: "agent" as const,
   status: "running" as const,
   is_archived: false,
 };
@@ -330,15 +330,16 @@ describe("RunHandle / TaskRunsClient", () => {
     });
   });
 
-  it("cancel() posts to the run cancel route", async () => {
+  it("abort() posts the explicit abort mode", async () => {
     const http = mockHttp({ requestResult: { id: "run-1" } });
     const runs = new TaskRunsClient(http);
     const handle = new RunHandle(TASK_FIXTURE, RUN_FIXTURE, runs);
-    await handle.cancel();
+    await handle.abort();
 
     expect(http.request).toHaveBeenCalledWith({
       method: "POST",
       path: "/v1/tasks/task-1/runs/run-1/cancel",
+      body: { mode: "abort" },
     });
   });
 

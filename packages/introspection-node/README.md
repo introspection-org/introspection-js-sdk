@@ -1,7 +1,7 @@
 # @introspection-sdk/introspection-node
 
-Node.js platform SDK for [Introspection](https://introspection.dev) — open runtimes,
-drive tasks, and manage experiments, recipes, files, conversations, and shares.
+Node.js execution SDK for [Introspection](https://introspection.dev) — open configured
+runtimes or experiments, then drive tasks, files, conversations, events, metrics, and shares.
 
 ## Install
 
@@ -29,7 +29,11 @@ import { IntrospectionClient } from "@introspection-sdk/introspection-node";
 
 const client = new IntrospectionClient();
 
-const runner = await client.runtimes("customer-agent").run();
+const runner = await client.runtime("customer-agent").run({
+  agent_name: "agent",
+  scope:
+    "tasks:read tasks:write files:read files:write events:read metrics:read",
+});
 
 const run = await runner.tasks.start({
   prompt: "Say hello in one sentence.",

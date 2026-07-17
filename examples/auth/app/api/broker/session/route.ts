@@ -18,7 +18,6 @@
  */
 import { NextResponse } from "next/server";
 import {
-  IntrospectionClient,
   authorizationCodeToken,
   serviceAccountToken,
   tokenExchange,
@@ -49,11 +48,20 @@ async function resolveRuntimeId(): Promise<string> {
     project: project(),
     baseApiUrl: controlPlaneUrl(),
   });
-  const cp = new IntrospectionClient({
-    token: access_token,
-    advanced: { baseApiUrl: controlPlaneUrl() },
+  const url = new URL("/v1/runtimes", controlPlaneUrl());
+  url.searchParams.set("runtime", runtime());
+  url.searchParams.set("only_active", "true");
+  url.searchParams.set("limit", "1");
+  const response = await fetch(url, {
+    headers: { Authorization: `Bearer ${access_token}` },
   });
-  return (await cp.runtimes.resolve(runtime())).id;
+  if (!response.ok) {
+    throw new Error(`Runtime resolution failed: ${response.status}`);
+  }
+  const page = (await response.json()) as { records: Array<{ id: string }> };
+  const id = page.records[0]?.id;
+  if (!id) throw new Error(`Runtime '${runtime()}' was not found`);
+  return id;
 }
 
 /** The CP resolves the project's DP URL onto the token response (like the CLI login). */

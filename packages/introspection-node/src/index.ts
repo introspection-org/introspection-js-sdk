@@ -61,23 +61,11 @@ export { HttpClient } from "./http.js";
 export type { ResolvedApiConfig } from "./http.js";
 export { EventType } from "@introspection-sdk/types";
 
-// Runner + CP resources.
+// Runner execution resources.
 export { Runner } from "./runner.js";
 export type { RunnerSource } from "./runner.js";
-export {
-  RuntimesApi,
-  RuntimeHandle,
-  attachRuntimes,
-  isUuid,
-} from "./resources/runtimes.js";
-export type { RuntimeHandleFactory } from "./resources/runtimes.js";
-export {
-  ExperimentsApi,
-  ExperimentHandle,
-  attachExperiments,
-} from "./resources/experiments.js";
-export type { ExperimentHandleFactory } from "./resources/experiments.js";
-export { RecipesApi, attachRecipes } from "./resources/recipes.js";
+export { RuntimeHandle } from "./resources/runtimes.js";
+export { ExperimentHandle } from "./resources/experiments.js";
 
 // REST API wire types
 export type {
@@ -93,7 +81,7 @@ export type {
   TaskCreateParams,
   TaskUpdateParams,
   TaskListParams,
-  TaskMode,
+  TaskKind,
   TaskStatus,
   TaskRunKind,
   TaskPrompt,
@@ -103,31 +91,18 @@ export type {
   TaskRunResponse,
   TaskCreateResponse,
   TaskCancelResponse,
+  TaskCancelOptions,
+  TaskAbortOptions,
+  TaskDrainOptions,
   AgentInfo,
   File,
   FileType,
   FileListParams,
   FileUpdateParams,
   FileCreateTextParams,
-  Runtime,
-  RuntimeCreate,
-  RuntimeUpdate,
-  RuntimeListParams,
-  Experiment,
-  ExperimentCreate,
-  ExperimentUpdate,
-  ExperimentListParams,
-  ExperimentStatus,
-  ExperimentEndParams,
-  Arm,
-  Recipe,
-  RecipeCreate,
-  RecipeUpdate,
-  RecipeListParams,
   RunnerSpec,
   RunnerDeployment,
   RunnerContext,
-  RunnerRecipeSummary,
   RunnerIdentity,
   RunRequest,
   RunCaller,

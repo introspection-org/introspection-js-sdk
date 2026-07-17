@@ -20,7 +20,7 @@ const TASK_FIXTURE = {
   project_id: "proj-1",
   created_at: "2025-01-01T00:00:00Z",
   updated_at: "2025-01-01T00:00:00Z",
-  mode: "agent" as const,
+  kind: "agent" as const,
   status: "running" as const,
   is_archived: false,
 };
@@ -112,17 +112,23 @@ describe("TasksApi", () => {
     });
   });
 
-  it("list() forwards the identity_key filter", async () => {
+  it("list() forwards current runtime filters", async () => {
     const http = mockHttp({
       requestResult: { records: [], count: 0, total_count: 0, next: null },
     });
     const api = new TasksApi(http);
-    await api.list({ identity_key: "user:u_a" });
+    await api.list({
+      runtime_id: "runtime-1",
+      updated_after: "2026-01-01T00:00:00Z",
+    });
 
     expect(http.request).toHaveBeenCalledWith({
       method: "GET",
       path: "/v1/tasks",
-      query: { identity_key: "user:u_a" },
+      query: {
+        runtime_id: "runtime-1",
+        updated_after: "2026-01-01T00:00:00Z",
+      },
     });
   });
 
@@ -253,14 +259,27 @@ describe("TaskRunsApi", () => {
     });
   });
 
-  it("cancel() calls POST /v1/tasks/:id/runs/:runId/cancel", async () => {
+  it("abort() sends the explicit abort mode", async () => {
     const http = mockHttp({ requestResult: { id: "run-1" } });
     const runs = new TaskRunsApi(http);
-    await runs.cancel("task-1", "run-1");
+    await runs.abort("task-1", "run-1");
 
     expect(http.request).toHaveBeenCalledWith({
       method: "POST",
       path: "/v1/tasks/task-1/runs/run-1/cancel",
+      body: { mode: "abort" },
+    });
+  });
+
+  it("drain() maps withinSeconds to the wire contract", async () => {
+    const http = mockHttp({ requestResult: { id: "run-1" } });
+    const runs = new TaskRunsApi(http);
+    await runs.drain("task-1", "run-1", { withinSeconds: 60 });
+
+    expect(http.request).toHaveBeenCalledWith({
+      method: "POST",
+      path: "/v1/tasks/task-1/runs/run-1/cancel",
+      body: { mode: "drain", drain_within_seconds: 60 },
     });
   });
 });
@@ -296,15 +315,16 @@ describe("RunHandle", () => {
     expect(result).toBe("Hello world");
   });
 
-  it("cancel() delegates to runs.cancel()", async () => {
+  it("abort() delegates to runs.abort()", async () => {
     const http = mockHttp({ requestResult: { id: "run-1" } });
     const runs = new TaskRunsApi(http);
     const handle = new RunHandle(TASK_FIXTURE, RUN_FIXTURE, runs);
-    await handle.cancel();
+    await handle.abort();
 
     expect(http.request).toHaveBeenCalledWith({
       method: "POST",
       path: "/v1/tasks/task-1/runs/run-1/cancel",
+      body: { mode: "abort" },
     });
   });
 });

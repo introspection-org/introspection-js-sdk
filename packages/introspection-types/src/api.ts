@@ -70,17 +70,7 @@ export interface ReadWindowParams {
 
 // --- tasks ---
 
-export type TaskMode =
-  | "agent"
-  | "introspect"
-  | "system_review"
-  | "system_instrumentation"
-  | "observation_review"
-  | "security_review"
-  | "repo_index"
-  | "system_discovery"
-  | "onboarding"
-  | "heartbeat";
+export type TaskKind = "agent" | "process";
 
 export type TaskStatus =
   | "pending"
@@ -107,7 +97,7 @@ export interface Task {
   updated_at: IsoDate;
   title?: string | null;
   display_index?: number | null;
-  mode: TaskMode;
+  kind: TaskKind;
   status: TaskStatus;
   member_id?: Uuid | null;
   automation_id?: Uuid | null;
@@ -124,8 +114,6 @@ export interface Task {
 export interface TaskCreateParams {
   title?: string;
   prompt?: string;
-  mode?: TaskMode;
-  system_id?: string;
   repository_id?: Uuid;
   metadata?: Record<string, unknown>;
   /**
@@ -152,10 +140,10 @@ export interface TaskUpdateParams {
 
 export interface TaskListParams extends ListParams {
   statuses?: TaskStatus[];
-  modes?: TaskMode[];
   require_automation_id?: boolean;
-  /** Privileged credentials only: audit a specific owner identity. */
-  identity_key?: string;
+  runtime_id?: Uuid;
+  runtime_ids?: Uuid[];
+  updated_after?: IsoDate;
 }
 
 export interface TaskPrompt {
@@ -285,183 +273,7 @@ export interface ShareListParams extends ListParams {
   granted_to_me?: boolean;
 }
 
-// --- runtimes / experiments / runner ---
-
-/**
- * How a Runtime acquires LLM provider credentials at session create.
- *
- * - `"managed"` — Introspection-managed keys (default; current behaviour).
- * - `"byok"`    — the project's Endpoint pool. Applicable LLM endpoints
- *                 are materialised into the session. Session create fails
- *                 with `byok_no_endpoints` if no applicable LLM endpoint
- *                 exists in the project.
- */
-export type RuntimeLlmMode = "managed" | "byok";
-
-/**
- * How a runtime group resolves which runtime serves a run.
- *
- * - `"sticky"` — a run pins the runtime that was active when it started and
- *   keeps using it for the whole conversation, even after a newer runtime is
- *   promoted. The production default.
- * - `"latest"` — every run (including restarts of an existing task) resolves
- *   the runtime currently active for the environment. The default for
- *   non-production environments.
- *
- * A per-run `resolution_mode` on the run request overrides the group's
- * setting; a yanked runtime is never resolved under either mode.
- */
-export type RuntimeResolutionMode = "sticky" | "latest";
-
-export interface Runtime {
-  id: Uuid;
-  org_id: Uuid;
-  project_id: Uuid;
-  name: string;
-  slug: string;
-  description?: string | null;
-  recipe_id: Uuid;
-  is_active: boolean;
-  llm_mode: RuntimeLlmMode;
-  created_at: IsoDate;
-  updated_at: IsoDate;
-  /**
-   * When set, the runtime has been withdrawn and will never resolve as the
-   * active runtime for its environment; in-flight sticky runs keep using it.
-   */
-  yanked_at?: IsoDate | null;
-  yanked_reason?: string | null;
-  metadata?: Record<string, unknown> | null;
-}
-
-export interface RuntimeCreate {
-  /** Project slug or id. */
-  project: string;
-  name: string;
-  slug?: string;
-  recipe_id: Uuid;
-  description?: string;
-  metadata?: Record<string, unknown>;
-  is_active?: boolean;
-  /** Defaults to `"managed"` on the server when omitted. */
-  llm_mode?: RuntimeLlmMode;
-}
-
-export interface RuntimeUpdate {
-  name?: string;
-  description?: string;
-  recipe_id?: Uuid;
-  is_active?: boolean;
-  metadata?: Record<string, unknown>;
-  llm_mode?: RuntimeLlmMode;
-}
-
-export interface RuntimeListParams extends ListParams {
-  /** Project slug or id. */
-  project?: string;
-  /** Runtime slug or id. */
-  runtime?: string;
-  recipe_id?: Uuid;
-  only_active?: boolean;
-  /** Restrict to runtimes serving this environment (e.g. `"production"`). */
-  environment?: string;
-  /** Omit withdrawn runtimes — mirrors the server-side active resolution. */
-  exclude_yanked?: boolean;
-}
-
-// --- recipes ---
-
-export interface Recipe {
-  id: Uuid;
-  org_id: Uuid;
-  project_id: Uuid;
-  repository_id: Uuid;
-  name: string;
-  slug: string;
-  git_ref: string;
-  git_commit_sha: string;
-  sub_path?: string | null;
-  description?: string | null;
-  created_by_member_id: Uuid;
-  created_at: IsoDate;
-  updated_at: IsoDate;
-}
-
-export interface RecipeCreate {
-  project: string;
-  repository_id: Uuid;
-  name: string;
-  git_ref: string;
-  git_commit_sha: string;
-  sub_path?: string;
-  slug?: string;
-  description?: string;
-}
-
-export interface RecipeUpdate {
-  name?: string;
-  description?: string;
-}
-
-export interface RecipeListParams extends ListParams {
-  project?: string;
-  repository_id?: Uuid;
-  name?: string;
-  git_ref?: string;
-  git_commit_sha?: string;
-}
-
-export type ExperimentStatus = "draft" | "running" | "concluded" | "cancelled";
-
-export interface Arm {
-  label: string;
-  recipe_id: Uuid;
-  weight?: number;
-}
-
-export interface Experiment {
-  id: Uuid;
-  org_id: Uuid;
-  project_id: Uuid;
-  name: string;
-  description?: string | null;
-  status: ExperimentStatus;
-  arms: Arm[];
-  control_arm_label?: string | null;
-  winner_arm_label?: string | null;
-  created_at: IsoDate;
-  updated_at: IsoDate;
-  started_at?: IsoDate | null;
-  concluded_at?: IsoDate | null;
-  metadata?: Record<string, unknown> | null;
-}
-
-export interface ExperimentCreate {
-  project: string;
-  name: string;
-  description?: string;
-  arms: Arm[];
-  control_arm_label?: string;
-  metadata?: Record<string, unknown>;
-}
-
-export interface ExperimentUpdate {
-  name?: string;
-  description?: string;
-  arms?: Arm[];
-  control_arm_label?: string;
-  metadata?: Record<string, unknown>;
-}
-
-export interface ExperimentListParams extends ListParams {
-  project?: string;
-  name?: string;
-  status?: ExperimentStatus;
-}
-
-export interface ExperimentEndParams {
-  winner_arm_label?: string;
-}
+// --- runner creation ---
 
 export interface RunnerIdentity {
   user_id: string | null;
@@ -469,18 +281,16 @@ export interface RunnerIdentity {
   conversation_id: string | null;
 }
 
-export interface RunnerRecipeSummary {
-  repository_id: Uuid;
-  git_ref: string;
-  git_commit_sha: string;
-}
-
 export interface RunnerContext {
-  runtime_id: Uuid;
-  experiment_id: Uuid | null;
-  recipe_id: Uuid;
-  recipe: RunnerRecipeSummary;
-  arm_label: string | null;
+  runtime_id?: Uuid;
+  runtime_group_id?: Uuid;
+  experiment_id?: Uuid;
+  recipe_id?: Uuid;
+  recipe_repository_id?: Uuid;
+  recipe_git_ref?: string;
+  recipe_git_commit_sha?: string;
+  arm_label?: string;
+  agent_name?: string;
   identity: RunnerIdentity;
   /** Echoed from the request when supplied. */
   caller?: RunCaller;
@@ -574,14 +384,23 @@ export interface RunRequest {
   identity?: RunIdentityInput;
   /** Optional observability payload — see {@link RunCaller}. */
   caller?: RunCaller;
+  /** Entrypoint agent. Omit to use the runtime's default agent. */
+  agent_name?: string;
   ttl_seconds?: number;
-  /**
-   * Pin to a specific recipe. When supplied, CP resolves the runtime
-   * row in the targeted name whose `recipe_id` matches this value
-   * server-side. Populated by {@link RuntimeHandle.pin}.
-   */
-  recipe_id?: Uuid;
+  /** Space-separated runner scopes. CP caps these to the grantable set. */
+  scope?: string;
 }
+
+export interface TaskAbortOptions {
+  mode: "abort";
+}
+
+export interface TaskDrainOptions {
+  mode: "drain";
+  drain_within_seconds?: number;
+}
+
+export type TaskCancelOptions = TaskAbortOptions | TaskDrainOptions;
 
 // --- events ---
 

@@ -2,6 +2,7 @@ import type {
   Paginated,
   Task,
   TaskCancelResponse,
+  TaskCancelOptions,
   TaskCreateParams,
   TaskCreateResponse,
   TaskListParams,
@@ -41,8 +42,12 @@ export class RunHandle {
     return this.runs.stream(this.run.task_id, this.run.id, opts);
   }
 
-  cancel(): Promise<TaskCancelResponse> {
-    return this.runs.cancel(this.run.task_id, this.run.id);
+  abort(): Promise<TaskCancelResponse> {
+    return this.runs.abort(this.run.task_id, this.run.id);
+  }
+
+  drain(opts: { withinSeconds?: number } = {}): Promise<TaskCancelResponse> {
+    return this.runs.drain(this.run.task_id, this.run.id, opts);
   }
 
   /** Convenience: collect assistant text deltas from the AG-UI stream. */
@@ -88,10 +93,32 @@ export class TaskRunsClient {
     });
   }
 
-  cancel(taskId: string, runId: string): Promise<TaskCancelResponse> {
+  private cancel(
+    taskId: string,
+    runId: string,
+    options: TaskCancelOptions,
+  ): Promise<TaskCancelResponse> {
     return this.http.request<TaskCancelResponse>({
       method: "POST",
       path: `/v1/tasks/${encodeURIComponent(taskId)}/runs/${encodeURIComponent(runId)}/cancel`,
+      body: options,
+    });
+  }
+
+  abort(taskId: string, runId: string): Promise<TaskCancelResponse> {
+    return this.cancel(taskId, runId, { mode: "abort" });
+  }
+
+  drain(
+    taskId: string,
+    runId: string,
+    opts: { withinSeconds?: number } = {},
+  ): Promise<TaskCancelResponse> {
+    return this.cancel(taskId, runId, {
+      mode: "drain",
+      ...(opts.withinSeconds === undefined
+        ? {}
+        : { drain_within_seconds: opts.withinSeconds }),
     });
   }
 

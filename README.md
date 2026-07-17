@@ -32,13 +32,13 @@ where each client fits.
 
 ## Packages
 
-| Package                                                                         | Description                                                                                     |
-| ------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
-| [`@introspection-sdk/introspection-node`](./packages/introspection-node/)       | Server-side platform client for runtimes, tasks, files, conversations, recipes, and experiments |
-| [`@introspection-sdk/introspection-browser`](./packages/introspection-browser/) | Browser platform client for applications authenticated through a backend token broker           |
-| [`@introspection-sdk/types`](./packages/introspection-types/)                   | Shared types and constants                                                                      |
-| [`@introspection-sdk/introspection-pi`](./packages/introspection-pi/)           | Supported [Pi Agent SDK](https://withpi.ai) instrumentation                                     |
-| [`@introspection-sdk/introspection-proxy`](./packages/introspection-proxy/)     | Egress proxy helpers — credential injection and CONNECT forward proxy                           |
+| Package                                                                         | Description                                                                                                                |
+| ------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| [`@introspection-sdk/introspection-node`](./packages/introspection-node/)       | Server-side execution client for configured runtimes/experiments, tasks, files, conversations, events, metrics, and shares |
+| [`@introspection-sdk/introspection-browser`](./packages/introspection-browser/) | Browser platform client for applications authenticated through a backend token broker                                      |
+| [`@introspection-sdk/types`](./packages/introspection-types/)                   | Shared types and constants                                                                                                 |
+| [`@introspection-sdk/introspection-pi`](./packages/introspection-pi/)           | Supported [Pi Agent SDK](https://withpi.ai) instrumentation                                                                |
+| [`@introspection-sdk/introspection-proxy`](./packages/introspection-proxy/)     | Egress proxy helpers — credential injection and CONNECT forward proxy                                                      |
 
 ## Quick start
 
@@ -52,7 +52,11 @@ pnpm add @introspection-sdk/introspection-node
 import { IntrospectionClient } from "@introspection-sdk/introspection-node";
 
 const client = new IntrospectionClient();
-const runner = await client.runtimes("customer-agent").run();
+const runner = await client.runtime("customer-agent").run({
+  agent_name: "agent",
+  scope:
+    "tasks:read tasks:write files:read files:write events:read metrics:read",
+});
 
 const run = await runner.tasks.start({
   prompt: "Say hello in one sentence.",

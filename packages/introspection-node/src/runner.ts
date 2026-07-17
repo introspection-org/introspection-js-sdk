@@ -124,7 +124,7 @@ export class Runner {
     // Note: we intentionally don't swap the underlying `http` here — the
     // constructor-time bindings stay stable for the lifetime of the Runner.
     // Callers wanting a freshly-bound Runner should call
-    // `client.runtimes(id).run(...)` again.
+    // `client.runtime(id).run(...)` again.
   }
 
   /**
@@ -206,6 +206,8 @@ function toRunBody(opts?: RunRequest): Record<string, unknown> {
   const out: Record<string, unknown> = {};
   if (opts.identity) out.identity = opts.identity;
   if (opts.caller) out.caller = opts.caller;
+  if (opts.agent_name !== undefined) out.agent_name = opts.agent_name;
   if (opts.ttl_seconds !== undefined) out.ttl_seconds = opts.ttl_seconds;
+  if (opts.scope !== undefined) out.scope = opts.scope;
   return out;
 }
