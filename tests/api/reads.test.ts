@@ -211,6 +211,27 @@ describe("EventsApi.list — Arrow format", () => {
     expect(page.total_count).toBeNull();
     expect(page.records).toEqual([{ id: "ev-1" }]);
   });
+
+  it("decodes an empty Arrow page (zero-byte body) to zero records without touching Arrow", async () => {
+    // A zero-byte body must skip the `apache-arrow` decode entirely
+    // (the `bytes.byteLength > 0` guard in reads.ts) and still yield a
+    // sane, exhausted Paginated envelope from the headers alone.
+    const http = mockHttp({
+      streamResult: new Response(new Uint8Array(0), {
+        headers: { "x-result-count": "0", "x-truncated": "false" },
+      }),
+    });
+    const api = new EventsApi(http);
+    const page = await api.list({
+      event_name: "introspection.feedback",
+      format: "arrow",
+    });
+
+    expect(page.records).toEqual([]);
+    expect(page.count).toBe(0);
+    expect(page.total_count).toBeNull();
+    expect(page.next).toBeNull();
+  });
 });
 
 describe("MetricsApi.query", () => {

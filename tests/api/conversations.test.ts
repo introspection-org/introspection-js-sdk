@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import * as arrow from "apache-arrow";
 import {
   ConversationsApi,
   HttpClient,
@@ -397,5 +398,108 @@ describe("ConversationsApi", () => {
       id: "call-2",
       response: "already-semconv",
     });
+  });
+});
+
+describe("ConversationsApi.list — Arrow format", () => {
+  it("negotiates Arrow and rebuilds conversation summaries from the IPC stream + headers", async () => {
+    const ipc = arrow.tableToIPC(
+      arrow.tableFromArrays({
+        trace_id: ["trace-1", "trace-2"],
+        conversation_id: ["conv-1", "conv-2"],
+        model: ["claude-x", "claude-y"],
+      }),
+      "stream",
+    );
+    const http = mockHttp({
+      streamResult: new Response(ipc, {
+        headers: {
+          "x-result-count": "2",
+          "x-truncated": "true",
+          "x-next-cursor": "cursor-2",
+          "x-total-count": "7",
+        },
+      }),
+    });
+    const api = new ConversationsApi(http);
+    const page = await api.list({ format: "arrow", limit: 2 });
+
+    expect(http.stream).toHaveBeenCalledWith({
+      path: "/v1/conversations",
+      query: { limit: 2 },
+      headers: { Accept: "application/vnd.apache.arrow.stream" },
+      signal: undefined,
+    });
+    expect(page.records).toEqual([
+      { trace_id: "trace-1", conversation_id: "conv-1", model: "claude-x" },
+      { trace_id: "trace-2", conversation_id: "conv-2", model: "claude-y" },
+    ]);
+    expect(page.count).toBe(2);
+    expect(page.total_count).toBe(7);
+    expect(page.next).toBe("cursor-2");
+  });
+
+  it("decodes an empty Arrow page (zero-byte body) to zero records without touching Arrow", async () => {
+    // A zero-byte body must skip the `apache-arrow` decode entirely
+    // (the `bytes.byteLength > 0` guard in reads.ts) and still yield a
+    // sane, exhausted Paginated envelope from the headers alone.
+    const http = mockHttp({
+      streamResult: new Response(new Uint8Array(0), {
+        headers: { "x-result-count": "0", "x-truncated": "false" },
+      }),
+    });
+    const api = new ConversationsApi(http);
+    const page = await api.list({ format: "arrow" });
+
+    expect(page.records).toEqual([]);
+    expect(page.count).toBe(0);
+    expect(page.total_count).toBeNull();
+    expect(page.next).toBeNull();
+  });
+});
+
+describe("ConversationsApi.arrow — columnar accessor", () => {
+  it("yields Tables over /v1/conversations and readAll() concatenates", async () => {
+    const makeIpc = (ids: string[]) =>
+      arrow.tableToIPC(
+        new arrow.Table({
+          conversation_id: arrow.vectorFromArray(ids, new arrow.Utf8()),
+        }),
+        "stream",
+      );
+    const page1 = new Response(makeIpc(["c-1", "c-2"]), {
+      headers: { "x-next-cursor": "cursor-2" },
+    });
+    const page2 = new Response(makeIpc(["c-3"]), { headers: {} });
+    const http = mockHttp();
+    (http.stream as ReturnType<typeof vi.fn>)
+      .mockResolvedValueOnce(page1)
+      .mockResolvedValueOnce(page2);
+    const api = new ConversationsApi(http);
+
+    const tables: arrow.Table[] = [];
+    for await (const table of api.arrow()) tables.push(table);
+    expect(tables).toHaveLength(2);
+    expect(tables[0]).toBeInstanceOf(arrow.Table);
+    expect(tables[0].numRows).toBe(2);
+    expect(tables[1].numRows).toBe(1);
+
+    (http.stream as ReturnType<typeof vi.fn>)
+      .mockResolvedValueOnce(
+        new Response(makeIpc(["c-1", "c-2"]), {
+          headers: { "x-next-cursor": "cursor-2" },
+        }),
+      )
+      .mockResolvedValueOnce(new Response(makeIpc(["c-3"]), { headers: {} }));
+    const table = await api.arrow().readAll();
+
+    expect(http.stream).toHaveBeenCalledWith({
+      path: "/v1/conversations",
+      query: {},
+      headers: { Accept: "application/vnd.apache.arrow.stream" },
+      signal: undefined,
+    });
+    expect(table.numRows).toBe(3);
+    expect(table.getChild("conversation_id")?.get(0)).toBe("c-1");
   });
 });
