@@ -316,6 +316,12 @@ const FEEDBACK_PAYLOAD_TYPE = new arrow.Struct([
   new arrow.Field("value", new arrow.Float64(), true),
 ]);
 
+const SERVER_FEEDBACK_PAYLOAD_TYPE = new arrow.Struct([
+  new arrow.Field("name", new arrow.Utf8(), false),
+  // Open dict fields are JSON-encoded strings in the server's fixed schema.
+  new arrow.Field("properties", new arrow.Utf8(), true),
+]);
+
 /** A REAL Arrow IPC stream: envelope columns + a struct payload column. */
 function feedbackIpc(
   ids: string[],
@@ -370,6 +376,40 @@ describe("EventsApi.list — Arrow with a struct payload column", () => {
       Object.prototype,
     );
     expect(page.records[0].payload.name).toBe("thumbs_up");
+  });
+
+  it("restores server-native timestamps and JSON-encoded dict payload fields", async () => {
+    const table = new arrow.Table({
+      id: arrow.vectorFromArray(["ev-1"], new arrow.Utf8()),
+      timestamp: arrow.vectorFromArray(
+        [new Date("2026-07-17T00:00:00.000Z")],
+        new arrow.TimestampMicrosecond(),
+      ),
+      event_name: arrow.vectorFromArray(
+        ["introspection.feedback"],
+        new arrow.Utf8(),
+      ),
+      payload: arrow.vectorFromArray(
+        [
+          {
+            name: "thumbs_up",
+            properties: JSON.stringify({ surface: "chat" }),
+          },
+        ],
+        SERVER_FEEDBACK_PAYLOAD_TYPE,
+      ),
+    });
+    const http = mockHttp({
+      streamResult: new Response(arrow.tableToIPC(table, "stream")),
+    });
+
+    const page = await new EventsApi(http).list({
+      event_name: "introspection.feedback",
+      format: "arrow",
+    });
+
+    expect(page.records[0].timestamp).toBe("2026-07-17T00:00:00.000Z");
+    expect(page.records[0].payload.properties).toEqual({ surface: "chat" });
   });
 });
 
