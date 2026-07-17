@@ -2,7 +2,7 @@
   "name": "@introspection-sdk/introspection-node",
   "version": "0.1.0",
   "license": "Apache-2.0",
-  "description": "Introspection observability SDK for Node.js",
+  "description": "Introspection execution SDK for Node.js with optional OTLP logs and traces",
   "engines": {
     "node": ">=22"
   },

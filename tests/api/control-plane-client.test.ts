@@ -8,14 +8,35 @@ import { IntrospectionClient } from "@introspection-sdk/introspection-node";
 // Authorization header without a live server.
 
 function captureFetch() {
-  return vi.fn().mockResolvedValue({
-    ok: true,
-    status: 200,
-    headers: new Headers({ "content-type": "application/json" }),
-    json: () => Promise.resolve({}),
-    text: () => Promise.resolve(""),
-    arrayBuffer: () => Promise.resolve(new ArrayBuffer(0)),
-    body: null,
+  return vi.fn().mockImplementation((input: string | URL | Request) => {
+    const url = String(input);
+    const payload = url.includes("/v1/runtimes?")
+      ? {
+          records: [{ id: "11111111-1111-1111-1111-111111111111" }],
+          count: 1,
+          total_count: 1,
+          next: null,
+        }
+      : {
+          session_id: "session-1",
+          deployment: {
+            endpoint: "https://dp.test",
+            slug: "test",
+            region: "test",
+          },
+          session_token: "runner-token",
+          expires_at: "2026-01-01T00:00:00Z",
+          runtime_context: { identity: {} },
+        };
+    return Promise.resolve({
+      ok: true,
+      status: 200,
+      headers: new Headers({ "content-type": "application/json" }),
+      json: () => Promise.resolve(payload),
+      text: () => Promise.resolve(JSON.stringify(payload)),
+      arrayBuffer: () => Promise.resolve(new ArrayBuffer(0)),
+      body: null,
+    });
   });
 }
 
@@ -33,9 +54,10 @@ describe("IntrospectionClient construction", () => {
     vi.unstubAllEnvs();
   });
 
-  it("defaults advanced to {} when not provided", () => {
+  it("does not expose its Control Plane transport", () => {
     const client = new IntrospectionClient({ token: "tok" });
-    expect(client.advancedOptions).toEqual({});
+    expect(client).not.toHaveProperty("cpHttp");
+    expect(client).not.toHaveProperty("advancedOptions");
   });
 
   it("uses an explicit token and advanced.baseApiUrl", async () => {
@@ -45,7 +67,7 @@ describe("IntrospectionClient construction", () => {
       advanced: { baseApiUrl: "https://cp.explicit.test", fetch: fetchImpl },
     });
 
-    await client.cpHttp.request({ method: "GET", path: "/v1/runtimes" });
+    await client.runtime("agent").run();
 
     expect(requestedUrl(fetchImpl)).toContain("https://cp.explicit.test");
     expect(authHeader(fetchImpl)).toBe("Bearer explicit-token");
@@ -57,7 +79,7 @@ describe("IntrospectionClient construction", () => {
     const fetchImpl = captureFetch();
     const client = new IntrospectionClient({ advanced: { fetch: fetchImpl } });
 
-    await client.cpHttp.request({ method: "GET", path: "/v1/runtimes" });
+    await client.runtime("agent").run();
 
     expect(requestedUrl(fetchImpl)).toContain("https://cp.env.test");
     expect(authHeader(fetchImpl)).toBe("Bearer env-token");
@@ -69,7 +91,7 @@ describe("IntrospectionClient construction", () => {
     const fetchImpl = captureFetch();
     const client = new IntrospectionClient({ advanced: { fetch: fetchImpl } });
 
-    await client.cpHttp.request({ method: "GET", path: "/v1/runtimes" });
+    await client.runtime("agent").run();
 
     expect(requestedUrl(fetchImpl)).toContain("https://api.introspection.dev");
     // No token resolved — the warn branch fires and an empty bearer is sent.

@@ -257,7 +257,6 @@ afterAll(() => new Promise<void>((resolve) => server.close(() => resolve())));
 function makeClient() {
   return new IntrospectionClient({
     token: "test-token",
-    project: "proj-1",
     advanced: { baseApiUrl: baseUrl },
   });
 }

@@ -37,6 +37,24 @@ describe("public export barrels", () => {
     expect(mod).not.toHaveProperty("attachRuntimes");
   });
 
+  it("browser entrypoints keep analytics and DP execution independent", async () => {
+    const analytics = await import("@introspection-sdk/introspection-browser");
+    expect(analytics.IntrospectionClient).toBeTypeOf("function");
+    expect(analytics).not.toHaveProperty("IntrospectionApiClient");
+    expect(analytics).not.toHaveProperty("RuntimesApi");
+
+    const api = await import("@introspection-sdk/introspection-browser/api");
+    expect(api.IntrospectionApiClient).toBeTypeOf("function");
+    expect(api.TasksClient).toBeTypeOf("function");
+    expect(api.FilesClient).toBeTypeOf("function");
+    expect(api.SharesClient).toBeTypeOf("function");
+    expect(api.ConversationsClient).toBeTypeOf("function");
+    expect(api).not.toHaveProperty("IntrospectionClient");
+    expect(api).not.toHaveProperty("RuntimesApi");
+    expect(api).not.toHaveProperty("ExperimentsApi");
+    expect(api).not.toHaveProperty("RecipesApi");
+  });
+
   it("@introspection-sdk/introspection-node/otel (traces surface)", async () => {
     const mod = await import("@introspection-sdk/introspection-node/otel");
     for (const name of [

@@ -1,4 +1,5 @@
 import type {
+  AdvancedOptions,
   Paginated,
   RunRequest,
   RunnerSpec,
@@ -6,7 +7,6 @@ import type {
 } from "@introspection-sdk/types";
 import { NotFoundError } from "@introspection-sdk/types";
 import type { HttpClient } from "../http.js";
-import type { IntrospectionClient } from "../client.js";
 import { Runner } from "../runner.js";
 import { cursorPaginate } from "../pagination.js";
 
@@ -36,7 +36,7 @@ function toRunBody(opts?: RunRequest): RuntimeRunRequestBody {
 class RuntimesApi {
   constructor(
     private readonly http: HttpClient,
-    private readonly client: IntrospectionClient,
+    private readonly advancedOptions: AdvancedOptions,
   ) {}
 
   private async resolve(ref: string): Promise<ResolvedRuntime> {
@@ -64,10 +64,12 @@ class RuntimesApi {
       path: `/v1/runtimes/${encodeURIComponent(id)}/run`,
       body: toRunBody(opts),
     });
-    return new Runner(
-      this.client,
-      { kind: "runtime", id, options: opts },
-      spec,
+    return new Runner(this.advancedOptions, spec, () =>
+      this.http.request<RunnerSpec>({
+        method: "POST",
+        path: `/v1/runtimes/${encodeURIComponent(id)}/run`,
+        body: toRunBody(opts),
+      }),
     );
   }
 }
@@ -86,9 +88,9 @@ export class RuntimeHandle {
 export type RuntimeHandleFactory = (ref: string) => RuntimeHandle;
 
 export function attachRuntimes(
-  client: IntrospectionClient,
+  advancedOptions: AdvancedOptions,
   http: HttpClient,
 ): RuntimeHandleFactory {
-  const api = new RuntimesApi(http, client);
+  const api = new RuntimesApi(http, advancedOptions);
   return (ref: string) => new RuntimeHandle(api, ref);
 }

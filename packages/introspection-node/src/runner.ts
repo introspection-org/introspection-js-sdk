@@ -1,10 +1,9 @@
 import {
   RunnerExpiredError,
+  type AdvancedOptions,
   type RunnerContext,
   type RunnerDeployment,
   type RunnerSpec,
-  type RunRequest,
-  type Uuid,
 } from "@introspection-sdk/types";
 import {
   ConversationsApi,
@@ -15,16 +14,6 @@ import {
   TasksApi,
 } from "@introspection-sdk/http";
 import { HttpClient } from "./http.js";
-import type { IntrospectionClient } from "./client.js";
-
-/**
- * Where this Runner came from, so `refresh()` can call CP again with the
- * same arguments to obtain a fresh `RunnerSpec` (manual escape hatch only;
- * not auto-scheduled).
- */
-export type RunnerSource =
-  | { kind: "runtime"; id: Uuid; options?: RunRequest }
-  | { kind: "experiment"; id: Uuid; options?: RunRequest };
 
 /**
  * Live handle to a Data Plane sandbox. Holds the bearer JWT, the DP
@@ -53,9 +42,9 @@ export class Runner {
   readonly shares: SharesApi;
 
   constructor(
-    private readonly client: IntrospectionClient,
-    private readonly source: RunnerSource,
+    private readonly advancedOptions: AdvancedOptions,
     spec: RunnerSpec,
+    private readonly refreshSpec: () => Promise<RunnerSpec>,
   ) {
     this.spec = spec;
     this.http = this.buildHttp();
@@ -141,7 +130,7 @@ export class Runner {
   // --- internals ---
 
   private buildHttp(): HttpClient {
-    const advanced = this.client.advancedOptions;
+    const advanced = this.advancedOptions;
     return new HttpClient({
       apiUrl: this.spec.deployment.endpoint,
       token: this.spec.session_token,
@@ -184,30 +173,6 @@ export class Runner {
   }
 
   private async requestFreshSpec(): Promise<RunnerSpec> {
-    const http = this.client.cpHttp;
-    const body = toRunBody(this.source.options);
-    if (this.source.kind === "runtime") {
-      return await http.request<RunnerSpec>({
-        method: "POST",
-        path: `/v1/runtimes/${encodeURIComponent(this.source.id)}/run`,
-        body,
-      });
-    }
-    return await http.request<RunnerSpec>({
-      method: "POST",
-      path: `/v1/experiments/${encodeURIComponent(this.source.id)}/run`,
-      body,
-    });
+    return this.refreshSpec();
   }
-}
-
-function toRunBody(opts?: RunRequest): Record<string, unknown> {
-  if (!opts) return {};
-  const out: Record<string, unknown> = {};
-  if (opts.identity) out.identity = opts.identity;
-  if (opts.caller) out.caller = opts.caller;
-  if (opts.agent_name !== undefined) out.agent_name = opts.agent_name;
-  if (opts.ttl_seconds !== undefined) out.ttl_seconds = opts.ttl_seconds;
-  if (opts.scope !== undefined) out.scope = opts.scope;
-  return out;
 }

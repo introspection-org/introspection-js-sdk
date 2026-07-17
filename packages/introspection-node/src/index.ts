@@ -5,7 +5,7 @@
  * ExperimentHandle, REST wire types, and HTTP helpers. None of these
  * touch the OpenTelemetry SDK.
  *
- * For the OTel surface (logs, span processors, instrumentors) import
+ * For the optional OTLP logs and traces surface import
  * from `@introspection-sdk/introspection-node/otel`.
  */
 
@@ -63,7 +63,6 @@ export { EventType } from "@introspection-sdk/types";
 
 // Runner execution resources.
 export { Runner } from "./runner.js";
-export type { RunnerSource } from "./runner.js";
 export { RuntimeHandle } from "./resources/runtimes.js";
 export { ExperimentHandle } from "./resources/experiments.js";
 

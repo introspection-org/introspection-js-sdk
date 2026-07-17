@@ -46,21 +46,21 @@ import {
  * ```
  */
 export class IntrospectionClient {
-  /** @internal — HTTP client pointed at the CP API with the customer key. */
-  readonly cpHttp: HttpClient;
-  /** @internal — passed through to Runner so it can build its own DP HTTP client. */
-  readonly advancedOptions: AdvancedOptions;
+  /** HTTP client pointed at the CP API with the customer key. */
+  readonly #cpHttp: HttpClient;
+  /** Passed through to runners so they can build DP HTTP clients. */
+  readonly #advancedOptions: AdvancedOptions;
 
   /** Internal runtime resolver used by `runtime(ref)`. */
-  private readonly runtimeHandles: RuntimeHandleFactory;
+  readonly #runtimeHandles: RuntimeHandleFactory;
 
   /** Internal experiment runner opener used by `experiment(id)`. */
-  private readonly experimentHandles: ExperimentHandleFactory;
+  readonly #experimentHandles: ExperimentHandleFactory;
 
   constructor(options: IntrospectionClientOptions = {}) {
     const token = options.token || process.env.INTROSPECTION_TOKEN || "";
     const advanced = options.advanced || {};
-    this.advancedOptions = advanced;
+    this.#advancedOptions = advanced;
     const baseApiUrl =
       advanced.baseApiUrl ||
       process.env.INTROSPECTION_BASE_API_URL ||
@@ -75,27 +75,30 @@ export class IntrospectionClient {
     // CP HTTP client — talks to the customer-facing API with the customer
     // API key. Runners get their own HttpClient instances pointed at the
     // `deployment.endpoint` returned by `/v1/runtimes/{id}/run`.
-    this.cpHttp = new HttpClient({
+    this.#cpHttp = new HttpClient({
       apiUrl: baseApiUrl,
       token,
       additionalHeaders: advanced.additionalHeaders,
       fetch: advanced.fetch,
     });
 
-    this.runtimeHandles = attachRuntimes(this, this.cpHttp);
-    this.experimentHandles = attachExperiments(this, this.cpHttp);
+    this.#runtimeHandles = attachRuntimes(this.#advancedOptions, this.#cpHttp);
+    this.#experimentHandles = attachExperiments(
+      this.#advancedOptions,
+      this.#cpHttp,
+    );
 
     sdkLogger.info(`IntrospectionClient initialized: api=${baseApiUrl}`);
   }
 
   /** Open a runner from a configured runtime group slug or id. */
   runtime(ref: string) {
-    return this.runtimeHandles(ref);
+    return this.#runtimeHandles(ref);
   }
 
   /** Open a runner from an existing experiment id. */
   experiment(id: string) {
-    return this.experimentHandles(id);
+    return this.#experimentHandles(id);
   }
 
   /**

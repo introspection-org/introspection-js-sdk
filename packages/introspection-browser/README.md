@@ -46,9 +46,9 @@ customer web origins.
    via RFC 8693 token-exchange of the partner IdP token, a PKCE
    `authorization_code`, or `client_credentials`. The IdP secret never leaves
    the backend. The backend returns **`{ token, runtimeId, dpUrl }`**: it
-   resolves the runtime id server-side (e.g. with the Node SDK's
-   its own operator/configuration path and supplies the Data
-   Plane URL, so the SPA needs no Introspection config of its own.
+   resolves the runtime id through its own operator/configuration path and
+   supplies the Data Plane URL, so the SPA needs no Introspection config of
+   its own.
 2. `client.connect()` redeems the token at the **Data Plane**
    `POST /v1/oauth/exchange` for the HttpOnly `intro_dp_session` cookie.
 3. `client.tasks.start({ runtime_id })` and friends ride that cookie against

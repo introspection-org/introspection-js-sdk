@@ -1,7 +1,11 @@
-import type { RunRequest, RunnerSpec, Uuid } from "@introspection-sdk/types";
+import type {
+  AdvancedOptions,
+  RunRequest,
+  RunnerSpec,
+  Uuid,
+} from "@introspection-sdk/types";
 import type { HttpClient } from "../http.js";
-import type { IntrospectionClient } from "../client.js";
-import { Runner, type RunnerSource } from "../runner.js";
+import { Runner } from "../runner.js";
 
 interface ExperimentRunRequestBody {
   identity?: {
@@ -29,7 +33,7 @@ function toRunBody(opts?: RunRequest): ExperimentRunRequestBody | undefined {
 class ExperimentsApi {
   constructor(
     private readonly http: HttpClient,
-    private readonly client: IntrospectionClient,
+    private readonly advancedOptions: AdvancedOptions,
   ) {}
 
   async runById(id: Uuid, opts?: RunRequest): Promise<Runner> {
@@ -38,12 +42,13 @@ class ExperimentsApi {
       path: `/v1/experiments/${encodeURIComponent(id)}/run`,
       body: toRunBody(opts) ?? {},
     });
-    const source: RunnerSource = {
-      kind: "experiment",
-      id,
-      options: opts,
-    };
-    return new Runner(this.client, source, spec);
+    return new Runner(this.advancedOptions, spec, () =>
+      this.http.request<RunnerSpec>({
+        method: "POST",
+        path: `/v1/experiments/${encodeURIComponent(id)}/run`,
+        body: toRunBody(opts) ?? {},
+      }),
+    );
   }
 }
 
@@ -61,9 +66,9 @@ export class ExperimentHandle {
 export type ExperimentHandleFactory = (id: Uuid) => ExperimentHandle;
 
 export function attachExperiments(
-  client: IntrospectionClient,
+  advancedOptions: AdvancedOptions,
   http: HttpClient,
 ): ExperimentHandleFactory {
-  const api = new ExperimentsApi(http, client);
+  const api = new ExperimentsApi(http, advancedOptions);
   return (id: Uuid) => new ExperimentHandle(api, id);
 }

@@ -20,7 +20,7 @@
 <br>
 
 [Introspection](https://introspection.dev) is the managed cloud for vertical
-agents, powered by Pi. Define an agent as a recipe, deploy it to a
+agents. Define an agent as a recipe, deploy it to a
 commit-pinned runtime, and improve it in production with conversations,
 patterns, judges, and experiments.
 
@@ -37,7 +37,6 @@ where each client fits.
 | [`@introspection-sdk/introspection-node`](./packages/introspection-node/)       | Server-side execution client for configured runtimes/experiments, tasks, files, conversations, events, metrics, and shares |
 | [`@introspection-sdk/introspection-browser`](./packages/introspection-browser/) | Browser platform client for applications authenticated through a backend token broker                                      |
 | [`@introspection-sdk/types`](./packages/introspection-types/)                   | Shared types and constants                                                                                                 |
-| [`@introspection-sdk/introspection-pi`](./packages/introspection-pi/)           | Supported [Pi Agent SDK](https://withpi.ai) instrumentation                                                                |
 | [`@introspection-sdk/introspection-proxy`](./packages/introspection-proxy/)     | Egress proxy helpers — credential injection and CONNECT forward proxy                                                      |
 
 ## Quick start
@@ -111,39 +110,13 @@ budget is spent the error surfaces (`RateLimitError` for 429,
 and `body` so you can decide how to back off further. Streaming has its own
 resume budget (above); multipart uploads are not auto-retried.
 
-### Pi instrumentation
+### Optional OTLP instrumentation
 
-Pi is the supported agent-instrumentation path. `init()` discovers Pi and wires
-it into the shared trace pipeline:
-
-```shell
-pnpm add @earendil-works/pi-agent-core @earendil-works/pi-ai
-```
-
-```typescript
-import * as introspection from "@introspection-sdk/introspection-node/otel";
-import { Agent } from "@earendil-works/pi-agent-core";
-import { getBuiltinModel } from "@earendil-works/pi-ai/providers/all";
-
-await introspection.init({ serviceName: "my-app" });
-
-const agent = new Agent({
-  initialState: {
-    model: getBuiltinModel("anthropic", "claude-sonnet-4-6"),
-    systemPrompt: "You are a helpful support agent.",
-  },
-});
-introspection.instrumentPi(agent, {
-  conversationId: "conv_123",
-  agentId: "support-agent",
-  agentName: "Support",
-});
-
-await agent.prompt("Help me understand my latest invoice.");
-await introspection.shutdown();
-```
-
-> Support for other frameworks is experimental.
+Instrumentation is independent from the execution client. Applications that
+already emit OpenTelemetry logs or traces can add the optional
+`@introspection-sdk/introspection-node/otel` processors without changing their
+runtime or task code. Framework-specific integrations remain experimental and
+are not part of the supported SDK surface.
 
 ### Egress proxy
 
