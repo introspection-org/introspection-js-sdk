@@ -20,14 +20,20 @@ interface ExperimentRunRequestBody {
     anonymous_id?: string;
     conversation_id?: string;
   };
+  caller?: RunRequest["caller"];
+  agent_name?: string;
   ttl_seconds?: number;
+  scope?: string;
 }
 
 function toRunBody(opts?: RunRequest): ExperimentRunRequestBody | undefined {
   if (!opts) return undefined;
   const out: ExperimentRunRequestBody = {};
   if (opts.identity) out.identity = opts.identity;
+  if (opts.caller) out.caller = opts.caller;
+  if (opts.agent_name !== undefined) out.agent_name = opts.agent_name;
   if (opts.ttl_seconds !== undefined) out.ttl_seconds = opts.ttl_seconds;
+  if (opts.scope !== undefined) out.scope = opts.scope;
   return out;
 }
 

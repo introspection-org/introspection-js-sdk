@@ -84,7 +84,9 @@ for await (const ev of run.stream()) {
 
 `client.tasks` exposes the full CRUD surface (`create` / `start` / `get` /
 `list` / `update` / `delete` / `archive` / `unarchive`) plus per-run streaming
-(`run.stream()` yields AG-UI events, `run.text()`, `run.cancel()`).
+(`run.stream()` yields AG-UI events, `run.text()`, and `run.cancel(options)`).
+Cancellation defaults to abort; pass `mode: "drain"` and an optional
+`drain_within_seconds` for graceful teardown.
 
 `create` and `start` accept **`idle_timeout_seconds`** (`number`) to override
 the interactive idle window before the sandbox is torn down. `0` tears it down

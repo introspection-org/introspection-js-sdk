@@ -78,14 +78,19 @@ function runnerSpec(endpoint: string) {
     expires_at: "2025-01-01T01:00:00Z",
     runtime_context: {
       runtime_id: RUNTIME.id,
+      runtime_group_id: RUNTIME.runtime_group_id,
       experiment_id: null,
       recipe_id: RECIPE.id,
+      recipe_repository_id: "repo-1",
+      recipe_git_ref: "main",
+      recipe_git_commit_sha: "abc123",
       recipe: {
         repository_id: "repo-1",
         git_ref: "main",
         git_commit_sha: "abc123",
       },
       arm_label: null,
+      agent_name: "agent",
       identity: {},
     },
   };
@@ -351,6 +356,9 @@ describe("IntrospectionClient (REST control-plane, real server)", () => {
       const client = makeClient();
       const runner = await client.runtimes("customer-agent").run({
         identity: { user_id: "u-1" },
+        caller: { locale: "en-US" },
+        agent_name: "specialist",
+        scope: "tasks:read tasks:write",
       });
       // First request resolves the runtime, second opens the runner.
       expect(
@@ -365,6 +373,13 @@ describe("IntrospectionClient (REST control-plane, real server)", () => {
         (runReq?.body as { identity?: { user_id?: string } })?.identity
           ?.user_id,
       ).toBe("u-1");
+      expect(runReq?.body).toMatchObject({
+        caller: { locale: "en-US" },
+        agent_name: "specialist",
+        scope: "tasks:read tasks:write",
+      });
+      expect(runner.context.runtime_group_id).toBe(RUNTIME.runtime_group_id);
+      expect(runner.context.agent_name).toBe("agent");
       expect(runner.session_id).toBe("sess-1");
 
       requests = [];
@@ -502,8 +517,23 @@ describe("IntrospectionClient (REST control-plane, real server)", () => {
         "completed",
       );
       expect((await handle.cancel()).status).toBe("cancelled");
-      const runner = await handle.run({ identity: { user_id: "u-2" } });
+      requests = [];
+      const runner = await handle.run({
+        identity: { user_id: "u-2" },
+        caller: { locale: "fr-FR" },
+        agent_name: "researcher",
+        scope: "tasks:read",
+      });
       expect(runner.session_id).toBe("sess-1");
+      expect(
+        requests.find((r) => r.path === `/v1/experiments/${EXPERIMENT.id}/run`)
+          ?.body,
+      ).toMatchObject({
+        identity: { user_id: "u-2" },
+        caller: { locale: "fr-FR" },
+        agent_name: "researcher",
+        scope: "tasks:read",
+      });
     });
 
     it("list paginates", async () => {
@@ -545,7 +575,10 @@ describe("IntrospectionClient (REST control-plane, real server)", () => {
   describe("runner (data-plane handle)", () => {
     it("exposes accessors, runs DP calls, refresh re-mints, close guards", async () => {
       const client = makeClient();
-      const runner = await client.runtimes(RUNTIME.runtime_group_id).run();
+      const runner = await client.runtimes(RUNTIME.runtime_group_id).run({
+        agent_name: "specialist",
+        scope: "tasks:read",
+      });
 
       expect(runner.dpEndpoint).toBe(baseUrl);
       expect(runner.deployment.slug).toBe("gcp01");
@@ -564,6 +597,12 @@ describe("IntrospectionClient (REST control-plane, real server)", () => {
 
       // Manual escape hatch: refresh re-calls the CP /run route.
       await expect(runner.refresh()).resolves.toBeUndefined();
+      expect(requests.find((r) => r.path.endsWith("/run"))?.body).toMatchObject(
+        {
+          agent_name: "specialist",
+          scope: "tasks:read",
+        },
+      );
 
       // After close, guarded HTTP rejects further DP calls. The guard
       // fires on first iteration of the lazy generator.

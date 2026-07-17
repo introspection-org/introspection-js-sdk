@@ -342,6 +342,25 @@ describe("RunHandle / TaskRunsClient", () => {
     });
   });
 
+  it("cancel() exposes the typed cancel modes", async () => {
+    const http = mockHttp({ requestResult: { id: "run-1" } });
+    const runs = new TaskRunsClient(http);
+    const handle = new RunHandle(TASK_FIXTURE, RUN_FIXTURE, runs);
+    await handle.cancel({ mode: "abort" });
+    await handle.cancel({ mode: "drain", drain_within_seconds: 20 });
+
+    expect(http.request).toHaveBeenNthCalledWith(1, {
+      method: "POST",
+      path: "/v1/tasks/task-1/runs/run-1/cancel",
+      body: { mode: "abort" },
+    });
+    expect(http.request).toHaveBeenNthCalledWith(2, {
+      method: "POST",
+      path: "/v1/tasks/task-1/runs/run-1/cancel",
+      body: { mode: "drain", drain_within_seconds: 20 },
+    });
+  });
+
   it("runs.create() returns a handle on the new run", async () => {
     const http = mockHttp({ requestResult: { run: RUN_FIXTURE } });
     const runs = new TaskRunsClient(http);

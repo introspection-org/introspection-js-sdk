@@ -52,7 +52,10 @@ pnpm add @introspection-sdk/introspection-node
 import { IntrospectionClient } from "@introspection-sdk/introspection-node";
 
 const client = new IntrospectionClient();
-const runner = await client.runtimes("customer-agent").run();
+const runner = await client.runtimes("customer-agent").run({
+  agent_name: "support-agent",
+  scope: "tasks:read tasks:write files:read files:write",
+});
 
 const run = await runner.tasks.start({
   prompt: "Say hello in one sentence.",
@@ -65,6 +68,15 @@ for await (const event of run.stream()) {
 await runner.close();
 await client.shutdown();
 ```
+
+Runner creation also accepts `identity`, `caller`, and `ttl_seconds`. The
+resolved `runner.context` includes the runtime or experiment selection,
+runtime group, flat recipe revision fields, agent name, identity, and caller.
+
+`run.cancel()` aborts by default. Pass `{ mode: "abort" }` to make that
+explicit, or `{ mode: "drain", drain_within_seconds: 60 }` for graceful
+teardown. Interrupted runs resume through
+`runner.tasks.runs.resume(taskId, { resume: entries })`.
 
 #### Resilient streaming
 
