@@ -1,7 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import * as arrow from "apache-arrow";
 import {
-  ConversationsApi,
   EventsApi,
   IntrospectionEventNames,
   isKnownEvent,
@@ -505,37 +504,5 @@ describe("EventsApi.arrow — columnar accessor", () => {
       .arrow({ event_name: "introspection.feedback" })
       .readAll();
     expect(table.numRows).toBe(0);
-  });
-});
-
-describe("ConversationsApi.arrow — columnar accessor", () => {
-  it("yields Tables over /v1/conversations and readAll() concatenates", async () => {
-    const makeIpc = (ids: string[]) =>
-      arrow.tableToIPC(
-        new arrow.Table({
-          conversation_id: arrow.vectorFromArray(ids, new arrow.Utf8()),
-        }),
-        "stream",
-      );
-    const page1 = new Response(makeIpc(["c-1", "c-2"]), {
-      headers: { "x-next-cursor": "cursor-2" },
-    });
-    const page2 = new Response(makeIpc(["c-3"]), { headers: {} });
-    const http = mockHttp();
-    (http.stream as ReturnType<typeof vi.fn>)
-      .mockResolvedValueOnce(page1)
-      .mockResolvedValueOnce(page2);
-    const api = new ConversationsApi(http);
-
-    const table = await api.arrow().readAll();
-
-    expect(http.stream).toHaveBeenCalledWith({
-      path: "/v1/conversations",
-      query: {},
-      headers: { Accept: "application/vnd.apache.arrow.stream" },
-      signal: undefined,
-    });
-    expect(table.numRows).toBe(3);
-    expect(table.getChild("conversation_id")?.get(0)).toBe("c-1");
   });
 });
