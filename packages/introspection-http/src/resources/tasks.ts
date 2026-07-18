@@ -2,6 +2,7 @@ import type {
   Paginated,
   Task,
   TaskCancelResponse,
+  TaskCancelOptions,
   TaskCreateParams,
   TaskCreateResponse,
   TaskListParams,
@@ -41,8 +42,8 @@ export class RunHandle {
     return this.runs.stream(this.run.task_id, this.run.id, opts);
   }
 
-  cancel(): Promise<TaskCancelResponse> {
-    return this.runs.cancel(this.run.task_id, this.run.id);
+  cancel(options?: TaskCancelOptions): Promise<TaskCancelResponse> {
+    return this.runs.cancel(this.run.task_id, this.run.id, options);
   }
 
   /** Convenience: collect assistant text deltas from the AG-UI stream. */
@@ -88,10 +89,15 @@ export class TaskRunsClient {
     });
   }
 
-  cancel(taskId: string, runId: string): Promise<TaskCancelResponse> {
+  cancel(
+    taskId: string,
+    runId: string,
+    options?: TaskCancelOptions,
+  ): Promise<TaskCancelResponse> {
     return this.http.request<TaskCancelResponse>({
       method: "POST",
       path: `/v1/tasks/${encodeURIComponent(taskId)}/runs/${encodeURIComponent(runId)}/cancel`,
+      ...(options ? { body: { mode: "abort", ...options } } : {}),
     });
   }
 

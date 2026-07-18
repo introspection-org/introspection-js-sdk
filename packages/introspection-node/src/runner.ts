@@ -206,6 +206,8 @@ function toRunBody(opts?: RunRequest): Record<string, unknown> {
   const out: Record<string, unknown> = {};
   if (opts.identity) out.identity = opts.identity;
   if (opts.caller) out.caller = opts.caller;
+  if (opts.agent_name !== undefined) out.agent_name = opts.agent_name;
   if (opts.ttl_seconds !== undefined) out.ttl_seconds = opts.ttl_seconds;
+  if (opts.scope !== undefined) out.scope = opts.scope;
   return out;
 }

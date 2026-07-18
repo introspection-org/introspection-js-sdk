@@ -263,6 +263,28 @@ describe("TaskRunsApi", () => {
       path: "/v1/tasks/task-1/runs/run-1/cancel",
     });
   });
+
+  it("cancel() forwards typed options without changing bodyless compatibility", async () => {
+    const http = mockHttp({ requestResult: { id: "run-1" } });
+    const runs = new TaskRunsApi(http);
+    await runs.cancel("task-1", "run-1", { mode: "drain" });
+    expect(http.request).toHaveBeenCalledWith({
+      method: "POST",
+      path: "/v1/tasks/task-1/runs/run-1/cancel",
+      body: { mode: "drain" },
+    });
+  });
+
+  it("cancel() defaults an options object to abort", async () => {
+    const http = mockHttp({ requestResult: { id: "run-1" } });
+    const runs = new TaskRunsApi(http);
+    await runs.cancel("task-1", "run-1", {});
+    expect(http.request).toHaveBeenCalledWith({
+      method: "POST",
+      path: "/v1/tasks/task-1/runs/run-1/cancel",
+      body: { mode: "abort" },
+    });
+  });
 });
 
 describe("RunHandle", () => {
@@ -305,6 +327,30 @@ describe("RunHandle", () => {
     expect(http.request).toHaveBeenCalledWith({
       method: "POST",
       path: "/v1/tasks/task-1/runs/run-1/cancel",
+    });
+  });
+
+  it("cancel() accepts typed options on the handle", async () => {
+    const http = mockHttp({ requestResult: { id: "run-1" } });
+    const runs = new TaskRunsApi(http);
+    const handle = new RunHandle(TASK_FIXTURE, RUN_FIXTURE, runs);
+    await handle.cancel({ mode: "drain", drain_within_seconds: 15 });
+    expect(http.request).toHaveBeenCalledWith({
+      method: "POST",
+      path: "/v1/tasks/task-1/runs/run-1/cancel",
+      body: { mode: "drain", drain_within_seconds: 15 },
+    });
+  });
+
+  it("cancel() accepts explicit abort options", async () => {
+    const http = mockHttp({ requestResult: { id: "run-1" } });
+    const runs = new TaskRunsApi(http);
+    const handle = new RunHandle(TASK_FIXTURE, RUN_FIXTURE, runs);
+    await handle.cancel({ mode: "abort" });
+    expect(http.request).toHaveBeenCalledWith({
+      method: "POST",
+      path: "/v1/tasks/task-1/runs/run-1/cancel",
+      body: { mode: "abort" },
     });
   });
 });

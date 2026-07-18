@@ -103,6 +103,7 @@ export type {
   TaskRunResponse,
   TaskCreateResponse,
   TaskCancelResponse,
+  TaskCancelOptions,
   AgentInfo,
   File,
   FileType,

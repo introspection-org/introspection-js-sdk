@@ -23,7 +23,9 @@ export function isUuid(value: string): boolean {
 export interface RuntimeRunRequestBody {
   identity?: RunRequest["identity"];
   caller?: RunRequest["caller"];
+  agent_name?: string;
   ttl_seconds?: number;
+  scope?: string;
   recipe_id?: Uuid;
 }
 
@@ -43,7 +45,9 @@ function toRunBody(opts?: RunRequest): RuntimeRunRequestBody {
   const out: RuntimeRunRequestBody = {};
   if (opts.identity) out.identity = opts.identity;
   if (opts.caller) out.caller = opts.caller;
+  if (opts.agent_name !== undefined) out.agent_name = opts.agent_name;
   if (opts.ttl_seconds !== undefined) out.ttl_seconds = opts.ttl_seconds;
+  if (opts.scope !== undefined) out.scope = opts.scope;
   if (opts.recipe_id !== undefined) out.recipe_id = opts.recipe_id;
   return out;
 }

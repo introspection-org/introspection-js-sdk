@@ -197,6 +197,13 @@ export interface TaskCancelResponse {
   id: string;
 }
 
+export interface TaskCancelOptions {
+  /** Defaults to abort when omitted. */
+  mode?: "abort" | "drain";
+  /** Drain only: force teardown after this many seconds. */
+  drain_within_seconds?: number;
+}
+
 // --- files ---
 
 export type FileType = "upload" | "filesystem" | "other";
@@ -477,10 +484,15 @@ export interface RunnerRecipeSummary {
 
 export interface RunnerContext {
   runtime_id: Uuid;
+  runtime_group_id?: Uuid | null;
   experiment_id: Uuid | null;
   recipe_id: Uuid;
+  recipe_repository_id?: Uuid | null;
+  recipe_git_ref?: string | null;
+  recipe_git_commit_sha?: string | null;
   recipe: RunnerRecipeSummary;
   arm_label: string | null;
+  agent_name?: string | null;
   identity: RunnerIdentity;
   /** Echoed from the request when supplied. */
   caller?: RunCaller;
@@ -574,7 +586,11 @@ export interface RunRequest {
   identity?: RunIdentityInput;
   /** Optional observability payload — see {@link RunCaller}. */
   caller?: RunCaller;
+  /** Optional entrypoint agent. Omit to use the runtime default. */
+  agent_name?: string;
   ttl_seconds?: number;
+  /** Optional space-separated runner scopes, capped by the Control Plane. */
+  scope?: string;
   /**
    * Pin to a specific recipe. When supplied, CP resolves the runtime
    * row in the targeted name whose `recipe_id` matches this value

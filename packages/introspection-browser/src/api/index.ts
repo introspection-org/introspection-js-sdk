@@ -80,6 +80,7 @@ export type {
   TaskRunCreateParams,
   TaskRunResumeParams,
   TaskCancelResponse,
+  TaskCancelOptions,
   RunIdentityInput,
   Paginated,
   File,
