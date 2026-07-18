@@ -23,7 +23,6 @@ import {
 import {
   NotFoundError,
   RunnerExpiredError,
-  type Uuid,
   ValidationError,
 } from "@introspection-sdk/types";
 
@@ -200,20 +199,10 @@ beforeAll(async () => {
       }
       return json(res, 200, page([RUNTIME]));
     }
-    if (path === "/v1/runtimes" && method === "POST")
-      return json(res, 201, RUNTIME);
     if (path === `/v1/runtimes/${RUNTIME.id}` && method === "GET")
       return json(res, 200, RUNTIME);
-    if (path === `/v1/runtimes/${RUNTIME.id}` && method === "PATCH")
-      return json(res, 200, { ...RUNTIME, description: "updated" });
-    if (path === `/v1/runtimes/${RUNTIME.id}` && method === "DELETE") {
-      res.writeHead(204);
-      return res.end();
-    }
     if (path === `/v1/runtimes/${RUNTIME.id}/run` && method === "POST")
       return json(res, 200, runnerSpec(baseUrl));
-    if (path === `/v1/runtimes/${RUNTIME.id}/activate` && method === "POST")
-      return json(res, 200, { ...RUNTIME, is_active: true });
 
     // --- Control-plane: experiments ---
     if (path === "/v1/experiments" && method === "GET")
@@ -300,34 +289,29 @@ describe("IntrospectionClient (REST control-plane, real server)", () => {
   });
 
   describe("runtimes", () => {
-    it("CRUD + activate", async () => {
+    it("does not expose runtime operator mutations", () => {
+      const client = makeClient();
+      expect(client.runtimes).not.toHaveProperty("create");
+      expect(client.runtimes).not.toHaveProperty("update");
+      expect(client.runtimes).not.toHaveProperty("delete");
+      expect(client.runtimes).not.toHaveProperty("yank");
+      expect(client.runtimes).not.toHaveProperty("unyank");
+      expect(client.runtimes).not.toHaveProperty("activateById");
+
+      const handle = client.runtimes("customer-agent");
+      expect(handle).not.toHaveProperty("pin");
+      expect(handle).not.toHaveProperty("activate");
+    });
+
+    it("lists and gets runtimes", async () => {
       const client = makeClient();
       const listed = await collect(client.runtimes.list({ project: "proj-1" }));
       expect(listed[0].name).toBe("Customer Agent");
-
-      const created = await client.runtimes.create({
-        name: "Customer Agent",
-        recipe_id: "rec-1",
-        project: "main",
-      });
-      expect(created.id).toBe(RUNTIME.id);
 
       const got = await client.runtimes.get(RUNTIME.id, {
         project: "proj-1",
       });
       expect(got.id).toBe(RUNTIME.id);
-
-      const updated = await client.runtimes.update(RUNTIME.id, {
-        description: "updated",
-      } as never);
-      expect(updated.description).toBe("updated");
-
-      await expect(client.runtimes.delete(RUNTIME.id)).resolves.toBeUndefined();
-
-      const activated = await client.runtimes.activateById(RUNTIME.id, {
-        project: "proj-1",
-      });
-      expect(activated.is_active).toBe(true);
     });
 
     it("list paginates across pages", async () => {
@@ -351,7 +335,7 @@ describe("IntrospectionClient (REST control-plane, real server)", () => {
       ).rejects.toBeInstanceOf(NotFoundError);
     });
 
-    it("handle resolves a runtime slug lazily then runs; pin injects recipe_id", async () => {
+    it("handle resolves a runtime slug lazily then runs", async () => {
       requests = [];
       const client = makeClient();
       const runner = await client.runtimes("customer-agent").run({
@@ -381,35 +365,6 @@ describe("IntrospectionClient (REST control-plane, real server)", () => {
       expect(runner.context.runtime_group_id).toBe(RUNTIME.runtime_group_id);
       expect(runner.context.agent_name).toBe("agent");
       expect(runner.session_id).toBe("sess-1");
-
-      requests = [];
-      await client.runtimes(RUNTIME.runtime_group_id).pin(RECIPE).run();
-      expect(
-        requests.some(
-          (r) =>
-            r.path === "/v1/runtimes" &&
-            r.query.get("runtime") === RUNTIME.runtime_group_id,
-        ),
-      ).toBe(true);
-      const pinned = requests.find((r) => r.path.endsWith("/run"));
-      expect((pinned?.body as { recipe_id?: Uuid })?.recipe_id).toBe(RECIPE.id);
-    });
-
-    it("handle.activate hits the activate route", async () => {
-      requests = [];
-      const client = makeClient();
-      const rt = await client
-        .runtimes(RUNTIME.runtime_group_id)
-        .activate({ project: "proj-1" });
-      expect(rt.is_active).toBe(true);
-      expect(
-        requests.some(
-          (r) =>
-            r.path === "/v1/runtimes" &&
-            r.query.get("runtime") === RUNTIME.runtime_group_id,
-        ),
-      ).toBe(true);
-      expect(requests.some((r) => r.path.endsWith("/activate"))).toBe(true);
     });
   });
 

@@ -341,28 +341,6 @@ export interface Runtime {
   metadata?: Record<string, unknown> | null;
 }
 
-export interface RuntimeCreate {
-  /** Project slug or id. */
-  project: string;
-  name: string;
-  slug?: string;
-  recipe_id: Uuid;
-  description?: string;
-  metadata?: Record<string, unknown>;
-  is_active?: boolean;
-  /** Defaults to `"managed"` on the server when omitted. */
-  llm_mode?: RuntimeLlmMode;
-}
-
-export interface RuntimeUpdate {
-  name?: string;
-  description?: string;
-  recipe_id?: Uuid;
-  is_active?: boolean;
-  metadata?: Record<string, unknown>;
-  llm_mode?: RuntimeLlmMode;
-}
-
 export interface RuntimeListParams extends ListParams {
   /** Project slug or id. */
   project?: string;
@@ -591,12 +569,6 @@ export interface RunRequest {
   ttl_seconds?: number;
   /** Optional space-separated runner scopes, capped by the Control Plane. */
   scope?: string;
-  /**
-   * Pin to a specific recipe. When supplied, CP resolves the runtime
-   * row in the targeted name whose `recipe_id` matches this value
-   * server-side. Populated by {@link RuntimeHandle.pin}.
-   */
-  recipe_id?: Uuid;
 }
 
 // --- events ---

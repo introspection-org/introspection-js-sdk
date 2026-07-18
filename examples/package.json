@@ -51,7 +51,6 @@
     "openinference-openai-langfuse": "node --import tsx otel/openinference/openai-langfuse.ts",
     "raw-conversation": "node --import tsx otel/raw/multi-turn-conversation.ts",
     "api-runtimes": "node --import tsx api/runtimes.ts",
-    "api-runtime-resolution": "node --import tsx api/runtime-resolution.ts",
     "proxy-supabase-global": "node --import tsx proxy/supabase-global.ts",
     "proxy-supabase-manual": "node --import tsx proxy/supabase-manual.ts",
     "proxy-typesense": "node --import tsx proxy/typesense.ts",
