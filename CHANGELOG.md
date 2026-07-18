@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.11.0](https://github.com/introspection-org/introspection-js-sdk/compare/v0.10.0...v0.11.0) (2026-07-18)
+
+
+### ⚠ BREAKING CHANGES
+
+* the grain-based events surface is replaced by the typed six-family discriminated read per the telemetry-read-resources spec. RawEvent, EventGrain, EventInclude, and the grain/include/ event_name_prefix/q/q_regex params are deleted. EventsClient.list() now REQUIRES event_name (exactly one family) and returns family-typed rows (Event union member with envelope + nested typed payload); unknown families surface as UnknownEvent instead of failing. Adds the columnar events.arrow()/conversations.arrow() accessor (apache-arrow Table per page + readAll()) and deep-converts Arrow struct payload columns to plain JSON-shaped objects.
+
+### Features
+
+* typed discriminated events read (required event_name) + columnar arrow() accessor ([#216](https://github.com/introspection-org/introspection-js-sdk/issues/216)) ([a55b430](https://github.com/introspection-org/introspection-js-sdk/commit/a55b430b77c01d3e5c704693938727d94d2d4791))
+
+
+### Bug Fixes
+
+* align SDK execution contracts ([#222](https://github.com/introspection-org/introspection-js-sdk/issues/222)) ([5aabb4e](https://github.com/introspection-org/introspection-js-sdk/commit/5aabb4e02cddd9bdf0cba5bab55866765e9e5a4f))
+* **http:** decode Arrow int64 columns to plain numbers for JSON parity ([#219](https://github.com/introspection-org/introspection-js-sdk/issues/219)) ([013dd5b](https://github.com/introspection-org/introspection-js-sdk/commit/013dd5b6c58a80d2b314a1fe1aebe7d1b308b9d8))
+* keep runtime SDK surface read and run only ([#223](https://github.com/introspection-org/introspection-js-sdk/issues/223)) ([d051351](https://github.com/introspection-org/introspection-js-sdk/commit/d051351943723124b9c854718a274d704155dd3a))
+
 ## [0.10.0](https://github.com/introspection-org/introspection-js-sdk/compare/v0.9.3...v0.10.0) (2026-07-17)
 
 
