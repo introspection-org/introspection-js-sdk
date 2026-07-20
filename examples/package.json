@@ -70,7 +70,7 @@
     "@opentelemetry/semantic-conventions": "^1.43.0",
     "braintrust": "^2.2.2",
     "langsmith": "^0.8.3",
-    "openai": "^6.47.0"
+    "openai": "^6.48.0"
   },
   "devDependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
@@ -84,10 +84,10 @@
     "typescript": "^5.9.3"
   },
   "optionalDependencies": {
-    "@ai-sdk/anthropic": "^3.0.97",
-    "@ai-sdk/openai": "^3.0.85",
-    "@anthropic-ai/claude-agent-sdk": "^0.3.211",
-    "@anthropic-ai/sdk": "^0.111.0",
+    "@ai-sdk/anthropic": "^3.0.98",
+    "@ai-sdk/openai": "^3.0.86",
+    "@anthropic-ai/claude-agent-sdk": "^0.3.215",
+    "@anthropic-ai/sdk": "^0.112.3",
     "@google/genai": "^2.10.0",
     "@earendil-works/pi-agent-core": "^0.80.7",
     "@earendil-works/pi-ai": "^0.80.7",
@@ -99,14 +99,14 @@
     "@langchain/core": "^1.2.3",
     "@langchain/openai": "^1.5.5",
     "@mastra/core": "^1.51.0",
-    "@openai/agents": "^0.13.4",
+    "@openai/agents": "^0.13.5",
     "@opentelemetry/api": "^1.9.1",
     "@opentelemetry/exporter-trace-otlp-grpc": "^0.220.0",
     "@opentelemetry/exporter-trace-otlp-http": "^0.220.0",
     "@opentelemetry/sdk-trace-base": "^2.9.0",
     "@opentelemetry/sdk-trace-node": "^2.9.0",
     "@pydantic/logfire-node": "^0.18.3",
-    "ai": "^6.0.228",
+    "ai": "^6.0.230",
     "zod": "^4.4.3"
   }
 }
