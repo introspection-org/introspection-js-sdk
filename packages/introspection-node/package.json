@@ -56,7 +56,7 @@
     "@langchain/core": "^1.2.3",
     "@mastra/core": "^1.51.0",
     "@mastra/observability": "^1.16.1",
-    "@earendil-works/pi-agent-core": "^0.80.7",
+    "@earendil-works/pi-agent-core": "^0.80.10",
     "@earendil-works/pi-ai": "^0.80.7",
     "@anthropic-ai/sdk": "^0.111.0",
     "@anthropic-ai/claude-agent-sdk": "^0.3.211",
