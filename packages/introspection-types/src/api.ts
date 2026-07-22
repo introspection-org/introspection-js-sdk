@@ -396,12 +396,57 @@ export interface RecipeListParams extends ListParams {
   git_commit_sha?: string;
 }
 
-export type ExperimentStatus = "draft" | "running" | "concluded" | "cancelled";
+export type ExperimentStatus = "draft" | "running" | "ended" | "cancelled";
 
-export interface Arm {
-  label: string;
-  recipe_id: Uuid;
+export type ExperimentGoalDirection = "maximize" | "minimize";
+
+/** Canary bound over one goal component's rate. */
+export interface ExperimentGoalGuard {
+  min?: number | null;
+  max?: number | null;
+}
+
+/**
+ * Judge-backed reward component. `judge_id` comes from `GET /v1/judges` —
+ * judges cannot be created via the API; author a `judges/*.yaml` in the
+ * recipe repository and it syncs when a runtime versions that commit.
+ */
+export interface JudgeGoalComponent {
+  source: "judge";
+  judge_id: Uuid;
+  judge_definition_hash?: string | null;
   weight?: number;
+  guard?: ExperimentGoalGuard | null;
+}
+
+/** Reserved shape for future telemetry-backed reward components. */
+export interface TelemetryGoalComponent {
+  source: "telemetry";
+  column?: string | null;
+  aggregation?: string | null;
+  weight?: number;
+  guard?: ExperimentGoalGuard | null;
+}
+
+export type ExperimentGoalComponent =
+  JudgeGoalComponent | TelemetryGoalComponent;
+
+/**
+ * Composite objective the bandit optimizes. Create requires at least one
+ * `source: "judge"` component with positive weight — the v1 scorer only
+ * implements judge-backed reward.
+ */
+export interface ExperimentGoal {
+  kind: "composite";
+  direction?: ExperimentGoalDirection;
+  components: ExperimentGoalComponent[];
+}
+
+/** One arm — a runtime version in the experiment's group + display label. */
+export interface ExperimentArm {
+  runtime_id: Uuid;
+  arm_label: string;
+  agent_overrides?: Record<string, string> | null;
 }
 
 export interface Experiment {
@@ -409,43 +454,60 @@ export interface Experiment {
   org_id: Uuid;
   project_id: Uuid;
   name: string;
-  description?: string | null;
+  runtime_group_id?: Uuid | null;
+  environment?: string | null;
   status: ExperimentStatus;
-  arms: Arm[];
-  control_arm_label?: string | null;
-  winner_arm_label?: string | null;
+  routing_strategy?: string | null;
+  arms: ExperimentArm[];
+  goal_json?: ExperimentGoal | null;
+  scoring_interval_seconds?: number | null;
+  hash_key_fields?: string[] | null;
+  sample_rate?: number | null;
+  description?: string | null;
+  posterior_json?: Record<string, unknown> | null;
+  weights_json?: Record<string, number> | null;
+  started_at?: IsoDate | null;
+  ended_at?: IsoDate | null;
+  halted_at?: IsoDate | null;
+  halted_reason?: string | null;
   created_at: IsoDate;
   updated_at: IsoDate;
-  started_at?: IsoDate | null;
-  concluded_at?: IsoDate | null;
-  metadata?: Record<string, unknown> | null;
 }
 
+/**
+ * `POST /v1/experiments` body. Creates a draft that routes nothing until
+ * `start`. `arms` takes 2–20 runtime versions sharing `runtime_group_id`.
+ */
 export interface ExperimentCreate {
   project: string;
   name: string;
+  runtime_group_id: Uuid;
+  arms: ExperimentArm[];
+  goal_json: ExperimentGoal;
   description?: string;
-  arms: Arm[];
-  control_arm_label?: string;
-  metadata?: Record<string, unknown>;
+  environment?: string;
+  scoring_interval_seconds?: number;
+  hash_key_fields?: string[];
+  sample_rate?: number;
 }
 
+/**
+ * `PATCH /v1/experiments/{id}`. Status transitions use start/end/cancel;
+ * `runtime_group_id` and `arms` are immutable once running.
+ */
 export interface ExperimentUpdate {
   name?: string;
   description?: string;
-  arms?: Arm[];
-  control_arm_label?: string;
-  metadata?: Record<string, unknown>;
+  goal_json?: ExperimentGoal;
+  scoring_interval_seconds?: number;
+  hash_key_fields?: string[];
+  sample_rate?: number;
 }
 
 export interface ExperimentListParams extends ListParams {
   project?: string;
   name?: string;
   status?: ExperimentStatus;
-}
-
-export interface ExperimentEndParams {
-  winner_arm_label?: string;
 }
 
 export interface RunnerIdentity {
