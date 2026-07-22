@@ -4,6 +4,7 @@ import {
   TaskRunsClient,
   TasksClient as SharedTasksClient,
   type ResourceHttpClient,
+  type TaskClientOptions,
 } from "@introspection-sdk/http";
 
 /**
@@ -65,8 +66,8 @@ export class TasksClient extends SharedTasksClient<
   CreateTaskParams,
   StartTaskParams
 > {
-  constructor(http: ResourceHttpClient) {
-    super(http, toTaskBody);
+  constructor(http: ResourceHttpClient, options: TaskClientOptions = {}) {
+    super(http, toTaskBody, options);
   }
 }
 

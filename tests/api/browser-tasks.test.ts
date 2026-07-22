@@ -273,6 +273,29 @@ describe("TasksClient", () => {
     });
   });
 
+  it("create() sends Introspection-Development-Link only via the explicit option", async () => {
+    const http = mockHttp({
+      requestResult: { task: TASK_FIXTURE, run: RUN_FIXTURE },
+    });
+    const tasks = new TasksClient(http, { developmentLink: "dl_browser" });
+    await tasks.create({ prompt: "hello" });
+
+    expect(http.request).toHaveBeenCalledWith({
+      method: "POST",
+      path: "/v1/tasks",
+      body: { prompt: "hello" },
+      headers: { "Introspection-Development-Link": "dl_browser" },
+    });
+
+    // Reads never carry it, even when configured.
+    (http.request as ReturnType<typeof vi.fn>).mockResolvedValue(TASK_FIXTURE);
+    await tasks.get("task-1");
+    expect(http.request).toHaveBeenLastCalledWith({
+      method: "GET",
+      path: "/v1/tasks/task-1",
+    });
+  });
+
   it("delete()/archive()/unarchive() hit their routes", async () => {
     const http = mockHttp();
     const tasks = new TasksClient(http);
@@ -499,6 +522,42 @@ describe("IntrospectionApiClient", () => {
     expect(fetchImpl.mock.calls[0][0]).toBe(
       "https://dp.example.com/v1/oauth/exchange",
     );
+  });
+
+  it("threads developmentLink to the task-create request header", async () => {
+    const fetchImpl = vi.fn(async (url: string, init: RequestInit) => {
+      if (url === "https://dp.example.com/v1/tasks") {
+        const headers = init.headers as Record<string, string>;
+        expect(headers["Introspection-Development-Link"]).toBe("dl_browser");
+        return {
+          ok: true,
+          status: 201,
+          headers: new Headers({ "content-type": "application/json" }),
+          json: () => Promise.resolve({ task: TASK_FIXTURE, run: RUN_FIXTURE }),
+        };
+      }
+      if (url === "https://dp.example.com/v1/tasks/task-1") {
+        const headers = init.headers as Record<string, string>;
+        expect(headers["Introspection-Development-Link"]).toBeUndefined();
+        return {
+          ok: true,
+          status: 200,
+          headers: new Headers({ "content-type": "application/json" }),
+          json: () => Promise.resolve(TASK_FIXTURE),
+        };
+      }
+      throw new Error(`unexpected fetch: ${url}`);
+    });
+    const client = new IntrospectionApiClient({
+      dpUrl: "https://dp.example.com",
+      getToken: () => "intro_access_token",
+      developmentLink: "dl_browser",
+      fetch: fetchImpl as unknown as typeof fetch,
+    });
+
+    await client.tasks.create({ prompt: "hello" });
+    await client.tasks.get("task-1");
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
   });
 
   it("throws when constructed without a dpUrl", () => {

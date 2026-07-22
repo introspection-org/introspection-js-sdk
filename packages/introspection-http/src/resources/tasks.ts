@@ -31,6 +31,36 @@ function identityTaskBody<TCreate extends object>(
   return body as Record<string, unknown>;
 }
 
+/**
+ * Header carrying the raw Development Link secret (`dl_…`) on
+ * task-creating requests, so the platform routes the task's sandbox to
+ * the developer's live local recipe overlay (`introspection dev`). The
+ * link changes overlay routing only — auth is unchanged.
+ */
+export const DEVELOPMENT_LINK_HEADER = "Introspection-Development-Link";
+
+export interface TaskClientOptions {
+  /**
+   * Development Link secret (`dl_…`) pairing this app instance to a local
+   * recipe checkout. When set, it is sent as the
+   * {@link DEVELOPMENT_LINK_HEADER} header on task-creating requests only
+   * (task create and run create) — never on reads or other mutations.
+   */
+  developmentLink?: string;
+}
+
+/**
+ * `request()` fragment carrying the Development Link header, or an empty
+ * fragment when no link is configured — spread into task-creating
+ * requests so unset/empty links add no `headers` key at all.
+ */
+function developmentLinkHeaders(
+  developmentLink: string | undefined,
+): { headers: Record<string, string> } | Record<string, never> {
+  if (!developmentLink) return {};
+  return { headers: { [DEVELOPMENT_LINK_HEADER]: developmentLink } };
+}
+
 export class RunHandle {
   constructor(
     public readonly task: Task | null,
@@ -62,13 +92,17 @@ export class RunHandle {
 }
 
 export class TaskRunsClient {
-  constructor(private readonly http: ResourceHttpClient) {}
+  constructor(
+    private readonly http: ResourceHttpClient,
+    private readonly options: TaskClientOptions = {},
+  ) {}
 
   async create(taskId: string, body: TaskRunCreateParams): Promise<RunHandle> {
     const res = await this.http.request<TaskRunResponse>({
       method: "POST",
       path: `/v1/tasks/${encodeURIComponent(taskId)}/runs`,
       body,
+      ...developmentLinkHeaders(this.options.developmentLink),
     });
     return new RunHandle(null, res.run, this);
   }
@@ -78,6 +112,7 @@ export class TaskRunsClient {
       method: "POST",
       path: `/v1/tasks/${encodeURIComponent(taskId)}/runs`,
       body,
+      ...developmentLinkHeaders(this.options.developmentLink),
     });
     return new RunHandle(null, res.run, this);
   }
@@ -126,13 +161,16 @@ export class TasksClient<
 > {
   readonly runs: TaskRunsClient;
   private readonly mapTaskBody: TaskBodyMapper<TCreate>;
+  private readonly options: TaskClientOptions;
 
   constructor(
     private readonly http: ResourceHttpClient,
     mapTaskBody: TaskBodyMapper<TCreate> = identityTaskBody,
+    options: TaskClientOptions = {},
   ) {
-    this.runs = new TaskRunsClient(http);
+    this.runs = new TaskRunsClient(http, options);
     this.mapTaskBody = mapTaskBody;
+    this.options = options;
   }
 
   /**
@@ -158,6 +196,7 @@ export class TasksClient<
       method: "POST",
       path: "/v1/tasks",
       body: this.mapTaskBody(body),
+      ...developmentLinkHeaders(this.options.developmentLink),
     });
   }
 

@@ -49,10 +49,12 @@ export {
 export {
   ConversationItemsClient,
   ConversationsClient,
+  DEVELOPMENT_LINK_HEADER,
   FileVersionsClient,
   FilesClient,
   SharesClient,
   type FileUploadBody,
+  type TaskClientOptions,
 } from "@introspection-sdk/http";
 export { BrowserHttpClient, type BrowserHttpConfig } from "./http.js";
 export {

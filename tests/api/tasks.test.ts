@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import {
+  DEVELOPMENT_LINK_HEADER,
   EventType,
   HttpClient,
   TasksApi,
@@ -284,6 +285,101 @@ describe("TaskRunsApi", () => {
       path: "/v1/tasks/task-1/runs/run-1/cancel",
       body: { mode: "abort" },
     });
+  });
+});
+
+describe("development link header", () => {
+  const LINK = "dl_test_secret";
+
+  it("create() sends Introspection-Development-Link when configured", async () => {
+    const http = mockHttp({
+      requestResult: { task: TASK_FIXTURE, run: RUN_FIXTURE },
+    });
+    const api = new TasksApi(http, undefined, { developmentLink: LINK });
+    await api.create({ title: "Linked task" });
+
+    expect(http.request).toHaveBeenCalledWith({
+      method: "POST",
+      path: "/v1/tasks",
+      body: { title: "Linked task" },
+      headers: { [DEVELOPMENT_LINK_HEADER]: LINK },
+    });
+  });
+
+  it("runs.create() and runs.resume() send the header when configured", async () => {
+    const http = mockHttp({ requestResult: { run: RUN_FIXTURE } });
+    const api = new TasksApi(http, undefined, { developmentLink: LINK });
+
+    await api.runs.create("task-1", { message: "hello" });
+    expect(http.request).toHaveBeenCalledWith({
+      method: "POST",
+      path: "/v1/tasks/task-1/runs",
+      body: { message: "hello" },
+      headers: { [DEVELOPMENT_LINK_HEADER]: LINK },
+    });
+
+    await api.runs.resume("task-1", {
+      resume: [{ interruptId: "plan:tool-1", status: "cancelled" }],
+    });
+    expect(http.request).toHaveBeenCalledWith({
+      method: "POST",
+      path: "/v1/tasks/task-1/runs",
+      body: { resume: [{ interruptId: "plan:tool-1", status: "cancelled" }] },
+      headers: { [DEVELOPMENT_LINK_HEADER]: LINK },
+    });
+  });
+
+  it("standalone TaskRunsApi accepts the option too", async () => {
+    const http = mockHttp({ requestResult: { run: RUN_FIXTURE } });
+    const runs = new TaskRunsApi(http, { developmentLink: LINK });
+    await runs.create("task-1", { message: "hi" });
+
+    expect(http.request).toHaveBeenCalledWith({
+      method: "POST",
+      path: "/v1/tasks/task-1/runs",
+      body: { message: "hi" },
+      headers: { [DEVELOPMENT_LINK_HEADER]: LINK },
+    });
+  });
+
+  it("non-creating requests never carry the header even when configured", async () => {
+    const http = mockHttp({ requestResult: TASK_FIXTURE });
+    const api = new TasksApi(http, undefined, { developmentLink: LINK });
+
+    await api.get("task-1");
+    expect(http.request).toHaveBeenCalledWith({
+      method: "GET",
+      path: "/v1/tasks/task-1",
+    });
+
+    await api.update("task-1", { title: "Updated" });
+    expect(http.request).toHaveBeenCalledWith({
+      method: "PATCH",
+      path: "/v1/tasks/task-1",
+      body: { title: "Updated" },
+    });
+
+    await api.runs.cancel("task-1", "run-1");
+    expect(http.request).toHaveBeenCalledWith({
+      method: "POST",
+      path: "/v1/tasks/task-1/runs/run-1/cancel",
+    });
+  });
+
+  it("sends no header when the link is unset or empty", async () => {
+    for (const developmentLink of [undefined, ""]) {
+      const http = mockHttp({
+        requestResult: { task: TASK_FIXTURE, run: RUN_FIXTURE },
+      });
+      const api = new TasksApi(http, undefined, { developmentLink });
+      await api.create({ title: "Plain task" });
+
+      expect(http.request).toHaveBeenCalledWith({
+        method: "POST",
+        path: "/v1/tasks",
+        body: { title: "Plain task" },
+      });
+    }
   });
 });
 

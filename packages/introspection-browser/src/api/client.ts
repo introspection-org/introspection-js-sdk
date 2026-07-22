@@ -59,6 +59,14 @@ export interface IntrospectionApiClientOptions {
   fetch?: typeof fetch;
   /** Extra headers merged into every DP request. */
   additionalHeaders?: Record<string, string>;
+  /**
+   * Development Link secret (`dl_…`) pairing this app instance to a local
+   * recipe checkout. Sent as `Introspection-Development-Link` on
+   * task-creating requests only. Explicit option only in the browser —
+   * there is no environment fallback; forward it from your backend broker
+   * alongside the token when needed.
+   */
+  developmentLink?: string;
 }
 
 export class IntrospectionApiClient {
@@ -81,7 +89,7 @@ export class IntrospectionApiClient {
       onUnauthorized: () => this.reexchange(),
     });
     this.cookieClients = {
-      tasks: new TasksClient(http),
+      tasks: new TasksClient(http, { developmentLink: opts.developmentLink }),
       files: new FilesClient(http),
       conversations: new ConversationsClient(http),
       shares: new SharesClient(http),

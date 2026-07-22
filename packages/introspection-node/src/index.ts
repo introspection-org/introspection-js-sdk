@@ -39,6 +39,7 @@ export type {
 export {
   ConversationItemsApi,
   ConversationsApi,
+  DEVELOPMENT_LINK_HEADER,
   EventsApi,
   FileVersionsApi,
   FilesApi,
@@ -56,6 +57,7 @@ export type {
   ListReadParams,
   StartParams,
   StreamOptions,
+  TaskClientOptions,
 } from "@introspection-sdk/http";
 export { HttpClient } from "./http.js";
 export type { ResolvedApiConfig } from "./http.js";

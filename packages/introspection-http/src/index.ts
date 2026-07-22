@@ -23,13 +23,18 @@ export {
 } from "./client.js";
 export type { ResourceHttpClient } from "./resources/types.js";
 export {
+  DEVELOPMENT_LINK_HEADER,
   RunHandle,
   TaskRunsApi,
   TaskRunsClient,
   TasksApi,
   TasksClient,
 } from "./resources/tasks.js";
-export type { StartParams, TaskBodyMapper } from "./resources/tasks.js";
+export type {
+  StartParams,
+  TaskBodyMapper,
+  TaskClientOptions,
+} from "./resources/tasks.js";
 export {
   FileVersionsApi,
   FileVersionsClient,

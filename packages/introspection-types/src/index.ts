@@ -57,6 +57,15 @@ export interface IntrospectionClientOptions {
   token?: string;
   /** Service name for telemetry (env: INTROSPECTION_SERVICE_NAME, default: "introspection-client") */
   serviceName?: string;
+  /**
+   * Development Link secret (`dl_…`) pairing this app instance to a local
+   * recipe checkout (env: INTROSPECTION_DEVELOPMENT_LINK, Node only).
+   * When set, task-creating Data Plane requests carry the
+   * `Introspection-Development-Link` header so the task's sandbox runs
+   * against the developer's live `introspection dev` overlay. Routing
+   * only — auth is unchanged.
+   */
+  developmentLink?: string;
   /** Advanced options for configuration and testing */
   advanced?: AdvancedOptions;
 }

@@ -54,6 +54,12 @@ export class IntrospectionClient {
   readonly cpHttp: HttpClient;
   /** @internal — passed through to Runner so it can build its own DP HTTP client. */
   readonly advancedOptions: AdvancedOptions;
+  /**
+   * @internal — resolved Development Link (`dl_…`), passed through to
+   * Runner so its task-creating DP requests carry the
+   * `Introspection-Development-Link` header. `undefined` when unset.
+   */
+  readonly developmentLink?: string;
 
   /**
    * Read/resolve `/v1/runtimes` and open a runner with the callable handle.
@@ -82,6 +88,16 @@ export class IntrospectionClient {
       advanced.baseApiUrl ||
       process.env.INTROSPECTION_BASE_API_URL ||
       "https://api.introspection.dev";
+    // Development Link pairing this app instance to a local recipe
+    // checkout. Explicit option wins; otherwise fall back to the env var
+    // written by `introspection dev link`. Empty values stay unset so no
+    // header is ever sent for them.
+    this.developmentLink =
+      options.developmentLink ||
+      (typeof process !== "undefined"
+        ? process.env.INTROSPECTION_DEVELOPMENT_LINK
+        : undefined) ||
+      undefined;
 
     if (!token) {
       sdkLogger.warn(

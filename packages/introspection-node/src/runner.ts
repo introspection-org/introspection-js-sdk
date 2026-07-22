@@ -59,7 +59,12 @@ export class Runner {
   ) {
     this.spec = spec;
     this.http = this.buildHttp();
-    this.tasks = new TasksApi(this.guardedHttp(this.http));
+    // Task-creating requests carry the Development Link header (when the
+    // client has one configured) so the platform routes the task's
+    // sandbox to the developer's live local recipe overlay.
+    this.tasks = new TasksApi(this.guardedHttp(this.http), undefined, {
+      developmentLink: this.client.developmentLink,
+    });
     this.files = new FilesApi(this.guardedHttp(this.http));
     this.conversations = new ConversationsApi(this.guardedHttp(this.http));
     this.events = new EventsApi(this.guardedHttp(this.http));

@@ -31,6 +31,7 @@ interface CapturedRequest {
   path: string;
   query: URLSearchParams;
   auth: string | undefined;
+  devLink: string | undefined;
   body: unknown;
 }
 
@@ -136,6 +137,8 @@ beforeAll(async () => {
       path,
       query: url.searchParams,
       auth: req.headers.authorization,
+      devLink: req.headers["introspection-development-link"] as
+        string | undefined,
       body,
     });
 
@@ -243,6 +246,15 @@ beforeAll(async () => {
     // --- Data-plane (runner) ---
     if (path === "/v1/tasks" && method === "GET")
       return json(res, 200, page([{ id: "task-1", name: "t" }]));
+    if (path === "/v1/tasks" && method === "POST")
+      return json(res, 201, {
+        task: { id: "task-1" },
+        run: { id: "run-1", task_id: "task-1", status: "running" },
+      });
+    if (path === "/v1/tasks/task-1/runs" && method === "POST")
+      return json(res, 200, {
+        run: { id: "run-2", task_id: "task-1", status: "running" },
+      });
 
     json(res, 404, { detail: "not found", code: "not_found" });
   });
@@ -524,6 +536,93 @@ describe("IntrospectionClient (REST control-plane, real server)", () => {
       for await (const r of client.recipes.list({ project: "proj-1" }))
         seen.push(r.id);
       expect(seen).toEqual([RECIPE.id]);
+    });
+  });
+
+  describe("development link", () => {
+    const find = (method: string, path: string) =>
+      requests.find((r) => r.method === method && r.path === path);
+
+    it("client option threads to task-creating runner requests only", async () => {
+      const client = new IntrospectionClient({
+        token: "test-token",
+        developmentLink: "dl_from_option",
+        advanced: { baseApiUrl: baseUrl },
+      });
+      const runner = await client.runtimes(RUNTIME.slug).run();
+
+      requests = [];
+      await runner.tasks.create({});
+      await runner.tasks.runs.create("task-1", { message: "hi" });
+      await collect(runner.tasks.list());
+
+      expect(find("POST", "/v1/tasks")?.devLink).toBe("dl_from_option");
+      expect(find("POST", "/v1/tasks/task-1/runs")?.devLink).toBe(
+        "dl_from_option",
+      );
+      // Reads never carry the link.
+      expect(find("GET", "/v1/tasks")?.devLink).toBeUndefined();
+      await runner.close();
+    });
+
+    it("falls back to INTROSPECTION_DEVELOPMENT_LINK from the environment", async () => {
+      const prev = process.env.INTROSPECTION_DEVELOPMENT_LINK;
+      process.env.INTROSPECTION_DEVELOPMENT_LINK = "dl_from_env";
+      try {
+        const client = new IntrospectionClient({
+          token: "test-token",
+          advanced: { baseApiUrl: baseUrl },
+        });
+        const runner = await client.runtimes(RUNTIME.slug).run();
+        requests = [];
+        await runner.tasks.create({});
+        expect(find("POST", "/v1/tasks")?.devLink).toBe("dl_from_env");
+        await runner.close();
+      } finally {
+        if (prev === undefined)
+          delete process.env.INTROSPECTION_DEVELOPMENT_LINK;
+        else process.env.INTROSPECTION_DEVELOPMENT_LINK = prev;
+      }
+    });
+
+    it("explicit option wins over the environment variable", async () => {
+      const prev = process.env.INTROSPECTION_DEVELOPMENT_LINK;
+      process.env.INTROSPECTION_DEVELOPMENT_LINK = "dl_from_env";
+      try {
+        const client = new IntrospectionClient({
+          token: "test-token",
+          developmentLink: "dl_from_option",
+          advanced: { baseApiUrl: baseUrl },
+        });
+        const runner = await client.runtimes(RUNTIME.slug).run();
+        requests = [];
+        await runner.tasks.create({});
+        expect(find("POST", "/v1/tasks")?.devLink).toBe("dl_from_option");
+        await runner.close();
+      } finally {
+        if (prev === undefined)
+          delete process.env.INTROSPECTION_DEVELOPMENT_LINK;
+        else process.env.INTROSPECTION_DEVELOPMENT_LINK = prev;
+      }
+    });
+
+    it("sends no header when neither option nor env var is set", async () => {
+      const prev = process.env.INTROSPECTION_DEVELOPMENT_LINK;
+      delete process.env.INTROSPECTION_DEVELOPMENT_LINK;
+      try {
+        const client = new IntrospectionClient({
+          token: "test-token",
+          advanced: { baseApiUrl: baseUrl },
+        });
+        const runner = await client.runtimes(RUNTIME.slug).run();
+        requests = [];
+        await runner.tasks.create({});
+        expect(find("POST", "/v1/tasks")?.devLink).toBeUndefined();
+        await runner.close();
+      } finally {
+        if (prev !== undefined)
+          process.env.INTROSPECTION_DEVELOPMENT_LINK = prev;
+      }
     });
   });
 
