@@ -26,8 +26,8 @@
     "@opentelemetry/api": "^1.9.1"
   },
   "peerDependencies": {
-    "@earendil-works/pi-ai": ">=0.75.0",
-    "@earendil-works/pi-agent-core": ">=0.75.0"
+    "@earendil-works/pi-agent-core": ">=0.75.0",
+    "@earendil-works/pi-ai": ">=0.75.0"
   },
   "peerDependenciesMeta": {
     "@earendil-works/pi-ai": {
@@ -38,7 +38,7 @@
     }
   },
   "devDependencies": {
-    "@earendil-works/pi-agent-core": "^0.80.7",
+    "@earendil-works/pi-agent-core": "^0.80.10",
     "@earendil-works/pi-ai": "^0.80.7",
     "@repo/eslint-config": "workspace:*",
     "@repo/typescript-config": "workspace:*",
