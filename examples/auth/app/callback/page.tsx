@@ -69,9 +69,9 @@ export default function Callback() {
           append("info", "Broker exchanging the authorization code (PKCE) …");
           // The PKCE verifier travels from the browser, but the token POST runs
           // in the broker (via the Node SDK) — the browser issues no
-          // Introspection OAuth call. The broker returns the server-resolved
-          // runtime id and the DP URL too.
-          const { token, runtimeId, dpUrl } = await brokerSession({
+          // Introspection OAuth call. The broker returns the stable Runtime
+          // selector and the DP URL too.
+          const { token, runtime, dpUrl } = await brokerSession({
             mode: "authorization_code",
             code,
             code_verifier: flow.verifier,
@@ -81,7 +81,7 @@ export default function Callback() {
 
           socketRef.current = await runTaskWithToken(dpUrl, {
             token,
-            runtimeId,
+            runtime,
             prompt: flow.prompt,
             append,
           });

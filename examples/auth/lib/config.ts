@@ -49,9 +49,8 @@ export function spaClientId(): string {
 }
 
 /**
- * The runtime the broker resolves to a `runtime_id` server-side (a Control
- * Plane lookup that never happens in the browser). Defaults to the shared
- * sample runtime slug.
+ * Stable Runtime selector (slug or Runtime group id) bound when the browser
+ * exchanges its token for a Data Plane session.
  */
 export function runtime(): string {
   return process.env.INTRO_RUNTIME ?? "customer-agent";

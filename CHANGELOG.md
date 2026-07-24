@@ -5,7 +5,7 @@
 
 ### ⚠ BREAKING CHANGES
 
-* **experiments:** ExperimentCreate requires runtime_group_id, arms of {runtime_id, arm_label}, and goal_json; Arm and ExperimentEndParams are removed; end() no longer accepts a winner label.
+* **experiments:** ExperimentCreate requires a stable runtime selector, arms of {runtime_id, arm_label}, and goal_json; Arm and ExperimentEndParams are removed; end() no longer accepts a winner label.
 * RuntimeResolutionMode is removed from @introspection/types.
 
 ### Features

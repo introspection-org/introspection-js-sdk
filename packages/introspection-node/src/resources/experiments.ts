@@ -11,7 +11,9 @@ import type {
 import type { HttpClient } from "../http.js";
 import type { IntrospectionClient } from "../client.js";
 import { Paginator, cursorPaginate } from "../pagination.js";
-import { Runner, type RunnerSource } from "../runner.js";
+import { Runner } from "../runner.js";
+
+export type ExperimentRunRequest = Omit<RunRequest, "environment">;
 
 interface ExperimentRunRequestBody {
   identity?: {
@@ -23,9 +25,12 @@ interface ExperimentRunRequestBody {
   agent_name?: string;
   ttl_seconds?: number;
   scope?: string;
+  bindings_required?: boolean;
 }
 
-function toRunBody(opts?: RunRequest): ExperimentRunRequestBody | undefined {
+function toRunBody(
+  opts?: ExperimentRunRequest,
+): ExperimentRunRequestBody | undefined {
   if (!opts) return undefined;
   const out: ExperimentRunRequestBody = {};
   if (opts.identity) out.identity = opts.identity;
@@ -33,6 +38,8 @@ function toRunBody(opts?: RunRequest): ExperimentRunRequestBody | undefined {
   if (opts.agent_name !== undefined) out.agent_name = opts.agent_name;
   if (opts.ttl_seconds !== undefined) out.ttl_seconds = opts.ttl_seconds;
   if (opts.scope !== undefined) out.scope = opts.scope;
+  if (opts.bindings_required !== undefined)
+    out.bindings_required = opts.bindings_required;
   return out;
 }
 
@@ -91,7 +98,7 @@ export class ExperimentsApi {
     });
   }
 
-  startById(id: Uuid): Promise<Experiment> {
+  start(id: Uuid): Promise<Experiment> {
     return this.http.request<Experiment>({
       method: "POST",
       path: `/v1/experiments/${encodeURIComponent(id)}/start`,
@@ -99,7 +106,7 @@ export class ExperimentsApi {
     });
   }
 
-  endById(id: Uuid): Promise<Experiment> {
+  end(id: Uuid): Promise<Experiment> {
     return this.http.request<Experiment>({
       method: "POST",
       path: `/v1/experiments/${encodeURIComponent(id)}/end`,
@@ -107,7 +114,7 @@ export class ExperimentsApi {
     });
   }
 
-  cancelById(id: Uuid): Promise<Experiment> {
+  cancel(id: Uuid): Promise<Experiment> {
     return this.http.request<Experiment>({
       method: "POST",
       path: `/v1/experiments/${encodeURIComponent(id)}/cancel`,
@@ -115,62 +122,21 @@ export class ExperimentsApi {
     });
   }
 
-  async runById(id: Uuid, opts?: RunRequest): Promise<Runner> {
+  async run(id: Uuid, opts?: ExperimentRunRequest): Promise<Runner> {
+    const body = toRunBody(opts) ?? {};
     const spec = await this.http.request<RunnerSpec>({
       method: "POST",
       path: `/v1/experiments/${encodeURIComponent(id)}/run`,
-      body: toRunBody(opts) ?? {},
+      query: opts?.project ? { project: opts.project } : undefined,
+      body,
     });
-    const source: RunnerSource = {
-      kind: "experiment",
-      id,
-      options: opts,
-    };
-    return new Runner(this.client, source, spec);
+    return new Runner(this.client, spec);
   }
 }
-
-export class ExperimentHandle {
-  constructor(
-    private readonly api: ExperimentsApi,
-    private readonly id: Uuid,
-  ) {}
-
-  run(opts?: RunRequest): Promise<Runner> {
-    return this.api.runById(this.id, opts);
-  }
-
-  start(): Promise<Experiment> {
-    return this.api.startById(this.id);
-  }
-
-  end(): Promise<Experiment> {
-    return this.api.endById(this.id);
-  }
-
-  cancel(): Promise<Experiment> {
-    return this.api.cancelById(this.id);
-  }
-}
-
-export type ExperimentHandleFactory = (id: Uuid) => ExperimentHandle;
 
 export function attachExperiments(
   client: IntrospectionClient,
   http: HttpClient,
-): ExperimentsApi & ExperimentHandleFactory {
-  const api = new ExperimentsApi(http, client);
-  const factory: ExperimentHandleFactory = (id: Uuid) =>
-    new ExperimentHandle(api, id);
-  const hybrid = factory as ExperimentsApi & ExperimentHandleFactory;
-  hybrid.list = api.list.bind(api);
-  hybrid.get = api.get.bind(api);
-  hybrid.create = api.create.bind(api);
-  hybrid.update = api.update.bind(api);
-  hybrid.delete = api.delete.bind(api);
-  hybrid.startById = api.startById.bind(api);
-  hybrid.endById = api.endById.bind(api);
-  hybrid.cancelById = api.cancelById.bind(api);
-  hybrid.runById = api.runById.bind(api);
-  return hybrid;
+): ExperimentsApi {
+  return new ExperimentsApi(http, client);
 }

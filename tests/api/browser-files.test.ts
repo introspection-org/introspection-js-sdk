@@ -154,8 +154,11 @@ describe("browser FilesClient", () => {
   it("is exposed on IntrospectionApiClient.files", () => {
     const client = new IntrospectionApiClient({
       dpUrl: "https://dp.example.com",
-      projectId: "proj-1",
-      getToken: () => "token",
+      auth: {
+        kind: "access_token",
+        runtime: "customer-agent",
+        getToken: () => "token",
+      },
       fetch: vi.fn() as unknown as typeof fetch,
     });
     expect(client.files).toBeInstanceOf(FilesClient);

@@ -16,19 +16,13 @@ import {
  * Service account — no end users (server / CI). The broker route
  * (/api/broker/session) authenticates the machine itself via
  * client_credentials, keeping the client secret server-side; the resulting
- * session has project access but no federated end-user identity. The task
- * instead carries a caller-asserted identity via `metadata.identity`
- * which the platform turns into the ATTRIBUTION rung of the partner
- * MCP assertion: `sub: user:{user_id}`,
- * `sub_type: "identity"`, hard-distinct `type: "identity_attribution"` —
- * the sample MCP surfaces all of it in its tool responses.
+ * session has project access but no federated end-user identity.
  */
 export default function ServiceAccountPage() {
   const [prompt, setPrompt] = useState(
     "Use the partner MCP to remember that my favorite color is amber, " +
       "then read it back to me.",
   );
-  const [userId, setUserId] = useState("sa-demo-user");
   const [running, setRunning] = useState(false);
   const [log, setLog] = useState<LogLine[]>([]);
   const socketRef = useRef<RunSession | null>(null);
@@ -50,30 +44,22 @@ export default function ServiceAccountPage() {
         "info",
         "Broker authenticating the service account (client credentials) …",
       );
-      const { token, runtimeId, dpUrl } = await brokerSession({
+      const { token, runtime, dpUrl } = await brokerSession({
         mode: "service_account",
       });
-      append(
-        "ok",
-        `   ✓ token minted + runtime ${runtimeId.slice(0, 8)}… resolved (server-side)`,
-      );
-      const trimmedUserId = userId.trim();
+      append("ok", `   ✓ token minted for Runtime ${runtime}`);
       socketRef.current = await runTaskWithToken(dpUrl, {
         token,
-        runtimeId,
+        runtime,
         prompt,
         append,
-        // Caller-asserted attribution identity: becomes the task's
-        // metadata.identity, and the attribution-rung MCP assertion's
-        // `sub: user:{user_id}`.
-        ...(trimmedUserId ? { identity: { user_id: trimmedUserId } } : {}),
       });
     } catch (err) {
       append("err", `✗ ${err instanceof Error ? err.message : String(err)}`);
     } finally {
       setRunning(false);
     }
-  }, [append, prompt, userId]);
+  }, [append, prompt]);
 
   return (
     <main>
@@ -81,21 +67,12 @@ export default function ServiceAccountPage() {
       <p className="subtitle">
         No end users: the broker mints a machine token via{" "}
         <code>client_credentials</code> (the secret never reaches the browser).
-        Project access; identity is caller-asserted via{" "}
-        <code>metadata.identity</code> — the attribution rung (
-        <code>type: identity_attribution</code>).{" "}
+        Project-scoped machine authority, with no end-user identity.{" "}
         <Link href="/">← all modes</Link>
       </p>
 
       <div className="card">
         <div className="step">Run as the machine</div>
-        <label htmlFor="user-id">Attributed user id</label>
-        <input
-          id="user-id"
-          value={userId}
-          onChange={(e) => setUserId(e.target.value)}
-          placeholder="sa-demo-user"
-        />
         <label htmlFor="prompt">Prompt</label>
         <textarea
           id="prompt"

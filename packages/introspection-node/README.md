@@ -29,7 +29,8 @@ import { IntrospectionClient } from "@introspection-sdk/introspection-node";
 
 const client = new IntrospectionClient();
 
-const runner = await client.runtimes("customer-agent").run({
+const runner = await client.runtimes.run({
+  runtime: "customer-agent",
   agent_name: "support-agent",
   scope: "tasks:read tasks:write files:read files:write",
 });
@@ -53,6 +54,28 @@ explicit, or `{ mode: "drain", drain_within_seconds: 60 }` for graceful
 teardown.
 Interrupted runs resume through
 `runner.tasks.runs.resume(taskId, { resume: entries })`.
+
+If a trusted server is brokering a browser session and must return
+short-lived Runtime authority instead of creating a server-side `Runner`,
+use the explicit Node-only delegation operation:
+
+```typescript
+const delegation = await client.runtimes.delegate({
+  runtime: "customer-agent",
+  scope: "tasks:read tasks:write",
+  identity: { user_id: "user_123" },
+});
+
+return {
+  token: delegation.token,
+  deployment: delegation.deployment,
+  expires_at: delegation.expires_at,
+};
+```
+
+`scope` is required and cannot be blank. Each `run` or `delegate` call creates
+one session. A browser broker endpoint must call `delegate` on every request;
+the browser uses a fresh token for its initial exchange and every 401 recovery.
 
 ## Pi instrumentation
 

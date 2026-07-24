@@ -304,45 +304,60 @@ export interface ShareListParams extends ListParams {
  *                 exists in the project.
  */
 export type RuntimeLlmMode = "managed" | "byok";
+export type RuntimeEnvironment = "development" | "staging" | "production";
+export type RuntimeKind = "byor" | "byoh";
+export type RuntimeRecipeKind = "preview" | "production";
+export type RuntimeImageStatus =
+  "pending" | "queued" | "building" | "ready" | "failed";
 
-export interface Runtime {
+export interface RuntimeVersion {
   id: Uuid;
   org_id: Uuid;
-  project_id: Uuid;
-  name: string;
-  slug: string;
-  description?: string | null;
-  recipe_id: Uuid;
-  is_active: boolean;
-  llm_mode: RuntimeLlmMode;
   created_at: IsoDate;
   updated_at: IsoDate;
+  name: string;
+  description: string | null;
+  kind: RuntimeKind;
+  llm_mode: RuntimeLlmMode;
+  config_json: Record<string, unknown>;
+  project_id: Uuid;
+  recipe_id: Uuid;
+  /** Stable Runtime identity shared by every immutable version. */
+  runtime_group_id: Uuid;
+  slug: string;
+  recipe_kind: RuntimeRecipeKind;
+  recipe_ref: string;
+  /** Environments currently served by this exact Runtime version. */
+  environments: RuntimeEnvironment[];
+  image_tag: string | null;
+  image_status: RuntimeImageStatus;
+  image_built_at: IsoDate | null;
+  image_build_error: string | null;
+  image_size_bytes: number | null;
+  image_build_log_file_id: Uuid | null;
+  created_by_member_id: Uuid;
   /**
    * When set, the runtime has been withdrawn and will never resolve as the
    * active runtime for its environment; in-flight sticky runs keep using it.
    */
-  yanked_at?: IsoDate | null;
-  yanked_reason?: string | null;
+  yanked_at: IsoDate | null;
+  yanked_reason: string | null;
   /**
    * Per-environment git ref each lane tracks
    * ({ environment: "main" | "pr/N" | <sha> }); a tracked lane auto-advances
    * to the newest build from that ref, an absent key is untracked.
    */
-  environment_ref?: Record<string, string> | null;
-  metadata?: Record<string, unknown> | null;
+  environment_ref: Partial<Record<RuntimeEnvironment, string>> | null;
 }
 
-export interface RuntimeListParams extends ListParams {
+export interface RuntimeVersionListParams extends ListParams {
   /** Project slug or id. */
   project?: string;
-  /** Runtime slug or id. */
+  /** Stable Runtime slug or Runtime group id. */
   runtime?: string;
   recipe_id?: Uuid;
-  only_active?: boolean;
   /** Restrict to runtimes serving this environment (e.g. `"production"`). */
-  environment?: string;
-  /** Omit withdrawn runtimes — mirrors the server-side active resolution. */
-  exclude_yanked?: boolean;
+  environment?: RuntimeEnvironment;
 }
 
 // --- recipes ---
@@ -389,6 +404,8 @@ export interface RecipeListParams extends ListParams {
 
 export type ExperimentStatus = "draft" | "running" | "ended" | "cancelled";
 
+export type ExperimentRoutingStrategy = "beta_sample";
+
 export type ExperimentGoalDirection = "maximize" | "minimize";
 
 /** Canary bound over one goal component's rate. */
@@ -433,11 +450,17 @@ export interface ExperimentGoal {
   components: ExperimentGoalComponent[];
 }
 
-/** One arm — a runtime version in the experiment's group + display label. */
-export interface ExperimentArm {
+/** One arm accepted in an Experiment create request. */
+export interface ExperimentArmCreate {
   runtime_id: Uuid;
   arm_label: string;
   agent_overrides?: Record<string, string> | null;
+}
+
+/** One persisted Experiment arm. */
+export interface ExperimentArm extends ExperimentArmCreate {
+  id: Uuid;
+  initial_weight: number;
 }
 
 export interface Experiment {
@@ -445,15 +468,15 @@ export interface Experiment {
   org_id: Uuid;
   project_id: Uuid;
   name: string;
-  runtime_group_id?: Uuid | null;
-  environment?: string | null;
+  runtime_group_id: Uuid;
+  environment: RuntimeEnvironment;
   status: ExperimentStatus;
-  routing_strategy?: string | null;
+  routing_strategy: ExperimentRoutingStrategy;
   arms: ExperimentArm[];
-  goal_json?: ExperimentGoal | null;
-  scoring_interval_seconds?: number | null;
-  hash_key_fields?: string[] | null;
-  sample_rate?: number | null;
+  goal_json: ExperimentGoal;
+  scoring_interval_seconds: number;
+  hash_key_fields: string[];
+  sample_rate: number;
   description?: string | null;
   posterior_json?: Record<string, unknown> | null;
   weights_json?: Record<string, number> | null;
@@ -461,22 +484,25 @@ export interface Experiment {
   ended_at?: IsoDate | null;
   halted_at?: IsoDate | null;
   halted_reason?: string | null;
+  created_by_member_id: Uuid;
+  archived_at?: IsoDate | null;
   created_at: IsoDate;
   updated_at: IsoDate;
 }
 
 /**
  * `POST /v1/experiments` body. Creates a draft that routes nothing until
- * `start`. `arms` takes 2–20 runtime versions sharing `runtime_group_id`.
+ * `start`. `runtime` is the stable Runtime slug or group ID; `arms` takes 2–20
+ * versions belonging to it.
  */
 export interface ExperimentCreate {
   project: string;
   name: string;
-  runtime_group_id: Uuid;
-  arms: ExperimentArm[];
+  runtime: string;
+  arms: ExperimentArmCreate[];
   goal_json: ExperimentGoal;
   description?: string;
-  environment?: string;
+  environment?: RuntimeEnvironment;
   scoring_interval_seconds?: number;
   hash_key_fields?: string[];
   sample_rate?: number;
@@ -484,7 +510,7 @@ export interface ExperimentCreate {
 
 /**
  * `PATCH /v1/experiments/{id}`. Status transitions use start/end/cancel;
- * `runtime_group_id` and `arms` are immutable once running.
+ * The selected Runtime and `arms` are immutable once running.
  */
 export interface ExperimentUpdate {
   name?: string;
@@ -497,7 +523,8 @@ export interface ExperimentUpdate {
 
 export interface ExperimentListParams extends ListParams {
   project?: string;
-  name?: string;
+  runtime?: string;
+  environment?: RuntimeEnvironment;
   status?: ExperimentStatus;
 }
 
@@ -507,26 +534,19 @@ export interface RunnerIdentity {
   conversation_id: string | null;
 }
 
-export interface RunnerRecipeSummary {
-  repository_id: Uuid;
-  git_ref: string;
-  git_commit_sha: string;
-}
-
 export interface RunnerContext {
-  runtime_id: Uuid;
-  runtime_group_id?: Uuid | null;
+  runtime_id: Uuid | null;
+  runtime_group_id: Uuid | null;
   experiment_id: Uuid | null;
-  recipe_id: Uuid;
-  recipe_repository_id?: Uuid | null;
-  recipe_git_ref?: string | null;
-  recipe_git_commit_sha?: string | null;
-  recipe: RunnerRecipeSummary;
+  recipe_id: Uuid | null;
+  recipe_repository_id: Uuid | null;
+  recipe_git_ref: string | null;
+  recipe_git_commit_sha: string | null;
   arm_label: string | null;
-  agent_name?: string | null;
+  agent_name: string | null;
   identity: RunnerIdentity;
   /** Echoed from the request when supplied. */
-  caller?: RunCaller;
+  caller: RunCaller | null;
 }
 
 /**
@@ -543,7 +563,7 @@ export interface RunnerDeployment {
 }
 
 /**
- * CP `/run` response — the customer wire.
+ * CP Runtime or Experiment `/run` response — the customer wire.
  *
  * Sandbox-internal fields (`credentials` for ext_proc egress injection,
  * the `bootstrap` repo manifest, DP `limits`, and the Otari
@@ -555,9 +575,9 @@ export interface RunnerSpec {
   /** Routing target — DP endpoint / slug / region. */
   deployment: RunnerDeployment;
   /**
-   * RS256 `session_locator` JWT — the only credential the customer
-   * holds. Sent as the `Authorization: Bearer ...` value on all DP
-   * calls.
+   * RS256 Runner capability JWT — the only credential the customer holds.
+   * Sent as the `Authorization: Bearer ...` value on all DP calls and
+   * validated directly by the target DP.
    */
   session_token: string;
   /** Session lifetime (ISO-8601). */
@@ -608,18 +628,22 @@ export interface RunCallerPage {
 }
 
 /**
- * Input body for the CP `/v1/runtimes/{id}/run` and
- * `/v1/experiments/{id}/run` routes. The URL identifies the
- * runtime/experiment — do NOT include `deployment`, `runtime_id`, or
- * `experiment_id` in the body.
+ * Per-invocation options for Runtime and Experiment `/run` routes. Runtime
+ * methods add exactly one stable or exact selector.
  */
 export interface RunRequest {
+  /** Project slug or id. Required unless the credential is project-scoped. */
+  project?: string;
+  /** Binding environment. Defaults to the credential environment. */
+  environment?: RuntimeEnvironment;
   identity?: RunIdentityInput;
   /** Optional observability payload — see {@link RunCaller}. */
   caller?: RunCaller;
   /** Optional entrypoint agent. Omit to use the runtime default. */
   agent_name?: string;
   ttl_seconds?: number;
+  /** Require all applicable bindings to materialize. */
+  bindings_required?: boolean;
   /** Optional space-separated runner scopes, capped by the Control Plane. */
   scope?: string;
 }

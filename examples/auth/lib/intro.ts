@@ -103,13 +103,12 @@ export function randomToken(): string {
 /**
  * The session the broker establishes server-side and hands back. Everything
  * the browser needs to run a task — and nothing more: the access token, the
- * project, the server-resolved `runtimeId`, and the DP URL from the CP token
- * response. No CP/DP/runtime config lives in the browser.
+ * project, stable Runtime selector, and the DP URL from the CP token response.
  */
 export interface BrokerSession {
   token: string;
   project: string;
-  runtimeId: string;
+  runtime: string;
   dpUrl: string;
 }
 
@@ -130,8 +129,8 @@ export type BrokerRequest =
 
 /**
  * Call the app's own broker (`/api/broker/session`). The broker runs the
- * Introspection token POST server-side via the Node SDK, resolves the runtime
- * id, and reads the DP URL off the CP response — so every mode returns the same
+ * Introspection token POST server-side via the Node SDK and returns the stable
+ * Runtime selector plus DP URL — so every mode returns the same
  * {@link BrokerSession} and the browser issues no Introspection OAuth calls.
  */
 export async function brokerSession(
@@ -147,19 +146,6 @@ export async function brokerSession(
     throw new Error(error || `broker returned ${res.status}`);
   }
   return (await res.json()) as BrokerSession;
-}
-
-/**
- * Caller identity for attribution: rides `metadata.identity` on the
- * task create. For machine (client_credentials) tokens — which carry no
- * identity claim of their own — the DP persists this onto the task, and the
- * platform mints the attribution-rung MCP assertion from it
- * (`sub: user:{user_id}`, `type: "identity_attribution"`).
- */
-export interface TaskIdentity {
-  user_id?: string;
-  anonymous_id?: string;
-  conversation_id?: string;
 }
 
 /** A live run the caller can tear down (stops streaming + any pending poll). */
@@ -270,20 +256,22 @@ export async function runTaskWithToken(
     token: string;
     prompt: string;
     append: Append;
-    /** Server-resolved runtime id; pins the task via `runtime_id`. */
-    runtimeId: string;
-    /** Optional caller identity, folded into `metadata.identity`. */
-    identity?: TaskIdentity;
+    /** Stable Runtime selector bound during the DP session exchange. */
+    runtime: string;
   },
 ): Promise<RunSession> {
-  const { token, prompt, append, runtimeId, identity } = opts;
+  const { token, prompt, append, runtime } = opts;
 
   // The session's project is derived from the token's claims at exchange —
   // the client takes no project selector. The DP URL came from the CP token response
   // (via the broker), so the browser is configured entirely from the server.
   const client = new IntrospectionApiClient({
     dpUrl,
-    getToken: () => token,
+    auth: {
+      kind: "access_token",
+      runtime,
+      getToken: () => token,
+    },
   });
 
   append("info", "Exchanging for a Data Plane session cookie …");
@@ -300,11 +288,9 @@ export async function runTaskWithToken(
       .filter((id): id is string => typeof id === "string"),
   );
 
-  append("info", `Creating a task for runtime ${runtimeId.slice(0, 8)}… …`);
+  append("info", `Creating a task for Runtime ${runtime} …`);
   const run = await client.tasks.start({
     prompt,
-    runtime_id: runtimeId,
-    ...(identity ? { identity } : {}),
   });
   append("ok", `   ✓ task ${run.task?.id ?? run.run.task_id} created`);
 

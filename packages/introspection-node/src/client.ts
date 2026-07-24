@@ -2,8 +2,8 @@
  * Introspection REST Client for Node.js
  *
  * Exposes the Control Plane REST surface for running runtimes and operating
- * experiments. Calling `client.runtimes(slug).run()` or
- * `client.experiments(id).run()` returns a {@link Runner} bound to a Data
+ * experiments. Calling `client.runtimes.run(...)` or
+ * `client.experiments.run(...)` returns a {@link Runner} bound to a Data
  * Plane sandbox.
  *
  * This class is **REST-only** and does not depend on the OpenTelemetry
@@ -17,14 +17,9 @@ import { logger as sdkLogger } from "./utils.js";
 import type { IntrospectionClientOptions } from "./types.js";
 import { serviceAccountToken, type ServiceAccountTokenParams } from "./auth.js";
 import { HttpClient } from "./http.js";
-import {
-  attachRuntimes,
-  type RuntimeHandleFactory,
-  type RuntimesApi,
-} from "./resources/runtimes.js";
+import { attachRuntimes, type RuntimesApi } from "./resources/runtimes.js";
 import {
   attachExperiments,
-  type ExperimentHandleFactory,
   type ExperimentsApi,
 } from "./resources/experiments.js";
 import { attachRecipes, type RecipesApi } from "./resources/recipes.js";
@@ -38,8 +33,9 @@ import { attachRecipes, type RecipesApi } from "./resources/recipes.js";
  *   token: process.env.INTROSPECTION_TOKEN,
  * });
  *
- * // Open a runner from a runtime, then drive it.
- * const runner = await client.runtimes("customer-agent").run({
+ * // Run a Runtime, then drive the returned Runner.
+ * const runner = await client.runtimes.run({
+ *   runtime: "customer-agent",
  *   identity: { user_id: "u_42" },
  * });
  * const run = await runner.tasks.create({ prompt: "Summarize this repo" });
@@ -56,16 +52,16 @@ export class IntrospectionClient {
   readonly advancedOptions: AdvancedOptions;
 
   /**
-   * Read/resolve `/v1/runtimes` and open a runner with the callable handle.
+   * Read `/v1/runtimes` and run with an explicit Runtime selector.
    * Runtime lifecycle, version selection, and environment routing are managed
    * through the Introspection CLI and platform.
    */
-  readonly runtimes: RuntimesApi & RuntimeHandleFactory;
+  readonly runtimes: RuntimesApi;
 
   /**
-   * CRUD on `/v1/experiments` and the `(id) => ExperimentHandle` factory.
+   * CRUD and execution on `/v1/experiments`.
    */
-  readonly experiments: ExperimentsApi & ExperimentHandleFactory;
+  readonly experiments: ExperimentsApi;
 
   /**
    * CRUD on `/v1/recipes`. Recipes are immutable build artefacts
@@ -91,7 +87,7 @@ export class IntrospectionClient {
 
     // CP HTTP client — talks to the customer-facing API with the customer
     // API key. Runners get their own HttpClient instances pointed at the
-    // `deployment.endpoint` returned by `/v1/runtimes/{id}/run`.
+    // `deployment.endpoint` returned by a CP `/run` route.
     this.cpHttp = new HttpClient({
       apiUrl: baseApiUrl,
       token,
@@ -124,7 +120,8 @@ export class IntrospectionClient {
    * });
    *
    * // Resolved fresh from the runtime slug on every call.
-   * const runner = await client.runtimes("customer-agent").run({
+   * const runner = await client.runtimes.run({
+   *   runtime: "customer-agent",
    *   identity: { user_id: "u_demo" },
    * });
    * ```

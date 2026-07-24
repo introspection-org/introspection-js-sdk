@@ -11,7 +11,7 @@
  * straight into the existing client surface — pass it to
  * {@link IntrospectionClient}, or use
  * {@link IntrospectionClient.fromServiceAccount} to mint and construct in one
- * call, and the usual `client.runtimes("runtime-slug").run()` flow works unchanged.
+ * call, then `client.runtimes.run({ runtime: "runtime-slug" })` runs the Runtime.
  */
 import { stripTrailingSlash, toApiError } from "@introspection-sdk/http";
 

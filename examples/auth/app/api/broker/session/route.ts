@@ -1,6 +1,6 @@
 /**
  * Confidential broker — establishes an Introspection session server-side and
- * hands the browser exactly what it needs: `{ token, project, runtimeId,
+ * hands the browser exactly what it needs: `{ token, project, runtime,
  * dpUrl }`. Every Introspection token POST runs here through the Node SDK, so
  * the browser never hand-rolls an OAuth call. Three modes:
  *
@@ -11,14 +11,13 @@
  *                           redirect returned (the verifier travels from the
  *                           browser, the POST happens here).
  *
- * In every mode the broker also resolves the runtime id and reads the DP URL
- * off the CP token response, so the SPA is configured entirely from the
- * response — no CP/DP/runtime env in the browser. The browser then completes
+ * In every mode the broker passes the stable Runtime selector and reads the
+ * DP URL off the CP token response, so the SPA is configured entirely from
+ * the response. The browser then completes
  * the shared tail (DP `/v1/oauth/exchange` → intro_dp_session cookie → task).
  */
 import { NextResponse } from "next/server";
 import {
-  IntrospectionClient,
   authorizationCodeToken,
   serviceAccountToken,
   tokenExchange,
@@ -33,28 +32,6 @@ import {
   serviceAccountCreds,
   spaClientId,
 } from "@/lib/config";
-
-/**
- * Resolve the configured runtime slug to its current id. Runtime resolution is
- * a Control Plane call, so it always uses the service-account (machine)
- * credential server-side — never the end-user/customer token (the member_type
- * wall keeps those off CP routes) and never the browser. The id changes when
- * the runtime is re-deployed, so it is resolved fresh on every session.
- */
-async function resolveRuntimeId(): Promise<string> {
-  const { clientId, clientSecret } = serviceAccountCreds();
-  const { access_token } = await serviceAccountToken({
-    clientId,
-    clientSecret,
-    project: project(),
-    baseApiUrl: controlPlaneUrl(),
-  });
-  const cp = new IntrospectionClient({
-    token: access_token,
-    advanced: { baseApiUrl: controlPlaneUrl() },
-  });
-  return (await cp.runtimes.resolve(runtime())).id;
-}
 
 /** The CP resolves the project's DP URL onto the token response (like the CLI login). */
 function dpUrlOrThrow(token: OAuthToken): string {
@@ -121,11 +98,10 @@ export async function POST(request: Request) {
 
   try {
     const token = await mintUserToken(body);
-    const runtimeId = await resolveRuntimeId();
     return NextResponse.json({
       token: token.access_token,
       project: project(),
-      runtimeId,
+      runtime: runtime(),
       dpUrl: dpUrlOrThrow(token),
     });
   } catch (err) {

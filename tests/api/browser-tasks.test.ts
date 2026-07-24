@@ -195,29 +195,6 @@ describe("TasksClient", () => {
     });
   });
 
-  it("folds identity into metadata.identity on create", async () => {
-    const http = mockHttp({
-      requestResult: { task: TASK_FIXTURE, run: RUN_FIXTURE },
-    });
-    const tasks = new TasksClient(http);
-    await tasks.create({
-      prompt: "hello",
-      runtime_id: "rt-1",
-      metadata: { source: "web" },
-      identity: { user_id: "u_42" },
-    });
-
-    expect(http.request).toHaveBeenCalledWith({
-      method: "POST",
-      path: "/v1/tasks",
-      body: {
-        prompt: "hello",
-        runtime_id: "rt-1",
-        metadata: { source: "web", identity: { user_id: "u_42" } },
-      },
-    });
-  });
-
   it("start() creates a task and returns a RunHandle", async () => {
     const http = mockHttp({
       requestResult: { task: TASK_FIXTURE, run: RUN_FIXTURE },
@@ -382,7 +359,7 @@ describe("IntrospectionApiClient", () => {
     const getToken = vi.fn().mockResolvedValue("intro_access_token");
     const client = new IntrospectionApiClient({
       dpUrl: "https://dp.example.com/",
-      getToken,
+      auth: { kind: "access_token", runtime: "customer-agent", getToken },
       fetch: fetchImpl as unknown as typeof fetch,
     });
     await client.connect();
@@ -391,10 +368,10 @@ describe("IntrospectionApiClient", () => {
     const [url, init] = fetchImpl.mock.calls[0];
     expect(url).toBe("https://dp.example.com/v1/oauth/exchange");
     expect(init.credentials).toBe("include");
-    // The project is derived from the token's claims at the DP — the exchange
-    // body carries only the token.
+    // The project comes from token claims; the stable Runtime is bound here.
     expect(JSON.parse(init.body)).toEqual({
       token: "intro_access_token",
+      runtime: "customer-agent",
     });
   });
 
@@ -407,7 +384,11 @@ describe("IntrospectionApiClient", () => {
     });
     const client = new IntrospectionApiClient({
       dpUrl: "https://dp.example.com",
-      getToken: () => "t",
+      auth: {
+        kind: "access_token",
+        runtime: "customer-agent",
+        getToken: () => "t",
+      },
       fetch: fetchImpl as unknown as typeof fetch,
     });
     await expect(client.connect()).rejects.toThrow(IntrospectionAPIError);
@@ -438,7 +419,7 @@ describe("IntrospectionApiClient", () => {
     const getToken = vi.fn().mockResolvedValue("intro_access_token");
     const client = new IntrospectionApiClient({
       dpUrl: "https://dp.example.com",
-      getToken,
+      auth: { kind: "access_token", runtime: "customer-agent", getToken },
       fetch: fetchImpl as unknown as typeof fetch,
     });
 
@@ -453,7 +434,61 @@ describe("IntrospectionApiClient", () => {
     );
   });
 
-  it("starts a task with a server-resolved runtime_id over the cookie session", async () => {
+  it("fetches a fresh delegation for initial connect and 401 recovery", async () => {
+    const fetchImpl = vi
+      .fn()
+      // Initial delegation exchange.
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        headers: new Headers({ "content-type": "application/json" }),
+        json: () => Promise.resolve({}),
+      })
+      // Cookie-authenticated task request sees an expired session.
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 401,
+        headers: new Headers({ "content-type": "application/json" }),
+        json: () => Promise.resolve({ detail: "expired" }),
+      })
+      // Recovery exchanges a newly minted delegation.
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        headers: new Headers({ "content-type": "application/json" }),
+        json: () => Promise.resolve({}),
+      })
+      // Original task request retries successfully.
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        headers: new Headers({ "content-type": "application/json" }),
+        json: () => Promise.resolve(TASK_FIXTURE),
+      });
+    const getToken = vi
+      .fn()
+      .mockResolvedValueOnce("delegated-token-1")
+      .mockResolvedValueOnce("delegated-token-2");
+    const client = new IntrospectionApiClient({
+      dpUrl: "https://dp.example.com",
+      auth: { kind: "delegation", getToken },
+      fetch: fetchImpl as unknown as typeof fetch,
+    });
+
+    await client.connect();
+    const task = await client.tasks.get("task-1");
+
+    expect(task).toEqual(TASK_FIXTURE);
+    expect(getToken).toHaveBeenCalledTimes(2);
+    expect(JSON.parse(fetchImpl.mock.calls[0][1].body)).toEqual({
+      token: "delegated-token-1",
+    });
+    expect(JSON.parse(fetchImpl.mock.calls[2][1].body)).toEqual({
+      token: "delegated-token-2",
+    });
+  });
+
+  it("starts a task against the runtime-bound cookie session", async () => {
     const fetchImpl = vi.fn(async (url: string, init: RequestInit) => {
       if (url === "https://dp.example.com/v1/oauth/exchange") {
         return {
@@ -472,7 +507,6 @@ describe("IntrospectionApiClient", () => {
         expect(init.credentials).toBe("include");
         expect(JSON.parse(init.body as string)).toEqual({
           prompt: "hello",
-          runtime_id: "019ed295-5d76-7432-863b-f9327af50221",
         });
         return {
           ok: true,
@@ -485,14 +519,17 @@ describe("IntrospectionApiClient", () => {
     });
     const client = new IntrospectionApiClient({
       dpUrl: "https://dp.example.com",
-      getToken: () => "intro_access_token",
+      auth: {
+        kind: "access_token",
+        runtime: "customer-agent",
+        getToken: () => "intro_access_token",
+      },
       fetch: fetchImpl as unknown as typeof fetch,
     });
 
     await client.connect();
     const run = await client.tasks.start({
       prompt: "hello",
-      runtime_id: "019ed295-5d76-7432-863b-f9327af50221",
     });
 
     expect(run.task).toEqual(TASK_FIXTURE);
@@ -506,9 +543,46 @@ describe("IntrospectionApiClient", () => {
       () =>
         new IntrospectionApiClient({
           dpUrl: "",
-          getToken: () => "intro_access_token",
+          auth: {
+            kind: "access_token",
+            runtime: "customer-agent",
+            getToken: () => "intro_access_token",
+          },
           fetch: mockFetch({ ok: true }) as unknown as typeof fetch,
         }),
     ).toThrow(/requires a dpUrl/);
+  });
+
+  it("throws when constructed without a runtime", () => {
+    expect(
+      () =>
+        new IntrospectionApiClient({
+          dpUrl: "https://dp.example.com",
+          auth: {
+            kind: "access_token",
+            runtime: "",
+            getToken: () => "intro_access_token",
+          },
+          fetch: mockFetch({ ok: true }) as unknown as typeof fetch,
+        }),
+    ).toThrow(/requires a runtime/);
+  });
+
+  it("does not send a runtime when exchanging a delegated token", async () => {
+    const fetchImpl = mockFetch({ ok: true, json: () => Promise.resolve({}) });
+    const client = new IntrospectionApiClient({
+      dpUrl: "https://dp.example.com",
+      auth: {
+        kind: "delegation",
+        getToken: () => "delegated-runner-token",
+      },
+      fetch: fetchImpl as unknown as typeof fetch,
+    });
+
+    await client.connect();
+
+    expect(JSON.parse(fetchImpl.mock.calls[0][1].body)).toEqual({
+      token: "delegated-runner-token",
+    });
   });
 });

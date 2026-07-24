@@ -40,7 +40,11 @@ describe("browser fetch binding", () => {
     vi.stubGlobal("fetch", brandCheckedFetch());
     const client = new IntrospectionApiClient({
       dpUrl: "https://dp.example.test",
-      getToken: () => "tok",
+      auth: {
+        kind: "access_token",
+        runtime: "customer-agent",
+        getToken: () => "tok",
+      },
     });
     await expect(client.connect()).resolves.toBeUndefined();
   });
@@ -59,7 +63,11 @@ describe("browser fetch binding", () => {
       () =>
         new IntrospectionApiClient({
           dpUrl: "https://dp.example.test",
-          getToken: () => "tok",
+          auth: {
+            kind: "access_token",
+            runtime: "customer-agent",
+            getToken: () => "tok",
+          },
         }),
     ).toThrow("global fetch is unavailable");
   });

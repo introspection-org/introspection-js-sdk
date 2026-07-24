@@ -25,7 +25,7 @@ commit-pinned runtime, and improve it in production with conversations,
 patterns, judges, and experiments.
 
 This repository contains the JavaScript and TypeScript clients for driving the
-Introspection platform. Use them to open a runner against a deployed runtime,
+Introspection platform. Use them to run a deployed Runtime,
 start and stream tasks, and work with the platform from server and browser
 applications. See the [SDK overview](https://docs.introspection.dev/sdk) for
 where each client fits.
@@ -52,7 +52,8 @@ pnpm add @introspection-sdk/introspection-node
 import { IntrospectionClient } from "@introspection-sdk/introspection-node";
 
 const client = new IntrospectionClient();
-const runner = await client.runtimes("customer-agent").run({
+const runner = await client.runtimes.run({
+  runtime: "customer-agent",
   agent_name: "support-agent",
   scope: "tasks:read tasks:write files:read files:write",
 });

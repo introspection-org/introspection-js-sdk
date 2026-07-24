@@ -3,21 +3,19 @@
  *
  * Lets a single-page app create and stream Introspection tasks directly
  * from the browser, with no API key in JavaScript. The browser talks only
- * to the Data Plane — runtime resolution and any other Control Plane work
- * stays on the app's backend, so the CP never needs to serve CORS to
- * customer web origins. The auth boundary:
+ * to the Data Plane, so the CP never needs to serve CORS to customer web
+ * origins. The auth boundary:
  *
  *   1. The SPA's own backend ("broker") mints a short-lived Introspection
  *      access token — via RFC 8693 token-exchange of the partner IdP
  *      token, a PKCE `authorization_code`, or `client_credentials` (the
- *      IdP secret never leaves the backend) — and, when a specific runtime
- *      is needed, resolves its `runtime_id` server-side. The SPA fetches
- *      the token through the `getToken` callback.
- *   2. `connect()` redeems the token at the DP `POST /v1/oauth/exchange`
- *      for the HttpOnly `intro_dp_session` cookie.
+ *      IdP secret never leaves the backend). The SPA fetches the token
+ *      through the `getToken` callback.
+ *   2. `connect()` redeems the token at the DP `POST /v1/oauth/exchange`.
+ *      General access tokens include a stable Runtime selector; delegated
+ *      tokens are already Runtime-bound and omit it.
  *   3. Every subsequent call rides that cookie (`credentials: "include"`)
- *      — `client.tasks.start({ runtime_id })`, `.get(...)`, run streaming,
- *      etc.
+ *      — `client.tasks.start(...)`, `.get(...)`, run streaming, etc.
  *
  * When the session cookie expires, an in-flight request gets a 401, and
  * the client transparently re-runs `getToken` + the DP exchange once
@@ -48,13 +46,26 @@ export interface IntrospectionApiClientOptions {
    */
   dpUrl: string;
   /**
-   * Returns a fresh Introspection access token from the app's broker
-   * (its own backend). Called on `connect()` and again whenever the DP
-   * session cookie needs re-minting after a 401. The session's project is
-   * derived from this token's claims server-side — there is no separate
-   * project option.
+   * Authentication source for the cookie session.
+   *
+   * A general access token needs a stable Runtime selector (slug or Runtime
+   * group id). A token returned by Node's `runtimes.delegate()` is already
+   * bound to a Runtime and must not send another selector.
    */
-  getToken: () => string | Promise<string>;
+  auth:
+    | {
+        kind: "access_token";
+        runtime: string;
+        getToken: () => string | Promise<string>;
+      }
+    | {
+        kind: "delegation";
+        /**
+         * Fetch a newly minted, single-use delegation from the app's broker.
+         * Called for the initial exchange and every automatic 401 recovery.
+         */
+        getToken: () => string | Promise<string>;
+      };
   /** Custom `fetch` (for tests or non-standard runtimes). */
   fetch?: typeof fetch;
   /** Extra headers merged into every DP request. */
@@ -73,6 +84,17 @@ export class IntrospectionApiClient {
     this.fetchImpl = resolveBrowserFetch(opts.fetch);
     if (!opts.dpUrl) {
       throw new Error("IntrospectionApiClient requires a dpUrl");
+    }
+    if (!opts.auth) {
+      throw new Error("IntrospectionApiClient requires auth");
+    }
+    if (
+      opts.auth.kind === "access_token" &&
+      (typeof opts.auth.runtime !== "string" || !opts.auth.runtime.trim())
+    ) {
+      throw new Error(
+        "IntrospectionApiClient access_token auth requires a runtime",
+      );
     }
     const http = new BrowserHttpClient({
       apiUrl: opts.dpUrl,
@@ -109,15 +131,22 @@ export class IntrospectionApiClient {
   }
 
   /**
-   * Mint a token via `getToken` and redeem it at the DP for the
+   * Fetch a token through the configured auth source and redeem it for the
    * `intro_dp_session` cookie. Call once before issuing task requests.
+   *
+   * Delegation refreshes must target the same `dpUrl`. If a fresh delegation
+   * names a different deployment endpoint, construct a new client for it.
    */
   async connect(): Promise<void> {
     await this.exchange();
   }
 
   private async exchange(): Promise<void> {
-    const token = await this.opts.getToken();
+    const token = await this.opts.auth.getToken();
+    const body =
+      this.opts.auth.kind === "access_token"
+        ? { token, runtime: this.opts.auth.runtime.trim() }
+        : { token };
     const res = await this.fetchImpl(
       `${stripTrailingSlash(this.opts.dpUrl)}/v1/oauth/exchange`,
       {
@@ -126,7 +155,7 @@ export class IntrospectionApiClient {
           "Content-Type": "application/json",
           ...(this.opts.additionalHeaders ?? {}),
         },
-        body: JSON.stringify({ token }),
+        body: JSON.stringify(body),
         credentials: "include",
       },
     );

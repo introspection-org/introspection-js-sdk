@@ -21,9 +21,9 @@ import {
   tokenExchange,
 } from "@introspection-sdk/introspection-node";
 import {
-  NotFoundError,
   RunnerExpiredError,
   ValidationError,
+  type RuntimeVersion,
 } from "@introspection-sdk/types";
 
 interface CapturedRequest {
@@ -42,18 +42,55 @@ const RUNTIME = {
   name: "Customer Agent",
   slug: "customer-agent",
   recipe_id: "rec-1",
-  is_active: true,
-  llm_mode: "proxy",
+  description: null,
+  kind: "byor",
+  llm_mode: "managed",
+  config_json: {},
+  recipe_kind: "production",
+  recipe_ref: "main",
+  environments: ["production"],
+  image_tag: null,
+  image_status: "ready",
+  image_built_at: null,
+  image_build_error: null,
+  image_size_bytes: null,
+  image_build_log_file_id: null,
+  created_by_member_id: "member-1",
+  yanked_at: null,
+  yanked_reason: null,
+  environment_ref: null,
   created_at: "2025-01-01T00:00:00Z",
   updated_at: "2025-01-01T00:00:00Z",
-};
+} satisfies RuntimeVersion;
 
 const EXPERIMENT = {
   id: "22222222-2222-2222-2222-222222222222",
   org_id: "org-1",
   project_id: "proj-1",
   name: "exp-a",
+  description: null,
+  runtime_group_id: RUNTIME.runtime_group_id,
+  environment: "production" as const,
   status: "draft",
+  routing_strategy: "beta_sample" as const,
+  arms: [
+    {
+      id: "88888888-8888-8888-8888-888888888881",
+      runtime_id: RUNTIME.id,
+      arm_label: "control",
+      agent_overrides: null,
+      initial_weight: 50,
+    },
+  ],
+  goal_json: {
+    kind: "composite" as const,
+    direction: "maximize" as const,
+    components: [],
+  },
+  scoring_interval_seconds: 300,
+  hash_key_fields: ["user.id", "anonymous.id", "conversation.id"],
+  sample_rate: 1,
+  created_by_member_id: "member-1",
   created_at: "2025-01-01T00:00:00Z",
   updated_at: "2025-01-01T00:00:00Z",
 };
@@ -83,14 +120,10 @@ function runnerSpec(endpoint: string) {
       recipe_repository_id: "repo-1",
       recipe_git_ref: "main",
       recipe_git_commit_sha: "abc123",
-      recipe: {
-        repository_id: "repo-1",
-        git_ref: "main",
-        git_commit_sha: "abc123",
-      },
       arm_label: null,
       agent_name: "agent",
       identity: {},
+      caller: null,
     },
   };
 }
@@ -201,7 +234,7 @@ beforeAll(async () => {
     }
     if (path === `/v1/runtimes/${RUNTIME.id}` && method === "GET")
       return json(res, 200, RUNTIME);
-    if (path === `/v1/runtimes/${RUNTIME.id}/run` && method === "POST")
+    if (path === "/v1/runtimes/run" && method === "POST")
       return json(res, 200, runnerSpec(baseUrl));
 
     // --- Control-plane: experiments ---
@@ -211,6 +244,8 @@ beforeAll(async () => {
       return json(res, 201, EXPERIMENT);
     if (path === `/v1/experiments/${EXPERIMENT.id}` && method === "GET")
       return json(res, 200, EXPERIMENT);
+    if (path === `/v1/experiments/${EXPERIMENT.id}/run` && method === "POST")
+      return json(res, 200, runnerSpec(baseUrl));
     if (path === `/v1/experiments/${EXPERIMENT.id}` && method === "PATCH")
       return json(res, 200, { ...EXPERIMENT, name: "exp-renamed" });
     if (path === `/v1/experiments/${EXPERIMENT.id}` && method === "DELETE") {
@@ -220,12 +255,9 @@ beforeAll(async () => {
     if (path === `/v1/experiments/${EXPERIMENT.id}/start` && method === "POST")
       return json(res, 200, { ...EXPERIMENT, status: "running" });
     if (path === `/v1/experiments/${EXPERIMENT.id}/end` && method === "POST")
-      return json(res, 200, { ...EXPERIMENT, status: "completed" });
+      return json(res, 200, { ...EXPERIMENT, status: "ended" });
     if (path === `/v1/experiments/${EXPERIMENT.id}/cancel` && method === "POST")
       return json(res, 200, { ...EXPERIMENT, status: "cancelled" });
-    if (path === `/v1/experiments/${EXPERIMENT.id}/run` && method === "POST")
-      return json(res, 200, runnerSpec(baseUrl));
-
     // --- Control-plane: recipes ---
     if (path === "/v1/recipes" && method === "GET")
       return json(res, 200, page([RECIPE]));
@@ -298,9 +330,8 @@ describe("IntrospectionClient (REST control-plane, real server)", () => {
       expect(client.runtimes).not.toHaveProperty("unyank");
       expect(client.runtimes).not.toHaveProperty("activateById");
 
-      const handle = client.runtimes("customer-agent");
-      expect(handle).not.toHaveProperty("pin");
-      expect(handle).not.toHaveProperty("activate");
+      expect(client.runtimes).not.toHaveProperty("pin");
+      expect(client.runtimes).not.toHaveProperty("activate");
     });
 
     it("lists and gets runtimes", async () => {
@@ -326,38 +357,34 @@ describe("IntrospectionClient (REST control-plane, real server)", () => {
       expect(ids).toEqual([RUNTIME.id, "rt-2"]);
     });
 
-    it("resolve returns the match, throws NotFoundError otherwise", async () => {
+    it("lists versions for a stable Runtime selector", async () => {
       const client = makeClient();
-      const found = await client.runtimes.resolve(RUNTIME.slug, "proj-1");
-      expect(found.id).toBe(RUNTIME.id);
-      await expect(
-        client.runtimes.resolve("does-not-exist", "proj-1"),
-      ).rejects.toBeInstanceOf(NotFoundError);
+      const found = await collect(
+        client.runtimes.list({
+          runtime: RUNTIME.slug,
+          project: "proj-1",
+        }),
+      );
+      expect(found[0].id).toBe(RUNTIME.id);
     });
 
-    it("handle resolves a runtime slug lazily then runs", async () => {
+    it("run sends the stable runtime selector directly", async () => {
       requests = [];
       const client = makeClient();
-      const runner = await client.runtimes("customer-agent").run({
+      const runner = await client.runtimes.run({
+        runtime: "customer-agent",
         identity: { user_id: "u-1" },
         caller: { locale: "en-US" },
         agent_name: "specialist",
         scope: "tasks:read tasks:write",
       });
-      // First request resolves the runtime, second opens the runner.
-      expect(
-        requests.some(
-          (r) =>
-            r.path === "/v1/runtimes" &&
-            r.query.get("runtime") === "customer-agent",
-        ),
-      ).toBe(true);
-      const runReq = requests.find((r) => r.path.endsWith("/run"));
+      const runReq = requests.find((r) => r.path === "/v1/runtimes/run");
       expect(
         (runReq?.body as { identity?: { user_id?: string } })?.identity
           ?.user_id,
       ).toBe("u-1");
       expect(runReq?.body).toMatchObject({
+        runtime: "customer-agent",
         caller: { locale: "en-US" },
         agent_name: "specialist",
         scope: "tasks:read tasks:write",
@@ -365,6 +392,57 @@ describe("IntrospectionClient (REST control-plane, real server)", () => {
       expect(runner.context.runtime_group_id).toBe(RUNTIME.runtime_group_id);
       expect(runner.context.agent_name).toBe("agent");
       expect(runner.session_id).toBe("sess-1");
+    });
+
+    it("run sends only the immutable runtime_id selector", async () => {
+      requests = [];
+      const client = makeClient();
+      await client.runtimes.run({
+        runtime_id: RUNTIME.id,
+        project: "proj-1",
+        environment: "staging",
+      });
+      const request = requests.find((r) => r.path === "/v1/runtimes/run");
+      expect(request?.body).toMatchObject({
+        runtime_id: RUNTIME.id,
+        project: "proj-1",
+        environment: "staging",
+      });
+      expect(request?.body).not.toHaveProperty("runtime");
+    });
+
+    it("delegate returns a scoped broker credential without a Runner", async () => {
+      requests = [];
+      const client = makeClient();
+      const delegation = await client.runtimes.delegate({
+        runtime_id: RUNTIME.id,
+        identity: { user_id: "broker-user" },
+        scope: " tasks:read tasks:write ",
+      });
+
+      expect(delegation.token).toBe("runner-jwt");
+      expect(delegation.deployment.endpoint).toBe(baseUrl);
+      expect(delegation.context.runtime_id).toBe(RUNTIME.id);
+      expect(delegation).not.toHaveProperty("session_token");
+      expect(
+        requests.find((r) => r.path === "/v1/runtimes/run")?.body,
+      ).toMatchObject({
+        runtime_id: RUNTIME.id,
+        identity: { user_id: "broker-user" },
+        scope: "tasks:read tasks:write",
+      });
+    });
+
+    it("delegate rejects a blank scope before making a request", async () => {
+      requests = [];
+      const client = makeClient();
+      await expect(
+        client.runtimes.delegate({
+          runtime: "customer-agent",
+          scope: "  ",
+        }),
+      ).rejects.toThrow(/scope.*non-empty/);
+      expect(requests).toEqual([]);
     });
   });
 
@@ -429,16 +507,16 @@ describe("IntrospectionClient (REST control-plane, real server)", () => {
         project: "proj-1",
         baseApiUrl: baseUrl,
       });
-      const runner = await client.runtimes(RUNTIME.slug).run({
+      const runner = await client.runtimes.run({
+        runtime: RUNTIME.slug,
         identity: { user_id: "u_demo" },
       });
       expect(runner.context.runtime_id).toBe(RUNTIME.id);
 
       // The minted token is the bearer on the subsequent CP calls.
-      const runtimeCall = requests.find((r) =>
-        r.path.endsWith(`/runtimes/${RUNTIME.id}/run`),
-      );
+      const runtimeCall = requests.find((r) => r.path === "/v1/runtimes/run");
       expect(runtimeCall?.auth).toBe("Bearer minted-sa-token");
+      expect(runtimeCall?.body).toMatchObject({ runtime: RUNTIME.slug });
       await runner.close();
     });
   });
@@ -447,10 +525,35 @@ describe("IntrospectionClient (REST control-plane, real server)", () => {
     it("CRUD + lifecycle + run", async () => {
       const client = makeClient();
       expect(
-        await collect(client.experiments.list({ project: "proj-1" })),
+        await collect(
+          client.experiments.list({
+            project: "proj-1",
+            runtime: RUNTIME.slug,
+            environment: "production",
+          }),
+        ),
       ).toHaveLength(1);
       expect(
-        (await client.experiments.create({ name: "exp-a" } as never)).id,
+        (
+          await client.experiments.create({
+            project: "proj-1",
+            name: "exp-a",
+            runtime: RUNTIME.slug,
+            arms: [
+              { runtime_id: RUNTIME.id, arm_label: "control" },
+              { runtime_id: RUNTIME.id, arm_label: "variant" },
+            ],
+            goal_json: {
+              kind: "composite",
+              components: [
+                {
+                  source: "judge",
+                  judge_id: "77777777-7777-7777-7777-777777777777",
+                },
+              ],
+            },
+          })
+        ).id,
       ).toBe(EXPERIMENT.id);
       expect((await client.experiments.get(EXPERIMENT.id)).id).toBe(
         EXPERIMENT.id,
@@ -459,36 +562,42 @@ describe("IntrospectionClient (REST control-plane, real server)", () => {
         (
           await client.experiments.update(EXPERIMENT.id, {
             name: "exp-renamed",
-          } as never)
+          })
         ).name,
       ).toBe("exp-renamed");
       await expect(
         client.experiments.delete(EXPERIMENT.id),
       ).resolves.toBeUndefined();
 
-      const handle = client.experiments(EXPERIMENT.id);
-      expect((await handle.start()).status).toBe("running");
-      expect((await handle.end({ reason: "done" } as never)).status).toBe(
-        "completed",
+      expect((await client.experiments.start(EXPERIMENT.id)).status).toBe(
+        "running",
       );
-      expect((await handle.cancel()).status).toBe("cancelled");
+      expect((await client.experiments.end(EXPERIMENT.id)).status).toBe(
+        "ended",
+      );
+      expect((await client.experiments.cancel(EXPERIMENT.id)).status).toBe(
+        "cancelled",
+      );
       requests = [];
-      const runner = await handle.run({
+      const runner = await client.experiments.run(EXPERIMENT.id, {
+        project: "proj-1",
         identity: { user_id: "u-2" },
         caller: { locale: "fr-FR" },
         agent_name: "researcher",
         scope: "tasks:read",
       });
       expect(runner.session_id).toBe("sess-1");
-      expect(
-        requests.find((r) => r.path === `/v1/experiments/${EXPERIMENT.id}/run`)
-          ?.body,
-      ).toMatchObject({
+      const runRequest = requests.find(
+        (r) => r.path === `/v1/experiments/${EXPERIMENT.id}/run`,
+      );
+      expect(runRequest?.query.get("project")).toBe("proj-1");
+      expect(runRequest?.body).toMatchObject({
         identity: { user_id: "u-2" },
         caller: { locale: "fr-FR" },
         agent_name: "researcher",
         scope: "tasks:read",
       });
+      expect(runRequest?.body).not.toHaveProperty("project");
     });
 
     it("list paginates", async () => {
@@ -528,9 +637,10 @@ describe("IntrospectionClient (REST control-plane, real server)", () => {
   });
 
   describe("runner (data-plane handle)", () => {
-    it("exposes accessors, runs DP calls, refresh re-mints, close guards", async () => {
+    it("exposes stable accessors, runs DP calls, and guards after close", async () => {
       const client = makeClient();
-      const runner = await client.runtimes(RUNTIME.runtime_group_id).run({
+      const runner = await client.runtimes.run({
+        runtime: RUNTIME.runtime_group_id,
         agent_name: "specialist",
         scope: "tasks:read",
       });
@@ -550,15 +660,6 @@ describe("IntrospectionClient (REST control-plane, real server)", () => {
         "Bearer runner-jwt",
       );
 
-      // Manual escape hatch: refresh re-calls the CP /run route.
-      await expect(runner.refresh()).resolves.toBeUndefined();
-      expect(requests.find((r) => r.path.endsWith("/run"))?.body).toMatchObject(
-        {
-          agent_name: "specialist",
-          scope: "tasks:read",
-        },
-      );
-
       // After close, guarded HTTP rejects further DP calls. The guard
       // fires on first iteration of the lazy generator.
       await runner.close();
@@ -566,7 +667,6 @@ describe("IntrospectionClient (REST control-plane, real server)", () => {
       await expect(collect(runner.tasks.list())).rejects.toBeInstanceOf(
         RunnerExpiredError,
       );
-      await expect(runner.refresh()).rejects.toBeInstanceOf(RunnerExpiredError);
     });
   });
 });

@@ -1,9 +1,8 @@
 /**
  * Root entry point — REST-only surface.
  *
- * Exports `IntrospectionClient` (REST), Runner / RuntimeHandle /
- * ExperimentHandle, REST wire types, and HTTP helpers. None of these
- * touch the OpenTelemetry SDK.
+ * Exports `IntrospectionClient` (REST), `Runner`, REST wire types, and HTTP
+ * helpers. None of these touch the OpenTelemetry SDK.
  *
  * For the OTel surface (logs, span processors, instrumentors) import
  * from `@introspection-sdk/introspection-node/otel`.
@@ -54,6 +53,7 @@ export type {
   EventArrowParams,
   FileUploadBody,
   ListReadParams,
+  RuntimeRunRequest,
   StartParams,
   StreamOptions,
 } from "@introspection-sdk/http";
@@ -63,20 +63,13 @@ export { EventType } from "@introspection-sdk/types";
 
 // Runner + CP resources.
 export { Runner } from "./runner.js";
-export type { RunnerSource } from "./runner.js";
-export {
-  RuntimesApi,
-  RuntimeHandle,
-  attachRuntimes,
-  isUuid,
+export { RuntimesApi, attachRuntimes } from "./resources/runtimes.js";
+export type {
+  RuntimeDelegation,
+  RuntimeDelegationRequest,
 } from "./resources/runtimes.js";
-export type { RuntimeHandleFactory } from "./resources/runtimes.js";
-export {
-  ExperimentsApi,
-  ExperimentHandle,
-  attachExperiments,
-} from "./resources/experiments.js";
-export type { ExperimentHandleFactory } from "./resources/experiments.js";
+export { ExperimentsApi, attachExperiments } from "./resources/experiments.js";
+export type { ExperimentRunRequest } from "./resources/experiments.js";
 export { RecipesApi, attachRecipes } from "./resources/recipes.js";
 
 // REST API wire types
@@ -110,13 +103,18 @@ export type {
   FileListParams,
   FileUpdateParams,
   FileCreateTextParams,
-  Runtime,
-  RuntimeListParams,
+  RuntimeVersion,
+  RuntimeVersionListParams,
+  RuntimeEnvironment,
+  RuntimeKind,
+  RuntimeRecipeKind,
+  RuntimeImageStatus,
   Experiment,
   ExperimentCreate,
   ExperimentUpdate,
   ExperimentListParams,
   ExperimentStatus,
+  ExperimentRoutingStrategy,
   ExperimentGoal,
   ExperimentGoalComponent,
   ExperimentGoalDirection,
@@ -124,6 +122,7 @@ export type {
   JudgeGoalComponent,
   TelemetryGoalComponent,
   ExperimentArm,
+  ExperimentArmCreate,
   Recipe,
   RecipeCreate,
   RecipeUpdate,
@@ -131,7 +130,6 @@ export type {
   RunnerSpec,
   RunnerDeployment,
   RunnerContext,
-  RunnerRecipeSummary,
   RunnerIdentity,
   RunRequest,
   RunCaller,

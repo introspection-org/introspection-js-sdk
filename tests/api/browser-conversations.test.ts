@@ -119,8 +119,11 @@ describe("browser ConversationsClient", () => {
   it("is exposed on IntrospectionApiClient.conversations", () => {
     const client = new IntrospectionApiClient({
       dpUrl: "https://dp.example.com",
-      projectId: "proj-1",
-      getToken: () => "token",
+      auth: {
+        kind: "access_token",
+        runtime: "customer-agent",
+        getToken: () => "token",
+      },
       fetch: vi.fn() as unknown as typeof fetch,
     });
     expect(client.conversations).toBeInstanceOf(ConversationsClient);
