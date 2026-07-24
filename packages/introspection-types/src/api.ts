@@ -163,7 +163,7 @@ export interface TaskPrompt {
   images?: string[];
 }
 
-export type TaskRunKind = "prompt" | "steer" | "clear";
+export type TaskRunKind = "prompt" | "steer";
 
 export interface TaskRunCreateParams {
   prompt?: TaskPrompt;
