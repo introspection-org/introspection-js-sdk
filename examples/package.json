@@ -92,7 +92,7 @@
     "@arizeai/openinference-instrumentation-openai": "^4.1.5",
     "@arizeai/openinference-vercel": "^2.8.1",
     "@earendil-works/pi-agent-core": "^0.80.10",
-    "@earendil-works/pi-ai": "^0.80.7",
+    "@earendil-works/pi-ai": "^0.80.10",
     "@google/genai": "^2.12.0",
     "@grpc/grpc-js": "^1.14.4",
     "@langchain/anthropic": "^1.5.1",
