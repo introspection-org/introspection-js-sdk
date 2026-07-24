@@ -305,21 +305,6 @@ export interface ShareListParams extends ListParams {
  */
 export type RuntimeLlmMode = "managed" | "byok";
 
-/**
- * How a runtime group resolves which runtime serves a run.
- *
- * - `"sticky"` — a run pins the runtime that was active when it started and
- *   keeps using it for the whole conversation, even after a newer runtime is
- *   promoted. The production default.
- * - `"latest"` — every run (including restarts of an existing task) resolves
- *   the runtime currently active for the environment. The default for
- *   non-production environments.
- *
- * A per-run `resolution_mode` on the run request overrides the group's
- * setting; a yanked runtime is never resolved under either mode.
- */
-export type RuntimeResolutionMode = "sticky" | "latest";
-
 export interface Runtime {
   id: Uuid;
   org_id: Uuid;
@@ -338,6 +323,12 @@ export interface Runtime {
    */
   yanked_at?: IsoDate | null;
   yanked_reason?: string | null;
+  /**
+   * Per-environment git ref each lane tracks
+   * ({ environment: "main" | "pr/N" | <sha> }); a tracked lane auto-advances
+   * to the newest build from that ref, an absent key is untracked.
+   */
+  environment_ref?: Record<string, string> | null;
   metadata?: Record<string, unknown> | null;
 }
 
