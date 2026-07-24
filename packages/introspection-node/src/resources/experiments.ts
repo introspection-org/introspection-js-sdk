@@ -1,6 +1,5 @@
 import type {
   Experiment,
-  ExperimentEndParams,
   ExperimentCreate,
   ExperimentListParams,
   ExperimentUpdate,
@@ -100,11 +99,11 @@ export class ExperimentsApi {
     });
   }
 
-  endById(id: Uuid, params?: ExperimentEndParams): Promise<Experiment> {
+  endById(id: Uuid): Promise<Experiment> {
     return this.http.request<Experiment>({
       method: "POST",
       path: `/v1/experiments/${encodeURIComponent(id)}/end`,
-      body: params ?? {},
+      body: {},
     });
   }
 
@@ -145,8 +144,8 @@ export class ExperimentHandle {
     return this.api.startById(this.id);
   }
 
-  end(opts?: ExperimentEndParams): Promise<Experiment> {
-    return this.api.endById(this.id, opts);
+  end(): Promise<Experiment> {
+    return this.api.endById(this.id);
   }
 
   cancel(): Promise<Experiment> {
