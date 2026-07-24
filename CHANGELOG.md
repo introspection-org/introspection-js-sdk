@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.12.1](https://github.com/introspection-org/introspection-js-sdk/compare/v0.12.0...v0.12.1) (2026-07-24)
+
+
+### Bug Fixes
+
+* **deps:** align all @earendil-works/pi-* to 0.80.10 (unblock release build) ([#241](https://github.com/introspection-org/introspection-js-sdk/issues/241)) ([2856d41](https://github.com/introspection-org/introspection-js-sdk/commit/2856d41e78ffbb862493545eba07be056f35da54))
+
 ## [0.12.0](https://github.com/introspection-org/introspection-js-sdk/compare/v0.11.0...v0.12.0) (2026-07-24)
 
 
