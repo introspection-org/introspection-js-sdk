@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.12.0](https://github.com/introspection-org/introspection-js-sdk/compare/v0.11.0...v0.12.0) (2026-07-24)
+
+
+### ⚠ BREAKING CHANGES
+
+* **experiments:** ExperimentCreate requires runtime_group_id, arms of {runtime_id, arm_label}, and goal_json; Arm and ExperimentEndParams are removed; end() no longer accepts a winner label.
+* RuntimeResolutionMode is removed from @introspection/types.
+
+### Features
+
+* add environment_ref to Runtime; drop RuntimeResolutionMode ([#237](https://github.com/introspection-org/introspection-js-sdk/issues/237)) ([732524a](https://github.com/introspection-org/introspection-js-sdk/commit/732524a9b552ecde420c54e987ce3ceb6de5f720))
+
+
+### Bug Fixes
+
+* **experiments:** align the experiments contract with the CP API ([#235](https://github.com/introspection-org/introspection-js-sdk/issues/235)) ([1a1e9c5](https://github.com/introspection-org/introspection-js-sdk/commit/1a1e9c57d98e3d31a5e135ca78136308583ac09c))
+
 ## [0.11.0](https://github.com/introspection-org/introspection-js-sdk/compare/v0.10.0...v0.11.0) (2026-07-18)
 
 
