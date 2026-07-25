@@ -16,6 +16,42 @@ npm install @introspection-sdk/introspection-pi \
 
 ## Usage
 
+### One-call session attach
+
+Hosts holding a live coding-agent session (an object exposing `agent` and
+`sessionManager`) attach everything at once — chat spans through the
+wrapped stream function, `execute_tool` spans per tool call, one
+`invoke_agent` span per run that the others nest under, and structural
+compaction detection from the session tree:
+
+```ts
+import { trace } from "@opentelemetry/api";
+import { instrumentSession } from "@introspection-sdk/introspection-pi";
+
+const handle = instrumentSession(session, {
+  tracer: trace.getTracer("my-app"),
+  meta: { conversationId, agentId, agentName },
+});
+
+// Later, on shutdown — restores the stream function, finalizes open spans:
+handle.detach();
+```
+
+Hosts that already create their own turn/run spans keep their topology:
+
+```ts
+instrumentSession(session, {
+  tracer,
+  meta,
+  runSpans: false,
+  getParentContext: () => currentTurnContext,
+  abortTerminationReason: () => (userRequestedStop ? "cancelled" : null),
+  extraAttributes: () => ({ "tenant.id": tenantId }),
+});
+```
+
+### Composing the pieces yourself
+
 ```ts
 import { trace } from "@opentelemetry/api";
 import { Agent } from "@earendil-works/pi-agent-core";
@@ -120,6 +156,33 @@ For each tool call (`execute_tool ${tool_name}` span):
   `setStatus(ERROR)`. Tool calls cut short by a
   requested abort are marked with `introspection.termination_reason =
 "cancelled"` and are not marked as errors.
+
+## Content scrubbing
+
+gen_ai spans carry full conversation content. Hosts that export one span
+stream to two backends with different data policies — whole spans to a
+conversation store, structure-only to infrastructure observability — wrap
+the second backend's exporter:
+
+```ts
+import { GenAiContentScrubbingExporter } from "@introspection-sdk/introspection-pi";
+import { BatchSpanProcessor } from "@opentelemetry/sdk-trace-base";
+import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-proto";
+
+new BatchSpanProcessor(
+  new GenAiContentScrubbingExporter(new OTLPTraceExporter()),
+);
+```
+
+The wrapper strips the content-bearing attributes (input/output messages,
+system instructions, tool definitions/arguments/results, and the
+`gen_ai_encrypted.*` mirror) while keeping the structural signal
+(operation, provider, model, usage, timing, tool names). Scrubbing is
+decided per attribute on every span — content keys only exist on gen_ai
+spans, so no scope configuration is needed and none can fail open — and
+the original span object is never mutated, so a second processor on the
+same stream still sees it whole. `isGenAiContentAttribute(key)` exposes
+the predicate for hosts that scrub in their own pipeline.
 
 ## License
 
