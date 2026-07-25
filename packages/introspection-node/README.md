@@ -176,6 +176,22 @@ logfire.configure({
 logfire.instrumentOpenAI();
 ```
 
+## Standalone OTel exporter
+
+If you already run your own OpenTelemetry setup (e.g. `@opentelemetry/sdk-node`) and only need Introspection as an export destination, `createIntrospectionExporter()` returns a standard OTLP-HTTP `SpanExporter` with bearer auth — no Introspection instrumentation registration required:
+
+```typescript
+import { NodeSDK } from "@opentelemetry/sdk-node";
+import { createIntrospectionExporter } from "@introspection-sdk/introspection-node/otel";
+
+const sdk = new NodeSDK({
+  traceExporter: createIntrospectionExporter(), // INTROSPECTION_TOKEN from env
+});
+sdk.start();
+```
+
+Options: `token` (default `INTROSPECTION_TOKEN`), `baseUrl` (default `INTROSPECTION_BASE_OTEL_URL`, then `https://otel.introspection.dev`), `headers` (extra HTTP headers). The exporter sends every span it is handed as-is; if you want the SDK's gen_ai conversion and filtering, attach `IntrospectionSpanProcessor` to your provider instead — it is exported from the same `/otel` entry point.
+
 ## Environment variables
 
 ```shell

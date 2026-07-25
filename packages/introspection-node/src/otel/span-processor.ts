@@ -13,11 +13,14 @@ import {
 } from "@opentelemetry/sdk-trace-base";
 import { Resource, resourceFromAttributes } from "@opentelemetry/resources";
 import { ATTR_SERVICE_NAME } from "@opentelemetry/semantic-conventions";
-import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-proto";
 import { ExportResult, ExportResultCode } from "@opentelemetry/core";
 import { randomUUID } from "crypto";
 import type { AdvancedOptions } from "../types.js";
-import { logger, withOtlpHttpsProxy } from "../utils.js";
+import { logger } from "../utils.js";
+import {
+  createIntrospectionExporter,
+  resolveTraceEndpoint,
+} from "./exporter.js";
 import {
   isOpenInferenceSpan,
   replaceOpenInferenceWithGenAI,
@@ -180,23 +183,7 @@ export class IntrospectionSpanProcessor implements SpanProcessor {
     this._serviceName = serviceName;
 
     const advanced = options.advanced || {};
-    const baseUrl =
-      advanced.baseUrl ||
-      process.env.INTROSPECTION_BASE_OTEL_URL ||
-      "https://otel.introspection.dev";
-
-    const headers: Record<string, string> = {
-      Authorization: `Bearer ${token}`,
-      ...(advanced.additionalHeaders || {}),
-    };
-
-    // Construct endpoint URL
-    let endpoint: string;
-    if (baseUrl.endsWith("/v1/traces")) {
-      endpoint = baseUrl;
-    } else {
-      endpoint = `${baseUrl.replace(/\/$/, "")}/v1/traces`;
-    }
+    const endpoint = resolveTraceEndpoint(advanced.baseUrl);
 
     logger.info(
       `IntrospectionSpanProcessor initialized: endpoint=${endpoint}${serviceName ? `, serviceName=${serviceName}` : ""}`,
@@ -205,12 +192,11 @@ export class IntrospectionSpanProcessor implements SpanProcessor {
     // Use custom spanExporter if provided (for testing), otherwise create OTLP exporter
     const baseExporter: SpanExporter =
       advanced.spanExporter ||
-      new OTLPTraceExporter(
-        withOtlpHttpsProxy({
-          url: endpoint,
-          headers,
-        }),
-      );
+      createIntrospectionExporter({
+        token,
+        baseUrl: advanced.baseUrl,
+        headers: advanced.additionalHeaders,
+      });
 
     // Wrap exporter to add v1/v2 compatibility and basic validation
     const exporter: SpanExporter = {

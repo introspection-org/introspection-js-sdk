@@ -9,7 +9,9 @@ Package: `@introspection-sdk/introspection-node`
 - Root export `@introspection-sdk/introspection-node` → REST control-plane
   (`IntrospectionClient`: runtimes / experiments / recipes / Runner). No OTel.
 - Subpath `@introspection-sdk/introspection-node/otel` → the **traces** surface:
-  `init()`, `setupTracing()`, `IntrospectionSpanProcessor`, `IntrospectionLogs`,
+  `init()`, `setupTracing()`, `IntrospectionSpanProcessor`,
+  `createIntrospectionExporter()` (standalone OTLP-HTTP `SpanExporter` with
+  bearer auth, for hosts running their own OTel setup), `IntrospectionLogs`,
   the per-framework instrumentors, and the integration registry. This mirrors
   the Python SDK's `introspection_sdk.otel` package.
 
@@ -157,6 +159,7 @@ should let the processor own this — don't re-stamp baggage in each instrumento
 - `src/otel/init.ts` — `init()` + analytics proxies + per-framework handle getters.
 - `src/otel/setup.ts` — `setupTracing()`, `registerOTelGlobals()`, dual-export hook.
 - `src/otel/span-processor.ts` — `IntrospectionSpanProcessor` (converts + exports a copy).
+- `src/otel/exporter.ts` — `createIntrospectionExporter()` (raw OTLP-HTTP exporter, no conversion).
 - `src/otel/register.ts` — `--import` zero-code preload.
 - `src/otel/integrations/` — the framework registry (`base.ts`, `index.ts`, one file per framework).
 - `src/otel/anthropic.ts`, `src/otel/gemini.ts` — raw-SDK prototype-patch instrumentors.

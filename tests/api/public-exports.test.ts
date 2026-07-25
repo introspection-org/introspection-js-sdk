@@ -34,6 +34,7 @@ describe("public export barrels", () => {
       "init",
       "setupTracing",
       "IntrospectionSpanProcessor",
+      "createIntrospectionExporter",
       "IntrospectionLogs",
       "conversation",
       "withAgent",

@@ -22,6 +22,12 @@ export type { SetupTracingOptions, ConflictBehavior } from "./setup.js";
 export { IntrospectionSpanProcessor } from "./span-processor.js";
 export type { IntrospectionSpanProcessorOptions } from "./span-processor.js";
 
+// Standalone OTLP-HTTP span exporter with bearer auth — for hosts that run
+// their own OTel setup (e.g. @opentelemetry/sdk-node) and only need
+// Introspection as an export destination.
+export { createIntrospectionExporter } from "./exporter.js";
+export type { CreateIntrospectionExporterOptions } from "./exporter.js";
+
 // OpenAI Agents SDK tracing processor.
 export { IntrospectionTracingProcessor } from "./tracing-processor.js";
 export type {
