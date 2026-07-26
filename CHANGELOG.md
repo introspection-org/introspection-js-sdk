@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.13.0](https://github.com/introspection-org/introspection-js-sdk/compare/v0.12.0...v0.13.0) (2026-07-26)
+
+
+### Features
+
+* **introspection-pi:** add instrumentSession and gen_ai content scrubbing ([#246](https://github.com/introspection-org/introspection-js-sdk/issues/246)) ([d582231](https://github.com/introspection-org/introspection-js-sdk/commit/d582231e71f76bc2bd9bb20858996acec08399d9))
+
+
+### Bug Fixes
+
+* **deps:** align all @earendil-works/pi-* to 0.80.10 (unblock release build) ([#241](https://github.com/introspection-org/introspection-js-sdk/issues/241)) ([2856d41](https://github.com/introspection-org/introspection-js-sdk/commit/2856d41e78ffbb862493545eba07be056f35da54))
+* drop clear from TaskRunKind ([#243](https://github.com/introspection-org/introspection-js-sdk/issues/243)) ([a5b423b](https://github.com/introspection-org/introspection-js-sdk/commit/a5b423b62560dc8dcbcc10cebeb4dd8b8069ca7a))
+
 ## [0.12.0](https://github.com/introspection-org/introspection-js-sdk/compare/v0.11.0...v0.12.0) (2026-07-24)
 
 
