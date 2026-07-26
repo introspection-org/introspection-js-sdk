@@ -11,11 +11,20 @@
  *
  * @example
  * ```ts
+ * import { instrumentSession } from "@introspection-sdk/introspection-pi";
+ *
+ * // One-call attach for a live coding-agent session:
+ * const handle = instrumentSession(session, { tracer, meta });
+ * // later: handle.detach();
+ * ```
+ *
+ * @example
+ * ```ts
  * import { instrumentAgent, instrumentStream } from "@introspection-sdk/introspection-pi";
  *
+ * // Or compose the pieces yourself:
  * agent.streamFn = instrumentStream(agent.streamFn, { tracer, meta });
  * const tools = instrumentAgent(agent, { tracer, meta });
- *
  * // later: tools.stop();
  * ```
  */
@@ -30,6 +39,22 @@ export {
   type AgentInstrumentation,
   type InstrumentAgentOptions,
 } from "./instrument-agent.js";
+export {
+  instrumentSession,
+  type InstrumentableAgentSession,
+  type InstrumentSessionOptions,
+  type SessionInstrumentation,
+} from "./instrument-session.js";
+
+// Content scrubbing — for hosts exporting one span stream to two backends
+// with different data policies (whole spans vs structure-only)
+export {
+  GenAiContentScrubbingExporter,
+  isGenAiContentAttribute,
+  scrubGenAiContent,
+  type ScrubbableSpan,
+  type SpanExporterLike,
+} from "./scrubbing.js";
 
 // Attribute builders — exposed for callers that want to compose their own spans
 export {

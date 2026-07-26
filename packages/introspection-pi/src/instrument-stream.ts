@@ -70,6 +70,8 @@ export interface InstrumentStreamOptions {
    * `session.sessionManager.getEntries()` filtered to
    * `type === "compaction"`, mapped to `summary` — so detection does not
    * depend on the prose wrapper pi renders around the summary.
+   * (`instrumentSession` wires exactly this; prefer it when you hold a
+   * session rather than a bare stream function.)
    */
   getCompactionSummaries?: () => readonly string[];
   /**
