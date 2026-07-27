@@ -5,6 +5,8 @@ import {
   openSync,
   readFileSync,
 } from "node:fs";
+import { homedir } from "node:os";
+import { join } from "node:path";
 
 const TOKEN_EXPIRY_SKEW_MS = 30_000;
 
@@ -17,13 +19,16 @@ type DevelopmentAuthorizationFile = {
 export class DevelopmentAuthorizationError extends Error {}
 
 export function readDevelopmentAuthorization(): string | undefined {
-  const path = process.env.INTROSPECTION_DEVELOPMENT_TOKEN_FILE?.trim();
-  if (!path) return undefined;
-  if (process.env.NODE_ENV !== "development") {
+  const configuredPath =
+    process.env.INTROSPECTION_DEVELOPMENT_TOKEN_FILE?.trim();
+  if (process.env.NODE_ENV === "production") {
+    if (!configuredPath) return undefined;
     throw new DevelopmentAuthorizationError(
       "introspection_development_authorization_not_local",
     );
   }
+  const path =
+    configuredPath || join(homedir(), ".introspection", "development.json");
 
   let descriptor: number;
   try {
@@ -32,6 +37,9 @@ export function readDevelopmentAuthorization(): string | undefined {
       constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0),
     );
   } catch (error) {
+    if (!configuredPath && (error as NodeJS.ErrnoException).code === "ENOENT") {
+      return undefined;
+    }
     if ((error as NodeJS.ErrnoException).code === "ELOOP") {
       throw new DevelopmentAuthorizationError(
         "introspection_development_authorization_unsafe_file",

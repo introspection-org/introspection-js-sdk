@@ -35,7 +35,7 @@ export class RuntimesApi extends RuntimesClient<Runner, OpenRunnerOptions> {
           client,
           source,
           spec,
-          normalizedDevelopmentAuthorization(options),
+          explicitDevelopmentAuthorization(options),
         ),
       {
         headers: (options) => {
@@ -81,6 +81,12 @@ export function attachRuntimes(
 function normalizedDevelopmentAuthorization(
   opts?: OpenRunnerOptions,
 ): string | undefined {
-  const proof = opts?.developmentAuthorization?.trim();
+  const proof = explicitDevelopmentAuthorization(opts);
   return proof || readDevelopmentAuthorization();
+}
+
+function explicitDevelopmentAuthorization(
+  opts?: OpenRunnerOptions,
+): string | undefined {
+  return opts?.developmentAuthorization?.trim() || undefined;
 }

@@ -1,4 +1,11 @@
-import { chmod, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
+import {
+  chmod,
+  mkdir,
+  mkdtemp,
+  rm,
+  symlink,
+  writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -46,7 +53,23 @@ describe("readDevelopmentAuthorization", () => {
 
   it("returns undefined when no token file is configured", () => {
     vi.stubEnv("INTROSPECTION_DEVELOPMENT_TOKEN_FILE", "");
+    vi.stubEnv("HOME", directory);
     expect(readDevelopmentAuthorization()).toBeUndefined();
+  });
+
+  it("reads the shared default path without application configuration", async () => {
+    vi.stubEnv("INTROSPECTION_DEVELOPMENT_TOKEN_FILE", "");
+    vi.stubEnv("HOME", directory);
+    path = join(directory, ".introspection", "development.json");
+    await mkdir(join(directory, ".introspection"));
+    await writeToken();
+    expect(readDevelopmentAuthorization()).toBe("development-proof");
+  });
+
+  it("allows ordinary local Node processes without NODE_ENV", async () => {
+    await writeToken();
+    vi.stubEnv("NODE_ENV", "");
+    expect(readDevelopmentAuthorization()).toBe("development-proof");
   });
 
   it("reads a current private versioned token file", async () => {

@@ -421,13 +421,29 @@ describe("IntrospectionClient (REST control-plane, real server)", () => {
         process.env.INTROSPECTION_DEVELOPMENT_TOKEN_FILE = path;
 
         const client = makeClient();
-        await client.runtimes.openRunner(RUNTIME.id);
+        const runner = await client.runtimes.runById(RUNTIME.id);
 
         expect(requests.at(-1)?.developmentAuth).toBe(
           "Bearer file-development-proof",
         );
         expect(requests.at(-1)?.relayTarget).toBeTruthy();
         expect(requests.at(-1)?.body).toEqual({});
+
+        await writeFile(
+          path,
+          JSON.stringify({
+            version: 1,
+            access_token: "renewed-development-proof",
+            expires_at: new Date(Date.now() + 120_000).toISOString(),
+          }),
+          { mode: 0o600 },
+        );
+        await chmod(path, 0o600);
+        requests = [];
+        await runner.refresh();
+        expect(requests.at(-1)?.developmentAuth).toBe(
+          "Bearer renewed-development-proof",
+        );
       } finally {
         if (previousNodeEnv === undefined) delete process.env.NODE_ENV;
         else process.env.NODE_ENV = previousNodeEnv;
