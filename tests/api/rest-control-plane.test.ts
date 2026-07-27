@@ -406,27 +406,36 @@ describe("IntrospectionClient (REST control-plane, real server)", () => {
 
     it("uses development proof for runById and CP refresh but never DP", async () => {
       requests = [];
+      const previousTarget = process.env.INTROSPECTION_RELAY_TARGET;
+      process.env.INTROSPECTION_RELAY_TARGET = "desktop";
       const client = makeClient();
-      const runner = await client.runtimes.runById(RUNTIME.id, {
-        identity: { user_id: "u-1" },
-        developmentAuthorization: "dev-proof",
-        developmentTarget: "desktop",
-      });
-      expect(requests.at(-1)?.developmentAuth).toBe("Bearer dev-proof");
-      expect(requests.at(-1)?.relayTarget).toBeUndefined();
+      try {
+        const runner = await client.runtimes.runById(RUNTIME.id, {
+          identity: { user_id: "u-1" },
+          developmentAuthorization: "dev-proof",
+        });
+        expect(requests.at(-1)?.developmentAuth).toBe("Bearer dev-proof");
+        expect(requests.at(-1)?.relayTarget).toBe("desktop");
 
-      requests = [];
-      await collect(runner.tasks.list());
-      expect(requests.at(-1)?.path).toBe("/v1/tasks");
-      expect(requests.at(-1)?.developmentAuth).toBeUndefined();
-      expect(requests.at(-1)?.relayTarget).toBe("desktop");
+        requests = [];
+        await collect(runner.tasks.list());
+        expect(requests.at(-1)?.path).toBe("/v1/tasks");
+        expect(requests.at(-1)?.developmentAuth).toBeUndefined();
+        expect(requests.at(-1)?.relayTarget).toBeUndefined();
 
-      requests = [];
-      await runner.refresh();
-      expect(requests.at(-1)?.path).toBe(`/v1/runtimes/${RUNTIME.id}/run`);
-      expect(requests.at(-1)?.developmentAuth).toBe("Bearer dev-proof");
-      expect(requests.at(-1)?.relayTarget).toBeUndefined();
-      expect(JSON.stringify(requests.at(-1)?.body)).not.toContain("dev-proof");
+        requests = [];
+        await runner.refresh();
+        expect(requests.at(-1)?.path).toBe(`/v1/runtimes/${RUNTIME.id}/run`);
+        expect(requests.at(-1)?.developmentAuth).toBe("Bearer dev-proof");
+        expect(requests.at(-1)?.relayTarget).toBe("desktop");
+        expect(JSON.stringify(requests.at(-1)?.body)).not.toContain(
+          "dev-proof",
+        );
+      } finally {
+        if (previousTarget === undefined)
+          delete process.env.INTROSPECTION_RELAY_TARGET;
+        else process.env.INTROSPECTION_RELAY_TARGET = previousTarget;
+      }
     });
 
     it("supports development proof through the runtime handle", async () => {

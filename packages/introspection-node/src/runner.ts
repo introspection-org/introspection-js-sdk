@@ -57,16 +57,10 @@ export class Runner {
     private readonly source: RunnerSource,
     spec: RunnerSpec,
     private readonly developmentAuthorization?: string,
-    private readonly developmentTarget?: string,
   ) {
     this.spec = spec;
     this.http = this.buildHttp();
-    const taskHttp = this.developmentTarget
-      ? this.buildHttp({
-          "X-Introspection-Relay-Target": this.developmentTarget,
-        })
-      : this.http;
-    this.tasks = new TasksApi(this.guardedHttp(taskHttp));
+    this.tasks = new TasksApi(this.guardedHttp(this.http));
     this.files = new FilesApi(this.guardedHttp(this.http));
     this.conversations = new ConversationsApi(this.guardedHttp(this.http));
     this.events = new EventsApi(this.guardedHttp(this.http));
@@ -147,15 +141,12 @@ export class Runner {
 
   // --- internals ---
 
-  private buildHttp(additionalHeaders?: Record<string, string>): HttpClient {
+  private buildHttp(): HttpClient {
     const advanced = this.client.advancedOptions;
     return new HttpClient({
       apiUrl: this.spec.deployment.endpoint,
       token: this.spec.session_token,
-      additionalHeaders: {
-        ...advanced.additionalHeaders,
-        ...additionalHeaders,
-      },
+      additionalHeaders: advanced.additionalHeaders,
       fetch: advanced.fetch,
     });
   }
@@ -198,7 +189,6 @@ export class Runner {
       return await this.client.runtimes.openRunner(this.source.id, {
         ...this.source.options,
         developmentAuthorization: this.developmentAuthorization,
-        developmentTarget: this.developmentTarget,
       });
     }
     return await this.client.cpHttp.request<RunnerSpec>({
