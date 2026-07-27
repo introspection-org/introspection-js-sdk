@@ -31,10 +31,20 @@ export interface RuntimeRunnerSource {
   options?: RunRequest;
 }
 
-export type RuntimeRunnerFactory<TRunner> = (
+export type RuntimeRunnerFactory<
+  TRunner,
+  TRunOptions extends RunRequest = RunRequest,
+> = (
   source: RuntimeRunnerSource,
   spec: RunnerSpec,
+  options?: TRunOptions,
 ) => TRunner;
+
+export interface RuntimeRunExtension<
+  TRunOptions extends RunRequest = RunRequest,
+> {
+  headers?: (options?: TRunOptions) => Record<string, string> | undefined;
+}
 
 function toRunBody(opts?: RunRequest): RuntimeRunRequestBody {
   if (!opts) return {};
@@ -52,10 +62,14 @@ function toRunBody(opts?: RunRequest): RuntimeRunRequestBody {
  * routing are operator concerns handled by the CLI and platform. Callers
  * supply the environment-specific runner constructor.
  */
-export class RuntimesClient<TRunner> {
+export class RuntimesClient<
+  TRunner,
+  TRunOptions extends RunRequest = RunRequest,
+> {
   constructor(
     private readonly http: ResourceHttpClient,
-    private readonly createRunner: RuntimeRunnerFactory<TRunner>,
+    private readonly createRunner: RuntimeRunnerFactory<TRunner, TRunOptions>,
+    private readonly runExtension: RuntimeRunExtension<TRunOptions> = {},
   ) {}
 
   /**
@@ -99,21 +113,22 @@ export class RuntimesClient<TRunner> {
   }
 
   /** POST `/v1/runtimes/{id}/run` and wrap the result in a runner. */
-  async runById(id: Uuid, opts?: RunRequest): Promise<TRunner> {
+  async runById(id: Uuid, opts?: TRunOptions): Promise<TRunner> {
     const source: RuntimeRunnerSource = {
       kind: "runtime",
       id,
-      options: opts,
+      options: opts ? toRunBody(opts) : undefined,
     };
     const spec = await this.openRunner(id, opts);
-    return this.createRunner(source, spec);
+    return this.createRunner(source, spec, opts);
   }
 
-  openRunner(id: Uuid, opts?: RunRequest): Promise<RunnerSpec> {
+  openRunner(id: Uuid, opts?: TRunOptions): Promise<RunnerSpec> {
     return this.http.request<RunnerSpec>({
       method: "POST",
       path: `/v1/runtimes/${encodeURIComponent(id)}/run`,
       body: toRunBody(opts),
+      headers: this.runExtension.headers?.(opts),
     });
   }
 }
@@ -122,11 +137,14 @@ export class RuntimesClient<TRunner> {
  * Handle returned by `client.runtimes(runtime)`. Resolves the underlying
  * runtime row ID lazily from a runtime group slug or ID.
  */
-export class RuntimeHandle<TRunner> {
+export class RuntimeHandle<
+  TRunner,
+  TRunOptions extends RunRequest = RunRequest,
+> {
   private resolvedId: Uuid | null;
 
   constructor(
-    private readonly api: RuntimesClient<TRunner>,
+    private readonly api: RuntimesClient<TRunner, TRunOptions>,
     private readonly runtime: string,
   ) {
     this.resolvedId = null;
@@ -139,23 +157,29 @@ export class RuntimeHandle<TRunner> {
     return resolved.id;
   }
 
-  async run(opts?: RunRequest): Promise<TRunner> {
+  async run(opts?: TRunOptions): Promise<TRunner> {
     const id = await this.resolveId();
     return this.api.runById(id, opts);
   }
 }
 
-export type RuntimeHandleFactory<TRunner> = (
-  runtime: string,
-) => RuntimeHandle<TRunner>;
+export type RuntimeHandleFactory<
+  TRunner,
+  TRunOptions extends RunRequest = RunRequest,
+> = (runtime: string) => RuntimeHandle<TRunner, TRunOptions>;
 
-export function attachRuntimes<TRunner>(
-  api: RuntimesClient<TRunner>,
-): RuntimesClient<TRunner> & RuntimeHandleFactory<TRunner> {
-  const factory: RuntimeHandleFactory<TRunner> = (runtime: string) =>
-    new RuntimeHandle(api, runtime);
-  const hybrid = factory as RuntimesClient<TRunner> &
-    RuntimeHandleFactory<TRunner>;
+export function attachRuntimes<
+  TRunner,
+  TRunOptions extends RunRequest = RunRequest,
+>(
+  api: RuntimesClient<TRunner, TRunOptions>,
+): RuntimesClient<TRunner, TRunOptions> &
+  RuntimeHandleFactory<TRunner, TRunOptions> {
+  const factory: RuntimeHandleFactory<TRunner, TRunOptions> = (
+    runtime: string,
+  ) => new RuntimeHandle(api, runtime);
+  const hybrid = factory as RuntimesClient<TRunner, TRunOptions> &
+    RuntimeHandleFactory<TRunner, TRunOptions>;
   hybrid.list = api.list.bind(api);
   hybrid.get = api.get.bind(api);
   hybrid.resolve = api.resolve.bind(api);

@@ -185,24 +185,16 @@ export class Runner {
   }
 
   private async requestFreshSpec(): Promise<RunnerSpec> {
-    const http = this.client.cpHttp;
-    const body = toRunBody(this.source.options);
     if (this.source.kind === "runtime") {
-      return await http.request<RunnerSpec>({
-        method: "POST",
-        path: `/v1/runtimes/${encodeURIComponent(this.source.id)}/run`,
-        body,
-        headers: this.developmentAuthorization
-          ? {
-              "Introspection-Development-Authorization": `Bearer ${this.developmentAuthorization}`,
-            }
-          : undefined,
+      return await this.client.runtimes.openRunner(this.source.id, {
+        ...this.source.options,
+        developmentAuthorization: this.developmentAuthorization,
       });
     }
-    return await http.request<RunnerSpec>({
+    return await this.client.cpHttp.request<RunnerSpec>({
       method: "POST",
       path: `/v1/experiments/${encodeURIComponent(this.source.id)}/run`,
-      body,
+      body: toRunBody(this.source.options),
     });
   }
 }

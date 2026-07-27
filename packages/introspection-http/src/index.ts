@@ -65,6 +65,7 @@ export {
 } from "./resources/runtimes.js";
 export type {
   RuntimeHandleFactory,
+  RuntimeRunExtension,
   RuntimeRunRequestBody,
   RuntimeRunnerFactory,
   RuntimeRunnerSource,
