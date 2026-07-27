@@ -32,6 +32,7 @@ interface CapturedRequest {
   query: URLSearchParams;
   auth: string | undefined;
   developmentAuth: string | undefined;
+  relayTarget: string | undefined;
   body: unknown;
 }
 
@@ -139,6 +140,7 @@ beforeAll(async () => {
       auth: req.headers.authorization,
       developmentAuth:
         req.headers["introspection-development-authorization"]?.toString(),
+      relayTarget: req.headers["x-introspection-relay-target"]?.toString(),
       body,
     });
 
@@ -408,18 +410,22 @@ describe("IntrospectionClient (REST control-plane, real server)", () => {
       const runner = await client.runtimes.runById(RUNTIME.id, {
         identity: { user_id: "u-1" },
         developmentAuthorization: "dev-proof",
+        developmentTarget: "desktop",
       });
       expect(requests.at(-1)?.developmentAuth).toBe("Bearer dev-proof");
+      expect(requests.at(-1)?.relayTarget).toBeUndefined();
 
       requests = [];
       await collect(runner.tasks.list());
       expect(requests.at(-1)?.path).toBe("/v1/tasks");
       expect(requests.at(-1)?.developmentAuth).toBeUndefined();
+      expect(requests.at(-1)?.relayTarget).toBe("desktop");
 
       requests = [];
       await runner.refresh();
       expect(requests.at(-1)?.path).toBe(`/v1/runtimes/${RUNTIME.id}/run`);
       expect(requests.at(-1)?.developmentAuth).toBe("Bearer dev-proof");
+      expect(requests.at(-1)?.relayTarget).toBeUndefined();
       expect(JSON.stringify(requests.at(-1)?.body)).not.toContain("dev-proof");
     });
 

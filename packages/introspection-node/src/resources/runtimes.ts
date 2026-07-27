@@ -22,6 +22,8 @@ export { RuntimeHandle, isUuid };
  */
 export interface OpenRunnerOptions extends RunRequest {
   developmentAuthorization?: string;
+  /** Optional relay-style selector within the authenticated developer's connections. */
+  developmentTarget?: string;
 }
 
 export class RuntimesApi extends RuntimesClient<Runner, OpenRunnerOptions> {
@@ -34,6 +36,7 @@ export class RuntimesApi extends RuntimesClient<Runner, OpenRunnerOptions> {
           source,
           spec,
           normalizedDevelopmentAuthorization(options),
+          normalizedDevelopmentTarget(options),
         ),
       {
         headers: (options) => {
@@ -47,6 +50,13 @@ export class RuntimesApi extends RuntimesClient<Runner, OpenRunnerOptions> {
       },
     );
   }
+}
+
+function normalizedDevelopmentTarget(
+  opts?: OpenRunnerOptions,
+): string | undefined {
+  const target = opts?.developmentTarget?.trim();
+  return target || undefined;
 }
 
 export type RuntimeHandleFactory = SharedRuntimeHandleFactory<
