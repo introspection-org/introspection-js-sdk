@@ -9,6 +9,7 @@ import type { RunRequest } from "@introspection-sdk/types";
 import { userInfo } from "node:os";
 import type { HttpClient } from "../http.js";
 import type { IntrospectionClient } from "../client.js";
+import { readDevelopmentAuthorization } from "../development-authorization.js";
 import { Runner } from "../runner.js";
 
 export { RuntimeHandle, isUuid };
@@ -81,5 +82,5 @@ function normalizedDevelopmentAuthorization(
   opts?: OpenRunnerOptions,
 ): string | undefined {
   const proof = opts?.developmentAuthorization?.trim();
-  return proof || undefined;
+  return proof || readDevelopmentAuthorization();
 }

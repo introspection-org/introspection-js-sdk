@@ -12,8 +12,11 @@
  * back at the same server, so Data-Plane runner calls hit it too.
  */
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { chmod, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { createServer, type IncomingMessage, type Server } from "node:http";
 import { AddressInfo } from "node:net";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import {
   IntrospectionClient,
   authorizationCodeToken,
@@ -392,6 +395,48 @@ describe("IntrospectionClient (REST control-plane, real server)", () => {
       const followup = requests.at(-1);
       expect(followup?.path).toBe(`/v1/runtimes/${RUNTIME.id}`);
       expect(followup?.developmentAuth).toBeUndefined();
+    });
+
+    it("loads the renewable development proof without application plumbing", async () => {
+      requests = [];
+      const directory = await mkdtemp(
+        join(tmpdir(), "introspection-sdk-development-proof-"),
+      );
+      const path = join(directory, "token.json");
+      const previousNodeEnv = process.env.NODE_ENV;
+      const previousTokenFile =
+        process.env.INTROSPECTION_DEVELOPMENT_TOKEN_FILE;
+      try {
+        await writeFile(
+          path,
+          JSON.stringify({
+            version: 1,
+            access_token: "file-development-proof",
+            expires_at: new Date(Date.now() + 120_000).toISOString(),
+          }),
+          { mode: 0o600 },
+        );
+        await chmod(path, 0o600);
+        process.env.NODE_ENV = "development";
+        process.env.INTROSPECTION_DEVELOPMENT_TOKEN_FILE = path;
+
+        const client = makeClient();
+        await client.runtimes.openRunner(RUNTIME.id);
+
+        expect(requests.at(-1)?.developmentAuth).toBe(
+          "Bearer file-development-proof",
+        );
+        expect(requests.at(-1)?.relayTarget).toBeTruthy();
+        expect(requests.at(-1)?.body).toEqual({});
+      } finally {
+        if (previousNodeEnv === undefined) delete process.env.NODE_ENV;
+        else process.env.NODE_ENV = previousNodeEnv;
+        if (previousTokenFile === undefined)
+          delete process.env.INTROSPECTION_DEVELOPMENT_TOKEN_FILE;
+        else
+          process.env.INTROSPECTION_DEVELOPMENT_TOKEN_FILE = previousTokenFile;
+        await rm(directory, { recursive: true, force: true });
+      }
     });
 
     it("omits the development header when the proof is blank", async () => {
