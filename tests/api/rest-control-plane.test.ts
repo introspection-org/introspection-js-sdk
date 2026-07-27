@@ -31,6 +31,7 @@ interface CapturedRequest {
   path: string;
   query: URLSearchParams;
   auth: string | undefined;
+  developmentAuth: string | undefined;
   body: unknown;
 }
 
@@ -136,6 +137,8 @@ beforeAll(async () => {
       path,
       query: url.searchParams,
       auth: req.headers.authorization,
+      developmentAuth:
+        req.headers["introspection-development-authorization"]?.toString(),
       body,
     });
 
@@ -365,6 +368,70 @@ describe("IntrospectionClient (REST control-plane, real server)", () => {
       expect(runner.context.runtime_group_id).toBe(RUNTIME.runtime_group_id);
       expect(runner.context.agent_name).toBe("agent");
       expect(runner.session_id).toBe("sess-1");
+    });
+
+    it("sends development proof only as a header on direct openRunner", async () => {
+      requests = [];
+      const client = makeClient();
+      const spec = await client.runtimes.openRunner(RUNTIME.id, {
+        identity: { user_id: "u-1" },
+        developmentAuthorization: "dev-proof",
+      });
+
+      const runReq = requests.find(
+        (r) => r.path === `/v1/runtimes/${RUNTIME.id}/run`,
+      );
+      expect(runReq?.developmentAuth).toBe("Bearer dev-proof");
+      expect(runReq?.body).toEqual({ identity: { user_id: "u-1" } });
+      expect(JSON.stringify(runReq?.body)).not.toContain("dev-proof");
+      expect(spec.session_token).toBe("runner-jwt");
+
+      await client.runtimes.get(RUNTIME.id);
+      const followup = requests.at(-1);
+      expect(followup?.path).toBe(`/v1/runtimes/${RUNTIME.id}`);
+      expect(followup?.developmentAuth).toBeUndefined();
+    });
+
+    it("omits the development header when the proof is blank", async () => {
+      requests = [];
+      const client = makeClient();
+      await client.runtimes.openRunner(RUNTIME.id, {
+        developmentAuthorization: "   ",
+      });
+      expect(requests.at(-1)?.developmentAuth).toBeUndefined();
+      expect(requests.at(-1)?.body).toEqual({});
+    });
+
+    it("uses development proof for runById without retaining it for DP or refresh", async () => {
+      requests = [];
+      const client = makeClient();
+      const runner = await client.runtimes.runById(RUNTIME.id, {
+        identity: { user_id: "u-1" },
+        developmentAuthorization: "dev-proof",
+      });
+      expect(requests.at(-1)?.developmentAuth).toBe("Bearer dev-proof");
+
+      requests = [];
+      await collect(runner.tasks.list());
+      expect(requests.at(-1)?.path).toBe("/v1/tasks");
+      expect(requests.at(-1)?.developmentAuth).toBeUndefined();
+
+      requests = [];
+      await runner.refresh();
+      expect(requests.at(-1)?.path).toBe(`/v1/runtimes/${RUNTIME.id}/run`);
+      expect(requests.at(-1)?.developmentAuth).toBeUndefined();
+      expect(JSON.stringify(requests.at(-1)?.body)).not.toContain("dev-proof");
+    });
+
+    it("supports development proof through the runtime handle", async () => {
+      requests = [];
+      const client = makeClient();
+      await client.runtimes(RUNTIME.slug).run({
+        developmentAuthorization: "dev-proof",
+      });
+      const runReq = requests.find((r) => r.path.endsWith("/run"));
+      expect(runReq?.developmentAuth).toBe("Bearer dev-proof");
+      expect(runReq?.body).toEqual({});
     });
   });
 

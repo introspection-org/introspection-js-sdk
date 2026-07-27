@@ -70,7 +70,10 @@ export {
   attachRuntimes,
   isUuid,
 } from "./resources/runtimes.js";
-export type { RuntimeHandleFactory } from "./resources/runtimes.js";
+export type {
+  OpenRunnerOptions,
+  RuntimeHandleFactory,
+} from "./resources/runtimes.js";
 export {
   ExperimentsApi,
   ExperimentHandle,
