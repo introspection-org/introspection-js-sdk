@@ -27,7 +27,7 @@ async function main() {
 
   // 1) Open a Runner against the runtime group slug or ID. The SDK resolves
   //    it via `/v1/runtimes?runtime=…`, then calls
-  //    `/v1/runtimes/{id}/run` which mints a short-lived access token
+  //    `/v1/runtimes/run` which resolves atomically and mints a short-lived token
   //    and tells the runner which DP to talk to.
   const runner = await client.runtimes(runtime).run({
     identity: { user_id: "u_demo" },

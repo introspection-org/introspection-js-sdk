@@ -48,6 +48,9 @@ await client.shutdown();
 
 Runner creation also accepts `identity`, `caller`, and `ttl_seconds`, and the
 resolved `runner.context` exposes the current runtime or experiment context.
+`runner.toSpec()` explicitly exports the bounded bearer capability for a
+trusted application backend to hand to its authenticated browser. Treat the
+result as a secret and never log or persist it.
 `run.cancel()` aborts by default. Pass `{ mode: "abort" }` to make that
 explicit, or `{ mode: "drain", drain_within_seconds: 60 }` for graceful
 teardown.

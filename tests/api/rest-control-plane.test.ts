@@ -69,11 +69,15 @@ const RECIPE = {
   updated_at: "2025-01-01T00:00:00Z",
 };
 
-function runnerSpec(endpoint: string) {
+function runnerSpec(
+  endpoint: string,
+  sessionToken = "runner-jwt",
+  sessionId = "sess-1",
+) {
   return {
-    session_id: "sess-1",
+    session_id: sessionId,
     deployment: { endpoint, slug: "gcp01", region: "us-east-1" },
-    session_token: "runner-jwt",
+    session_token: sessionToken,
     expires_at: "2025-01-01T01:00:00Z",
     runtime_context: {
       runtime_id: RUNTIME.id,
@@ -98,6 +102,7 @@ function runnerSpec(endpoint: string) {
 let server: Server;
 let baseUrl: string;
 let requests: CapturedRequest[] = [];
+let queuedRunnerSpecs: ReturnType<typeof runnerSpec>[] = [];
 
 function readBody(req: IncomingMessage): Promise<unknown> {
   return new Promise((resolve) => {
@@ -201,8 +206,8 @@ beforeAll(async () => {
     }
     if (path === `/v1/runtimes/${RUNTIME.id}` && method === "GET")
       return json(res, 200, RUNTIME);
-    if (path === `/v1/runtimes/${RUNTIME.id}/run` && method === "POST")
-      return json(res, 200, runnerSpec(baseUrl));
+    if (path === "/v1/runtimes/run" && method === "POST")
+      return json(res, 200, queuedRunnerSpecs.shift() ?? runnerSpec(baseUrl));
 
     // --- Control-plane: experiments ---
     if (path === "/v1/experiments" && method === "GET")
@@ -335,29 +340,28 @@ describe("IntrospectionClient (REST control-plane, real server)", () => {
       ).rejects.toBeInstanceOf(NotFoundError);
     });
 
-    it("handle resolves a runtime slug lazily then runs", async () => {
+    it("handle sends its stable selector directly to the unified run route", async () => {
       requests = [];
       const client = makeClient();
       const runner = await client.runtimes("customer-agent").run({
+        project: "proj-1",
+        environment: "staging",
         identity: { user_id: "u-1" },
         caller: { locale: "en-US" },
         agent_name: "specialist",
         scope: "tasks:read tasks:write",
       });
-      // First request resolves the runtime, second opens the runner.
-      expect(
-        requests.some(
-          (r) =>
-            r.path === "/v1/runtimes" &&
-            r.query.get("runtime") === "customer-agent",
-        ),
-      ).toBe(true);
-      const runReq = requests.find((r) => r.path.endsWith("/run"));
+      expect(requests).toHaveLength(1);
+      const runReq = requests[0];
+      expect(runReq.path).toBe("/v1/runtimes/run");
       expect(
         (runReq?.body as { identity?: { user_id?: string } })?.identity
           ?.user_id,
       ).toBe("u-1");
       expect(runReq?.body).toMatchObject({
+        runtime: "customer-agent",
+        project: "proj-1",
+        environment: "staging",
         caller: { locale: "en-US" },
         agent_name: "specialist",
         scope: "tasks:read tasks:write",
@@ -365,6 +369,38 @@ describe("IntrospectionClient (REST control-plane, real server)", () => {
       expect(runner.context.runtime_group_id).toBe(RUNTIME.runtime_group_id);
       expect(runner.context.agent_name).toBe("agent");
       expect(runner.session_id).toBe("sess-1");
+    });
+
+    it("keeps runById and openRunner exact on the unified route", async () => {
+      requests = [];
+      const client = makeClient();
+
+      const exactRunner = await client.runtimes.runById(RUNTIME.id, {
+        identity: { user_id: "u-exact" },
+      });
+      await client.runtimes.openRunner(RUNTIME.id, {
+        scope: "tasks:read",
+      });
+      await exactRunner.refresh();
+
+      expect(requests).toHaveLength(3);
+      expect(requests.map((request) => request.path)).toEqual([
+        "/v1/runtimes/run",
+        "/v1/runtimes/run",
+        "/v1/runtimes/run",
+      ]);
+      expect(requests[0].body).toMatchObject({
+        runtime_id: RUNTIME.id,
+        identity: { user_id: "u-exact" },
+      });
+      expect(requests[1].body).toMatchObject({
+        runtime_id: RUNTIME.id,
+        scope: "tasks:read",
+      });
+      expect(requests[2].body).toMatchObject({
+        runtime_id: RUNTIME.id,
+        identity: { user_id: "u-exact" },
+      });
     });
   });
 
@@ -435,9 +471,7 @@ describe("IntrospectionClient (REST control-plane, real server)", () => {
       expect(runner.context.runtime_id).toBe(RUNTIME.id);
 
       // The minted token is the bearer on the subsequent CP calls.
-      const runtimeCall = requests.find((r) =>
-        r.path.endsWith(`/runtimes/${RUNTIME.id}/run`),
-      );
+      const runtimeCall = requests.find((r) => r.path === "/v1/runtimes/run");
       expect(runtimeCall?.auth).toBe("Bearer minted-sa-token");
       await runner.close();
     });
@@ -529,6 +563,10 @@ describe("IntrospectionClient (REST control-plane, real server)", () => {
 
   describe("runner (data-plane handle)", () => {
     it("exposes accessors, runs DP calls, refresh re-mints, close guards", async () => {
+      queuedRunnerSpecs = [
+        runnerSpec(baseUrl),
+        runnerSpec(baseUrl, "refreshed-runner-jwt", "sess-2"),
+      ];
       const client = makeClient();
       const runner = await client.runtimes(RUNTIME.runtime_group_id).run({
         agent_name: "specialist",
@@ -552,12 +590,28 @@ describe("IntrospectionClient (REST control-plane, real server)", () => {
 
       // Manual escape hatch: refresh re-calls the CP /run route.
       await expect(runner.refresh()).resolves.toBeUndefined();
-      expect(requests.find((r) => r.path.endsWith("/run"))?.body).toMatchObject(
-        {
-          agent_name: "specialist",
-          scope: "tasks:read",
-        },
+      expect(runner.session_id).toBe("sess-2");
+      expect(
+        requests.find((r) => r.path === "/v1/runtimes/run")?.body,
+      ).toMatchObject({
+        runtime: RUNTIME.runtime_group_id,
+        agent_name: "specialist",
+        scope: "tasks:read",
+      });
+
+      requests = [];
+      await collect(runner.tasks.list());
+      expect(requests.find((r) => r.path === "/v1/tasks")?.auth).toBe(
+        "Bearer refreshed-runner-jwt",
       );
+
+      expect(runner.toSpec()).toMatchObject({
+        session_id: "sess-2",
+        session_token: "refreshed-runner-jwt",
+        runtime_context: {
+          runtime_id: RUNTIME.id,
+        },
+      });
 
       // After close, guarded HTTP rejects further DP calls. The guard
       // fires on first iteration of the lazy generator.

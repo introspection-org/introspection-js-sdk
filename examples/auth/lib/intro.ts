@@ -11,7 +11,9 @@
 import {
   EventType,
   IntrospectionApiClient,
+  Runner,
   type AGUIEvent,
+  type RunnerSpec,
 } from "@introspection-sdk/introspection-browser/api";
 
 export const CP_URL = (
@@ -102,15 +104,13 @@ export function randomToken(): string {
 
 /**
  * The session the broker establishes server-side and hands back. Everything
- * the browser needs to run a task — and nothing more: the access token, the
- * project, the server-resolved `runtimeId`, and the DP URL from the CP token
- * response. No CP/DP/runtime config lives in the browser.
+ * the browser needs to run a task — and nothing more: the project access
+ * token, bounded Runner, and DP URL. No CP/runtime config lives in the browser.
  */
 export interface BrokerSession {
   token: string;
-  project: string;
-  runtimeId: string;
   dpUrl: string;
+  runner: RunnerSpec;
 }
 
 /**
@@ -118,7 +118,7 @@ export interface BrokerSession {
  * through the Node SDK (`serviceAccountToken` / `tokenExchange` /
  * `authorizationCodeToken`).
  */
-export type BrokerRequest =
+export type BrokerRequest = (
   | { mode: "service_account" }
   | { mode: "federated"; subject_token: string }
   | {
@@ -126,13 +126,13 @@ export type BrokerRequest =
       code: string;
       code_verifier: string;
       redirect_uri: string;
-    };
+    }
+) & { identity?: TaskIdentity };
 
 /**
  * Call the app's own broker (`/api/broker/session`). The broker runs the
- * Introspection token POST server-side via the Node SDK, resolves the runtime
- * id, and reads the DP URL off the CP response — so every mode returns the same
- * {@link BrokerSession} and the browser issues no Introspection OAuth calls.
+ * Introspection token POST server-side via the Node SDK, then mints a bounded
+ * Runner — so every mode returns the same {@link BrokerSession}.
  */
 export async function brokerSession(
   req: BrokerRequest,
@@ -254,11 +254,10 @@ async function verifyConversationLogged(opts: {
 }
 
 /**
- * The tail shared by all modes, driven by the browser SDK: build an
- * {@link IntrospectionApiClient}, `connect()` for the `intro_dp_session`
- * cookie, `tasks.start(...)` a run, stream its events, then verify the run
- * was logged via `/v1/conversations`. Returns a {@link RunSession} the caller
- * can `close()` to stop streaming.
+ * The tail shared by all modes: build a project-wide
+ * {@link IntrospectionApiClient} for conversation reads, hydrate the bounded
+ * {@link Runner} for execution, stream its events, then verify the run was
+ * logged via `/v1/conversations`.
  *
  * The Introspection token is handled only to seed `getToken`; every DP call
  * after `connect()` rides the HttpOnly cookie.
@@ -268,15 +267,12 @@ export async function runTaskWithToken(
   dpUrl: string,
   opts: {
     token: string;
+    runner: RunnerSpec;
     prompt: string;
     append: Append;
-    /** Server-resolved runtime id; pins the task via `runtime_id`. */
-    runtimeId: string;
-    /** Optional caller identity, folded into `metadata.identity`. */
-    identity?: TaskIdentity;
   },
 ): Promise<RunSession> {
-  const { token, prompt, append, runtimeId, identity } = opts;
+  const { token, runner: runnerSpec, prompt, append } = opts;
 
   // The session's project is derived from the token's claims at exchange —
   // the client takes no project selector. The DP URL came from the CP token response
@@ -289,6 +285,7 @@ export async function runTaskWithToken(
   append("info", "Exchanging for a Data Plane session cookie …");
   await client.connect();
   append("ok", "   ✓ intro_dp_session cookie set");
+  const runner = Runner.fromSpec(runnerSpec);
 
   // Snapshot the identity's existing conversations so we can single out the
   // new one this task produces once telemetry lands. Conversations are
@@ -300,12 +297,11 @@ export async function runTaskWithToken(
       .filter((id): id is string => typeof id === "string"),
   );
 
-  append("info", `Creating a task for runtime ${runtimeId.slice(0, 8)}… …`);
-  const run = await client.tasks.start({
-    prompt,
-    runtime_id: runtimeId,
-    ...(identity ? { identity } : {}),
-  });
+  append(
+    "info",
+    `Creating a task for runtime ${runner.context.runtime_id.slice(0, 8)}… …`,
+  );
+  const run = await runner.tasks.start({ prompt });
   append("ok", `   ✓ task ${run.task?.id ?? run.run.task_id} created`);
 
   let cancelled = false;
@@ -342,6 +338,7 @@ export async function runTaskWithToken(
   return {
     close: () => {
       cancelled = true;
+      void runner.close();
     },
   };
 }

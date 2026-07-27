@@ -6,18 +6,16 @@
  * Separate from the package's default telemetry export so apps only pull
  * in what they use.
  *
- * The browser talks only to the Data Plane. Resolving a runtime by slug
- * (a Control Plane call) stays on your backend, which hands the browser a
- * short-lived access token plus the resolved `runtime_id`.
+ * The browser talks only to the Data Plane. This client establishes a
+ * project-wide session; Runtime selection is not part of authentication.
  *
  * @example
  * ```typescript
  * import { IntrospectionApiClient } from "@introspection-sdk/introspection-browser/api";
  *
- * // Your backend returns { token, runtimeId, dpUrl } — it mints the access
- * // token, resolves the runtime id, and surfaces the DP URL (e.g. from the
- * // Node SDK's serviceAccountToken response), so the browser never calls the CP.
- * const { token, runtimeId, dpUrl } = await fetch(
+ * // Your backend returns { token, dpUrl } — it mints the access token and
+ * // surfaces the DP URL, so the browser never calls the CP.
+ * const { token, dpUrl } = await fetch(
  *   "/api/introspection/session",
  * ).then((r) => r.json());
  *
@@ -29,7 +27,6 @@
  * await client.connect(); // -> intro_dp_session cookie
  * const run = await client.tasks.start({
  *   prompt: "Summarize my latest order",
- *   runtime_id: runtimeId,
  * });
  * for await (const ev of run.stream()) console.log(ev.type);
  * ```
@@ -39,6 +36,7 @@ export {
   IntrospectionApiClient,
   type IntrospectionApiClientOptions,
 } from "./client.js";
+export { Runner, type BrowserRunnerOptions } from "./runner.js";
 export {
   TasksClient,
   TaskRunsClient,
@@ -81,6 +79,9 @@ export type {
   TaskRunResumeParams,
   TaskCancelResponse,
   TaskCancelOptions,
+  RunnerSpec,
+  RunnerDeployment,
+  RunnerContext,
   RunIdentityInput,
   Paginated,
   File,

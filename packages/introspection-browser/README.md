@@ -38,31 +38,28 @@ single-page app **create and stream Introspection tasks directly from the
 browser, with no API key in JavaScript**. Authentication is the standard B2B2C
 flow (see the [`sample-auth`](../../examples/apps/sample-auth) example):
 
-**The browser talks only to the Data Plane.** Runtime resolution is a Control
-Plane call and stays on your backend, so the CP never has to serve CORS to
-customer web origins.
+**The browser talks only to the Data Plane.** This client establishes a
+project-wide session; Runtime selection is a separate execution operation.
 
 1. The app's **own backend ("broker")** mints an Introspection access token —
    via RFC 8693 token-exchange of the partner IdP token, a PKCE
    `authorization_code`, or `client_credentials`. The IdP secret never leaves
-   the backend. The backend returns **`{ token, runtimeId, dpUrl }`**: it
-   resolves the runtime id server-side (e.g. with the Node SDK's
-   `client.runtimes.resolve("support-agent")`) and supplies the Data
-   Plane URL, so the SPA needs no Introspection config of its own.
+   the backend. The backend returns **`{ token, dpUrl }`** and supplies the
+   Data Plane URL, so the SPA needs no Introspection config of its own.
 2. `client.connect()` redeems the token at the **Data Plane**
    `POST /v1/oauth/exchange` for the HttpOnly `intro_dp_session` cookie.
-3. `client.tasks.start({ runtime_id })` and friends ride that cookie against
-   the Data Plane for tasks, files, conversations, and shares.
+3. `client.tasks.start()` and friends ride that project cookie against the
+   Data Plane for tasks, files, conversations, and shares. Runtime-bound task
+   creation uses a Runner bearer instead of a task-body selector.
 
 ```typescript
 import { IntrospectionApiClient } from "@introspection-sdk/introspection-browser/api";
 
-// Your backend returns { token, runtimeId, dpUrl }: it mints the access token,
-// resolves the runtime id, and supplies the DP URL — so the browser never
-// calls the CP and carries no Introspection config of its own.
-const { token, runtimeId, dpUrl } = await fetch(
-  "/api/introspection/session",
-).then((r) => r.json());
+// Your backend returns { token, dpUrl }: it mints the access token and
+// supplies the DP URL — so the browser never calls the CP.
+const { token, dpUrl } = await fetch("/api/introspection/session").then((r) =>
+  r.json(),
+);
 
 const client = new IntrospectionApiClient({
   dpUrl,
@@ -73,7 +70,6 @@ await client.connect(); // -> intro_dp_session cookie
 
 const run = await client.tasks.start({
   prompt: "Summarize my latest order",
-  runtime_id: runtimeId,
   idle_timeout_seconds: 120, // idle window before the sandbox is torn down
 });
 
@@ -81,6 +77,22 @@ for await (const ev of run.stream()) {
   console.log(ev.type);
 }
 ```
+
+For a Runtime-bound task, have the trusted backend run the Runtime and return
+the resulting bounded spec to the authenticated browser:
+
+```typescript
+import { Runner } from "@introspection-sdk/introspection-browser/api";
+
+const spec = await fetch("/api/introspection/runner").then((response) =>
+  response.json(),
+);
+const runner = Runner.fromSpec(spec);
+const run = await runner.tasks.start({ prompt: "Summarize my latest order" });
+```
+
+The browser sends the Runner bearer directly to the selected Data Plane. It
+does not exchange that bearer for, or bind it to, the project session cookie.
 
 `client.tasks` exposes the full CRUD surface (`create` / `start` / `get` /
 `list` / `update` / `delete` / `archive` / `unarchive`) plus per-run streaming
@@ -91,8 +103,8 @@ Cancellation defaults to abort; pass `mode: "drain"` and an optional
 `create` and `start` accept **`idle_timeout_seconds`** (`number`) to override
 the interactive idle window before the sandbox is torn down. `0` tears it down
 as soon as it's provisioned; omit to use the deployment default. Clamped to the
-task timeout. When no `runtime_id` is supplied, pass `agent_name` to select a
-named recipe agent instead.
+task timeout. Pass `agent_name` to select a named agent within the deployment's
+baked Recipe.
 
 ## Files and conversations
 
@@ -123,4 +135,4 @@ to auto-page.
 
 > **CORS:** the browser only calls the Data Plane, so just the selected Data
 > Plane needs to allow the SPA origin. The Control Plane never receives browser
-> requests — runtime resolution happens on your backend.
+> requests.

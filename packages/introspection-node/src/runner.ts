@@ -23,7 +23,12 @@ import type { IntrospectionClient } from "./client.js";
  * not auto-scheduled).
  */
 export type RunnerSource =
-  | { kind: "runtime"; id: Uuid; options?: RunRequest }
+  | {
+      kind: "runtime";
+      id: Uuid;
+      selector?: "runtime" | "runtime_id";
+      options?: RunRequest;
+    }
   | { kind: "experiment"; id: Uuid; options?: RunRequest };
 
 /**
@@ -59,12 +64,13 @@ export class Runner {
   ) {
     this.spec = spec;
     this.http = this.buildHttp();
-    this.tasks = new TasksApi(this.guardedHttp(this.http));
-    this.files = new FilesApi(this.guardedHttp(this.http));
-    this.conversations = new ConversationsApi(this.guardedHttp(this.http));
-    this.events = new EventsApi(this.guardedHttp(this.http));
-    this.metrics = new MetricsApi(this.guardedHttp(this.http));
-    this.shares = new SharesApi(this.guardedHttp(this.http));
+    const http = this.guardedHttp();
+    this.tasks = new TasksApi(http);
+    this.files = new FilesApi(http);
+    this.conversations = new ConversationsApi(http);
+    this.events = new EventsApi(http);
+    this.metrics = new MetricsApi(http);
+    this.shares = new SharesApi(http);
   }
 
   // --- public accessors ---
@@ -99,12 +105,19 @@ export class Runner {
     return this.closed;
   }
 
+  /**
+   * Export this bounded capability for an authenticated, trusted browser
+   * handoff. The returned spec contains a bearer token; never log or persist it.
+   */
+  toSpec(): RunnerSpec {
+    return structuredClone(this.spec);
+  }
+
   // --- lifecycle ---
 
   /**
-   * Manual escape hatch: re-call CP `/v1/runtimes/{id}/run` or
-   * `/v1/experiments/{id}/run` with the original `RunRequest` and replace
-   * this runner's in-memory spec with a fresh one.
+   * Manual escape hatch: re-call the originating Runtime or Experiment
+   * `/run` operation and replace this runner's in-memory capability.
    *
    * Not auto-scheduled — in v1 the DP materializer refreshes the
    * underlying access token transparently for the agent-session-backed
@@ -120,11 +133,9 @@ export class Runner {
       });
     }
     const fresh = await this.requestFreshSpec();
+    const freshHttp = this.buildHttp(fresh);
     this.spec = fresh;
-    // Note: we intentionally don't swap the underlying `http` here — the
-    // constructor-time bindings stay stable for the lifetime of the Runner.
-    // Callers wanting a freshly-bound Runner should call
-    // `client.runtimes(id).run(...)` again.
+    this.http = freshHttp;
   }
 
   /**
@@ -140,11 +151,11 @@ export class Runner {
 
   // --- internals ---
 
-  private buildHttp(): HttpClient {
+  private buildHttp(spec: RunnerSpec = this.spec): HttpClient {
     const advanced = this.client.advancedOptions;
     return new HttpClient({
-      apiUrl: this.spec.deployment.endpoint,
-      token: this.spec.session_token,
+      apiUrl: spec.deployment.endpoint,
+      token: spec.session_token,
       additionalHeaders: advanced.additionalHeaders,
       fetch: advanced.fetch,
     });
@@ -156,19 +167,19 @@ export class Runner {
    * bearer. No 401 retry / refresh logic — that is the DP materializer's
    * job in v1.
    */
-  private guardedHttp(http: HttpClient): HttpClient {
-    const proxy: HttpClient = Object.create(http);
+  private guardedHttp(): HttpClient {
+    const proxy: HttpClient = Object.create(this.http);
     proxy.request = async <T>(
       opts: Parameters<HttpClient["request"]>[0],
     ): Promise<T> => {
       this.assertOpen();
-      return http.request<T>(opts);
+      return this.http.request<T>(opts);
     };
     proxy.stream = async (
       opts: Parameters<HttpClient["stream"]>[0],
     ): Promise<Response> => {
       this.assertOpen();
-      return http.stream(opts);
+      return this.http.stream(opts);
     };
     return proxy;
   }
@@ -185,18 +196,22 @@ export class Runner {
 
   private async requestFreshSpec(): Promise<RunnerSpec> {
     const http = this.client.cpHttp;
-    const body = toRunBody(this.source.options);
     if (this.source.kind === "runtime") {
+      const body = toRuntimeRunBody(this.source.options);
       return await http.request<RunnerSpec>({
         method: "POST",
-        path: `/v1/runtimes/${encodeURIComponent(this.source.id)}/run`,
-        body,
+        path: "/v1/runtimes/run",
+        body: {
+          [this.source.selector === "runtime" ? "runtime" : "runtime_id"]:
+            this.source.id,
+          ...body,
+        },
       });
     }
     return await http.request<RunnerSpec>({
       method: "POST",
       path: `/v1/experiments/${encodeURIComponent(this.source.id)}/run`,
-      body,
+      body: toRunBody(this.source.options),
     });
   }
 }
@@ -209,5 +224,12 @@ function toRunBody(opts?: RunRequest): Record<string, unknown> {
   if (opts.agent_name !== undefined) out.agent_name = opts.agent_name;
   if (opts.ttl_seconds !== undefined) out.ttl_seconds = opts.ttl_seconds;
   if (opts.scope !== undefined) out.scope = opts.scope;
+  return out;
+}
+
+function toRuntimeRunBody(opts?: RunRequest): Record<string, unknown> {
+  const out = toRunBody(opts);
+  if (opts?.project !== undefined) out.project = opts.project;
+  if (opts?.environment !== undefined) out.environment = opts.environment;
   return out;
 }

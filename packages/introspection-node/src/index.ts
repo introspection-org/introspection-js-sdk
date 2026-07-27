@@ -111,6 +111,7 @@ export type {
   FileUpdateParams,
   FileCreateTextParams,
   Runtime,
+  RuntimeEnvironment,
   RuntimeListParams,
   Experiment,
   ExperimentCreate,

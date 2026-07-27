@@ -1,4 +1,4 @@
-import type { RunIdentityInput, Uuid } from "@introspection-sdk/types";
+import type { RunIdentityInput } from "@introspection-sdk/types";
 import {
   RunHandle,
   TaskRunsClient,
@@ -9,18 +9,14 @@ import {
 /**
  * Body for creating a task directly against the DP from the browser.
  *
- * A browser caller has no pre-pinned `Runner`, so — unlike the Node
- * SDK's runner-bound create — it selects the agent itself: pass
- * `runtime_id` to pin a recipe runtime, or `agent_name` to fall back to
- * a named recipe agent. `identity` is a convenience that is folded into
- * `metadata.identity` for attribution (the DP derives the owning
- * `identity_key` from the session's JWT claims, never from this body).
+ * Project-session task creation does not select a Runtime. Runtime authority
+ * comes from a Runner bearer; `agent_name` only selects an agent within the
+ * deployment's baked Recipe. `identity` remains metadata attribution only
+ * (the DP derives owning identity from authenticated claims).
  */
 export interface CreateTaskParams {
   prompt?: string;
-  /** Pin the task to a specific recipe runtime. */
-  runtime_id?: Uuid;
-  /** Named recipe agent, when no `runtime_id` is pinned. */
+  /** Named recipe agent within the deployment's baked Recipe. */
   agent_name?: string;
   title?: string;
   metadata?: Record<string, unknown>;

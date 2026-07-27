@@ -1,7 +1,7 @@
 /**
  * Confidential broker — establishes an Introspection session server-side and
- * hands the browser exactly what it needs: `{ token, project, runtimeId,
- * dpUrl }`. Every Introspection token POST runs here through the Node SDK, so
+ * hands the browser exactly what it needs: a project token plus a bounded
+ * Runner. Every Introspection token POST runs here through the Node SDK, so
  * the browser never hand-rolls an OAuth call. Three modes:
  *
  *  - `service_account`    — `client_credentials`; mints a machine token.
@@ -11,18 +11,17 @@
  *                           redirect returned (the verifier travels from the
  *                           browser, the POST happens here).
  *
- * In every mode the broker also resolves the runtime id and reads the DP URL
- * off the CP token response, so the SPA is configured entirely from the
- * response — no CP/DP/runtime env in the browser. The browser then completes
- * the shared tail (DP `/v1/oauth/exchange` → intro_dp_session cookie → task).
+ * In every mode the broker uses the deployment-audience token to mint a Runner
+ * at DP `/v1/runtimes/run`. The browser uses that bearer for task execution
+ * while its project-wide OAuth cookie remains independent.
  */
 import { NextResponse } from "next/server";
 import {
-  IntrospectionClient,
   authorizationCodeToken,
   serviceAccountToken,
   tokenExchange,
   type OAuthToken,
+  type RunnerSpec,
 } from "@introspection-sdk/introspection-node";
 
 import {
@@ -33,28 +32,6 @@ import {
   serviceAccountCreds,
   spaClientId,
 } from "@/lib/config";
-
-/**
- * Resolve the configured runtime slug to its current id. Runtime resolution is
- * a Control Plane call, so it always uses the service-account (machine)
- * credential server-side — never the end-user/customer token (the member_type
- * wall keeps those off CP routes) and never the browser. The id changes when
- * the runtime is re-deployed, so it is resolved fresh on every session.
- */
-async function resolveRuntimeId(): Promise<string> {
-  const { clientId, clientSecret } = serviceAccountCreds();
-  const { access_token } = await serviceAccountToken({
-    clientId,
-    clientSecret,
-    project: project(),
-    baseApiUrl: controlPlaneUrl(),
-  });
-  const cp = new IntrospectionClient({
-    token: access_token,
-    advanced: { baseApiUrl: controlPlaneUrl() },
-  });
-  return (await cp.runtimes.resolve(runtime())).id;
-}
 
 /** The CP resolves the project's DP URL onto the token response (like the CLI login). */
 function dpUrlOrThrow(token: OAuthToken): string {
@@ -72,6 +49,11 @@ interface BrokerRequest {
   code?: string;
   code_verifier?: string;
   redirect_uri?: string;
+  identity?: {
+    user_id?: string;
+    anonymous_id?: string;
+    conversation_id?: string;
+  };
 }
 
 async function mintUserToken(body: BrokerRequest): Promise<OAuthToken> {
@@ -111,6 +93,29 @@ async function mintUserToken(body: BrokerRequest): Promise<OAuthToken> {
   throw new Error("Unknown mode");
 }
 
+async function mintRunner(
+  token: OAuthToken,
+  identity: BrokerRequest["identity"],
+): Promise<RunnerSpec> {
+  const res = await fetch(`${dpUrlOrThrow(token)}/v1/runtimes/run`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token.access_token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      runtime: runtime(),
+      scope:
+        "tasks:read tasks:write files:read files:write shares:read shares:write conversations:read events:read metrics:read",
+      ...(identity ? { identity } : {}),
+    }),
+  });
+  if (!res.ok) {
+    throw new Error(`Runner mint failed (${res.status})`);
+  }
+  return (await res.json()) as RunnerSpec;
+}
+
 export async function POST(request: Request) {
   let body: BrokerRequest;
   try {
@@ -121,12 +126,11 @@ export async function POST(request: Request) {
 
   try {
     const token = await mintUserToken(body);
-    const runtimeId = await resolveRuntimeId();
+    const runner = await mintRunner(token, body.identity);
     return NextResponse.json({
       token: token.access_token,
-      project: project(),
-      runtimeId,
       dpUrl: dpUrlOrThrow(token),
+      runner,
     });
   } catch (err) {
     // Never echo the subject token / id_token or CP detail to the browser.

@@ -18,6 +18,8 @@ export function isUuid(value: string): boolean {
 }
 
 export interface RuntimeRunRequestBody {
+  project?: RunRequest["project"];
+  environment?: RunRequest["environment"];
   identity?: RunRequest["identity"];
   caller?: RunRequest["caller"];
   agent_name?: string;
@@ -27,7 +29,10 @@ export interface RuntimeRunRequestBody {
 
 export interface RuntimeRunnerSource {
   kind: "runtime";
+  /** Original stable selector or exact Runtime version ID. */
   id: Uuid;
+  /** Omitted sources from older callers are exact Runtime version IDs. */
+  selector?: "runtime" | "runtime_id";
   options?: RunRequest;
 }
 
@@ -39,6 +44,8 @@ export type RuntimeRunnerFactory<TRunner> = (
 function toRunBody(opts?: RunRequest): RuntimeRunRequestBody {
   if (!opts) return {};
   const out: RuntimeRunRequestBody = {};
+  if (opts.project !== undefined) out.project = opts.project;
+  if (opts.environment !== undefined) out.environment = opts.environment;
   if (opts.identity) out.identity = opts.identity;
   if (opts.caller) out.caller = opts.caller;
   if (opts.agent_name !== undefined) out.agent_name = opts.agent_name;
@@ -46,6 +53,8 @@ function toRunBody(opts?: RunRequest): RuntimeRunRequestBody {
   if (opts.scope !== undefined) out.scope = opts.scope;
   return out;
 }
+
+const runStable = Symbol("runStable");
 
 /**
  * Shared read/run client for `/v1/runtimes`. Runtime lifecycle and environment
@@ -98,50 +107,58 @@ export class RuntimesClient<TRunner> {
     });
   }
 
-  /** POST `/v1/runtimes/{id}/run` and wrap the result in a runner. */
+  /** Run one exact immutable Runtime version and wrap the result. */
   async runById(id: Uuid, opts?: RunRequest): Promise<TRunner> {
     const source: RuntimeRunnerSource = {
       kind: "runtime",
       id,
+      selector: "runtime_id",
       options: opts,
     };
     const spec = await this.openRunner(id, opts);
     return this.createRunner(source, spec);
   }
 
+  /** Open a raw Runner for one exact immutable Runtime version. */
   openRunner(id: Uuid, opts?: RunRequest): Promise<RunnerSpec> {
+    return this.postRun({ runtime_id: id }, opts);
+  }
+
+  async [runStable](runtime: string, opts?: RunRequest): Promise<TRunner> {
+    const source: RuntimeRunnerSource = {
+      kind: "runtime",
+      id: runtime,
+      selector: "runtime",
+      options: opts,
+    };
+    const spec = await this.postRun({ runtime }, opts);
+    return this.createRunner(source, spec);
+  }
+
+  private postRun(
+    selector: { runtime: string } | { runtime_id: Uuid },
+    opts?: RunRequest,
+  ): Promise<RunnerSpec> {
     return this.http.request<RunnerSpec>({
       method: "POST",
-      path: `/v1/runtimes/${encodeURIComponent(id)}/run`,
-      body: toRunBody(opts),
+      path: "/v1/runtimes/run",
+      body: { ...selector, ...toRunBody(opts) },
     });
   }
 }
 
 /**
- * Handle returned by `client.runtimes(runtime)`. Resolves the underlying
- * runtime row ID lazily from a runtime group slug or ID.
+ * Handle returned by `client.runtimes(runtime)`. The stable selector is sent
+ * directly to Control Plane so selection and Runner creation are atomic.
  */
 export class RuntimeHandle<TRunner> {
-  private resolvedId: Uuid | null;
-
   constructor(
     private readonly api: RuntimesClient<TRunner>,
     private readonly runtime: string,
-  ) {
-    this.resolvedId = null;
-  }
-
-  private async resolveId(): Promise<Uuid> {
-    if (this.resolvedId) return this.resolvedId;
-    const resolved = await this.api.resolve(this.runtime);
-    this.resolvedId = resolved.id;
-    return resolved.id;
-  }
+  ) {}
 
   async run(opts?: RunRequest): Promise<TRunner> {
-    const id = await this.resolveId();
-    return this.api.runById(id, opts);
+    return this.api[runStable](this.runtime, opts);
   }
 }
 

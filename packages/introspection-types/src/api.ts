@@ -304,6 +304,7 @@ export interface ShareListParams extends ListParams {
  *                 exists in the project.
  */
 export type RuntimeLlmMode = "managed" | "byok";
+export type RuntimeEnvironment = "development" | "staging" | "production";
 
 export interface Runtime {
   id: Uuid;
@@ -608,12 +609,14 @@ export interface RunCallerPage {
 }
 
 /**
- * Input body for the CP `/v1/runtimes/{id}/run` and
- * `/v1/experiments/{id}/run` routes. The URL identifies the
- * runtime/experiment — do NOT include `deployment`, `runtime_id`, or
- * `experiment_id` in the body.
+ * Per-invocation options for Runtime and Experiment `/run` routes. Runtime
+ * methods add the stable or exact selector required by the unified route.
  */
 export interface RunRequest {
+  /** Project slug or id. Required for stable selection unless credential-scoped. */
+  project?: string;
+  /** Environment lane. Defaults to the authenticated credential environment. */
+  environment?: RuntimeEnvironment;
   identity?: RunIdentityInput;
   /** Optional observability payload — see {@link RunCaller}. */
   caller?: RunCaller;

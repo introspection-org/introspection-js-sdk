@@ -10,14 +10,13 @@
  *   1. The SPA's own backend ("broker") mints a short-lived Introspection
  *      access token — via RFC 8693 token-exchange of the partner IdP
  *      token, a PKCE `authorization_code`, or `client_credentials` (the
- *      IdP secret never leaves the backend) — and, when a specific runtime
- *      is needed, resolves its `runtime_id` server-side. The SPA fetches
- *      the token through the `getToken` callback.
+ *      IdP secret never leaves the backend). The SPA fetches the token
+ *      through the `getToken` callback.
  *   2. `connect()` redeems the token at the DP `POST /v1/oauth/exchange`
  *      for the HttpOnly `intro_dp_session` cookie.
  *   3. Every subsequent call rides that cookie (`credentials: "include"`)
- *      — `client.tasks.start({ runtime_id })`, `.get(...)`, run streaming,
- *      etc.
+ *      — `client.tasks.start(...)`, `.get(...)`, run streaming, etc. Runtime
+ *      execution uses a separate Runner bearer and never binds this cookie.
  *
  * When the session cookie expires, an in-flight request gets a 401, and
  * the client transparently re-runs `getToken` + the DP exchange once

@@ -80,7 +80,7 @@ export default function DirectPage() {
         "info",
         `Broker exchanging the ${IDP_PROVIDER_LABEL[IDP_PROVIDER]} access token (token-exchange) …`,
       );
-      const { token, runtimeId, dpUrl } = await brokerSession({
+      const { token, runner, dpUrl } = await brokerSession({
         mode: "federated",
         subject_token: session.access_token,
       });
@@ -88,7 +88,7 @@ export default function DirectPage() {
 
       socketRef.current = await runTaskWithToken(dpUrl, {
         token,
-        runtimeId,
+        runner,
         prompt,
         append,
       });

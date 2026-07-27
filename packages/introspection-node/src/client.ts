@@ -91,7 +91,7 @@ export class IntrospectionClient {
 
     // CP HTTP client — talks to the customer-facing API with the customer
     // API key. Runners get their own HttpClient instances pointed at the
-    // `deployment.endpoint` returned by `/v1/runtimes/{id}/run`.
+    // `deployment.endpoint` returned by `/v1/runtimes/run`.
     this.cpHttp = new HttpClient({
       apiUrl: baseApiUrl,
       token,

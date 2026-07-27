@@ -159,7 +159,7 @@ export default function SpaPage() {
       append("ok", "   ✓ Introspection token minted");
       socketRef.current = await runTaskWithToken(session.dpUrl, {
         token: session.token,
-        runtimeId: session.runtimeId,
+        runner: session.runner,
         prompt,
         append,
       });

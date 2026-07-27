@@ -3,6 +3,7 @@ import {
   BrowserHttpClient,
   EventType,
   IntrospectionApiClient,
+  Runner,
   RunHandle,
   TasksClient,
   TaskRunsClient,
@@ -180,6 +181,61 @@ describe("BrowserHttpClient", () => {
   });
 });
 
+describe("Runner", () => {
+  it("hydrates a RunnerSpec and uses its bounded bearer directly", async () => {
+    const fetchImpl = mockFetch({
+      ok: true,
+      status: 201,
+      json: () => Promise.resolve({ task: TASK_FIXTURE, run: RUN_FIXTURE }),
+    });
+    const runner = Runner.fromSpec(
+      {
+        session_id: "session-1",
+        session_token: "runner-token",
+        expires_at: "2026-07-27T01:00:00Z",
+        deployment: {
+          endpoint: "https://runner-dp.example.com",
+          slug: "dp-1",
+          region: "us-west-2",
+        },
+        runtime_context: {
+          runtime_id: "019ed295-5d76-7432-863b-f9327af50221",
+          runtime_group_id: "019ed295-5d76-7432-863b-f9327af50222",
+          experiment_id: null,
+          recipe_id: "019ed295-5d76-7432-863b-f9327af50223",
+          recipe: {
+            repository_id: "019ed295-5d76-7432-863b-f9327af50224",
+            git_ref: "main",
+            git_commit_sha: "abc123",
+          },
+          arm_label: null,
+          identity: {
+            user_id: "user-1",
+            anonymous_id: null,
+            conversation_id: null,
+          },
+        },
+      },
+      { fetch: fetchImpl as unknown as typeof fetch },
+    );
+
+    await runner.tasks.start({ prompt: "hello" });
+
+    const [url, init] = fetchImpl.mock.calls[0];
+    expect(url).toBe("https://runner-dp.example.com/v1/tasks");
+    expect(init.headers.Authorization).toBe("Bearer runner-token");
+    expect(init.credentials).toBeUndefined();
+    expect(runner.context.runtime_id).toBe(
+      "019ed295-5d76-7432-863b-f9327af50221",
+    );
+
+    await runner.close();
+    await expect(runner.tasks.get("task-1")).rejects.toBeInstanceOf(
+      IntrospectionAPIError,
+    );
+  });
+});
+
 describe("TasksClient", () => {
   it("create() posts the body to /v1/tasks", async () => {
     const http = mockHttp({
@@ -202,7 +258,6 @@ describe("TasksClient", () => {
     const tasks = new TasksClient(http);
     await tasks.create({
       prompt: "hello",
-      runtime_id: "rt-1",
       metadata: { source: "web" },
       identity: { user_id: "u_42" },
     });
@@ -212,7 +267,6 @@ describe("TasksClient", () => {
       path: "/v1/tasks",
       body: {
         prompt: "hello",
-        runtime_id: "rt-1",
         metadata: { source: "web", identity: { user_id: "u_42" } },
       },
     });
@@ -453,7 +507,7 @@ describe("IntrospectionApiClient", () => {
     );
   });
 
-  it("starts a task with a server-resolved runtime_id over the cookie session", async () => {
+  it("starts a baked-Recipe task over the project cookie session", async () => {
     const fetchImpl = vi.fn(async (url: string, init: RequestInit) => {
       if (url === "https://dp.example.com/v1/oauth/exchange") {
         return {
@@ -472,7 +526,6 @@ describe("IntrospectionApiClient", () => {
         expect(init.credentials).toBe("include");
         expect(JSON.parse(init.body as string)).toEqual({
           prompt: "hello",
-          runtime_id: "019ed295-5d76-7432-863b-f9327af50221",
         });
         return {
           ok: true,
@@ -492,7 +545,6 @@ describe("IntrospectionApiClient", () => {
     await client.connect();
     const run = await client.tasks.start({
       prompt: "hello",
-      runtime_id: "019ed295-5d76-7432-863b-f9327af50221",
     });
 
     expect(run.task).toEqual(TASK_FIXTURE);
