@@ -402,7 +402,7 @@ describe("IntrospectionClient (REST control-plane, real server)", () => {
       expect(requests.at(-1)?.body).toEqual({});
     });
 
-    it("uses development proof for runById without retaining it for DP or refresh", async () => {
+    it("uses development proof for runById and CP refresh but never DP", async () => {
       requests = [];
       const client = makeClient();
       const runner = await client.runtimes.runById(RUNTIME.id, {
@@ -419,7 +419,7 @@ describe("IntrospectionClient (REST control-plane, real server)", () => {
       requests = [];
       await runner.refresh();
       expect(requests.at(-1)?.path).toBe(`/v1/runtimes/${RUNTIME.id}/run`);
-      expect(requests.at(-1)?.developmentAuth).toBeUndefined();
+      expect(requests.at(-1)?.developmentAuth).toBe("Bearer dev-proof");
       expect(JSON.stringify(requests.at(-1)?.body)).not.toContain("dev-proof");
     });
 

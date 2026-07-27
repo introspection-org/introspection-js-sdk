@@ -11,7 +11,8 @@ export { isUuid };
  *
  * `developmentAuthorization` is a short-lived proof produced by
  * `introspection dev`. It is sent only on this Control Plane `/run` request;
- * it is never included in the request body or retained by a {@link Runner}.
+ * a {@link Runner} retains it privately only to authorize later Control Plane
+ * refreshes. It is never included in request bodies or Data Plane calls.
  */
 export interface OpenRunnerOptions extends RunRequest {
   developmentAuthorization?: string;
@@ -26,7 +27,7 @@ export class RuntimesApi extends RuntimesClient<Runner> {
   }
 
   override openRunner(id: Uuid, opts?: OpenRunnerOptions): Promise<RunnerSpec> {
-    const developmentAuthorization = opts?.developmentAuthorization?.trim();
+    const developmentAuthorization = normalizedDevelopmentAuthorization(opts);
     return this.nodeHttp.request<RunnerSpec>({
       method: "POST",
       path: `/v1/runtimes/${encodeURIComponent(id)}/run`,
@@ -49,6 +50,7 @@ export class RuntimesApi extends RuntimesClient<Runner> {
         options: withoutDevelopmentAuthorization(opts),
       },
       spec,
+      normalizedDevelopmentAuthorization(opts),
     );
   }
 }
@@ -109,4 +111,11 @@ function withoutDevelopmentAuthorization(
   const runRequest = { ...opts };
   delete runRequest.developmentAuthorization;
   return runRequest;
+}
+
+function normalizedDevelopmentAuthorization(
+  opts?: OpenRunnerOptions,
+): string | undefined {
+  const proof = opts?.developmentAuthorization?.trim();
+  return proof || undefined;
 }

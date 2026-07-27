@@ -56,6 +56,7 @@ export class Runner {
     private readonly client: IntrospectionClient,
     private readonly source: RunnerSource,
     spec: RunnerSpec,
+    private readonly developmentAuthorization?: string,
   ) {
     this.spec = spec;
     this.http = this.buildHttp();
@@ -191,6 +192,11 @@ export class Runner {
         method: "POST",
         path: `/v1/runtimes/${encodeURIComponent(this.source.id)}/run`,
         body,
+        headers: this.developmentAuthorization
+          ? {
+              "Introspection-Development-Authorization": `Bearer ${this.developmentAuthorization}`,
+            }
+          : undefined,
       });
     }
     return await http.request<RunnerSpec>({
