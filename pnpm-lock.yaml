@@ -46,7 +46,7 @@ importers:
         version: link:../packages/introspection-proxy
       '@mastra/braintrust':
         specifier: ^1.3.0
-        version: 1.3.0(@aws-sdk/credential-provider-web-identity@3.972.65)(@mastra/core@1.52.1(@cfworker/json-schema@4.1.1)(@grpc/grpc-js@1.14.4)(ai@6.0.235(zod@4.4.3))(express@5.2.1)(zod@4.4.3))(zod@4.4.3)
+        version: 1.3.0(@aws-sdk/credential-provider-web-identity@3.972.67)(@mastra/core@1.52.1(@cfworker/json-schema@4.1.1)(@grpc/grpc-js@1.14.4)(ai@6.0.235(zod@4.4.3))(express@5.2.1)(zod@4.4.3))(zod@4.4.3)
       '@mastra/observability':
         specifier: ^1.16.2
         version: 1.16.2(@mastra/core@1.52.1(@cfworker/json-schema@4.1.1)(@grpc/grpc-js@1.14.4)(ai@6.0.235(zod@4.4.3))(express@5.2.1)(zod@4.4.3))(zod@4.4.3)
@@ -61,13 +61,13 @@ importers:
         version: 1.43.0
       braintrust:
         specifier: ^2.2.2
-        version: 2.2.2(@aws-sdk/credential-provider-web-identity@3.972.65)(zod@4.4.3)
+        version: 2.2.2(@aws-sdk/credential-provider-web-identity@3.972.67)(zod@4.4.3)
       langsmith:
         specifier: ^0.8.7
-        version: 0.8.7(@opentelemetry/api@1.9.1)(@opentelemetry/exporter-trace-otlp-proto@0.221.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.10.0(@opentelemetry/api@1.9.1))(openai@6.49.0(@aws-sdk/credential-provider-node@3.972.69)(@smithy/signature-v4@5.6.5)(ws@8.21.1)(zod@4.4.3))(ws@8.21.1)
+        version: 0.8.7(@opentelemetry/api@1.9.1)(@opentelemetry/exporter-trace-otlp-proto@0.221.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.10.0(@opentelemetry/api@1.9.1))(openai@6.49.0(@aws-sdk/credential-provider-node@3.972.72)(@smithy/signature-v4@5.6.10)(ws@8.21.1)(zod@4.4.3))(ws@8.21.1)
       openai:
         specifier: ^6.49.0
-        version: 6.49.0(@aws-sdk/credential-provider-node@3.972.69)(@smithy/signature-v4@5.6.5)(ws@8.21.1)(zod@4.4.3)
+        version: 6.49.0(@aws-sdk/credential-provider-node@3.972.72)(@smithy/signature-v4@5.6.10)(ws@8.21.1)(zod@4.4.3)
     optionalDependencies:
       '@ai-sdk/anthropic':
         specifier: ^3.0.103
@@ -83,7 +83,7 @@ importers:
         version: 0.115.0(zod@4.4.3)
       '@arizeai/openinference-instrumentation-langchain':
         specifier: ^4.0.14
-        version: 4.0.14(@langchain/core@1.2.3(@opentelemetry/api@1.9.1)(@opentelemetry/exporter-trace-otlp-proto@0.221.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.10.0(@opentelemetry/api@1.9.1))(openai@6.49.0(@aws-sdk/credential-provider-node@3.972.69)(@smithy/signature-v4@5.6.5)(ws@8.21.1)(zod@4.4.3))(ws@8.21.1))
+        version: 4.0.14(@langchain/core@1.2.3(@opentelemetry/api@1.9.1)(@opentelemetry/exporter-trace-otlp-proto@0.221.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.10.0(@opentelemetry/api@1.9.1))(openai@6.49.0(@aws-sdk/credential-provider-node@3.972.72)(@smithy/signature-v4@5.6.10)(ws@8.21.1)(zod@4.4.3))(ws@8.21.1))
       '@arizeai/openinference-instrumentation-openai':
         specifier: ^4.1.5
         version: 4.1.5
@@ -94,8 +94,8 @@ importers:
         specifier: ^0.80.10
         version: 0.80.10(@modelcontextprotocol/sdk@1.29.0(@cfworker/json-schema@4.1.1)(zod@4.4.3))(ws@8.21.1)(zod@4.4.3)
       '@earendil-works/pi-ai':
-        specifier: ^0.80.10
-        version: 0.80.10(@modelcontextprotocol/sdk@1.29.0(@cfworker/json-schema@4.1.1)(zod@4.4.3))(ws@8.21.1)(zod@4.4.3)
+        specifier: ^0.82.1
+        version: 0.82.1(@modelcontextprotocol/sdk@1.29.0(@cfworker/json-schema@4.1.1)(zod@4.4.3))(ws@8.21.1)(zod@4.4.3)
       '@google/genai':
         specifier: ^2.13.0
         version: 2.13.0(@modelcontextprotocol/sdk@1.29.0(@cfworker/json-schema@4.1.1)(zod@4.4.3))
@@ -104,19 +104,19 @@ importers:
         version: 1.14.4
       '@langchain/anthropic':
         specifier: ^1.5.2
-        version: 1.5.2(@langchain/core@1.2.3(@opentelemetry/api@1.9.1)(@opentelemetry/exporter-trace-otlp-proto@0.221.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.10.0(@opentelemetry/api@1.9.1))(openai@6.49.0(@aws-sdk/credential-provider-node@3.972.69)(@smithy/signature-v4@5.6.5)(ws@8.21.1)(zod@4.4.3))(ws@8.21.1))
+        version: 1.5.2(@langchain/core@1.2.3(@opentelemetry/api@1.9.1)(@opentelemetry/exporter-trace-otlp-proto@0.221.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.10.0(@opentelemetry/api@1.9.1))(openai@6.49.0(@aws-sdk/credential-provider-node@3.972.72)(@smithy/signature-v4@5.6.10)(ws@8.21.1)(zod@4.4.3))(ws@8.21.1))
       '@langchain/core':
         specifier: ^1.2.3
-        version: 1.2.3(@opentelemetry/api@1.9.1)(@opentelemetry/exporter-trace-otlp-proto@0.221.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.10.0(@opentelemetry/api@1.9.1))(openai@6.49.0(@aws-sdk/credential-provider-node@3.972.69)(@smithy/signature-v4@5.6.5)(ws@8.21.1)(zod@4.4.3))(ws@8.21.1)
+        version: 1.2.3(@opentelemetry/api@1.9.1)(@opentelemetry/exporter-trace-otlp-proto@0.221.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.10.0(@opentelemetry/api@1.9.1))(openai@6.49.0(@aws-sdk/credential-provider-node@3.972.72)(@smithy/signature-v4@5.6.10)(ws@8.21.1)(zod@4.4.3))(ws@8.21.1)
       '@langchain/openai':
         specifier: ^1.5.5
-        version: 1.5.5(@aws-sdk/credential-provider-node@3.972.69)(@langchain/core@1.2.3(@opentelemetry/api@1.9.1)(@opentelemetry/exporter-trace-otlp-proto@0.221.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.10.0(@opentelemetry/api@1.9.1))(openai@6.49.0(@aws-sdk/credential-provider-node@3.972.69)(@smithy/signature-v4@5.6.5)(ws@8.21.1)(zod@4.4.3))(ws@8.21.1))(@smithy/signature-v4@5.6.5)(ws@8.21.1)
+        version: 1.5.5(@aws-sdk/credential-provider-node@3.972.72)(@langchain/core@1.2.3(@opentelemetry/api@1.9.1)(@opentelemetry/exporter-trace-otlp-proto@0.221.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.10.0(@opentelemetry/api@1.9.1))(openai@6.49.0(@aws-sdk/credential-provider-node@3.972.72)(@smithy/signature-v4@5.6.10)(ws@8.21.1)(zod@4.4.3))(ws@8.21.1))(@smithy/signature-v4@5.6.10)(ws@8.21.1)
       '@mastra/core':
         specifier: ^1.52.1
         version: 1.52.1(@cfworker/json-schema@4.1.1)(@grpc/grpc-js@1.14.4)(ai@6.0.235(zod@4.4.3))(express@5.2.1)(zod@4.4.3)
       '@openai/agents':
         specifier: ^0.13.5
-        version: 0.13.5(@aws-sdk/credential-provider-node@3.972.69)(@cfworker/json-schema@4.1.1)(@smithy/signature-v4@5.6.5)(ws@8.21.1)(zod@4.4.3)
+        version: 0.13.5(@aws-sdk/credential-provider-node@3.972.72)(@cfworker/json-schema@4.1.1)(@smithy/signature-v4@5.6.10)(ws@8.21.1)(zod@4.4.3)
       '@opentelemetry/api':
         specifier: ^1.9.1
         version: 1.9.1
@@ -351,14 +351,14 @@ importers:
         specifier: ^0.80.10
         version: 0.80.10(@modelcontextprotocol/sdk@1.29.0(@cfworker/json-schema@4.1.1)(zod@4.4.3))(ws@8.21.1)(zod@4.4.3)
       '@earendil-works/pi-ai':
-        specifier: ^0.80.10
-        version: 0.80.10(@modelcontextprotocol/sdk@1.29.0(@cfworker/json-schema@4.1.1)(zod@4.4.3))(ws@8.21.1)(zod@4.4.3)
+        specifier: ^0.82.1
+        version: 0.82.1(@modelcontextprotocol/sdk@1.29.0(@cfworker/json-schema@4.1.1)(zod@4.4.3))(ws@8.21.1)(zod@4.4.3)
       '@google/genai':
         specifier: ^2.13.0
         version: 2.13.0(@modelcontextprotocol/sdk@1.29.0(@cfworker/json-schema@4.1.1)(zod@4.4.3))
       '@langchain/core':
         specifier: ^1.2.3
-        version: 1.2.3(@opentelemetry/api@1.9.1)(@opentelemetry/exporter-trace-otlp-proto@0.221.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.10.0(@opentelemetry/api@1.9.1))(openai@6.49.0(@aws-sdk/credential-provider-node@3.972.69)(@smithy/signature-v4@5.6.5)(ws@8.21.1)(zod@4.4.3))(ws@8.21.1)
+        version: 1.2.3(@opentelemetry/api@1.9.1)(@opentelemetry/exporter-trace-otlp-proto@0.221.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.10.0(@opentelemetry/api@1.9.1))(openai@6.49.0(@aws-sdk/credential-provider-node@3.972.72)(@smithy/signature-v4@5.6.10)(ws@8.21.1)(zod@4.4.3))(ws@8.21.1)
       '@mastra/core':
         specifier: ^1.52.1
         version: 1.52.1(@cfworker/json-schema@4.1.1)(@grpc/grpc-js@1.14.4)(ai@6.0.235(zod@4.4.3))(express@5.2.1)(zod@4.4.3)
@@ -367,7 +367,7 @@ importers:
         version: 1.16.2(@mastra/core@1.52.1(@cfworker/json-schema@4.1.1)(@grpc/grpc-js@1.14.4)(ai@6.0.235(zod@4.4.3))(express@5.2.1)(zod@4.4.3))(zod@4.4.3)
       '@openai/agents':
         specifier: ^0.13.5
-        version: 0.13.5(@aws-sdk/credential-provider-node@3.972.69)(@cfworker/json-schema@4.1.1)(@smithy/signature-v4@5.6.5)(ws@8.21.1)(zod@4.4.3)
+        version: 0.13.5(@aws-sdk/credential-provider-node@3.972.72)(@cfworker/json-schema@4.1.1)(@smithy/signature-v4@5.6.10)(ws@8.21.1)(zod@4.4.3)
       '@opentelemetry/api-logs':
         specifier: ^0.221.0
         version: 0.221.0
@@ -415,7 +415,7 @@ importers:
         version: 9.39.5(jiti@2.7.0)
       openai:
         specifier: ^6.49.0
-        version: 6.49.0(@aws-sdk/credential-provider-node@3.972.69)(@smithy/signature-v4@5.6.5)(ws@8.21.1)(zod@4.4.3)
+        version: 6.49.0(@aws-sdk/credential-provider-node@3.972.72)(@smithy/signature-v4@5.6.10)(ws@8.21.1)(zod@4.4.3)
       typescript:
         specifier: 5.9.3
         version: 5.9.3
@@ -464,8 +464,8 @@ importers:
         specifier: ^0.80.10
         version: 0.80.10(@modelcontextprotocol/sdk@1.29.0(@cfworker/json-schema@4.1.1)(zod@4.4.3))(ws@8.21.1)(zod@4.4.3)
       '@earendil-works/pi-ai':
-        specifier: ^0.80.10
-        version: 0.80.10(@modelcontextprotocol/sdk@1.29.0(@cfworker/json-schema@4.1.1)(zod@4.4.3))(ws@8.21.1)(zod@4.4.3)
+        specifier: ^0.82.1
+        version: 0.82.1(@modelcontextprotocol/sdk@1.29.0(@cfworker/json-schema@4.1.1)(zod@4.4.3))(ws@8.21.1)(zod@4.4.3)
       '@repo/eslint-config':
         specifier: workspace:*
         version: link:../eslint-config
@@ -536,7 +536,7 @@ importers:
     optionalDependencies:
       '@arizeai/openinference-instrumentation-langchain':
         specifier: ^4.0.14
-        version: 4.0.14(@langchain/core@1.2.3(@opentelemetry/api@1.9.1)(@opentelemetry/exporter-trace-otlp-proto@0.221.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.10.0(@opentelemetry/api@1.9.1))(openai@6.49.0(@aws-sdk/credential-provider-node@3.972.69)(@smithy/signature-v4@5.6.5)(ws@8.21.1)(zod@4.4.3))(ws@8.21.1))
+        version: 4.0.14(@langchain/core@1.2.3(@opentelemetry/api@1.9.1)(@opentelemetry/exporter-trace-otlp-proto@0.221.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.10.0(@opentelemetry/api@1.9.1))(openai@6.49.0(@aws-sdk/credential-provider-node@3.972.72)(@smithy/signature-v4@5.6.10)(ws@8.21.1)(zod@4.4.3))(ws@8.21.1))
       '@arizeai/openinference-instrumentation-openai':
         specifier: ^4.1.5
         version: 4.1.5
@@ -569,8 +569,8 @@ importers:
         specifier: ^0.80.10
         version: 0.80.10(@modelcontextprotocol/sdk@1.29.0(@cfworker/json-schema@4.1.1)(zod@4.4.3))(ws@8.21.1)(zod@4.4.3)
       '@earendil-works/pi-ai':
-        specifier: ^0.80.10
-        version: 0.80.10(@modelcontextprotocol/sdk@1.29.0(@cfworker/json-schema@4.1.1)(zod@4.4.3))(ws@8.21.1)(zod@4.4.3)
+        specifier: ^0.82.1
+        version: 0.82.1(@modelcontextprotocol/sdk@1.29.0(@cfworker/json-schema@4.1.1)(zod@4.4.3))(ws@8.21.1)(zod@4.4.3)
       '@earendil-works/pi-coding-agent':
         specifier: ^0.82.1
         version: 0.82.1(@modelcontextprotocol/sdk@1.29.0(@cfworker/json-schema@4.1.1)(zod@4.4.3))(ws@8.21.1)(zod@4.4.3)
@@ -579,16 +579,16 @@ importers:
         version: 2.13.0(@modelcontextprotocol/sdk@1.29.0(@cfworker/json-schema@4.1.1)(zod@4.4.3))
       '@langchain/anthropic':
         specifier: ^1.5.2
-        version: 1.5.2(@langchain/core@1.2.3(@opentelemetry/api@1.9.1)(@opentelemetry/exporter-trace-otlp-proto@0.221.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.10.0(@opentelemetry/api@1.9.1))(openai@6.49.0(@aws-sdk/credential-provider-node@3.972.69)(@smithy/signature-v4@5.6.5)(ws@8.21.1)(zod@4.4.3))(ws@8.21.1))
+        version: 1.5.2(@langchain/core@1.2.3(@opentelemetry/api@1.9.1)(@opentelemetry/exporter-trace-otlp-proto@0.221.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.10.0(@opentelemetry/api@1.9.1))(openai@6.49.0(@aws-sdk/credential-provider-node@3.972.72)(@smithy/signature-v4@5.6.10)(ws@8.21.1)(zod@4.4.3))(ws@8.21.1))
       '@langchain/core':
         specifier: ^1.2.3
-        version: 1.2.3(@opentelemetry/api@1.9.1)(@opentelemetry/exporter-trace-otlp-proto@0.221.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.10.0(@opentelemetry/api@1.9.1))(openai@6.49.0(@aws-sdk/credential-provider-node@3.972.69)(@smithy/signature-v4@5.6.5)(ws@8.21.1)(zod@4.4.3))(ws@8.21.1)
+        version: 1.2.3(@opentelemetry/api@1.9.1)(@opentelemetry/exporter-trace-otlp-proto@0.221.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.10.0(@opentelemetry/api@1.9.1))(openai@6.49.0(@aws-sdk/credential-provider-node@3.972.72)(@smithy/signature-v4@5.6.10)(ws@8.21.1)(zod@4.4.3))(ws@8.21.1)
       '@langchain/openai':
         specifier: ^1.5.5
-        version: 1.5.5(@aws-sdk/credential-provider-node@3.972.69)(@langchain/core@1.2.3(@opentelemetry/api@1.9.1)(@opentelemetry/exporter-trace-otlp-proto@0.221.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.10.0(@opentelemetry/api@1.9.1))(openai@6.49.0(@aws-sdk/credential-provider-node@3.972.69)(@smithy/signature-v4@5.6.5)(ws@8.21.1)(zod@4.4.3))(ws@8.21.1))(@smithy/signature-v4@5.6.5)(ws@8.21.1)
+        version: 1.5.5(@aws-sdk/credential-provider-node@3.972.72)(@langchain/core@1.2.3(@opentelemetry/api@1.9.1)(@opentelemetry/exporter-trace-otlp-proto@0.221.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.10.0(@opentelemetry/api@1.9.1))(openai@6.49.0(@aws-sdk/credential-provider-node@3.972.72)(@smithy/signature-v4@5.6.10)(ws@8.21.1)(zod@4.4.3))(ws@8.21.1))(@smithy/signature-v4@5.6.10)(ws@8.21.1)
       '@openai/agents':
         specifier: ^0.13.5
-        version: 0.13.5(@aws-sdk/credential-provider-node@3.972.69)(@cfworker/json-schema@4.1.1)(@smithy/signature-v4@5.6.5)(ws@8.21.1)(zod@4.4.3)
+        version: 0.13.5(@aws-sdk/credential-provider-node@3.972.72)(@cfworker/json-schema@4.1.1)(@smithy/signature-v4@5.6.10)(ws@8.21.1)(zod@4.4.3)
       '@opentelemetry/api':
         specifier: ^1.9.1
         version: 1.9.1
@@ -645,7 +645,7 @@ importers:
         version: 16.6.1
       openai:
         specifier: ^6.49.0
-        version: 6.49.0(@aws-sdk/credential-provider-node@3.972.69)(@smithy/signature-v4@5.6.5)(ws@8.21.1)(zod@4.4.3)
+        version: 6.49.0(@aws-sdk/credential-provider-node@3.972.72)(@smithy/signature-v4@5.6.10)(ws@8.21.1)(zod@4.4.3)
       typescript:
         specifier: ^5.9.3
         version: 5.9.3
@@ -851,68 +851,68 @@ packages:
     resolution: {integrity: sha512-u+NT61JZEkRFtpL0CAw1N1dwxnaLgwVXQl/zjJxTGgLyS/jTIdg2SdoEoCTHxgDyCnqa1HEi9QOoE9/pYRNpOQ==}
     engines: {node: '>=20.0.0'}
 
-  '@aws-sdk/core@3.975.3':
-    resolution: {integrity: sha512-7ur3kCKuvPLqlsZ2XlvnNBVQ7KkpSu6Y6dOTwSPHLrFpTEfZM8isLBJc4cgv96WB7GifeVM436mpycwxBd2vEA==}
+  '@aws-sdk/core@3.977.1':
+    resolution: {integrity: sha512-KVtQRtc00ES/y+Sc3vYXeP6pCIcNlBJCZOwvqSy8ZpVGmbM5+IG+AfhuTKQ2oXmIVqZJewaGMMpzPkywC6xg0w==}
     engines: {node: '>=20.0.0'}
 
-  '@aws-sdk/credential-provider-env@3.972.59':
-    resolution: {integrity: sha512-Ny5e4Mfh3QPmiAc0AiUe+cbTXDlxkU3Rc+EpWOfyWeWEy6yp7Fa1KmfNeCc+1a8by9zQ9gtohmiQUkMPScF3ng==}
+  '@aws-sdk/credential-provider-env@3.972.61':
+    resolution: {integrity: sha512-qihs2ekMb89Nxd2JenCgVFhjbkb3EIo7HEBCBzyZACKVJdrLUZBLOmAE3xr0Sayml8n/jZSzwO/IufIiIzO7PQ==}
     engines: {node: '>=20.0.0'}
 
-  '@aws-sdk/credential-provider-http@3.972.61':
-    resolution: {integrity: sha512-8jAjgStl5Ytq4+HF3X/9f+EmRinaRbGRRtQGktlPfBRVx73H+R1y48vIeXerQtYGFaUqkEp3fT6jP854rVO2yQ==}
+  '@aws-sdk/credential-provider-http@3.972.63':
+    resolution: {integrity: sha512-yfozsS8wkWZEi/n6IsrodcFKBWZ0iNAezhJbTReMNc0z1Px17qdeAeuL1/wziCAmCZyXiW7QzP75ggJkBQv8jQ==}
     engines: {node: '>=20.0.0'}
 
-  '@aws-sdk/credential-provider-ini@3.973.3':
-    resolution: {integrity: sha512-WpuqYX4gGkx++fCTSWE8+41JzkZVcrI50SH48Ml4CsG1pyuHKyMmpw/FixBHDrmjoQ553PmeCLa/fZIcst+WyA==}
+  '@aws-sdk/credential-provider-ini@3.973.6':
+    resolution: {integrity: sha512-jGLTW1bj148GL/6/IMlfY2fMYS9FtHOG+NahkFD4y0qkzYudNUahelxryY68/HGMslYuHClk1XaS/3b3eJzEkg==}
     engines: {node: '>=20.0.0'}
 
-  '@aws-sdk/credential-provider-login@3.972.65':
-    resolution: {integrity: sha512-xr9rgjYEdmC2Tpg2lwt9o+nOEaK9Qpd+dBjzrVCuWWyQfvhO91Ezu0Hh9ts2VUxOZxmS/k5T9msa34e4R1bnrQ==}
+  '@aws-sdk/credential-provider-login@3.972.68':
+    resolution: {integrity: sha512-w6tNci6g7RqFpLhj1f5xseBvaNojb4Pkgp5Jp5apl9hrJtaf2AA+rX9+qlhlWUK6kcyAFYPA7emO+55zj+S98Q==}
     engines: {node: '>=20.0.0'}
 
-  '@aws-sdk/credential-provider-node@3.972.69':
-    resolution: {integrity: sha512-wbJGGesd0Tl18bmUcbj1xJ+e7CpuRJ6PIpMywLFuUttGy615lua87cJ0EA8pFpY/QgPuUXbnupWBtSPJ9tyZhg==}
+  '@aws-sdk/credential-provider-node@3.972.72':
+    resolution: {integrity: sha512-blQ7F5QGzylnzeh5549zQLoCAiMHkXFLjFovEMaVy4b2X8JhUu+u9NXro1hyK95YHdVFNmBHKs2hIHtZchxKlQ==}
     engines: {node: '>=20.0.0'}
 
-  '@aws-sdk/credential-provider-process@3.972.59':
-    resolution: {integrity: sha512-DlZF2/MhLlatDdlrIy3CUCpfdbLrKx+3SMjVo+WyHnPpwzkc/M3vwAHw4OVJf7DMvO+4vfRqSCMc/E9I1auN0g==}
+  '@aws-sdk/credential-provider-process@3.972.61':
+    resolution: {integrity: sha512-xzRuj+fUVO4nkafKQJVKAF97kGpeQbfjuwmRrtGZNf42/1dkmcz6o7dswBy7alY0htQn5sCL1GWQYEykviWZkA==}
     engines: {node: '>=20.0.0'}
 
-  '@aws-sdk/credential-provider-sso@3.973.3':
-    resolution: {integrity: sha512-hmdDHoy2G5Es2e8IgelNMYUuSQI6uCIAKZMJ2u2PdKDhxvbk1uWD/g4+R7R5c/tJfKEB1+KjjWiaoCr/S+ZTiQ==}
+  '@aws-sdk/credential-provider-sso@3.973.5':
+    resolution: {integrity: sha512-fZRjjWhLFelsDoOYjqShQTrIGYC3Pf9Mx9Czf+1ikfQDgktxjze33dVo1q1/ZQ+T0qbtejVoHNHrfD5aJVpv/w==}
     engines: {node: '>=20.0.0'}
 
-  '@aws-sdk/credential-provider-web-identity@3.972.65':
-    resolution: {integrity: sha512-gHQb/Kt0chjk/JQDa/GJDqmAvEuVn8n7z10wK2h0LFM9TUDRkohgOO4aEF+s2sBLM0br7Cl5W6P7phgjrrJvLQ==}
+  '@aws-sdk/credential-provider-web-identity@3.972.67':
+    resolution: {integrity: sha512-FTNZ05gkPBA6CKbU3N4zPgybV+stdazwMOya75CmGdcJL7p8Fw/BdHP8WVxJd0mvzyPK2cg/C3gli58Ir4HgCw==}
     engines: {node: '>=20.0.0'}
 
-  '@aws-sdk/eventstream-handler-node@3.972.28':
-    resolution: {integrity: sha512-XV5sEH1xH5oydNgvUH87CR8BA2SBZXltckteS17D7ZT2k2THIBiExO9TEBYcgqUU31WAIfBH2hmx+fhFMiTL4Q==}
+  '@aws-sdk/eventstream-handler-node@3.972.30':
+    resolution: {integrity: sha512-hJboPgIpq5+ADc++/B9TBqn65CXV21cZLGB8V5RBQbxkZ/rQ6qMfcxTnW/SvQlasX4jhaSG8B1wsVjhQyDrsnQ==}
     engines: {node: '>=20.0.0'}
 
-  '@aws-sdk/middleware-eventstream@3.972.24':
-    resolution: {integrity: sha512-oykin4mDWxNOuYQ7SF1cHzgYeuFEkF4cdRwgvjFFbIklkx09qIFBiOgsORafG9sXZFO3TayMmQuAQYgADXhI8w==}
+  '@aws-sdk/middleware-eventstream@3.972.25':
+    resolution: {integrity: sha512-9SFbPzJDHHR5k6Q6KvXVas/veUm/TzNcNTFM2UhdXHZHpyIvI2lS+s4cxljw1BihGpVhsAkQDo/2nW7dHxpf4Q==}
     engines: {node: '>=20.0.0'}
 
-  '@aws-sdk/middleware-websocket@3.972.41':
-    resolution: {integrity: sha512-LSbGvvYmjc4Br9BPYI2dTLnIclmrSiQbahkP4D6nRGVEv4qsCZ8csVuKBPVEEFCVD+EEngGh8ROls6XpumtwMg==}
+  '@aws-sdk/middleware-websocket@3.972.43':
+    resolution: {integrity: sha512-n29++15Vma64Kd0enp9Bo8a6LTm8TvUoMbJEwqXtIksv0oEs+SUCRMm3gozDfPD1Ly0k/sSBughxarlLlRF6Xw==}
     engines: {node: '>= 14.0.0'}
 
-  '@aws-sdk/nested-clients@3.997.33':
-    resolution: {integrity: sha512-dVZOroI/r3/ENvqNGgjMPul+jjlz9GddfVusgTXlVjfZj5isibOxecLkGQbRPp8XOuX+RAfjXLFgPkD1JS5xrw==}
+  '@aws-sdk/nested-clients@3.997.35':
+    resolution: {integrity: sha512-2MJfseVG/aXvIyOIBlYA/Oaf6qFDdsu4D8RKsEUdOQpVuLaor0BdxIBBtJLBNQQEe6Ku3YMvLljwb1MwVUpzRw==}
     engines: {node: '>=20.0.0'}
 
-  '@aws-sdk/signature-v4-multi-region@3.996.41':
-    resolution: {integrity: sha512-QMUytg+FQMGouc8gHS00KoYih3+N6cqmVI/pQGOIo7Nr7OpQaiXjSYOuL+vsPZ1tymY4LAQ8MYcHJmws5LRxng==}
+  '@aws-sdk/signature-v4-multi-region@3.996.42':
+    resolution: {integrity: sha512-DBV4naZP6HYBlAvPpoQzOP12Wvfou/5rN8yJPXjBTBylU5qwCbh/tXr2MddHoIjgoRkEl/eS+IljiUqvmwey1Q==}
     engines: {node: '>=20.0.0'}
 
   '@aws-sdk/token-providers@3.1048.0':
     resolution: {integrity: sha512-k0y/GcuesuSfWyUM0WamrGyeZmltRYaPbHO82UDA6mZ/doB+FOHKutikPAtSXMn/hDz970cF+iRuuiYO9VEbAA==}
     engines: {node: '>=20.0.0'}
 
-  '@aws-sdk/token-providers@3.1088.0':
-    resolution: {integrity: sha512-4ObatWt2qpJg5FBk4LOOKrTQYzaqeewAtdO3r9ZO8lH9YqLtpTzLyIdy0mJ+nVdfYOnqISkKNfmzP22bNDhwyw==}
+  '@aws-sdk/token-providers@3.1095.0':
+    resolution: {integrity: sha512-65SudS6y4nzaYHybtqcpm3sHe5jLhdMn68HRKS1nUx690BtQeaAQOoujQ+dpOjBATIVGVgKKjEP8tR+U06QJQA==}
     engines: {node: '>=20.0.0'}
 
   '@aws-sdk/types@3.974.2':
@@ -923,8 +923,8 @@ packages:
     resolution: {integrity: sha512-uUbMs1cBZPafD0ohUj6EwNf0fPZ534NvBxHox4hjX+0Rxq5paSYUem7+hi833pYrzrcnBATKIYpR02MDXT5M9g==}
     engines: {node: '>=20.0.0'}
 
-  '@aws-sdk/xml-builder@3.972.36':
-    resolution: {integrity: sha512-RdGmS1GLrtaTOLE1ElSluMldNrpk9Emq6uYs8SS8iHlu5xTAmM9rRkM91o48+rIRryBtyO9t+uLYCoMG6jVMVA==}
+  '@aws-sdk/xml-builder@3.972.37':
+    resolution: {integrity: sha512-zKq4HQum8JwDyEuyfuI4bbiAcU0KxP6qy+9PR/IsR92IyE/DaBAikzAS50tjxip4bqIIANpCcG+Yyj6CVhXupg==}
     engines: {node: '>=20.0.0'}
 
   '@aws/lambda-invoke-store@0.3.0':
@@ -2793,16 +2793,16 @@ packages:
     resolution: {integrity: sha512-doH1gimEu3A46VX6aVxpHTeHrytJAG6HgdxntYnCFiIFHEM/ZGpG8KiZGBChchjQmG0XFIBL552kBTjVcMZXwQ==}
     engines: {node: '>=12'}
 
-  '@smithy/core@3.29.4':
-    resolution: {integrity: sha512-G1GRglAabzEhqghJMBAd54FkRS7SAFGHEwbhcI9r+O+LIMuFsLyXkLZkCoFSgAglRu8s/URVXJB0hglq3ZipIg==}
+  '@smithy/core@3.30.0':
+    resolution: {integrity: sha512-dl2yRglDxfzH9uJ4fSo4zTaAHa0zH7+V7BZMRWy8hEYIKT1BiqMUK/CN6T3ADQ3kbA5N1tmUulroJ2UtONS7Kw==}
     engines: {node: '>=18.0.0'}
 
-  '@smithy/credential-provider-imds@4.4.9':
-    resolution: {integrity: sha512-2nfV4qRKiYeXU4zD2vvSCfg5dfp/BuhrM73vt7q9gzBhxs4rbPxXY21wo+kyI3bRmXcEGRnCLTaW8O437jzHIg==}
+  '@smithy/credential-provider-imds@4.4.14':
+    resolution: {integrity: sha512-QgbuahIb2qxQeZQvNK0sw3aF3JH5zwH8j2lLp5DUasVXexGGMWULAR+7z0omPXFolCP/m5wN9M5lm9EGdSviTQ==}
     engines: {node: '>=18.0.0'}
 
-  '@smithy/fetch-http-handler@5.6.6':
-    resolution: {integrity: sha512-NHLgAlORUFZjn5ZfhYuyyKMlXA1WLYOdGxEhyNxrPpbJzoacGbl0chn1lN2KiZ8mpNVk0tV5607CSYlYs/OFgw==}
+  '@smithy/fetch-http-handler@5.6.11':
+    resolution: {integrity: sha512-o0Zkj1nKqJAoq+a+BrkhU39tRftMNjLwpc/z06Frfl43wpbHrJMaSAVZE4vTqlxtVkNaGaT0bIDxOp7tkFTuQQ==}
     engines: {node: '>=18.0.0'}
 
   '@smithy/is-array-buffer@2.2.0':
@@ -2813,12 +2813,12 @@ packages:
     resolution: {integrity: sha512-/jPhevcTFPMVl6KNjbaI47iOg1zxC7IsnX4PQDGVZKMFceOXtB8IEYaB7a9VvkP/3oC60WzTeKocvSI7vLT0vA==}
     engines: {node: '>=18.0.0'}
 
-  '@smithy/node-http-handler@4.9.6':
-    resolution: {integrity: sha512-odd+HYx3OLcXRSEz0ZeF3JQdSYdK8QnRgA2N87cPW7coWIbKfRk7a9VQjfeWQLqnzrDLk23KMEn46p8N7M/JFg==}
+  '@smithy/node-http-handler@4.9.11':
+    resolution: {integrity: sha512-slbzbz8taEOzoXv/9y34YNBoE+ZHmddLykCgjDAjvMAsu2nM5s2Gzwa5OGF721tD8s+CKeFUBds5lSj9lcbuDg==}
     engines: {node: '>=18.0.0'}
 
-  '@smithy/signature-v4@5.6.5':
-    resolution: {integrity: sha512-MO5VEhwVl0BN7xVoVeNrZfiUFoQtqxUbgl6/RwOTlMMxCSjblG8twSrVTwz3J4w9WZxd2rBfBAUXjH77agspBg==}
+  '@smithy/signature-v4@5.6.10':
+    resolution: {integrity: sha512-EXhWePm3SXJAX38npIy4TXL2Aex/OVgCClTjelN2QHw/U+8CQUH8C7AaxsVzQcYieYPseywn48s89DmvuGjiAg==}
     engines: {node: '>=18.0.0'}
 
   '@smithy/types@4.16.1':
@@ -6553,11 +6553,11 @@ snapshots:
       '@opentelemetry/semantic-conventions': 1.43.0
     optional: true
 
-  '@arizeai/openinference-instrumentation-langchain@4.0.14(@langchain/core@1.2.3(@opentelemetry/api@1.9.1)(@opentelemetry/exporter-trace-otlp-proto@0.221.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.10.0(@opentelemetry/api@1.9.1))(openai@6.49.0(@aws-sdk/credential-provider-node@3.972.69)(@smithy/signature-v4@5.6.5)(ws@8.21.1)(zod@4.4.3))(ws@8.21.1))':
+  '@arizeai/openinference-instrumentation-langchain@4.0.14(@langchain/core@1.2.3(@opentelemetry/api@1.9.1)(@opentelemetry/exporter-trace-otlp-proto@0.221.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.10.0(@opentelemetry/api@1.9.1))(openai@6.49.0(@aws-sdk/credential-provider-node@3.972.72)(@smithy/signature-v4@5.6.10)(ws@8.21.1)(zod@4.4.3))(ws@8.21.1))':
     dependencies:
       '@arizeai/openinference-core': 2.4.0
       '@arizeai/openinference-semantic-conventions': 2.5.0
-      '@langchain/core': 1.2.3(@opentelemetry/api@1.9.1)(@opentelemetry/exporter-trace-otlp-proto@0.221.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.10.0(@opentelemetry/api@1.9.1))(openai@6.49.0(@aws-sdk/credential-provider-node@3.972.69)(@smithy/signature-v4@5.6.5)(ws@8.21.1)(zod@4.4.3))(ws@8.21.1)
+      '@langchain/core': 1.2.3(@opentelemetry/api@1.9.1)(@opentelemetry/exporter-trace-otlp-proto@0.221.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.10.0(@opentelemetry/api@1.9.1))(openai@6.49.0(@aws-sdk/credential-provider-node@3.972.72)(@smithy/signature-v4@5.6.10)(ws@8.21.1)(zod@4.4.3))(ws@8.21.1)
       '@opentelemetry/api': 1.9.1
       '@opentelemetry/core': 1.30.1(@opentelemetry/api@1.9.1)
       '@opentelemetry/instrumentation': 0.46.0(@opentelemetry/api@1.9.1)
@@ -6619,171 +6619,171 @@ snapshots:
     dependencies:
       '@aws-crypto/sha256-browser': 5.2.0
       '@aws-crypto/sha256-js': 5.2.0
-      '@aws-sdk/core': 3.975.3
-      '@aws-sdk/credential-provider-node': 3.972.69
-      '@aws-sdk/eventstream-handler-node': 3.972.28
-      '@aws-sdk/middleware-eventstream': 3.972.24
-      '@aws-sdk/middleware-websocket': 3.972.41
+      '@aws-sdk/core': 3.977.1
+      '@aws-sdk/credential-provider-node': 3.972.72
+      '@aws-sdk/eventstream-handler-node': 3.972.30
+      '@aws-sdk/middleware-eventstream': 3.972.25
+      '@aws-sdk/middleware-websocket': 3.972.43
       '@aws-sdk/token-providers': 3.1048.0
       '@aws-sdk/types': 3.974.2
-      '@smithy/core': 3.29.4
-      '@smithy/fetch-http-handler': 5.6.6
-      '@smithy/node-http-handler': 4.9.6
+      '@smithy/core': 3.30.0
+      '@smithy/fetch-http-handler': 5.6.11
+      '@smithy/node-http-handler': 4.9.11
       '@smithy/types': 4.16.1
       tslib: 2.8.1
 
-  '@aws-sdk/core@3.975.3':
+  '@aws-sdk/core@3.977.1':
     dependencies:
       '@aws-sdk/types': 3.974.2
-      '@aws-sdk/xml-builder': 3.972.36
+      '@aws-sdk/xml-builder': 3.972.37
       '@aws/lambda-invoke-store': 0.3.0
-      '@smithy/core': 3.29.4
-      '@smithy/signature-v4': 5.6.5
+      '@smithy/core': 3.30.0
+      '@smithy/signature-v4': 5.6.10
       '@smithy/types': 4.16.1
       bowser: 2.14.1
       tslib: 2.8.1
 
-  '@aws-sdk/credential-provider-env@3.972.59':
+  '@aws-sdk/credential-provider-env@3.972.61':
     dependencies:
-      '@aws-sdk/core': 3.975.3
+      '@aws-sdk/core': 3.977.1
       '@aws-sdk/types': 3.974.2
-      '@smithy/core': 3.29.4
+      '@smithy/core': 3.30.0
       '@smithy/types': 4.16.1
       tslib: 2.8.1
 
-  '@aws-sdk/credential-provider-http@3.972.61':
+  '@aws-sdk/credential-provider-http@3.972.63':
     dependencies:
-      '@aws-sdk/core': 3.975.3
+      '@aws-sdk/core': 3.977.1
       '@aws-sdk/types': 3.974.2
-      '@smithy/core': 3.29.4
-      '@smithy/fetch-http-handler': 5.6.6
-      '@smithy/node-http-handler': 4.9.6
+      '@smithy/core': 3.30.0
+      '@smithy/fetch-http-handler': 5.6.11
+      '@smithy/node-http-handler': 4.9.11
       '@smithy/types': 4.16.1
       tslib: 2.8.1
 
-  '@aws-sdk/credential-provider-ini@3.973.3':
+  '@aws-sdk/credential-provider-ini@3.973.6':
     dependencies:
-      '@aws-sdk/core': 3.975.3
-      '@aws-sdk/credential-provider-env': 3.972.59
-      '@aws-sdk/credential-provider-http': 3.972.61
-      '@aws-sdk/credential-provider-login': 3.972.65
-      '@aws-sdk/credential-provider-process': 3.972.59
-      '@aws-sdk/credential-provider-sso': 3.973.3
-      '@aws-sdk/credential-provider-web-identity': 3.972.65
-      '@aws-sdk/nested-clients': 3.997.33
+      '@aws-sdk/core': 3.977.1
+      '@aws-sdk/credential-provider-env': 3.972.61
+      '@aws-sdk/credential-provider-http': 3.972.63
+      '@aws-sdk/credential-provider-login': 3.972.68
+      '@aws-sdk/credential-provider-process': 3.972.61
+      '@aws-sdk/credential-provider-sso': 3.973.5
+      '@aws-sdk/credential-provider-web-identity': 3.972.67
+      '@aws-sdk/nested-clients': 3.997.35
       '@aws-sdk/types': 3.974.2
-      '@smithy/core': 3.29.4
-      '@smithy/credential-provider-imds': 4.4.9
+      '@smithy/core': 3.30.0
+      '@smithy/credential-provider-imds': 4.4.14
       '@smithy/types': 4.16.1
       tslib: 2.8.1
 
-  '@aws-sdk/credential-provider-login@3.972.65':
+  '@aws-sdk/credential-provider-login@3.972.68':
     dependencies:
-      '@aws-sdk/core': 3.975.3
-      '@aws-sdk/nested-clients': 3.997.33
+      '@aws-sdk/core': 3.977.1
+      '@aws-sdk/nested-clients': 3.997.35
       '@aws-sdk/types': 3.974.2
-      '@smithy/core': 3.29.4
+      '@smithy/core': 3.30.0
       '@smithy/types': 4.16.1
       tslib: 2.8.1
 
-  '@aws-sdk/credential-provider-node@3.972.69':
+  '@aws-sdk/credential-provider-node@3.972.72':
     dependencies:
-      '@aws-sdk/credential-provider-env': 3.972.59
-      '@aws-sdk/credential-provider-http': 3.972.61
-      '@aws-sdk/credential-provider-ini': 3.973.3
-      '@aws-sdk/credential-provider-process': 3.972.59
-      '@aws-sdk/credential-provider-sso': 3.973.3
-      '@aws-sdk/credential-provider-web-identity': 3.972.65
+      '@aws-sdk/credential-provider-env': 3.972.61
+      '@aws-sdk/credential-provider-http': 3.972.63
+      '@aws-sdk/credential-provider-ini': 3.973.6
+      '@aws-sdk/credential-provider-process': 3.972.61
+      '@aws-sdk/credential-provider-sso': 3.973.5
+      '@aws-sdk/credential-provider-web-identity': 3.972.67
       '@aws-sdk/types': 3.974.2
-      '@smithy/core': 3.29.4
-      '@smithy/credential-provider-imds': 4.4.9
+      '@smithy/core': 3.30.0
+      '@smithy/credential-provider-imds': 4.4.14
       '@smithy/types': 4.16.1
       tslib: 2.8.1
 
-  '@aws-sdk/credential-provider-process@3.972.59':
+  '@aws-sdk/credential-provider-process@3.972.61':
     dependencies:
-      '@aws-sdk/core': 3.975.3
+      '@aws-sdk/core': 3.977.1
       '@aws-sdk/types': 3.974.2
-      '@smithy/core': 3.29.4
+      '@smithy/core': 3.30.0
       '@smithy/types': 4.16.1
       tslib: 2.8.1
 
-  '@aws-sdk/credential-provider-sso@3.973.3':
+  '@aws-sdk/credential-provider-sso@3.973.5':
     dependencies:
-      '@aws-sdk/core': 3.975.3
-      '@aws-sdk/nested-clients': 3.997.33
-      '@aws-sdk/token-providers': 3.1088.0
+      '@aws-sdk/core': 3.977.1
+      '@aws-sdk/nested-clients': 3.997.35
+      '@aws-sdk/token-providers': 3.1095.0
       '@aws-sdk/types': 3.974.2
-      '@smithy/core': 3.29.4
+      '@smithy/core': 3.30.0
       '@smithy/types': 4.16.1
       tslib: 2.8.1
 
-  '@aws-sdk/credential-provider-web-identity@3.972.65':
+  '@aws-sdk/credential-provider-web-identity@3.972.67':
     dependencies:
-      '@aws-sdk/core': 3.975.3
-      '@aws-sdk/nested-clients': 3.997.33
+      '@aws-sdk/core': 3.977.1
+      '@aws-sdk/nested-clients': 3.997.35
       '@aws-sdk/types': 3.974.2
-      '@smithy/core': 3.29.4
+      '@smithy/core': 3.30.0
       '@smithy/types': 4.16.1
       tslib: 2.8.1
 
-  '@aws-sdk/eventstream-handler-node@3.972.28':
+  '@aws-sdk/eventstream-handler-node@3.972.30':
     dependencies:
       '@aws-sdk/types': 3.974.2
-      '@smithy/core': 3.29.4
+      '@smithy/core': 3.30.0
       '@smithy/types': 4.16.1
       tslib: 2.8.1
 
-  '@aws-sdk/middleware-eventstream@3.972.24':
+  '@aws-sdk/middleware-eventstream@3.972.25':
     dependencies:
       '@aws-sdk/types': 3.974.2
-      '@smithy/core': 3.29.4
+      '@smithy/core': 3.30.0
       '@smithy/types': 4.16.1
       tslib: 2.8.1
 
-  '@aws-sdk/middleware-websocket@3.972.41':
+  '@aws-sdk/middleware-websocket@3.972.43':
     dependencies:
-      '@aws-sdk/core': 3.975.3
+      '@aws-sdk/core': 3.977.1
       '@aws-sdk/types': 3.974.2
-      '@smithy/core': 3.29.4
-      '@smithy/fetch-http-handler': 5.6.6
-      '@smithy/signature-v4': 5.6.5
+      '@smithy/core': 3.30.0
+      '@smithy/fetch-http-handler': 5.6.11
+      '@smithy/signature-v4': 5.6.10
       '@smithy/types': 4.16.1
       tslib: 2.8.1
 
-  '@aws-sdk/nested-clients@3.997.33':
+  '@aws-sdk/nested-clients@3.997.35':
     dependencies:
-      '@aws-sdk/core': 3.975.3
-      '@aws-sdk/signature-v4-multi-region': 3.996.41
+      '@aws-sdk/core': 3.977.1
+      '@aws-sdk/signature-v4-multi-region': 3.996.42
       '@aws-sdk/types': 3.974.2
-      '@smithy/core': 3.29.4
-      '@smithy/fetch-http-handler': 5.6.6
-      '@smithy/node-http-handler': 4.9.6
+      '@smithy/core': 3.30.0
+      '@smithy/fetch-http-handler': 5.6.11
+      '@smithy/node-http-handler': 4.9.11
       '@smithy/types': 4.16.1
       tslib: 2.8.1
 
-  '@aws-sdk/signature-v4-multi-region@3.996.41':
+  '@aws-sdk/signature-v4-multi-region@3.996.42':
     dependencies:
       '@aws-sdk/types': 3.974.2
-      '@smithy/signature-v4': 5.6.5
+      '@smithy/signature-v4': 5.6.10
       '@smithy/types': 4.16.1
       tslib: 2.8.1
 
   '@aws-sdk/token-providers@3.1048.0':
     dependencies:
-      '@aws-sdk/core': 3.975.3
-      '@aws-sdk/nested-clients': 3.997.33
+      '@aws-sdk/core': 3.977.1
+      '@aws-sdk/nested-clients': 3.997.35
       '@aws-sdk/types': 3.974.2
-      '@smithy/core': 3.29.4
+      '@smithy/core': 3.30.0
       '@smithy/types': 4.16.1
       tslib: 2.8.1
 
-  '@aws-sdk/token-providers@3.1088.0':
+  '@aws-sdk/token-providers@3.1095.0':
     dependencies:
-      '@aws-sdk/core': 3.975.3
-      '@aws-sdk/nested-clients': 3.997.33
+      '@aws-sdk/core': 3.977.1
+      '@aws-sdk/nested-clients': 3.997.35
       '@aws-sdk/types': 3.974.2
-      '@smithy/core': 3.29.4
+      '@smithy/core': 3.30.0
       '@smithy/types': 4.16.1
       tslib: 2.8.1
 
@@ -6796,7 +6796,7 @@ snapshots:
     dependencies:
       tslib: 2.8.1
 
-  '@aws-sdk/xml-builder@3.972.36':
+  '@aws-sdk/xml-builder@3.972.37':
     dependencies:
       '@smithy/types': 4.16.1
       tslib: 2.8.1
@@ -7479,18 +7479,18 @@ snapshots:
 
   '@kwsites/promise-deferred@1.1.1': {}
 
-  '@langchain/anthropic@1.5.2(@langchain/core@1.2.3(@opentelemetry/api@1.9.1)(@opentelemetry/exporter-trace-otlp-proto@0.221.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.10.0(@opentelemetry/api@1.9.1))(openai@6.49.0(@aws-sdk/credential-provider-node@3.972.69)(@smithy/signature-v4@5.6.5)(ws@8.21.1)(zod@4.4.3))(ws@8.21.1))':
+  '@langchain/anthropic@1.5.2(@langchain/core@1.2.3(@opentelemetry/api@1.9.1)(@opentelemetry/exporter-trace-otlp-proto@0.221.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.10.0(@opentelemetry/api@1.9.1))(openai@6.49.0(@aws-sdk/credential-provider-node@3.972.72)(@smithy/signature-v4@5.6.10)(ws@8.21.1)(zod@4.4.3))(ws@8.21.1))':
     dependencies:
       '@anthropic-ai/sdk': 0.115.0(zod@4.4.3)
-      '@langchain/core': 1.2.3(@opentelemetry/api@1.9.1)(@opentelemetry/exporter-trace-otlp-proto@0.221.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.10.0(@opentelemetry/api@1.9.1))(openai@6.49.0(@aws-sdk/credential-provider-node@3.972.69)(@smithy/signature-v4@5.6.5)(ws@8.21.1)(zod@4.4.3))(ws@8.21.1)
+      '@langchain/core': 1.2.3(@opentelemetry/api@1.9.1)(@opentelemetry/exporter-trace-otlp-proto@0.221.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.10.0(@opentelemetry/api@1.9.1))(openai@6.49.0(@aws-sdk/credential-provider-node@3.972.72)(@smithy/signature-v4@5.6.10)(ws@8.21.1)(zod@4.4.3))(ws@8.21.1)
       zod: 4.4.3
 
-  '@langchain/core@1.2.3(@opentelemetry/api@1.9.1)(@opentelemetry/exporter-trace-otlp-proto@0.221.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.10.0(@opentelemetry/api@1.9.1))(openai@6.49.0(@aws-sdk/credential-provider-node@3.972.69)(@smithy/signature-v4@5.6.5)(ws@8.21.1)(zod@4.4.3))(ws@8.21.1)':
+  '@langchain/core@1.2.3(@opentelemetry/api@1.9.1)(@opentelemetry/exporter-trace-otlp-proto@0.221.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.10.0(@opentelemetry/api@1.9.1))(openai@6.49.0(@aws-sdk/credential-provider-node@3.972.72)(@smithy/signature-v4@5.6.10)(ws@8.21.1)(zod@4.4.3))(ws@8.21.1)':
     dependencies:
       '@cfworker/json-schema': 4.1.1
       '@standard-schema/spec': 1.1.0
       js-tiktoken: 1.0.21
-      langsmith: 0.8.7(@opentelemetry/api@1.9.1)(@opentelemetry/exporter-trace-otlp-proto@0.221.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.10.0(@opentelemetry/api@1.9.1))(openai@6.49.0(@aws-sdk/credential-provider-node@3.972.69)(@smithy/signature-v4@5.6.5)(ws@8.21.1)(zod@4.4.3))(ws@8.21.1)
+      langsmith: 0.8.7(@opentelemetry/api@1.9.1)(@opentelemetry/exporter-trace-otlp-proto@0.221.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.10.0(@opentelemetry/api@1.9.1))(openai@6.49.0(@aws-sdk/credential-provider-node@3.972.72)(@smithy/signature-v4@5.6.10)(ws@8.21.1)(zod@4.4.3))(ws@8.21.1)
       mustache: 4.2.0
       p-queue: 6.6.2
       zod: 4.4.3
@@ -7501,11 +7501,11 @@ snapshots:
       - openai
       - ws
 
-  '@langchain/openai@1.5.5(@aws-sdk/credential-provider-node@3.972.69)(@langchain/core@1.2.3(@opentelemetry/api@1.9.1)(@opentelemetry/exporter-trace-otlp-proto@0.221.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.10.0(@opentelemetry/api@1.9.1))(openai@6.49.0(@aws-sdk/credential-provider-node@3.972.69)(@smithy/signature-v4@5.6.5)(ws@8.21.1)(zod@4.4.3))(ws@8.21.1))(@smithy/signature-v4@5.6.5)(ws@8.21.1)':
+  '@langchain/openai@1.5.5(@aws-sdk/credential-provider-node@3.972.72)(@langchain/core@1.2.3(@opentelemetry/api@1.9.1)(@opentelemetry/exporter-trace-otlp-proto@0.221.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.10.0(@opentelemetry/api@1.9.1))(openai@6.49.0(@aws-sdk/credential-provider-node@3.972.72)(@smithy/signature-v4@5.6.10)(ws@8.21.1)(zod@4.4.3))(ws@8.21.1))(@smithy/signature-v4@5.6.10)(ws@8.21.1)':
     dependencies:
-      '@langchain/core': 1.2.3(@opentelemetry/api@1.9.1)(@opentelemetry/exporter-trace-otlp-proto@0.221.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.10.0(@opentelemetry/api@1.9.1))(openai@6.49.0(@aws-sdk/credential-provider-node@3.972.69)(@smithy/signature-v4@5.6.5)(ws@8.21.1)(zod@4.4.3))(ws@8.21.1)
+      '@langchain/core': 1.2.3(@opentelemetry/api@1.9.1)(@opentelemetry/exporter-trace-otlp-proto@0.221.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.10.0(@opentelemetry/api@1.9.1))(openai@6.49.0(@aws-sdk/credential-provider-node@3.972.72)(@smithy/signature-v4@5.6.10)(ws@8.21.1)(zod@4.4.3))(ws@8.21.1)
       js-tiktoken: 1.0.21
-      openai: 6.49.0(@aws-sdk/credential-provider-node@3.972.69)(@smithy/signature-v4@5.6.5)(ws@8.21.1)(zod@4.4.3)
+      openai: 6.49.0(@aws-sdk/credential-provider-node@3.972.72)(@smithy/signature-v4@5.6.10)(ws@8.21.1)(zod@4.4.3)
       zod: 4.4.3
     transitivePeerDependencies:
       - '@aws-sdk/credential-provider-node'
@@ -7563,11 +7563,11 @@ snapshots:
       '@mariozechner/clipboard-win32-x64-msvc': 0.3.9
     optional: true
 
-  '@mastra/braintrust@1.3.0(@aws-sdk/credential-provider-web-identity@3.972.65)(@mastra/core@1.52.1(@cfworker/json-schema@4.1.1)(@grpc/grpc-js@1.14.4)(ai@6.0.235(zod@4.4.3))(express@5.2.1)(zod@4.4.3))(zod@4.4.3)':
+  '@mastra/braintrust@1.3.0(@aws-sdk/credential-provider-web-identity@3.972.67)(@mastra/core@1.52.1(@cfworker/json-schema@4.1.1)(@grpc/grpc-js@1.14.4)(ai@6.0.235(zod@4.4.3))(express@5.2.1)(zod@4.4.3))(zod@4.4.3)':
     dependencies:
       '@mastra/core': 1.52.1(@cfworker/json-schema@4.1.1)(@grpc/grpc-js@1.14.4)(ai@6.0.235(zod@4.4.3))(express@5.2.1)(zod@4.4.3)
       '@mastra/observability': 1.16.2(@mastra/core@1.52.1(@cfworker/json-schema@4.1.1)(@grpc/grpc-js@1.14.4)(ai@6.0.235(zod@4.4.3))(express@5.2.1)(zod@4.4.3))(zod@4.4.3)
-      braintrust: 3.24.0(@aws-sdk/credential-provider-web-identity@3.972.65)(zod@4.4.3)
+      braintrust: 3.24.0(@aws-sdk/credential-provider-web-identity@3.972.67)(zod@4.4.3)
       zod: 4.4.3
     transitivePeerDependencies:
       - '@aws-sdk/credential-provider-web-identity'
@@ -7757,10 +7757,10 @@ snapshots:
 
   '@nolyfill/is-core-module@1.0.39': {}
 
-  '@openai/agents-core@0.13.5(@aws-sdk/credential-provider-node@3.972.69)(@cfworker/json-schema@4.1.1)(@smithy/signature-v4@5.6.5)(ws@8.21.1)(zod@4.4.3)':
+  '@openai/agents-core@0.13.5(@aws-sdk/credential-provider-node@3.972.72)(@cfworker/json-schema@4.1.1)(@smithy/signature-v4@5.6.10)(ws@8.21.1)(zod@4.4.3)':
     dependencies:
       debug: 4.4.3
-      openai: 6.49.0(@aws-sdk/credential-provider-node@3.972.69)(@smithy/signature-v4@5.6.5)(ws@8.21.1)(zod@4.4.3)
+      openai: 6.49.0(@aws-sdk/credential-provider-node@3.972.72)(@smithy/signature-v4@5.6.10)(ws@8.21.1)(zod@4.4.3)
     optionalDependencies:
       '@modelcontextprotocol/sdk': 1.29.0(@cfworker/json-schema@4.1.1)(zod@4.4.3)
       zod: 4.4.3
@@ -7772,11 +7772,11 @@ snapshots:
       - supports-color
       - ws
 
-  '@openai/agents-openai@0.13.5(@aws-sdk/credential-provider-node@3.972.69)(@cfworker/json-schema@4.1.1)(@smithy/signature-v4@5.6.5)(ws@8.21.1)(zod@4.4.3)':
+  '@openai/agents-openai@0.13.5(@aws-sdk/credential-provider-node@3.972.72)(@cfworker/json-schema@4.1.1)(@smithy/signature-v4@5.6.10)(ws@8.21.1)(zod@4.4.3)':
     dependencies:
-      '@openai/agents-core': 0.13.5(@aws-sdk/credential-provider-node@3.972.69)(@cfworker/json-schema@4.1.1)(@smithy/signature-v4@5.6.5)(ws@8.21.1)(zod@4.4.3)
+      '@openai/agents-core': 0.13.5(@aws-sdk/credential-provider-node@3.972.72)(@cfworker/json-schema@4.1.1)(@smithy/signature-v4@5.6.10)(ws@8.21.1)(zod@4.4.3)
       debug: 4.4.3
-      openai: 6.49.0(@aws-sdk/credential-provider-node@3.972.69)(@smithy/signature-v4@5.6.5)(ws@8.21.1)(zod@4.4.3)
+      openai: 6.49.0(@aws-sdk/credential-provider-node@3.972.72)(@smithy/signature-v4@5.6.10)(ws@8.21.1)(zod@4.4.3)
       zod: 4.4.3
     transitivePeerDependencies:
       - '@aws-sdk/credential-provider-node'
@@ -7786,9 +7786,9 @@ snapshots:
       - supports-color
       - ws
 
-  '@openai/agents-realtime@0.13.5(@aws-sdk/credential-provider-node@3.972.69)(@cfworker/json-schema@4.1.1)(@smithy/signature-v4@5.6.5)(zod@4.4.3)':
+  '@openai/agents-realtime@0.13.5(@aws-sdk/credential-provider-node@3.972.72)(@cfworker/json-schema@4.1.1)(@smithy/signature-v4@5.6.10)(zod@4.4.3)':
     dependencies:
-      '@openai/agents-core': 0.13.5(@aws-sdk/credential-provider-node@3.972.69)(@cfworker/json-schema@4.1.1)(@smithy/signature-v4@5.6.5)(ws@8.21.1)(zod@4.4.3)
+      '@openai/agents-core': 0.13.5(@aws-sdk/credential-provider-node@3.972.72)(@cfworker/json-schema@4.1.1)(@smithy/signature-v4@5.6.10)(ws@8.21.1)(zod@4.4.3)
       '@types/ws': 8.18.1
       debug: 4.4.3
       ws: 8.21.1
@@ -7802,13 +7802,13 @@ snapshots:
       - supports-color
       - utf-8-validate
 
-  '@openai/agents@0.13.5(@aws-sdk/credential-provider-node@3.972.69)(@cfworker/json-schema@4.1.1)(@smithy/signature-v4@5.6.5)(ws@8.21.1)(zod@4.4.3)':
+  '@openai/agents@0.13.5(@aws-sdk/credential-provider-node@3.972.72)(@cfworker/json-schema@4.1.1)(@smithy/signature-v4@5.6.10)(ws@8.21.1)(zod@4.4.3)':
     dependencies:
-      '@openai/agents-core': 0.13.5(@aws-sdk/credential-provider-node@3.972.69)(@cfworker/json-schema@4.1.1)(@smithy/signature-v4@5.6.5)(ws@8.21.1)(zod@4.4.3)
-      '@openai/agents-openai': 0.13.5(@aws-sdk/credential-provider-node@3.972.69)(@cfworker/json-schema@4.1.1)(@smithy/signature-v4@5.6.5)(ws@8.21.1)(zod@4.4.3)
-      '@openai/agents-realtime': 0.13.5(@aws-sdk/credential-provider-node@3.972.69)(@cfworker/json-schema@4.1.1)(@smithy/signature-v4@5.6.5)(zod@4.4.3)
+      '@openai/agents-core': 0.13.5(@aws-sdk/credential-provider-node@3.972.72)(@cfworker/json-schema@4.1.1)(@smithy/signature-v4@5.6.10)(ws@8.21.1)(zod@4.4.3)
+      '@openai/agents-openai': 0.13.5(@aws-sdk/credential-provider-node@3.972.72)(@cfworker/json-schema@4.1.1)(@smithy/signature-v4@5.6.10)(ws@8.21.1)(zod@4.4.3)
+      '@openai/agents-realtime': 0.13.5(@aws-sdk/credential-provider-node@3.972.72)(@cfworker/json-schema@4.1.1)(@smithy/signature-v4@5.6.10)(zod@4.4.3)
       debug: 4.4.3
-      openai: 6.49.0(@aws-sdk/credential-provider-node@3.972.69)(@smithy/signature-v4@5.6.5)(ws@8.21.1)(zod@4.4.3)
+      openai: 6.49.0(@aws-sdk/credential-provider-node@3.972.72)(@smithy/signature-v4@5.6.10)(ws@8.21.1)(zod@4.4.3)
       zod: 4.4.3
     transitivePeerDependencies:
       - '@aws-sdk/credential-provider-node'
@@ -8961,20 +8961,20 @@ snapshots:
     dependencies:
       escape-string-regexp: 5.0.0
 
-  '@smithy/core@3.29.4':
+  '@smithy/core@3.30.0':
     dependencies:
       '@smithy/types': 4.16.1
       tslib: 2.8.1
 
-  '@smithy/credential-provider-imds@4.4.9':
+  '@smithy/credential-provider-imds@4.4.14':
     dependencies:
-      '@smithy/core': 3.29.4
+      '@smithy/core': 3.30.0
       '@smithy/types': 4.16.1
       tslib: 2.8.1
 
-  '@smithy/fetch-http-handler@5.6.6':
+  '@smithy/fetch-http-handler@5.6.11':
     dependencies:
-      '@smithy/core': 3.29.4
+      '@smithy/core': 3.30.0
       '@smithy/types': 4.16.1
       tslib: 2.8.1
 
@@ -8984,19 +8984,19 @@ snapshots:
 
   '@smithy/node-http-handler@4.7.3':
     dependencies:
-      '@smithy/core': 3.29.4
+      '@smithy/core': 3.30.0
       '@smithy/types': 4.16.1
       tslib: 2.8.1
 
-  '@smithy/node-http-handler@4.9.6':
+  '@smithy/node-http-handler@4.9.11':
     dependencies:
-      '@smithy/core': 3.29.4
+      '@smithy/core': 3.30.0
       '@smithy/types': 4.16.1
       tslib: 2.8.1
 
-  '@smithy/signature-v4@5.6.5':
+  '@smithy/signature-v4@5.6.10':
     dependencies:
-      '@smithy/core': 3.29.4
+      '@smithy/core': 3.30.0
       '@smithy/types': 4.16.1
       tslib: 2.8.1
 
@@ -9433,9 +9433,9 @@ snapshots:
   '@unrs/resolver-binding-win32-x64-msvc@1.12.2':
     optional: true
 
-  '@vercel/functions@1.6.0(@aws-sdk/credential-provider-web-identity@3.972.65)':
+  '@vercel/functions@1.6.0(@aws-sdk/credential-provider-web-identity@3.972.67)':
     optionalDependencies:
-      '@aws-sdk/credential-provider-web-identity': 3.972.65
+      '@aws-sdk/credential-provider-web-identity': 3.972.67
 
   '@vercel/oidc@3.2.0': {}
 
@@ -9776,12 +9776,12 @@ snapshots:
     dependencies:
       fill-range: 7.1.1
 
-  braintrust@2.2.2(@aws-sdk/credential-provider-web-identity@3.972.65)(zod@4.4.3):
+  braintrust@2.2.2(@aws-sdk/credential-provider-web-identity@3.972.67)(zod@4.4.3):
     dependencies:
       '@ai-sdk/provider': 1.1.3
       '@next/env': 14.2.35
       '@types/nunjucks': 3.2.6
-      '@vercel/functions': 1.6.0(@aws-sdk/credential-provider-web-identity@3.972.65)
+      '@vercel/functions': 1.6.0(@aws-sdk/credential-provider-web-identity@3.972.67)
       ajv: 8.20.0
       argparse: 2.0.1
       boxen: 8.0.1
@@ -9810,10 +9810,10 @@ snapshots:
       - chokidar
       - supports-color
 
-  braintrust@3.24.0(@aws-sdk/credential-provider-web-identity@3.972.65)(zod@4.4.3):
+  braintrust@3.24.0(@aws-sdk/credential-provider-web-identity@3.972.67)(zod@4.4.3):
     dependencies:
       '@next/env': 14.2.35
-      '@vercel/functions': 1.6.0(@aws-sdk/credential-provider-web-identity@3.972.65)
+      '@vercel/functions': 1.6.0(@aws-sdk/credential-provider-web-identity@3.972.67)
       acorn: 8.17.0
       acorn-import-attributes: 1.9.5(acorn@8.17.0)
       ajv: 8.20.0
@@ -11313,14 +11313,14 @@ snapshots:
 
   kind-of@6.0.3: {}
 
-  langsmith@0.8.7(@opentelemetry/api@1.9.1)(@opentelemetry/exporter-trace-otlp-proto@0.221.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.10.0(@opentelemetry/api@1.9.1))(openai@6.49.0(@aws-sdk/credential-provider-node@3.972.69)(@smithy/signature-v4@5.6.5)(ws@8.21.1)(zod@4.4.3))(ws@8.21.1):
+  langsmith@0.8.7(@opentelemetry/api@1.9.1)(@opentelemetry/exporter-trace-otlp-proto@0.221.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.10.0(@opentelemetry/api@1.9.1))(openai@6.49.0(@aws-sdk/credential-provider-node@3.972.72)(@smithy/signature-v4@5.6.10)(ws@8.21.1)(zod@4.4.3))(ws@8.21.1):
     dependencies:
       p-queue: 6.6.2
     optionalDependencies:
       '@opentelemetry/api': 1.9.1
       '@opentelemetry/exporter-trace-otlp-proto': 0.221.0(@opentelemetry/api@1.9.1)
       '@opentelemetry/sdk-trace-base': 2.10.0(@opentelemetry/api@1.9.1)
-      openai: 6.49.0(@aws-sdk/credential-provider-node@3.972.69)(@smithy/signature-v4@5.6.5)(ws@8.21.1)(zod@4.4.3)
+      openai: 6.49.0(@aws-sdk/credential-provider-node@3.972.72)(@smithy/signature-v4@5.6.10)(ws@8.21.1)(zod@4.4.3)
       ws: 8.21.1
 
   language-subtag-registry@0.3.23: {}
@@ -12017,10 +12017,10 @@ snapshots:
       ws: 8.21.1
       zod: 4.4.3
 
-  openai@6.49.0(@aws-sdk/credential-provider-node@3.972.69)(@smithy/signature-v4@5.6.5)(ws@8.21.1)(zod@4.4.3):
+  openai@6.49.0(@aws-sdk/credential-provider-node@3.972.72)(@smithy/signature-v4@5.6.10)(ws@8.21.1)(zod@4.4.3):
     optionalDependencies:
-      '@aws-sdk/credential-provider-node': 3.972.69
-      '@smithy/signature-v4': 5.6.5
+      '@aws-sdk/credential-provider-node': 3.972.72
+      '@smithy/signature-v4': 5.6.10
       ws: 8.21.1
       zod: 4.4.3
 
