@@ -73,6 +73,26 @@ Runner creation also accepts `identity`, `caller`, and `ttl_seconds`. The
 resolved `runner.context` includes the runtime or experiment selection,
 runtime group, flat recipe revision fields, agent name, identity, and caller.
 
+#### Sharing a Runtime with another developer
+
+When two people run `introspection dev` against one Runtime, a task created by
+a shared application credential carries no developer, so the platform cannot
+tell their machines apart. Name one:
+
+```bash
+# introspection dev prints the line to copy
+INTROSPECTION_DEV_TARGET=roland
+```
+
+The SDK reads it and routes this process's tasks to that dev server — prompts,
+working tree, and local MCP servers. There is no default: a target names
+_someone else's_ machine, and guessing it from the local username would be
+right on a laptop and quietly wrong in a shared development deployment. Set it
+explicitly, or leave it unset and keep today's behaviour.
+
+Nothing changes outside the development environment, where the value is
+ignored. An explicit `caller.target` on the run request still wins.
+
 `run.cancel()` aborts by default. Pass `{ mode: "abort" }` to make that
 explicit, or `{ mode: "drain", drain_within_seconds: 60 }` for graceful
 teardown. Interrupted runs resume through
