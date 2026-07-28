@@ -527,6 +527,8 @@ export interface RunnerContext {
   identity: RunnerIdentity;
   /** Echoed from the request when supplied. */
   caller?: RunCaller;
+  /** Echoed from the request when supplied. */
+  target?: string | null;
 }
 
 /**
@@ -617,6 +619,15 @@ export interface RunRequest {
   identity?: RunIdentityInput;
   /** Optional observability payload — see {@link RunCaller}. */
   caller?: RunCaller;
+  /**
+   * Development machine this session's tasks are served from.
+   *
+   * Matched against the machine a connected `introspection dev` announced,
+   * so several developers can share one project's development environment.
+   * Ignored outside `development`. Not observability data — this selects
+   * where a task runs, which is why it is here and not on {@link RunCaller}.
+   */
+  target?: string;
   /** Optional entrypoint agent. Omit to use the runtime default. */
   agent_name?: string;
   ttl_seconds?: number;
