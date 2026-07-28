@@ -12,6 +12,13 @@
  * for your app: INTROSPECTION_DEV_TARGET=roland
  * ```
  *
+ * Carried as a header rather than on the runner's `caller` payload: `caller`
+ * is descriptive metadata the platform never acts on, and a target is a
+ * per-request selector the platform does act on. Keeping them apart is what
+ * lets `caller` stay a free-form bag, and it is the only transport that
+ * reaches a bare `POST /v1/tasks` with a dev API key, whose JWT is minted from
+ * the key row with no per-request input path.
+ *
  * Deliberately env-only, with no `os.userInfo()` fallback. Defaulting to the
  * local username would be zero-config on a laptop and wrong everywhere else: a
  * process running in a shared development deployment under an account like
@@ -43,27 +50,4 @@ export function resolveDevTarget(): string | undefined {
   const raw = env?.[DEV_TARGET_ENV];
   const trimmed = raw?.trim();
   return trimmed ? trimmed : undefined;
-}
-
-/**
- * Default `caller.target` from the environment, leaving an explicit value
- * alone.
- *
- * The header above already routes tasks. This adds the signed, persisted half:
- * the target is minted onto the runner's session, so it survives a token
- * refresh and is what the Data Plane falls back to when the MCP proxy hop
- * arrives without its header. Explicit code always wins — a caller that set
- * `caller.target` itself has said something more specific than an env var.
- */
-export function withDevTarget<T extends { caller?: Record<string, unknown> }>(
-  opts?: T,
-): T | undefined {
-  const target = resolveDevTarget();
-  if (!target) return opts;
-  const caller = opts?.caller;
-  if (caller?.target !== undefined) return opts;
-  return {
-    ...((opts ?? {}) as T),
-    caller: { ...(caller ?? {}), target },
-  };
 }

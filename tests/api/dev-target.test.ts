@@ -3,9 +3,9 @@
  * its tasks should reach.
  *
  * Driven against a real in-process HTTP server rather than mocks, because the
- * point of these tests is what actually goes out on the wire: a body field on
- * the CP `/run` hop and a header on every hop, including the Data-Plane calls
- * the runner makes through its own client.
+ * point of these tests is what actually goes out on the wire: a header on
+ * every hop, including the Data-Plane calls the runner makes through its own
+ * client, and *not* a field on the `caller` payload.
  */
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { createServer, type IncomingMessage, type Server } from "node:http";
@@ -89,54 +89,39 @@ function client(): IntrospectionClient {
 const runCall = () => captured.find((c) => c.path.endsWith("/run"));
 
 describe("INTROSPECTION_DEV_TARGET", () => {
-  it("names the machine on the run body and every request header", async () => {
+  it("rides every request as a header, Data Plane included", async () => {
     process.env.INTROSPECTION_DEV_TARGET = "roland";
 
     const runner = await client().runtimes.runById(RUNTIME_ID);
     await runner.tasks.create({ prompt: "hello" });
 
-    expect(runCall()?.body?.caller).toEqual({ target: "roland" });
-    // The header must ride the Data-Plane hop too: a task created against a
-    // dev API key has no runner claim to carry the target, and that is the
-    // path this header exists for.
+    // The Data-Plane hop is the one that matters: a task created against a
+    // dev API key has no runner claim to carry a target, and that is the path
+    // this header exists for.
     expect(captured.every((c) => c.header === "roland")).toBe(true);
     expect(captured.some((c) => c.path.includes("/tasks"))).toBe(true);
+  });
+
+  it("never writes itself into the caller payload", async () => {
+    process.env.INTROSPECTION_DEV_TARGET = "roland";
+
+    await client().runtimes.runById(RUNTIME_ID, { caller: { ip: "1.2.3.4" } });
+
+    // `caller` is descriptive metadata the app owns and the platform never
+    // acts on. Injecting a routing key into it would make one key in a
+    // free-form bag load-bearing, which is what this split exists to avoid.
+    expect(runCall()?.body?.caller).toEqual({ ip: "1.2.3.4" });
   });
 
   it("is trimmed, and blank is the same as unset", async () => {
     process.env.INTROSPECTION_DEV_TARGET = "  roland  ";
     await client().runtimes.runById(RUNTIME_ID);
-    expect(runCall()?.body?.caller).toEqual({ target: "roland" });
+    expect(runCall()?.header).toBe("roland");
 
     captured = [];
     process.env.INTROSPECTION_DEV_TARGET = "   ";
     await client().runtimes.runById(RUNTIME_ID);
-    expect(runCall()?.body?.caller).toBeUndefined();
     expect(runCall()?.header).toBeUndefined();
-  });
-
-  it("leaves an explicit caller.target alone", async () => {
-    process.env.INTROSPECTION_DEV_TARGET = "roland";
-
-    await client().runtimes.runById(RUNTIME_ID, {
-      caller: { target: "julian", ip: "1.2.3.4" },
-    });
-
-    expect(runCall()?.body?.caller).toEqual({
-      target: "julian",
-      ip: "1.2.3.4",
-    });
-  });
-
-  it("preserves the rest of an existing caller payload", async () => {
-    process.env.INTROSPECTION_DEV_TARGET = "roland";
-
-    await client().runtimes.runById(RUNTIME_ID, { caller: { ip: "1.2.3.4" } });
-
-    expect(runCall()?.body?.caller).toEqual({
-      ip: "1.2.3.4",
-      target: "roland",
-    });
   });
 
   it("changes nothing when unset", async () => {

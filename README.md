@@ -90,8 +90,10 @@ _someone else's_ machine, and guessing it from the local username would be
 right on a laptop and quietly wrong in a shared development deployment. Set it
 explicitly, or leave it unset and keep today's behaviour.
 
-Nothing changes outside the development environment, where the value is
-ignored. An explicit `caller.target` on the run request still wins.
+It travels as a request header, not on `caller`. `caller` stays what it is
+documented to be: descriptive metadata you attach to a session that the
+platform never acts on. Nothing changes outside the development environment,
+where the value is ignored.
 
 `run.cancel()` aborts by default. Pass `{ mode: "abort" }` to make that
 explicit, or `{ mode: "drain", drain_within_seconds: 60 }` for graceful
