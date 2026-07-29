@@ -66,6 +66,7 @@ function makePage(
     first_id: data[0]?.id ?? null,
     last_id: data[data.length - 1]?.id ?? null,
     has_more,
+    next: has_more ? "cursor-page-2" : null,
   };
 }
 
@@ -146,7 +147,7 @@ describe("ConversationsApi", () => {
     expect(items).toHaveLength(1);
   });
 
-  it("items.list() drives `after` = last_id while has_more, then stops", async () => {
+  it("items.list() drives the opaque next cursor while has_more, then stops", async () => {
     const page1 = makePage(
       [makeItem({ id: "item-1" }), makeItem({ id: "item-2" })],
       true,
@@ -164,11 +165,11 @@ describe("ConversationsApi", () => {
     expect(items.map((i) => i.id)).toEqual(["item-1", "item-2", "item-3"]);
     expect(http.request).toHaveBeenCalledTimes(2);
     const calls = (http.request as ReturnType<typeof vi.fn>).mock.calls;
-    expect(calls[0][0].query.after).toBeUndefined();
-    expect(calls[1][0].query.after).toBe("item-2");
+    expect(calls[0][0].query.next).toBeUndefined();
+    expect(calls[1][0].query.next).toBe("cursor-page-2");
   });
 
-  it("items.list() terminates on an empty page (has_more=false, last_id=null)", async () => {
+  it("items.list() terminates on an empty page (has_more=false, next=null)", async () => {
     const http = mockHttp({ requestResult: makePage([], false) });
     const api = new ConversationsApi(http);
     const items = [];
@@ -176,6 +177,20 @@ describe("ConversationsApi", () => {
 
     expect(items).toHaveLength(0);
     expect(http.request).toHaveBeenCalledTimes(1);
+  });
+
+  it("items.list() rejects has_more without an opaque next cursor", async () => {
+    const page = makePage([makeItem({ id: "item-1" })], true);
+    page.next = null;
+    const http = mockHttp({ requestResult: page });
+    const api = new ConversationsApi(http);
+
+    const consume = async () => {
+      for await (const _item of api.items.list("conv-1")) {
+        // Consume the iterator so it evaluates the continuation contract.
+      }
+    };
+    await expect(consume()).rejects.toThrow("has_more without next");
   });
 
   it("items.list() walks the ascending transcript when order=asc", async () => {

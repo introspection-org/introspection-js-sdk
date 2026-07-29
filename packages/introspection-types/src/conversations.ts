@@ -10,11 +10,10 @@
  * - **Cursor paging** (`GET /v1/conversations`) — the standard
  *   Introspection envelope {@link Paginated} with an opaque `next` token.
  *   Pass the token back unchanged via the `next` query param.
- * - **After/has_more paging** (`GET /v1/conversations/{id}/items`) — an
- *   OpenAI-style envelope {@link ConversationItemList} with `first_id`,
- *   `last_id`, and `has_more`. There is NO `next` token: pass the
- *   previous page's `last_id` as the `after` query param while
- *   `has_more` is true.
+ * - **Cursor paging** (`GET /v1/conversations/{id}/items`) — an
+ *   OpenAI-style envelope {@link ConversationItemList} that retains
+ *   `first_id`, `last_id`, and `has_more` metadata while pagination uses
+ *   an opaque `next` token.
  */
 
 import type { IsoDate, ListParams, ReadWindowParams, Uuid } from "./api.js";
@@ -180,8 +179,8 @@ export interface ConversationItem {
 /**
  * OpenAI-style list envelope for conversation items.
  *
- * Unlike {@link Paginated}, there is no `next` token: page by passing
- * `last_id` as the `after` query param while `has_more` is true.
+ * Pagination uses the opaque `next` token. `first_id` and `last_id` are
+ * informational and are not valid pagination inputs.
  */
 export interface ConversationItemList {
   /** Discriminator — always `"list"`. */
@@ -190,10 +189,12 @@ export interface ConversationItemList {
   data: ConversationItem[];
   /** First item ID in this page. */
   first_id: string | null;
-  /** Last item ID in this page — pass as `after` to fetch the next page. */
+  /** Last item ID in this page. */
   last_id: string | null;
   /** Whether additional pages exist after this one. */
   has_more: boolean;
+  /** Opaque cursor for the next page, or null when exhausted. */
+  next: string | null;
 }
 
 /**
@@ -309,14 +310,13 @@ export interface ConversationListParams extends ListParams, ReadWindowParams {
 }
 
 /**
- * Query params for `GET /v1/conversations/{id}/items` (after/has_more
- * paging — pass the previous page's `last_id` as `after`).
+ * Query params for `GET /v1/conversations/{id}/items`.
  */
 export interface ConversationItemListParams {
   /** Maximum items per page (1-1000, server default 100). */
   limit?: number;
-  /** Item ID after which to continue pagination. */
-  after?: string;
+  /** Opaque cursor returned by the previous page. */
+  next?: string;
   /** Sort order for items (server default `"desc"`). */
   order?: "asc" | "desc";
   /** Optional item expansions (repeated `include` param). */
@@ -367,8 +367,6 @@ export interface ConversationResponse {
  *
  * - `"cursor"` — Introspection envelope ({@link Paginated}); drive the
  *   opaque `next` token through the `next` query param.
- * - `"after"` — OpenAI-style envelope ({@link ConversationItemList});
- *   drive `after` = previous page's `last_id` while `has_more` is true.
  * - `"none"` — single-resource GET, no paging.
  */
 export const ConversationsMethods = {
@@ -376,7 +374,7 @@ export const ConversationsMethods = {
   "items.list": {
     method: "GET",
     path: "/v1/conversations/{conversation_id}/items",
-    paging: "after",
+    paging: "cursor",
   },
   "items.get": {
     method: "GET",
