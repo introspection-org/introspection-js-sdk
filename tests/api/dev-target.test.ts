@@ -132,6 +132,28 @@ describe("INTROSPECTION_DEV_TARGET", () => {
     expect(captured.every((c) => c.header === undefined)).toBe(true);
   });
 
+  it("percent-encodes a target a header cannot carry raw", async () => {
+    // A header is bytes: a non-ASCII login name is not transmissible as-is,
+    // and a runtime that lets it through sends latin-1 the server reads back
+    // as a different string. Safe to encode because the Data Plane decodes
+    // before it normalizes, so this matches the `--as andré` the CLI
+    // advertises over protobuf.
+    process.env.INTROSPECTION_DEV_TARGET = "andré";
+    await client().runtimes.runById(RUNTIME_ID);
+    expect(runCall()?.header).toBe("andr%C3%A9");
+
+    captured = [];
+    process.env.INTROSPECTION_DEV_TARGET = "roland laptop";
+    await client().runtimes.runById(RUNTIME_ID);
+    expect(runCall()?.header).toBe("roland%20laptop");
+
+    // The ordinary case is untouched.
+    captured = [];
+    process.env.INTROSPECTION_DEV_TARGET = "roland";
+    await client().runtimes.runById(RUNTIME_ID);
+    expect(runCall()?.header).toBe("roland");
+  });
+
   it("yields to an explicitly configured header", async () => {
     process.env.INTROSPECTION_DEV_TARGET = "roland";
 

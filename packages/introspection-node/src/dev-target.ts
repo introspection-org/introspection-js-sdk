@@ -40,6 +40,16 @@ export const DEV_TARGET_ENV = "INTROSPECTION_DEV_TARGET";
 /**
  * The development target for this process, or `undefined` when unset.
  *
+ * Percent-encoded, because the value becomes an HTTP header and a header is
+ * bytes: a login name like `andré` is not transmissible as-is, and a runtime
+ * that lets it through sends latin-1 bytes the server would read back as a
+ * different string. Encoding here is lossless and costs nothing for the
+ * ordinary ASCII name, which encodes to itself.
+ *
+ * Safe to send encoded because the Data Plane decodes before it normalizes,
+ * so `andré` and `andr%C3%A9` land on the same target as the `--as andré`
+ * the CLI advertises over protobuf, where no encoding is needed.
+ *
  * Read through `globalThis.process` so the module stays importable from
  * non-Node runtimes that share this package's build.
  */
@@ -49,5 +59,5 @@ export function resolveDevTarget(): string | undefined {
   ).process?.env;
   const raw = env?.[DEV_TARGET_ENV];
   const trimmed = raw?.trim();
-  return trimmed ? trimmed : undefined;
+  return trimmed ? encodeURIComponent(trimmed) : undefined;
 }
