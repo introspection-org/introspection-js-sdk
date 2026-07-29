@@ -92,10 +92,10 @@ export interface InstrumentStreamOptions {
  * Wrap a {@link StreamFn} to emit `chat {model}` spans (CLIENT kind — the
  * model runs in a remote process).
  *
- * Reassign `agent.streamFn` with the result:
+ * Reassign `agent.streamFunction` with the result:
  *
  * ```ts
- * agent.streamFn = instrumentStream(agent.streamFn, { tracer, meta });
+ * agent.streamFunction = instrumentStream(agent.streamFunction, { tracer, meta });
  * ```
  *
  * The wrapper preserves the {@link StreamFn} contract: errors thrown by the

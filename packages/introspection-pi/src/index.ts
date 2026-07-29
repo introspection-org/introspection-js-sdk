@@ -23,7 +23,7 @@
  * import { instrumentAgent, instrumentStream } from "@introspection-sdk/introspection-pi";
  *
  * // Or compose the pieces yourself:
- * agent.streamFn = instrumentStream(agent.streamFn, { tracer, meta });
+ * agent.streamFunction = instrumentStream(agent.streamFunction, { tracer, meta });
  * const tools = instrumentAgent(agent, { tracer, meta });
  * // later: tools.stop();
  * ```

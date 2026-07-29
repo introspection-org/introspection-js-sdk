@@ -100,6 +100,7 @@ describe("Pi Agent SDK baggage — real Agent against Polly-recorded Anthropic",
 
   async function makeAgent(systemPrompt = "Answer in one word.") {
     const { Agent } = await import("@earendil-works/pi-agent-core");
+    const { streamSimple } = await import("@earendil-works/pi-ai/compat");
     const { getBuiltinModel } =
       await import("@earendil-works/pi-ai/providers/all");
     // Force baseUrl so the request URL is deterministic across record/replay,
@@ -109,6 +110,7 @@ describe("Pi Agent SDK baggage — real Agent against Polly-recorded Anthropic",
       baseUrl: pollyEndpoints.anthropic.node,
     };
     return new Agent({
+      streamFn: streamSimple,
       initialState: {
         model,
         systemPrompt,
