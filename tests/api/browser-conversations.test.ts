@@ -37,18 +37,20 @@ describe("browser ConversationsClient", () => {
     expect(page.records).toHaveLength(1);
   });
 
-  it("items.list() drives the OpenAI-style `after` cursor across pages", async () => {
+  it("items.list() drives the opaque `next` cursor across pages", async () => {
     const request = vi
       .fn()
       .mockResolvedValueOnce({
         data: [{ id: "item-1" }],
         has_more: true,
         last_id: "item-1",
+        next: "cursor-page-2",
       })
       .mockResolvedValueOnce({
         data: [{ id: "item-2" }],
         has_more: false,
         last_id: "item-2",
+        next: null,
       });
     const http = { request } as unknown as BrowserHttpClient;
     const items = new ConversationItemsClient(http);
@@ -60,8 +62,7 @@ describe("browser ConversationsClient", () => {
 
     expect(ids).toEqual(["item-1", "item-2"]);
     expect(request).toHaveBeenCalledTimes(2);
-    // second page is fetched with after = previous page's last_id
-    expect(request.mock.calls[1][0].query.after).toBe("item-1");
+    expect(request.mock.calls[1][0].query.next).toBe("cursor-page-2");
   });
 
   it("items.get() reads a single item with includes", async () => {
@@ -109,7 +110,7 @@ describe("browser ConversationsClient", () => {
   it("retrieve() returns null for an empty conversation", async () => {
     // items.list() yields nothing -> no latest turn -> null
     const http = mockHttp({
-      requestResult: { data: [], has_more: false, last_id: null },
+      requestResult: { data: [], has_more: false, last_id: null, next: null },
     });
     const conversations = new ConversationsClient(http);
     const res = await conversations.retrieve("conv-empty");

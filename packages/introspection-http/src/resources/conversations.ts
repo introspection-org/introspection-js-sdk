@@ -23,9 +23,8 @@ const RESPONSE_INCLUDES: ConversationItemInclude[] = [
 /**
  * Items of a conversation (`/v1/conversations/{id}/items`). Read-only.
  *
- * Paging is OpenAI-style underneath: the envelope has NO `next` token —
- * `list()` drives `after` = the previous page's `last_id` while
- * `has_more` is true.
+ * The OpenAI-style envelope retains item-id metadata while `list()` drives
+ * pagination with its opaque `next` token.
  */
 export class ConversationItemsClient {
   constructor(private readonly http: ResourceHttpClient) {}
@@ -34,7 +33,7 @@ export class ConversationItemsClient {
    * List items of a conversation. `await` the result for the first page
    * (an OpenAI-style {@link ConversationItemList} envelope), or
    * `for await` it to stream every item across pages (fetched lazily —
-   * `limit` sets the page size, `after` the starting cursor; stop early to
+   * `limit` sets the page size, `next` the starting cursor; stop early to
    * stop fetching). Pass `order: "asc"` to walk the transcript from the
    * start.
    *
@@ -47,17 +46,23 @@ export class ConversationItemsClient {
   ): Paginator<ConversationItem, ConversationItemList> {
     return new Paginator(
       {
-        fetch: (after) =>
+        fetch: (next) =>
           this.http.request<ConversationItemList>({
             method: "GET",
             path: `/v1/conversations/${encodeURIComponent(conversationId)}/items`,
-            query: { ...params, after } as Record<string, unknown>,
+            query: { ...params, next } as Record<string, unknown>,
           }),
         items: (page) => page.data,
-        next: (page) =>
-          page.has_more && page.last_id !== null ? page.last_id : undefined,
+        next: (page) => {
+          if (page.has_more && !page.next) {
+            throw new Error(
+              `conversation items page for ${conversationId} has_more without next`,
+            );
+          }
+          return page.next ?? undefined;
+        },
       },
-      params?.after,
+      params?.next,
     );
   }
 
@@ -81,11 +86,8 @@ export class ConversationItemsClient {
 /**
  * Read-only Conversations API (`/v1/conversations`).
  *
- * Both `list()` and `items.list()` are auto-paging async generators,
- * but they drive different wire protocols underneath: `list()` walks
- * the standard Introspection cursor envelope's opaque `next` token,
- * while `items.list()` walks an OpenAI-style envelope via `after` =
- * the previous page's `last_id` while `has_more` is true.
+ * Both `list()` and `items.list()` are auto-paging async generators that
+ * pass each response's opaque `next` token back unchanged.
  */
 export class ConversationsClient {
   /** Items of a conversation — `conversations.items.list(...)` etc. */
