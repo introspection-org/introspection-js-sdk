@@ -154,6 +154,28 @@ describe("INTROSPECTION_DEV_TARGET", () => {
     expect(runCall()?.header).toBe("roland");
   });
 
+  it("encodes exactly as the Python and Rust clients do", async () => {
+    // The three SDKs must put identical bytes on the wire for one target.
+    // `encodeURIComponent` alone leaves `!'()*` where the others encode them;
+    // the unreserved set must survive untouched in all three.
+    const cases: Array<[string, string]> = [
+      ["my-laptop", "my-laptop"],
+      ["roland_box", "roland_box"],
+      ["host.local", "host.local"],
+      ["a~b", "a~b"],
+      ["c!d", "c%21d"],
+      ["e(f)", "e%28f%29"],
+      ["andré", "andr%C3%A9"],
+      ["my laptop", "my%20laptop"],
+    ];
+    for (const [raw, wire] of cases) {
+      captured = [];
+      process.env.INTROSPECTION_DEV_TARGET = raw;
+      await client().runtimes.runById(RUNTIME_ID);
+      expect(runCall()?.header).toBe(wire);
+    }
+  });
+
   it("yields to an explicitly configured header", async () => {
     process.env.INTROSPECTION_DEV_TARGET = "roland";
 

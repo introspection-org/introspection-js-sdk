@@ -38,6 +38,22 @@ export const DEV_TARGET_HEADER = "x-introspection-dev-target";
 export const DEV_TARGET_ENV = "INTROSPECTION_DEV_TARGET";
 
 /**
+ * Percent-encode to RFC 3986, so the three SDKs put identical bytes on the
+ * wire for the same target.
+ *
+ * `encodeURIComponent` leaves `!'()*` alone where Python's `quote(safe="")`
+ * and the Rust client encode them. The Data Plane decodes before it
+ * normalizes, so either form routes — but a header that differs by which
+ * client sent it is a debugging trap for no benefit.
+ */
+function encodeTarget(value: string): string {
+  return encodeURIComponent(value).replace(
+    /[!'()*]/g,
+    (c) => `%${c.charCodeAt(0).toString(16).toUpperCase()}`,
+  );
+}
+
+/**
  * The development target for this process, or `undefined` when unset.
  *
  * Percent-encoded, because the value becomes an HTTP header and a header is
@@ -59,5 +75,5 @@ export function resolveDevTarget(): string | undefined {
   ).process?.env;
   const raw = env?.[DEV_TARGET_ENV];
   const trimmed = raw?.trim();
-  return trimmed ? encodeURIComponent(trimmed) : undefined;
+  return trimmed ? encodeTarget(trimmed) : undefined;
 }

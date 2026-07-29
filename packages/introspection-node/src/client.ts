@@ -84,15 +84,10 @@ export class IntrospectionClient {
     // Merged first, so an explicit `additionalHeaders` entry still wins, and
     // stored on advancedOptions so the Runner's own DP client inherits it.
     const devTarget = resolveDevTarget();
-    this.advancedOptions = devTarget
-      ? {
-          ...advanced,
-          additionalHeaders: {
-            [DEV_TARGET_HEADER]: devTarget,
-            ...advanced.additionalHeaders,
-          },
-        }
-      : advanced;
+    const additionalHeaders = devTarget
+      ? { [DEV_TARGET_HEADER]: devTarget, ...advanced.additionalHeaders }
+      : advanced.additionalHeaders;
+    this.advancedOptions = { ...advanced, additionalHeaders };
     const baseApiUrl =
       advanced.baseApiUrl ||
       process.env.INTROSPECTION_BASE_API_URL ||
