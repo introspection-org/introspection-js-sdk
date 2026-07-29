@@ -22,6 +22,13 @@ export type { SetupTracingOptions, ConflictBehavior } from "./setup.js";
 export { IntrospectionSpanProcessor } from "./span-processor.js";
 export type { IntrospectionSpanProcessorOptions } from "./span-processor.js";
 
+// OpenAI embeddings wrapper (metadata-only; never records inputs or vectors).
+export { tracedEmbeddingsCreate } from "./openai.js";
+export type {
+  OpenAIEmbeddingsClient,
+  TracedEmbeddingsOptions,
+} from "./openai.js";
+
 // OpenAI Agents SDK tracing processor.
 export { IntrospectionTracingProcessor } from "./tracing-processor.js";
 export type {
