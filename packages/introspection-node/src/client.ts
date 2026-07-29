@@ -28,6 +28,7 @@ import {
   type ExperimentsApi,
 } from "./resources/experiments.js";
 import { attachRecipes, type RecipesApi } from "./resources/recipes.js";
+import { DEV_TARGET_HEADER, resolveDevTarget } from "./dev-target.js";
 
 /**
  * Introspection REST client.
@@ -77,7 +78,6 @@ export class IntrospectionClient {
   constructor(options: IntrospectionClientOptions = {}) {
     const token = options.token || process.env.INTROSPECTION_TOKEN || "";
     const advanced = options.advanced || {};
-    this.advancedOptions = advanced;
     const baseApiUrl =
       advanced.baseApiUrl ||
       process.env.INTROSPECTION_BASE_API_URL ||
@@ -89,13 +89,24 @@ export class IntrospectionClient {
       );
     }
 
+    // INTROSPECTION_DEV_TARGET rides every request as a header so it reaches
+    // the paths a runner cannot: a bare `POST /v1/tasks` with a dev API key
+    // mints its JWT from the key row and has no per-request claim to carry.
+    // Merged first, so an explicit `additionalHeaders` entry still wins, and
+    // stored on advancedOptions so the Runner's own DP client inherits it.
+    const devTarget = resolveDevTarget();
+    const additionalHeaders = devTarget
+      ? { [DEV_TARGET_HEADER]: devTarget, ...advanced.additionalHeaders }
+      : advanced.additionalHeaders;
+    this.advancedOptions = { ...advanced, additionalHeaders };
+
     // CP HTTP client — talks to the customer-facing API with the customer
     // API key. Runners get their own HttpClient instances pointed at the
     // `deployment.endpoint` returned by `/v1/runtimes/{id}/run`.
     this.cpHttp = new HttpClient({
       apiUrl: baseApiUrl,
       token,
-      additionalHeaders: advanced.additionalHeaders,
+      additionalHeaders: this.advancedOptions.additionalHeaders,
       fetch: advanced.fetch,
     });
 
