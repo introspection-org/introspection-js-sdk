@@ -119,29 +119,26 @@ export class RuntimesClient<TRunner> {
 }
 
 /**
- * Handle returned by `client.runtimes(runtime)`. Resolves the underlying
- * runtime row ID lazily from a runtime group slug or ID.
+ * Handle returned by `client.runtimes(runtime)`. Holds the stable runtime
+ * selector — a group slug or ID — and resolves it on every run.
+ *
+ * The resolved row ID is deliberately not cached. A runtime group's versions
+ * change underneath a long-lived handle: deploys add them, and yanking or
+ * deleting retires them. A handle that remembered its first answer went on
+ * using a version that could since have been withdrawn, so every later `run()`
+ * failed with a 404 no caller could clear short of rebuilding the handle.
+ * Holding the selector instead costs one lookup per run and always reaches
+ * whatever the group currently serves.
  */
 export class RuntimeHandle<TRunner> {
-  private resolvedId: Uuid | null;
-
   constructor(
     private readonly api: RuntimesClient<TRunner>,
     private readonly runtime: string,
-  ) {
-    this.resolvedId = null;
-  }
-
-  private async resolveId(): Promise<Uuid> {
-    if (this.resolvedId) return this.resolvedId;
-    const resolved = await this.api.resolve(this.runtime);
-    this.resolvedId = resolved.id;
-    return resolved.id;
-  }
+  ) {}
 
   async run(opts?: RunRequest): Promise<TRunner> {
-    const id = await this.resolveId();
-    return this.api.runById(id, opts);
+    const resolved = await this.api.resolve(this.runtime);
+    return this.api.runById(resolved.id, opts);
   }
 }
 
