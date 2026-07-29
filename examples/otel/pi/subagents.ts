@@ -18,6 +18,7 @@
  */
 
 import { Agent } from "@earendil-works/pi-agent-core";
+import { streamSimple } from "@earendil-works/pi-ai/compat";
 import { getBuiltinModel } from "@earendil-works/pi-ai/providers/all";
 import { randomUUID } from "crypto";
 import {
@@ -60,6 +61,7 @@ const RESEARCHER_FIB: PiAgentMeta = {
 
 function makeAgent(meta: PiAgentMeta): Agent {
   const agent = new Agent({
+    streamFn: streamSimple,
     initialState: { model: MODEL, systemPrompt: SYSTEM_PROMPT, tools: [] },
   });
   piInstrumentor.instrument(agent, meta);

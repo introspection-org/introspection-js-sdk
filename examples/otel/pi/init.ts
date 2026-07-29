@@ -15,6 +15,7 @@
 
 import { Agent, type AgentTool } from "@earendil-works/pi-agent-core";
 import { Type } from "@earendil-works/pi-ai";
+import { streamSimple } from "@earendil-works/pi-ai/compat";
 import { getBuiltinModel } from "@earendil-works/pi-ai/providers/all";
 import * as introspection from "@introspection-sdk/introspection-node/otel";
 import type { PiAgentMeta } from "@introspection-sdk/introspection-node/otel";
@@ -37,6 +38,7 @@ async function main() {
   await introspection.init({ serviceName: "pi-init-example" });
 
   const agent = new Agent({
+    streamFn: streamSimple,
     initialState: {
       model: getBuiltinModel("anthropic", "claude-sonnet-4-6"),
       systemPrompt:

@@ -25,7 +25,7 @@
  */
 
 import { trace } from "@opentelemetry/api";
-import type { Agent } from "@earendil-works/pi-agent-core";
+import type { Agent, StreamFn } from "@earendil-works/pi-agent-core";
 import {
   instrumentStream,
   instrumentAgent,
@@ -61,7 +61,8 @@ export class IntrospectionPiInstrumentor {
 
   /**
    * Instrument a pi {@link Agent}:
-   * - Wraps `agent.streamFn` to emit a `chat ${provider}` span per LLM call.
+   * - Wraps the agent stream function to emit a `chat ${provider}` span per
+   *   LLM call.
    * - Subscribes to the agent loop to emit an `execute_tool ${name}` span per
    *   tool execution.
    *
@@ -69,7 +70,12 @@ export class IntrospectionPiInstrumentor {
    * @param meta  - Identity metadata stamped on every span produced by this agent.
    */
   instrument(agent: Agent, meta: AgentMeta): void {
-    agent.streamFn = instrumentStream(agent.streamFn, {
+    const key = "streamFunction" in agent ? "streamFunction" : "streamFn";
+    const instrumentable = agent as unknown as Record<
+      "streamFunction" | "streamFn",
+      StreamFn
+    >;
+    instrumentable[key] = instrumentStream(instrumentable[key], {
       tracer: this._tracer,
       meta,
     });
