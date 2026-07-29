@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.15.0](https://github.com/introspection-org/introspection-js-sdk/compare/v0.14.0...v0.15.0) (2026-07-29)
+
+
+### Features
+
+* **otel:** trace OpenAI embedding usage ([#267](https://github.com/introspection-org/introspection-js-sdk/issues/267)) ([a9d15f5](https://github.com/introspection-org/introspection-js-sdk/commit/a9d15f56576e66e199d0903a2c9b0630d69da48f))
+* paginate conversation items with opaque cursors ([#266](https://github.com/introspection-org/introspection-js-sdk/issues/266)) ([51541f1](https://github.com/introspection-org/introspection-js-sdk/commit/51541f1afd5bcd9e51be122a83d92ab29b236cd7))
+
 ## [0.14.0](https://github.com/introspection-org/introspection-js-sdk/compare/v0.13.0...v0.14.0) (2026-07-29)
 
 
