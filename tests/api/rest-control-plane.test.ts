@@ -444,6 +444,43 @@ describe("IntrospectionClient (REST control-plane, real server)", () => {
   });
 
   describe("experiments", () => {
+    it("uses the stable runtime selector on create and list", async () => {
+      const client = makeClient();
+      requests = [];
+
+      await collect(
+        client.experiments.list({
+          project: "proj-1",
+          runtime: RUNTIME.slug,
+        }),
+      );
+      expect(requests[0]?.query.get("runtime")).toBe(RUNTIME.slug);
+
+      await client.experiments.create({
+        project: "proj-1",
+        name: "exp-a",
+        runtime: RUNTIME.slug,
+        arms: [
+          { runtime_id: RUNTIME.id, arm_label: "control" },
+          {
+            runtime_id: "44444444-4444-4444-4444-444444444444",
+            arm_label: "candidate",
+          },
+        ],
+        goal_json: {
+          kind: "composite",
+          components: [
+            {
+              source: "judge",
+              judge_id: "55555555-5555-5555-5555-555555555555",
+              weight: 1,
+            },
+          ],
+        },
+      });
+      expect(requests.at(-1)?.body).toMatchObject({ runtime: RUNTIME.slug });
+    });
+
     it("CRUD + lifecycle + run", async () => {
       const client = makeClient();
       expect(

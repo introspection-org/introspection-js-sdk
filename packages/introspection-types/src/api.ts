@@ -467,12 +467,11 @@ export interface Experiment {
 
 /**
  * `POST /v1/experiments` body. Creates a draft that routes nothing until
- * `start`. `arms` takes 2–20 runtime versions sharing `runtime_group_id`.
+ * `start`. `arms` takes 2–20 runtime versions sharing one Runtime.
  */
-export interface ExperimentCreate {
+interface ExperimentCreateBase {
   project: string;
   name: string;
-  runtime_group_id: Uuid;
   arms: ExperimentArm[];
   goal_json: ExperimentGoal;
   description?: string;
@@ -481,6 +480,13 @@ export interface ExperimentCreate {
   hash_key_fields?: string[];
   sample_rate?: number;
 }
+
+/** Name the Runtime canonically by slug/group id, or use the legacy group-id spelling. */
+export type ExperimentCreate = ExperimentCreateBase &
+  (
+    | { runtime: string; runtime_group_id?: never }
+    | { runtime?: never; runtime_group_id: Uuid }
+  );
 
 /**
  * `PATCH /v1/experiments/{id}`. Status transitions use start/end/cancel;
@@ -497,6 +503,8 @@ export interface ExperimentUpdate {
 
 export interface ExperimentListParams extends ListParams {
   project?: string;
+  /** Runtime slug or group id. */
+  runtime?: string;
   name?: string;
   status?: ExperimentStatus;
 }
