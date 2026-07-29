@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.14.0](https://github.com/introspection-org/introspection-js-sdk/compare/v0.13.0...v0.14.0) (2026-07-29)
+
+
+### Features
+
+* **node:** route tasks to a named dev server via INTROSPECTION_DEV_TARGET ([#263](https://github.com/introspection-org/introspection-js-sdk/issues/263)) ([310499e](https://github.com/introspection-org/introspection-js-sdk/commit/310499e32a9921ada4fb83eab2f30971658e16b7))
+
 ## [0.13.0](https://github.com/introspection-org/introspection-js-sdk/compare/v0.12.0...v0.13.0) (2026-07-26)
 
 
