@@ -19,12 +19,26 @@ import {
   OpenAIChatCompletionsModel,
 } from "@openai/agents";
 import OpenAI from "openai";
+import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
+import {
+  IntrospectionSpanProcessor,
+  tracedEmbeddingsCreate,
+} from "@introspection-sdk/introspection-node/otel";
 import {
   createCaptureTracingProcessor,
   type CaptureTracingProcessor,
 } from "../fixtures";
-import { simplifySpansForSnapshot, sortSpansBySpanId } from "../testing";
-import { setupPolly, ensureEnvVarsForReplay } from "../polly-setup";
+import {
+  IncrementalIdGenerator,
+  TestSpanExporter,
+  simplifySpansForSnapshot,
+  sortSpansBySpanId,
+} from "../testing";
+import {
+  setupPolly,
+  ensureEnvVarsForReplay,
+  pollyEndpoints,
+} from "../polly-setup";
 
 describe("OpenAI Subagents — groupId conversation linking", () => {
   let capture: CaptureTracingProcessor | null = null;
@@ -196,5 +210,62 @@ describe("OpenAI Subagents — groupId conversation linking", () => {
       Number(genSpan?.attributes["gen_ai.usage.output_tokens"]),
     ).toBeGreaterThan(0);
     expect(genSpan?.attributes["gen_ai.output.messages"]).toBeDefined();
+  });
+});
+
+describe("OpenAI embeddings", () => {
+  it("captures usage metadata without inputs or vectors", async () => {
+    const recordingName = "openai-embeddings";
+    const polly = setupPolly({ recordingName, adapters: ["fetch"] });
+    if (!ensureEnvVarsForReplay(["OPENAI_API_KEY"], recordingName)) {
+      await polly.stop();
+      return;
+    }
+
+    const exporter = new TestSpanExporter();
+    const processor = new IntrospectionSpanProcessor({
+      token: "test-token",
+      advanced: { spanExporter: exporter, useSimpleSpanProcessor: true },
+    });
+    const provider = new NodeTracerProvider({
+      idGenerator: new IncrementalIdGenerator(),
+      spanProcessors: [processor],
+    });
+    const tracer = provider.getTracer("openai-embeddings-test");
+    const client = new OpenAI({ baseURL: pollyEndpoints.openai.node });
+
+    try {
+      const response = await tracedEmbeddingsCreate(tracer, client, {
+        model: "text-embedding-3-small",
+        input: ["private observation text"],
+        dimensions: 4,
+        encoding_format: "float",
+      });
+      expect(response.usage.prompt_tokens).toBe(8);
+
+      await provider.forceFlush();
+      const spans = exporter.getFinishedSpans();
+      expect(spans).toHaveLength(1);
+      const span = spans[0];
+      expect(span.name).toBe("embeddings text-embedding-3-small");
+      expect(span.attributes).toMatchObject({
+        "gen_ai.operation.name": "embeddings",
+        "gen_ai.provider.name": "openai",
+        "gen_ai.request.model": "text-embedding-3-small",
+        "gen_ai.response.model": "text-embedding-3-small",
+        "gen_ai.usage.input_tokens": 8,
+        "gen_ai.embeddings.dimension.count": 4,
+        "openinference.span.kind": "EMBEDDING",
+      });
+      expect(span.attributes).not.toHaveProperty("gen_ai.usage.output_tokens");
+      expect(span.attributes).not.toHaveProperty("gen_ai.input.messages");
+      expect(span.attributes).not.toHaveProperty("gen_ai.output.messages");
+      const serialized = JSON.stringify(span.attributes);
+      expect(serialized).not.toContain("private observation text");
+      expect(serialized).not.toContain("0.1");
+    } finally {
+      await provider.shutdown();
+      await polly.stop();
+    }
   });
 });
