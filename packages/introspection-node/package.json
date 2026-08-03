@@ -46,7 +46,7 @@
     "@langchain/core": "^1.2.3",
     "@mastra/core": "^1.52.1",
     "@mastra/observability": "^1.16.2",
-    "@openai/agents": "^0.13.5",
+    "@openai/agents": "^0.14.1",
     "@opentelemetry/api-logs": "^0.221.0",
     "@opentelemetry/context-async-hooks": "^2.10.0",
     "@opentelemetry/core": "^2.10.0",
@@ -60,7 +60,7 @@
     "@repo/eslint-config": "workspace:*",
     "@repo/typescript-config": "workspace:*",
     "@types/node": "^22.20.1",
-    "ai": "^6.0.235",
+    "ai": "^6.0.238",
     "eslint": "^9.39.5",
     "openai": "^6.49.0",
     "typescript": "5.9.3"
