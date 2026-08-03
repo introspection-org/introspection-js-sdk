@@ -73,7 +73,7 @@
     "openai": "^6.49.0"
   },
   "devDependencies": {
-    "@modelcontextprotocol/sdk": "^1.29.0",
+    "@modelcontextprotocol/sdk": "^1.30.0",
     "@opentelemetry/exporter-trace-otlp-proto": "^0.221.0",
     "@opentelemetry/resources": "^2.10.0",
     "@supabase/supabase-js": "^2.111.0",
