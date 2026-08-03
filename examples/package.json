@@ -69,7 +69,7 @@
     "@opentelemetry/instrumentation": "^0.221.0",
     "@opentelemetry/semantic-conventions": "^1.43.0",
     "braintrust": "^2.2.2",
-    "langsmith": "^0.8.7",
+    "langsmith": "^0.8.8",
     "openai": "^6.49.0"
   },
   "devDependencies": {
@@ -96,7 +96,7 @@
     "@google/genai": "^2.13.0",
     "@grpc/grpc-js": "^1.14.4",
     "@langchain/anthropic": "^1.5.2",
-    "@langchain/core": "^1.2.3",
+    "@langchain/core": "^1.2.4",
     "@langchain/openai": "^1.5.5",
     "@mastra/core": "^1.52.1",
     "@openai/agents": "^0.13.5",
