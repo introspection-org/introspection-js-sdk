@@ -291,6 +291,9 @@ importers:
 
   packages/introspection-coding-agent:
     dependencies:
+      '@introspection-sdk/types':
+        specifier: workspace:*
+        version: link:../introspection-types
       '@letta-ai/trajectory':
         specifier: ^0.2.5
         version: 0.2.5

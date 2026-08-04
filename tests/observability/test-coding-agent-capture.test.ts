@@ -418,7 +418,7 @@ describe("span construction", () => {
     }
   });
 
-  it("includes message and tool content only at the full level", async () => {
+  it("includes content only at the full level, as GenAI messages", async () => {
     await seedConsent({
       version: 1,
       enabled: true,
@@ -432,17 +432,57 @@ describe("span construction", () => {
     const root = exporter.kept.find(
       (s) => s.name === "invoke_agent claude-code",
     );
-    expect(String(root!.attributes["gen_ai.input.messages"])).toContain(
-      "List the files.",
+
+    const input = JSON.parse(String(root!.attributes["gen_ai.input.messages"]));
+    expect(input).toEqual([
+      { role: "user", parts: [{ type: "text", content: "List the files." }] },
+    ]);
+
+    const output = JSON.parse(
+      String(root!.attributes["gen_ai.output.messages"]),
     );
 
+    // The tool call keeps its id and structured arguments, so the linkage that
+    // makes a trajectory reconstructable survives the translation.
+    expect(output).toContainEqual({
+      role: "assistant",
+      parts: [
+        {
+          type: "tool_call",
+          id: "toolu_1",
+          name: "Bash",
+          arguments: { command: "ls" },
+        },
+      ],
+    });
+    expect(output).toContainEqual({
+      role: "tool",
+      parts: [
+        { type: "tool_call_response", id: "toolu_1", response: "README.md" },
+      ],
+    });
+  });
+
+  it("keeps tool payloads off the tool span, where nothing encrypts them", async () => {
+    // The processor encrypts a closed set of GenAI attributes. Content on
+    // `gen_ai.tool.call.arguments` / `.result` would land in ClickHouse in the
+    // clear, so it must live in the messages instead — even at `full`.
+    await seedConsent({
+      version: 1,
+      enabled: true,
+      content: "full",
+      targets: ["claude-code"],
+    });
+    const exporter = new RetainingExporter();
+
+    await runCapture(exporter);
+
     const tool = exporter.kept.find((s) => s.name === "execute_tool Bash");
-    expect(String(tool!.attributes["gen_ai.tool.call.arguments"])).toContain(
-      "ls",
-    );
-    expect(String(tool!.attributes["gen_ai.tool.call.result"])).toContain(
-      "README.md",
-    );
+    expect(tool!.attributes["gen_ai.tool.call.arguments"]).toBeUndefined();
+    expect(tool!.attributes["gen_ai.tool.call.result"]).toBeUndefined();
+    // Identity and timing still ride on the span.
+    expect(tool!.attributes["gen_ai.tool.call.id"]).toBe("toolu_1");
+    expect(tool!.attributes["gen_ai.tool.name"]).toBe("Bash");
   });
 });
 
