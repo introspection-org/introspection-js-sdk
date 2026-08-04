@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.16.0](https://github.com/introspection-org/introspection-js-sdk/compare/v0.15.0...v0.16.0) (2026-08-04)
+
+
+### Features
+
+* **browser:** environment-scoped DP sessions ([#286](https://github.com/introspection-org/introspection-js-sdk/issues/286)) ([ce8e759](https://github.com/introspection-org/introspection-js-sdk/commit/ce8e7594d8cc733f78a2b1bbcbc7e9ade4d017a5))
+
 ## [0.15.0](https://github.com/introspection-org/introspection-js-sdk/compare/v0.14.0...v0.15.0) (2026-07-29)
 
 

@@ -95,12 +95,12 @@ export function readTelemetryOverride(
     case "no":
     case "none":
       return { enabled: false, content: "off" };
+    // `metadata` is this level's earlier name, still accepted so a config or a
+    // habit from before the rename keeps working.
     case "on":
     case "1":
     case "true":
     case "yes":
-    // `metadata` was this level's earlier name; still accepted so a config or
-    // habit from before the rename keeps working.
     case "metadata":
       return { enabled: true, content: "on" };
     case "full":

@@ -40,8 +40,8 @@
   "devDependencies": {
     "@anthropic-ai/claude-agent-sdk": "^0.3.220",
     "@anthropic-ai/sdk": "^0.115.0",
-    "@earendil-works/pi-agent-core": "^0.82.1",
-    "@earendil-works/pi-ai": "^0.82.1",
+    "@earendil-works/pi-agent-core": "^0.83.0",
+    "@earendil-works/pi-ai": "^0.83.0",
     "@google/genai": "^2.15.0",
     "@langchain/core": "^1.2.4",
     "@mastra/core": "^1.55.0",

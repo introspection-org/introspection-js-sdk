@@ -26,7 +26,7 @@
  *   getToken: () => token,
  * });
  *
- * await client.connect(); // -> intro_dp_session cookie
+ * await client.connect(); // -> intro_dp_<environment> session cookie
  * const run = await client.tasks.start({
  *   prompt: "Summarize my latest order",
  *   runtime_id: runtimeId,
@@ -54,7 +54,11 @@ export {
   SharesClient,
   type FileUploadBody,
 } from "@introspection-sdk/http";
-export { BrowserHttpClient, type BrowserHttpConfig } from "./http.js";
+export {
+  BrowserHttpClient,
+  ENVIRONMENT_HEADER,
+  type BrowserHttpConfig,
+} from "./http.js";
 export {
   Paginator,
   cursorPaginate,
@@ -66,6 +70,7 @@ export { EventType } from "@introspection-sdk/types";
 export type {
   AGUIEvent,
   BaseEvent,
+  Environment,
   Interrupt,
   Message,
   ResumeEntry,

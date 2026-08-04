@@ -10,6 +10,15 @@ import type { ResumeEntry } from "@ag-ui/core";
 export type Uuid = string;
 export type IsoDate = string;
 
+/**
+ * Environment lane a credential, application, or session belongs to.
+ *
+ * Assigned server-side — an access token carries it as an `environment` claim,
+ * which the DP reads when it establishes a browser session. A client never
+ * chooses its own lane.
+ */
+export type Environment = "development" | "staging" | "production";
+
 export interface Paginated<T> {
   records: T[];
   count: number;

@@ -50,7 +50,8 @@ customer web origins.
    `client.runtimes.resolve("support-agent")`) and supplies the Data
    Plane URL, so the SPA needs no Introspection config of its own.
 2. `client.connect()` redeems the token at the **Data Plane**
-   `POST /v1/oauth/exchange` for the HttpOnly `intro_dp_session` cookie.
+   `POST /v1/oauth/exchange` for an HttpOnly session cookie, named for the
+   token's environment lane (see [Environments](#environments)).
 3. `client.tasks.start({ runtime_id })` and friends ride that cookie against
    the Data Plane for tasks, files, conversations, and shares.
 
@@ -69,7 +70,7 @@ const client = new IntrospectionApiClient({
   getToken: () => token,
 });
 
-await client.connect(); // -> intro_dp_session cookie
+await client.connect(); // -> intro_dp_<environment> session cookie
 
 const run = await client.tasks.start({
   prompt: "Summarize my latest order",
@@ -93,6 +94,48 @@ the interactive idle window before the sandbox is torn down. `0` tears it down
 as soon as it's provisioned; omit to use the deployment default. Clamped to the
 task timeout. When no `runtime_id` is supplied, pass `agent_name` to select a
 named recipe agent instead.
+
+### Environments
+
+The session cookie is named for its environment lane —
+`intro_dp_development`, `intro_dp_staging`, `intro_dp_production` — so an app
+running more than one lane holds a live session for **each** in one browser. A
+single shared name gave the browser one slot, so a second `connect()` evicted
+the first.
+
+**You never pass the environment in.** Your backend picks the lane when it
+mints the token; the Data Plane reads it off the token's claim and returns it,
+and the client sends it back as `x-introspection-environment` so the right
+cookie is resolved:
+
+```typescript
+const dev = new IntrospectionApiClient({
+  dpUrl,
+  getToken: () => mintToken({ environment: "development" }),
+});
+const prod = new IntrospectionApiClient({
+  dpUrl,
+  getToken: () => mintToken({ environment: "production" }),
+});
+
+await Promise.all([dev.connect(), prod.connect()]);
+
+dev.environment; // "development" -> cookie intro_dp_development
+prod.environment; // "production"  -> cookie intro_dp_production
+
+await dev.tasks.list(); // x-introspection-environment: development
+await prod.tasks.list(); // x-introspection-environment: production
+```
+
+`client.environment` is `undefined` until `connect()` resolves. The optional
+`environment` constructor option sends the header before that first exchange;
+if it disagrees with the token, `connect()` throws rather than silently
+preferring one — the token is the authority.
+
+> **Requires a Data Plane that returns `environment` from
+> `/v1/oauth/exchange`.** Against an older deployment `client.environment`
+> stays `undefined`, no header is sent, and a single-lane app keeps working
+> unchanged.
 
 ## Files and conversations
 

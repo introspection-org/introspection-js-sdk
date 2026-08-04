@@ -14,7 +14,10 @@
  *      is needed, resolves its `runtime_id` server-side. The SPA fetches
  *      the token through the `getToken` callback.
  *   2. `connect()` redeems the token at the DP `POST /v1/oauth/exchange`
- *      for the HttpOnly `intro_dp_session` cookie.
+ *      for an HttpOnly session cookie, named for the token's environment lane
+ *      (`intro_dp_development` / `intro_dp_staging` / `intro_dp_production`).
+ *      Distinct names mean an app running several lanes holds a live session
+ *      for each in one browser instead of the newest evicting the last.
  *   3. Every subsequent call rides that cookie (`credentials: "include"`)
  *      — `client.tasks.start({ runtime_id })`, `.get(...)`, run streaming,
  *      etc.
@@ -31,6 +34,7 @@ import {
   FilesClient,
   SharesClient,
 } from "@introspection-sdk/http";
+import type { Environment } from "@introspection-sdk/types";
 import { TasksClient } from "./tasks.js";
 
 type CookieClients = {
@@ -59,11 +63,29 @@ export interface IntrospectionApiClientOptions {
   fetch?: typeof fetch;
   /** Extra headers merged into every DP request. */
   additionalHeaders?: Record<string, string>;
+  /**
+   * Environment lane this client talks to.
+   *
+   * Normally omit it. `connect()` learns the lane from the exchange response,
+   * which the DP derives from the token's own `environment` claim — that is the
+   * authoritative source, and it is why a client cannot simply declare a lane
+   * it has no token for.
+   *
+   * Set it only to send the lane header before the first `connect()` resolves.
+   * If it disagrees with the token, `connect()` throws rather than silently
+   * preferring one.
+   */
+  environment?: Environment;
 }
 
 export class IntrospectionApiClient {
   private readonly fetchImpl: typeof fetch;
   private readonly cookieClients: CookieClients;
+  /**
+   * Lane established by the most recent exchange. Per instance, never module
+   * scope — two clients on one page holding different lanes is the point.
+   */
+  private resolvedEnvironment?: Environment;
 
   constructor(private readonly opts: IntrospectionApiClientOptions) {
     // Native browser `fetch` throws "Illegal invocation" when called as a
@@ -74,11 +96,13 @@ export class IntrospectionApiClient {
     if (!opts.dpUrl) {
       throw new Error("IntrospectionApiClient requires a dpUrl");
     }
+    this.resolvedEnvironment = opts.environment;
     const http = new BrowserHttpClient({
       apiUrl: opts.dpUrl,
       additionalHeaders: opts.additionalHeaders,
       fetch: this.fetchImpl,
       onUnauthorized: () => this.reexchange(),
+      environment: () => this.resolvedEnvironment,
     });
     this.cookieClients = {
       tasks: new TasksClient(http),
@@ -109,8 +133,17 @@ export class IntrospectionApiClient {
   }
 
   /**
-   * Mint a token via `getToken` and redeem it at the DP for the
-   * `intro_dp_session` cookie. Call once before issuing task requests.
+   * Environment lane this client is connected to, once `connect()` has
+   * resolved. `undefined` before the first exchange, unless the constructor
+   * was given one.
+   */
+  get environment(): Environment | undefined {
+    return this.resolvedEnvironment;
+  }
+
+  /**
+   * Mint a token via `getToken` and redeem it at the DP for the session
+   * cookie. Call once before issuing task requests.
    */
   async connect(): Promise<void> {
     await this.exchange();
@@ -131,6 +164,24 @@ export class IntrospectionApiClient {
       },
     );
     if (!res.ok) throw await toApiError(res);
+
+    // The DP echoes the lane it resolved from the token's claim, so the client
+    // learns which cookie it just established without being told. Re-read on
+    // every exchange, including the 401 recovery path: if the broker has since
+    // switched lanes, a stale value would name a cookie we no longer hold.
+    const body = (await res.json().catch(() => ({}))) as {
+      environment?: Environment;
+    };
+    if (body.environment) {
+      if (this.opts.environment && this.opts.environment !== body.environment) {
+        throw new Error(
+          `IntrospectionApiClient is configured for environment ` +
+            `"${this.opts.environment}" but getToken() returned a token for ` +
+            `"${body.environment}".`,
+        );
+      }
+      this.resolvedEnvironment = body.environment;
+    }
   }
 
   /** 401 recovery: re-exchange, reporting success so the call can retry. */
