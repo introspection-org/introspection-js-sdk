@@ -43,21 +43,23 @@ Consent is recorded at `~/.introspection/telemetry.json`:
 {
   "version": 1,
   "enabled": true,
-  "content": "metadata",
+  "content": "on",
   "targets": ["claude-code", "codex"],
   "granted_at": "2026-08-04T10:00:00.000Z"
 }
 ```
 
-`content` is the privacy dial, separate from the on/off decision:
+`content` is the privacy dial, separate from the on/off decision. The three
+names are identical in the config, the `--telemetry` flag, and the installer
+prompt:
 
-| Level      | What leaves the machine                                                                                                |
-| ---------- | ---------------------------------------------------------------------------------------------------------------------- |
-| `none`     | Nothing. Records an explicit decline distinctly from "never asked".                                                    |
-| `metadata` | Span structure, timings, models, tool **names**, turn counts. No prompts, completions, tool arguments, or tool output. |
-| `full`     | The above plus message content and tool payloads. Needed to judge a trajectory the way the eval harness does.          |
+| Level  | What leaves the machine                                                                                                |
+| ------ | ---------------------------------------------------------------------------------------------------------------------- |
+| `none` | Nothing. Records an explicit decline distinctly from "never asked".                                                    |
+| `on`   | Span structure, timings, models, tool **names**, turn counts. No prompts, completions, tool arguments, or tool output. |
+| `full` | The above plus message content and tool payloads. Needed to judge a trajectory the way the eval harness does.          |
 
-The gate is applied at span construction, and at `metadata` the normalizer is
+The gate is applied at span construction, and at `on` the normalizer is
 additionally told to drop tool results outright — so unconsented payloads never
 enter the process, rather than being filtered on the way out.
 
@@ -74,7 +76,7 @@ INTROSPECTION_PLUGIN_TELEMETRY=full   # widen for a support repro
 The override is symmetric on purpose: an off switch the user cannot reach in the
 moment is not a real off switch. It can narrow content freely, but `on` alone
 never widens past what was consented to — with no stored consent it lands on
-`metadata`, never `full`. An unrecognized value is ignored rather than read as
+`on`, never `full`. An unrecognized value is ignored rather than read as
 "on", so a typo cannot silently enable capture.
 
 ## Authentication

@@ -29,16 +29,19 @@ import { readFile } from "node:fs/promises";
  * who wants the platform to see that a workflow stalled does not necessarily
  * want it to see the source code they pasted into the prompt.
  *
- * - `none` — capture nothing. Equivalent to disabled; present so a config can
+ * The three names are the same in the config, the `--telemetry` flag, and the
+ * installer prompt, so there is one vocabulary rather than three.
+ *
+ * - `off` — capture nothing. Equivalent to disabled; present so a config can
  *   record "explicitly declined" distinctly from "never asked".
- * - `metadata` — structure and measurements only: turn and tool span shapes,
+ * - `on` — structure and measurements only: turn and tool span shapes,
  *   timings, tool *names*, models, token counts. No prompts, no completions, no
- *   tool arguments, no tool output. The safe default.
+ *   tool arguments, no tool output. The floor.
  * - `full` — the above plus message content and tool payloads. Needed to judge
  *   a trajectory the way the eval harness does, and only ever reached by an
  *   explicit choice at the consent prompt.
  */
-export type ContentCapture = "none" | "metadata" | "full";
+export type ContentCapture = "off" | "on" | "full";
 
 /** Coding-agent hosts this package can capture. */
 export type CaptureHost = "claude-code" | "codex";
@@ -63,7 +66,7 @@ export const TELEMETRY_CONFIG_VERSION = 1;
 const DISABLED: TelemetryConfig = {
   version: TELEMETRY_CONFIG_VERSION,
   enabled: false,
-  content: "none",
+  content: "off",
   targets: [],
 };
 
@@ -91,16 +94,15 @@ export function readTelemetryOverride(
     case "false":
     case "no":
     case "none":
-      return { enabled: false, content: "none" };
+      return { enabled: false, content: "off" };
     case "on":
     case "1":
     case "true":
     case "yes":
-      // "on" alone does not widen content. It re-enables at whatever level was
-      // consented to; the file supplies that, and metadata is the floor.
-      return { enabled: true };
+    // `metadata` was this level's earlier name; still accepted so a config or
+    // habit from before the rename keeps working.
     case "metadata":
-      return { enabled: true, content: "metadata" };
+      return { enabled: true, content: "on" };
     case "full":
       return { enabled: true, content: "full" };
     default:
@@ -121,9 +123,9 @@ function parseConfig(text: string): TelemetryConfig {
   const content: ContentCapture =
     obj.content === "full"
       ? "full"
-      : obj.content === "metadata"
-        ? "metadata"
-        : "none";
+      : obj.content === "on" || obj.content === "metadata"
+        ? "on"
+        : "off";
 
   const targets = Array.isArray(obj.targets)
     ? obj.targets.filter(
@@ -133,7 +135,7 @@ function parseConfig(text: string): TelemetryConfig {
 
   return {
     version: TELEMETRY_CONFIG_VERSION,
-    enabled: obj.enabled === true && content !== "none",
+    enabled: obj.enabled === true && content !== "off",
     content,
     targets,
     granted_at: typeof obj.granted_at === "string" ? obj.granted_at : undefined,
@@ -163,14 +165,13 @@ export async function resolveTelemetryConfig(
 
   if (override.enabled === false) return DISABLED;
 
-  // An override can re-enable and can *narrow* content, but it cannot widen
-  // past what was consented to unless it names a level explicitly. `on` with no
-  // stored consent lands on metadata — the floor — never on `full`.
-  const content =
-    override.content ?? (stored.enabled ? stored.content : "metadata");
+  // An override names a level outright, and every level it can name is at or
+  // below `full`, so it can re-enable or narrow but never widen past an
+  // explicit choice. With no stored consent it lands on `on` — the floor.
+  const content = override.content ?? (stored.enabled ? stored.content : "on");
   return {
     ...stored,
-    enabled: content !== "none",
+    enabled: content !== "off",
     content,
   };
 }

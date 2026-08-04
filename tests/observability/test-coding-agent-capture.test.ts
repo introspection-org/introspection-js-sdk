@@ -178,7 +178,7 @@ describe("consent gating", () => {
     await seedConsent({
       version: 1,
       enabled: false,
-      content: "none",
+      content: "off",
       targets: [],
     });
     await seedLogin();
@@ -220,7 +220,7 @@ describe("consent gating", () => {
     await seedConsent({
       version: 1,
       enabled: true,
-      content: "metadata",
+      content: "on",
       targets: ["codex"],
     });
     await seedLogin();
@@ -236,7 +236,7 @@ describe("consent gating", () => {
     const config = {
       version: 1,
       enabled: true,
-      content: "metadata" as const,
+      content: "on" as const,
       targets: [],
     };
 
@@ -258,36 +258,36 @@ describe("telemetry override", () => {
     const config = await resolveTelemetryConfig(home);
 
     expect(config.enabled).toBe(false);
-    expect(config.content).toBe("none");
+    expect(config.content).toBe("off");
   });
 
   it("does not widen content past what was consented to", async () => {
     await seedConsent({
       version: 1,
       enabled: true,
-      content: "metadata",
+      content: "on",
       targets: ["claude-code"],
     });
     process.env.INTROSPECTION_PLUGIN_TELEMETRY = "on";
 
     const config = await resolveTelemetryConfig(home);
 
-    expect(config.content).toBe("metadata");
+    expect(config.content).toBe("on");
   });
 
-  it("lands on metadata, never full, when enabling with no stored consent", async () => {
+  it("lands on the floor, never full, when enabling with no stored consent", async () => {
     process.env.INTROSPECTION_PLUGIN_TELEMETRY = "on";
 
     const config = await resolveTelemetryConfig(home);
 
-    expect(config.content).toBe("metadata");
+    expect(config.content).toBe("on");
   });
 
   it("ignores an unrecognized value rather than reading it as on", () => {
     expect(readTelemetryOverride("maybe")).toBeUndefined();
     expect(readTelemetryOverride("off")).toEqual({
       enabled: false,
-      content: "none",
+      content: "off",
     });
     expect(readTelemetryOverride("full")).toEqual({
       enabled: true,
@@ -313,7 +313,7 @@ describe("login profile", () => {
     await seedConsent({
       version: 1,
       enabled: true,
-      content: "metadata",
+      content: "on",
       targets: ["claude-code"],
     });
     const exporter = new RetainingExporter();
@@ -334,7 +334,7 @@ describe("span construction", () => {
     await seedConsent({
       version: 1,
       enabled: true,
-      content: "metadata",
+      content: "on",
       targets: ["claude-code"],
     });
     const exporter = new RetainingExporter();
@@ -379,7 +379,7 @@ describe("span construction", () => {
     await seedConsent({
       version: 1,
       enabled: true,
-      content: "metadata",
+      content: "on",
       targets: ["claude-code"],
     });
     const exporter = new RetainingExporter();
@@ -394,11 +394,11 @@ describe("span construction", () => {
     expect(new Date(startMs).toISOString()).toBe("2026-08-04T10:00:00.000Z");
   });
 
-  it("omits all message and tool content at the metadata level", async () => {
+  it("omits all message and tool content at the `on` level", async () => {
     await seedConsent({
       version: 1,
       enabled: true,
-      content: "metadata",
+      content: "on",
       targets: ["claude-code"],
     });
     const exporter = new RetainingExporter();
@@ -492,7 +492,7 @@ describe("incremental checkpointing", () => {
     await seedConsent({
       version: 1,
       enabled: true,
-      content: "metadata",
+      content: "on",
       targets: ["claude-code"],
     });
   });
