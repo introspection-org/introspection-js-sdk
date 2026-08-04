@@ -1,0 +1,16 @@
+{
+  "session_id": "sess-1",
+  "session_token": "runner-jwt",
+  "deployment": {
+    "endpoint": "https://dp.example.com"
+  },
+  "expires_at": "2025-01-01T01:00:00Z",
+  "runtime_context": {
+    "runtime_id": "11111111-1111-1111-1111-111111111111",
+    "identity": {
+      "user_id": "u_42",
+      "anonymous_id": null,
+      "conversation_id": null
+    }
+  }
+}

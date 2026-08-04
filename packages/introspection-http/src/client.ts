@@ -142,15 +142,23 @@ export class BaseHttpClient {
   }): Promise<T> {
     const url = joinUrl(this.cfg.apiUrl, opts.path) + buildQuery(opts.query);
     let body: BodyInit | undefined;
-    const headers = this.headers(opts.headers);
     const isMultipart = opts.body instanceof FormData;
     if (isMultipart) {
       body = opts.body as FormData;
       // let fetch set the multipart boundary
     } else if (opts.body !== undefined) {
-      headers["Content-Type"] = headers["Content-Type"] ?? "application/json";
       body = JSON.stringify(opts.body);
     }
+    // Resolved per attempt (not once per request) so a retry after an
+    // in-band credential refresh — the transport's `onUnauthorized` hook —
+    // sends the refreshed auth/default headers, not the stale ones.
+    const buildHeaders = (): Record<string, string> => {
+      const headers = this.headers(opts.headers);
+      if (!isMultipart && opts.body !== undefined) {
+        headers["Content-Type"] = headers["Content-Type"] ?? "application/json";
+      }
+      return headers;
+    };
     const expect = opts.expect ?? "json";
     // Auto-retry on a `429 Too Many Requests`, honouring `Retry-After` as the
     // floor of a capped-exponential backoff, so a spammed status poll slows
@@ -166,7 +174,7 @@ export class BaseHttpClient {
         const res = await this.send(() =>
           this.fetchImpl(url, {
             method: opts.method,
-            headers,
+            headers: buildHeaders(),
             body,
             credentials: this.cfg.transport.credentials,
             signal: opts.signal,

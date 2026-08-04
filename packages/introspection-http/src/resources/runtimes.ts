@@ -36,7 +36,11 @@ export type RuntimeRunnerFactory<TRunner> = (
   spec: RunnerSpec,
 ) => TRunner;
 
-function toRunBody(opts?: RunRequest): RuntimeRunRequestBody {
+/**
+ * Serialize a {@link RunRequest} into the CP `/run` request body. The single
+ * implementation shared by this client and the Node `Runner.refresh()` path.
+ */
+export function toRunBody(opts?: RunRequest): RuntimeRunRequestBody {
   if (!opts) return {};
   const out: RuntimeRunRequestBody = {};
   if (opts.identity) out.identity = opts.identity;

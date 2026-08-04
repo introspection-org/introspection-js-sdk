@@ -56,6 +56,7 @@ export type {
   ListReadParams,
   StartParams,
   StreamOptions,
+  TaskRequestOptions,
 } from "@introspection-sdk/http";
 export { HttpClient } from "./http.js";
 export type { ResolvedApiConfig } from "./http.js";
@@ -128,6 +129,7 @@ export type {
   RecipeCreate,
   RecipeUpdate,
   RecipeListParams,
+  BrowserSessionBootstrap,
   RunnerSpec,
   RunnerDeployment,
   RunnerContext,
@@ -195,6 +197,7 @@ export type {
 export {
   ConversationsMethods,
   IntrospectionEventNames,
+  identityKey,
   isKnownEvent,
 } from "@introspection-sdk/types";
 export {

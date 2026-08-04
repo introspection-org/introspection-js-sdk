@@ -29,7 +29,11 @@ export {
   TasksApi,
   TasksClient,
 } from "./resources/tasks.js";
-export type { StartParams, TaskBodyMapper } from "./resources/tasks.js";
+export type {
+  StartParams,
+  TaskBodyMapper,
+  TaskRequestOptions,
+} from "./resources/tasks.js";
 export {
   FileVersionsApi,
   FileVersionsClient,
@@ -62,6 +66,7 @@ export {
   RuntimesClient,
   attachRuntimes,
   isUuid,
+  toRunBody,
 } from "./resources/runtimes.js";
 export type {
   RuntimeHandleFactory,

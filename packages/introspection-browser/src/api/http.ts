@@ -30,6 +30,13 @@ export interface BrowserHttpConfig {
   /** Custom `fetch` (for tests or non-standard runtimes). */
   fetch?: typeof fetch;
   /**
+   * Resolved per request and merged into every request's headers (ahead of
+   * `additionalHeaders`). Lets the session lifecycle inject a header whose
+   * value changes over the transport's lifetime — e.g. `X-Expected-Identity`
+   * after each exchange — without rebuilding the client.
+   */
+  defaultHeaders?: () => Record<string, string>;
+  /**
    * Invoked when a request comes back `401`. Return `true` if the DP
    * session was refreshed and the request should be retried once;
    * `false` to surface the original error.
@@ -49,7 +56,7 @@ export class BrowserHttpClient extends BaseHttpClient {
       fetch: resolveBrowserFetch(cfg.fetch),
       additionalHeaders: cfg.additionalHeaders,
       transport: {
-        authHeaders: () => ({}),
+        authHeaders: () => cfg.defaultHeaders?.() ?? {},
         credentials: "include",
         onUnauthorized: cfg.onUnauthorized,
       },

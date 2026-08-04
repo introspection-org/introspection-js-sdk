@@ -43,9 +43,13 @@ export {
   TasksClient,
   TaskRunsClient,
   RunHandle,
+  type BeforeTaskCreateHook,
   type CreateTaskParams,
   type StartTaskParams,
 } from "./tasks.js";
+export { identityKey } from "@introspection-sdk/types";
+export type { BrowserSessionBootstrap } from "@introspection-sdk/types";
+export type { TaskRequestOptions } from "@introspection-sdk/http";
 export {
   ConversationItemsClient,
   ConversationsClient,

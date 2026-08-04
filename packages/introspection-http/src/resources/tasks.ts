@@ -25,6 +25,16 @@ export type TaskBodyMapper<TCreate> = (
   body: TCreate,
 ) => Record<string, unknown>;
 
+/**
+ * Per-request options threaded through the two create calls
+ * ({@link TasksClient.create} and {@link TaskRunsClient.create}) so a
+ * caller — e.g. the browser session lifecycle — can attach request-scoped
+ * headers such as `Idempotency-Key`. Deliberately minimal: headers only.
+ */
+export interface TaskRequestOptions {
+  headers?: Record<string, string>;
+}
+
 function identityTaskBody<TCreate extends object>(
   body: TCreate,
 ): Record<string, unknown> {
@@ -64,11 +74,16 @@ export class RunHandle {
 export class TaskRunsClient {
   constructor(private readonly http: ResourceHttpClient) {}
 
-  async create(taskId: string, body: TaskRunCreateParams): Promise<RunHandle> {
+  async create(
+    taskId: string,
+    body: TaskRunCreateParams,
+    opts?: TaskRequestOptions,
+  ): Promise<RunHandle> {
     const res = await this.http.request<TaskRunResponse>({
       method: "POST",
       path: `/v1/tasks/${encodeURIComponent(taskId)}/runs`,
       body,
+      ...(opts?.headers ? { headers: opts.headers } : {}),
     });
     return new RunHandle(null, res.run, this);
   }
@@ -130,8 +145,9 @@ export class TasksClient<
   constructor(
     private readonly http: ResourceHttpClient,
     mapTaskBody: TaskBodyMapper<TCreate> = identityTaskBody,
+    runs?: TaskRunsClient,
   ) {
-    this.runs = new TaskRunsClient(http);
+    this.runs = runs ?? new TaskRunsClient(http);
     this.mapTaskBody = mapTaskBody;
   }
 
@@ -153,11 +169,15 @@ export class TasksClient<
     );
   }
 
-  create(body: TCreate): Promise<TaskCreateResponse> {
+  create(
+    body: TCreate,
+    opts?: TaskRequestOptions,
+  ): Promise<TaskCreateResponse> {
     return this.http.request<TaskCreateResponse>({
       method: "POST",
       path: "/v1/tasks",
       body: this.mapTaskBody(body),
+      ...(opts?.headers ? { headers: opts.headers } : {}),
     });
   }
 

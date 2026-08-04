@@ -574,6 +574,39 @@ export interface RunnerSpec {
   runtime_context: RunnerContext;
 }
 
+/**
+ * Wire contract handed from an app backend (holding a Node {@link RunnerSpec})
+ * to its browser frontend so the browser can bootstrap a Data Plane cookie
+ * session. A strict projection of `RunnerSpec` — only what the browser needs:
+ * the DP endpoint to exchange against, the short-lived `session_token` to
+ * redeem there, the session lifetime, and the identity the session is bound
+ * to (so the browser can pin `X-Expected-Identity`).
+ *
+ * The `session_token` is short-lived and must be exchanged immediately at
+ * `POST {deployment.endpoint}/v1/oauth/exchange`; never persist it.
+ */
+export interface BrowserSessionBootstrap {
+  session_id: string;
+  session_token: string;
+  deployment: { endpoint: string };
+  expires_at: IsoDate;
+  runtime_context: { runtime_id: string; identity: RunnerIdentity };
+}
+
+/**
+ * Canonical identity key for a runner-bound session: the first non-null of
+ * `user:{user_id}` / `anon:{anonymous_id}` / `conv:{conversation_id}`, or
+ * `null` for an identity-less (project-scoped) session. Matches the DP's
+ * `identity_key` derivation, and is the value the browser client sends as
+ * `X-Expected-Identity`.
+ */
+export function identityKey(identity: RunnerIdentity): string | null {
+  if (identity.user_id) return `user:${identity.user_id}`;
+  if (identity.anonymous_id) return `anon:${identity.anonymous_id}`;
+  if (identity.conversation_id) return `conv:${identity.conversation_id}`;
+  return null;
+}
+
 export interface RunIdentityInput {
   user_id?: string;
   anonymous_id?: string;

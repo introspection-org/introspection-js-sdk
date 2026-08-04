@@ -1,5 +1,6 @@
 import {
   RunnerExpiredError,
+  type BrowserSessionBootstrap,
   type RunnerContext,
   type RunnerDeployment,
   type RunnerSpec,
@@ -13,6 +14,7 @@ import {
   MetricsApi,
   SharesApi,
   TasksApi,
+  toRunBody,
 } from "@introspection-sdk/http";
 import { HttpClient } from "./http.js";
 import type { IntrospectionClient } from "./client.js";
@@ -25,6 +27,16 @@ import type { IntrospectionClient } from "./client.js";
 export type RunnerSource =
   | { kind: "runtime"; id: Uuid; options?: RunRequest }
   | { kind: "experiment"; id: Uuid; options?: RunRequest };
+
+/** Resource clients bound to one DP endpoint + session token. */
+interface RunnerResources {
+  tasks: TasksApi;
+  files: FilesApi;
+  conversations: ConversationsApi;
+  events: EventsApi;
+  metrics: MetricsApi;
+  shares: SharesApi;
+}
 
 /**
  * Live handle to a Data Plane sandbox. Holds the bearer JWT, the DP
@@ -41,16 +53,9 @@ export type RunnerSource =
  */
 export class Runner {
   private spec: RunnerSpec;
-  private http: HttpClient;
+  private http!: HttpClient;
+  private resources!: RunnerResources;
   private closed = false;
-
-  // Public API surfaces.
-  readonly tasks: TasksApi;
-  readonly files: FilesApi;
-  readonly conversations: ConversationsApi;
-  readonly events: EventsApi;
-  readonly metrics: MetricsApi;
-  readonly shares: SharesApi;
 
   constructor(
     private readonly client: IntrospectionClient,
@@ -58,16 +63,40 @@ export class Runner {
     spec: RunnerSpec,
   ) {
     this.spec = spec;
-    this.http = this.buildHttp();
-    this.tasks = new TasksApi(this.guardedHttp(this.http));
-    this.files = new FilesApi(this.guardedHttp(this.http));
-    this.conversations = new ConversationsApi(this.guardedHttp(this.http));
-    this.events = new EventsApi(this.guardedHttp(this.http));
-    this.metrics = new MetricsApi(this.guardedHttp(this.http));
-    this.shares = new SharesApi(this.guardedHttp(this.http));
+    this.bind();
   }
 
   // --- public accessors ---
+
+  /** `/v1/tasks` operations bound to the current session. */
+  get tasks(): TasksApi {
+    return this.resources.tasks;
+  }
+
+  /** `/v1/files` operations bound to the current session. */
+  get files(): FilesApi {
+    return this.resources.files;
+  }
+
+  /** Read-only `/v1/conversations` projection bound to the current session. */
+  get conversations(): ConversationsApi {
+    return this.resources.conversations;
+  }
+
+  /** Typed `/v1/events` reads bound to the current session. */
+  get events(): EventsApi {
+    return this.resources.events;
+  }
+
+  /** Bounded `/v1/metrics` queries bound to the current session. */
+  get metrics(): MetricsApi {
+    return this.resources.metrics;
+  }
+
+  /** `/v1/shares` read-sharing grants bound to the current session. */
+  get shares(): SharesApi {
+    return this.resources.shares;
+  }
 
   /** DP REST base URL the runner is bound to. */
   get dpEndpoint(): string {
@@ -102,9 +131,45 @@ export class Runner {
   // --- lifecycle ---
 
   /**
+   * Project the held spec into the wire contract an app backend hands its
+   * browser frontend so the browser SDK's `IntrospectionApiClient` (with
+   * `getSession`) can bootstrap a Data Plane cookie session.
+   *
+   * Only the contract fields are serialized — nothing else from the
+   * runner's context leaks to the browser. The embedded `session_token`
+   * is short-lived and must be exchanged immediately by the browser at
+   * `POST {deployment.endpoint}/v1/oauth/exchange`; never store it
+   * (localStorage, cookies, logs) — the exchange trades it for an
+   * HttpOnly session cookie.
+   */
+  browserSession(): BrowserSessionBootstrap {
+    this.assertOpen();
+    const { identity } = this.spec.runtime_context;
+    return {
+      session_id: this.spec.session_id,
+      session_token: this.spec.session_token,
+      deployment: { endpoint: this.spec.deployment.endpoint },
+      expires_at: this.spec.expires_at,
+      runtime_context: {
+        runtime_id: this.spec.runtime_context.runtime_id,
+        identity: {
+          user_id: identity.user_id ?? null,
+          anonymous_id: identity.anonymous_id ?? null,
+          conversation_id: identity.conversation_id ?? null,
+        },
+      },
+    };
+  }
+
+  /**
    * Manual escape hatch: re-call CP `/v1/runtimes/{id}/run` or
    * `/v1/experiments/{id}/run` with the original `RunRequest` and replace
    * this runner's in-memory spec with a fresh one.
+   *
+   * The transport and every resource client (`tasks`, `files`, …) are
+   * rebuilt from the fresh spec, so subsequent calls use the new
+   * `deployment.endpoint` and `session_token` — a refreshed runner is
+   * fully re-bound, not just re-labelled.
    *
    * Not auto-scheduled — in v1 the DP materializer refreshes the
    * underlying access token transparently for the agent-session-backed
@@ -112,19 +177,10 @@ export class Runner {
    * session (e.g. you held a runner across a very long pause).
    */
   async refresh(): Promise<void> {
-    if (this.closed) {
-      throw new RunnerExpiredError({
-        message: "Runner has been closed",
-        status: 401,
-        code: "runner_expired",
-      });
-    }
+    this.assertOpen();
     const fresh = await this.requestFreshSpec();
     this.spec = fresh;
-    // Note: we intentionally don't swap the underlying `http` here — the
-    // constructor-time bindings stay stable for the lifetime of the Runner.
-    // Callers wanting a freshly-bound Runner should call
-    // `client.runtimes(id).run(...)` again.
+    this.bind();
   }
 
   /**
@@ -139,6 +195,20 @@ export class Runner {
   }
 
   // --- internals ---
+
+  /** (Re)build the transport + resource clients from the current spec. */
+  private bind(): void {
+    this.http = this.buildHttp();
+    const guarded = this.guardedHttp(this.http);
+    this.resources = {
+      tasks: new TasksApi(guarded),
+      files: new FilesApi(guarded),
+      conversations: new ConversationsApi(guarded),
+      events: new EventsApi(guarded),
+      metrics: new MetricsApi(guarded),
+      shares: new SharesApi(guarded),
+    };
+  }
 
   private buildHttp(): HttpClient {
     const advanced = this.client.advancedOptions;
@@ -199,15 +269,4 @@ export class Runner {
       body,
     });
   }
-}
-
-function toRunBody(opts?: RunRequest): Record<string, unknown> {
-  if (!opts) return {};
-  const out: Record<string, unknown> = {};
-  if (opts.identity) out.identity = opts.identity;
-  if (opts.caller) out.caller = opts.caller;
-  if (opts.agent_name !== undefined) out.agent_name = opts.agent_name;
-  if (opts.ttl_seconds !== undefined) out.ttl_seconds = opts.ttl_seconds;
-  if (opts.scope !== undefined) out.scope = opts.scope;
-  return out;
 }

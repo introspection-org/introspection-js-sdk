@@ -78,5 +78,29 @@ describe("public export barrels", () => {
     const mod = await import("@introspection-sdk/types");
     expect(mod.IntrospectionAPIError).toBeTypeOf("function");
     expect(mod.apiErrorFromResponse).toBeTypeOf("function");
+    // Identity-key derivation shared by Runner.browserSession consumers and
+    // the browser lifecycle client (BrowserSessionBootstrap is type-only).
+    expect(mod.identityKey).toBeTypeOf("function");
+  });
+
+  it("@introspection-sdk/http", async () => {
+    const mod = await import("@introspection-sdk/http");
+    expect(mod.BaseHttpClient).toBeTypeOf("function");
+    expect(mod.TasksClient).toBeTypeOf("function");
+    // Single shared /run body serializer (was duplicated in the Node Runner).
+    expect(mod.toRunBody).toBeTypeOf("function");
+  });
+
+  it("@introspection-sdk/introspection-browser/api", async () => {
+    const mod = await import("@introspection-sdk/introspection-browser/api");
+    expect(mod.IntrospectionApiClient).toBeTypeOf("function");
+    expect(mod.TasksClient).toBeTypeOf("function");
+    expect(mod.TaskRunsClient).toBeTypeOf("function");
+    expect(mod.identityKey).toBeTypeOf("function");
+  });
+
+  it("@introspection-sdk/introspection-node re-exports identityKey", async () => {
+    const mod = await import("@introspection-sdk/introspection-node");
+    expect(mod.identityKey).toBeTypeOf("function");
   });
 });

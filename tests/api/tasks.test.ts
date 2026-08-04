@@ -98,6 +98,24 @@ describe("TasksApi", () => {
     });
   });
 
+  it("create() threads per-request headers (Idempotency-Key) to the transport", async () => {
+    const http = mockHttp({
+      requestResult: { task: TASK_FIXTURE, run: RUN_FIXTURE },
+    });
+    const api = new TasksApi(http);
+    await api.create(
+      { title: "Test task" },
+      { headers: { "Idempotency-Key": "key-1" } },
+    );
+
+    expect(http.request).toHaveBeenCalledWith({
+      method: "POST",
+      path: "/v1/tasks",
+      body: { title: "Test task" },
+      headers: { "Idempotency-Key": "key-1" },
+    });
+  });
+
   it("create() with fork_share_id includes it in the POST /v1/tasks body", async () => {
     const http = mockHttp({
       requestResult: { task: TASK_FIXTURE, run: RUN_FIXTURE },
@@ -222,6 +240,23 @@ describe("TaskRunsApi", () => {
     });
     expect(handle).toBeInstanceOf(RunHandle);
     expect(handle.task).toBeNull();
+  });
+
+  it("create() threads per-request headers to the transport", async () => {
+    const http = mockHttp({ requestResult: { run: RUN_FIXTURE } });
+    const runs = new TaskRunsApi(http);
+    await runs.create(
+      "task-1",
+      { message: "hello" },
+      { headers: { "Idempotency-Key": "key-2" } },
+    );
+
+    expect(http.request).toHaveBeenCalledWith({
+      method: "POST",
+      path: "/v1/tasks/task-1/runs",
+      body: { message: "hello" },
+      headers: { "Idempotency-Key": "key-2" },
+    });
   });
 
   it("resume() posts AG-UI resume entries to POST /v1/tasks/:id/runs", async () => {

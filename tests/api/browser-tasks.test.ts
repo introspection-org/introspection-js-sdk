@@ -192,6 +192,25 @@ describe("TasksClient", () => {
       method: "POST",
       path: "/v1/tasks",
       body: { prompt: "hello", agent_name: "support-agent" },
+      headers: { "Idempotency-Key": expect.any(String) },
+    });
+  });
+
+  it("create() honours a caller-supplied Idempotency-Key", async () => {
+    const http = mockHttp({
+      requestResult: { task: TASK_FIXTURE, run: RUN_FIXTURE },
+    });
+    const tasks = new TasksClient(http);
+    await tasks.create(
+      { prompt: "hello", agent_name: "support-agent" },
+      { headers: { "Idempotency-Key": "caller-key" } },
+    );
+
+    expect(http.request).toHaveBeenCalledWith({
+      method: "POST",
+      path: "/v1/tasks",
+      body: { prompt: "hello", agent_name: "support-agent" },
+      headers: { "Idempotency-Key": "caller-key" },
     });
   });
 
@@ -215,6 +234,7 @@ describe("TasksClient", () => {
         runtime_id: "rt-1",
         metadata: { source: "web", identity: { user_id: "u_42" } },
       },
+      headers: { "Idempotency-Key": expect.any(String) },
     });
   });
 
@@ -370,6 +390,7 @@ describe("RunHandle / TaskRunsClient", () => {
       method: "POST",
       path: "/v1/tasks/task-1/runs",
       body: { message: "again" },
+      headers: { "Idempotency-Key": expect.any(String) },
     });
     expect(handle).toBeInstanceOf(RunHandle);
     expect(handle.task).toBeNull();
