@@ -512,3 +512,197 @@ describe("IntrospectionApiClient", () => {
     ).toThrow(/requires a dpUrl/);
   });
 });
+
+describe("environment-scoped sessions", () => {
+  // The DP session cookie is named for its environment lane, so an app running
+  // several lanes holds a live session for each in one browser. When more than
+  // one is present the DP cannot tell which a request means, so the client
+  // names it. See cloud docs/design/environment-scoped-browser-sessions.md.
+
+  function exchangeReturning(environment?: string) {
+    return mockFetch({
+      ok: true,
+      json: () => Promise.resolve(environment ? { environment } : {}),
+    });
+  }
+
+  it("learns its lane from the exchange response", async () => {
+    const fetchImpl = exchangeReturning("development");
+    const client = new IntrospectionApiClient({
+      dpUrl: "https://dp.example.com",
+      getToken: () => "t",
+      fetch: fetchImpl as unknown as typeof fetch,
+    });
+
+    expect(client.environment).toBeUndefined();
+    await client.connect();
+    expect(client.environment).toBe("development");
+  });
+
+  it("names its lane on every subsequent request", async () => {
+    const fetchImpl = vi.fn(async (url: string) => ({
+      ok: true,
+      status: 200,
+      headers: new Headers({ "content-type": "application/json" }),
+      json: () =>
+        Promise.resolve(
+          url.endsWith("/v1/oauth/exchange")
+            ? { environment: "staging" }
+            : TASK_FIXTURE,
+        ),
+    }));
+    const client = new IntrospectionApiClient({
+      dpUrl: "https://dp.example.com",
+      getToken: () => "t",
+      fetch: fetchImpl as unknown as typeof fetch,
+    });
+
+    await client.connect();
+    await client.tasks.get("task-1");
+
+    const [, init] = fetchImpl.mock.calls[1];
+    expect(
+      (init.headers as Record<string, string>)["x-introspection-environment"],
+    ).toBe("staging");
+  });
+
+  it("sends no lane header before connect() resolves one", async () => {
+    const fetchImpl = mockFetch({
+      ok: true,
+      json: () => Promise.resolve(TASK_FIXTURE),
+    });
+    const client = new IntrospectionApiClient({
+      dpUrl: "https://dp.example.com",
+      getToken: () => "t",
+      fetch: fetchImpl as unknown as typeof fetch,
+    });
+
+    await client.tasks.get("task-1");
+
+    const [, init] = fetchImpl.mock.calls[0];
+    expect(
+      (init.headers as Record<string, string>)["x-introspection-environment"],
+    ).toBeUndefined();
+  });
+
+  it("keeps two clients on separate lanes", async () => {
+    const dev = new IntrospectionApiClient({
+      dpUrl: "https://dp.example.com",
+      getToken: () => "t",
+      fetch: exchangeReturning("development") as unknown as typeof fetch,
+    });
+    const prod = new IntrospectionApiClient({
+      dpUrl: "https://dp.example.com",
+      getToken: () => "t",
+      fetch: exchangeReturning("production") as unknown as typeof fetch,
+    });
+
+    await Promise.all([dev.connect(), prod.connect()]);
+
+    // Per instance, never module scope — this is the whole feature.
+    expect(dev.environment).toBe("development");
+    expect(prod.environment).toBe("production");
+  });
+
+  it("sends a configured lane before the first exchange", async () => {
+    const fetchImpl = mockFetch({
+      ok: true,
+      json: () => Promise.resolve(TASK_FIXTURE),
+    });
+    const client = new IntrospectionApiClient({
+      dpUrl: "https://dp.example.com",
+      getToken: () => "t",
+      environment: "staging",
+      fetch: fetchImpl as unknown as typeof fetch,
+    });
+
+    await client.tasks.get("task-1");
+
+    const [, init] = fetchImpl.mock.calls[0];
+    expect(
+      (init.headers as Record<string, string>)["x-introspection-environment"],
+    ).toBe("staging");
+  });
+
+  it("throws when the configured lane disagrees with the token", async () => {
+    const client = new IntrospectionApiClient({
+      dpUrl: "https://dp.example.com",
+      getToken: () => "t",
+      environment: "staging",
+      fetch: exchangeReturning("production") as unknown as typeof fetch,
+    });
+
+    // Silently preferring one would send a header for a cookie we do not hold.
+    await expect(client.connect()).rejects.toThrow(
+      /configured for environment "staging".*token for "production"/,
+    );
+  });
+
+  it("refreshes the lane when a 401 re-exchange switches it", async () => {
+    // A broker that switched lanes between exchanges must not leave the client
+    // naming a cookie it no longer holds.
+    const fetchImpl = vi
+      .fn()
+      // connect()
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        headers: new Headers({ "content-type": "application/json" }),
+        json: () => Promise.resolve({ environment: "development" }),
+      })
+      // task GET -> 401
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 401,
+        headers: new Headers({ "content-type": "application/json" }),
+        json: () => Promise.resolve({ detail: "expired" }),
+        text: () => Promise.resolve("expired"),
+      })
+      // re-exchange on a different lane
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        headers: new Headers({ "content-type": "application/json" }),
+        json: () => Promise.resolve({ environment: "production" }),
+      })
+      // retry
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        headers: new Headers({ "content-type": "application/json" }),
+        json: () => Promise.resolve(TASK_FIXTURE),
+      });
+
+    const client = new IntrospectionApiClient({
+      dpUrl: "https://dp.example.com",
+      getToken: () => "t",
+      fetch: fetchImpl as unknown as typeof fetch,
+    });
+
+    await client.connect();
+    expect(client.environment).toBe("development");
+
+    await client.tasks.get("task-1");
+
+    expect(client.environment).toBe("production");
+    const [, retryInit] = fetchImpl.mock.calls[3];
+    expect(
+      (retryInit.headers as Record<string, string>)[
+        "x-introspection-environment"
+      ],
+    ).toBe("production");
+  });
+
+  it("tolerates an exchange response without a lane", async () => {
+    // Migration window: a DP that predates the environment field.
+    const client = new IntrospectionApiClient({
+      dpUrl: "https://dp.example.com",
+      getToken: () => "t",
+      fetch: exchangeReturning() as unknown as typeof fetch,
+    });
+
+    await client.connect();
+
+    expect(client.environment).toBeUndefined();
+  });
+});
