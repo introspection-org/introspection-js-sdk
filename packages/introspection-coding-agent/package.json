@@ -34,6 +34,7 @@
   "dependencies": {
     "@letta-ai/trajectory": "^0.2.5",
     "@opentelemetry/api": "^1.9.1",
+    "@opentelemetry/core": "^2.10.0",
     "@opentelemetry/exporter-trace-otlp-proto": "^0.221.0",
     "@opentelemetry/resources": "^2.10.0",
     "@opentelemetry/sdk-trace-base": "^2.10.0",

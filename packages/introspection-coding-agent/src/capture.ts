@@ -215,9 +215,7 @@ export async function capture(request: CaptureRequest): Promise<CaptureResult> {
       content: config.content,
       turn: state.turn,
     }));
-    // `shutdown` flushes the SimpleSpanProcessor and awaits the export. The
-    // checkpoint below is only reached if this resolves, which is what makes a
-    // failed export cost a duplicate turn rather than a lost one.
+    // `shutdown` flushes the SimpleSpanProcessor and drains the export.
     await tracing.provider.shutdown();
   } catch (error) {
     return {
@@ -225,6 +223,16 @@ export async function capture(request: CaptureRequest): Promise<CaptureResult> {
       spanCount,
       detail: error instanceof Error ? error.message : String(error),
     };
+  }
+
+  // `shutdown()` resolving is NOT evidence of delivery. OTel routes export
+  // errors to its global error handler and resolves anyway, so a dead collector
+  // is indistinguishable from success at this point — which would advance the
+  // checkpoint past a turn that never arrived and skip it permanently. The
+  // tracked result code is the only real signal, so it gates the checkpoint.
+  const failure = tracing.exportFailure();
+  if (failure) {
+    return { outcome: "export-failed", spanCount, detail: failure.message };
   }
 
   await writeCaptureState(statePath, {

@@ -13,8 +13,9 @@ import { join } from "node:path";
 import {
   InMemorySpanExporter,
   type ReadableSpan,
+  type SpanExporter,
 } from "@opentelemetry/sdk-trace-base";
-import type { ExportResult } from "@opentelemetry/core";
+import { ExportResultCode, type ExportResult } from "@opentelemetry/core";
 
 import { capture } from "../../packages/introspection-coding-agent/src/capture";
 import {
@@ -497,6 +498,40 @@ describe("incremental checkpointing", () => {
     expect(
       exporter.kept.filter((s) => s.name.startsWith("chat ")),
     ).toHaveLength(1);
+  });
+
+  it("does not advance the checkpoint when the export fails", async () => {
+    // The guarantee under test: a failed delivery must cost a re-sent turn, not
+    // a silently skipped one. OTel makes this easy to get wrong — export errors
+    // go to its global error handler and `shutdown()` resolves regardless, so a
+    // dead collector looks exactly like success unless the result code is read.
+    const failing: SpanExporter = {
+      export(_spans, resultCallback) {
+        resultCallback({
+          code: ExportResultCode.FAILED,
+          error: new Error("collector unreachable"),
+        });
+      },
+      shutdown: () => Promise.resolve(),
+      forceFlush: () => Promise.resolve(),
+    };
+
+    const failed = await capture({
+      host: "claude-code",
+      sessionId: SESSION_ID,
+      transcriptPath,
+      home,
+      exporterOverride: failing,
+    });
+
+    expect(failed.outcome).toBe("export-failed");
+
+    // The same records must still be there for the next run.
+    const retry = new RetainingExporter();
+    const result = await runCapture(retry);
+
+    expect(result.outcome).toBe("exported");
+    expect(retry.kept.length).toBeGreaterThan(0);
   });
 
   it("ignores a trailing partially-written line", async () => {
