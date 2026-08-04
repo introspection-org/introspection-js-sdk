@@ -55,7 +55,7 @@ prompt:
 
 | Level  | What leaves the machine                                                                                                |
 | ------ | ---------------------------------------------------------------------------------------------------------------------- |
-| `none` | Nothing. Records an explicit decline distinctly from "never asked".                                                    |
+| `off`  | Nothing. Records an explicit decline distinctly from "never asked".                                                    |
 | `on`   | Span structure, timings, models, tool **names**, turn counts. No prompts, completions, tool arguments, or tool output. |
 | `full` | The above plus message content and tool payloads. Needed to judge a trajectory the way the eval harness does.          |
 
@@ -69,15 +69,17 @@ enter the process, rather than being filtered on the way out.
 
 ```bash
 INTROSPECTION_PLUGIN_TELEMETRY=off    # disable without editing the file
-INTROSPECTION_PLUGIN_TELEMETRY=on     # re-enable at the consented level
-INTROSPECTION_PLUGIN_TELEMETRY=full   # widen for a support repro
+INTROSPECTION_PLUGIN_TELEMETRY=on     # structure and timings only
+INTROSPECTION_PLUGIN_TELEMETRY=full   # include content, for a support repro
 ```
 
 The override is symmetric on purpose: an off switch the user cannot reach in the
-moment is not a real off switch. It can narrow content freely, but `on` alone
-never widens past what was consented to — with no stored consent it lands on
-`on`, never `full`. An unrecognized value is ignored rather than read as
-"on", so a typo cannot silently enable capture.
+moment is not a real off switch. Each value names a level outright, and every
+level it can name is at or below `full`, so an override can re-enable or narrow
+but never widen past an explicit choice — with no stored consent it lands on
+`on`, never `full`. An unrecognized value is ignored rather than read as "on",
+so a typo cannot silently enable capture. `metadata` is still accepted as `on`'s
+former name.
 
 ## Authentication
 
