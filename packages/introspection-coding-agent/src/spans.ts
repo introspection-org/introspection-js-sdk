@@ -196,14 +196,16 @@ export function emitTurnSpans(
     "gen_ai.response.id": ctx.responseId,
     "introspection.plugin.turn": ctx.turn,
   };
-  const gitBranch =
-    ctx.gitBranch ?? (meta?.role === "meta" ? meta.git_branch : undefined);
-  const cwd = ctx.cwd ?? (meta?.role === "meta" ? meta.cwd : undefined);
-  if (gitBranch) {
-    turnAttrs["introspection.plugin.git_branch"] = gitBranch;
-  }
-  if (cwd) {
-    turnAttrs["introspection.plugin.cwd"] = cwd;
+  if (captureContent) {
+    const gitBranch =
+      ctx.gitBranch ?? (meta?.role === "meta" ? meta.git_branch : undefined);
+    const cwd = ctx.cwd ?? (meta?.role === "meta" ? meta.cwd : undefined);
+    if (gitBranch) {
+      turnAttrs["introspection.plugin.git_branch"] = gitBranch;
+    }
+    if (cwd) {
+      turnAttrs["introspection.plugin.cwd"] = cwd;
+    }
   }
 
   const turnSpan = tracer.startSpan(`invoke_agent ${ctx.hostInfo.host}`, {

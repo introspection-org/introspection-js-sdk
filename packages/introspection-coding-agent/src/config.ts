@@ -9,14 +9,15 @@
  *
  * Precedence, highest first:
  *
- *   1. `INTROSPECTION_PLUGIN_TELEMETRY` — an env override, so a session can be
- *      turned off (or on, for a support repro) without rewriting the file.
- *   2. `~/.introspection/telemetry.json` — the recorded install-time decision.
+ *   1. `~/.introspection/telemetry.json` — the recorded install-time decision.
+ *      An enabled stored grant is always required.
+ *   2. `INTROSPECTION_PLUGIN_TELEMETRY` — a session-local override that may
+ *      narrow or disable the stored grant, never create or widen one.
  *   3. Disabled.
  *
- * The override is deliberately symmetric. An "off" switch that a user cannot
- * reach in the moment is not a real off switch, and an "on" switch that
- * requires re-running an installer makes support repros hostile.
+ * The override is deliberately one-way. An "off" switch that a user cannot
+ * reach in the moment is not a real off switch, while enabling or broadening
+ * capture remains an explicit persisted-consent operation.
  */
 import { homedir } from "node:os";
 import { join } from "node:path";
@@ -164,15 +165,15 @@ export async function resolveTelemetryConfig(
   if (!override) return stored;
 
   if (override.enabled === false) return DISABLED;
+  if (!stored.enabled) return stored;
 
   // Environment configuration may disable or narrow a stored grant, but it is
   // not a consent surface of its own. In particular, `full` must never promote
   // a missing or metadata-only grant into content capture.
-  const storedContent = stored.enabled ? stored.content : "on";
   const content =
-    override.content === "full" && storedContent !== "full"
-      ? storedContent
-      : (override.content ?? storedContent);
+    override.content === "full" && stored.content !== "full"
+      ? stored.content
+      : (override.content ?? stored.content);
   return {
     ...stored,
     enabled: content !== "off",

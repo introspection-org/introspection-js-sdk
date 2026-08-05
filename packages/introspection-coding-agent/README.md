@@ -58,14 +58,13 @@ Consent is recorded at `~/.introspection/telemetry.json`:
 ```
 
 `content` is the privacy dial, separate from the on/off decision. The three
-names are identical in the config, the `--telemetry` flag, and the installer
-prompt:
+names are identical in the config and the `--telemetry` flag:
 
-| Level  | What leaves the machine                                                                                                |
-| ------ | ---------------------------------------------------------------------------------------------------------------------- |
-| `off`  | Nothing. Records an explicit decline distinctly from "never asked".                                                    |
-| `on`   | Span structure, timings, models, tool **names**, turn counts. No prompts, completions, tool arguments, or tool output. |
-| `full` | The above plus message content and tool payloads. Needed to judge a trajectory the way the eval harness does.          |
+| Level  | What leaves the machine                                                                                                                               |
+| ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `off`  | Nothing. Records an explicit decline distinctly from "never asked".                                                                                   |
+| `on`   | Span structure, timings, models, tool **names**, turn counts. No prompts, completions, tool arguments, tool output, working directory, or Git branch. |
+| `full` | The above plus message content, tool payloads, working directory, and Git branch. Needed to judge a trajectory the way the eval harness does.         |
 
 The gate is applied at span construction, and at `on` the normalizer is
 additionally told to drop tool results outright — so unconsented payloads never
@@ -73,21 +72,17 @@ enter the process, rather than being filtered on the way out.
 
 ### Override
 
-`INTROSPECTION_PLUGIN_TELEMETRY` overrides the file for one session:
+`INTROSPECTION_PLUGIN_TELEMETRY` can narrow the stored choice for one session:
 
 ```bash
 INTROSPECTION_PLUGIN_TELEMETRY=off    # disable without editing the file
-INTROSPECTION_PLUGIN_TELEMETRY=on     # structure and timings only
-INTROSPECTION_PLUGIN_TELEMETRY=full   # include content, for a support repro
+INTROSPECTION_PLUGIN_TELEMETRY=on     # omit content from a stored full grant
 ```
 
-The override is symmetric on purpose: an off switch the user cannot reach in the
-moment is not a real off switch. Each value names a level outright, and every
-level it can name is at or below `full`, so an override can re-enable or narrow
-but never widen past an explicit choice — with no stored consent it lands on
-`on`, never `full`. An unrecognized value is ignored rather than read as "on",
-so a typo cannot silently enable capture. `metadata` is still accepted as `on`'s
-former name.
+An enabled stored grant is always required. The override can disable capture or
+narrow `full` to `on`; it cannot enable capture or widen `on` to `full`. An
+unrecognized value is ignored rather than read as "on", so a typo cannot
+silently enable capture. `metadata` is still accepted as `on`'s former name.
 
 ## Authentication
 
