@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.18.1](https://github.com/introspection-org/introspection-js-sdk/compare/v0.18.0...v0.18.1) (2026-08-05)
+
+
+### Bug Fixes
+
+* **coding-agent:** enforce capture consent boundaries ([#293](https://github.com/introspection-org/introspection-js-sdk/issues/293)) ([fd6d520](https://github.com/introspection-org/introspection-js-sdk/commit/fd6d5203a0faf591a1c00a48321cc8e1e4d520ce))
+
 ## [0.18.0](https://github.com/introspection-org/introspection-js-sdk/compare/v0.17.0...v0.18.0) (2026-08-05)
 
 
