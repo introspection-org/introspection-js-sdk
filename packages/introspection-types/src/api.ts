@@ -141,8 +141,15 @@ export interface Task {
 export interface TaskFileRef {
   /** Files API file id. */
   id: Uuid;
-  /** Workspace-relative name the file is mounted as (e.g. `spec.md`). */
-  name: string;
+  /**
+   * Workspace-relative path to mount the file at (e.g. `spec.md`,
+   * `specs/senior-jd.pdf`).
+   *
+   * Optional — omit it and the file is mounted under its own name. Supply it
+   * only to override: rename, or nest it in a subdirectory. Must be relative
+   * and must not traverse outside the task's files directory.
+   */
+  name?: string;
   size_bytes?: number;
 }
 
@@ -154,8 +161,8 @@ export interface TaskCreateParams {
   repository_id?: Uuid;
   metadata?: Record<string, unknown>;
   /**
-   * Files to attach to this task. Materialized into the agent's workspace and
-   * announced to it before the first turn runs.
+   * Files to attach to this task, by id. Materialized into the agent's
+   * workspace and announced to it before the first turn runs.
    *
    * Equivalent to setting `metadata.conversation_files.uploads`, which stays
    * supported; prefer this field.
