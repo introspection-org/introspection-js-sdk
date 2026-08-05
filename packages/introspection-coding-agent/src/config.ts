@@ -165,10 +165,14 @@ export async function resolveTelemetryConfig(
 
   if (override.enabled === false) return DISABLED;
 
-  // An override names a level outright, and every level it can name is at or
-  // below `full`, so it can re-enable or narrow but never widen past an
-  // explicit choice. With no stored consent it lands on `on` — the floor.
-  const content = override.content ?? (stored.enabled ? stored.content : "on");
+  // Environment configuration may disable or narrow a stored grant, but it is
+  // not a consent surface of its own. In particular, `full` must never promote
+  // a missing or metadata-only grant into content capture.
+  const storedContent = stored.enabled ? stored.content : "on";
+  const content =
+    override.content === "full" && storedContent !== "full"
+      ? storedContent
+      : (override.content ?? storedContent);
   return {
     ...stored,
     enabled: content !== "off",

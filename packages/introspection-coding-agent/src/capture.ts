@@ -77,6 +77,16 @@ export interface CaptureRequest {
    * while a transcript is still being appended.
    */
   finalizeTrailingTurn?: boolean;
+  /** Stops a timed-out hook from committing a late checkpoint. */
+  signal?: AbortSignal;
+}
+
+function abortedResult(spanCount?: number): CaptureResult {
+  return {
+    outcome: "export-failed",
+    ...(spanCount === undefined ? {} : { spanCount }),
+    detail: "capture deadline exceeded; deferred to next turn",
+  };
 }
 
 /**
@@ -143,7 +153,9 @@ async function readNewLines(
  * a machine that never opted in does no transcript I/O at all.
  */
 export async function capture(request: CaptureRequest): Promise<CaptureResult> {
+  if (request.signal?.aborted) return abortedResult();
   const config = request.config ?? (await resolveTelemetryConfig(request.home));
+  if (request.signal?.aborted) return abortedResult();
   if (!config.enabled) {
     return {
       outcome: "no-consent",
@@ -163,6 +175,7 @@ export async function capture(request: CaptureRequest): Promise<CaptureResult> {
     request.transcriptPath,
     request.home,
   );
+  if (request.signal?.aborted) return abortedResult();
   if (!activation) {
     return {
       outcome: "not-activated",
@@ -171,6 +184,7 @@ export async function capture(request: CaptureRequest): Promise<CaptureResult> {
   }
 
   const profile = await loadLoginProfile(request.home);
+  if (request.signal?.aborted) return abortedResult();
   if (!profile) {
     return {
       outcome: "not-logged-in",
@@ -191,6 +205,7 @@ export async function capture(request: CaptureRequest): Promise<CaptureResult> {
     state.byteOffset,
     activation.byteOffset,
   );
+  if (request.signal?.aborted) return abortedResult();
   if (!chunk) {
     return {
       outcome: "transcript-unreadable",
@@ -305,6 +320,10 @@ export async function capture(request: CaptureRequest): Promise<CaptureResult> {
     };
   }
 
+  // The hook deadline may win while the exporter is still shutting down. Never
+  // advance past a turn that the bounded hook invocation reported as deferred.
+  if (request.signal?.aborted) return abortedResult(spanCount);
+
   // `shutdown()` resolving is NOT evidence of delivery. OTel routes export
   // errors to its global error handler and resolves anyway, so a dead collector
   // is indistinguishable from success at this point — which would advance the
@@ -314,6 +333,8 @@ export async function capture(request: CaptureRequest): Promise<CaptureResult> {
   if (failure) {
     return { outcome: "export-failed", spanCount, detail: failure.message };
   }
+
+  if (request.signal?.aborted) return abortedResult(spanCount);
 
   const lastTurn = completeTurns[completeTurns.length - 1]!;
   await writeCaptureState(statePath, {

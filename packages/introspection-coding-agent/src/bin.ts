@@ -16,6 +16,15 @@ import { readStdin, runHook } from "./hook.js";
 import { requestCaptureActivationFromEnvironment } from "./activation.js";
 import type { CaptureHost } from "./config.js";
 
+function writeOutput(
+  stream: NodeJS.WriteStream,
+  content: string,
+): Promise<void> {
+  return new Promise((resolve) => {
+    stream.write(content, () => resolve());
+  });
+}
+
 function parseArgs(argv: string[]): {
   host?: CaptureHost;
   dryRun: boolean;
@@ -56,7 +65,8 @@ async function main(): Promise<void> {
   if (requestActivation) {
     const result = await requestCaptureActivationFromEnvironment();
     if (debug) {
-      process.stderr.write(
+      await writeOutput(
+        process.stderr,
         `introspection-capture: activation=${result.outcome}${result.detail ? ` detail=${result.detail}` : ""}\n`,
       );
     }
@@ -69,26 +79,32 @@ async function main(): Promise<void> {
     if (result.spanCount !== undefined) parts.push(`spans=${result.spanCount}`);
     if (result.bytesRead !== undefined) parts.push(`bytes=${result.bytesRead}`);
     if (result.detail) parts.push(`detail=${result.detail}`);
-    process.stderr.write(`introspection-capture: ${parts.join(" ")}\n`);
+    await writeOutput(
+      process.stderr,
+      `introspection-capture: ${parts.join(" ")}\n`,
+    );
   }
 
   // Codex lifecycle hooks parse stdout as JSON. Keep this response minimal and
   // emit it only for hook invocations: the reference loader's activation
   // request must remain invisible to the user and model.
-  process.stdout.write("{}\n");
+  await writeOutput(process.stdout, "{}\n");
 }
 
 // The catch is the last line of the fail-open guarantee: even a bug in the
 // argument parsing or an unexpected rejection must not surface to the host.
 main()
-  .catch(() => {
+  .catch(async () => {
     // Preserve the valid hook protocol even when capture fails unexpectedly.
     // Activation requests are loader side effects, not lifecycle hooks, and
     // therefore remain stdout-silent on failure as well as success.
     if (!process.argv.slice(2).includes("--request-activation")) {
-      process.stdout.write("{}\n");
+      await writeOutput(process.stdout, "{}\n");
     }
   })
   .finally(() => {
-    process.exitCode = 0;
+    // This executable is the process boundary. `runHook` has already preserved
+    // checkpoint safety; terminate now so an OTLP socket abandoned at the hook
+    // deadline cannot keep Claude Code or Codex waiting for its own timeout.
+    process.exit(0);
   });

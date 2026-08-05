@@ -76,6 +76,19 @@ class FailingRetainingExporter extends RetainingExporter {
   }
 }
 
+class DelayedRetainingExporter extends RetainingExporter {
+  constructor(private readonly delayMs: number) {
+    super();
+  }
+
+  override export(
+    spans: ReadableSpan[],
+    resultCallback: (result: ExportResult) => void,
+  ): void {
+    setTimeout(() => super.export(spans, resultCallback), this.delayMs);
+  }
+}
+
 const SESSION_ID = "11111111-2222-3333-4444-555555555555";
 
 /** A minimal but realistic Claude Code transcript: one turn with one tool call. */
@@ -339,6 +352,30 @@ describe("telemetry override", () => {
 
     const config = await resolveTelemetryConfig(home);
 
+    expect(config.content).toBe("on");
+  });
+
+  it("does not let a full override widen metadata-only consent", async () => {
+    await seedConsent({
+      version: 1,
+      enabled: true,
+      content: "on",
+      targets: ["claude-code"],
+    });
+    process.env.INTROSPECTION_PLUGIN_TELEMETRY = "full";
+
+    const config = await resolveTelemetryConfig(home);
+
+    expect(config.enabled).toBe(true);
+    expect(config.content).toBe("on");
+  });
+
+  it("does not let a full override create consent", async () => {
+    process.env.INTROSPECTION_PLUGIN_TELEMETRY = "full";
+
+    const config = await resolveTelemetryConfig(home);
+
+    expect(config.enabled).toBe(true);
     expect(config.content).toBe("on");
   });
 
@@ -915,6 +952,49 @@ describe("shared per-session activation", () => {
       home,
     );
     expect(marker?.nativeTurnKey).toBe("claude-user-turn-1");
+  });
+
+  it("does not advance the checkpoint after the hook deadline", async () => {
+    await seedConsent({
+      version: 1,
+      enabled: true,
+      content: "full",
+      targets: ["claude-code"],
+    });
+    await seedLogin();
+    await requestCaptureActivation({
+      host: "claude-code",
+      sessionId: SESSION_ID,
+      home,
+    });
+
+    const result = await runHook(
+      JSON.stringify({
+        hook_event_name: "Stop",
+        session_id: SESSION_ID,
+        transcript_path: transcriptPath,
+      }),
+      "claude-code",
+      {
+        home,
+        deadlineMs: 5,
+        exporterOverride: new DelayedRetainingExporter(50),
+      },
+    );
+
+    expect(result.outcome).toBe("export-failed");
+    expect(result.detail).toContain("exceeded 5ms");
+
+    // Let the abandoned exporter finish. The aborted capture must still leave
+    // the turn unread so the next lifecycle hook retries it.
+    await new Promise((resolve) => setTimeout(resolve, 75));
+    expect(
+      (
+        await readCaptureState(
+          captureStatePath("claude-code", SESSION_ID, home),
+        )
+      ).byteOffset,
+    ).toBe(0);
   });
 
   it("discards an unbound Claude request at the next session start", async () => {

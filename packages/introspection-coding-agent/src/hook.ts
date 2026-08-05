@@ -12,6 +12,8 @@
  * collector, and an outright crash all resolve to "do nothing, exit 0". Capture
  * that degrades a coding session is worse than no capture.
  */
+import type { SpanExporter } from "@opentelemetry/sdk-trace-base";
+
 import { capture, type CaptureResult } from "./capture.js";
 import {
   clearCaptureActivationRequest,
@@ -112,15 +114,19 @@ export async function readStdin(
 /**
  * Run capture for one hook event, bounded by {@link HOOK_DEADLINE_MS}.
  *
- * The deadline races the capture rather than cancelling it — there is no safe
- * cancellation point mid-export, and abandoning the promise is harmless because
- * the checkpoint only advances on a completed flush. Worst case the process
- * exits with an export in flight and that turn is re-sent next time.
+ * The deadline aborts logical capture so a late export cannot advance the
+ * checkpoint. The standalone hook executable also terminates after this result,
+ * which prevents an exporter socket from extending the host's hook latency.
  */
 export async function runHook(
   input: string,
   hostHint?: CaptureHost,
-  options: { dryRun?: boolean; deadlineMs?: number; home?: string } = {},
+  options: {
+    dryRun?: boolean;
+    deadlineMs?: number;
+    home?: string;
+    exporterOverride?: SpanExporter;
+  } = {},
 ): Promise<CaptureResult> {
   let payload: unknown;
   try {
@@ -153,6 +159,7 @@ export async function runHook(
   }
 
   const deadline = options.deadlineMs ?? HOOK_DEADLINE_MS;
+  const controller = new AbortController();
   let timer: NodeJS.Timeout | undefined;
   try {
     return await Promise.race([
@@ -188,20 +195,21 @@ export async function runHook(
           transcriptPath: event.transcriptPath,
           dryRun: options.dryRun,
           home: options.home,
+          exporterOverride: options.exporterOverride,
           // Both supported hosts invoke this command only from turn-completion
           // hooks (Claude Stop/SessionEnd; Codex Stop/SessionEnd).
           finalizeTrailingTurn: true,
+          signal: controller.signal,
         });
       })(),
       new Promise<CaptureResult>((resolve) => {
-        timer = setTimeout(
-          () =>
-            resolve({
-              outcome: "export-failed",
-              detail: `capture exceeded ${deadline}ms; deferred to next turn`,
-            }),
-          deadline,
-        );
+        timer = setTimeout(() => {
+          controller.abort();
+          resolve({
+            outcome: "export-failed",
+            detail: `capture exceeded ${deadline}ms; deferred to next turn`,
+          });
+        }, deadline);
         // Do not hold the event loop open on behalf of the deadline itself.
         timer.unref?.();
       }),
