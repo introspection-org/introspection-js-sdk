@@ -1,0 +1,53 @@
+{
+  "name": "@introspection-sdk/coding-agent",
+  "version": "0.1.0",
+  "license": "Apache-2.0",
+  "description": "Opt-in OTEL capture of Claude Code and Codex sessions for the Introspection plugin — normalizes host transcripts and exports GenAI spans",
+  "engines": {
+    "node": ">=22"
+  },
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./hook": {
+      "types": "./dist/hook.d.ts",
+      "default": "./dist/hook.js"
+    }
+  },
+  "bin": {
+    "introspection-capture": "./dist/bin.js"
+  },
+  "files": [
+    "dist/"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "check-types": "tsc --noEmit",
+    "lint": "eslint . --max-warnings 0",
+    "prepare": "tsc"
+  },
+  "dependencies": {
+    "@introspection-sdk/types": "workspace:*",
+    "@letta-ai/trajectory": "^0.2.5",
+    "@opentelemetry/api": "^1.9.1",
+    "@opentelemetry/core": "^2.10.0",
+    "@opentelemetry/exporter-trace-otlp-proto": "^0.221.0",
+    "@opentelemetry/resources": "^2.10.0",
+    "@opentelemetry/sdk-trace-base": "^2.10.0",
+    "@opentelemetry/semantic-conventions": "^1.39.0",
+    "https-proxy-agent": "^7.0.6",
+    "proxy-from-env": "^2.1.0"
+  },
+  "devDependencies": {
+    "@repo/eslint-config": "workspace:*",
+    "@repo/typescript-config": "workspace:*",
+    "@types/node": "^22.20.1",
+    "eslint": "^9.39.5",
+    "typescript": "5.9.3"
+  }
+}
