@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.17.0](https://github.com/introspection-org/introspection-js-sdk/compare/v0.16.0...v0.17.0) (2026-08-05)
+
+
+### Features
+
+* **coding-agent:** add opt-in Claude Code / Codex session capture ([#287](https://github.com/introspection-org/introspection-js-sdk/issues/287)) ([624deb1](https://github.com/introspection-org/introspection-js-sdk/commit/624deb17426379278575e932cfe412104c15616a))
+
 ## [0.16.0](https://github.com/introspection-org/introspection-js-sdk/compare/v0.15.0...v0.16.0) (2026-08-04)
 
 
