@@ -347,12 +347,13 @@ describe("telemetry override", () => {
     expect(config.content).toBe("on");
   });
 
-  it("lands on the floor, never full, when enabling with no stored consent", async () => {
+  it("does not let an on override create consent", async () => {
     process.env.INTROSPECTION_PLUGIN_TELEMETRY = "on";
 
     const config = await resolveTelemetryConfig(home);
 
-    expect(config.content).toBe("on");
+    expect(config.enabled).toBe(false);
+    expect(config.content).toBe("off");
   });
 
   it("does not let a full override widen metadata-only consent", async () => {
@@ -375,8 +376,8 @@ describe("telemetry override", () => {
 
     const config = await resolveTelemetryConfig(home);
 
-    expect(config.enabled).toBe(true);
-    expect(config.content).toBe("on");
+    expect(config.enabled).toBe(false);
+    expect(config.content).toBe("off");
   });
 
   it("ignores an unrecognized value rather than reading it as on", () => {
@@ -452,8 +453,8 @@ describe("span construction", () => {
     expect(root!.attributes["gen_ai.response.id"]).toBe(
       responseIdForTurn("claude-code", SESSION_ID, "claude-user-turn-1"),
     );
-    expect(root!.attributes["introspection.plugin.cwd"]).toBe("/repo");
-    expect(root!.attributes["introspection.plugin.git_branch"]).toBe("main");
+    expect(root!.attributes["introspection.plugin.cwd"]).toBeUndefined();
+    expect(root!.attributes["introspection.plugin.git_branch"]).toBeUndefined();
 
     // The plugin discriminator and the host version are the correlation keys the
     // platform reads; assert them explicitly rather than trusting the resource.
@@ -537,6 +538,9 @@ describe("span construction", () => {
     const root = exporter.kept.find(
       (s) => s.name === "invoke_agent claude-code",
     );
+
+    expect(root!.attributes["introspection.plugin.cwd"]).toBe("/repo");
+    expect(root!.attributes["introspection.plugin.git_branch"]).toBe("main");
 
     const input = JSON.parse(String(root!.attributes["gen_ai.input.messages"]));
     expect(input).toEqual([
