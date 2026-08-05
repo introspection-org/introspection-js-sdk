@@ -131,6 +131,9 @@ export async function runHook(
         sessionId: event.sessionId,
         transcriptPath: event.transcriptPath,
         dryRun: options.dryRun,
+        // Both supported hosts invoke this command only from turn-completion
+        // hooks (Claude Stop/SessionEnd; Codex Stop).
+        finalizeTrailingTurn: true,
       }),
       new Promise<CaptureResult>((resolve) => {
         timer = setTimeout(

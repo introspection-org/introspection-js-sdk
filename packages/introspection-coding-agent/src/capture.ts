@@ -30,6 +30,7 @@ import {
   readCaptureState,
   writeCaptureState,
 } from "./state.js";
+import { responseIdForTurn, segmentTranscript } from "./turns.js";
 
 /** Why a capture run did nothing, or what it did. */
 export type CaptureOutcome =
@@ -68,6 +69,12 @@ export interface CaptureRequest {
   home?: string;
   /** Pre-resolved consent, so a caller that already resolved it need not re-read. */
   config?: TelemetryConfig;
+  /**
+   * Whether the host hook establishes that the trailing native turn finished.
+   * Production Stop/SessionEnd hooks do; tests and other callers can set false
+   * while a transcript is still being appended.
+   */
+  finalizeTrailingTurn?: boolean;
 }
 
 /**
@@ -87,7 +94,9 @@ export interface CaptureRequest {
 async function readNewLines(
   path: string,
   offset: number,
-): Promise<{ text: string; consumed: number } | undefined> {
+): Promise<
+  { text: string; consumed: number; startByteOffset: number } | undefined
+> {
   let handle;
   try {
     const info = await stat(path);
@@ -95,7 +104,9 @@ async function readNewLines(
     // longer describes this file, so start over rather than read from a stale
     // offset into unrelated bytes.
     const start = info.size < offset ? 0 : offset;
-    if (info.size <= start) return { text: "", consumed: 0 };
+    if (info.size <= start) {
+      return { text: "", consumed: 0, startByteOffset: start };
+    }
 
     handle = await open(path, "r");
     const length = info.size - start;
@@ -103,10 +114,16 @@ async function readNewLines(
     await handle.read(buffer, 0, length, start);
 
     const lastNewline = buffer.lastIndexOf(0x0a);
-    if (lastNewline < 0) return { text: "", consumed: 0 };
+    if (lastNewline < 0) {
+      return { text: "", consumed: 0, startByteOffset: start };
+    }
 
     const complete = buffer.subarray(0, lastNewline + 1);
-    return { text: complete.toString("utf8"), consumed: complete.length };
+    return {
+      text: complete.toString("utf8"),
+      consumed: complete.length,
+      startByteOffset: start,
+    };
   } catch {
     return undefined;
   } finally {
@@ -164,26 +181,47 @@ export async function capture(request: CaptureRequest): Promise<CaptureResult> {
 
   const hostInfo = readHostInfo(request.host, chunk.text);
 
-  let records;
+  let segmented;
   try {
-    // `partial` relaxes the whole-conversation invariants that would otherwise
-    // reject a mid-session chunk (no leading user turn; a tool result whose call
-    // lived in an earlier chunk). `baseByteOffset` keeps the library's
-    // record identity stable across chunk boundaries.
-    const normalized = normalizeTranscript({
-      source: request.host,
-      transcript: chunk.text,
-      sourceContext: {
-        groupId: request.sessionId,
-        baseByteOffset: state.byteOffset,
-        partial: state.byteOffset > 0,
-      },
-      // Ask the library to drop tool results outright unless content was
-      // consented to. Filtering at the source beats filtering at span
-      // construction: the payloads never enter our process memory at all.
-      filters: { toolResults: config.content === "full" ? "include" : "omit" },
+    segmented = segmentTranscript(request.host, chunk.text, {
+      finalizeTrailingTurn: request.finalizeTrailingTurn ?? true,
+      claudeStandaloneSidechain: state.claudeStandaloneSidechain,
     });
-    records = normalized.records;
+  } catch (error) {
+    return {
+      outcome: "normalize-failed",
+      detail: error instanceof Error ? error.message : String(error),
+    };
+  }
+
+  const completeTurns = segmented.turns.filter((turn) => turn.complete);
+  if (completeTurns.length === 0) {
+    return {
+      outcome: "no-new-records",
+      bytesRead: chunk.consumed,
+      detail: "no complete native turns past the checkpoint",
+    };
+  }
+
+  let normalizedTurns;
+  try {
+    normalizedTurns = completeTurns.map((turn) => ({
+      turn,
+      records: normalizeTranscript({
+        source: request.host,
+        transcript: turn.transcript,
+        sourceContext: {
+          groupId: request.sessionId,
+          baseByteOffset: chunk.startByteOffset + turn.startByteOffset,
+          // A native turn is a fragment of the conversation. Partial mode keeps
+          // cross-boundary tool linkage valid without weakening our own boundary.
+          partial: true,
+        },
+        filters: {
+          toolResults: config.content === "full" ? "include" : "omit",
+        },
+      }).records,
+    }));
   } catch (error) {
     return {
       outcome: "normalize-failed",
@@ -196,7 +234,7 @@ export async function capture(request: CaptureRequest): Promise<CaptureResult> {
       outcome: "exported",
       spanCount: 0,
       bytesRead: chunk.consumed,
-      detail: `dry run: ${records.length} records from ${request.host} ${hostInfo.hostVersion ?? "(unknown version)"}, content=${config.content}`,
+      detail: `dry run: ${normalizedTurns.length} turns / ${normalizedTurns.reduce((sum, item) => sum + item.records.length, 0)} records from ${request.host} ${hostInfo.hostVersion ?? "(unknown version)"}, content=${config.content}`,
     };
   }
 
@@ -209,12 +247,25 @@ export async function capture(request: CaptureRequest): Promise<CaptureResult> {
 
   let spanCount = 0;
   try {
-    ({ spanCount } = emitTurnSpans(tracing.tracer, records, {
-      sessionId: request.sessionId,
-      hostInfo,
-      content: config.content,
-      turn: state.turn,
-    }));
+    for (const [index, item] of normalizedTurns.entries()) {
+      const emitted = emitTurnSpans(tracing.tracer, item.records, {
+        sessionId: request.sessionId,
+        hostInfo,
+        content: config.content,
+        turn: state.turn + index,
+        responseId: responseIdForTurn(
+          request.host,
+          request.sessionId,
+          item.turn.key,
+        ),
+        cwd: item.turn.metadata.cwd ?? segmented.metadata.cwd ?? state.cwd,
+        gitBranch:
+          item.turn.metadata.gitBranch ??
+          segmented.metadata.gitBranch ??
+          state.gitBranch,
+      });
+      spanCount += emitted.spanCount;
+    }
     // `shutdown` flushes the SimpleSpanProcessor and drains the export.
     await tracing.provider.shutdown();
   } catch (error) {
@@ -235,10 +286,15 @@ export async function capture(request: CaptureRequest): Promise<CaptureResult> {
     return { outcome: "export-failed", spanCount, detail: failure.message };
   }
 
+  const lastTurn = completeTurns[completeTurns.length - 1]!;
   await writeCaptureState(statePath, {
     version: state.version,
-    byteOffset: state.byteOffset + chunk.consumed,
-    turn: state.turn + 1,
+    byteOffset: chunk.startByteOffset + lastTurn.endByteOffset,
+    turn: state.turn + completeTurns.length,
+    cwd: segmented.metadata.cwd ?? state.cwd,
+    gitBranch: segmented.metadata.gitBranch ?? state.gitBranch,
+    claudeStandaloneSidechain:
+      segmented.claudeStandaloneSidechain ?? state.claudeStandaloneSidechain,
     updatedAt: new Date().toISOString(),
   });
 

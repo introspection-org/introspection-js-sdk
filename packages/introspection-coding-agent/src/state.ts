@@ -26,15 +26,20 @@ import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import type { CaptureHost } from "./config.js";
 
 /** Current on-disk schema version for a checkpoint file. */
-export const CAPTURE_STATE_VERSION = 1;
+export const CAPTURE_STATE_VERSION = 2;
 
 /** What has already been exported for one session. */
 export interface CaptureState {
   version: number;
-  /** Bytes of the transcript already normalized and exported. */
+  /** Bytes through the last fully exported native turn boundary. */
   byteOffset: number;
   /** How many turns have been exported, used to order turns within a session. */
   turn: number;
+  /** Stable non-content source metadata retained for continuation chunks. */
+  cwd?: string;
+  gitBranch?: string;
+  /** File-level Claude sidechain mode from the initial transcript scan. */
+  claudeStandaloneSidechain?: boolean;
   /** Last successful export (ISO-8601). */
   updatedAt?: string;
 }
@@ -83,6 +88,12 @@ export async function readCaptureState(path: string): Promise<CaptureState> {
           ? obj.byteOffset
           : 0,
       turn: typeof obj.turn === "number" && obj.turn >= 0 ? obj.turn : 0,
+      cwd: typeof obj.cwd === "string" ? obj.cwd : undefined,
+      gitBranch: typeof obj.gitBranch === "string" ? obj.gitBranch : undefined,
+      claudeStandaloneSidechain:
+        typeof obj.claudeStandaloneSidechain === "boolean"
+          ? obj.claudeStandaloneSidechain
+          : undefined,
       updatedAt: typeof obj.updatedAt === "string" ? obj.updatedAt : undefined,
     };
   } catch {

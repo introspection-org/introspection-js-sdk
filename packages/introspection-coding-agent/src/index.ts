@@ -63,4 +63,11 @@ export {
 } from "./state.js";
 export type { CaptureState } from "./state.js";
 
+export { responseIdForTurn, segmentTranscript } from "./turns.js";
+export type {
+  SegmentedTranscript,
+  SourceMetadata,
+  TranscriptTurn,
+} from "./turns.js";
+
 export { SERVICE_NAME, VERSION } from "./version.js";

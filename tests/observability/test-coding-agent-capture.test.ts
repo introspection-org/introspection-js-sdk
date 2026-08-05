@@ -26,6 +26,14 @@ import {
 import { loadLoginProfile } from "../../packages/introspection-coding-agent/src/credentials";
 import { readHostInfo } from "../../packages/introspection-coding-agent/src/host";
 import { parseHookEvent } from "../../packages/introspection-coding-agent/src/hook";
+import {
+  captureStatePath,
+  readCaptureState,
+} from "../../packages/introspection-coding-agent/src/state";
+import {
+  responseIdForTurn,
+  segmentTranscript,
+} from "../../packages/introspection-coding-agent/src/turns";
 
 /**
  * `InMemorySpanExporter.shutdown()` resets its own buffer, and `capture()` shuts
@@ -44,12 +52,26 @@ class RetainingExporter extends InMemorySpanExporter {
   }
 }
 
+class FailingRetainingExporter extends RetainingExporter {
+  override export(
+    spans: ReadableSpan[],
+    resultCallback: (result: ExportResult) => void,
+  ): void {
+    this.kept.push(...spans);
+    resultCallback({
+      code: ExportResultCode.FAILED,
+      error: new Error("collector unreachable"),
+    });
+  }
+}
+
 const SESSION_ID = "11111111-2222-3333-4444-555555555555";
 
 /** A minimal but realistic Claude Code transcript: one turn with one tool call. */
 const TRANSCRIPT_LINES = [
   {
     type: "user",
+    uuid: "claude-user-turn-1",
     sessionId: SESSION_ID,
     version: "2.1.221",
     entrypoint: "cli",
@@ -60,6 +82,7 @@ const TRANSCRIPT_LINES = [
   },
   {
     type: "assistant",
+    uuid: "claude-assistant-tool-1",
     sessionId: SESSION_ID,
     version: "2.1.221",
     cwd: "/repo",
@@ -80,6 +103,7 @@ const TRANSCRIPT_LINES = [
   },
   {
     type: "user",
+    uuid: "claude-tool-result-1",
     sessionId: SESSION_ID,
     version: "2.1.221",
     cwd: "/repo",
@@ -94,6 +118,7 @@ const TRANSCRIPT_LINES = [
   },
   {
     type: "assistant",
+    uuid: "claude-assistant-text-1",
     sessionId: SESSION_ID,
     version: "2.1.221",
     cwd: "/repo",
@@ -350,6 +375,12 @@ describe("span construction", () => {
     expect(root!.attributes["gen_ai.provider.name"]).toBe("anthropic");
     expect(root!.attributes["gen_ai.operation.name"]).toBe("invoke_agent");
     expect(root!.attributes["gen_ai.conversation.id"]).toBe(SESSION_ID);
+    expect(root!.attributes["gen_ai.response.id"]).toMatch(
+      /^ca_v1_[0-9a-f]{64}$/,
+    );
+    expect(root!.attributes["gen_ai.response.id"]).toBe(
+      responseIdForTurn("claude-code", SESSION_ID, "claude-user-turn-1"),
+    );
     expect(root!.attributes["introspection.plugin.cwd"]).toBe("/repo");
     expect(root!.attributes["introspection.plugin.git_branch"]).toBe("main");
 
@@ -370,6 +401,7 @@ describe("span construction", () => {
     expect(children.length).toBeGreaterThan(0);
     for (const child of children) {
       expect(child.parentSpanContext?.spanId).toBe(rootSpanId);
+      expect(child.attributes["gen_ai.response.id"]).toBeUndefined();
     }
 
     const tool = exporter.kept.find((s) => s.name === "execute_tool Bash");
@@ -488,6 +520,277 @@ describe("span construction", () => {
   });
 });
 
+describe("native turn segmentation and response identity", () => {
+  beforeEach(async () => {
+    await seedLogin();
+  });
+
+  it("emits two Claude roots for a two-turn first capture", async () => {
+    await seedConsent({
+      version: 1,
+      enabled: true,
+      content: "full",
+      targets: ["claude-code"],
+    });
+    const secondTurn = [
+      {
+        type: "user",
+        uuid: "claude-user-turn-2",
+        sessionId: SESSION_ID,
+        version: "2.1.221",
+        cwd: "/repo",
+        gitBranch: "feature/turns",
+        timestamp: "2026-08-04T10:01:00.000Z",
+        message: { role: "user", content: "Summarize it." },
+      },
+      {
+        // Claude writes system/continuation material as user records. It is not
+        // a human boundary and must not become captured input content.
+        type: "user",
+        uuid: "claude-meta-1",
+        isMeta: true,
+        sessionId: SESSION_ID,
+        version: "2.1.221",
+        timestamp: "2026-08-04T10:01:00.100Z",
+        message: { role: "user", content: "internal continuation context" },
+      },
+      {
+        type: "assistant",
+        uuid: "claude-assistant-text-2",
+        sessionId: SESSION_ID,
+        version: "2.1.221",
+        cwd: "/repo",
+        gitBranch: "feature/turns",
+        timestamp: "2026-08-04T10:01:01.000Z",
+        message: {
+          role: "assistant",
+          model: "claude-opus-5",
+          content: [{ type: "text", text: "One file was found." }],
+        },
+      },
+    ];
+    await writeFile(
+      transcriptPath,
+      `${[...TRANSCRIPT_LINES, ...secondTurn]
+        .map((line) => JSON.stringify(line))
+        .join("\n")}\n`,
+    );
+    const exporter = new RetainingExporter();
+
+    const result = await runCapture(exporter);
+
+    expect(result.outcome).toBe("exported");
+    const roots = exporter.kept.filter(
+      (span) => span.name === "invoke_agent claude-code",
+    );
+    expect(roots).toHaveLength(2);
+    expect(
+      new Set(roots.map((root) => root.attributes["gen_ai.response.id"])).size,
+    ).toBe(2);
+    expect(
+      JSON.parse(String(roots[1]!.attributes["gen_ai.input.messages"])),
+    ).toEqual([
+      { role: "user", parts: [{ type: "text", content: "Summarize it." }] },
+    ]);
+    expect(roots[1]!.attributes["introspection.plugin.git_branch"]).toBe(
+      "feature/turns",
+    );
+  });
+
+  it("namespaces the same Claude turn UUID by conversation", async () => {
+    await seedConsent({
+      version: 1,
+      enabled: true,
+      content: "on",
+      targets: ["claude-code"],
+    });
+    const first = new RetainingExporter();
+    expect((await runCapture(first)).outcome).toBe("exported");
+    const firstId = first.kept.find(
+      (span) => span.name === "invoke_agent claude-code",
+    )?.attributes["gen_ai.response.id"];
+
+    const otherSession = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee";
+    await writeFile(
+      transcriptPath,
+      `${TRANSCRIPT_LINES.map((line) =>
+        JSON.stringify({ ...line, sessionId: otherSession }),
+      ).join("\n")}\n`,
+    );
+    const second = new RetainingExporter();
+    const result = await capture({
+      host: "claude-code",
+      sessionId: otherSession,
+      transcriptPath,
+      home,
+      exporterOverride: second,
+    });
+    expect(result.outcome).toBe("exported");
+    const secondId = second.kept.find(
+      (span) => span.name === "invoke_agent claude-code",
+    )?.attributes["gen_ai.response.id"];
+
+    expect(secondId).not.toBe(firstId);
+  });
+
+  it("groups Codex records by native turn_id, including repeated context", async () => {
+    await seedConsent({
+      version: 1,
+      enabled: true,
+      content: "full",
+      targets: ["codex"],
+    });
+    const codexSession = "codex-session-1";
+    const codexLines = [
+      {
+        timestamp: "2026-08-04T11:00:00.000Z",
+        type: "session_meta",
+        payload: {
+          id: codexSession,
+          cwd: "/repo",
+          cli_version: "0.147.0-alpha.1.2",
+          originator: "codex_cli_rs",
+          git: { branch: "feature/turns" },
+        },
+      },
+      {
+        timestamp: "2026-08-04T11:00:01.000Z",
+        type: "turn_context",
+        payload: { turn_id: "turn-native-1", cwd: "/repo", model: "gpt-5" },
+      },
+      {
+        timestamp: "2026-08-04T11:00:01.100Z",
+        type: "response_item",
+        payload: {
+          type: "message",
+          role: "user",
+          content: [{ type: "input_text", text: "First question" }],
+        },
+      },
+      {
+        timestamp: "2026-08-04T11:00:02.000Z",
+        type: "turn_context",
+        payload: { turn_id: "turn-native-1", cwd: "/repo", model: "gpt-5" },
+      },
+      {
+        timestamp: "2026-08-04T11:00:03.000Z",
+        type: "response_item",
+        payload: {
+          type: "message",
+          role: "assistant",
+          content: [{ type: "output_text", text: "First answer" }],
+        },
+      },
+      {
+        timestamp: "2026-08-04T11:00:04.000Z",
+        type: "event_msg",
+        payload: { type: "task_complete", turn_id: "turn-native-1" },
+      },
+      {
+        timestamp: "2026-08-04T11:01:00.000Z",
+        type: "turn_context",
+        payload: { turn_id: "turn-native-2", cwd: "/repo", model: "gpt-5" },
+      },
+      {
+        timestamp: "2026-08-04T11:01:00.100Z",
+        type: "response_item",
+        payload: {
+          type: "message",
+          role: "user",
+          content: [{ type: "input_text", text: "Second question" }],
+        },
+      },
+      {
+        timestamp: "2026-08-04T11:01:01.000Z",
+        type: "response_item",
+        payload: {
+          type: "message",
+          role: "assistant",
+          content: [{ type: "output_text", text: "Second answer" }],
+        },
+      },
+      {
+        timestamp: "2026-08-04T11:01:02.000Z",
+        type: "event_msg",
+        payload: { type: "task_complete", turn_id: "turn-native-2" },
+      },
+    ];
+    await writeFile(
+      transcriptPath,
+      `${codexLines.map((line) => JSON.stringify(line)).join("\n")}\n`,
+    );
+    const exporter = new RetainingExporter();
+
+    const result = await capture({
+      host: "codex",
+      sessionId: codexSession,
+      transcriptPath,
+      home,
+      exporterOverride: exporter,
+      finalizeTrailingTurn: false,
+    });
+
+    expect(result.outcome).toBe("exported");
+    const roots = exporter.kept.filter(
+      (span) => span.name === "invoke_agent codex",
+    );
+    expect(roots).toHaveLength(2);
+    expect(
+      new Set(roots.map((root) => root.attributes["gen_ai.response.id"])).size,
+    ).toBe(2);
+    expect(roots[0]!.attributes["introspection.plugin.cwd"]).toBe("/repo");
+    expect(roots[0]!.attributes["introspection.plugin.git_branch"]).toBe(
+      "feature/turns",
+    );
+    expect(roots[0]!.attributes["gen_ai.response.id"]).toBe(
+      responseIdForTurn("codex", codexSession, "turn-native-1"),
+    );
+    expect(
+      JSON.parse(String(roots[0]!.attributes["gen_ai.input.messages"])),
+    ).toEqual([
+      { role: "user", parts: [{ type: "text", content: "First question" }] },
+    ]);
+    expect(
+      JSON.parse(String(roots[1]!.attributes["gen_ai.output.messages"])),
+    ).toContainEqual({
+      role: "assistant",
+      parts: [{ type: "text", content: "Second answer" }],
+      provider: "openai",
+      model: "gpt-5",
+    });
+  });
+
+  it("keeps Claude parent sidechains excluded on continuation chunks", () => {
+    const sidechainOnly = [
+      {
+        type: "user",
+        uuid: "sidechain-user",
+        isSidechain: true,
+        sessionId: SESSION_ID,
+        message: { role: "user", content: "Subagent prompt" },
+      },
+      {
+        type: "assistant",
+        uuid: "sidechain-assistant",
+        isSidechain: true,
+        sessionId: SESSION_ID,
+        message: { role: "assistant", content: "Subagent answer" },
+      },
+    ]
+      .map((line) => JSON.stringify(line))
+      .join("\n");
+
+    expect(
+      segmentTranscript("claude-code", `${sidechainOnly}\n`).turns,
+    ).toHaveLength(1);
+    expect(
+      segmentTranscript("claude-code", `${sidechainOnly}\n`, {
+        claudeStandaloneSidechain: false,
+      }).turns,
+    ).toHaveLength(0);
+  });
+});
+
 describe("incremental checkpointing", () => {
   beforeEach(async () => {
     await seedLogin();
@@ -511,35 +814,148 @@ describe("incremental checkpointing", () => {
     expect(second.kept).toHaveLength(0);
   });
 
-  it("exports only the records appended since the last run", async () => {
+  it("replays safely when migrating a v1 chunk checkpoint", async () => {
+    const directory = join(
+      home,
+      ".introspection",
+      "capture-state",
+      "claude-code",
+    );
+    await mkdir(directory, { recursive: true });
+    await writeFile(
+      captureStatePath("claude-code", SESSION_ID, home),
+      JSON.stringify({
+        version: 1,
+        byteOffset: Buffer.byteLength(
+          `${TRANSCRIPT_LINES.map((line) => JSON.stringify(line)).join("\n")}\n`,
+          "utf8",
+        ),
+        turn: 1,
+      }),
+    );
+    const exporter = new RetainingExporter();
+
+    const result = await runCapture(exporter);
+
+    expect(result.outcome).toBe("exported");
+    expect(
+      exporter.kept.find((span) => span.name === "invoke_agent claude-code")
+        ?.attributes["gen_ai.response.id"],
+    ).toMatch(/^ca_v1_[0-9a-f]{64}$/);
+    const migrated = await readCaptureState(
+      captureStatePath("claude-code", SESSION_ID, home),
+    );
+    expect(migrated.version).toBe(2);
+    expect(migrated.turn).toBe(1);
+  });
+
+  it("exports only the true turn appended since the last run", async () => {
     await runCapture(new RetainingExporter());
 
     await writeFile(
       transcriptPath,
       `${TRANSCRIPT_LINES.map((l) => JSON.stringify(l)).join("\n")}\n${JSON.stringify(
         {
-          type: "assistant",
+          type: "user",
+          uuid: "claude-user-turn-2",
           sessionId: SESSION_ID,
           version: "2.1.221",
           timestamp: "2026-08-04T10:00:10.000Z",
-          message: {
-            role: "assistant",
-            model: "claude-opus-5",
-            content: [{ type: "text", text: "Anything else?" }],
-          },
+          message: { role: "user", content: "What next?" },
         },
-      )}\n`,
+      )}\n${JSON.stringify({
+        type: "assistant",
+        uuid: "claude-assistant-text-2",
+        sessionId: SESSION_ID,
+        version: "2.1.221",
+        timestamp: "2026-08-04T10:00:11.000Z",
+        message: {
+          role: "assistant",
+          model: "claude-opus-5",
+          content: [{ type: "text", text: "Anything else?" }],
+        },
+      })}\n`,
     );
 
     const exporter = new RetainingExporter();
     const result = await runCapture(exporter);
 
     expect(result.outcome).toBe("exported");
-    // One new turn root plus the single new assistant message — not a re-send of
-    // the whole transcript.
+    expect(
+      exporter.kept.filter((s) => s.name === "invoke_agent claude-code"),
+    ).toHaveLength(1);
+    // The single new assistant message was exported, not the previous turn.
     expect(
       exporter.kept.filter((s) => s.name.startsWith("chat ")),
     ).toHaveLength(1);
+  });
+
+  it("holds an unfinished Claude turn and re-reads it from its boundary", async () => {
+    const unfinished = `${TRANSCRIPT_LINES.slice(0, 3)
+      .map((line) => JSON.stringify(line))
+      .join("\n")}\n`;
+    await writeFile(transcriptPath, unfinished);
+
+    const first = new RetainingExporter();
+    const pending = await capture({
+      host: "claude-code",
+      sessionId: SESSION_ID,
+      transcriptPath,
+      home,
+      exporterOverride: first,
+      finalizeTrailingTurn: false,
+    });
+
+    expect(pending.outcome).toBe("no-new-records");
+    expect(first.kept).toHaveLength(0);
+    expect(
+      (
+        await readCaptureState(
+          captureStatePath("claude-code", SESSION_ID, home),
+        )
+      ).byteOffset,
+    ).toBe(0);
+
+    await writeFile(
+      transcriptPath,
+      `${TRANSCRIPT_LINES.map((line) => JSON.stringify(line)).join("\n")}\n`,
+    );
+    const completed = new RetainingExporter();
+    const result = await runCapture(completed);
+
+    expect(result.outcome).toBe("exported");
+    const root = completed.kept.find(
+      (span) => span.name === "invoke_agent claude-code",
+    );
+    expect(root?.attributes["gen_ai.response.id"]).toMatch(
+      /^ca_v1_[0-9a-f]{64}$/,
+    );
+    expect(
+      completed.kept.find((span) => span.name === "execute_tool Bash"),
+    ).toBeDefined();
+  });
+
+  it("uses the same response ID when a failed export re-reads the turn", async () => {
+    const failedExporter = new FailingRetainingExporter();
+    const failed = await capture({
+      host: "claude-code",
+      sessionId: SESSION_ID,
+      transcriptPath,
+      home,
+      exporterOverride: failedExporter,
+    });
+    expect(failed.outcome).toBe("export-failed");
+    const firstId = failedExporter.kept.find(
+      (span) => span.name === "invoke_agent claude-code",
+    )?.attributes["gen_ai.response.id"];
+
+    const retry = new RetainingExporter();
+    expect((await runCapture(retry)).outcome).toBe("exported");
+    const retryId = retry.kept.find(
+      (span) => span.name === "invoke_agent claude-code",
+    )?.attributes["gen_ai.response.id"];
+
+    expect(retryId).toBe(firstId);
   });
 
   it("does not advance the checkpoint when the export fails", async () => {

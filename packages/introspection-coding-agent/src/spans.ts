@@ -84,6 +84,11 @@ export interface TurnContext {
   content: ContentCapture;
   /** Zero-based turn ordinal within the session. */
   turn: number;
+  /** Stable, source-native-derived GenAI response identity for this root. */
+  responseId: string;
+  /** Source metadata recovered before host-neutral normalization. */
+  cwd?: string;
+  gitBranch?: string;
 }
 
 /** What a conversion produced, for the caller's logging. */
@@ -188,13 +193,17 @@ export function emitTurnSpans(
     "gen_ai.operation.name": "invoke_agent",
     "gen_ai.agent.name": agentNameFor(ctx.hostInfo.host),
     "gen_ai.conversation.id": ctx.sessionId,
+    "gen_ai.response.id": ctx.responseId,
     "introspection.plugin.turn": ctx.turn,
   };
-  if (meta?.role === "meta" && meta.git_branch) {
-    turnAttrs["introspection.plugin.git_branch"] = meta.git_branch;
+  const gitBranch =
+    ctx.gitBranch ?? (meta?.role === "meta" ? meta.git_branch : undefined);
+  const cwd = ctx.cwd ?? (meta?.role === "meta" ? meta.cwd : undefined);
+  if (gitBranch) {
+    turnAttrs["introspection.plugin.git_branch"] = gitBranch;
   }
-  if (meta?.role === "meta" && meta.cwd) {
-    turnAttrs["introspection.plugin.cwd"] = meta.cwd;
+  if (cwd) {
+    turnAttrs["introspection.plugin.cwd"] = cwd;
   }
 
   const turnSpan = tracer.startSpan(`invoke_agent ${ctx.hostInfo.host}`, {
