@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.18.0](https://github.com/introspection-org/introspection-js-sdk/compare/v0.17.0...v0.18.0) (2026-08-05)
+
+
+### ⚠ BREAKING CHANGES
+
+* **conversations:** `ConversationItem`, `ConversationItemList`, `ConversationSummary`, `ConversationResponse`, `IntrospectionMetadata` and `ConversationItemNodeType` are removed, not deprecated — replaced outright by `GenAiSpan` / `GenAiSpanList` and the `gen_ai.*` / `introspection.*` attribute types. `conversations.retrieve()` now resolves to `GenAiSpan | null`, `items.get()`/`items.list()` to spans addressed by `span_id` rather than `id`, and `ConversationItemInclude` is narrowed to `"events" | "resource_attributes"`. `node_type` is gone from the wire: it was a precomputed UI tree hint with no semconv equivalent, derived client-side from `gen_ai.operation.name` + `parent_span_id`.
+
+### Features
+
+* **conversations:** replace the flat conversation types with GenAiSpan ([#290](https://github.com/introspection-org/introspection-js-sdk/issues/290)) ([b04d439](https://github.com/introspection-org/introspection-js-sdk/commit/b04d439ebfe1e2de10ce8ca7012bc652eb615d95))
+
 ## [0.17.0](https://github.com/introspection-org/introspection-js-sdk/compare/v0.16.0...v0.17.0) (2026-08-05)
 
 
