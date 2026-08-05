@@ -5,8 +5,8 @@ import {
   HttpClient,
 } from "@introspection-sdk/introspection-node";
 import type {
-  ConversationItem,
-  ConversationItemList,
+  GenAiSpan,
+  GenAiSpanList,
 } from "@introspection-sdk/introspection-node";
 
 function mockHttp(overrides: Record<string, unknown> = {}) {
@@ -16,58 +16,90 @@ function mockHttp(overrides: Record<string, unknown> = {}) {
   } as unknown as HttpClient;
 }
 
-const SUMMARY_FIXTURE = {
+/**
+ * A conversation summary — the same span envelope as an item, carrying the
+ * latest turn only, with the conversation rollups split between
+ * `gen_ai.usage.*` (summable, has a semconv meaning) and
+ * `introspection.conversation.*` (ours).
+ */
+const SUMMARY_FIXTURE: GenAiSpan = {
   trace_id: "trace-1",
-  conversation_id: "conv-1",
-  org_id: "org-1",
-  project_id: "proj-1",
   start_time: "2025-01-01T00:00:00Z",
   end_time: "2025-01-01T00:00:05Z",
-  duration_ms: 5000,
-  model: "claude-x",
-  agent_name: "agent",
-  total_input_tokens: 10,
-  total_output_tokens: 20,
-  total_tokens: 30,
-  total_cost_usd: 0.01,
-  tool_use_count: 0,
-  failed_tool_use_count: 0,
-  trace_count: 1,
-  span_count: 3,
-  status: "Ok" as const,
-  has_errors: false,
-  input_messages: [],
-  output_messages: [],
+  duration_ns: 5_000_000_000,
+  status: { code: "Ok" },
+  resource: { service: { name: "coding-agent" } },
+  attributes: {
+    gen_ai: {
+      conversation: { id: "conv-1" },
+      agent: { name: "agent" },
+      request: { model: "claude-x" },
+      usage: { input_tokens: 10, output_tokens: 20 },
+      cost: { usd: 0.01 },
+    },
+    introspection: {
+      org: { id: "org-1" },
+      project: { id: "proj-1" },
+      conversation: {
+        trace_count: 1,
+        span_count: 3,
+        tool_use_count: 0,
+        failed_tool_use_count: 0,
+        has_errors: false,
+      },
+    },
+  },
 };
 
-function makeItem(overrides: Partial<ConversationItem> = {}): ConversationItem {
+function makeSpan(
+  spanId: string,
+  attributes: GenAiSpan["attributes"] = {},
+): GenAiSpan {
   return {
-    object: "conversation.item",
-    id: "item-1",
-    type: "span",
     trace_id: "trace-1",
-    span_id: "span-1",
-    created_at: "2025-01-01T00:00:00Z",
-    span_name: "chat anthropic",
-    span_kind: "CLIENT",
-    node_type: "span",
-    input_messages: [],
-    ...overrides,
+    span_id: spanId,
+    start_time: "2025-01-01T00:00:00Z",
+    name: "chat anthropic",
+    kind: "CLIENT",
+    attributes,
   };
 }
 
-function makePage(
-  data: ConversationItem[],
-  has_more: boolean,
-): ConversationItemList {
+function makePage(data: GenAiSpan[], has_more: boolean): GenAiSpanList {
   return {
     object: "list",
     data,
-    first_id: data[0]?.id ?? null,
-    last_id: data[data.length - 1]?.id ?? null,
+    first_id: data[0]?.span_id ?? null,
+    last_id: data[data.length - 1]?.span_id ?? null,
     has_more,
     next: has_more ? "cursor-page-2" : null,
   };
+}
+
+/** A `chat` turn with an output message — what `retrieve()` scans for. */
+function makeChatSpan(spanId: string): GenAiSpan {
+  return makeSpan(spanId, {
+    gen_ai: {
+      operation: { name: "chat" },
+      provider: { name: "anthropic" },
+      request: { model: "claude-x" },
+      response: { id: `resp-${spanId}`, model: "claude-x" },
+      input: {
+        messages: [{ role: "user", parts: [{ type: "text", content: "hi" }] }],
+      },
+      output: {
+        messages: [
+          {
+            role: "assistant",
+            parts: [{ type: "text", content: "hello" }],
+            finish_reason: "stop",
+          },
+        ],
+      },
+      system_instructions: [{ type: "text", content: "be nice" }],
+      tool: { definitions: [{ type: "function", name: "lookup" }] },
+    },
+  });
 }
 
 describe("ConversationsApi", () => {
@@ -96,6 +128,11 @@ describe("ConversationsApi", () => {
       query: { limit: 10, status: "Error", model: "claude-x" },
     });
     expect(summaries).toHaveLength(1);
+    // Summaries arrive as spans: semconv names, not a second dialect.
+    expect(summaries[0].attributes.gen_ai?.conversation?.id).toBe("conv-1");
+    expect(
+      summaries[0].attributes.introspection?.conversation?.span_count,
+    ).toBe(3);
   });
 
   it("list() drives the cursor `next` token until exhausted", async () => {
@@ -128,13 +165,15 @@ describe("ConversationsApi", () => {
     ).toBe("cursor-2");
   });
 
-  it("items.list() calls GET /v1/conversations/:id/items with includes", async () => {
-    const http = mockHttp({ requestResult: makePage([makeItem()], false) });
+  it("items.list() calls GET /v1/conversations/:id/items with the surviving includes", async () => {
+    const http = mockHttp({
+      requestResult: makePage([makeSpan("span-1")], false),
+    });
     const api = new ConversationsApi(http);
     const items = [];
     for await (const item of api.items.list("conv-1", {
       order: "asc",
-      include: ["events", "span_attributes"],
+      include: ["events", "resource_attributes"],
     })) {
       items.push(item);
     }
@@ -142,17 +181,14 @@ describe("ConversationsApi", () => {
     expect(http.request).toHaveBeenCalledWith({
       method: "GET",
       path: "/v1/conversations/conv-1/items",
-      query: { order: "asc", include: ["events", "span_attributes"] },
+      query: { order: "asc", include: ["events", "resource_attributes"] },
     });
     expect(items).toHaveLength(1);
   });
 
   it("items.list() drives the opaque next cursor while has_more, then stops", async () => {
-    const page1 = makePage(
-      [makeItem({ id: "item-1" }), makeItem({ id: "item-2" })],
-      true,
-    );
-    const page2 = makePage([makeItem({ id: "item-3" })], false);
+    const page1 = makePage([makeSpan("span-1"), makeSpan("span-2")], true);
+    const page2 = makePage([makeSpan("span-3")], false);
     const http = mockHttp();
     (http.request as ReturnType<typeof vi.fn>)
       .mockResolvedValueOnce(page1)
@@ -162,7 +198,7 @@ describe("ConversationsApi", () => {
     const items = [];
     for await (const item of api.items.list("conv-1")) items.push(item);
 
-    expect(items.map((i) => i.id)).toEqual(["item-1", "item-2", "item-3"]);
+    expect(items.map((i) => i.span_id)).toEqual(["span-1", "span-2", "span-3"]);
     expect(http.request).toHaveBeenCalledTimes(2);
     const calls = (http.request as ReturnType<typeof vi.fn>).mock.calls;
     expect(calls[0][0].query.next).toBeUndefined();
@@ -180,7 +216,7 @@ describe("ConversationsApi", () => {
   });
 
   it("items.list() rejects has_more without an opaque next cursor", async () => {
-    const page = makePage([makeItem({ id: "item-1" })], true);
+    const page = makePage([makeSpan("span-1")], true);
     page.next = null;
     const http = mockHttp({ requestResult: page });
     const api = new ConversationsApi(http);
@@ -194,8 +230,8 @@ describe("ConversationsApi", () => {
   });
 
   it("items.list() walks the ascending transcript when order=asc", async () => {
-    const page1 = makePage([makeItem({ id: "item-1" })], true);
-    const page2 = makePage([makeItem({ id: "item-2" })], false);
+    const page1 = makePage([makeSpan("span-1")], true);
+    const page2 = makePage([makeSpan("span-2")], false);
     const http = mockHttp();
     (http.request as ReturnType<typeof vi.fn>)
       .mockResolvedValueOnce(page1)
@@ -207,124 +243,89 @@ describe("ConversationsApi", () => {
       items.push(item);
     }
 
-    expect(items.map((i) => i.id)).toEqual(["item-1", "item-2"]);
+    expect(items.map((i) => i.span_id)).toEqual(["span-1", "span-2"]);
     const calls = (http.request as ReturnType<typeof vi.fn>).mock.calls;
     expect(calls[0][0].query.order).toBe("asc");
     expect(calls[1][0].query.order).toBe("asc");
   });
 
   it("items.get() URL-encodes path segments", async () => {
-    const http = mockHttp({ requestResult: makeItem() });
+    const http = mockHttp({ requestResult: makeSpan("span-1") });
     const api = new ConversationsApi(http);
-    await api.items.get("conv/with spaces", "item:1", {
-      include: ["gen_ai.input.messages"],
-    });
+    await api.items.get("conv/with spaces", "span:1", { include: ["events"] });
 
     expect(http.request).toHaveBeenCalledWith({
       method: "GET",
-      path: "/v1/conversations/conv%2Fwith%20spaces/items/item%3A1",
-      query: { include: ["gen_ai.input.messages"] },
+      path: "/v1/conversations/conv%2Fwith%20spaces/items/span%3A1",
+      query: { include: ["events"] },
     });
   });
 
-  it("retrieve() picks the latest assistant turn and fetches the detail", async () => {
-    // Descending order: a tool_call span first, then the assistant turn.
+  it("retrieve() picks the latest chat turn and returns the span itself", async () => {
+    // Descending order: an execute_tool span first, then the chat turn.
     const listPage = makePage(
       [
-        makeItem({ id: "item-3", node_type: "tool_call" }),
-        makeItem({ id: "item-2", node_type: "assistant" }),
-        makeItem({ id: "item-1", node_type: "span" }),
+        makeSpan("span-3", { gen_ai: { operation: { name: "execute_tool" } } }),
+        makeChatSpan("span-2"),
+        makeSpan("span-1"),
       ],
       false,
     );
-    const detail = makeItem({
-      id: "item-2",
-      node_type: "assistant",
-      response_id: "resp-2",
-      model_name: "claude-x",
-      provider_name: "anthropic",
-      created_at: "2025-01-01T00:00:02Z",
-      input_messages: [
-        { role: "user", parts: [{ type: "text", content: "hi" }] },
-      ],
-      output_message: {
-        role: "assistant",
-        parts: [{ type: "text", content: "hello" }],
-        finish_reason: "stop",
-      },
-      system_instructions: [{ type: "text", content: "be nice" }],
-      tool_definitions: [{ name: "lookup" }],
-    });
+    const detail = makeChatSpan("span-2");
     const http = mockHttp();
     (http.request as ReturnType<typeof vi.fn>)
       .mockResolvedValueOnce(listPage)
       .mockResolvedValueOnce(detail);
 
     const api = new ConversationsApi(http);
-    const response = await api.retrieve("conv-1");
+    const span = await api.retrieve("conv-1");
 
     const calls = (http.request as ReturnType<typeof vi.fn>).mock.calls;
     expect(calls[0][0].query.order).toBe("desc");
+    // No `include` to remember: the detail read returns the full history
+    // unconditionally. A parameter that is always required is a trap.
     expect(calls[1][0]).toEqual({
       method: "GET",
-      path: "/v1/conversations/conv-1/items/item-2",
-      query: {
-        include: [
-          "gen_ai.input.messages",
-          "gen_ai.system_instructions",
-          "gen_ai.tool.definitions",
-        ],
-      },
+      path: "/v1/conversations/conv-1/items/span-2",
+      query: undefined,
     });
-    expect(response).not.toBeNull();
-    expect(response!.item_id).toBe("item-2");
-    expect(response!.response_id).toBe("resp-2");
-    expect(response!.model).toBe("claude-x");
-    expect(response!.provider_name).toBe("anthropic");
-    expect(response!.created_at).toBe("2025-01-01T00:00:02Z");
-    expect(response!.input_messages).toHaveLength(1);
-    // output_message is wrapped when gen_ai_output_messages is absent.
-    expect(response!.output_messages).toEqual([detail.output_message]);
-    expect(response!.system_instructions).toEqual([
+    expect(span).not.toBeNull();
+    expect(span!.span_id).toBe("span-2");
+    expect(span!.attributes.gen_ai?.response?.id).toBe("resp-span-2");
+    expect(span!.attributes.gen_ai?.request?.model).toBe("claude-x");
+    expect(span!.attributes.gen_ai?.provider?.name).toBe("anthropic");
+    expect(span!.attributes.gen_ai?.input?.messages).toHaveLength(1);
+    expect(span!.attributes.gen_ai?.output?.messages).toHaveLength(1);
+    expect(span!.attributes.gen_ai?.system_instructions).toEqual([
       { type: "text", content: "be nice" },
     ]);
-    expect(response!.tool_definitions).toEqual([{ name: "lookup" }]);
+    expect(span!.attributes.gen_ai?.tool?.definitions).toEqual([
+      { type: "function", name: "lookup" },
+    ]);
   });
 
   it("retrieve() with an explicit itemId skips the scan and fetches that item", async () => {
-    const detail = makeItem({
-      id: "item-7",
-      node_type: "assistant",
-      response_id: "resp-7",
-    });
+    const detail = makeChatSpan("span-7");
     const http = mockHttp({ requestResult: detail });
     const api = new ConversationsApi(http);
-    const response = await api.retrieve("conv-1", "item-7");
+    const span = await api.retrieve("conv-1", "span-7");
 
     expect(http.request).toHaveBeenCalledTimes(1);
     expect(http.request).toHaveBeenCalledWith({
       method: "GET",
-      path: "/v1/conversations/conv-1/items/item-7",
-      query: {
-        include: [
-          "gen_ai.input.messages",
-          "gen_ai.system_instructions",
-          "gen_ai.tool.definitions",
-        ],
-      },
+      path: "/v1/conversations/conv-1/items/span-7",
+      query: undefined,
     });
-    expect(response!.item_id).toBe("item-7");
-    expect(response!.response_id).toBe("resp-7");
+    expect(span!.span_id).toBe("span-7");
+    expect(span!.attributes.gen_ai?.response?.id).toBe("resp-span-7");
   });
 
-  it("retrieve() falls back to the first item with an output_message", async () => {
+  it("retrieve() falls back to the first item that produced output", async () => {
     const listPage = makePage(
       [
-        makeItem({ id: "item-2", node_type: "span" }),
-        makeItem({
-          id: "item-1",
-          node_type: "span",
-          output_message: { role: "assistant", parts: [] },
+        makeSpan("span-2"),
+        makeSpan("span-1", {
+          gen_ai: { output: { messages: [{ role: "assistant", parts: [] }] } },
         }),
       ],
       false,
@@ -332,92 +333,113 @@ describe("ConversationsApi", () => {
     const http = mockHttp();
     (http.request as ReturnType<typeof vi.fn>)
       .mockResolvedValueOnce(listPage)
-      .mockResolvedValueOnce(
-        makeItem({
-          id: "item-1",
-          output_message: { role: "assistant", parts: [] },
-        }),
-      );
+      .mockResolvedValueOnce(makeSpan("span-1"));
 
     const api = new ConversationsApi(http);
-    const response = await api.retrieve("conv-1");
+    const span = await api.retrieve("conv-1");
 
-    expect(response!.item_id).toBe("item-1");
+    expect(span!.span_id).toBe("span-1");
   });
 
   it("retrieve() returns null when the conversation has no items", async () => {
     const http = mockHttp({ requestResult: makePage([], false) });
     const api = new ConversationsApi(http);
-    const response = await api.retrieve("conv-1");
+    const span = await api.retrieve("conv-1");
 
-    expect(response).toBeNull();
+    expect(span).toBeNull();
     expect(http.request).toHaveBeenCalledTimes(1);
   });
 
-  it("retrieve() maps legacy `result` keys on tool_call_response parts to `response`", async () => {
-    const listPage = makePage(
-      [makeItem({ id: "item-1", node_type: "assistant" })],
-      false,
-    );
-    const detail = makeItem({
-      id: "item-1",
-      node_type: "assistant",
-      input_messages: [
-        {
-          role: "tool",
-          parts: [
-            // Legacy DP shape: `result` instead of semconv `response`.
+  it("maps legacy `result` keys on tool_call_response parts to `response`", async () => {
+    // Compatibility shim for older DP deployments — unchanged in substance,
+    // but the walk now follows the attribute tree instead of flat fields.
+    const detail = makeSpan("span-1", {
+      gen_ai: {
+        input: {
+          messages: [
             {
-              type: "tool_call_response",
-              id: "call-1",
-              result: { ok: true },
-            } as never,
-            { type: "text", content: "unrelated" },
-          ],
-        },
-      ],
-      gen_ai_output_messages: [
-        {
-          role: "assistant",
-          parts: [
-            {
-              type: "tool_call_response",
-              id: "call-2",
-              response: "already-semconv",
+              role: "tool",
+              parts: [
+                // Legacy DP shape: `result` instead of semconv `response`.
+                {
+                  type: "tool_call_response",
+                  id: "call-1",
+                  result: { ok: true },
+                } as never,
+                { type: "text", content: "unrelated" },
+              ],
             },
           ],
         },
-      ],
+        output: {
+          messages: [
+            {
+              role: "assistant",
+              parts: [
+                {
+                  type: "tool_call_response",
+                  id: "call-2",
+                  response: "already-semconv",
+                },
+              ],
+            },
+          ],
+        },
+      },
     });
-    const http = mockHttp();
-    (http.request as ReturnType<typeof vi.fn>)
-      .mockResolvedValueOnce(listPage)
-      .mockResolvedValueOnce(detail);
-
+    const http = mockHttp({ requestResult: detail });
     const api = new ConversationsApi(http);
-    const response = await api.retrieve("conv-1");
 
-    expect(response!.input_messages[0].parts[0]).toEqual({
+    const span = await api.retrieve("conv-1", "span-1");
+
+    expect(span!.attributes.gen_ai?.input?.messages?.[0].parts[0]).toEqual({
       type: "tool_call_response",
       id: "call-1",
       response: { ok: true },
     });
     // Non-tool parts and already-semconv parts pass through untouched.
-    expect(response!.input_messages[0].parts[1]).toEqual({
+    expect(span!.attributes.gen_ai?.input?.messages?.[0].parts[1]).toEqual({
       type: "text",
       content: "unrelated",
     });
-    // gen_ai_output_messages is preferred over output_message.
-    expect(response!.output_messages[0].parts[0]).toEqual({
+    expect(span!.attributes.gen_ai?.output?.messages?.[0].parts[0]).toEqual({
       type: "tool_call_response",
       id: "call-2",
       response: "already-semconv",
     });
   });
+
+  it("preserves undeclared attributes through the client", () => {
+    // The client must not narrow what the server returns: an attribute nobody
+    // modelled has to survive the trip through `items.list()` normalization.
+    const span = makeSpan("span-1", {
+      gen_ai: {
+        input: {
+          messages: [
+            { role: "user", parts: [{ type: "text", content: "hi" }] },
+          ],
+        },
+        vendor_specific: "kept",
+      },
+      acme: { tenant: "x" },
+    });
+    const http = mockHttp({ requestResult: makePage([span], false) });
+    const api = new ConversationsApi(http);
+
+    return (async () => {
+      const items = [];
+      for await (const item of api.items.list("conv-1")) items.push(item);
+
+      expect(items[0].attributes.gen_ai?.vendor_specific).toBe("kept");
+      expect(items[0].attributes.acme).toEqual({ tenant: "x" });
+    })();
+  });
 });
 
 describe("ConversationsApi.list — Arrow format", () => {
   it("negotiates Arrow and rebuilds conversation summaries from the IPC stream + headers", async () => {
+    // Arrow deliberately keeps the flat summary schema — over the span shape
+    // every aggregable field collapses into one JSON column.
     const ipc = arrow.tableToIPC(
       arrow.tableFromArrays({
         trace_id: ["trace-1", "trace-2"],

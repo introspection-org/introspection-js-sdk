@@ -1,29 +1,21 @@
 import type {
-  ConversationItem,
   ConversationItemInclude,
-  ConversationItemList,
   ConversationItemListParams,
   ConversationListParams,
-  ConversationResponse,
-  ConversationSummary,
+  GenAiSpan,
+  GenAiSpanList,
   MessagePart,
   ToolCallResponsePart,
 } from "@introspection-sdk/types";
+import { genAiOutputMessages } from "@introspection-sdk/types";
 import { Paginator } from "../pagination.js";
 import { ArrowPages, arrowRead, listRead } from "./reads.js";
 import type { ResourceHttpClient } from "./types.js";
 
-/** Includes requested when building a {@link ConversationResponse}. */
-const RESPONSE_INCLUDES: ConversationItemInclude[] = [
-  "gen_ai.input.messages",
-  "gen_ai.system_instructions",
-  "gen_ai.tool.definitions",
-];
-
 /**
  * Items of a conversation (`/v1/conversations/{id}/items`). Read-only.
  *
- * The OpenAI-style envelope retains item-id metadata while `list()` drives
+ * The OpenAI-style envelope retains span-id metadata while `list()` drives
  * pagination with its opaque `next` token.
  */
 export class ConversationItemsClient {
@@ -31,27 +23,29 @@ export class ConversationItemsClient {
 
   /**
    * List items of a conversation. `await` the result for the first page
-   * (an OpenAI-style {@link ConversationItemList} envelope), or
-   * `for await` it to stream every item across pages (fetched lazily —
-   * `limit` sets the page size, `next` the starting cursor; stop early to
-   * stop fetching). Pass `order: "asc"` to walk the transcript from the
-   * start.
+   * (an OpenAI-style {@link GenAiSpanList} envelope), or `for await` it to
+   * stream every item across pages (fetched lazily — `limit` sets the page
+   * size, `next` the starting cursor; stop early to stop fetching). Pass
+   * `order: "asc"` to walk the transcript from the start.
    *
-   * Items carry the turn-local delta in `input_messages` — only the
-   * messages new to that turn. Use `get()` for the full input history.
+   * Items carry the turn-local delta in `attributes.gen_ai.input.messages`
+   * — only the messages new to that turn. Use `get()` for the full input
+   * history.
    */
   list(
     conversationId: string,
     params?: ConversationItemListParams,
-  ): Paginator<ConversationItem, ConversationItemList> {
+  ): Paginator<GenAiSpan, GenAiSpanList> {
     return new Paginator(
       {
-        fetch: (next) =>
-          this.http.request<ConversationItemList>({
+        fetch: async (next) => {
+          const page = await this.http.request<GenAiSpanList>({
             method: "GET",
             path: `/v1/conversations/${encodeURIComponent(conversationId)}/items`,
             query: { ...params, next } as Record<string, unknown>,
-          }),
+          });
+          return { ...page, data: page.data.map(normalizeSpan) };
+        },
         items: (page) => page.data,
         next: (page) => {
           if (page.has_more && !page.next) {
@@ -67,19 +61,21 @@ export class ConversationItemsClient {
   }
 
   /**
-   * Fetch a single conversation item. Unlike the list route, the
-   * detail's `input_messages` is the FULL input history for that span.
+   * Fetch a single conversation item. Unlike the list route, the detail's
+   * `attributes.gen_ai.input.messages` is the FULL input history for that
+   * span — unconditionally, with no `include` to remember.
    */
-  get(
+  async get(
     conversationId: string,
     itemId: string,
     params?: { include?: ConversationItemInclude[] },
-  ): Promise<ConversationItem> {
-    return this.http.request<ConversationItem>({
+  ): Promise<GenAiSpan> {
+    const span = await this.http.request<GenAiSpan>({
       method: "GET",
       path: `/v1/conversations/${encodeURIComponent(conversationId)}/items/${encodeURIComponent(itemId)}`,
       query: params as Record<string, unknown> | undefined,
     });
+    return normalizeSpan(span);
   }
 }
 
@@ -87,7 +83,9 @@ export class ConversationItemsClient {
  * Read-only Conversations API (`/v1/conversations`).
  *
  * Both `list()` and `items.list()` are auto-paging async generators that
- * pass each response's opaque `next` token back unchanged.
+ * pass each response's opaque `next` token back unchanged. Every read
+ * returns the same {@link GenAiSpan}; only the depth of the message lists
+ * differs.
  */
 export class ConversationsClient {
   /** Items of a conversation — `conversations.items.list(...)` etc. */
@@ -103,18 +101,18 @@ export class ConversationsClient {
    * pages (fetched lazily — `limit` sets the page size, `next` the
    * starting cursor; stop early to stop fetching).
    *
+   * A summary is the same span envelope as an item, carrying the latest
+   * turn only, with the conversation rollups under
+   * `attributes.gen_ai.usage.*` and `attributes.introspection.conversation.*`.
+   *
    * Accepts the ergonomic ordering/window params (`order`, `start`,
    * `end`, `lookback`) and an optional `format: "arrow"` that negotiates
    * an Apache Arrow IPC stream while exposing the identical page shape.
    * `lookback` is mutually exclusive with `start`/`end` and throws a
    * `ValidationError` before any request is sent.
    */
-  list(params?: ConversationListParams): Paginator<ConversationSummary> {
-    return listRead<ConversationSummary>(
-      this.http,
-      "/v1/conversations",
-      params,
-    );
+  list(params?: ConversationListParams): Paginator<GenAiSpan> {
+    return listRead<GenAiSpan>(this.http, "/v1/conversations", params);
   }
 
   /**
@@ -123,6 +121,10 @@ export class ConversationsClient {
    * `Table`. Accepts the same params as {@link list} minus `format`
    * (Arrow is implied).
    *
+   * Arrow deliberately keeps the flat summary schema — every field an
+   * analytical reader aggregates on is its own typed column there, and
+   * would collapse into one JSON blob under the span shape.
+   *
    * Requires the optional `apache-arrow` peer dependency.
    */
   arrow(params?: Omit<ConversationListParams, "format">): ArrowPages {
@@ -130,15 +132,19 @@ export class ConversationsClient {
   }
 
   /**
-   * Responses-API-style retrieve: load the state of a conversation as of
-   * one item — the full input history, output, system instructions, and
-   * tool definitions of that turn.
+   * Load the state of a conversation as of one item — the full input
+   * history, output, system instructions, and tool definitions of that
+   * turn.
    *
-   * When `itemId` is omitted, the latest LLM turn is used: the first
-   * item (in descending order) whose `node_type` is `"assistant"` or
-   * whose `operation_name` is `"chat"`, falling back to the first item
-   * with a non-null `output_message`. Returns `null` when the
-   * conversation has no items.
+   * Returns the span itself. There is no separate response type any more:
+   * the item detail read already carries all of that under its semconv
+   * attribute names, so composing a second object from it would just be
+   * copying fields into different names.
+   *
+   * When `itemId` is omitted, the latest LLM turn is used: the first item
+   * (in descending order) whose `gen_ai.operation.name` is `"chat"`,
+   * falling back to the first item that produced any output. Returns
+   * `null` when the conversation has no items.
    *
    * For the full per-turn transcript instead, iterate
    * `items.list(conversationId, { order: "asc" })`.
@@ -146,64 +152,81 @@ export class ConversationsClient {
   async retrieve(
     conversationId: string,
     itemId?: string,
-  ): Promise<ConversationResponse | null> {
+  ): Promise<GenAiSpan | null> {
     const targetId = itemId ?? (await this.findLatestTurnId(conversationId));
     if (targetId === null) return null;
-
-    const detail = await this.items.get(conversationId, targetId, {
-      include: RESPONSE_INCLUDES,
-    });
-    const outputMessages =
-      detail.gen_ai_output_messages ??
-      (detail.output_message ? [detail.output_message] : []);
-    return {
-      conversation_id: conversationId,
-      response_id: detail.response_id ?? null,
-      item_id: detail.id,
-      created_at: detail.created_at,
-      model:
-        detail.model_name ??
-        detail.response_model ??
-        detail.request_model ??
-        null,
-      provider_name: detail.provider_name ?? null,
-      // The single-item route returns the FULL input history here.
-      input_messages: normalizeMessages(detail.input_messages),
-      output_messages: normalizeMessages(outputMessages),
-      system_instructions: detail.system_instructions ?? null,
-      tool_definitions: detail.tool_definitions ?? null,
-    };
+    return this.items.get(conversationId, targetId);
   }
 
-  /** Scan items in descending order for the most recent LLM turn. */
+  /**
+   * Scan items in descending order for the most recent LLM turn.
+   *
+   * The old heuristic also matched `node_type === "assistant"`, but
+   * `node_type` was a precomputed UI tree hint with no semantic-convention
+   * equivalent and is gone from the wire. `gen_ai.operation.name` is the
+   * attribute that actually carried the meaning.
+   */
   private async findLatestTurnId(
     conversationId: string,
   ): Promise<string | null> {
-    let fallback: ConversationItem | null = null;
+    let fallback: GenAiSpan | null = null;
     for await (const item of this.items.list(conversationId, {
       order: "desc",
     })) {
-      if (item.node_type === "assistant" || item.operation_name === "chat") {
-        return item.id;
+      if (item.attributes.gen_ai?.operation?.name === "chat") {
+        return item.span_id ?? null;
       }
-      if (fallback === null && item.output_message != null) fallback = item;
+      if (fallback === null && genAiOutputMessages(item).length > 0) {
+        fallback = item;
+      }
     }
-    return fallback?.id ?? null;
+    return fallback?.span_id ?? null;
   }
 }
 
 /**
- * Defensive normalization for {@link ConversationsClient.retrieve} only:
- * older DP deployments emitted `tool_call_response` parts with a legacy
- * `result` key instead of the semconv `response` key. Map it across so
- * replayed history is always semconv-shaped.
+ * Defensive normalization: older DP deployments emitted
+ * `tool_call_response` parts with a legacy `result` key instead of the
+ * semconv `response` key. Map it across so replayed history is always
+ * semconv-shaped.
+ *
+ * The mapping itself is unchanged and still needed — it is a compatibility
+ * shim for older DP deployments, not an artifact of the old envelope. What
+ * changed is where the messages live: they used to be flat top-level
+ * fields, and now they sit under `attributes.gen_ai.{input,output}.messages`,
+ * so the walk follows the tree.
  */
+function normalizeSpan(span: GenAiSpan): GenAiSpan {
+  const genAi = span.attributes?.gen_ai;
+  if (!genAi) return span;
+
+  const input = genAi.input?.messages;
+  const output = genAi.output?.messages;
+  if (!input && !output) return span;
+
+  return {
+    ...span,
+    attributes: {
+      ...span.attributes,
+      gen_ai: {
+        ...genAi,
+        ...(input
+          ? { input: { ...genAi.input, messages: normalizeMessages(input) } }
+          : {}),
+        ...(output
+          ? { output: { ...genAi.output, messages: normalizeMessages(output) } }
+          : {}),
+      },
+    },
+  };
+}
+
 function normalizeMessages<T extends { parts: MessagePart[] }>(
   messages: T[],
 ): T[] {
   return messages.map((message) => ({
     ...message,
-    parts: message.parts.map(normalizePart),
+    parts: (message.parts ?? []).map(normalizePart),
   }));
 }
 
