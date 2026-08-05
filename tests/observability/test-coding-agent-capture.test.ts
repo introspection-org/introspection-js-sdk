@@ -350,6 +350,8 @@ describe("span construction", () => {
     expect(root!.attributes["gen_ai.provider.name"]).toBe("anthropic");
     expect(root!.attributes["gen_ai.operation.name"]).toBe("invoke_agent");
     expect(root!.attributes["gen_ai.conversation.id"]).toBe(SESSION_ID);
+    expect(root!.attributes["introspection.plugin.cwd"]).toBe("/repo");
+    expect(root!.attributes["introspection.plugin.git_branch"]).toBe("main");
 
     // The plugin discriminator and the host version are the correlation keys the
     // platform reads; assert them explicitly rather than trusting the resource.
@@ -435,7 +437,12 @@ describe("span construction", () => {
 
     const input = JSON.parse(String(root!.attributes["gen_ai.input.messages"]));
     expect(input).toEqual([
-      { role: "user", parts: [{ type: "text", content: "List the files." }] },
+      {
+        role: "user",
+        parts: [{ type: "text", content: "List the files." }],
+        timestamp: "2026-08-04T10:00:00.000Z",
+        sequence: 0,
+      },
     ]);
 
     const output = JSON.parse(
@@ -454,12 +461,24 @@ describe("span construction", () => {
           arguments: { command: "ls" },
         },
       ],
+      timestamp: "2026-08-04T10:00:01.000Z",
+      sequence: 1,
     });
     expect(output).toContainEqual({
       role: "tool",
       parts: [
         { type: "tool_call_response", id: "toolu_1", response: "README.md" },
       ],
+      timestamp: "2026-08-04T10:00:02.000Z",
+      sequence: 2,
+    });
+    expect(output).toContainEqual({
+      role: "assistant",
+      parts: [{ type: "text", content: "There is one file: README.md." }],
+      model: "claude-opus-5",
+      provider: "anthropic",
+      timestamp: "2026-08-04T10:00:03.000Z",
+      sequence: 3,
     });
   });
 
