@@ -239,8 +239,15 @@ export interface OutputMessage {
 
 /** A tool definition for the `gen_ai.tool.definitions` attribute. */
 export interface ToolDefinition {
-  /** Tool type. Function tools use the canonical `"function"` value. */
-  type: string;
+  /**
+   * Tool type. Function tools use the canonical `"function"` value.
+   *
+   * Optional because the platform does not model it: the DP's `ToolDefinition`
+   * declares only `name` and `description` and serializes with
+   * `exclude_none`, so a definition read back from a conversation carries
+   * `type` only when the emitter happened to set it.
+   */
+  type?: string;
   /** Tool / function name. */
   name: string;
   /** Human-readable description of what the tool does. */
