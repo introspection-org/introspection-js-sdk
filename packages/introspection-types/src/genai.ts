@@ -31,14 +31,25 @@ export interface TextPart {
 /**
  * A reasoning / thinking content part in a message.
  *
+ * `"thinking"` is the canonical spelling: it is what the platform stores, what
+ * the Python SDK emits, and the vocabulary the provider SDKs use. The semantic
+ * conventions spell it `"reasoning"`, which this SDK emits and ingest accepts —
+ * OTLP ingest normalizes either to `"thinking"` before writing.
+ *
+ * Both are declared because this type is used on **both** sides: converters
+ * build parts for emission, and readers parse parts back out of a stored span.
+ * A stored span always says `"thinking"`, so a reader narrowing on `type` needs
+ * that member to exist. The alias is permanent rather than transitional —
+ * telemetry is append-only, so a part type is stored bytes.
+ *
  * `signature` carries the encrypted reasoning payload (Anthropic
  * `signature` / `redacted_thinking`, OpenAI `encrypted_content`).
  * `redacted` is set when the upstream provider redacted the visible
  * content but kept the signed payload.
  */
-export interface ReasoningPart {
-  /** Discriminator — always `"reasoning"`. */
-  type: "reasoning";
+export interface ThinkingPart {
+  /** Discriminator — `"thinking"` as stored, `"reasoning"` per the semantic conventions. */
+  type: "thinking" | "reasoning";
   /** The reasoning / thinking summary content. */
   content: string;
   /** Encrypted reasoning signature (Anthropic signature / redacted_thinking, OpenAI encrypted_content). */
@@ -48,6 +59,12 @@ export interface ReasoningPart {
   /** True when the thinking content was redacted by safety filters but the signed payload is preserved. */
   redacted?: boolean;
 }
+
+/**
+ * @deprecated Prefer {@link ThinkingPart}. Kept as an alias so existing
+ * converters keep compiling; the two are the same type.
+ */
+export type ReasoningPart = ThinkingPart;
 
 /** A tool / function-call request part in a message. */
 export interface ToolCallRequestPart {
@@ -80,10 +97,33 @@ export interface ToolCallResponsePart {
  * document); the payload itself lives behind `url`.
  */
 export interface MediaUrlPart {
-  /** Discriminator — the media kind. */
-  type: "image-url" | "audio-url" | "video-url" | "document-url";
+  /** Discriminator — the media kind, or the semantic conventions' `"uri"`. */
+  type: "image-url" | "audio-url" | "video-url" | "document-url" | "uri";
   /** URL to the media content. */
   url?: string;
+  /** Semantic-convention spelling of `url`, accepted on read. */
+  uri?: string;
+  /** Modality of the referenced content. Set only on a `"uri"` part, where the type name does not carry it. */
+  modality?: string;
+  /** IANA MIME type of the referenced content, when known. */
+  mime_type?: string;
+}
+
+/**
+ * Content referenced by a provider-assigned file id (semconv `file`).
+ *
+ * The payload never travels with the span — only the handle the provider
+ * issued for it — so this part is a reference, not content.
+ */
+export interface FilePart {
+  /** Discriminator — always `"file"`. */
+  type: "file";
+  /** Provider-assigned file identifier. */
+  file_id?: string;
+  /** IANA MIME type of the referenced file, when known. */
+  mime_type?: string;
+  /** Modality of the referenced file. */
+  modality?: string;
 }
 
 /**
@@ -135,16 +175,26 @@ export interface CompactionPart {
   content: string;
 }
 
-/** Union of all possible message-part shapes. */
+/**
+ * Union of all possible message-part shapes.
+ *
+ * Deliberately closed. TypeScript does not validate at runtime, so an
+ * unrecognized part is not an error here — it simply flows through as data,
+ * and a `switch` over `type` falls to its default. Adding an open catch-all
+ * member would buy nothing and would cost the narrowing every consumer relies
+ * on. (The Python SDK does need one, because its union *is* a runtime
+ * validator and an unknown tag there fails the whole message.)
+ */
 export type MessagePart =
   | TextPart
-  | ReasoningPart
+  | ThinkingPart
   | ToolCallRequestPart
   | ToolCallResponsePart
   | CompactionPart
   | MediaUrlPart
   | BinaryDataPart
-  | BlobPart;
+  | BlobPart
+  | FilePart;
 
 /** A system instruction entry for `gen_ai.system_instructions`. */
 export interface SystemInstruction {

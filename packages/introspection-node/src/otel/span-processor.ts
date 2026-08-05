@@ -394,11 +394,13 @@ export class IntrospectionSpanProcessor implements SpanProcessor {
       if (isVercel) {
         const vercelAttrs = convertVercelAIToGenAI(span.attributes);
         for (const [key, value] of Object.entries(vercelAttrs)) {
-          // Prefer Vercel output messages when they contain reasoning
+          // Prefer Vercel output messages when they contain reasoning.
+          // Either spelling counts: converters emit `"reasoning"`, but a part
+          // that has been through ingest normalization says `"thinking"`.
           if (
             key === "gen_ai.output.messages" &&
             typeof value === "string" &&
-            value.includes('"reasoning"')
+            (value.includes('"reasoning"') || value.includes('"thinking"'))
           ) {
             attrs[key] = value;
           } else if (attrs[key] === undefined) {
