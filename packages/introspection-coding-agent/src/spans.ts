@@ -38,9 +38,8 @@
  * | `tool`                   | `tool` + `tool_call_response` part (id, response)      |
  *
  * Nothing is dropped: `tool_call_id` survives as the part's `id`, ordering
- * survives as an encrypted per-message sequence, per-record timestamps survive
- * both as span times and encrypted per-message timestamps, and a tool's
- * success/failure survives as its span status. So the reverse direction —
+ * survives as message order, per-record timestamps survive as span times, and a
+ * tool's success/failure survives as its span status. So the reverse direction —
  * rendering a stored conversation back as a trajectory — stays available as a
  * pure projection over what is already stored, with no second format to keep.
  *
@@ -135,21 +134,6 @@ function timeOf(record: NormalizedRecord, fallback: number): number {
   return Number.isNaN(parsed) ? fallback : parsed;
 }
 
-/** Metadata retained inside encrypted GenAI message payloads for ATIF projection. */
-function recordMetadata(
-  record: NormalizedRecord,
-  sequence: number,
-  fallback: number,
-): Pick<InputMessage, "timestamp" | "sequence"> {
-  const timestamp =
-    "timestamp" in record &&
-    typeof record.timestamp === "string" &&
-    !Number.isNaN(Date.parse(record.timestamp))
-      ? record.timestamp
-      : new Date(fallback).toISOString();
-  return { timestamp, sequence };
-}
-
 /** Resource-level attributes identifying this capture path. */
 export function resourceAttributes(hostInfo: HostInfo): Attributes {
   const attrs: Attributes = {
@@ -237,9 +221,8 @@ export function emitTurnSpans(
   const inputMessages: InputMessage[] = [];
   const outputMessages: OutputMessage[] = [];
 
-  for (const [sequence, record] of conversational.entries()) {
+  for (const record of conversational) {
     const at = timeOf(record, now);
-    const metadata = recordMetadata(record, sequence, now);
 
     switch (record.role) {
       case "user": {
@@ -247,7 +230,6 @@ export function emitTurnSpans(
           inputMessages.push({
             role: "user",
             parts: [{ type: "text", content: truncate(record.content) }],
-            ...metadata,
           });
         }
         break;
@@ -266,7 +248,6 @@ export function emitTurnSpans(
                 provider_name: provider,
               },
             ],
-            ...metadata,
           });
         }
         break;
@@ -281,7 +262,7 @@ export function emitTurnSpans(
               name: call.name,
               arguments: parseArguments(call.args),
             }));
-            outputMessages.push({ role: "assistant", parts, ...metadata });
+            outputMessages.push({ role: "assistant", parts });
           }
 
           for (const call of record.tool_calls) {
@@ -313,7 +294,6 @@ export function emitTurnSpans(
             outputMessages.push({
               role: "assistant",
               parts: [{ type: "text", content: truncate(record.content) }],
-              ...metadata,
               ...(model ? { model } : {}),
               provider,
             });
@@ -350,7 +330,6 @@ export function emitTurnSpans(
                 response: truncate(record.content),
               },
             ],
-            ...metadata,
           });
         }
 

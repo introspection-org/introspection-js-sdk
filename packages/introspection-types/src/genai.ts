@@ -165,10 +165,6 @@ export interface InputMessage {
   parts: MessagePart[];
   /** Optional tool name when `role` is `"tool"`. */
   name?: string;
-  /** Source-record timestamp when an instrumentation can preserve it. */
-  timestamp?: string;
-  /** Source-record ordinal within its containing operation/turn. */
-  sequence?: number;
 }
 
 /**
