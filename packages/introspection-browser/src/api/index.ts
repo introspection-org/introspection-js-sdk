@@ -65,6 +65,11 @@ export {
   type PageSource,
 } from "@introspection-sdk/http";
 export { EventType } from "@introspection-sdk/types";
+export {
+  genAiConversationId,
+  genAiInputMessages,
+  genAiOutputMessages,
+} from "@introspection-sdk/types";
 
 // Re-exported wire types for convenience.
 export type {
@@ -94,14 +99,13 @@ export type {
   FileUpdateParams,
   FileCreateTextParams,
   ListParams,
-  ConversationSummary,
+  GenAiSpan,
+  GenAiSpanList,
+  SpanAttributes,
   ConversationSortField,
-  ConversationItem,
-  ConversationItemList,
   ConversationListParams,
   ConversationItemListParams,
   ConversationItemInclude,
-  ConversationResponse,
   ResourceShare,
   ShareResourceType,
   ShareCreateParams,

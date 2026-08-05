@@ -18,7 +18,10 @@
  * option or env override.
  */
 
-import { IntrospectionClient } from "@introspection-sdk/introspection-node";
+import {
+  IntrospectionClient,
+  genAiOutputMessages,
+} from "@introspection-sdk/introspection-node";
 
 async function main() {
   const client = new IntrospectionClient();
@@ -55,11 +58,15 @@ async function main() {
   const conversationId = run.task?.metadata?.conversation_id as
     string | undefined;
   if (conversationId) {
-    const response = await runner.conversations.retrieve(conversationId);
-    if (response) {
+    // The read returns the turn as a GenAI span: semconv attribute names,
+    // full input history, nothing renamed on the way out.
+    const span = await runner.conversations.retrieve(conversationId);
+    if (span) {
+      const genAi = span.attributes.gen_ai;
+      const model = genAi?.response?.model ?? genAi?.request?.model ?? "?";
       console.log(
-        `completed conversation ${conversationId}: model=${response.model}, ` +
-          `${response.output_messages.length} output message(s)`,
+        `completed conversation ${conversationId}: model=${model}, ` +
+          `${genAiOutputMessages(span).length} output message(s)`,
       );
     }
     const share = await runner.shares.create({

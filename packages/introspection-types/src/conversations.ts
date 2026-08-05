@@ -2,18 +2,41 @@
  * Read-only Conversations API types for the Introspection DP
  * `/v1/conversations` surface.
  *
- * Field names are kept on-the-wire (snake_case) to match the DP Pydantic
- * models verbatim (`introspection_dataplane/models/conversation.py`).
+ * A conversation item **is** an OpenTelemetry span, so it is typed as one:
+ * identity and timing at the top level, everything else under `attributes`
+ * keyed by its OpenTelemetry semantic-convention name.
+ * `attributes.gen_ai.request.model` is called that here because that is what
+ * the SDK wrote when it created the span — there is no private dialect to
+ * learn on top of a vocabulary the reader already knows.
  *
- * The surface uses two distinct paging styles:
+ * Both conversation reads return the same {@link GenAiSpan}. The only
+ * difference is how much conversation the message lists carry:
  *
- * - **Cursor paging** (`GET /v1/conversations`) — the standard
- *   Introspection envelope {@link Paginated} with an opaque `next` token.
- *   Pass the token back unchanged via the `next` query param.
- * - **Cursor paging** (`GET /v1/conversations/{id}/items`) — an
- *   OpenAI-style envelope {@link ConversationItemList} that retains
- *   `first_id`, `last_id`, and `has_more` metadata while pagination uses
- *   an opaque `next` token.
+ * - `GET /v1/conversations` — the latest turn only, one message each. A
+ *   preview, inside the standard cursor envelope `Paginated<GenAiSpan>`.
+ * - `GET /v1/conversations/{id}/items` — that turn's delta, inside the
+ *   OpenAI-style {@link GenAiSpanList} envelope whose pagination is driven by
+ *   the opaque `next` token.
+ * - `GET /v1/conversations/{id}/items/{item_id}` — the **full history** as of
+ *   that turn, so a conversation can be resumed with complete context.
+ *
+ * That is a depth difference, not a schema difference: one parser, one
+ * renderer.
+ *
+ * **Absent means absent.** The server never serializes `null` on this
+ * surface; a value that is not present is a key that is not there. Every
+ * optional field below is therefore `?:` rather than `| null`.
+ *
+ * **The attribute tree is open.** The server returns attributes as stored,
+ * not as an allow-list, so every attribute type below carries an index
+ * signature. A customer's own `gen_ai.*` or domain attribute arrives on a
+ * type that never declared it and still round-trips — closing these types
+ * would reintroduce exactly the lossiness this representation exists to
+ * remove. Field names are kept on-the-wire (snake_case) to match both the
+ * semantic conventions and the DP models verbatim
+ * (`introspection_dataplane/models/genai_span.py`).
+ *
+ * @see cloud `docs/design/conversations-genai-representation.md`
  */
 
 import type { IsoDate, ListParams, ReadWindowParams, Uuid } from "./api.js";
@@ -31,10 +54,6 @@ export type SpanStatus = "Ok" | "Error" | "Unset";
 export type SpanKind =
   "UNSPECIFIED" | "INTERNAL" | "SERVER" | "CLIENT" | "PRODUCER" | "CONSUMER";
 
-/** Lightweight node type for conversation item trees. */
-export type ConversationItemNodeType =
-  "agent" | "assistant" | "tool_call" | "span";
-
 /** Allow-listed `sort` fields for `GET /v1/conversations`. */
 export type ConversationSortField =
   "created" | "duration" | "turns" | "tokens" | "cost";
@@ -42,39 +61,272 @@ export type ConversationSortField =
 /**
  * Optional conversation item expansions, passed as a repeated `include`
  * query param on the items routes.
+ *
+ * The message-family expansions are gone: the detail read returns the full
+ * message history unconditionally, so there is nothing left for them to
+ * gate. A parameter that is always required is not a parameter, it is a trap
+ * — forgetting `include=gen_ai.input.messages` used to silently fork a
+ * conversation with one turn of context. `span_attributes` went the same
+ * way: the attribute tree *is* the response now, not an optional expansion
+ * of it.
  */
-export type ConversationItemInclude =
-  | "gen_ai.input.messages"
-  | "gen_ai.output.messages"
-  | "gen_ai.system_instructions"
-  | "gen_ai.tool.definitions"
-  | "events"
-  | "resource_attributes"
-  | "span_attributes";
+export type ConversationItemInclude = "events" | "resource_attributes";
+
+// --- gen_ai.* -------------------------------------------------------------
+
+/** `gen_ai.operation.name` — `chat`, `execute_tool`, `invoke_agent`. */
+export interface GenAiOperation {
+  /** Operation name. */
+  name?: string;
+  [key: string]: unknown;
+}
+
+/** `gen_ai.provider.name`. Replaced the older `gen_ai.system`. */
+export interface GenAiProvider {
+  /** Provider name (e.g. `"anthropic"`, `"openai"`). */
+  name?: string;
+  [key: string]: unknown;
+}
+
+/** `gen_ai.conversation.id`. */
+export interface GenAiConversation {
+  /** GenAI conversation ID — the `/v1/conversations/{id}` path key. */
+  id?: string;
+  [key: string]: unknown;
+}
+
+/** `gen_ai.agent.*`. */
+export interface GenAiAgent {
+  /** Agent ID. */
+  id?: string;
+  /** Agent name. */
+  name?: string;
+  /** Agent description. */
+  description?: string;
+  [key: string]: unknown;
+}
+
+/** `gen_ai.request.*` — what was asked for. */
+export interface GenAiRequest {
+  /** Requested model. */
+  model?: string;
+  temperature?: number;
+  top_p?: number;
+  top_k?: number;
+  max_tokens?: number;
+  seed?: number;
+  stream?: boolean;
+  [key: string]: unknown;
+}
+
+/** `gen_ai.response.*` — what came back. */
+export interface GenAiResponse {
+  /** Provider response identifier. */
+  id?: string;
+  /** Model that produced the response. */
+  model?: string;
+  /** Model-reported finish reasons. */
+  finish_reasons?: string[];
+  [key: string]: unknown;
+}
+
+/** A nested token count, e.g. `gen_ai.usage.cache_read.input_tokens`. */
+export interface TokenCount {
+  input_tokens?: number;
+  [key: string]: unknown;
+}
 
 /**
- * Introspection-specific metadata enriched during trace ingestion.
+ * `gen_ai.usage.*`.
  *
- * Derived from the `introspection.*` span attributes the SDK sets during
- * conversation linking / enrichment.
+ * On an item these are that operation's usage. On a conversation summary
+ * they are the conversation's totals — same attribute, same honest meaning
+ * for its scope, disambiguated by which read the object came from.
+ *
+ * Cache tokens are standard: they were a local extension until the GenAI
+ * conventions adopted them, and the nesting is the adopted spelling.
  */
-export interface IntrospectionMetadata {
-  /** Introspection member ID. */
-  member_id?: string | null;
-  /** Whether this is the first turn of a conversation. */
-  is_new_conversation?: boolean | null;
+export interface GenAiUsage {
+  input_tokens?: number;
+  output_tokens?: number;
+  cache_read?: TokenCount;
+  cache_creation?: TokenCount;
+  [key: string]: unknown;
+}
+
+/** `gen_ai.tool.call.*`. */
+export interface GenAiToolCall {
+  /** Tool call identifier. */
+  id?: string;
+  /** Raw JSON-encoded tool call arguments. */
+  arguments?: string;
+  [key: string]: unknown;
+}
+
+/** `gen_ai.tool.*`. */
+export interface GenAiTool {
+  /** Tool / function name. */
+  name?: string;
+  /** Tool type. */
+  type?: string;
+  /** Tool description. */
+  description?: string;
+  /** The call this `execute_tool` span represents. */
+  call?: GenAiToolCall;
+  /** Tool definitions offered to the model. */
+  definitions?: ToolDefinition[];
+  [key: string]: unknown;
+}
+
+/**
+ * `gen_ai.input.messages`.
+ *
+ * Full history on the item detail read; the turn-local delta on the items
+ * list; the latest turn only on the conversations list.
+ */
+export interface GenAiInput {
+  messages?: InputMessage[];
+  [key: string]: unknown;
+}
+
+/** `gen_ai.output.messages`. */
+export interface GenAiOutput {
+  messages?: OutputMessage[];
+  [key: string]: unknown;
+}
+
+/** The `gen_ai.*` attribute family, nested as the convention names it. */
+export interface GenAiSpanAttributes {
+  operation?: GenAiOperation;
+  provider?: GenAiProvider;
+  conversation?: GenAiConversation;
+  agent?: GenAiAgent;
+  request?: GenAiRequest;
+  response?: GenAiResponse;
+  usage?: GenAiUsage;
+  tool?: GenAiTool;
+  input?: GenAiInput;
+  output?: GenAiOutput;
+  /** `gen_ai.system_instructions`. */
+  system_instructions?: SystemInstruction[];
+  [key: string]: unknown;
+}
+
+// --- introspection.* ------------------------------------------------------
+
+/** An `{id}` node — `introspection.org.id` and friends. */
+export interface IntrospectionId {
+  id?: string;
+  [key: string]: unknown;
+}
+
+/** `introspection.runtime.*`. */
+export interface IntrospectionRuntime {
+  /** Runtime version ID. */
+  id?: string;
+  /** Stable runtime group ID. */
+  group_id?: string;
+  [key: string]: unknown;
+}
+
+/** `introspection.recipe.*`. */
+export interface IntrospectionRecipe {
+  /** Recipe git commit SHA. */
+  git_commit_sha?: string;
+  [key: string]: unknown;
+}
+
+/**
+ * `introspection.conversation.*`.
+ *
+ * On an item these describe the turn's place in the conversation. On a
+ * summary the counts describe the conversation as a whole — these are the
+ * rollups with no semantic-convention name, which is why they live here
+ * rather than under `gen_ai`: claiming a `gen_ai.*` name for them would
+ * assert a standard meaning that does not exist.
+ */
+export interface IntrospectionConversation {
   /** Position of this turn in the conversation (0-based). */
-  conversation_position?: number | null;
-  /** How this span was linked to a conversation (e.g. `"history"`, `"conversation_id"`). */
-  continuation_method?: string | null;
+  position?: number;
+  /** Whether this is the first turn of a conversation. */
+  is_new?: boolean;
+  /** How this span was linked to a conversation (e.g. `"conversation_id"`). */
+  continuation_method?: string;
   /** Whether the history hash lookup matched an existing conversation. */
-  history_hash_hit?: boolean | null;
+  history_hash_hit?: boolean;
   /** Inclusive start index of newly added input messages in the full history. */
-  new_messages_start?: number | null;
+  new_messages_start?: number;
   /** Exclusive end index of newly added input messages in the full history. */
-  new_messages_end?: number | null;
+  new_messages_end?: number;
   /** Client-generated message ID for optimistic turn reconciliation. */
-  client_message_id?: string | null;
+  client_message_id?: string;
+  /** Number of traces in the conversation (summary rollup). */
+  trace_count?: number;
+  /** Number of spans in the conversation (summary rollup). */
+  span_count?: number;
+  /** Number of `execute_tool` spans in the conversation (summary rollup). */
+  tool_use_count?: number;
+  /** Number of failed `execute_tool` spans (summary rollup). */
+  failed_tool_use_count?: number;
+  /** Whether any span in the conversation has errors (summary rollup). */
+  has_errors?: boolean;
+  [key: string]: unknown;
+}
+
+/**
+ * The `introspection.*` attribute family.
+ *
+ * Everything here is ours. `cost_usd` sits here rather than under
+ * `gen_ai.usage` because cost is not in the GenAI conventions at all, on
+ * spans or anywhere else.
+ */
+export interface IntrospectionSpanAttributes {
+  org?: IntrospectionId;
+  project?: IntrospectionId;
+  member?: IntrospectionId;
+  run?: IntrospectionId;
+  task?: IntrospectionId;
+  runtime?: IntrospectionRuntime;
+  experiment?: IntrospectionId;
+  recipe?: IntrospectionRecipe;
+  /** Runtime environment lane. */
+  environment?: string;
+  /** Model cost in USD — this operation on an item, the conversation total on a summary. */
+  cost_usd?: number;
+  conversation?: IntrospectionConversation;
+  [key: string]: unknown;
+}
+
+// --- the span -------------------------------------------------------------
+
+/**
+ * The span's attribute tree.
+ *
+ * Typed for the two families whose meaning we own; open for everything
+ * else, so an attribute nobody modelled survives the round trip.
+ */
+export interface SpanAttributes {
+  gen_ai?: GenAiSpanAttributes;
+  introspection?: IntrospectionSpanAttributes;
+  [key: string]: unknown;
+}
+
+/** OTel resource attributes, nested the way the resource names them. */
+export interface SpanResource {
+  service?: {
+    /** OTel `service.name`. */
+    name?: string;
+    [key: string]: unknown;
+  };
+  [key: string]: unknown;
+}
+
+/** OpenTelemetry span status. */
+export interface GenAiSpanStatus {
+  /** Span status code. */
+  code?: SpanStatus;
+  /** Span status message. */
+  message?: string;
 }
 
 /** An event within a span (exception, log message, state change, ...). */
@@ -88,92 +340,38 @@ export interface SpanEvent {
 }
 
 /**
- * Canonical conversation item resource — one span of a conversation.
+ * One conversation item, or one conversation summary — the single object
+ * the `/v1/conversations` surface returns.
  *
- * In the items LIST response, `input_messages` carries the turn-local
- * delta (only the messages new to that turn). On the single-item GET,
- * `input_messages` is the FULL input history supplied to that span.
+ * The top level is closed because the server constructs it: these are the
+ * OTel span fields, not attributes. Openness lives where the server has no
+ * say over the keys — inside {@link attributes} and {@link resource}.
  */
-export interface ConversationItem {
-  /** Discriminator — always `"conversation.item"`. */
-  object: "conversation.item";
-  /** Conversation item identifier. */
-  id: string;
-  /** Item type — always `"span"`. */
-  type: "span";
+export interface GenAiSpan {
   /** Trace ID. */
   trace_id: string;
-  /** Span ID. */
-  span_id: string;
+  /** Span ID. Also the `{item_id}` of the item detail route. */
+  span_id?: string;
   /** Parent span ID. */
-  parent_span_id?: string | null;
-  /** Item creation timestamp. */
-  created_at: IsoDate;
+  parent_span_id?: string;
   /** Span name. */
-  span_name: string;
+  name?: string;
   /** Span kind. */
-  span_kind: SpanKind;
-  /** Precomputed tree node type. */
-  node_type: ConversationItemNodeType;
-  /** GenAI operation name (e.g. `"chat"`, `"execute_tool"`). */
-  operation_name?: string | null;
-  /** Span status code. */
-  status_code?: SpanStatus | null;
-  /** Span status message. */
-  status_message?: string | null;
-  /** Agent name. */
-  agent_name?: string | null;
-  /** Resolved model name. */
-  model_name?: string | null;
-  /** Requested model name. */
-  request_model?: string | null;
-  /** Response model name. */
-  response_model?: string | null;
-  /** Model response identifier. */
-  response_id?: string | null;
-  /** OTel `service.name`. */
-  service_name?: string | null;
-  /** GenAI provider name. */
-  provider_name?: string | null;
+  kind?: SpanKind;
+  /** Span start time. */
+  start_time: IsoDate;
+  /** Span end time. */
+  end_time?: IsoDate;
   /** Span duration in nanoseconds. */
-  duration_ns?: number | null;
-  /** Input token count. */
-  input_tokens?: number | null;
-  /** Output token count. */
-  output_tokens?: number | null;
-  /** Cache-read input token count. */
-  cache_read_input_tokens?: number | null;
-  /** Cache-creation input token count. */
-  cache_creation_input_tokens?: number | null;
-  /** Tool/function name for `execute_tool` spans. */
-  tool_name?: string | null;
-  /** Tool call identifier when available. */
-  tool_call_id?: string | null;
-  /** Raw JSON-encoded tool call arguments for `execute_tool` spans. */
-  tool_call_arguments?: string | null;
-  /** Tool definitions attached to this item. */
-  tool_definitions?: ToolDefinition[] | null;
-  /** Introspection metadata attached to this item. */
-  introspection?: IntrospectionMetadata | null;
-  /** Trimmed span attributes. */
-  span_attributes?: Record<string, unknown> | null;
-  /**
-   * Sliced input messages — the per-turn delta on the list route, the
-   * full input history on the single-item route.
-   */
-  input_messages: InputMessage[];
-  /** Output message. */
-  output_message?: OutputMessage | null;
-  /** Span events when requested via `include=events`. */
-  events?: SpanEvent[] | null;
-  /** Resource attributes when requested via `include=resource_attributes`. */
-  resource_attributes?: Record<string, unknown> | null;
-  /** System instructions when requested via `include=gen_ai.system_instructions`. */
-  system_instructions?: SystemInstruction[] | null;
-  /** Original `gen_ai.input.messages` when requested via include. */
-  gen_ai_input_messages?: InputMessage[] | null;
-  /** Original `gen_ai.output.messages` when requested via include. */
-  gen_ai_output_messages?: OutputMessage[] | null;
+  duration_ns?: number;
+  /** Span status — omitted entirely when it would say nothing. */
+  status?: GenAiSpanStatus;
+  /** OTel resource attributes. */
+  resource?: SpanResource;
+  /** Span events, when requested via `include=events`. */
+  events?: SpanEvent[];
+  /** Span attributes, keyed by semantic-convention name. */
+  attributes: SpanAttributes;
 }
 
 /**
@@ -182,14 +380,14 @@ export interface ConversationItem {
  * Pagination uses the opaque `next` token. `first_id` and `last_id` are
  * informational and are not valid pagination inputs.
  */
-export interface ConversationItemList {
+export interface GenAiSpanList {
   /** Discriminator — always `"list"`. */
   object: "list";
-  /** Items in this page. */
-  data: ConversationItem[];
-  /** First item ID in this page. */
+  /** Spans in this page. */
+  data: GenAiSpan[];
+  /** First span ID in this page. */
   first_id: string | null;
-  /** Last item ID in this page. */
+  /** Last span ID in this page. */
   last_id: string | null;
   /** Whether additional pages exist after this one. */
   has_more: boolean;
@@ -198,74 +396,24 @@ export interface ConversationItemList {
 }
 
 /**
- * Summary of a conversation, aggregated from trace spans.
+ * `attributes.gen_ai.conversation.id`, if present.
  *
- * Returned by `GET /v1/conversations` inside the standard cursor
- * envelope `Paginated<ConversationSummary>`.
+ * The nested tree is worth its cost everywhere except the two or three
+ * reads every caller makes, so those pay it once here instead of at each
+ * call site.
  */
-export interface ConversationSummary {
-  /** Trace ID. */
-  trace_id: string;
-  /** GenAI conversation ID. */
-  conversation_id?: string | null;
-  /** Organization ID. */
-  org_id: Uuid;
-  /** Project ID. */
-  project_id: Uuid;
-  /** Conversation start time. */
-  start_time: IsoDate;
-  /** Conversation end time. */
-  end_time?: IsoDate | null;
-  /** Total duration in milliseconds. */
-  duration_ms: number;
-  /** OTel `service.name` from the trace. */
-  service_name?: string | null;
-  /** Runtime environment lane. */
-  environment?: string | null;
-  /** Runtime version ID. */
-  runtime_id?: Uuid | null;
-  /** Stable runtime group ID. */
-  runtime_group_id?: Uuid | null;
-  /** Experiment ID when traffic is experiment-routed. */
-  experiment_id?: Uuid | null;
-  /** Recipe git commit SHA. */
-  recipe_git_commit_sha?: string | null;
-  /**
-   * First requested model observed in the conversation — a stable
-   * preview identity, not a "primary" model classification.
-   */
-  model?: string | null;
-  /**
-   * First agent name observed in the conversation — a stable preview
-   * identity, not a "primary" agent classification.
-   */
-  agent_name?: string | null;
-  /** Sum of input tokens across spans. */
-  total_input_tokens: number;
-  /** Sum of output tokens across spans. */
-  total_output_tokens: number;
-  /** Sum of input and output tokens across spans. */
-  total_tokens: number;
-  /** Sum of model cost in USD across spans. */
-  total_cost_usd: number;
-  /** Number of `execute_tool` spans in the conversation. */
-  tool_use_count: number;
-  /** Number of failed `execute_tool` spans in the conversation. */
-  failed_tool_use_count: number;
-  /** Number of traces in the conversation. */
-  trace_count: number;
-  /** Number of spans in the trace. */
-  span_count: number;
-  /** Overall status. */
-  status: SpanStatus;
-  /** Whether any span has errors. */
-  has_errors: boolean;
-  /** New input messages from the first span. */
-  input_messages: InputMessage[];
-  /** Output messages from the last span. */
-  output_messages: OutputMessage[];
-  /** Introspection enrichment metadata. */
-  introspection?: IntrospectionMetadata | null;
+export function genAiConversationId(span: GenAiSpan): string | undefined {
+  return span.attributes.gen_ai?.conversation?.id;
+}
+
+/** `attributes.gen_ai.input.messages` — empty rather than absent. */
+export function genAiInputMessages(span: GenAiSpan): InputMessage[] {
+  return span.attributes.gen_ai?.input?.messages ?? [];
+}
+
+/** `attributes.gen_ai.output.messages` — empty rather than absent. */
+export function genAiOutputMessages(span: GenAiSpan): OutputMessage[] {
+  return span.attributes.gen_ai?.output?.messages ?? [];
 }
 
 /**
@@ -329,36 +477,6 @@ export interface ConversationItemListParams {
   operation_name?: string;
   /** Filter items by existence of a raw attribute path. */
   has_attribute?: string;
-}
-
-/**
- * Responses-API-style view of a conversation — the full input history,
- * output, system instructions, and tool definitions of the most recent
- * LLM turn, analogous to retrieving the latest Response. Built
- * client-side by `ConversationsApi.retrieve()` from the single-item
- * detail route.
- */
-export interface ConversationResponse {
-  /** Conversation ID the state belongs to. */
-  conversation_id: string;
-  /** Provider response identifier of the latest turn, when available. */
-  response_id: string | null;
-  /** Conversation item ID the state was built from. */
-  item_id: string;
-  /** Timestamp of the latest turn. */
-  created_at: IsoDate;
-  /** Model used for the latest turn. */
-  model: string | null;
-  /** GenAI provider name of the latest turn. */
-  provider_name: string | null;
-  /** FULL input history supplied to the latest turn. */
-  input_messages: InputMessage[];
-  /** Output messages produced by the latest turn. */
-  output_messages: OutputMessage[];
-  /** System instructions attached to the latest turn. */
-  system_instructions: SystemInstruction[] | null;
-  /** Tool definitions attached to the latest turn. */
-  tool_definitions: ToolDefinition[] | null;
 }
 
 /**
