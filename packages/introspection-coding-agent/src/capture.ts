@@ -15,6 +15,7 @@ import { open, stat } from "node:fs/promises";
 import { normalizeTranscript } from "@letta-ai/trajectory";
 import type { SpanExporter } from "@opentelemetry/sdk-trace-base";
 
+import { readCaptureActivation } from "./activation.js";
 import {
   coversHost,
   resolveTelemetryConfig,
@@ -37,6 +38,7 @@ export type CaptureOutcome =
   | "exported"
   | "no-consent"
   | "host-not-covered"
+  | "not-activated"
   | "not-logged-in"
   | "no-new-records"
   | "transcript-unreadable"
@@ -94,16 +96,18 @@ export interface CaptureRequest {
 async function readNewLines(
   path: string,
   offset: number,
+  minimumOffset = 0,
 ): Promise<
   { text: string; consumed: number; startByteOffset: number } | undefined
 > {
   let handle;
   try {
     const info = await stat(path);
-    // A transcript that shrank was replaced or rotated; the old checkpoint no
-    // longer describes this file, so start over rather than read from a stale
-    // offset into unrelated bytes.
-    const start = info.size < offset ? 0 : offset;
+    // A transcript that shrank was replaced or rotated. Activated capture may
+    // retry only from its marker floor, never from byte zero into unrelated
+    // pre-activation history.
+    if (info.size < minimumOffset) return undefined;
+    const start = info.size < offset ? minimumOffset : offset;
     if (info.size <= start) {
       return { text: "", consumed: 0, startByteOffset: start };
     }
@@ -153,6 +157,19 @@ export async function capture(request: CaptureRequest): Promise<CaptureResult> {
     };
   }
 
+  const activation = await readCaptureActivation(
+    request.host,
+    request.sessionId,
+    request.transcriptPath,
+    request.home,
+  );
+  if (!activation) {
+    return {
+      outcome: "not-activated",
+      detail: `this ${request.host} session has no matching Introspection activation`,
+    };
+  }
+
   const profile = await loadLoginProfile(request.home);
   if (!profile) {
     return {
@@ -165,10 +182,15 @@ export async function capture(request: CaptureRequest): Promise<CaptureResult> {
     request.host,
     request.sessionId,
     request.home,
+    activation.transcriptIdentity,
   );
-  const state = await readCaptureState(statePath);
+  const state = await readCaptureState(statePath, activation.byteOffset);
 
-  const chunk = await readNewLines(request.transcriptPath, state.byteOffset);
+  const chunk = await readNewLines(
+    request.transcriptPath,
+    state.byteOffset,
+    activation.byteOffset,
+  );
   if (!chunk) {
     return {
       outcome: "transcript-unreadable",
@@ -179,7 +201,14 @@ export async function capture(request: CaptureRequest): Promise<CaptureResult> {
     return { outcome: "no-new-records", bytesRead: 0 };
   }
 
-  const hostInfo = readHostInfo(request.host, chunk.text);
+  const detectedHostInfo = readHostInfo(request.host, chunk.text);
+  const hostInfo = {
+    host: detectedHostInfo.host,
+    hostVersion: detectedHostInfo.hostVersion ?? activation.hostVersion,
+    entrypoint: detectedHostInfo.entrypoint ?? activation.entrypoint,
+  };
+  const persistedCwd = state.cwd ?? activation.cwd;
+  const persistedGitBranch = state.gitBranch ?? activation.gitBranch;
 
   let segmented;
   try {
@@ -258,11 +287,11 @@ export async function capture(request: CaptureRequest): Promise<CaptureResult> {
           request.sessionId,
           item.turn.key,
         ),
-        cwd: item.turn.metadata.cwd ?? segmented.metadata.cwd ?? state.cwd,
+        cwd: item.turn.metadata.cwd ?? segmented.metadata.cwd ?? persistedCwd,
         gitBranch:
           item.turn.metadata.gitBranch ??
           segmented.metadata.gitBranch ??
-          state.gitBranch,
+          persistedGitBranch,
       });
       spanCount += emitted.spanCount;
     }
@@ -291,8 +320,8 @@ export async function capture(request: CaptureRequest): Promise<CaptureResult> {
     version: state.version,
     byteOffset: chunk.startByteOffset + lastTurn.endByteOffset,
     turn: state.turn + completeTurns.length,
-    cwd: segmented.metadata.cwd ?? state.cwd,
-    gitBranch: segmented.metadata.gitBranch ?? state.gitBranch,
+    cwd: segmented.metadata.cwd ?? persistedCwd,
+    gitBranch: segmented.metadata.gitBranch ?? persistedGitBranch,
     claudeStandaloneSidechain:
       segmented.claudeStandaloneSidechain ?? state.claudeStandaloneSidechain,
     updatedAt: new Date().toISOString(),

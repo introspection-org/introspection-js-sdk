@@ -7,7 +7,7 @@
  * malformed, wrong host, and the env override in both directions.
  */
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { mkdtemp, mkdir, writeFile, rm } from "node:fs/promises";
+import { mkdtemp, mkdir, writeFile, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -19,13 +19,24 @@ import { ExportResultCode, type ExportResult } from "@opentelemetry/core";
 
 import { capture } from "../../packages/introspection-coding-agent/src/capture";
 import {
+  captureActivationPath,
+  clearCaptureActivationRequest,
+  materializeCaptureActivation,
+  readCaptureActivation,
+  requestCaptureActivation,
+  requestCaptureActivationFromEnvironment,
+} from "../../packages/introspection-coding-agent/src/activation";
+import {
   coversHost,
   readTelemetryOverride,
   resolveTelemetryConfig,
 } from "../../packages/introspection-coding-agent/src/config";
 import { loadLoginProfile } from "../../packages/introspection-coding-agent/src/credentials";
 import { readHostInfo } from "../../packages/introspection-coding-agent/src/host";
-import { parseHookEvent } from "../../packages/introspection-coding-agent/src/hook";
+import {
+  parseHookEvent,
+  runHook,
+} from "../../packages/introspection-coding-agent/src/hook";
 import {
   captureStatePath,
   readCaptureState,
@@ -164,12 +175,31 @@ async function seedLogin(
 }
 
 async function runCapture(exporter: RetainingExporter) {
+  await activateForTest("claude-code", SESSION_ID, transcriptPath);
   return capture({
     host: "claude-code",
     sessionId: SESSION_ID,
     transcriptPath,
     home,
     exporterOverride: exporter,
+  });
+}
+
+async function activateForTest(
+  host: "claude-code" | "codex",
+  sessionId: string,
+  path: string,
+) {
+  await requestCaptureActivation({
+    host,
+    sessionId,
+    home,
+  });
+  return materializeCaptureActivation({
+    host,
+    sessionId,
+    transcriptPath: path,
+    home,
   });
 }
 
@@ -181,10 +211,14 @@ beforeEach(async () => {
     `${TRANSCRIPT_LINES.map((l) => JSON.stringify(l)).join("\n")}\n`,
   );
   delete process.env.INTROSPECTION_PLUGIN_TELEMETRY;
+  delete process.env.CLAUDE_CODE_SESSION_ID;
+  delete process.env.CODEX_THREAD_ID;
 });
 
 afterEach(async () => {
   delete process.env.INTROSPECTION_PLUGIN_TELEMETRY;
+  delete process.env.CLAUDE_CODE_SESSION_ID;
+  delete process.env.CODEX_THREAD_ID;
   await rm(home, { recursive: true, force: true });
 });
 
@@ -569,6 +603,7 @@ describe("native turn segmentation and response identity", () => {
         },
       },
     ];
+    await activateForTest("claude-code", SESSION_ID, transcriptPath);
     await writeFile(
       transcriptPath,
       `${[...TRANSCRIPT_LINES, ...secondTurn]
@@ -577,7 +612,13 @@ describe("native turn segmentation and response identity", () => {
     );
     const exporter = new RetainingExporter();
 
-    const result = await runCapture(exporter);
+    const result = await capture({
+      host: "claude-code",
+      sessionId: SESSION_ID,
+      transcriptPath,
+      home,
+      exporterOverride: exporter,
+    });
 
     expect(result.outcome).toBe("exported");
     const roots = exporter.kept.filter(
@@ -618,6 +659,7 @@ describe("native turn segmentation and response identity", () => {
       ).join("\n")}\n`,
     );
     const second = new RetainingExporter();
+    await activateForTest("claude-code", otherSession, transcriptPath);
     const result = await capture({
       host: "claude-code",
       sessionId: otherSession,
@@ -715,6 +757,18 @@ describe("native turn segmentation and response identity", () => {
         payload: { type: "task_complete", turn_id: "turn-native-2" },
       },
     ];
+    // Activation happens while the Introspection-owned loader is running in the
+    // first turn. Later Stop capture may then consume this and following turns.
+    await writeFile(
+      transcriptPath,
+      `${codexLines
+        .slice(0, 2)
+        .map((line) => JSON.stringify(line))
+        .join("\n")}\n`,
+    );
+    expect(
+      (await activateForTest("codex", codexSession, transcriptPath)).outcome,
+    ).toBe("activated");
     await writeFile(
       transcriptPath,
       `${codexLines.map((line) => JSON.stringify(line)).join("\n")}\n`,
@@ -791,6 +845,417 @@ describe("native turn segmentation and response identity", () => {
   });
 });
 
+describe("shared per-session activation", () => {
+  it("maps only authoritative host subprocess identities into requests", async () => {
+    await seedConsent({
+      version: 1,
+      enabled: true,
+      content: "full",
+      targets: ["claude-code", "codex"],
+    });
+
+    process.env.CLAUDE_CODE_SESSION_ID = SESSION_ID;
+    expect((await requestCaptureActivationFromEnvironment(home)).outcome).toBe(
+      "requested",
+    );
+    await clearCaptureActivationRequest("claude-code", SESSION_ID, home);
+
+    delete process.env.CLAUDE_CODE_SESSION_ID;
+    process.env.CODEX_THREAD_ID = "codex-native-thread";
+    expect((await requestCaptureActivationFromEnvironment(home)).outcome).toBe(
+      "requested",
+    );
+
+    process.env.CLAUDE_CODE_SESSION_ID = SESSION_ID;
+    expect((await requestCaptureActivationFromEnvironment(home)).outcome).toBe(
+      "source-invalid",
+    );
+  });
+
+  it("keeps Claude inert until a loader request is bound by its hook", async () => {
+    await seedConsent({
+      version: 1,
+      enabled: true,
+      content: "full",
+      targets: ["claude-code"],
+    });
+    await seedLogin();
+    const before = await capture({
+      host: "claude-code",
+      sessionId: SESSION_ID,
+      transcriptPath,
+      home,
+      exporterOverride: new RetainingExporter(),
+    });
+    expect(before.outcome).toBe("not-activated");
+
+    expect(
+      (
+        await requestCaptureActivation({
+          host: "claude-code",
+          sessionId: SESSION_ID,
+          home,
+        })
+      ).outcome,
+    ).toBe("requested");
+    const result = await runHook(
+      JSON.stringify({
+        hook_event_name: "Stop",
+        session_id: SESSION_ID,
+        transcript_path: transcriptPath,
+      }),
+      "claude-code",
+      { dryRun: true, home },
+    );
+    expect(result.outcome).toBe("exported");
+    const marker = await readCaptureActivation(
+      "claude-code",
+      SESSION_ID,
+      transcriptPath,
+      home,
+    );
+    expect(marker?.nativeTurnKey).toBe("claude-user-turn-1");
+  });
+
+  it("discards an unbound Claude request at the next session start", async () => {
+    await seedConsent({
+      version: 1,
+      enabled: true,
+      content: "full",
+      targets: ["claude-code"],
+    });
+    expect(
+      (
+        await requestCaptureActivation({
+          host: "claude-code",
+          sessionId: SESSION_ID,
+          home,
+        })
+      ).outcome,
+    ).toBe("requested");
+
+    const result = await runHook(
+      JSON.stringify({
+        hook_event_name: "SessionStart",
+        session_id: SESSION_ID,
+        transcript_path: null,
+      }),
+      "claude-code",
+      { dryRun: true, home },
+    );
+    expect(result.outcome).toBe("no-new-records");
+    expect(
+      (
+        await materializeCaptureActivation({
+          host: "claude-code",
+          sessionId: SESSION_ID,
+          transcriptPath,
+          home,
+        })
+      ).outcome,
+    ).toBe("request-missing");
+  });
+
+  it("does not bind a pending request after consent is revoked", async () => {
+    await seedConsent({
+      version: 1,
+      enabled: true,
+      content: "full",
+      targets: ["claude-code"],
+    });
+    expect(
+      (
+        await requestCaptureActivation({
+          host: "claude-code",
+          sessionId: SESSION_ID,
+          home,
+        })
+      ).outcome,
+    ).toBe("requested");
+    await seedConsent({
+      version: 1,
+      enabled: false,
+      content: "full",
+      targets: ["claude-code"],
+    });
+
+    expect(
+      (
+        await runHook(
+          JSON.stringify({
+            hook_event_name: "Stop",
+            session_id: SESSION_ID,
+            transcript_path: transcriptPath,
+          }),
+          "claude-code",
+          { dryRun: true, home },
+        )
+      ).outcome,
+    ).toBe("no-consent");
+
+    await seedConsent({
+      version: 1,
+      enabled: true,
+      content: "full",
+      targets: ["claude-code"],
+    });
+    expect(
+      (
+        await materializeCaptureActivation({
+          host: "claude-code",
+          sessionId: SESSION_ID,
+          transcriptPath,
+          home,
+        })
+      ).outcome,
+    ).toBe("request-missing");
+  });
+});
+
+describe("Codex shared activation adapter", () => {
+  const codexSession = "019fd200-0000-7000-8000-000000000001";
+  const codexPrefix = [
+    {
+      timestamp: "2026-08-04T12:00:00.000Z",
+      type: "session_meta",
+      payload: {
+        id: codexSession,
+        cwd: "/repo",
+        cli_version: "0.147.0-alpha.1.2",
+        originator: "codex_cli_rs",
+      },
+    },
+    {
+      timestamp: "2026-08-04T11:59:00.000Z",
+      type: "turn_context",
+      payload: { turn_id: "unrelated-turn", cwd: "/repo", model: "gpt-5" },
+    },
+    {
+      timestamp: "2026-08-04T11:59:00.100Z",
+      type: "response_item",
+      payload: {
+        type: "message",
+        role: "user",
+        content: [{ type: "input_text", text: "Unrelated prompt" }],
+      },
+    },
+    {
+      timestamp: "2026-08-04T11:59:01.000Z",
+      type: "response_item",
+      payload: {
+        type: "message",
+        role: "assistant",
+        content: [{ type: "output_text", text: "Unrelated answer" }],
+      },
+    },
+    {
+      timestamp: "2026-08-04T11:59:02.000Z",
+      type: "event_msg",
+      payload: { type: "task_complete", turn_id: "unrelated-turn" },
+    },
+    {
+      timestamp: "2026-08-04T12:00:01.000Z",
+      type: "turn_context",
+      payload: { turn_id: "codex-turn-1", cwd: "/repo", model: "gpt-5" },
+    },
+  ];
+  const codexTurn = [
+    {
+      timestamp: "2026-08-04T12:00:01.100Z",
+      type: "response_item",
+      payload: {
+        type: "message",
+        role: "user",
+        content: [{ type: "input_text", text: "Activated prompt" }],
+      },
+    },
+    {
+      timestamp: "2026-08-04T12:00:02.000Z",
+      type: "response_item",
+      payload: {
+        type: "message",
+        role: "assistant",
+        content: [{ type: "output_text", text: "Activated answer" }],
+      },
+    },
+    {
+      timestamp: "2026-08-04T12:00:03.000Z",
+      type: "event_msg",
+      payload: { type: "task_complete", turn_id: "codex-turn-1" },
+    },
+  ];
+
+  async function writeCodex(lines: unknown[]): Promise<void> {
+    await writeFile(
+      transcriptPath,
+      `${lines.map((line) => JSON.stringify(line)).join("\n")}\n`,
+    );
+  }
+
+  beforeEach(async () => {
+    await seedConsent({
+      version: 1,
+      enabled: true,
+      content: "full",
+      targets: ["codex"],
+    });
+    await seedLogin();
+    await writeCodex([...codexPrefix, ...codexTurn]);
+  });
+
+  it("is inert when the matching activation marker is absent", async () => {
+    const exporter = new RetainingExporter();
+
+    const result = await capture({
+      host: "codex",
+      sessionId: codexSession,
+      transcriptPath,
+      home,
+      exporterOverride: exporter,
+    });
+
+    expect(result.outcome).toBe("not-activated");
+    expect(exporter.kept).toHaveLength(0);
+  });
+
+  it("creates an atomic private marker at the current turn boundary", async () => {
+    const result = await activateForTest("codex", codexSession, transcriptPath);
+
+    expect(result.outcome).toBe("activated");
+    expect(result.marker?.nativeTurnKey).toBe("codex-turn-1");
+    expect(result.marker?.byteOffset).toBeGreaterThan(0);
+    const path = captureActivationPath(
+      "codex",
+      codexSession,
+      result.marker!.transcriptIdentity,
+      home,
+    );
+    expect((await stat(path)).mode & 0o777).toBe(0o600);
+    expect(
+      await readCaptureActivation("codex", codexSession, transcriptPath, home),
+    ).toEqual(result.marker);
+  });
+
+  it("does not let one activated session authorize an unrelated session", async () => {
+    await activateForTest("codex", codexSession, transcriptPath);
+
+    const result = await capture({
+      host: "codex",
+      sessionId: "019fd200-0000-7000-8000-000000000099",
+      transcriptPath,
+      home,
+      exporterOverride: new RetainingExporter(),
+    });
+
+    expect(result.outcome).toBe("not-activated");
+  });
+
+  it("does not let an activated thread authorize a copied rollout", async () => {
+    expect(
+      (await activateForTest("codex", codexSession, transcriptPath)).outcome,
+    ).toBe("activated");
+    const copied = join(home, "copied-rollout.jsonl");
+    await writeFile(
+      copied,
+      `${[...codexPrefix, ...codexTurn]
+        .map((line) => JSON.stringify(line))
+        .join("\n")}\n`,
+    );
+
+    const result = await capture({
+      host: "codex",
+      sessionId: codexSession,
+      transcriptPath: copied,
+      home,
+      exporterOverride: new RetainingExporter(),
+    });
+
+    expect(result.outcome).toBe("not-activated");
+  });
+
+  it("preserves the first boundary across repeated loader execution and replay", async () => {
+    const firstActivation = await activateForTest(
+      "codex",
+      codexSession,
+      transcriptPath,
+    );
+    const first = new RetainingExporter();
+    expect(
+      (
+        await capture({
+          host: "codex",
+          sessionId: codexSession,
+          transcriptPath,
+          home,
+          exporterOverride: first,
+        })
+      ).outcome,
+    ).toBe("exported");
+    const roots = first.kept.filter(
+      (span) => span.name === "invoke_agent codex",
+    );
+    expect(roots).toHaveLength(1);
+    expect(roots[0]?.attributes["gen_ai.response.id"]).toBe(
+      responseIdForTurn("codex", codexSession, "codex-turn-1"),
+    );
+    expect(
+      JSON.parse(String(roots[0]?.attributes["gen_ai.input.messages"])),
+    ).toEqual([
+      { role: "user", parts: [{ type: "text", content: "Activated prompt" }] },
+    ]);
+
+    const secondActivation = await activateForTest(
+      "codex",
+      codexSession,
+      transcriptPath,
+    );
+    expect(secondActivation.marker?.byteOffset).toBe(
+      firstActivation.marker?.byteOffset,
+    );
+    const replay = new RetainingExporter();
+    const replayResult = await capture({
+      host: "codex",
+      sessionId: codexSession,
+      transcriptPath,
+      home,
+      exporterOverride: replay,
+    });
+    expect(replayResult.outcome).toBe("no-new-records");
+    expect(replay.kept).toHaveLength(0);
+  });
+
+  it("honors metadata-only consent after activation", async () => {
+    await seedConsent({
+      version: 1,
+      enabled: true,
+      content: "on",
+      targets: ["codex"],
+    });
+    await activateForTest("codex", codexSession, transcriptPath);
+    const exporter = new RetainingExporter();
+
+    expect(
+      (
+        await capture({
+          host: "codex",
+          sessionId: codexSession,
+          transcriptPath,
+          home,
+          exporterOverride: exporter,
+        })
+      ).outcome,
+    ).toBe("exported");
+    const root = exporter.kept.find(
+      (span) => span.name === "invoke_agent codex",
+    );
+    expect(root?.attributes["gen_ai.response.id"]).toBe(
+      responseIdForTurn("codex", codexSession, "codex-turn-1"),
+    );
+    expect(root?.attributes["gen_ai.input.messages"]).toBeUndefined();
+    expect(root?.attributes["gen_ai.output.messages"]).toBeUndefined();
+  });
+});
+
 describe("incremental checkpointing", () => {
   beforeEach(async () => {
     await seedLogin();
@@ -822,8 +1287,21 @@ describe("incremental checkpointing", () => {
       "claude-code",
     );
     await mkdir(directory, { recursive: true });
+    await activateForTest("claude-code", SESSION_ID, transcriptPath);
+    const marker = await readCaptureActivation(
+      "claude-code",
+      SESSION_ID,
+      transcriptPath,
+      home,
+    );
+    const statePath = captureStatePath(
+      "claude-code",
+      SESSION_ID,
+      home,
+      marker!.transcriptIdentity,
+    );
     await writeFile(
-      captureStatePath("claude-code", SESSION_ID, home),
+      statePath,
       JSON.stringify({
         version: 1,
         byteOffset: Buffer.byteLength(
@@ -842,9 +1320,7 @@ describe("incremental checkpointing", () => {
       exporter.kept.find((span) => span.name === "invoke_agent claude-code")
         ?.attributes["gen_ai.response.id"],
     ).toMatch(/^ca_v1_[0-9a-f]{64}$/);
-    const migrated = await readCaptureState(
-      captureStatePath("claude-code", SESSION_ID, home),
-    );
+    const migrated = await readCaptureState(statePath);
     expect(migrated.version).toBe(2);
     expect(migrated.turn).toBe(1);
   });
@@ -897,6 +1373,7 @@ describe("incremental checkpointing", () => {
     await writeFile(transcriptPath, unfinished);
 
     const first = new RetainingExporter();
+    await activateForTest("claude-code", SESSION_ID, transcriptPath);
     const pending = await capture({
       host: "claude-code",
       sessionId: SESSION_ID,
@@ -937,6 +1414,7 @@ describe("incremental checkpointing", () => {
 
   it("uses the same response ID when a failed export re-reads the turn", async () => {
     const failedExporter = new FailingRetainingExporter();
+    await activateForTest("claude-code", SESSION_ID, transcriptPath);
     const failed = await capture({
       host: "claude-code",
       sessionId: SESSION_ID,
@@ -974,6 +1452,7 @@ describe("incremental checkpointing", () => {
       forceFlush: () => Promise.resolve(),
     };
 
+    await activateForTest("claude-code", SESSION_ID, transcriptPath);
     const failed = await capture({
       host: "claude-code",
       sessionId: SESSION_ID,
@@ -1068,22 +1547,26 @@ describe("hook payload parsing", () => {
       host: "claude-code",
       sessionId: SESSION_ID,
       transcriptPath: "/home/dev/.claude/projects/x/abc.jsonl",
+      hookEventName: "Stop",
     });
   });
 
   it("reads a Codex hook event", () => {
     expect(
-      parseHookEvent(
-        {
-          thread_id: "thread-9",
-          rollout_path: "/home/dev/.codex/sessions/r.jsonl",
-        },
-        "codex",
-      ),
+      parseHookEvent({
+        hook_event_name: "Stop",
+        session_id: "thread-9",
+        transcript_path:
+          "/home/dev/.codex/sessions/2026/08/04/rollout-thread-9.jsonl",
+        turn_id: "turn-4",
+      }),
     ).toEqual({
       host: "codex",
       sessionId: "thread-9",
-      transcriptPath: "/home/dev/.codex/sessions/r.jsonl",
+      transcriptPath:
+        "/home/dev/.codex/sessions/2026/08/04/rollout-thread-9.jsonl",
+      turnId: "turn-4",
+      hookEventName: "Stop",
     });
   });
 

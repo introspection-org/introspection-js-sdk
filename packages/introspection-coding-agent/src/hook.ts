@@ -13,6 +13,10 @@
  * that degrades a coding session is worse than no capture.
  */
 import { capture, type CaptureResult } from "./capture.js";
+import {
+  clearCaptureActivationRequest,
+  materializeCaptureActivation,
+} from "./activation.js";
 import type { CaptureHost } from "./config.js";
 
 /**
@@ -29,6 +33,8 @@ export interface HookEvent {
   host: CaptureHost;
   sessionId: string;
   transcriptPath: string;
+  turnId?: string;
+  hookEventName?: string;
 }
 
 function str(value: unknown): string | undefined {
@@ -72,11 +78,20 @@ export function parseHookEvent(
 
   const host: CaptureHost =
     hostHint ??
-    (str(obj.hook_event_name) || str(obj.transcript_path)
-      ? "claude-code"
-      : "codex");
+    (transcriptPath.includes("/.codex/sessions/") ||
+    transcriptPath.includes("\\.codex\\sessions\\")
+      ? "codex"
+      : "claude-code");
 
-  return { host, sessionId, transcriptPath };
+  const turnId = str(obj.turn_id);
+  const hookEventName = str(obj.hook_event_name);
+  return {
+    host,
+    sessionId,
+    transcriptPath,
+    ...(turnId ? { turnId } : {}),
+    ...(hookEventName ? { hookEventName } : {}),
+  };
 }
 
 /** Read all of stdin. Resolves to an empty string if stdin is closed or unreadable. */
@@ -105,13 +120,28 @@ export async function readStdin(
 export async function runHook(
   input: string,
   hostHint?: CaptureHost,
-  options: { dryRun?: boolean; deadlineMs?: number } = {},
+  options: { dryRun?: boolean; deadlineMs?: number; home?: string } = {},
 ): Promise<CaptureResult> {
   let payload: unknown;
   try {
     payload = JSON.parse(input);
   } catch {
     return { outcome: "transcript-unreadable", detail: "stdin was not JSON" };
+  }
+
+  if (typeof payload === "object" && payload !== null) {
+    const object = payload as Record<string, unknown>;
+    if (str(object.hook_event_name) === "SessionStart") {
+      const sessionId = str(object.session_id) ?? str(object.thread_id);
+      if (hostHint && sessionId) {
+        await clearCaptureActivationRequest(hostHint, sessionId, options.home);
+        return { outcome: "no-new-records", bytesRead: 0 };
+      }
+      return {
+        outcome: "transcript-unreadable",
+        detail: "SessionStart payload named no host/session",
+      };
+    }
   }
 
   const event = parseHookEvent(payload, hostHint);
@@ -126,15 +156,43 @@ export async function runHook(
   let timer: NodeJS.Timeout | undefined;
   try {
     return await Promise.race([
-      capture({
-        host: event.host,
-        sessionId: event.sessionId,
-        transcriptPath: event.transcriptPath,
-        dryRun: options.dryRun,
-        // Both supported hosts invoke this command only from turn-completion
-        // hooks (Claude Stop/SessionEnd; Codex Stop).
-        finalizeTrailingTurn: true,
-      }),
+      (async () => {
+        const activation = await materializeCaptureActivation({
+          host: event.host,
+          sessionId: event.sessionId,
+          transcriptPath: event.transcriptPath,
+          turnId: event.turnId,
+          home: options.home,
+        });
+        if (
+          activation.outcome === "no-consent" ||
+          activation.outcome === "host-not-covered"
+        ) {
+          return {
+            outcome: activation.outcome,
+            detail: activation.detail ?? `activation ${activation.outcome}`,
+          } as CaptureResult;
+        }
+        if (
+          activation.outcome !== "activated" &&
+          activation.outcome !== "request-missing"
+        ) {
+          return {
+            outcome: "not-activated",
+            detail: activation.detail ?? `activation ${activation.outcome}`,
+          } as CaptureResult;
+        }
+        return capture({
+          host: event.host,
+          sessionId: event.sessionId,
+          transcriptPath: event.transcriptPath,
+          dryRun: options.dryRun,
+          home: options.home,
+          // Both supported hosts invoke this command only from turn-completion
+          // hooks (Claude Stop/SessionEnd; Codex Stop/SessionEnd).
+          finalizeTrailingTurn: true,
+        });
+      })(),
       new Promise<CaptureResult>((resolve) => {
         timer = setTimeout(
           () =>

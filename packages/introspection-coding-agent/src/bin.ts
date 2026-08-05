@@ -13,16 +13,19 @@
  *   introspection-capture --host codex --dry-run --debug
  */
 import { readStdin, runHook } from "./hook.js";
+import { requestCaptureActivationFromEnvironment } from "./activation.js";
 import type { CaptureHost } from "./config.js";
 
 function parseArgs(argv: string[]): {
   host?: CaptureHost;
   dryRun: boolean;
   debug: boolean;
+  requestActivation: boolean;
 } {
   let host: CaptureHost | undefined;
   let dryRun = false;
   let debug = false;
+  let requestActivation = false;
 
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i];
@@ -38,14 +41,27 @@ function parseArgs(argv: string[]): {
       dryRun = true;
     } else if (arg === "--debug") {
       debug = true;
+    } else if (arg === "--request-activation") {
+      requestActivation = true;
     }
   }
 
-  return { host, dryRun, debug };
+  return { host, dryRun, debug, requestActivation };
 }
 
 async function main(): Promise<void> {
-  const { host, dryRun, debug } = parseArgs(process.argv.slice(2));
+  const { host, dryRun, debug, requestActivation } = parseArgs(
+    process.argv.slice(2),
+  );
+  if (requestActivation) {
+    const result = await requestCaptureActivationFromEnvironment();
+    if (debug) {
+      process.stderr.write(
+        `introspection-capture: activation=${result.outcome}${result.detail ? ` detail=${result.detail}` : ""}\n`,
+      );
+    }
+    return;
+  }
   const result = await runHook(await readStdin(), host, { dryRun });
 
   if (debug || dryRun) {
@@ -55,12 +71,24 @@ async function main(): Promise<void> {
     if (result.detail) parts.push(`detail=${result.detail}`);
     process.stderr.write(`introspection-capture: ${parts.join(" ")}\n`);
   }
+
+  // Codex lifecycle hooks parse stdout as JSON. Keep this response minimal and
+  // emit it only for hook invocations: the reference loader's activation
+  // request must remain invisible to the user and model.
+  process.stdout.write("{}\n");
 }
 
 // The catch is the last line of the fail-open guarantee: even a bug in the
 // argument parsing or an unexpected rejection must not surface to the host.
 main()
-  .catch(() => undefined)
+  .catch(() => {
+    // Preserve the valid hook protocol even when capture fails unexpectedly.
+    // Activation requests are loader side effects, not lifecycle hooks, and
+    // therefore remain stdout-silent on failure as well as success.
+    if (!process.argv.slice(2).includes("--request-activation")) {
+      process.stdout.write("{}\n");
+    }
+  })
   .finally(() => {
     process.exitCode = 0;
   });

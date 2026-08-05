@@ -3,6 +3,14 @@
 Opt-in OpenTelemetry capture of **Claude Code** and **Codex** sessions for the
 Introspection plugin.
 
+Both hosts use one Introspection-owned, per-session activation protocol. The
+existing plugin reference loader silently writes a session-scoped request; the
+next host completion hook binds it to that hook's authoritative
+session/transcript and native turn boundary. Capture without the resulting
+rollout-bound marker returns `not-activated` and never defaults to byte zero.
+Claude Code requires 2.1.136 or newer; Codex requires CLI/Desktop 0.146.0 or
+newer, and plugins are not available in the Codex IDE extension.
+
 It turns a host's own session transcript into GenAI spans under
 `service.name = "introspection-plugin"`, authenticated with the Introspection
 CLI's existing login — so plugin activity correlates with the org, project, and

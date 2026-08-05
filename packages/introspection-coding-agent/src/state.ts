@@ -62,31 +62,46 @@ export function captureStatePath(
   host: CaptureHost,
   sessionId: string,
   home: string = homedir(),
+  transcriptIdentity?: string,
 ): string {
   const safe =
     sessionId.replace(/[^A-Za-z0-9._-]/g, "_").slice(0, 128) || "unknown";
-  return join(home, ".introspection", "capture-state", host, `${safe}.json`);
+  const identity = transcriptIdentity
+    ? `-${transcriptIdentity.replace(/[^a-f0-9]/gi, "").slice(0, 32)}`
+    : "";
+  return join(
+    home,
+    ".introspection",
+    "capture-state",
+    host,
+    `${safe}${identity}.json`,
+  );
 }
 
 /**
- * Read a session's checkpoint, or a zero checkpoint when there is none.
+ * Read a session's checkpoint, or the caller's safe initial boundary when there
+ * is none.
  *
- * A missing or unreadable checkpoint resolves to offset 0. That errs toward
- * re-sending a session rather than skipping one, consistent with the
- * advance-only-after-flush rule above.
+ * Activated capture passes its marker boundary, so a missing, old, or corrupt
+ * checkpoint can duplicate activated turns but can never expose earlier
+ * host-wide transcript content.
  */
-export async function readCaptureState(path: string): Promise<CaptureState> {
+export async function readCaptureState(
+  path: string,
+  initialByteOffset = 0,
+): Promise<CaptureState> {
+  const initial = { ...INITIAL, byteOffset: initialByteOffset };
   try {
     const raw: unknown = JSON.parse(await readFile(path, "utf8"));
-    if (typeof raw !== "object" || raw === null) return INITIAL;
+    if (typeof raw !== "object" || raw === null) return initial;
     const obj = raw as Record<string, unknown>;
-    if (obj.version !== CAPTURE_STATE_VERSION) return INITIAL;
+    if (obj.version !== CAPTURE_STATE_VERSION) return initial;
     return {
       version: CAPTURE_STATE_VERSION,
       byteOffset:
         typeof obj.byteOffset === "number" && obj.byteOffset >= 0
-          ? obj.byteOffset
-          : 0,
+          ? Math.max(obj.byteOffset, initialByteOffset)
+          : initialByteOffset,
       turn: typeof obj.turn === "number" && obj.turn >= 0 ? obj.turn : 0,
       cwd: typeof obj.cwd === "string" ? obj.cwd : undefined,
       gitBranch: typeof obj.gitBranch === "string" ? obj.gitBranch : undefined,
@@ -97,7 +112,7 @@ export async function readCaptureState(path: string): Promise<CaptureState> {
       updatedAt: typeof obj.updatedAt === "string" ? obj.updatedAt : undefined,
     };
   } catch {
-    return INITIAL;
+    return initial;
   }
 }
 

@@ -21,6 +21,24 @@ export type {
 } from "./capture.js";
 
 export {
+  activationRequestPath,
+  captureActivationPath,
+  clearCaptureActivationRequest,
+  materializeCaptureActivation,
+  readCaptureActivation,
+  requestCaptureActivation,
+  requestCaptureActivationFromEnvironment,
+  transcriptIdentity,
+  CAPTURE_ACTIVATION_VERSION,
+} from "./activation.js";
+export type {
+  CaptureActivationMarker,
+  CaptureActivationOutcome,
+  CaptureActivationRequest,
+  CaptureActivationResult,
+} from "./activation.js";
+
+export {
   coversHost,
   readTelemetryOverride,
   resolveTelemetryConfig,
