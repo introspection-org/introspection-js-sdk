@@ -64,6 +64,7 @@ const FULL_SPAN: GenAiSpan = {
         output_tokens: 45,
         cache_creation: { input_tokens: 1524 },
       },
+      cost: { usd: 0.0098 },
       input: {
         messages: [{ role: "user", parts: [{ type: "text", content: "hey" }] }],
       },
@@ -80,7 +81,6 @@ const FULL_SPAN: GenAiSpan = {
     introspection: {
       member: { id: "019fbe0c" },
       environment: "production",
-      cost_usd: 0.0098,
       conversation: { position: 1, is_new: true },
     },
   },
@@ -118,9 +118,12 @@ describe("semconv naming", () => {
   it("puts introspection attributes beside gen_ai, not inside it", () => {
     expect(FULL_SPAN.attributes.introspection?.member?.id).toBe("019fbe0c");
     expect(FULL_SPAN.attributes.introspection?.environment).toBe("production");
-    // Cost is not in the GenAI conventions at all, on spans or anywhere else.
-    expect(FULL_SPAN.attributes.introspection?.cost_usd).toBe(0.0098);
-    expect(FULL_SPAN.attributes.gen_ai?.cost_usd).toBeUndefined();
+    // Cost is the exception: it keeps the name the span writes it with.
+    // `GenAICostUsd` is materialized *from* `gen_ai.cost.usd`, so relocating
+    // it into `introspection` would put a second, renamed copy of an
+    // attribute already in the tree.
+    expect(FULL_SPAN.attributes.gen_ai?.cost?.usd).toBe(0.0098);
+    expect(FULL_SPAN.attributes.introspection?.cost_usd).toBeUndefined();
   });
 
   it("keeps the summary rollups under introspection.conversation", () => {
@@ -140,6 +143,9 @@ describe("semconv naming", () => {
           agent: { name: "agent" },
           request: { model: "claude-sonnet-4-6" },
           usage: { input_tokens: 1527, output_tokens: 45 },
+          // Cost rolls up beside the token totals, under the name the span
+          // writes it with.
+          cost: { usd: 0.0098 },
           input: {
             messages: [
               { role: "user", parts: [{ type: "text", content: "hey" }] },
@@ -158,7 +164,6 @@ describe("semconv naming", () => {
           runtime: { id: "019fced4", group_id: "019fced3" },
           experiment: { id: "019fced5" },
           recipe: { git_commit_sha: "df7339af" },
-          cost_usd: 0.0098,
           conversation: {
             trace_count: 3,
             span_count: 12,
@@ -171,6 +176,7 @@ describe("semconv naming", () => {
     };
 
     expect(summary.attributes.gen_ai?.usage?.output_tokens).toBe(45);
+    expect(summary.attributes.gen_ai?.cost?.usd).toBe(0.0098);
     expect(summary.attributes.introspection?.conversation?.span_count).toBe(12);
     expect(summary.attributes.introspection?.runtime?.group_id).toBe(
       "019fced3",

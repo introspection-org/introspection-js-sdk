@@ -195,6 +195,26 @@ export interface GenAiOutput {
   [key: string]: unknown;
 }
 
+/**
+ * `gen_ai.cost.usd`.
+ *
+ * Not part of the published semantic conventions, but this is the name the span
+ * is *written* with — the platform's cost column is materialized from
+ * `gen_ai.cost.usd` — so the read returns it under the name it was stored as
+ * rather than relocating it into `introspection.*`.
+ *
+ * Scoped by which read returned the span, the same way `gen_ai.usage.*` is:
+ * this operation's cost on an item, the conversation total on a summary.
+ *
+ * Distinct from `introspection.llm.cost_usd`, which is the *provider*-reported
+ * figure (e.g. OpenRouter's `usage.cost`) rather than the SDK's own
+ * calculation. Both can be present; they are different measurements.
+ */
+export interface GenAiCost {
+  usd?: number;
+  [key: string]: unknown;
+}
+
 /** The `gen_ai.*` attribute family, nested as the convention names it. */
 export interface GenAiSpanAttributes {
   operation?: GenAiOperation;
@@ -204,6 +224,7 @@ export interface GenAiSpanAttributes {
   request?: GenAiRequest;
   response?: GenAiResponse;
   usage?: GenAiUsage;
+  cost?: GenAiCost;
   tool?: GenAiTool;
   input?: GenAiInput;
   output?: GenAiOutput;
@@ -276,9 +297,9 @@ export interface IntrospectionConversation {
 /**
  * The `introspection.*` attribute family.
  *
- * Everything here is ours. `cost_usd` sits here rather than under
- * `gen_ai.usage` because cost is not in the GenAI conventions at all, on
- * spans or anywhere else.
+ * Everything here is ours — the rollup counts that have no semantic-convention
+ * name, and the tenancy identifiers. Cost is *not* here: it is written as
+ * `gen_ai.cost.usd`, so it stays there (see {@link GenAiCost}).
  */
 export interface IntrospectionSpanAttributes {
   org?: IntrospectionId;
@@ -291,8 +312,6 @@ export interface IntrospectionSpanAttributes {
   recipe?: IntrospectionRecipe;
   /** Runtime environment lane. */
   environment?: string;
-  /** Model cost in USD — this operation on an item, the conversation total on a summary. */
-  cost_usd?: number;
   conversation?: IntrospectionConversation;
   [key: string]: unknown;
 }

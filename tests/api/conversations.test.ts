@@ -35,11 +35,11 @@ const SUMMARY_FIXTURE: GenAiSpan = {
       agent: { name: "agent" },
       request: { model: "claude-x" },
       usage: { input_tokens: 10, output_tokens: 20 },
+      cost: { usd: 0.01 },
     },
     introspection: {
       org: { id: "org-1" },
       project: { id: "proj-1" },
-      cost_usd: 0.01,
       conversation: {
         trace_count: 1,
         span_count: 3,
