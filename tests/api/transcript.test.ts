@@ -305,6 +305,162 @@ describe("foldAgui", () => {
     ] as AGUIEvent[]);
     expect(entries.map((e) => e.kind)).toEqual(["message", "tool"]);
   });
+
+  it("applies reasoning to the open or next assistant message", () => {
+    const entries = foldAgui([
+      {
+        type: EventType.TEXT_MESSAGE_START,
+        messageId: "old",
+        role: "assistant",
+      },
+      {
+        type: EventType.TEXT_MESSAGE_CONTENT,
+        messageId: "old",
+        delta: "Finished",
+      },
+      { type: EventType.TEXT_MESSAGE_END, messageId: "old" },
+      { type: EventType.REASONING_START, messageId: "reasoning-1" },
+      {
+        type: EventType.REASONING_MESSAGE_CONTENT,
+        messageId: "reasoning-1",
+        delta: "new thought",
+      },
+      { type: EventType.REASONING_END, messageId: "reasoning-1" },
+      {
+        type: EventType.TEXT_MESSAGE_START,
+        messageId: "new",
+        role: "assistant",
+      },
+      {
+        type: EventType.TEXT_MESSAGE_CONTENT,
+        messageId: "new",
+        delta: "New answer",
+      },
+    ] as AGUIEvent[]);
+
+    expect(entries[0]).toMatchObject({ id: "old", text: "Finished" });
+    expect(entries[0]).not.toHaveProperty("thinking");
+    expect(entries[1]).toMatchObject({
+      id: "new",
+      text: "New answer",
+      thinking: "new thought",
+    });
+  });
+
+  it("replaces snapshot state before applying later deltas", () => {
+    const acc = new TranscriptAccumulator();
+    acc.push({
+      type: EventType.MESSAGES_SNAPSHOT,
+      messages: [
+        { id: "stale", role: "assistant", content: "stale answer" },
+        {
+          id: "stale-tool-message",
+          role: "tool",
+          toolCallId: "stale-call",
+          content: "old",
+        },
+      ],
+    } as AGUIEvent);
+    acc.push({
+      type: EventType.MESSAGES_SNAPSHOT,
+      messages: [
+        { id: "user-1", role: "user", content: "question" },
+        { id: "reasoning-1", role: "reasoning", content: "thinking" },
+        {
+          id: "assistant-1",
+          role: "assistant",
+          content: "answer",
+          toolCalls: [
+            {
+              id: "call-1",
+              type: "function",
+              function: { name: "search", arguments: '{"q":"x"}' },
+            },
+          ],
+        },
+      ],
+    } as AGUIEvent);
+    acc.push({
+      type: EventType.TEXT_MESSAGE_CONTENT,
+      messageId: "assistant-1",
+      delta: " continued",
+    } as AGUIEvent);
+
+    expect(acc.entries).toHaveLength(3);
+    expect(acc.entries.some((entry) => entry.id === "stale")).toBe(false);
+    expect(acc.entries).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: "user-1", text: "question" }),
+        expect.objectContaining({
+          id: "assistant-1",
+          text: "answer continued",
+          thinking: "thinking",
+        }),
+        expect.objectContaining({
+          callId: "call-1",
+          name: "search",
+          status: "running",
+        }),
+      ]),
+    );
+  });
+
+  it("keeps activity and control frames on explicit side channels", () => {
+    const activities: AGUIEvent[] = [];
+    const controls: AGUIEvent[] = [];
+    const acc = new TranscriptAccumulator({
+      onActivity: (event) => activities.push(event),
+      onControl: (event) => controls.push(event),
+    });
+
+    acc.push({
+      type: EventType.ACTIVITY_SNAPSHOT,
+      messageId: "activity-1",
+      activityType: "progress",
+      content: { label: "Searching" },
+      replace: true,
+    } as AGUIEvent);
+    acc.push({
+      type: EventType.CUSTOM,
+      name: "introspection.resume_gap",
+      value: { recoverable: true },
+    } as AGUIEvent);
+    acc.push({
+      type: EventType.RUN_FINISHED,
+      threadId: "thread-1",
+      runId: "run-1",
+    } as AGUIEvent);
+
+    expect(acc.entries).toEqual([]);
+    expect(activities).toHaveLength(1);
+    expect(controls.map((event) => event.type)).toEqual([
+      EventType.CUSTOM,
+      EventType.RUN_FINISHED,
+    ]);
+  });
+
+  it("keeps tools running at TOOL_CALL_END and honors result errors", () => {
+    const acc = new TranscriptAccumulator();
+    acc.push({
+      type: EventType.TOOL_CALL_START,
+      toolCallId: "call-error",
+      toolCallName: "shell",
+    } as AGUIEvent);
+    acc.push({
+      type: EventType.TOOL_CALL_END,
+      toolCallId: "call-error",
+    } as AGUIEvent);
+    expect(acc.entries[0]).toMatchObject({ status: "running" });
+
+    acc.push({
+      type: EventType.TOOL_CALL_RESULT,
+      messageId: "tool-result",
+      toolCallId: "call-error",
+      content: "command failed",
+      isError: true,
+    } as AGUIEvent);
+    expect(acc.entries[0]).toMatchObject({ status: "error" });
+  });
 });
 
 describe("mergeTranscripts", () => {
@@ -375,5 +531,32 @@ describe("mergeTranscripts", () => {
     const merged = mergeTranscripts(stored, live);
     expect(merged).toHaveLength(2);
     expect(merged[1]).toMatchObject({ agentId: "writer:def" });
+  });
+
+  it("uses runtime identity aliases to reconcile connection-local ids", () => {
+    const stored = foldSpans([chatSpan()]);
+    const live = foldAgui([
+      {
+        type: EventType.TEXT_MESSAGE_START,
+        messageId: "run-1:text:0",
+        role: "assistant",
+      },
+      {
+        type: EventType.TEXT_MESSAGE_CONTENT,
+        messageId: "run-1:text:0",
+        delta: "Here are the results.",
+      },
+      {
+        type: EventType.CUSTOM,
+        name: "introspection.message_identity",
+        value: { messageId: "run-1:text:0", responseId: "resp-1" },
+      },
+    ] as AGUIEvent[]);
+
+    expect(live[0]).toMatchObject({
+      id: "run-1:text:0",
+      responseId: "resp-1",
+    });
+    expect(mergeTranscripts(stored, live)).toEqual(stored);
   });
 });

@@ -236,17 +236,25 @@ export function foldSpans(spans: GenAiSpan[]): TranscriptEntry[] {
  * snapshot (`structuredClone` or a shallow map) before storing them
  * elsewhere.
  *
- * Only content-bearing events change the transcript. Lifecycle events are
- * consumed for status transitions (`RUN_ERROR` marks running tools as
- * errored); `STEP_*`, `CUSTOM`, snapshots, and unknown event types are
- * ignored, so the fold degrades instead of throwing as the protocol grows.
+ * UI-only activity and control events are surfaced through callbacks instead
+ * of being forced into the render-oriented transcript shape.
  */
+export interface TranscriptAccumulatorOptions {
+  /** Receives activity snapshots for app-specific progress UI. */
+  onActivity?: (event: AGUIEvent) => void;
+  /** Receives run lifecycle and custom control frames. */
+  onControl?: (event: AGUIEvent) => void;
+}
+
 export class TranscriptAccumulator {
   readonly entries: TranscriptEntry[] = [];
   private readonly messagesById = new Map<string, TranscriptMessageEntry>();
   private readonly toolsByCallId = new Map<string, TranscriptToolEntry>();
-  private lastAssistant: TranscriptMessageEntry | undefined;
+  private readonly responseIdsByMessageId = new Map<string, string>();
+  private currentAssistantMessageId: string | undefined;
   private pendingThinking = "";
+
+  constructor(private readonly options: TranscriptAccumulatorOptions = {}) {}
 
   push(event: AGUIEvent): void {
     switch (event.type) {
@@ -277,16 +285,25 @@ export class TranscriptAccumulator {
         if (delta) this.appendText(messageId, delta);
         return;
       }
-      case EventType.THINKING_TEXT_MESSAGE_CONTENT: {
-        const { delta } = event as { delta: string };
-        if (this.lastAssistant) {
-          this.lastAssistant.thinking =
-            (this.lastAssistant.thinking ?? "") + delta;
-        } else {
-          this.pendingThinking += delta;
+      case EventType.TEXT_MESSAGE_END: {
+        const { messageId } = event as { messageId: string };
+        if (this.currentAssistantMessageId === messageId) {
+          this.currentAssistantMessageId = undefined;
         }
         return;
       }
+      case EventType.REASONING_MESSAGE_CONTENT:
+      case EventType.REASONING_MESSAGE_CHUNK:
+      case EventType.THINKING_TEXT_MESSAGE_CONTENT: {
+        const { delta } = event as { delta?: string };
+        if (delta) this.appendThinking(delta);
+        return;
+      }
+      case EventType.REASONING_START:
+      case EventType.REASONING_MESSAGE_START:
+      case EventType.REASONING_MESSAGE_END:
+      case EventType.REASONING_END:
+        return;
       case EventType.TOOL_CALL_START: {
         const { toolCallId, toolCallName } = event as {
           toolCallId: string;
@@ -315,19 +332,40 @@ export class TranscriptAccumulator {
         return;
       }
       case EventType.TOOL_CALL_RESULT: {
-        const { toolCallId, content } = event as {
+        const { toolCallId, content, isError, error } = event as {
           toolCallId: string;
           content: string;
+          isError?: boolean;
+          error?: unknown;
         };
         const tool = this.openTool(toolCallId, "");
         tool.result = content;
-        tool.status = "complete";
+        tool.status = isError || error !== undefined ? "error" : "complete";
         return;
       }
+      case EventType.TOOL_CALL_END:
+        // END seals the arguments stream. The invocation is still running
+        // until TOOL_CALL_RESULT (or RUN_ERROR) supplies its outcome.
+        return;
+      case EventType.MESSAGES_SNAPSHOT:
+        this.applyMessagesSnapshot(event);
+        return;
+      case EventType.ACTIVITY_SNAPSHOT:
+        this.options.onActivity?.(event);
+        return;
+      case EventType.CUSTOM:
+        this.applyCustomEvent(event);
+        this.options.onControl?.(event);
+        return;
+      case EventType.RUN_STARTED:
+      case EventType.RUN_FINISHED:
+        this.options.onControl?.(event);
+        return;
       case EventType.RUN_ERROR: {
         for (const tool of this.toolsByCallId.values()) {
           if (tool.status === "running") tool.status = "error";
         }
+        this.options.onControl?.(event);
         return;
       }
       default:
@@ -348,12 +386,14 @@ export class TranscriptAccumulator {
       text: "",
     };
     if (role === "assistant") {
-      this.lastAssistant = entry;
+      this.currentAssistantMessageId = messageId;
       if (this.pendingThinking) {
         entry.thinking = this.pendingThinking;
         this.pendingThinking = "";
       }
     }
+    const responseId = this.responseIdsByMessageId.get(messageId);
+    if (responseId) entry.responseId = responseId;
     this.messagesById.set(messageId, entry);
     this.entries.push(entry);
     return entry;
@@ -387,6 +427,100 @@ export class TranscriptAccumulator {
   private appendArgs(callId: string, delta: string): void {
     const tool = this.openTool(callId, "");
     tool.arguments = (tool.arguments ?? "") + delta;
+  }
+
+  private appendThinking(delta: string): void {
+    const assistant = this.currentAssistantMessageId
+      ? this.messagesById.get(this.currentAssistantMessageId)
+      : undefined;
+    if (assistant) {
+      assistant.thinking = (assistant.thinking ?? "") + delta;
+    } else {
+      this.pendingThinking += delta;
+    }
+  }
+
+  private applyMessagesSnapshot(event: AGUIEvent): void {
+    const { messages } = event as {
+      messages: Array<{
+        id: string;
+        role: string;
+        content?: unknown;
+        error?: unknown;
+        toolCallId?: string;
+        toolCalls?: Array<{
+          id: string;
+          function?: { name?: string; arguments?: string };
+        }>;
+      }>;
+    };
+
+    this.entries.length = 0;
+    this.messagesById.clear();
+    this.toolsByCallId.clear();
+    this.currentAssistantMessageId = undefined;
+    this.pendingThinking = "";
+
+    let hasActivity = false;
+    for (const message of messages) {
+      if (message.role === "reasoning") {
+        this.pendingThinking += this.contentText(message.content);
+        continue;
+      }
+      if (message.role === "activity") {
+        hasActivity = true;
+        continue;
+      }
+      if (message.role === "user" || message.role === "assistant") {
+        const entry = this.openMessage(message.id, message.role);
+        entry.text = this.contentText(message.content);
+        if (message.role === "assistant") {
+          for (const call of message.toolCalls ?? []) {
+            const tool = this.openTool(call.id, call.function?.name ?? "");
+            if (call.function?.arguments !== undefined) {
+              tool.arguments = call.function.arguments;
+            }
+          }
+          this.currentAssistantMessageId = undefined;
+        }
+        continue;
+      }
+      if (message.role === "tool" && message.toolCallId) {
+        const tool = this.openTool(message.toolCallId, "");
+        tool.result = message.content;
+        tool.status = message.error !== undefined ? "error" : "complete";
+      }
+    }
+    if (hasActivity) this.options.onActivity?.(event);
+  }
+
+  private applyCustomEvent(event: AGUIEvent): void {
+    const { name, value } = event as { name: string; value?: unknown };
+    if (name !== "introspection.message_identity" || !value) return;
+    const identity = value as { messageId?: unknown; responseId?: unknown };
+    if (
+      typeof identity.messageId !== "string" ||
+      typeof identity.responseId !== "string"
+    ) {
+      return;
+    }
+    this.responseIdsByMessageId.set(identity.messageId, identity.responseId);
+    const message = this.messagesById.get(identity.messageId);
+    if (message) message.responseId = identity.responseId;
+  }
+
+  private contentText(content: unknown): string {
+    if (typeof content === "string") return content;
+    if (!Array.isArray(content)) return "";
+    return content
+      .map((part) => {
+        if (typeof part === "string") return part;
+        if (!part || typeof part !== "object") return "";
+        const value = part as { text?: unknown; content?: unknown };
+        if (typeof value.text === "string") return value.text;
+        return typeof value.content === "string" ? value.content : "";
+      })
+      .join("");
   }
 }
 
@@ -425,7 +559,11 @@ export function mergeTranscripts(
     }
   }
   const unmatched = live.filter((entry) => {
-    if (entry.kind === "message") return !messageKeys.has(entry.id);
+    if (entry.kind === "message") {
+      return ![entry.id, entry.responseId, entry.clientMessageId].some(
+        (key) => key !== undefined && messageKeys.has(key),
+      );
+    }
     if (entry.kind === "tool") return !toolCallIds.has(entry.callId);
     return !delegationKeys.has(entry.agentId ?? entry.id);
   });
