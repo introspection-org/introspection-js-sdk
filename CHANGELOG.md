@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.19.1](https://github.com/introspection-org/introspection-js-sdk/compare/v0.19.0...v0.19.1) (2026-08-06)
+
+
+### Bug Fixes
+
+* preserve complete GenAI telemetry payloads ([#298](https://github.com/introspection-org/introspection-js-sdk/issues/298)) ([eef4baa](https://github.com/introspection-org/introspection-js-sdk/commit/eef4baaf4f01173d66e5d927c3d07aeb25d4d286))
+
 ## [0.19.0](https://github.com/introspection-org/introspection-js-sdk/compare/v0.18.1...v0.19.0) (2026-08-06)
 
 
