@@ -71,19 +71,33 @@ export interface TranscriptToolEntry {
 
 /**
  * A delegation boundary — one subagent invocation, carried by the
- * `invoke_agent` / `create_agent` wrapper span. This is the "shallow
- * subagent status" a main chat renders as a chip; `agentId` is the key a
- * drill-in read passes as the items `agent_id` filter to open the
- * subagent's own transcript.
+ * `invoke_agent` / `create_agent` wrapper span (stored) or the `agent`
+ * management tool's start call (live). This is the "shallow subagent
+ * status" a main chat renders as a chip; `agentId` is the key a drill-in
+ * read passes as the items `agent_id` filter to open the subagent's own
+ * transcript.
+ *
+ * Correlation is by invocation, not agent role: two invocations of the
+ * same `researcher` are two entries. Cross-transport precedence is
+ * `invocationId` (the durable child agent-run id — the wrapper span's
+ * `introspection.agent.invocation_id`, the `agent` tool result's
+ * `agent_run_id`), then `sourceToolCallId`, then entry id; `agentId` is a
+ * legacy fallback for emitters that stamp neither.
  */
 export interface TranscriptDelegationEntry {
   kind: "delegation";
-  /** Stable entry ID (`span:{span_id}:delegation`). */
+  /** Stable entry ID (`span:{span_id}:delegation` / `delegation-tool:{callId}`). */
   id: string;
+  /** Durable child agent-run id — the primary correlation key. */
+  invocationId?: string;
+  /** The `agent` tool call that launched the delegation (live transport). */
+  sourceToolCallId?: string;
   /** `gen_ai.agent.id` of the delegated agent, when stamped. */
   agentId?: string;
   /** `gen_ai.agent.name` of the delegated agent, when stamped. */
   agentName?: string;
+  /** Human-readable delegation label, when the start call carried one. */
+  label?: string;
   status: TranscriptStatus;
   /** Wrapper span duration in nanoseconds, when the span has ended. */
   durationNs?: number;
@@ -91,6 +105,22 @@ export interface TranscriptDelegationEntry {
   spanId?: string;
 }
 
+/**
+ * An interruption awaiting outside input. Reserved: no fold emits it yet —
+ * `awaiting_user` reaches clients as a run status today; the entry exists so
+ * the projection can carry the prompt once run metadata exposes it.
+ */
+export interface TranscriptInterruptEntry {
+  kind: "interrupt";
+  /** Stable entry ID. */
+  id: string;
+  /** Why the conversation is paused (e.g. `awaiting_user`). */
+  reason: string;
+}
+
 /** One entry of the folded transcript, in render order. */
 export type TranscriptEntry =
-  TranscriptMessageEntry | TranscriptToolEntry | TranscriptDelegationEntry;
+  | TranscriptMessageEntry
+  | TranscriptToolEntry
+  | TranscriptDelegationEntry
+  | TranscriptInterruptEntry;

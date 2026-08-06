@@ -130,6 +130,9 @@ const DELEGATION_SPAN: GenAiSpan = {
       operation: { name: "invoke_agent" },
       agent: { id: "researcher:abc", name: "researcher" },
     },
+    introspection: {
+      agent: { parent_id: "", invocation_id: "child-run-1" },
+    },
   },
 };
 
@@ -143,15 +146,17 @@ describe("foldSpans", () => {
       chatSpan(),
     ]);
 
+    // Within a span the order is canonical (§7i): user inputs, one
+    // assistant entry, then its tool calls in original part order.
     expect(entries.map((e) => e.kind)).toEqual([
       "message", // user
-      "tool", // call-1, first position kept
       "message", // assistant resp-1
+      "tool", // call-1, first position kept
       "delegation",
       "message", // assistant resp-2
     ]);
 
-    const [user, tool, assistant, delegation, followUp] = entries;
+    const [user, assistant, tool, delegation, followUp] = entries;
     expect(user).toMatchObject({
       role: "user",
       id: "cmid-1",
@@ -176,12 +181,54 @@ describe("foldSpans", () => {
     });
     expect(delegation).toMatchObject({
       kind: "delegation",
+      invocationId: "child-run-1",
       agentId: "researcher:abc",
       agentName: "researcher",
       status: "complete",
       durationNs: 9_500_000_000,
     });
     expect(followUp).toMatchObject({ id: "resp-2", text: "Done." });
+  });
+
+  it("keeps a requested-but-unexecuted tool call running", () => {
+    // The chat span's tool_call part only proves the model finished
+    // *requesting* the call — never that execution completed (§7h).
+    const entries = foldSpans([chatSpan()]);
+    const tool = entries.find((e) => e.kind === "tool");
+    expect(tool).toMatchObject({ callId: "call-1", status: "running" });
+  });
+
+  it("derives tool status from execution, not the containing span", () => {
+    // An un-ended execute_tool span is a still-running call; an errored
+    // response part is an error even when its carrying span is Ok.
+    const open = foldSpans([EXECUTE_TOOL_SPAN]);
+    expect(open[0]).toMatchObject({ callId: "call-1", status: "running" });
+
+    const errored = foldSpans([
+      {
+        ...TOOL_RESULT_SPAN,
+        attributes: {
+          gen_ai: {
+            operation: { name: "chat" },
+            input: {
+              messages: [
+                {
+                  role: "tool",
+                  parts: [
+                    {
+                      type: "tool_call_response",
+                      id: "call-1",
+                      response: { isError: true, error: "denied" },
+                    },
+                  ],
+                },
+              ],
+            },
+          },
+        },
+      },
+    ]);
+    expect(errored[0]).toMatchObject({ callId: "call-1", status: "error" });
   });
 
   it("marks errored spans and keeps synthetic ids stable across refolds", () => {
@@ -305,6 +352,203 @@ describe("foldAgui", () => {
     ] as AGUIEvent[]);
     expect(entries.map((e) => e.kind)).toEqual(["message", "tool"]);
   });
+
+  it("buffers REASONING deltas and attaches them to the next assistant message", () => {
+    // The runtime streams reasoning before the text message it belongs to;
+    // with a previous assistant message already open, the buffer must reach
+    // the *next* message, not whichever streamed last (§7e).
+    const entries = foldAgui([
+      { type: EventType.TEXT_MESSAGE_CHUNK, messageId: "m0", delta: "prior" },
+      { type: EventType.REASONING_START, messageId: "r1" },
+      { type: EventType.REASONING_MESSAGE_START, messageId: "r1" },
+      {
+        type: EventType.REASONING_MESSAGE_CONTENT,
+        messageId: "r1",
+        delta: "weigh ",
+      },
+      {
+        type: EventType.REASONING_MESSAGE_CONTENT,
+        messageId: "r1",
+        delta: "options",
+      },
+      { type: EventType.REASONING_MESSAGE_END, messageId: "r1" },
+      { type: EventType.REASONING_END, messageId: "r1" },
+      {
+        type: EventType.TEXT_MESSAGE_START,
+        messageId: "m1",
+        role: "assistant",
+      },
+      { type: EventType.TEXT_MESSAGE_CONTENT, messageId: "m1", delta: "Go." },
+    ] as AGUIEvent[]);
+    expect(entries[0]).toMatchObject({ id: "m0", text: "prior" });
+    expect((entries[0] as { thinking?: string }).thinking).toBeUndefined();
+    expect(entries[1]).toMatchObject({
+      id: "m1",
+      text: "Go.",
+      thinking: "weigh options",
+    });
+  });
+
+  it("aliases a live message id via introspection.message_identity", () => {
+    const entries = foldAgui([
+      {
+        type: EventType.TEXT_MESSAGE_START,
+        messageId: "run-1:text:0",
+        role: "assistant",
+      },
+      {
+        type: EventType.TEXT_MESSAGE_CONTENT,
+        messageId: "run-1:text:0",
+        delta: "answer",
+      },
+      { type: EventType.TEXT_MESSAGE_END, messageId: "run-1:text:0" },
+      {
+        type: EventType.CUSTOM,
+        name: "introspection.message_identity",
+        value: { messageId: "run-1:text:0", responseId: "resp-1" },
+      },
+    ] as AGUIEvent[]);
+    expect(entries[0]).toMatchObject({
+      id: "run-1:text:0",
+      responseId: "resp-1",
+    });
+  });
+
+  it("reads the tool result error bit and closes leftovers on RUN_FINISHED", () => {
+    const failed = foldAgui([
+      {
+        type: EventType.TOOL_CALL_START,
+        toolCallId: "c-err",
+        toolCallName: "shell",
+      },
+      {
+        type: EventType.TOOL_CALL_RESULT,
+        messageId: "m",
+        toolCallId: "c-err",
+        content: "denied",
+        isError: true,
+      },
+    ] as AGUIEvent[]);
+    expect(failed[0]).toMatchObject({ callId: "c-err", status: "error" });
+
+    // A RUN_FINISHED that leaves a generic tool open is an incomplete
+    // protocol and closes it as error (§7h).
+    const leftover = foldAgui([
+      {
+        type: EventType.TOOL_CALL_START,
+        toolCallId: "c-open",
+        toolCallName: "shell",
+      },
+      { type: EventType.RUN_FINISHED, threadId: "t", runId: "r" },
+    ] as AGUIEvent[]);
+    expect(leftover[0]).toMatchObject({ callId: "c-open", status: "error" });
+  });
+
+  it("folds an agent start call into a delegation entry", () => {
+    const entries = foldAgui([
+      {
+        type: EventType.TOOL_CALL_START,
+        toolCallId: "c-agent",
+        toolCallName: "agent",
+      },
+      {
+        type: EventType.TOOL_CALL_ARGS,
+        toolCallId: "c-agent",
+        delta: '{"name":"researcher","label":"Research X"}',
+      },
+      { type: EventType.TOOL_CALL_END, toolCallId: "c-agent" },
+      {
+        type: EventType.TOOL_CALL_RESULT,
+        messageId: "m",
+        toolCallId: "c-agent",
+        content: JSON.stringify({
+          details: {
+            agent: { agent_run_id: "child-run-1", status: "running" },
+          },
+        }),
+      },
+    ] as AGUIEvent[]);
+    // Launched, not finished: the result contributes the invocation id and
+    // the entry stays running until the child terminates (§7f).
+    expect(entries).toHaveLength(1);
+    expect(entries[0]).toMatchObject({
+      kind: "delegation",
+      id: "delegation-tool:c-agent",
+      sourceToolCallId: "c-agent",
+      invocationId: "child-run-1",
+      agentName: "researcher",
+      label: "Research X",
+      status: "running",
+    });
+  });
+
+  it("keeps non-start agent actions as ordinary tool calls", () => {
+    const entries = foldAgui([
+      {
+        type: EventType.TOOL_CALL_START,
+        toolCallId: "c-status",
+        toolCallName: "agent",
+      },
+      {
+        type: EventType.TOOL_CALL_ARGS,
+        toolCallId: "c-status",
+        delta: '{"action":"status"}',
+      },
+      { type: EventType.TOOL_CALL_END, toolCallId: "c-status" },
+    ] as AGUIEvent[]);
+    expect(entries[0]).toMatchObject({ kind: "tool", name: "agent" });
+  });
+
+  it("upserts MESSAGES_SNAPSHOT as a baseline without duplicating", () => {
+    const entries = foldAgui([
+      {
+        type: EventType.MESSAGES_SNAPSHOT,
+        messages: [
+          { id: "m1", role: "assistant", content: "hydrated" },
+          {
+            id: "m2",
+            role: "assistant",
+            content: "",
+            toolCalls: [
+              {
+                id: "c1",
+                function: { name: "shell", arguments: "{}" },
+              },
+            ],
+          },
+        ],
+      },
+      { type: EventType.TEXT_MESSAGE_CHUNK, messageId: "m1", delta: "!" },
+    ] as AGUIEvent[]);
+    expect(entries.filter((e) => e.kind === "message")).toHaveLength(2);
+    expect(entries[0]).toMatchObject({ id: "m1", text: "hydrated!" });
+    expect(entries.find((e) => e.kind === "tool")).toMatchObject({
+      callId: "c1",
+      name: "shell",
+    });
+  });
+
+  it("routes activity and control frames to callbacks, not the transcript", () => {
+    const activity: AGUIEvent[] = [];
+    const control: AGUIEvent[] = [];
+    const acc = new TranscriptAccumulator({
+      onActivity: (e) => activity.push(e),
+      onControl: (e) => control.push(e),
+    });
+    acc.push({
+      type: EventType.ACTIVITY_SNAPSHOT,
+      messageId: "a",
+      snapshot: [],
+    } as unknown as AGUIEvent);
+    acc.push({
+      type: EventType.CUSTOM,
+      name: "run_lifecycle",
+      value: { phase: "thinking" },
+    } as AGUIEvent);
+    expect(acc.entries).toHaveLength(0);
+    expect(activity).toHaveLength(1);
+    expect(control).toHaveLength(1);
+  });
 });
 
 describe("mergeTranscripts", () => {
@@ -349,7 +593,74 @@ describe("mergeTranscripts", () => {
     expect(extras[0]).toMatchObject({ id: "resp-3", text: "Still streaming" });
   });
 
-  it("dedupes delegations by agent id", () => {
+  it("collides a live message with its stored twin through any alias", () => {
+    // The live id is transport-local (`{runId}:text:0`); the
+    // message_identity frame gave it the responseId its hydrated twin
+    // folds under (§7c) — correlation must read aliases on *both* sides.
+    const stored: TranscriptEntry[] = [
+      {
+        kind: "message",
+        id: "resp-1",
+        role: "assistant",
+        text: "answer",
+        responseId: "resp-1",
+      },
+    ];
+    const live: TranscriptEntry[] = [
+      {
+        kind: "message",
+        id: "run-1:text:0",
+        role: "assistant",
+        text: "answer",
+        responseId: "resp-1",
+      },
+    ];
+    expect(mergeTranscripts(stored, live)).toHaveLength(1);
+  });
+
+  it("correlates delegations by invocation, not agent role", () => {
+    // Two invocations of the same researcher are two entries (§7g); a live
+    // launch collides with its stored wrapper through the invocation id.
+    const stored: TranscriptEntry[] = [
+      {
+        kind: "delegation",
+        id: "span:w1:delegation",
+        invocationId: "child-run-1",
+        agentId: "researcher:abc",
+        status: "complete",
+      },
+      {
+        kind: "delegation",
+        id: "span:w2:delegation",
+        invocationId: "child-run-2",
+        agentId: "researcher:abc",
+        status: "complete",
+      },
+    ];
+    const live: TranscriptEntry[] = [
+      {
+        kind: "delegation",
+        id: "delegation-tool:c1",
+        sourceToolCallId: "c1",
+        invocationId: "child-run-2",
+        agentName: "researcher",
+        status: "running",
+      },
+      {
+        kind: "delegation",
+        id: "delegation-tool:c2",
+        sourceToolCallId: "c2",
+        invocationId: "child-run-3",
+        agentName: "researcher",
+        status: "running",
+      },
+    ];
+    const merged = mergeTranscripts(stored, live);
+    expect(merged).toHaveLength(3);
+    expect(merged[2]).toMatchObject({ invocationId: "child-run-3" });
+  });
+
+  it("falls back to agent id only when neither side has an invocation id", () => {
     const stored: TranscriptEntry[] = [
       {
         kind: "delegation",
@@ -371,9 +682,19 @@ describe("mergeTranscripts", () => {
         agentId: "writer:def",
         status: "running",
       },
+      {
+        // Carries an invocation id, so the legacy agent-id fallback must
+        // NOT swallow it even though the role matches.
+        kind: "delegation",
+        id: "live-f",
+        invocationId: "child-run-9",
+        agentId: "researcher:abc",
+        status: "running",
+      },
     ];
     const merged = mergeTranscripts(stored, live);
-    expect(merged).toHaveLength(2);
+    expect(merged).toHaveLength(3);
     expect(merged[1]).toMatchObject({ agentId: "writer:def" });
+    expect(merged[2]).toMatchObject({ invocationId: "child-run-9" });
   });
 });

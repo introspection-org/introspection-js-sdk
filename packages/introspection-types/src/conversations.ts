@@ -62,15 +62,32 @@ export type ConversationSortField =
  * Optional conversation item expansions, passed as a repeated `include`
  * query param on the items routes.
  *
+ * Two kinds of value, told apart by the prefix:
+ *
+ * - **`gen_ai.*` — encrypted content channels.** System instructions and
+ *   tool definitions are stripped out of the attribute map at ingest and
+ *   envelope-encrypted separately, so each one you request costs a per-row
+ *   decrypt and each one you omit is never even selected. They are
+ *   independent knobs on purpose: an eval harness wants definitions without
+ *   instructions, a prompt audit wants the reverse, a chatbot wants
+ *   neither.
+ * - **Bare names — structural chunks of the raw span** (`events`, the full
+ *   `span_attributes` map, `resource_attributes`). The typed attribute tree
+ *   on every response is built from materialized columns; `span_attributes`
+ *   is the complete raw map for debuggers.
+ *
  * The message-family expansions are gone: the detail read returns the full
  * message history unconditionally, so there is nothing left for them to
  * gate. A parameter that is always required is not a parameter, it is a trap
  * — forgetting `include=gen_ai.input.messages` used to silently fork a
- * conversation with one turn of context. `span_attributes` went the same
- * way: the attribute tree *is* the response now, not an optional expansion
- * of it.
+ * conversation with one turn of context.
  */
-export type ConversationItemInclude = "events" | "resource_attributes";
+export type ConversationItemInclude =
+  | "gen_ai.system_instructions"
+  | "gen_ai.tool.definitions"
+  | "events"
+  | "span_attributes"
+  | "resource_attributes";
 
 // --- gen_ai.* -------------------------------------------------------------
 
@@ -313,6 +330,19 @@ export interface IntrospectionSpanAttributes {
   /** Runtime environment lane. */
   environment?: string;
   conversation?: IntrospectionConversation;
+  agent?: IntrospectionAgent;
+  [key: string]: unknown;
+}
+
+/**
+ * `introspection.agent.*` — the agent-tree edge on a span. On a delegation
+ * wrapper span, `parent_id` is the delegating agent (empty/absent = root)
+ * and `invocation_id` is the durable child agent-run id — the delegation's
+ * cross-transport correlation key.
+ */
+export interface IntrospectionAgent {
+  parent_id?: string;
+  invocation_id?: string;
   [key: string]: unknown;
 }
 
