@@ -490,6 +490,27 @@ export interface ConversationItemListParams {
   include?: ConversationItemInclude[];
   /** Filter items by agent name (exact match). */
   agent_name?: string;
+  /**
+   * Filter items by agent ID (exact match) — the `gen_ai.agent.id` a
+   * delegation wrapper span carries in `attributes.gen_ai.agent.id`. This is
+   * the drill-in read: fetch a subagent's own transcript with the ID its
+   * `invoke_agent` wrapper handed you.
+   */
+  agent_id?: string;
+  /**
+   * Scope of agent activity to return (server default `"all"`).
+   *
+   * `"root"` returns the main transcript only: the root agent's spans plus
+   * one `invoke_agent` / `create_agent` wrapper span per delegation — the
+   * shallow subagent status (name, duration, outcome) without the
+   * subagent's internals. Combine with {@link agent_id} on a follow-up
+   * request to open a specific subagent.
+   *
+   * @see cloud `docs/design/conversation-transcript-scope.md` — requires a
+   * DP deployment that implements the proposal; older servers reject
+   * unknown params.
+   */
+  agent_scope?: "all" | "root";
   /** Filter items by service name (exact match). */
   service_name?: string;
   /** Filter items by operation name (exact match). */

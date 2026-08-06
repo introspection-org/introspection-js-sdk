@@ -1,0 +1,379 @@
+/**
+ * The shared transcript projection: `foldSpans` (stored spans), `foldAgui`
+ * (live AG-UI events), and `mergeTranscripts` (refresh convergence).
+ *
+ * The parity test at the bottom is the point of the module: the same turn
+ * folded from both transports converges to one set of entries instead of
+ * duplicating — the failure class that per-app reconciliation heuristics
+ * used to chase.
+ */
+import { describe, expect, it } from "vitest";
+import {
+  EventType,
+  TranscriptAccumulator,
+  foldAgui,
+  foldSpans,
+  mergeTranscripts,
+} from "@introspection-sdk/http";
+import type { AGUIEvent } from "@introspection-sdk/types";
+import type { GenAiSpan, TranscriptEntry } from "@introspection-sdk/types";
+
+function chatSpan(overrides: Partial<GenAiSpan> = {}): GenAiSpan {
+  return {
+    trace_id: "trace-1",
+    span_id: "span-chat-1",
+    start_time: "2026-01-01T00:00:01Z",
+    end_time: "2026-01-01T00:00:03Z",
+    duration_ns: 2_000_000_000,
+    status: { code: "Ok" },
+    attributes: {
+      gen_ai: {
+        operation: { name: "chat" },
+        conversation: { id: "conv-1" },
+        agent: { id: "agent", name: "agent" },
+        response: { id: "resp-1" },
+        input: {
+          messages: [
+            {
+              role: "user",
+              parts: [{ type: "text", content: "find react devs" }],
+            },
+          ],
+        },
+        output: {
+          messages: [
+            {
+              role: "assistant",
+              parts: [
+                { type: "thinking", content: "considering" },
+                {
+                  type: "tool_call",
+                  id: "call-1",
+                  name: "shell",
+                  arguments: '{"label":"Exploring: searching recruiters"}',
+                },
+                { type: "text", content: "Here are the results." },
+              ],
+              finish_reason: "stop",
+            },
+          ],
+        },
+      },
+      introspection: {
+        conversation: { position: 0, client_message_id: "cmid-1" },
+      },
+    },
+    ...overrides,
+  };
+}
+
+const EXECUTE_TOOL_SPAN: GenAiSpan = {
+  trace_id: "trace-1",
+  span_id: "span-tool-1",
+  start_time: "2026-01-01T00:00:02Z",
+  status: { code: "Ok" },
+  attributes: {
+    gen_ai: {
+      operation: { name: "execute_tool" },
+      tool: {
+        name: "shell",
+        call: {
+          id: "call-1",
+          arguments: '{"label":"Exploring: searching recruiters"}',
+        },
+      },
+    },
+  },
+};
+
+const TOOL_RESULT_SPAN: GenAiSpan = {
+  trace_id: "trace-1",
+  span_id: "span-chat-2",
+  start_time: "2026-01-01T00:00:04Z",
+  status: { code: "Ok" },
+  attributes: {
+    gen_ai: {
+      operation: { name: "chat" },
+      response: { id: "resp-2" },
+      input: {
+        messages: [
+          {
+            role: "tool",
+            parts: [
+              {
+                type: "tool_call_response",
+                id: "call-1",
+                response: { ok: true },
+              },
+            ],
+          },
+        ],
+      },
+      output: {
+        messages: [
+          { role: "assistant", parts: [{ type: "text", content: "Done." }] },
+        ],
+      },
+    },
+  },
+};
+
+const DELEGATION_SPAN: GenAiSpan = {
+  trace_id: "trace-1",
+  span_id: "span-invoke-1",
+  start_time: "2026-01-01T00:00:02.500Z",
+  end_time: "2026-01-01T00:00:12Z",
+  duration_ns: 9_500_000_000,
+  status: { code: "Ok" },
+  attributes: {
+    gen_ai: {
+      operation: { name: "invoke_agent" },
+      agent: { id: "researcher:abc", name: "researcher" },
+    },
+  },
+};
+
+describe("foldSpans", () => {
+  it("folds a turn into user, tool, delegation and assistant entries", () => {
+    // Pages arrive newest-first; the fold owns chronological order.
+    const entries = foldSpans([
+      TOOL_RESULT_SPAN,
+      DELEGATION_SPAN,
+      EXECUTE_TOOL_SPAN,
+      chatSpan(),
+    ]);
+
+    expect(entries.map((e) => e.kind)).toEqual([
+      "message", // user
+      "tool", // call-1, first position kept
+      "message", // assistant resp-1
+      "delegation",
+      "message", // assistant resp-2
+    ]);
+
+    const [user, tool, assistant, delegation, followUp] = entries;
+    expect(user).toMatchObject({
+      role: "user",
+      id: "cmid-1",
+      clientMessageId: "cmid-1",
+      text: "find react devs",
+    });
+    // One entry despite three sources (execute_tool span, tool_call output
+    // part, tool_call_response input part), with the result merged on.
+    expect(tool).toMatchObject({
+      callId: "call-1",
+      name: "shell",
+      status: "complete",
+      result: { ok: true },
+    });
+    expect((tool as { arguments?: string }).arguments).toContain("Exploring");
+    expect(assistant).toMatchObject({
+      role: "assistant",
+      id: "resp-1",
+      responseId: "resp-1",
+      text: "Here are the results.",
+      thinking: "considering",
+    });
+    expect(delegation).toMatchObject({
+      kind: "delegation",
+      agentId: "researcher:abc",
+      agentName: "researcher",
+      status: "complete",
+      durationNs: 9_500_000_000,
+    });
+    expect(followUp).toMatchObject({ id: "resp-2", text: "Done." });
+  });
+
+  it("marks errored spans and keeps synthetic ids stable across refolds", () => {
+    const errored = chatSpan({
+      span_id: "span-err",
+      status: { code: "Error", message: "boom" },
+      attributes: {
+        gen_ai: {
+          operation: { name: "chat" },
+          output: {
+            messages: [
+              {
+                role: "assistant",
+                parts: [{ type: "text", content: "partial" }],
+              },
+            ],
+          },
+        },
+      },
+    });
+    const first = foldSpans([errored]);
+    const second = foldSpans([errored]);
+    expect(first).toEqual(second);
+    expect(first[0]?.id).toBe("span:span-err:assistant:0");
+  });
+});
+
+describe("foldAgui", () => {
+  const events: AGUIEvent[] = [
+    { type: EventType.RUN_STARTED, threadId: "t", runId: "r" },
+    { type: EventType.THINKING_TEXT_MESSAGE_CONTENT, delta: "consider" },
+    {
+      type: EventType.TEXT_MESSAGE_START,
+      messageId: "resp-1",
+      role: "assistant",
+    },
+    {
+      type: EventType.TEXT_MESSAGE_CONTENT,
+      messageId: "resp-1",
+      delta: "Here are ",
+    },
+    {
+      type: EventType.TOOL_CALL_START,
+      toolCallId: "call-1",
+      toolCallName: "shell",
+    },
+    {
+      type: EventType.TOOL_CALL_ARGS,
+      toolCallId: "call-1",
+      delta: '{"label":',
+    },
+    {
+      type: EventType.TOOL_CALL_ARGS,
+      toolCallId: "call-1",
+      delta: '"Exploring"}',
+    },
+    {
+      type: EventType.TOOL_CALL_RESULT,
+      messageId: "m-tool",
+      toolCallId: "call-1",
+      content: "ok",
+    },
+    {
+      type: EventType.TEXT_MESSAGE_CONTENT,
+      messageId: "resp-1",
+      delta: "the results.",
+    },
+    { type: EventType.TEXT_MESSAGE_END, messageId: "resp-1" },
+    { type: EventType.RUN_FINISHED, threadId: "t", runId: "r" },
+  ] as AGUIEvent[];
+
+  it("assembles streamed deltas into the same entry shapes", () => {
+    const entries = foldAgui(events);
+    expect(entries).toHaveLength(2);
+    expect(entries[0]).toMatchObject({
+      kind: "message",
+      id: "resp-1",
+      role: "assistant",
+      text: "Here are the results.",
+      thinking: "consider",
+    });
+    expect(entries[1]).toMatchObject({
+      kind: "tool",
+      callId: "call-1",
+      name: "shell",
+      arguments: '{"label":"Exploring"}',
+      status: "complete",
+      result: "ok",
+    });
+  });
+
+  it("marks still-running tools as errored on RUN_ERROR", () => {
+    const acc = new TranscriptAccumulator();
+    acc.push({
+      type: EventType.TOOL_CALL_START,
+      toolCallId: "call-9",
+      toolCallName: "shell",
+    } as AGUIEvent);
+    acc.push({
+      type: EventType.RUN_ERROR,
+      message: "sandbox died",
+    } as AGUIEvent);
+    expect(acc.entries[0]).toMatchObject({ callId: "call-9", status: "error" });
+  });
+
+  it("upserts from chunk events and ignores unknown event types", () => {
+    const entries = foldAgui([
+      { type: EventType.TEXT_MESSAGE_CHUNK, messageId: "m1", delta: "hi" },
+      {
+        type: EventType.TOOL_CALL_CHUNK,
+        toolCallId: "c1",
+        toolCallName: "shell",
+        delta: "{}",
+      },
+      { type: EventType.STEP_STARTED, stepName: "s" },
+      {
+        type: EventType.CUSTOM,
+        name: "run_lifecycle",
+        value: { phase: "thinking" },
+      },
+    ] as AGUIEvent[]);
+    expect(entries.map((e) => e.kind)).toEqual(["message", "tool"]);
+  });
+});
+
+describe("mergeTranscripts", () => {
+  it("collides live entries with their stored twins and keeps unmatched ones", () => {
+    // Live message id equals the stored responseId (the runtime streams the
+    // provider response id as messageId), and the live tool shares callId.
+    const stored = foldSpans([chatSpan(), EXECUTE_TOOL_SPAN, TOOL_RESULT_SPAN]);
+    const live = foldAgui([
+      {
+        type: EventType.TEXT_MESSAGE_START,
+        messageId: "resp-1",
+        role: "assistant",
+      },
+      {
+        type: EventType.TEXT_MESSAGE_CONTENT,
+        messageId: "resp-1",
+        delta: "Here",
+      },
+      {
+        type: EventType.TOOL_CALL_START,
+        toolCallId: "call-1",
+        toolCallName: "shell",
+      },
+      {
+        type: EventType.TEXT_MESSAGE_START,
+        messageId: "resp-3",
+        role: "assistant",
+      },
+      {
+        type: EventType.TEXT_MESSAGE_CONTENT,
+        messageId: "resp-3",
+        delta: "Still streaming",
+      },
+    ] as AGUIEvent[]);
+
+    const merged = mergeTranscripts(stored, live);
+    // Everything stored survives untouched; the only live addition is the
+    // not-yet-persisted resp-3.
+    expect(merged.slice(0, stored.length)).toEqual(stored);
+    const extras = merged.slice(stored.length);
+    expect(extras).toHaveLength(1);
+    expect(extras[0]).toMatchObject({ id: "resp-3", text: "Still streaming" });
+  });
+
+  it("dedupes delegations by agent id", () => {
+    const stored: TranscriptEntry[] = [
+      {
+        kind: "delegation",
+        id: "span:x:delegation",
+        agentId: "researcher:abc",
+        status: "complete",
+      },
+    ];
+    const live: TranscriptEntry[] = [
+      {
+        kind: "delegation",
+        id: "live-d",
+        agentId: "researcher:abc",
+        status: "running",
+      },
+      {
+        kind: "delegation",
+        id: "live-e",
+        agentId: "writer:def",
+        status: "running",
+      },
+    ];
+    const merged = mergeTranscripts(stored, live);
+    expect(merged).toHaveLength(2);
+    expect(merged[1]).toMatchObject({ agentId: "writer:def" });
+  });
+});
