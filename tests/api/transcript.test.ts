@@ -137,7 +137,7 @@ const DELEGATION_SPAN: GenAiSpan = {
 };
 
 describe("foldSpans", () => {
-  it("folds a turn into user, tool, delegation and assistant entries", () => {
+  it("folds a turn with assistant content before its requested tools", () => {
     // Pages arrive newest-first; the fold owns chronological order.
     const entries = foldSpans([
       TOOL_RESULT_SPAN,
@@ -148,13 +148,13 @@ describe("foldSpans", () => {
 
     expect(entries.map((e) => e.kind)).toEqual([
       "message", // user
-      "tool", // call-1, first position kept
       "message", // assistant resp-1
+      "tool", // call-1, after the assistant content that requested it
       "delegation",
       "message", // assistant resp-2
     ]);
 
-    const [user, tool, assistant, delegation, followUp] = entries;
+    const [user, assistant, tool, delegation, followUp] = entries;
     expect(user).toMatchObject({
       role: "user",
       id: "cmid-1",

@@ -212,7 +212,24 @@ export function foldSpans(spans: GenAiSpan[]): TranscriptEntry[] {
     outputMessages.forEach((message, index) => {
       if (message.role !== "assistant") return;
       const parts = message.parts ?? [];
-      // Source two of a tool call: the assistant output's `tool_call` parts.
+      const text = textOf(parts);
+      const thinking = thinkingOf(parts);
+      if (text || thinking) {
+        const responseId = genAi?.response?.id;
+        const entry: TranscriptMessageEntry = {
+          kind: "message",
+          id:
+            responseId ?? `span:${spanId ?? span.trace_id}:assistant:${index}`,
+          role: "assistant",
+          text,
+          ...(thinking ? { thinking } : {}),
+          ...(responseId ? { responseId } : {}),
+          ...(spanId ? { spanId } : {}),
+        };
+        entries.push(entry);
+      }
+      // One deterministic within-span rule: render the assistant's content,
+      // then its requested tools in their original part order.
       for (const part of parts) {
         if (part.type !== "tool_call" || !part.id) continue;
         upsertTool(part.id, {
@@ -229,20 +246,6 @@ export function foldSpans(spans: GenAiSpan[]): TranscriptEntry[] {
           spanId,
         });
       }
-      const text = textOf(parts);
-      const thinking = thinkingOf(parts);
-      if (!text && !thinking) return;
-      const responseId = genAi?.response?.id;
-      const entry: TranscriptMessageEntry = {
-        kind: "message",
-        id: responseId ?? `span:${spanId ?? span.trace_id}:assistant:${index}`,
-        role: "assistant",
-        text,
-        ...(thinking ? { thinking } : {}),
-        ...(responseId ? { responseId } : {}),
-        ...(spanId ? { spanId } : {}),
-      };
-      entries.push(entry);
     });
   }
 
