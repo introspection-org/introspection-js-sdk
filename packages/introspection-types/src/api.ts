@@ -130,6 +130,29 @@ export interface Task {
   identity_key?: string | null;
 }
 
+/**
+ * A reference to an already-uploaded file, attached to a task.
+ *
+ * Bytes go through `POST /v1/files` first (`files.upload` / `files.createText`);
+ * a task only ever carries the reference. `name` is the workspace-relative path
+ * the file is mounted as, so it must be relative and must not traverse outside
+ * the task's files directory.
+ */
+export interface TaskFileRef {
+  /** Files API file id. */
+  id: Uuid;
+  /**
+   * Workspace-relative path to mount the file at (e.g. `spec.md`,
+   * `specs/senior-jd.pdf`).
+   *
+   * Optional — omit it and the file is mounted under its own name. Supply it
+   * only to override: rename, or nest it in a subdirectory. Must be relative
+   * and must not traverse outside the task's files directory.
+   */
+  name?: string;
+  size_bytes?: number;
+}
+
 export interface TaskCreateParams {
   title?: string;
   prompt?: string;
@@ -137,6 +160,14 @@ export interface TaskCreateParams {
   system_id?: string;
   repository_id?: Uuid;
   metadata?: Record<string, unknown>;
+  /**
+   * Files to attach to this task, by id. Materialized into the agent's
+   * workspace and announced to it before the first turn runs.
+   *
+   * Equivalent to setting `metadata.conversation_files.uploads`, which stays
+   * supported; prefer this field.
+   */
+  files?: TaskFileRef[];
   /**
    * Override the interactive idle window (seconds) before the sandbox is
    * torn down. `0` tears down as soon as it's provisioned (e.g. an
@@ -179,6 +210,17 @@ export interface TaskRunCreateParams {
   message?: string;
   kind?: TaskRunKind;
   metadata?: Record<string, unknown>;
+  /**
+   * Files to attach to this turn — the way to add a file mid-conversation.
+   *
+   * The agent's workspace is built once when its sandbox starts, so a file
+   * attached on a later turn is materialized into the running sandbox before
+   * that turn executes, and joins the task's set so a restart replays it.
+   * Re-sending a file the task already carries is a no-op.
+   *
+   * Not accepted alongside `resume`.
+   */
+  files?: TaskFileRef[];
 }
 
 export interface TaskRunResumeParams {

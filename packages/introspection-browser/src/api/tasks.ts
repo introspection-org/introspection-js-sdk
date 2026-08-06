@@ -1,4 +1,8 @@
-import type { RunIdentityInput, Uuid } from "@introspection-sdk/types";
+import type {
+  RunIdentityInput,
+  TaskFileRef,
+  Uuid,
+} from "@introspection-sdk/types";
 import {
   RunHandle,
   TaskRunsClient,
@@ -32,6 +36,16 @@ export interface CreateTaskParams {
   idle_timeout_seconds?: number;
   /** Caller identity for attribution; merged into `metadata.identity`. */
   identity?: RunIdentityInput;
+  /**
+   * Files to attach to this task, uploaded first via `client.files`.
+   *
+   * Only for files the user picked before the first turn. To attach one
+   * mid-conversation, put `files` on the run instead
+   * (`client.tasks.runs.create(taskId, { prompt, files })`) — the task's
+   * workspace is built when its sandbox starts, so a later attachment has to
+   * ride the turn that references it.
+   */
+  files?: TaskFileRef[];
   /**
    * Fork from a shared conversation: the `/v1/shares` grant id for the source
    * conversation. Its presence makes this create a fork — the server seeds the

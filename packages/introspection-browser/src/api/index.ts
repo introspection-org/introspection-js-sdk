@@ -89,6 +89,7 @@ export type {
   TaskUpdateParams,
   TaskRunCreateParams,
   TaskRunResumeParams,
+  TaskFileRef,
   TaskCancelResponse,
   TaskCancelOptions,
   RunIdentityInput,
