@@ -498,13 +498,20 @@ export interface ConversationItemListParams {
    */
   agent_id?: string;
   /**
-   * Scope of agent activity to return (server default `"all"`).
+   * Scope of agent activity to return. Progressive disclosure is the API's
+   * model: the server's end-state default is `"root"` — every consumer
+   * starts at the main transcript, and subagents are loaded individually
+   * via {@link agent_id}.
    *
-   * `"root"` returns the main transcript only: the root agent's spans plus
-   * one `invoke_agent` / `create_agent` wrapper span per delegation — the
-   * shallow subagent status (name, duration, outcome) without the
-   * subagent's internals. Combine with {@link agent_id} on a follow-up
-   * request to open a specific subagent.
+   * `"root"` returns the root agent's spans plus one `invoke_agent` /
+   * `create_agent` wrapper span per delegation — the shallow subagent
+   * status (name, duration, outcome) without the subagent's internals, each
+   * wrapper carrying the `gen_ai.agent.id` to drill in with. `"all"`
+   * returns every span and is for consumers whose job is the full set
+   * (exports, debuggers, eval sweeps).
+   *
+   * Until the server's default flip lands, pass the scope you mean
+   * explicitly rather than relying on either default.
    *
    * @see cloud `docs/design/conversation-transcript-scope.md` — requires a
    * DP deployment that implements the proposal; older servers reject
