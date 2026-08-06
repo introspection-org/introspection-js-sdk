@@ -48,8 +48,21 @@ import {
 /** `gen_ai.operation.name` values that mark a delegation boundary. */
 const DELEGATION_OPERATIONS = new Set(["invoke_agent", "create_agent"]);
 
-function spanStatus(span: GenAiSpan): TranscriptStatus {
-  return span.status?.code === "Error" ? "error" : "complete";
+function toolSpanStatus(span: GenAiSpan): TranscriptStatus {
+  if (span.status?.code === "Error") return "error";
+  return span.end_time || span.duration_ns !== undefined
+    ? "complete"
+    : "running";
+}
+
+function toolResultIsError(result: unknown): boolean {
+  if (!result || typeof result !== "object") return false;
+  const value = result as Record<string, unknown>;
+  return (
+    value.isError === true ||
+    value.status === "error" ||
+    value.error !== undefined
+  );
 }
 
 function textOf(parts: MessagePart[]): string {
@@ -97,6 +110,8 @@ export function foldSpans(spans: GenAiSpan[]): TranscriptEntry[] {
         existing.status = patch.status ?? "complete";
       } else if (patch.status === "error") {
         existing.status = "error";
+      } else if (patch.status === "complete" && existing.status === "running") {
+        existing.status = "complete";
       }
       if (patch.spanId) existing.spanId = patch.spanId;
       return;
@@ -150,7 +165,7 @@ export function foldSpans(spans: GenAiSpan[]): TranscriptEntry[] {
       upsertTool(call.id, {
         name: genAi?.tool?.name,
         arguments: call.arguments,
-        status: spanStatus(span),
+        status: toolSpanStatus(span),
         spanId,
       });
     }
@@ -186,7 +201,7 @@ export function foldSpans(spans: GenAiSpan[]): TranscriptEntry[] {
           upsertTool(part.id, {
             name: part.name,
             result: part.response,
-            status: "complete",
+            status: toolResultIsError(part.response) ? "error" : "complete",
             spanId,
           });
         }
@@ -208,7 +223,9 @@ export function foldSpans(spans: GenAiSpan[]): TranscriptEntry[] {
               : part.arguments !== undefined
                 ? JSON.stringify(part.arguments)
                 : undefined,
-          status: spanStatus(span),
+          // A model finishing the request does not mean the tool finished.
+          // Only its execute span or response can settle the invocation.
+          status: "running",
           spanId,
         });
       }

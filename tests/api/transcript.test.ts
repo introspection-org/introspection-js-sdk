@@ -212,6 +212,54 @@ describe("foldSpans", () => {
     expect(first).toEqual(second);
     expect(first[0]?.id).toBe("span:span-err:assistant:0");
   });
+
+  it("keeps requested and in-progress tools running until an outcome arrives", () => {
+    const requested = foldSpans([chatSpan()]).find(
+      (entry) => entry.kind === "tool",
+    );
+    expect(requested).toMatchObject({ callId: "call-1", status: "running" });
+
+    const executing = foldSpans([EXECUTE_TOOL_SPAN]).find(
+      (entry) => entry.kind === "tool",
+    );
+    expect(executing).toMatchObject({ callId: "call-1", status: "running" });
+
+    const finished = foldSpans([
+      chatSpan(),
+      { ...EXECUTE_TOOL_SPAN, end_time: "2026-01-01T00:00:03Z" },
+    ]).find((entry) => entry.kind === "tool");
+    expect(finished).toMatchObject({ callId: "call-1", status: "complete" });
+  });
+
+  it("preserves stored tool-result errors", () => {
+    const erroredResult: GenAiSpan = {
+      ...TOOL_RESULT_SPAN,
+      attributes: {
+        gen_ai: {
+          operation: { name: "chat" },
+          input: {
+            messages: [
+              {
+                role: "tool",
+                parts: [
+                  {
+                    type: "tool_call_response",
+                    id: "call-1",
+                    response: { isError: true, error: "failed" },
+                  },
+                ],
+              },
+            ],
+          },
+        },
+      },
+    };
+
+    const tool = foldSpans([chatSpan(), erroredResult]).find(
+      (entry) => entry.kind === "tool",
+    );
+    expect(tool).toMatchObject({ callId: "call-1", status: "error" });
+  });
 });
 
 describe("foldAgui", () => {
