@@ -46,7 +46,6 @@ export interface CaptureConfig {
   captureMessageContent: boolean;
   captureToolInput: boolean;
   captureToolOutput: boolean;
-  maxCaptureLength: number;
 }
 
 type AnyEvent = Record<string, unknown>;
@@ -368,7 +367,6 @@ export function handleBeforeToolCall(
         sequence: session.toolSequence,
         params: event.params,
         captureToolInput: capture.captureToolInput,
-        maxCaptureLength: capture.maxCaptureLength,
       }),
     },
     session.agentCtx,
@@ -408,7 +406,6 @@ export function handleToolResultPersist(
         durationMs: Date.now() - entry.startTime,
         message: event.message,
         captureToolOutput: capture.captureToolOutput,
-        maxCaptureLength: capture.maxCaptureLength,
       }),
     );
 
@@ -423,7 +420,6 @@ export function handleToolResultPersist(
         if (recorded >= 0) {
           session.toolCalls[recorded]!.result = prepareForCapture(
             event.message,
-            capture.maxCaptureLength,
           );
         }
       }

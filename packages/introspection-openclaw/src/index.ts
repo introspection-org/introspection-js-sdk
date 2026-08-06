@@ -59,8 +59,6 @@ export default function register(api: PluginApi): void {
     captureMessageContent: cfg.captureMessageContent !== false,
     captureToolInput: cfg.captureToolInput !== false,
     captureToolOutput: cfg.captureToolOutput !== false,
-    maxCaptureLength:
-      typeof cfg.maxCaptureLength === "number" ? cfg.maxCaptureLength : 2048,
   };
 
   api.on("before_agent_start", (event, ctx) => {

@@ -32,17 +32,9 @@ export function safeJsonStringify(value: unknown): string {
   }
 }
 
-/** Truncate a string with a `...[truncated]` suffix when it exceeds `maxLength`. */
-export function truncate(value: string, maxLength: number): string {
-  return value.length <= maxLength
-    ? value
-    : `${value.slice(0, maxLength)}...[truncated]`;
-}
-
-/** Stringify (if needed) and truncate — for capturing values as span attributes. */
-export function prepareForCapture(value: unknown, maxLength: number): string {
-  const str = typeof value === "string" ? value : safeJsonStringify(value);
-  return truncate(str, maxLength);
+/** Stringify values for lossless capture as span attributes. */
+export function prepareForCapture(value: unknown): string {
+  return typeof value === "string" ? value : safeJsonStringify(value);
 }
 
 // ─── OpenClaw → semconv conversion ─────────────────────────────────────────

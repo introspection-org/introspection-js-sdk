@@ -100,22 +100,6 @@ export interface TurnSpans {
 }
 
 /**
- * Cap on a single captured content string, in characters.
- *
- * Transcripts routinely contain whole files. An unbounded attribute would make
- * a single span exceed the collector's payload limit and take the entire batch
- * down with it — so truncation here protects delivery of the *other* spans, and
- * is applied even at `full`.
- */
-const MAX_CONTENT_CHARS = 24_000;
-
-function truncate(value: string): string {
-  return value.length <= MAX_CONTENT_CHARS
-    ? value
-    : `${value.slice(0, MAX_CONTENT_CHARS)}…[truncated ${value.length - MAX_CONTENT_CHARS} chars]`;
-}
-
-/**
  * Tool arguments arrive as a stringified JSON object. Parse it back so the
  * stored part carries structured arguments rather than a string containing
  * JSON — the conversation model's `arguments` is a value, not a blob, and a
@@ -126,7 +110,7 @@ function parseArguments(raw: string): unknown {
   try {
     return JSON.parse(raw);
   } catch {
-    return truncate(raw);
+    return raw;
   }
 }
 
@@ -240,7 +224,7 @@ export function emitTurnSpans(
         if (captureContent) {
           inputMessages.push({
             role: "user",
-            parts: [{ type: "text", content: truncate(record.content) }],
+            parts: [{ type: "text", content: record.content }],
           });
         }
         break;
@@ -255,7 +239,7 @@ export function emitTurnSpans(
             parts: [
               {
                 type: "reasoning",
-                content: truncate(record.content),
+                content: record.content,
                 provider_name: provider,
               },
             ],
@@ -304,7 +288,7 @@ export function emitTurnSpans(
           if (captureContent) {
             outputMessages.push({
               role: "assistant",
-              parts: [{ type: "text", content: truncate(record.content) }],
+              parts: [{ type: "text", content: record.content }],
               ...(model ? { model } : {}),
               provider,
             });
@@ -338,7 +322,7 @@ export function emitTurnSpans(
               {
                 type: "tool_call_response",
                 id: record.tool_call_id,
-                response: truncate(record.content),
+                response: record.content,
               },
             ],
           });
