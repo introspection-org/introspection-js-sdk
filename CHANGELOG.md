@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.19.0](https://github.com/introspection-org/introspection-js-sdk/compare/v0.18.1...v0.19.0) (2026-08-06)
+
+
+### Features
+
+* **types:** add `files` to task and task-run params ([#295](https://github.com/introspection-org/introspection-js-sdk/issues/295)) ([67a482c](https://github.com/introspection-org/introspection-js-sdk/commit/67a482c49aa650109d46084a562096c3ef301b2c))
+
 ## [0.18.1](https://github.com/introspection-org/introspection-js-sdk/compare/v0.18.0...v0.18.1) (2026-08-05)
 
 
