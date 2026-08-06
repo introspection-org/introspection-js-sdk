@@ -130,6 +130,9 @@ const DELEGATION_SPAN: GenAiSpan = {
       operation: { name: "invoke_agent" },
       agent: { id: "researcher:abc", name: "researcher" },
     },
+    introspection: {
+      agent: { parent_id: "root-1", invocation_id: "child-run-1" },
+    },
   },
 };
 
@@ -176,8 +179,10 @@ describe("foldSpans", () => {
     });
     expect(delegation).toMatchObject({
       kind: "delegation",
+      id: "delegation:child-run-1",
       agentId: "researcher:abc",
       agentName: "researcher",
+      invocationId: "child-run-1",
       status: "complete",
       durationNs: 9_500_000_000,
     });
@@ -461,6 +466,71 @@ describe("foldAgui", () => {
     } as AGUIEvent);
     expect(acc.entries[0]).toMatchObject({ status: "error" });
   });
+
+  it("projects agent starts as delegations and keeps management calls as tools", () => {
+    const entries = foldAgui([
+      {
+        type: EventType.TOOL_CALL_START,
+        toolCallId: "call-start",
+        toolCallName: "agent",
+      },
+      {
+        type: EventType.TOOL_CALL_ARGS,
+        toolCallId: "call-start",
+        delta:
+          '{"name":"researcher","prompt":"research","label":"Market scan"}',
+      },
+      { type: EventType.TOOL_CALL_END, toolCallId: "call-start" },
+      {
+        type: EventType.TOOL_CALL_RESULT,
+        messageId: "result-start",
+        toolCallId: "call-start",
+        content: JSON.stringify({
+          details: {
+            agent: {
+              agent_run_id: "child-run-1",
+              agent_name: "researcher",
+              label: "Market scan",
+              status: "running",
+            },
+          },
+        }),
+      },
+      {
+        type: EventType.TOOL_CALL_START,
+        toolCallId: "call-status",
+        toolCallName: "agent",
+      },
+      {
+        type: EventType.TOOL_CALL_ARGS,
+        toolCallId: "call-status",
+        delta: '{"action":"status","id":"child-run-1"}',
+      },
+      {
+        type: EventType.TOOL_CALL_RESULT,
+        messageId: "result-status",
+        toolCallId: "call-status",
+        content: "status",
+      },
+    ] as AGUIEvent[]);
+
+    expect(entries).toHaveLength(2);
+    expect(entries[0]).toMatchObject({
+      kind: "delegation",
+      id: "delegation-tool:call-start",
+      sourceToolCallId: "call-start",
+      invocationId: "child-run-1",
+      agentName: "researcher",
+      label: "Market scan",
+      status: "running",
+    });
+    expect(entries[1]).toMatchObject({
+      kind: "tool",
+      callId: "call-status",
+      name: "agent",
+      status: "complete",
+    });
+  });
 });
 
 describe("mergeTranscripts", () => {
@@ -505,12 +575,13 @@ describe("mergeTranscripts", () => {
     expect(extras[0]).toMatchObject({ id: "resp-3", text: "Still streaming" });
   });
 
-  it("dedupes delegations by agent id", () => {
+  it("dedupes delegations by invocation and preserves repeated agent calls", () => {
     const stored: TranscriptEntry[] = [
       {
         kind: "delegation",
         id: "span:x:delegation",
         agentId: "researcher:abc",
+        invocationId: "invocation-1",
         status: "complete",
       },
     ];
@@ -519,18 +590,23 @@ describe("mergeTranscripts", () => {
         kind: "delegation",
         id: "live-d",
         agentId: "researcher:abc",
+        invocationId: "invocation-1",
         status: "running",
       },
       {
         kind: "delegation",
         id: "live-e",
-        agentId: "writer:def",
+        agentId: "researcher:abc",
+        invocationId: "invocation-2",
         status: "running",
       },
     ];
     const merged = mergeTranscripts(stored, live);
     expect(merged).toHaveLength(2);
-    expect(merged[1]).toMatchObject({ agentId: "writer:def" });
+    expect(merged[1]).toMatchObject({
+      agentId: "researcher:abc",
+      invocationId: "invocation-2",
+    });
   });
 
   it("uses runtime identity aliases to reconcile connection-local ids", () => {

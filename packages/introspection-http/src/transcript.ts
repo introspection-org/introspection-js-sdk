@@ -120,9 +120,12 @@ export function foldSpans(spans: GenAiSpan[]): TranscriptEntry[] {
     const spanId = span.span_id;
 
     if (DELEGATION_OPERATIONS.has(genAi?.operation?.name ?? "")) {
+      const invocationId = span.attributes.introspection?.agent?.invocation_id;
       const delegation: TranscriptDelegationEntry = {
         kind: "delegation",
-        id: `span:${spanId ?? span.trace_id}:delegation`,
+        id: invocationId
+          ? `delegation:${invocationId}`
+          : `span:${spanId ?? span.trace_id}:delegation`,
         status:
           span.status?.code === "Error"
             ? "error"
@@ -131,6 +134,7 @@ export function foldSpans(spans: GenAiSpan[]): TranscriptEntry[] {
               : "running",
         ...(genAi?.agent?.id ? { agentId: genAi.agent.id } : {}),
         ...(genAi?.agent?.name ? { agentName: genAi.agent.name } : {}),
+        ...(invocationId ? { invocationId } : {}),
         ...(span.duration_ns !== undefined
           ? { durationNs: span.duration_ns }
           : {}),
@@ -250,6 +254,10 @@ export class TranscriptAccumulator {
   readonly entries: TranscriptEntry[] = [];
   private readonly messagesById = new Map<string, TranscriptMessageEntry>();
   private readonly toolsByCallId = new Map<string, TranscriptToolEntry>();
+  private readonly delegationsByCallId = new Map<
+    string,
+    TranscriptDelegationEntry
+  >();
   private readonly responseIdsByMessageId = new Map<string, string>();
   private currentAssistantMessageId: string | undefined;
   private pendingThinking = "";
@@ -338,9 +346,11 @@ export class TranscriptAccumulator {
           isError?: boolean;
           error?: unknown;
         };
-        const tool = this.openTool(toolCallId, "");
-        tool.result = content;
-        tool.status = isError || error !== undefined ? "error" : "complete";
+        this.applyToolResult(
+          toolCallId,
+          content,
+          Boolean(isError || error !== undefined),
+        );
         return;
       }
       case EventType.TOOL_CALL_END:
@@ -458,6 +468,7 @@ export class TranscriptAccumulator {
     this.entries.length = 0;
     this.messagesById.clear();
     this.toolsByCallId.clear();
+    this.delegationsByCallId.clear();
     this.currentAssistantMessageId = undefined;
     this.pendingThinking = "";
 
@@ -486,9 +497,11 @@ export class TranscriptAccumulator {
         continue;
       }
       if (message.role === "tool" && message.toolCallId) {
-        const tool = this.openTool(message.toolCallId, "");
-        tool.result = message.content;
-        tool.status = message.error !== undefined ? "error" : "complete";
+        this.applyToolResult(
+          message.toolCallId,
+          message.content,
+          message.error !== undefined,
+        );
       }
     }
     if (hasActivity) this.options.onActivity?.(event);
@@ -507,6 +520,84 @@ export class TranscriptAccumulator {
     this.responseIdsByMessageId.set(identity.messageId, identity.responseId);
     const message = this.messagesById.get(identity.messageId);
     if (message) message.responseId = identity.responseId;
+  }
+
+  private applyToolResult(
+    callId: string,
+    result: unknown,
+    isError: boolean,
+  ): void {
+    const tool = this.openTool(callId, "");
+    const args = this.jsonRecord(tool.arguments);
+    const isAgentStart =
+      tool.name === "agent" &&
+      (args?.action === undefined || args.action === "start");
+    if (!isAgentStart) {
+      tool.result = result;
+      tool.status = isError ? "error" : "complete";
+      return;
+    }
+
+    let delegation = this.delegationsByCallId.get(callId);
+    if (!delegation) {
+      delegation = {
+        kind: "delegation",
+        id: `delegation-tool:${callId}`,
+        sourceToolCallId: callId,
+        ...(typeof args?.name === "string" ? { agentName: args.name } : {}),
+        ...(typeof args?.label === "string" ? { label: args.label } : {}),
+        status: isError ? "error" : "running",
+      };
+      const index = this.entries.indexOf(tool);
+      if (index === -1) this.entries.push(delegation);
+      else this.entries.splice(index, 1, delegation);
+      this.toolsByCallId.delete(callId);
+      this.delegationsByCallId.set(callId, delegation);
+    }
+
+    const body =
+      typeof result === "string"
+        ? this.jsonRecord(result)
+        : this.record(result);
+    const details = this.record(body?.details);
+    const agent = this.record(details?.agent);
+    if (typeof agent?.agent_run_id === "string") {
+      delegation.invocationId = agent.agent_run_id;
+    }
+    if (typeof agent?.agent_name === "string") {
+      delegation.agentName = agent.agent_name;
+    }
+    if (typeof agent?.label === "string") delegation.label = agent.label;
+    delegation.status = isError
+      ? "error"
+      : this.delegationStatus(agent?.status);
+  }
+
+  private delegationStatus(status: unknown): TranscriptStatus {
+    if (status === "failed" || status === "error") return "error";
+    if (
+      status === "completed" ||
+      status === "interrupted" ||
+      status === "closed"
+    ) {
+      return "complete";
+    }
+    return "running";
+  }
+
+  private jsonRecord(value: unknown): Record<string, unknown> | undefined {
+    if (typeof value !== "string") return this.record(value);
+    try {
+      return this.record(JSON.parse(value));
+    } catch {
+      return undefined;
+    }
+  }
+
+  private record(value: unknown): Record<string, unknown> | undefined {
+    return value && typeof value === "object"
+      ? (value as Record<string, unknown>)
+      : undefined;
   }
 
   private contentText(content: unknown): string {
@@ -555,7 +646,14 @@ export function mergeTranscripts(
     } else if (entry.kind === "tool") {
       toolCallIds.add(entry.callId);
     } else {
-      delegationKeys.add(entry.agentId ?? entry.id);
+      for (const key of [
+        entry.invocationId,
+        entry.sourceToolCallId,
+        entry.spanId,
+        entry.id,
+      ]) {
+        if (key) delegationKeys.add(key);
+      }
     }
   }
   const unmatched = live.filter((entry) => {
@@ -565,7 +663,12 @@ export function mergeTranscripts(
       );
     }
     if (entry.kind === "tool") return !toolCallIds.has(entry.callId);
-    return !delegationKeys.has(entry.agentId ?? entry.id);
+    return ![
+      entry.invocationId,
+      entry.sourceToolCallId,
+      entry.spanId,
+      entry.id,
+    ].some((key) => key !== undefined && delegationKeys.has(key));
   });
   return [...stored, ...unmatched];
 }

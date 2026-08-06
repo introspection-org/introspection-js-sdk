@@ -257,6 +257,15 @@ export interface IntrospectionRecipe {
   [key: string]: unknown;
 }
 
+/** `introspection.agent.*` invocation topology. */
+export interface IntrospectionAgent {
+  /** Durable ID of the parent agent instance, when stamped. */
+  parent_id?: string;
+  /** Durable ID of this particular agent invocation. */
+  invocation_id?: string;
+  [key: string]: unknown;
+}
+
 /**
  * `introspection.conversation.*`.
  *
@@ -310,6 +319,7 @@ export interface IntrospectionSpanAttributes {
   runtime?: IntrospectionRuntime;
   experiment?: IntrospectionId;
   recipe?: IntrospectionRecipe;
+  agent?: IntrospectionAgent;
   /** Runtime environment lane. */
   environment?: string;
   conversation?: IntrospectionConversation;

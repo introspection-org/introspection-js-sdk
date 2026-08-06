@@ -84,6 +84,12 @@ export interface TranscriptDelegationEntry {
   agentId?: string;
   /** `gen_ai.agent.name` of the delegated agent, when stamped. */
   agentName?: string;
+  /** One durable child invocation, used to correlate live and stored forms. */
+  invocationId?: string;
+  /** AG-UI call that launched the child, when this entry is still live. */
+  sourceToolCallId?: string;
+  /** Optional user-facing label distinguishing concurrent invocations. */
+  label?: string;
   status: TranscriptStatus;
   /** Wrapper span duration in nanoseconds, when the span has ended. */
   durationNs?: number;
