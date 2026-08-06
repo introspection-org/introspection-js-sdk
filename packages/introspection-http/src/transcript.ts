@@ -48,8 +48,21 @@ import {
 /** `gen_ai.operation.name` values that mark a delegation boundary. */
 const DELEGATION_OPERATIONS = new Set(["invoke_agent", "create_agent"]);
 
-function spanStatus(span: GenAiSpan): TranscriptStatus {
-  return span.status?.code === "Error" ? "error" : "complete";
+function toolSpanStatus(span: GenAiSpan): TranscriptStatus {
+  if (span.status?.code === "Error") return "error";
+  return span.end_time || span.duration_ns !== undefined
+    ? "complete"
+    : "running";
+}
+
+function toolResultIsError(result: unknown): boolean {
+  if (!result || typeof result !== "object") return false;
+  const value = result as Record<string, unknown>;
+  return (
+    value.isError === true ||
+    value.status === "error" ||
+    value.error !== undefined
+  );
 }
 
 function textOf(parts: MessagePart[]): string {
@@ -97,6 +110,8 @@ export function foldSpans(spans: GenAiSpan[]): TranscriptEntry[] {
         existing.status = patch.status ?? "complete";
       } else if (patch.status === "error") {
         existing.status = "error";
+      } else if (patch.status === "complete" && existing.status === "running") {
+        existing.status = "complete";
       }
       if (patch.spanId) existing.spanId = patch.spanId;
       return;
@@ -120,9 +135,12 @@ export function foldSpans(spans: GenAiSpan[]): TranscriptEntry[] {
     const spanId = span.span_id;
 
     if (DELEGATION_OPERATIONS.has(genAi?.operation?.name ?? "")) {
+      const invocationId = span.attributes.introspection?.agent?.invocation_id;
       const delegation: TranscriptDelegationEntry = {
         kind: "delegation",
-        id: `span:${spanId ?? span.trace_id}:delegation`,
+        id: invocationId
+          ? `delegation:${invocationId}`
+          : `span:${spanId ?? span.trace_id}:delegation`,
         status:
           span.status?.code === "Error"
             ? "error"
@@ -131,6 +149,7 @@ export function foldSpans(spans: GenAiSpan[]): TranscriptEntry[] {
               : "running",
         ...(genAi?.agent?.id ? { agentId: genAi.agent.id } : {}),
         ...(genAi?.agent?.name ? { agentName: genAi.agent.name } : {}),
+        ...(invocationId ? { invocationId } : {}),
         ...(span.duration_ns !== undefined
           ? { durationNs: span.duration_ns }
           : {}),
@@ -146,7 +165,7 @@ export function foldSpans(spans: GenAiSpan[]): TranscriptEntry[] {
       upsertTool(call.id, {
         name: genAi?.tool?.name,
         arguments: call.arguments,
-        status: spanStatus(span),
+        status: toolSpanStatus(span),
         spanId,
       });
     }
@@ -182,7 +201,7 @@ export function foldSpans(spans: GenAiSpan[]): TranscriptEntry[] {
           upsertTool(part.id, {
             name: part.name,
             result: part.response,
-            status: "complete",
+            status: toolResultIsError(part.response) ? "error" : "complete",
             spanId,
           });
         }
@@ -193,7 +212,24 @@ export function foldSpans(spans: GenAiSpan[]): TranscriptEntry[] {
     outputMessages.forEach((message, index) => {
       if (message.role !== "assistant") return;
       const parts = message.parts ?? [];
-      // Source two of a tool call: the assistant output's `tool_call` parts.
+      const text = textOf(parts);
+      const thinking = thinkingOf(parts);
+      if (text || thinking) {
+        const responseId = genAi?.response?.id;
+        const entry: TranscriptMessageEntry = {
+          kind: "message",
+          id:
+            responseId ?? `span:${spanId ?? span.trace_id}:assistant:${index}`,
+          role: "assistant",
+          text,
+          ...(thinking ? { thinking } : {}),
+          ...(responseId ? { responseId } : {}),
+          ...(spanId ? { spanId } : {}),
+        };
+        entries.push(entry);
+      }
+      // One deterministic within-span rule: render the assistant's content,
+      // then its requested tools in their original part order.
       for (const part of parts) {
         if (part.type !== "tool_call" || !part.id) continue;
         upsertTool(part.id, {
@@ -204,24 +240,12 @@ export function foldSpans(spans: GenAiSpan[]): TranscriptEntry[] {
               : part.arguments !== undefined
                 ? JSON.stringify(part.arguments)
                 : undefined,
-          status: spanStatus(span),
+          // A model finishing the request does not mean the tool finished.
+          // Only its execute span or response can settle the invocation.
+          status: "running",
           spanId,
         });
       }
-      const text = textOf(parts);
-      const thinking = thinkingOf(parts);
-      if (!text && !thinking) return;
-      const responseId = genAi?.response?.id;
-      const entry: TranscriptMessageEntry = {
-        kind: "message",
-        id: responseId ?? `span:${spanId ?? span.trace_id}:assistant:${index}`,
-        role: "assistant",
-        text,
-        ...(thinking ? { thinking } : {}),
-        ...(responseId ? { responseId } : {}),
-        ...(spanId ? { spanId } : {}),
-      };
-      entries.push(entry);
     });
   }
 
@@ -236,17 +260,29 @@ export function foldSpans(spans: GenAiSpan[]): TranscriptEntry[] {
  * snapshot (`structuredClone` or a shallow map) before storing them
  * elsewhere.
  *
- * Only content-bearing events change the transcript. Lifecycle events are
- * consumed for status transitions (`RUN_ERROR` marks running tools as
- * errored); `STEP_*`, `CUSTOM`, snapshots, and unknown event types are
- * ignored, so the fold degrades instead of throwing as the protocol grows.
+ * UI-only activity and control events are surfaced through callbacks instead
+ * of being forced into the render-oriented transcript shape.
  */
+export interface TranscriptAccumulatorOptions {
+  /** Receives activity snapshots for app-specific progress UI. */
+  onActivity?: (event: AGUIEvent) => void;
+  /** Receives run lifecycle and custom control frames. */
+  onControl?: (event: AGUIEvent) => void;
+}
+
 export class TranscriptAccumulator {
   readonly entries: TranscriptEntry[] = [];
   private readonly messagesById = new Map<string, TranscriptMessageEntry>();
   private readonly toolsByCallId = new Map<string, TranscriptToolEntry>();
-  private lastAssistant: TranscriptMessageEntry | undefined;
+  private readonly delegationsByCallId = new Map<
+    string,
+    TranscriptDelegationEntry
+  >();
+  private readonly responseIdsByMessageId = new Map<string, string>();
+  private currentAssistantMessageId: string | undefined;
   private pendingThinking = "";
+
+  constructor(private readonly options: TranscriptAccumulatorOptions = {}) {}
 
   push(event: AGUIEvent): void {
     switch (event.type) {
@@ -277,16 +313,25 @@ export class TranscriptAccumulator {
         if (delta) this.appendText(messageId, delta);
         return;
       }
-      case EventType.THINKING_TEXT_MESSAGE_CONTENT: {
-        const { delta } = event as { delta: string };
-        if (this.lastAssistant) {
-          this.lastAssistant.thinking =
-            (this.lastAssistant.thinking ?? "") + delta;
-        } else {
-          this.pendingThinking += delta;
+      case EventType.TEXT_MESSAGE_END: {
+        const { messageId } = event as { messageId: string };
+        if (this.currentAssistantMessageId === messageId) {
+          this.currentAssistantMessageId = undefined;
         }
         return;
       }
+      case EventType.REASONING_MESSAGE_CONTENT:
+      case EventType.REASONING_MESSAGE_CHUNK:
+      case EventType.THINKING_TEXT_MESSAGE_CONTENT: {
+        const { delta } = event as { delta?: string };
+        if (delta) this.appendThinking(delta);
+        return;
+      }
+      case EventType.REASONING_START:
+      case EventType.REASONING_MESSAGE_START:
+      case EventType.REASONING_MESSAGE_END:
+      case EventType.REASONING_END:
+        return;
       case EventType.TOOL_CALL_START: {
         const { toolCallId, toolCallName } = event as {
           toolCallId: string;
@@ -315,19 +360,42 @@ export class TranscriptAccumulator {
         return;
       }
       case EventType.TOOL_CALL_RESULT: {
-        const { toolCallId, content } = event as {
+        const { toolCallId, content, isError, error } = event as {
           toolCallId: string;
           content: string;
+          isError?: boolean;
+          error?: unknown;
         };
-        const tool = this.openTool(toolCallId, "");
-        tool.result = content;
-        tool.status = "complete";
+        this.applyToolResult(
+          toolCallId,
+          content,
+          Boolean(isError || error !== undefined),
+        );
         return;
       }
+      case EventType.TOOL_CALL_END:
+        // END seals the arguments stream. The invocation is still running
+        // until TOOL_CALL_RESULT (or RUN_ERROR) supplies its outcome.
+        return;
+      case EventType.MESSAGES_SNAPSHOT:
+        this.applyMessagesSnapshot(event);
+        return;
+      case EventType.ACTIVITY_SNAPSHOT:
+        this.options.onActivity?.(event);
+        return;
+      case EventType.CUSTOM:
+        this.applyCustomEvent(event);
+        this.options.onControl?.(event);
+        return;
+      case EventType.RUN_STARTED:
+      case EventType.RUN_FINISHED:
+        this.options.onControl?.(event);
+        return;
       case EventType.RUN_ERROR: {
         for (const tool of this.toolsByCallId.values()) {
           if (tool.status === "running") tool.status = "error";
         }
+        this.options.onControl?.(event);
         return;
       }
       default:
@@ -348,12 +416,14 @@ export class TranscriptAccumulator {
       text: "",
     };
     if (role === "assistant") {
-      this.lastAssistant = entry;
+      this.currentAssistantMessageId = messageId;
       if (this.pendingThinking) {
         entry.thinking = this.pendingThinking;
         this.pendingThinking = "";
       }
     }
+    const responseId = this.responseIdsByMessageId.get(messageId);
+    if (responseId) entry.responseId = responseId;
     this.messagesById.set(messageId, entry);
     this.entries.push(entry);
     return entry;
@@ -388,6 +458,181 @@ export class TranscriptAccumulator {
     const tool = this.openTool(callId, "");
     tool.arguments = (tool.arguments ?? "") + delta;
   }
+
+  private appendThinking(delta: string): void {
+    const assistant = this.currentAssistantMessageId
+      ? this.messagesById.get(this.currentAssistantMessageId)
+      : undefined;
+    if (assistant) {
+      assistant.thinking = (assistant.thinking ?? "") + delta;
+    } else {
+      this.pendingThinking += delta;
+    }
+  }
+
+  private applyMessagesSnapshot(event: AGUIEvent): void {
+    const { messages } = event as {
+      messages: Array<{
+        id: string;
+        role: string;
+        content?: unknown;
+        error?: unknown;
+        toolCallId?: string;
+        toolCalls?: Array<{
+          id: string;
+          function?: { name?: string; arguments?: string };
+        }>;
+      }>;
+    };
+
+    this.entries.length = 0;
+    this.messagesById.clear();
+    this.toolsByCallId.clear();
+    this.delegationsByCallId.clear();
+    this.currentAssistantMessageId = undefined;
+    this.pendingThinking = "";
+
+    let hasActivity = false;
+    for (const message of messages) {
+      if (message.role === "reasoning") {
+        this.pendingThinking += this.contentText(message.content);
+        continue;
+      }
+      if (message.role === "activity") {
+        hasActivity = true;
+        continue;
+      }
+      if (message.role === "user" || message.role === "assistant") {
+        const entry = this.openMessage(message.id, message.role);
+        entry.text = this.contentText(message.content);
+        if (message.role === "assistant") {
+          for (const call of message.toolCalls ?? []) {
+            const tool = this.openTool(call.id, call.function?.name ?? "");
+            if (call.function?.arguments !== undefined) {
+              tool.arguments = call.function.arguments;
+            }
+          }
+          this.currentAssistantMessageId = undefined;
+        }
+        continue;
+      }
+      if (message.role === "tool" && message.toolCallId) {
+        this.applyToolResult(
+          message.toolCallId,
+          message.content,
+          message.error !== undefined,
+        );
+      }
+    }
+    if (hasActivity) this.options.onActivity?.(event);
+  }
+
+  private applyCustomEvent(event: AGUIEvent): void {
+    const { name, value } = event as { name: string; value?: unknown };
+    if (name !== "introspection.message_identity" || !value) return;
+    const identity = value as { messageId?: unknown; responseId?: unknown };
+    if (
+      typeof identity.messageId !== "string" ||
+      typeof identity.responseId !== "string"
+    ) {
+      return;
+    }
+    this.responseIdsByMessageId.set(identity.messageId, identity.responseId);
+    const message = this.messagesById.get(identity.messageId);
+    if (message) message.responseId = identity.responseId;
+  }
+
+  private applyToolResult(
+    callId: string,
+    result: unknown,
+    isError: boolean,
+  ): void {
+    const tool = this.openTool(callId, "");
+    const args = this.jsonRecord(tool.arguments);
+    const isAgentStart =
+      tool.name === "agent" &&
+      (args?.action === undefined || args.action === "start");
+    if (!isAgentStart) {
+      tool.result = result;
+      tool.status = isError ? "error" : "complete";
+      return;
+    }
+
+    let delegation = this.delegationsByCallId.get(callId);
+    if (!delegation) {
+      delegation = {
+        kind: "delegation",
+        id: `delegation-tool:${callId}`,
+        sourceToolCallId: callId,
+        ...(typeof args?.name === "string" ? { agentName: args.name } : {}),
+        ...(typeof args?.label === "string" ? { label: args.label } : {}),
+        status: isError ? "error" : "running",
+      };
+      const index = this.entries.indexOf(tool);
+      if (index === -1) this.entries.push(delegation);
+      else this.entries.splice(index, 1, delegation);
+      this.toolsByCallId.delete(callId);
+      this.delegationsByCallId.set(callId, delegation);
+    }
+
+    const body =
+      typeof result === "string"
+        ? this.jsonRecord(result)
+        : this.record(result);
+    const details = this.record(body?.details);
+    const agent = this.record(details?.agent);
+    if (typeof agent?.agent_run_id === "string") {
+      delegation.invocationId = agent.agent_run_id;
+    }
+    if (typeof agent?.agent_name === "string") {
+      delegation.agentName = agent.agent_name;
+    }
+    if (typeof agent?.label === "string") delegation.label = agent.label;
+    delegation.status = isError
+      ? "error"
+      : this.delegationStatus(agent?.status);
+  }
+
+  private delegationStatus(status: unknown): TranscriptStatus {
+    if (status === "failed" || status === "error") return "error";
+    if (
+      status === "completed" ||
+      status === "interrupted" ||
+      status === "closed"
+    ) {
+      return "complete";
+    }
+    return "running";
+  }
+
+  private jsonRecord(value: unknown): Record<string, unknown> | undefined {
+    if (typeof value !== "string") return this.record(value);
+    try {
+      return this.record(JSON.parse(value));
+    } catch {
+      return undefined;
+    }
+  }
+
+  private record(value: unknown): Record<string, unknown> | undefined {
+    return value && typeof value === "object"
+      ? (value as Record<string, unknown>)
+      : undefined;
+  }
+
+  private contentText(content: unknown): string {
+    if (typeof content === "string") return content;
+    if (!Array.isArray(content)) return "";
+    return content
+      .map((part) => {
+        if (typeof part === "string") return part;
+        if (!part || typeof part !== "object") return "";
+        const value = part as { text?: unknown; content?: unknown };
+        if (typeof value.text === "string") return value.text;
+        return typeof value.content === "string" ? value.content : "";
+      })
+      .join("");
+  }
 }
 
 /** One-shot convenience over {@link TranscriptAccumulator}. */
@@ -421,13 +666,29 @@ export function mergeTranscripts(
     } else if (entry.kind === "tool") {
       toolCallIds.add(entry.callId);
     } else {
-      delegationKeys.add(entry.agentId ?? entry.id);
+      for (const key of [
+        entry.invocationId,
+        entry.sourceToolCallId,
+        entry.spanId,
+        entry.id,
+      ]) {
+        if (key) delegationKeys.add(key);
+      }
     }
   }
   const unmatched = live.filter((entry) => {
-    if (entry.kind === "message") return !messageKeys.has(entry.id);
+    if (entry.kind === "message") {
+      return ![entry.id, entry.responseId, entry.clientMessageId].some(
+        (key) => key !== undefined && messageKeys.has(key),
+      );
+    }
     if (entry.kind === "tool") return !toolCallIds.has(entry.callId);
-    return !delegationKeys.has(entry.agentId ?? entry.id);
+    return ![
+      entry.invocationId,
+      entry.sourceToolCallId,
+      entry.spanId,
+      entry.id,
+    ].some((key) => key !== undefined && delegationKeys.has(key));
   });
   return [...stored, ...unmatched];
 }

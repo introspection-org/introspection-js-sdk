@@ -5,9 +5,11 @@ import {
   HttpClient,
 } from "@introspection-sdk/introspection-node";
 import type {
+  ConversationItemListParams,
   GenAiSpan,
   GenAiSpanList,
 } from "@introspection-sdk/introspection-node";
+import { ValidationError } from "@introspection-sdk/introspection-node";
 
 function mockHttp(overrides: Record<string, unknown> = {}) {
   return {
@@ -184,6 +186,42 @@ describe("ConversationsApi", () => {
       query: { order: "asc", include: ["events", "resource_attributes"] },
     });
     expect(items).toHaveLength(1);
+  });
+
+  it("items.list() rejects conflicting agent selectors before a request", () => {
+    const http = mockHttp();
+    const api = new ConversationsApi(http);
+    const conflicting = {
+      agent_id: "researcher:1",
+      agent_scope: "all",
+    } as unknown as ConversationItemListParams;
+
+    expect(() => api.items.list("conv-1", conflicting)).toThrowError(
+      new ValidationError({
+        status: 422,
+        code: "invalid_query",
+        message: "agent_id and agent_scope are mutually exclusive",
+      }),
+    );
+    expect(http.request).not.toHaveBeenCalled();
+  });
+
+  it("types agent_id and agent_scope as mutually exclusive", () => {
+    const drillIn = {
+      agent_id: "researcher:1",
+    } satisfies ConversationItemListParams;
+    const root = {
+      agent_scope: "root",
+    } satisfies ConversationItemListParams;
+    expect(drillIn.agent_id).toBe("researcher:1");
+    expect(root.agent_scope).toBe("root");
+
+    // @ts-expect-error agent_id and agent_scope are separate selection modes.
+    const conflicting: ConversationItemListParams = {
+      agent_id: "researcher:1",
+      agent_scope: "all",
+    };
+    expect(conflicting).toBeDefined();
   });
 
   it("items.list() drives the opaque next cursor while has_more, then stops", async () => {

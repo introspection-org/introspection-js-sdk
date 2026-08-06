@@ -257,6 +257,15 @@ export interface IntrospectionRecipe {
   [key: string]: unknown;
 }
 
+/** `introspection.agent.*` invocation topology. */
+export interface IntrospectionAgent {
+  /** Durable ID of the parent agent instance, when stamped. */
+  parent_id?: string;
+  /** Durable ID of this particular agent invocation. */
+  invocation_id?: string;
+  [key: string]: unknown;
+}
+
 /**
  * `introspection.conversation.*`.
  *
@@ -310,6 +319,7 @@ export interface IntrospectionSpanAttributes {
   runtime?: IntrospectionRuntime;
   experiment?: IntrospectionId;
   recipe?: IntrospectionRecipe;
+  agent?: IntrospectionAgent;
   /** Runtime environment lane. */
   environment?: string;
   conversation?: IntrospectionConversation;
@@ -479,7 +489,7 @@ export interface ConversationListParams extends ListParams, ReadWindowParams {
 /**
  * Query params for `GET /v1/conversations/{id}/items`.
  */
-export interface ConversationItemListParams {
+interface ConversationItemListBaseParams {
   /** Maximum items per page (1-1000, server default 100). */
   limit?: number;
   /** Opaque cursor returned by the previous page. */
@@ -490,34 +500,6 @@ export interface ConversationItemListParams {
   include?: ConversationItemInclude[];
   /** Filter items by agent name (exact match). */
   agent_name?: string;
-  /**
-   * Filter items by agent ID (exact match) — the `gen_ai.agent.id` a
-   * delegation wrapper span carries in `attributes.gen_ai.agent.id`. This is
-   * the drill-in read: fetch a subagent's own transcript with the ID its
-   * `invoke_agent` wrapper handed you.
-   */
-  agent_id?: string;
-  /**
-   * Scope of agent activity to return. Progressive disclosure is the API's
-   * model: the server's end-state default is `"root"` — every consumer
-   * starts at the main transcript, and subagents are loaded individually
-   * via {@link agent_id}.
-   *
-   * `"root"` returns the root agent's spans plus one `invoke_agent` /
-   * `create_agent` wrapper span per delegation — the shallow subagent
-   * status (name, duration, outcome) without the subagent's internals, each
-   * wrapper carrying the `gen_ai.agent.id` to drill in with. `"all"`
-   * returns every span and is for consumers whose job is the full set
-   * (exports, debuggers, eval sweeps).
-   *
-   * Until the server's default flip lands, pass the scope you mean
-   * explicitly rather than relying on either default.
-   *
-   * @see cloud `docs/design/conversation-transcript-scope.md` — requires a
-   * DP deployment that implements the proposal; older servers reject
-   * unknown params.
-   */
-  agent_scope?: "all" | "root";
   /** Filter items by service name (exact match). */
   service_name?: string;
   /** Filter items by operation name (exact match). */
@@ -525,6 +507,42 @@ export interface ConversationItemListParams {
   /** Filter items by existence of a raw attribute path. */
   has_attribute?: string;
 }
+
+type ConversationItemAgentSelection =
+  | {
+      /**
+       * Select the transcript owned by this agent: its own spans plus its
+       * outgoing delegation wrappers, excluding the wrapper that entered it.
+       */
+      agent_id: string;
+      agent_scope?: never;
+    }
+  | {
+      agent_id?: never;
+      /**
+       * Scope of agent activity to return. Progressive disclosure is the
+       * API's model: the server's end-state default is `"root"` — every
+       * consumer starts at the main transcript, and subagents are loaded
+       * individually via `agent_id`.
+       *
+       * `"root"` returns the root agent's spans plus one `invoke_agent` /
+       * `create_agent` wrapper span per delegation. `"all"` returns every
+       * span and is for full-set consumers such as exports and debuggers.
+       *
+       * Until the server's default flip lands, pass the scope you mean
+       * explicitly rather than relying on either default.
+       */
+      agent_scope?: "all" | "root";
+    };
+
+/**
+ * Query params for `GET /v1/conversations/{id}/items`.
+ *
+ * `agent_id` and `agent_scope` are distinct selection modes and cannot be
+ * combined.
+ */
+export type ConversationItemListParams = ConversationItemListBaseParams &
+  ConversationItemAgentSelection;
 
 /**
  * The read-only Conversations API surface, with the paging style each

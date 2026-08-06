@@ -55,6 +55,7 @@ export {
   foldSpans,
   mergeTranscripts,
 } from "@introspection-sdk/http";
+export type { TranscriptAccumulatorOptions } from "@introspection-sdk/http";
 export { ArrowPages } from "@introspection-sdk/http";
 export type {
   EventArrowParams,

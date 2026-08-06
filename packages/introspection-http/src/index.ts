@@ -18,6 +18,7 @@ export {
   foldSpans,
   mergeTranscripts,
 } from "./transcript.js";
+export type { TranscriptAccumulatorOptions } from "./transcript.js";
 export type { StreamOptions } from "./resumable.js";
 export { EventType } from "@ag-ui/core";
 export type { AGUIEvent, BaseEvent } from "@ag-ui/core";

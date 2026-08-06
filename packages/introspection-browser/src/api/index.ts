@@ -70,6 +70,7 @@ export {
   foldSpans,
   mergeTranscripts,
 } from "@introspection-sdk/http";
+export type { TranscriptAccumulatorOptions } from "@introspection-sdk/http";
 export { EventType } from "@introspection-sdk/types";
 export {
   genAiConversationId,

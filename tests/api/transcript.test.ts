@@ -130,11 +130,14 @@ const DELEGATION_SPAN: GenAiSpan = {
       operation: { name: "invoke_agent" },
       agent: { id: "researcher:abc", name: "researcher" },
     },
+    introspection: {
+      agent: { parent_id: "root-1", invocation_id: "child-run-1" },
+    },
   },
 };
 
 describe("foldSpans", () => {
-  it("folds a turn into user, tool, delegation and assistant entries", () => {
+  it("folds a turn with assistant content before its requested tools", () => {
     // Pages arrive newest-first; the fold owns chronological order.
     const entries = foldSpans([
       TOOL_RESULT_SPAN,
@@ -145,13 +148,13 @@ describe("foldSpans", () => {
 
     expect(entries.map((e) => e.kind)).toEqual([
       "message", // user
-      "tool", // call-1, first position kept
       "message", // assistant resp-1
+      "tool", // call-1, after the assistant content that requested it
       "delegation",
       "message", // assistant resp-2
     ]);
 
-    const [user, tool, assistant, delegation, followUp] = entries;
+    const [user, assistant, tool, delegation, followUp] = entries;
     expect(user).toMatchObject({
       role: "user",
       id: "cmid-1",
@@ -176,8 +179,10 @@ describe("foldSpans", () => {
     });
     expect(delegation).toMatchObject({
       kind: "delegation",
+      id: "delegation:child-run-1",
       agentId: "researcher:abc",
       agentName: "researcher",
+      invocationId: "child-run-1",
       status: "complete",
       durationNs: 9_500_000_000,
     });
@@ -206,6 +211,54 @@ describe("foldSpans", () => {
     const second = foldSpans([errored]);
     expect(first).toEqual(second);
     expect(first[0]?.id).toBe("span:span-err:assistant:0");
+  });
+
+  it("keeps requested and in-progress tools running until an outcome arrives", () => {
+    const requested = foldSpans([chatSpan()]).find(
+      (entry) => entry.kind === "tool",
+    );
+    expect(requested).toMatchObject({ callId: "call-1", status: "running" });
+
+    const executing = foldSpans([EXECUTE_TOOL_SPAN]).find(
+      (entry) => entry.kind === "tool",
+    );
+    expect(executing).toMatchObject({ callId: "call-1", status: "running" });
+
+    const finished = foldSpans([
+      chatSpan(),
+      { ...EXECUTE_TOOL_SPAN, end_time: "2026-01-01T00:00:03Z" },
+    ]).find((entry) => entry.kind === "tool");
+    expect(finished).toMatchObject({ callId: "call-1", status: "complete" });
+  });
+
+  it("preserves stored tool-result errors", () => {
+    const erroredResult: GenAiSpan = {
+      ...TOOL_RESULT_SPAN,
+      attributes: {
+        gen_ai: {
+          operation: { name: "chat" },
+          input: {
+            messages: [
+              {
+                role: "tool",
+                parts: [
+                  {
+                    type: "tool_call_response",
+                    id: "call-1",
+                    response: { isError: true, error: "failed" },
+                  },
+                ],
+              },
+            ],
+          },
+        },
+      },
+    };
+
+    const tool = foldSpans([chatSpan(), erroredResult]).find(
+      (entry) => entry.kind === "tool",
+    );
+    expect(tool).toMatchObject({ callId: "call-1", status: "error" });
   });
 });
 
@@ -305,6 +358,227 @@ describe("foldAgui", () => {
     ] as AGUIEvent[]);
     expect(entries.map((e) => e.kind)).toEqual(["message", "tool"]);
   });
+
+  it("applies reasoning to the open or next assistant message", () => {
+    const entries = foldAgui([
+      {
+        type: EventType.TEXT_MESSAGE_START,
+        messageId: "old",
+        role: "assistant",
+      },
+      {
+        type: EventType.TEXT_MESSAGE_CONTENT,
+        messageId: "old",
+        delta: "Finished",
+      },
+      { type: EventType.TEXT_MESSAGE_END, messageId: "old" },
+      { type: EventType.REASONING_START, messageId: "reasoning-1" },
+      {
+        type: EventType.REASONING_MESSAGE_CONTENT,
+        messageId: "reasoning-1",
+        delta: "new thought",
+      },
+      { type: EventType.REASONING_END, messageId: "reasoning-1" },
+      {
+        type: EventType.TEXT_MESSAGE_START,
+        messageId: "new",
+        role: "assistant",
+      },
+      {
+        type: EventType.TEXT_MESSAGE_CONTENT,
+        messageId: "new",
+        delta: "New answer",
+      },
+    ] as AGUIEvent[]);
+
+    expect(entries[0]).toMatchObject({ id: "old", text: "Finished" });
+    expect(entries[0]).not.toHaveProperty("thinking");
+    expect(entries[1]).toMatchObject({
+      id: "new",
+      text: "New answer",
+      thinking: "new thought",
+    });
+  });
+
+  it("replaces snapshot state before applying later deltas", () => {
+    const acc = new TranscriptAccumulator();
+    acc.push({
+      type: EventType.MESSAGES_SNAPSHOT,
+      messages: [
+        { id: "stale", role: "assistant", content: "stale answer" },
+        {
+          id: "stale-tool-message",
+          role: "tool",
+          toolCallId: "stale-call",
+          content: "old",
+        },
+      ],
+    } as AGUIEvent);
+    acc.push({
+      type: EventType.MESSAGES_SNAPSHOT,
+      messages: [
+        { id: "user-1", role: "user", content: "question" },
+        { id: "reasoning-1", role: "reasoning", content: "thinking" },
+        {
+          id: "assistant-1",
+          role: "assistant",
+          content: "answer",
+          toolCalls: [
+            {
+              id: "call-1",
+              type: "function",
+              function: { name: "search", arguments: '{"q":"x"}' },
+            },
+          ],
+        },
+      ],
+    } as AGUIEvent);
+    acc.push({
+      type: EventType.TEXT_MESSAGE_CONTENT,
+      messageId: "assistant-1",
+      delta: " continued",
+    } as AGUIEvent);
+
+    expect(acc.entries).toHaveLength(3);
+    expect(acc.entries.some((entry) => entry.id === "stale")).toBe(false);
+    expect(acc.entries).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: "user-1", text: "question" }),
+        expect.objectContaining({
+          id: "assistant-1",
+          text: "answer continued",
+          thinking: "thinking",
+        }),
+        expect.objectContaining({
+          callId: "call-1",
+          name: "search",
+          status: "running",
+        }),
+      ]),
+    );
+  });
+
+  it("keeps activity and control frames on explicit side channels", () => {
+    const activities: AGUIEvent[] = [];
+    const controls: AGUIEvent[] = [];
+    const acc = new TranscriptAccumulator({
+      onActivity: (event) => activities.push(event),
+      onControl: (event) => controls.push(event),
+    });
+
+    acc.push({
+      type: EventType.ACTIVITY_SNAPSHOT,
+      messageId: "activity-1",
+      activityType: "progress",
+      content: { label: "Searching" },
+      replace: true,
+    } as AGUIEvent);
+    acc.push({
+      type: EventType.CUSTOM,
+      name: "introspection.resume_gap",
+      value: { recoverable: true },
+    } as AGUIEvent);
+    acc.push({
+      type: EventType.RUN_FINISHED,
+      threadId: "thread-1",
+      runId: "run-1",
+    } as AGUIEvent);
+
+    expect(acc.entries).toEqual([]);
+    expect(activities).toHaveLength(1);
+    expect(controls.map((event) => event.type)).toEqual([
+      EventType.CUSTOM,
+      EventType.RUN_FINISHED,
+    ]);
+  });
+
+  it("keeps tools running at TOOL_CALL_END and honors result errors", () => {
+    const acc = new TranscriptAccumulator();
+    acc.push({
+      type: EventType.TOOL_CALL_START,
+      toolCallId: "call-error",
+      toolCallName: "shell",
+    } as AGUIEvent);
+    acc.push({
+      type: EventType.TOOL_CALL_END,
+      toolCallId: "call-error",
+    } as AGUIEvent);
+    expect(acc.entries[0]).toMatchObject({ status: "running" });
+
+    acc.push({
+      type: EventType.TOOL_CALL_RESULT,
+      messageId: "tool-result",
+      toolCallId: "call-error",
+      content: "command failed",
+      isError: true,
+    } as AGUIEvent);
+    expect(acc.entries[0]).toMatchObject({ status: "error" });
+  });
+
+  it("projects agent starts as delegations and keeps management calls as tools", () => {
+    const entries = foldAgui([
+      {
+        type: EventType.TOOL_CALL_START,
+        toolCallId: "call-start",
+        toolCallName: "agent",
+      },
+      {
+        type: EventType.TOOL_CALL_ARGS,
+        toolCallId: "call-start",
+        delta:
+          '{"name":"researcher","prompt":"research","label":"Market scan"}',
+      },
+      { type: EventType.TOOL_CALL_END, toolCallId: "call-start" },
+      {
+        type: EventType.TOOL_CALL_RESULT,
+        messageId: "result-start",
+        toolCallId: "call-start",
+        content: JSON.stringify({
+          details: {
+            agent: {
+              agent_run_id: "child-run-1",
+              agent_name: "researcher",
+              label: "Market scan",
+              status: "running",
+            },
+          },
+        }),
+      },
+      {
+        type: EventType.TOOL_CALL_START,
+        toolCallId: "call-status",
+        toolCallName: "agent",
+      },
+      {
+        type: EventType.TOOL_CALL_ARGS,
+        toolCallId: "call-status",
+        delta: '{"action":"status","id":"child-run-1"}',
+      },
+      {
+        type: EventType.TOOL_CALL_RESULT,
+        messageId: "result-status",
+        toolCallId: "call-status",
+        content: "status",
+      },
+    ] as AGUIEvent[]);
+
+    expect(entries).toHaveLength(2);
+    expect(entries[0]).toMatchObject({
+      kind: "delegation",
+      id: "delegation-tool:call-start",
+      sourceToolCallId: "call-start",
+      invocationId: "child-run-1",
+      agentName: "researcher",
+      label: "Market scan",
+      status: "running",
+    });
+    expect(entries[1]).toMatchObject({
+      kind: "tool",
+      callId: "call-status",
+      name: "agent",
+      status: "complete",
+    });
+  });
 });
 
 describe("mergeTranscripts", () => {
@@ -349,12 +623,13 @@ describe("mergeTranscripts", () => {
     expect(extras[0]).toMatchObject({ id: "resp-3", text: "Still streaming" });
   });
 
-  it("dedupes delegations by agent id", () => {
+  it("dedupes delegations by invocation and preserves repeated agent calls", () => {
     const stored: TranscriptEntry[] = [
       {
         kind: "delegation",
         id: "span:x:delegation",
         agentId: "researcher:abc",
+        invocationId: "invocation-1",
         status: "complete",
       },
     ];
@@ -363,17 +638,49 @@ describe("mergeTranscripts", () => {
         kind: "delegation",
         id: "live-d",
         agentId: "researcher:abc",
+        invocationId: "invocation-1",
         status: "running",
       },
       {
         kind: "delegation",
         id: "live-e",
-        agentId: "writer:def",
+        agentId: "researcher:abc",
+        invocationId: "invocation-2",
         status: "running",
       },
     ];
     const merged = mergeTranscripts(stored, live);
     expect(merged).toHaveLength(2);
-    expect(merged[1]).toMatchObject({ agentId: "writer:def" });
+    expect(merged[1]).toMatchObject({
+      agentId: "researcher:abc",
+      invocationId: "invocation-2",
+    });
+  });
+
+  it("uses runtime identity aliases to reconcile connection-local ids", () => {
+    const stored = foldSpans([chatSpan()]);
+    const live = foldAgui([
+      {
+        type: EventType.TEXT_MESSAGE_START,
+        messageId: "run-1:text:0",
+        role: "assistant",
+      },
+      {
+        type: EventType.TEXT_MESSAGE_CONTENT,
+        messageId: "run-1:text:0",
+        delta: "Here are the results.",
+      },
+      {
+        type: EventType.CUSTOM,
+        name: "introspection.message_identity",
+        value: { messageId: "run-1:text:0", responseId: "resp-1" },
+      },
+    ] as AGUIEvent[]);
+
+    expect(live[0]).toMatchObject({
+      id: "run-1:text:0",
+      responseId: "resp-1",
+    });
+    expect(mergeTranscripts(stored, live)).toEqual(stored);
   });
 });

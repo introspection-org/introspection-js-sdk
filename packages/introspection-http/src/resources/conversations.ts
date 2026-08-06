@@ -7,7 +7,7 @@ import type {
   MessagePart,
   ToolCallResponsePart,
 } from "@introspection-sdk/types";
-import { genAiOutputMessages } from "@introspection-sdk/types";
+import { ValidationError, genAiOutputMessages } from "@introspection-sdk/types";
 import { Paginator } from "../pagination.js";
 import { ArrowPages, arrowRead, listRead } from "./reads.js";
 import type { ResourceHttpClient } from "./types.js";
@@ -36,6 +36,19 @@ export class ConversationItemsClient {
     conversationId: string,
     params?: ConversationItemListParams,
   ): Paginator<GenAiSpan, GenAiSpanList> {
+    const unsafeParams = params as
+      | (ConversationItemListParams & {
+          agent_id?: string;
+          agent_scope?: "all" | "root";
+        })
+      | undefined;
+    if (unsafeParams?.agent_id && unsafeParams.agent_scope) {
+      throw new ValidationError({
+        status: 422,
+        code: "invalid_query",
+        message: "agent_id and agent_scope are mutually exclusive",
+      });
+    }
     return new Paginator(
       {
         fetch: async (next) => {
