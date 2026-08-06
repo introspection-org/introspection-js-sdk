@@ -64,6 +64,12 @@ export {
   cursorPaginate,
   type PageSource,
 } from "@introspection-sdk/http";
+export {
+  TranscriptAccumulator,
+  foldAgui,
+  foldSpans,
+  mergeTranscripts,
+} from "@introspection-sdk/http";
 export { EventType } from "@introspection-sdk/types";
 export {
   genAiConversationId,
