@@ -16,9 +16,6 @@ import {
 } from "@introspection-sdk/types";
 import { prepareForCapture, safeJsonStringify } from "./util.js";
 
-/** Maximum byte size for any single semconv JSON attribute. */
-export const MAX_BYTES = 64_000;
-
 /** Identifies the agent owning a span. */
 export interface AgentMeta {
   agentId: string;
@@ -81,7 +78,7 @@ export function chatRequestAttributes(input: ChatRequestInput): Attributes {
   const sys = serializeSystemInstructions(input.systemPrompt);
   if (sys) attrs[GenAi.SYSTEM_INSTRUCTIONS] = sys;
 
-  const messages = serializeBounded(input.inputMessages);
+  const messages = serialize(input.inputMessages);
   if (messages && input.inputMessages?.length) {
     attrs[GenAi.INPUT_MESSAGES] = messages;
     // OpenClaw-specific: index range covering "messages added this turn".
@@ -117,7 +114,7 @@ export function chatResponseAttributes(input: ChatResponseInput): Attributes {
   if (typeof input.costUsd === "number") {
     attrs[GenAi.COST_USD] = input.costUsd;
   }
-  const out = serializeBounded(input.outputMessages);
+  const out = serialize(input.outputMessages);
   if (out) attrs[GenAi.OUTPUT_MESSAGES] = out;
 
   return attrs;
@@ -154,7 +151,7 @@ export function toolResponseChatAttributes(
   if (input.finishReason) {
     attrs[GenAi.RESPONSE_FINISH_REASONS] = [input.finishReason];
   }
-  const out = serializeBounded(input.outputMessages);
+  const out = serialize(input.outputMessages);
   if (out) attrs[GenAi.OUTPUT_MESSAGES] = out;
 
   return attrs;
@@ -165,10 +162,9 @@ export function toolResponseChatAttributes(
 export interface ExecuteToolInput {
   toolName: string;
   sequence: number;
-  /** Raw tool params; serialized + truncated to `maxCaptureLength` if `captureToolInput` is on. */
+  /** Raw tool params, serialized losslessly if `captureToolInput` is on. */
   params?: unknown;
   captureToolInput: boolean;
-  maxCaptureLength: number;
 }
 
 export function executeToolAttributes(input: ExecuteToolInput): Attributes {
@@ -182,10 +178,7 @@ export function executeToolAttributes(input: ExecuteToolInput): Attributes {
   if (input.params !== undefined) {
     attrs["openclaw.tool.input_size"] = safeJsonStringify(input.params).length;
     if (input.captureToolInput) {
-      attrs[GenAi.TOOL_CALL_ARGUMENTS] = prepareForCapture(
-        input.params,
-        input.maxCaptureLength,
-      );
+      attrs[GenAi.TOOL_CALL_ARGUMENTS] = prepareForCapture(input.params);
     }
   }
 
@@ -196,7 +189,6 @@ export interface ExecuteToolResultInput {
   durationMs: number;
   message?: unknown;
   captureToolOutput: boolean;
-  maxCaptureLength: number;
 }
 
 export function executeToolResultAttributes(
@@ -213,10 +205,7 @@ export function executeToolResultAttributes(
         : safeJsonStringify(input.message);
     attrs["openclaw.tool.output_size"] = str.length;
     if (input.captureToolOutput) {
-      attrs[GenAi.TOOL_CALL_RESULT] = prepareForCapture(
-        input.message,
-        input.maxCaptureLength,
-      );
+      attrs[GenAi.TOOL_CALL_RESULT] = prepareForCapture(input.message);
     }
   }
 
@@ -300,10 +289,9 @@ export function usageAttributes(usage: UsageDelta | undefined): Attributes {
 
 // ─── helpers ───────────────────────────────────────────────────────────────
 
-function serializeBounded(value: unknown): string | undefined {
+function serialize(value: unknown): string | undefined {
   if (value === undefined || value === null) return undefined;
-  const json = JSON.stringify(value);
-  return byteLength(json) > MAX_BYTES ? undefined : json;
+  return JSON.stringify(value);
 }
 
 function serializeSystemInstructions(
@@ -311,21 +299,12 @@ function serializeSystemInstructions(
 ): string | undefined {
   if (!prompt) return undefined;
   const wrapped: SystemInstruction[] = [{ type: "text", content: prompt }];
-  return serializeBounded(wrapped);
+  return serialize(wrapped);
 }
 
 function serializeToolDefinitions(
   tools: ToolDefinition[] | undefined,
 ): string | undefined {
   if (!tools?.length) return undefined;
-  const detailed = serializeBounded(tools);
-  if (detailed) return detailed;
-  // Compact fallback — drop description / parameters and try again.
-  return serializeBounded(tools.map((t) => ({ type: t.type, name: t.name })));
-}
-
-function byteLength(s: string): number {
-  return typeof Buffer !== "undefined"
-    ? Buffer.byteLength(s)
-    : new TextEncoder().encode(s).length;
+  return serialize(tools);
 }

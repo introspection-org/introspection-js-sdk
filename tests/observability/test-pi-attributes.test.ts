@@ -3,7 +3,7 @@
  * `@introspection-sdk/introspection-pi`.
  *
  * Validates the GenAI semconv attribute set the worker emits per chat
- * span and per tool span, including the size-cap fallback for
+ * span and per tool span, including lossless serialization of
  * `gen_ai.system_instructions` and `gen_ai.tool.definitions`.
  */
 
@@ -141,6 +141,16 @@ describe("chatRequestAttributes", () => {
     expect(messages[1].parts[0].content).toBe("small trailing message");
   });
 
+  it("preserves oversized system instructions losslessly", () => {
+    const systemPrompt = "x".repeat(70_000);
+    const attrs = chatRequestAttributes(MODEL, ctx({ systemPrompt }), META);
+    const serialized = String(attrs["gen_ai.system_instructions"]);
+    expect(Buffer.byteLength(serialized)).toBeGreaterThan(64_000);
+    expect(JSON.parse(serialized)).toEqual([
+      { type: "text", content: systemPrompt },
+    ]);
+  });
+
   it("serializes input messages, system instructions, and tool definitions", () => {
     const attrs = chatRequestAttributes(
       MODEL,
@@ -207,7 +217,7 @@ Earlier context.
     ]);
   });
 
-  it("falls back to the compact tool list when the detailed payload exceeds the size cap", () => {
+  it("preserves oversized tool definitions losslessly", () => {
     const bigDescription = "x".repeat(70_000);
     const attrs = chatRequestAttributes(
       MODEL,
@@ -225,8 +235,16 @@ Earlier context.
       }),
       META,
     );
-    const compact = JSON.parse(String(attrs["gen_ai.tool.definitions"]));
-    expect(compact).toEqual([{ type: "function", name: "shell" }]);
+    const serialized = String(attrs["gen_ai.tool.definitions"]);
+    expect(Buffer.byteLength(serialized)).toBeGreaterThan(64_000);
+    expect(JSON.parse(serialized)).toEqual([
+      {
+        type: "function",
+        name: "shell",
+        description: bigDescription,
+        parameters: { type: "object", properties: {} },
+      },
+    ]);
   });
 });
 

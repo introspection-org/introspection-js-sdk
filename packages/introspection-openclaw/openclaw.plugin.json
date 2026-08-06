@@ -32,11 +32,6 @@
         "type": "boolean",
         "default": true,
         "description": "Record tool results as span attributes."
-      },
-      "maxCaptureLength": {
-        "type": "integer",
-        "default": 2048,
-        "description": "Max character length for captured content."
       }
     }
   },

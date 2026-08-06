@@ -4,7 +4,7 @@
  *
  * Verifies semconv-correct attribute names (the migration from
  * `gen_ai.usage.cache_read_input_tokens` → `cache_read.input_tokens` etc.),
- * size-cap fallbacks for `gen_ai.tool.definitions`, and that openclaw-only
+ * lossless GenAI payload serialization, and that openclaw-only
  * keys (`openclaw.*`, `introspection.new_messages.*`) are still emitted.
  */
 
@@ -69,7 +69,7 @@ describe("chatRequestAttributes", () => {
     expect(typeof attrs["gen_ai.input.messages"]).toBe("string");
   });
 
-  it("falls back to a name-only tool definitions list when oversized", () => {
+  it("preserves tool definitions larger than the former 64 KB cap", () => {
     const huge = "x".repeat(70_000);
     const attrs = chatRequestAttributes({
       agentName: "Test Agent",
@@ -81,7 +81,9 @@ describe("chatRequestAttributes", () => {
       ],
     });
     const tools = JSON.parse(attrs["gen_ai.tool.definitions"] as string);
-    expect(tools).toEqual([{ name: "lookup" }]);
+    expect(tools).toEqual([
+      { name: "lookup", description: huge, parameters: { huge } },
+    ]);
   });
 });
 
@@ -168,7 +170,6 @@ describe("executeTool*", () => {
       sequence: 1,
       params: { city: "Tokyo" },
       captureToolInput: true,
-      maxCaptureLength: 2048,
     });
 
     // Spec-correct: tool input lives under gen_ai.tool.call.arguments
@@ -184,7 +185,6 @@ describe("executeTool*", () => {
       durationMs: 12,
       message: "Clear, 25°C",
       captureToolOutput: true,
-      maxCaptureLength: 2048,
     });
     expect(endAttrs["gen_ai.tool.call.result"]).toBe("Clear, 25°C");
     expect("gen_ai.tool.output" in endAttrs).toBe(false);
@@ -197,7 +197,6 @@ describe("executeTool*", () => {
       sequence: 1,
       params: { city: "Tokyo" },
       captureToolInput: false,
-      maxCaptureLength: 2048,
     });
     expect("gen_ai.tool.call.arguments" in startAttrs).toBe(false);
     expect(startAttrs["openclaw.tool.input_size"]).toBeGreaterThan(0);
@@ -206,7 +205,6 @@ describe("executeTool*", () => {
       durationMs: 5,
       message: "x",
       captureToolOutput: false,
-      maxCaptureLength: 2048,
     });
     expect("gen_ai.tool.call.result" in endAttrs).toBe(false);
     expect(endAttrs["openclaw.tool.output_size"]).toBe(1);

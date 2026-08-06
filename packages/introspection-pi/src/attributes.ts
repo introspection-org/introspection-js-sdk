@@ -23,8 +23,6 @@ import {
   type ConvertOptions,
 } from "./convert.js";
 
-const MAX_BYTES = 64_000;
-
 /**
  * `server.address` / `server.port` derived from the model's base URL.
  * Returns an empty record when the URL cannot be parsed.
@@ -76,14 +74,9 @@ export function chatRequestAttributes(
   };
 
   if (context.systemPrompt) {
-    const serialized = serializeWithCap(
-      () => JSON.stringify(systemPromptToInstructions(context.systemPrompt!)),
-      () => undefined,
-      GenAi.SYSTEM_INSTRUCTIONS,
+    attributes[GenAi.SYSTEM_INSTRUCTIONS] = JSON.stringify(
+      systemPromptToInstructions(context.systemPrompt),
     );
-    if (serialized) {
-      attributes[GenAi.SYSTEM_INSTRUCTIONS] = serialized;
-    }
   }
 
   const toolDefinitions = serializeToolDefinitions(context.tools);
@@ -228,49 +221,7 @@ function serializeToolDefinitions(
     parameters: tool.parameters,
   }));
 
-  return serializeWithCap(
-    () => JSON.stringify(detailed),
-    () =>
-      JSON.stringify(
-        detailed.map((def) => ({ type: def.type, name: def.name })),
-      ),
-    GenAi.TOOL_DEFINITIONS,
-  );
-}
-
-/**
- * Try the detailed serializer; if it exceeds the cap, try a compact fallback;
- * if that still exceeds, drop the attribute (returns undefined).
- */
-function serializeWithCap(
-  detailed: () => string,
-  compact: () => string | undefined,
-  attributeName: string,
-): string | undefined {
-  const fullPayload = detailed();
-  if (byteLength(fullPayload) <= MAX_BYTES) {
-    return fullPayload;
-  }
-
-  const compactPayload = compact();
-  if (compactPayload && byteLength(compactPayload) <= MAX_BYTES) {
-    console.warn(
-      `[introspection-pi] Compacting oversized ${attributeName} (${byteLength(fullPayload)} bytes)`,
-    );
-    return compactPayload;
-  }
-
-  console.warn(
-    `[introspection-pi] Dropping oversized ${attributeName} (${byteLength(fullPayload)} bytes)`,
-  );
-  return undefined;
-}
-
-function byteLength(value: string): number {
-  if (typeof Buffer !== "undefined") {
-    return Buffer.byteLength(value);
-  }
-  return new TextEncoder().encode(value).length;
+  return JSON.stringify(detailed);
 }
 
 function stringify(value: unknown): string {
