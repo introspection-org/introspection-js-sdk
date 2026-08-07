@@ -49,6 +49,12 @@ export {
   TasksApi,
 } from "@introspection-sdk/http";
 export { streamResumable } from "@introspection-sdk/http";
+export {
+  TranscriptAccumulator,
+  foldAgui,
+  foldSpans,
+  mergeTranscripts,
+} from "@introspection-sdk/http";
 export { ArrowPages } from "@introspection-sdk/http";
 export type {
   EventArrowParams,
@@ -143,6 +149,11 @@ export type {
   GenAiSpanList,
   GenAiSpanAttributes,
   GenAiSpanStatus,
+  Conversation,
+  ConversationAgent,
+  ConversationUsage,
+  ConversationCost,
+  ConversationMetrics,
   IntrospectionSpanAttributes,
   IntrospectionConversation,
   SpanAttributes,

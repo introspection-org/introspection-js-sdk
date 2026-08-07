@@ -11,7 +11,6 @@
 import {
   EventType,
   IntrospectionApiClient,
-  genAiConversationId,
   genAiOutputMessages,
   type AGUIEvent,
 } from "@introspection-sdk/introspection-browser/api";
@@ -227,11 +226,8 @@ async function verifyConversationLogged(opts: {
       );
       return;
     }
-    const fresh = records.find((span) => {
-      const id = genAiConversationId(span);
-      return typeof id === "string" && !seen.has(id);
-    });
-    const conversationId = fresh ? genAiConversationId(fresh) : undefined;
+    const fresh = records.find((conversation) => !seen.has(conversation.id));
+    const conversationId = fresh?.id;
     if (conversationId) {
       append("ok", `   ✓ conversation logged: ${conversationId}`);
       try {
@@ -299,9 +295,9 @@ export async function runTaskWithToken(
   // addressed by the gen_ai `conversation_id` (the `/v1/conversations/{id}`
   // path key) — never the raw trace id.
   const seen = new Set(
-    (await client.conversations.list({ limit: 50 })).records
-      .map(genAiConversationId)
-      .filter((id): id is string => typeof id === "string"),
+    (await client.conversations.list({ limit: 50 })).records.map(
+      (conversation) => conversation.id,
+    ),
   );
 
   append("info", `Creating a task for runtime ${runtimeId.slice(0, 8)}… …`);

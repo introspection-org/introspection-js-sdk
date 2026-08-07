@@ -16,11 +16,21 @@ function mockHttp(overrides: Record<string, unknown> = {}) {
   } as unknown as BrowserHttpClient;
 }
 
-/** A summary is the same span envelope as an item, latest turn only. */
 const SUMMARY_FIXTURE = {
-  trace_id: "trace-1",
-  start_time: "2025-01-01T00:00:00Z",
-  attributes: { gen_ai: { conversation: { id: "conv-1" } } },
+  object: "conversation",
+  id: "conv-1",
+  created_at: "2025-01-01T00:00:00Z",
+  updated_at: "2025-01-01T00:00:05Z",
+  usage: { input_tokens: 10, output_tokens: 20, total_tokens: 30 },
+  cost: { usd: 0.01 },
+  metrics: {
+    duration_ms: 5000,
+    trace_count: 1,
+    span_count: 3,
+    tool_use_count: 0,
+    failed_tool_use_count: 0,
+    has_errors: false,
+  },
 };
 
 describe("browser ConversationsClient", () => {
@@ -37,7 +47,7 @@ describe("browser ConversationsClient", () => {
       query: { limit: 10, next: undefined },
     });
     expect(page.records).toHaveLength(1);
-    expect(page.records[0].attributes.gen_ai?.conversation?.id).toBe("conv-1");
+    expect(page.records[0].id).toBe("conv-1");
   });
 
   it("items.list() drives the opaque `next` cursor across pages", async () => {

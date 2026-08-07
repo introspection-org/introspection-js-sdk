@@ -9,19 +9,18 @@
  * the SDK wrote when it created the span — there is no private dialect to
  * learn on top of a vocabulary the reader already knows.
  *
- * Both conversation reads return the same {@link GenAiSpan}. The only
- * difference is how much conversation the message lists carry:
+ * Conversation summaries are dedicated {@link Conversation} resources;
+ * conversation items are OpenTelemetry spans:
  *
- * - `GET /v1/conversations` — the latest turn only, one message each. A
- *   preview, inside the standard cursor envelope `Paginated<GenAiSpan>`.
+ * - `GET /v1/conversations` — conversation resources inside the standard
+ *   cursor envelope `Paginated<Conversation>`.
+ * - `GET /v1/conversations/{id}` — one conversation resource with the complete
+ *   agent invocation index.
  * - `GET /v1/conversations/{id}/items` — that turn's delta, inside the
  *   OpenAI-style {@link GenAiSpanList} envelope whose pagination is driven by
  *   the opaque `next` token.
  * - `GET /v1/conversations/{id}/items/{item_id}` — the **full history** as of
  *   that turn, so a conversation can be resumed with complete context.
- *
- * That is a depth difference, not a schema difference: one parser, one
- * renderer.
  *
  * **Absent means absent.** The server never serializes `null` on this
  * surface; a value that is not present is a key that is not there. Every
@@ -62,15 +61,32 @@ export type ConversationSortField =
  * Optional conversation item expansions, passed as a repeated `include`
  * query param on the items routes.
  *
+ * Two kinds of value, told apart by the prefix:
+ *
+ * - **`gen_ai.*` — encrypted content channels.** System instructions and
+ *   tool definitions are stripped out of the attribute map at ingest and
+ *   envelope-encrypted separately, so each one you request costs a per-row
+ *   decrypt and each one you omit is never even selected. They are
+ *   independent knobs on purpose: an eval harness wants definitions without
+ *   instructions, a prompt audit wants the reverse, a chatbot wants
+ *   neither.
+ * - **Bare names — structural chunks of the raw span** (`events`, the full
+ *   `span_attributes` map, `resource_attributes`). The typed attribute tree
+ *   on every response is built from materialized columns; `span_attributes`
+ *   is the complete raw map for debuggers.
+ *
  * The message-family expansions are gone: the detail read returns the full
  * message history unconditionally, so there is nothing left for them to
  * gate. A parameter that is always required is not a parameter, it is a trap
  * — forgetting `include=gen_ai.input.messages` used to silently fork a
- * conversation with one turn of context. `span_attributes` went the same
- * way: the attribute tree *is* the response now, not an optional expansion
- * of it.
+ * conversation with one turn of context.
  */
-export type ConversationItemInclude = "events" | "resource_attributes";
+export type ConversationItemInclude =
+  | "gen_ai.system_instructions"
+  | "gen_ai.tool.definitions"
+  | "events"
+  | "span_attributes"
+  | "resource_attributes";
 
 // --- gen_ai.* -------------------------------------------------------------
 
@@ -181,8 +197,7 @@ export interface GenAiTool {
 /**
  * `gen_ai.input.messages`.
  *
- * Full history on the item detail read; the turn-local delta on the items
- * list; the latest turn only on the conversations list.
+ * Full history on item detail; the turn-local delta on the items list.
  */
 export interface GenAiInput {
   messages?: InputMessage[];
@@ -294,6 +309,58 @@ export interface IntrospectionConversation {
   [key: string]: unknown;
 }
 
+/** One agent invocation discoverable from a conversation summary. */
+export interface ConversationAgent {
+  /** Identifier accepted by the items `agent` selector. */
+  id: string;
+  name?: string;
+  /** Parent agent identifier; absent for the root. */
+  parent_id?: string;
+  /** Delegation invocation correlation identifier. */
+  invocation_id?: string;
+  /** Zero-based delegation depth. */
+  depth?: number;
+}
+
+export interface ConversationUsage {
+  input_tokens: number;
+  output_tokens: number;
+  total_tokens: number;
+}
+
+export interface ConversationCost {
+  usd: number;
+}
+
+export interface ConversationMetrics {
+  duration_ms: number;
+  trace_count: number;
+  span_count: number;
+  tool_use_count: number;
+  failed_tool_use_count: number;
+  has_errors: boolean;
+}
+
+/** Aggregated conversation resource returned by summary reads. */
+export interface Conversation {
+  object: "conversation";
+  id: string;
+  created_at: IsoDate;
+  updated_at: IsoDate;
+  /** Complete only on the singular conversation read. */
+  agents?: ConversationAgent[];
+  usage: ConversationUsage;
+  cost: ConversationCost;
+  metrics: ConversationMetrics;
+  environment?: string;
+  service_name?: string;
+  runtime_id?: Uuid;
+  runtime_group_id?: Uuid;
+  experiment_id?: Uuid;
+  recipe_git_commit_sha?: string;
+  owner_key?: string;
+}
+
 /**
  * The `introspection.*` attribute family.
  *
@@ -313,6 +380,19 @@ export interface IntrospectionSpanAttributes {
   /** Runtime environment lane. */
   environment?: string;
   conversation?: IntrospectionConversation;
+  agent?: IntrospectionAgent;
+  [key: string]: unknown;
+}
+
+/**
+ * `introspection.agent.*` — the agent-tree edge on a span. On a delegation
+ * wrapper span, `parent_id` is the delegating agent (empty/absent = root)
+ * and `invocation_id` is the durable child agent-run id — the delegation's
+ * cross-transport correlation key.
+ */
+export interface IntrospectionAgent {
+  parent_id?: string;
+  invocation_id?: string;
   [key: string]: unknown;
 }
 
@@ -359,8 +439,7 @@ export interface SpanEvent {
 }
 
 /**
- * One conversation item, or one conversation summary — the single object
- * the `/v1/conversations` surface returns.
+ * One conversation item returned by the items surface.
  *
  * The top level is closed because the server constructs it: these are the
  * OTel span fields, not attributes. Openness lives where the server has no
@@ -488,8 +567,13 @@ export interface ConversationItemListParams {
   order?: "asc" | "desc";
   /** Optional item expansions (repeated `include` param). */
   include?: ConversationItemInclude[];
-  /** Filter items by agent name (exact match). */
-  agent_name?: string;
+  /**
+   * Agent selector. `"root"` returns the depth-zero transcript; an exact
+   * agent id returns that invocation. Omit the parameter for the complete
+   * conversation. Discover exact ids from `agents` on the singular
+   * conversation resource.
+   */
+  agent?: string;
   /** Filter items by service name (exact match). */
   service_name?: string;
   /** Filter items by operation name (exact match). */

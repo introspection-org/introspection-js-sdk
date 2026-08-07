@@ -1,5 +1,5 @@
 /**
- * The GenAI span — the object `/v1/conversations` returns.
+ * The GenAI span — the object conversation item reads return.
  *
  * These are pure-unit tests of a wire contract, so no cassettes: nothing here
  * crosses a process or network boundary, and the thing under test *is* the
@@ -21,6 +21,7 @@ import {
   genAiConversationId,
   genAiInputMessages,
   genAiOutputMessages,
+  type Conversation,
   type GenAiSpan,
   type GenAiSpanList,
 } from "../../packages/introspection-types/src";
@@ -126,67 +127,32 @@ describe("semconv naming", () => {
     expect(FULL_SPAN.attributes.introspection?.cost_usd).toBeUndefined();
   });
 
-  it("keeps the summary rollups under introspection.conversation", () => {
-    // A summary is the same envelope carrying the latest turn only: token
-    // totals stay on `gen_ai.usage` (summable, natural reading), counts with
-    // no semconv name go under `introspection.conversation.*`.
-    const summary: GenAiSpan = {
-      trace_id: "8f0efe59",
-      start_time: "2026-08-04T22:14:34.462000Z",
-      end_time: "2026-08-04T22:14:37.488000Z",
-      duration_ns: 3026835672,
-      status: { code: "Ok" },
-      resource: { service: { name: "coding-agent" } },
-      attributes: {
-        gen_ai: {
-          conversation: { id: "019fcee7" },
-          agent: { name: "agent" },
-          request: { model: "claude-sonnet-4-6" },
-          usage: { input_tokens: 1527, output_tokens: 45 },
-          // Cost rolls up beside the token totals, under the name the span
-          // writes it with.
-          cost: { usd: 0.0098 },
-          input: {
-            messages: [
-              { role: "user", parts: [{ type: "text", content: "hey" }] },
-            ],
-          },
-          output: {
-            messages: [
-              { role: "assistant", parts: [{ type: "text", content: "hi" }] },
-            ],
-          },
-        },
-        introspection: {
-          org: { id: "019fbe0c" },
-          project: { id: "019fce34" },
-          environment: "production",
-          runtime: { id: "019fced4", group_id: "019fced3" },
-          experiment: { id: "019fced5" },
-          recipe: { git_commit_sha: "df7339af" },
-          conversation: {
-            trace_count: 3,
-            span_count: 12,
-            tool_use_count: 4,
-            failed_tool_use_count: 0,
-            has_errors: false,
-          },
-        },
+  it("models summaries as dedicated conversation resources", () => {
+    const summary: Conversation = {
+      object: "conversation",
+      id: "019fcee7",
+      created_at: "2026-08-04T22:14:34.462000Z",
+      updated_at: "2026-08-04T22:14:37.488000Z",
+      agents: [{ id: "agent-root", name: "coordinator", depth: 0 }],
+      usage: { input_tokens: 1527, output_tokens: 45, total_tokens: 1572 },
+      cost: { usd: 0.0098 },
+      metrics: {
+        duration_ms: 3026.835672,
+        trace_count: 3,
+        span_count: 12,
+        tool_use_count: 4,
+        failed_tool_use_count: 0,
+        has_errors: false,
       },
+      environment: "production",
+      runtime_id: "019fced4",
+      runtime_group_id: "019fced3",
+      recipe_git_commit_sha: "df7339af",
     };
 
-    expect(summary.attributes.gen_ai?.usage?.output_tokens).toBe(45);
-    expect(summary.attributes.gen_ai?.cost?.usd).toBe(0.0098);
-    expect(summary.attributes.introspection?.conversation?.span_count).toBe(12);
-    expect(summary.attributes.introspection?.runtime?.group_id).toBe(
-      "019fced3",
-    );
-    expect(summary.attributes.introspection?.recipe?.git_commit_sha).toBe(
-      "df7339af",
-    );
-    // Same type as an item — one parser, one renderer. The list read is a
-    // depth difference, not a schema difference.
-    expect(genAiInputMessages(summary)).toHaveLength(1);
+    expect(summary.usage.output_tokens).toBe(45);
+    expect(summary.metrics.span_count).toBe(12);
+    expect(summary.agents?.[0]?.id).toBe("agent-root");
   });
 });
 
