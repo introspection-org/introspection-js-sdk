@@ -570,9 +570,8 @@ export interface ConversationItemListParams {
   /**
    * Agent selector. `"root"` returns the depth-zero transcript; an exact
    * agent id returns that invocation. Omit the parameter for the complete
-   * conversation. Discover exact ids from
-   * `attributes.introspection.conversation.agents` on the conversation
-   * singular conversation resource.
+   * conversation. Discover exact ids from `agents` on the singular
+   * conversation resource.
    */
   agent?: string;
   /** Filter items by service name (exact match). */
