@@ -1,4 +1,5 @@
 import type {
+  Conversation,
   ConversationItemInclude,
   ConversationItemListParams,
   ConversationListParams,
@@ -82,10 +83,8 @@ export class ConversationItemsClient {
 /**
  * Read-only Conversations API (`/v1/conversations`).
  *
- * Both `list()` and `items.list()` are auto-paging async generators that
- * pass each response's opaque `next` token back unchanged. Every read
- * returns the same {@link GenAiSpan}; only the depth of the message lists
- * differs.
+ * Summary reads return dedicated conversation resources; item reads return
+ * GenAI spans.
  */
 export class ConversationsClient {
   /** Items of a conversation — `conversations.items.list(...)` etc. */
@@ -101,18 +100,22 @@ export class ConversationsClient {
    * pages (fetched lazily — `limit` sets the page size, `next` the
    * starting cursor; stop early to stop fetching).
    *
-   * A summary is the same span envelope as an item, carrying the latest
-   * turn only, with the conversation rollups under
-   * `attributes.gen_ai.usage.*` and `attributes.introspection.conversation.*`.
-   *
    * Accepts the ergonomic ordering/window params (`order`, `start`,
    * `end`, `lookback`) and an optional `format: "arrow"` that negotiates
    * an Apache Arrow IPC stream while exposing the identical page shape.
    * `lookback` is mutually exclusive with `start`/`end` and throws a
    * `ValidationError` before any request is sent.
    */
-  list(params?: ConversationListParams): Paginator<GenAiSpan> {
-    return listRead<GenAiSpan>(this.http, "/v1/conversations", params);
+  list(params?: ConversationListParams): Paginator<Conversation> {
+    return listRead<Conversation>(this.http, "/v1/conversations", params);
+  }
+
+  /** Fetch one conversation summary with its complete agent index. */
+  get(conversationId: string): Promise<Conversation> {
+    return this.http.request<Conversation>({
+      method: "GET",
+      path: `/v1/conversations/${encodeURIComponent(conversationId)}`,
+    });
   }
 
   /**
@@ -121,9 +124,7 @@ export class ConversationsClient {
    * `Table`. Accepts the same params as {@link list} minus `format`
    * (Arrow is implied).
    *
-   * Arrow deliberately keeps the flat summary schema — every field an
-   * analytical reader aggregates on is its own typed column there, and
-   * would collapse into one JSON blob under the span shape.
+   * Arrow exposes the same summary-resource fields in columnar form.
    *
    * Requires the optional `apache-arrow` peer dependency.
    */

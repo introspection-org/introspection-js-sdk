@@ -5,6 +5,7 @@ import {
   HttpClient,
 } from "@introspection-sdk/introspection-node";
 import type {
+  Conversation,
   GenAiSpan,
   GenAiSpanList,
 } from "@introspection-sdk/introspection-node";
@@ -16,39 +17,22 @@ function mockHttp(overrides: Record<string, unknown> = {}) {
   } as unknown as HttpClient;
 }
 
-/**
- * A conversation summary — the same span envelope as an item, carrying the
- * latest turn only, with the conversation rollups split between
- * `gen_ai.usage.*` (summable, has a semconv meaning) and
- * `introspection.conversation.*` (ours).
- */
-const SUMMARY_FIXTURE: GenAiSpan = {
-  trace_id: "trace-1",
-  start_time: "2025-01-01T00:00:00Z",
-  end_time: "2025-01-01T00:00:05Z",
-  duration_ns: 5_000_000_000,
-  status: { code: "Ok" },
-  resource: { service: { name: "coding-agent" } },
-  attributes: {
-    gen_ai: {
-      conversation: { id: "conv-1" },
-      agent: { name: "agent" },
-      request: { model: "claude-x" },
-      usage: { input_tokens: 10, output_tokens: 20 },
-      cost: { usd: 0.01 },
-    },
-    introspection: {
-      org: { id: "org-1" },
-      project: { id: "proj-1" },
-      conversation: {
-        trace_count: 1,
-        span_count: 3,
-        tool_use_count: 0,
-        failed_tool_use_count: 0,
-        has_errors: false,
-      },
-    },
+const SUMMARY_FIXTURE: Conversation = {
+  object: "conversation",
+  id: "conv-1",
+  created_at: "2025-01-01T00:00:00Z",
+  updated_at: "2025-01-01T00:00:05Z",
+  usage: { input_tokens: 10, output_tokens: 20, total_tokens: 30 },
+  cost: { usd: 0.01 },
+  metrics: {
+    duration_ms: 5_000,
+    trace_count: 1,
+    span_count: 3,
+    tool_use_count: 0,
+    failed_tool_use_count: 0,
+    has_errors: false,
   },
+  service_name: "coding-agent",
 };
 
 function makeSpan(
@@ -128,11 +112,8 @@ describe("ConversationsApi", () => {
       query: { limit: 10, status: "Error", model: "claude-x" },
     });
     expect(summaries).toHaveLength(1);
-    // Summaries arrive as spans: semconv names, not a second dialect.
-    expect(summaries[0].attributes.gen_ai?.conversation?.id).toBe("conv-1");
-    expect(
-      summaries[0].attributes.introspection?.conversation?.span_count,
-    ).toBe(3);
+    expect(summaries[0].id).toBe("conv-1");
+    expect(summaries[0].metrics.span_count).toBe(3);
   });
 
   it("list() drives the cursor `next` token until exhausted", async () => {
@@ -143,7 +124,7 @@ describe("ConversationsApi", () => {
       next: "cursor-2",
     };
     const page2 = {
-      records: [{ ...SUMMARY_FIXTURE, trace_id: "trace-2" }],
+      records: [{ ...SUMMARY_FIXTURE, id: "conv-2" }],
       count: 1,
       total_count: 2,
       next: null,
@@ -158,11 +139,29 @@ describe("ConversationsApi", () => {
     for await (const c of api.list()) summaries.push(c);
 
     expect(summaries).toHaveLength(2);
-    expect(summaries[1].trace_id).toBe("trace-2");
+    expect(summaries[1].id).toBe("conv-2");
     expect(http.request).toHaveBeenCalledTimes(2);
     expect(
       (http.request as ReturnType<typeof vi.fn>).mock.calls[1][0].query.next,
     ).toBe("cursor-2");
+  });
+
+  it("get() returns the complete structural agent index", async () => {
+    const http = mockHttp({
+      requestResult: {
+        ...SUMMARY_FIXTURE,
+        agents: [{ id: "agent-root", name: "coordinator", depth: 0 }],
+      },
+    });
+    const api = new ConversationsApi(http);
+
+    const conversation = await api.get("conv-1");
+
+    expect(http.request).toHaveBeenCalledWith({
+      method: "GET",
+      path: "/v1/conversations/conv-1",
+    });
+    expect(conversation.agents?.[0]?.id).toBe("agent-root");
   });
 
   it("items.list() calls GET /v1/conversations/:id/items with the surviving includes", async () => {
@@ -438,7 +437,7 @@ describe("ConversationsApi", () => {
 
 describe("ConversationsApi.list — Arrow format", () => {
   it("negotiates Arrow and rebuilds conversation summaries from the IPC stream + headers", async () => {
-    // Arrow deliberately keeps the flat summary schema — over the span shape
+    // Arrow exposes the summary resource in columnar form.
     // every aggregable field collapses into one JSON column.
     const ipc = arrow.tableToIPC(
       arrow.tableFromArrays({

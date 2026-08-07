@@ -9,19 +9,18 @@
  * the SDK wrote when it created the span — there is no private dialect to
  * learn on top of a vocabulary the reader already knows.
  *
- * Both conversation reads return the same {@link GenAiSpan}. The only
- * difference is how much conversation the message lists carry:
+ * Conversation summaries are dedicated {@link Conversation} resources;
+ * conversation items are OpenTelemetry spans:
  *
- * - `GET /v1/conversations` — the latest turn only, one message each. A
- *   preview, inside the standard cursor envelope `Paginated<GenAiSpan>`.
+ * - `GET /v1/conversations` — conversation resources inside the standard
+ *   cursor envelope `Paginated<Conversation>`.
+ * - `GET /v1/conversations/{id}` — one conversation resource with the complete
+ *   agent invocation index.
  * - `GET /v1/conversations/{id}/items` — that turn's delta, inside the
  *   OpenAI-style {@link GenAiSpanList} envelope whose pagination is driven by
  *   the opaque `next` token.
  * - `GET /v1/conversations/{id}/items/{item_id}` — the **full history** as of
  *   that turn, so a conversation can be resumed with complete context.
- *
- * That is a depth difference, not a schema difference: one parser, one
- * renderer.
  *
  * **Absent means absent.** The server never serializes `null` on this
  * surface; a value that is not present is a key that is not there. Every
@@ -198,8 +197,7 @@ export interface GenAiTool {
 /**
  * `gen_ai.input.messages`.
  *
- * Full history on the item detail read; the turn-local delta on the items
- * list; the latest turn only on the conversations list.
+ * Full history on item detail; the turn-local delta on the items list.
  */
 export interface GenAiInput {
   messages?: InputMessage[];
@@ -308,8 +306,6 @@ export interface IntrospectionConversation {
   failed_tool_use_count?: number;
   /** Whether any span in the conversation has errors (summary rollup). */
   has_errors?: boolean;
-  /** Complete agent index for the conversation, independent of item filtering. */
-  agents?: ConversationAgent[];
   [key: string]: unknown;
 }
 
@@ -324,6 +320,45 @@ export interface ConversationAgent {
   invocation_id?: string;
   /** Zero-based delegation depth. */
   depth?: number;
+}
+
+export interface ConversationUsage {
+  input_tokens: number;
+  output_tokens: number;
+  total_tokens: number;
+}
+
+export interface ConversationCost {
+  usd: number;
+}
+
+export interface ConversationMetrics {
+  duration_ms: number;
+  trace_count: number;
+  span_count: number;
+  tool_use_count: number;
+  failed_tool_use_count: number;
+  has_errors: boolean;
+}
+
+/** Aggregated conversation resource returned by summary reads. */
+export interface Conversation {
+  object: "conversation";
+  id: string;
+  created_at: IsoDate;
+  updated_at: IsoDate;
+  /** Complete only on the singular conversation read. */
+  agents?: ConversationAgent[];
+  usage: ConversationUsage;
+  cost: ConversationCost;
+  metrics: ConversationMetrics;
+  environment?: string;
+  service_name?: string;
+  runtime_id?: Uuid;
+  runtime_group_id?: Uuid;
+  experiment_id?: Uuid;
+  recipe_git_commit_sha?: string;
+  owner_key?: string;
 }
 
 /**
@@ -404,8 +439,7 @@ export interface SpanEvent {
 }
 
 /**
- * One conversation item, or one conversation summary — the single object
- * the `/v1/conversations` surface returns.
+ * One conversation item returned by the items surface.
  *
  * The top level is closed because the server constructs it: these are the
  * OTel span fields, not attributes. Openness lives where the server has no
@@ -538,7 +572,7 @@ export interface ConversationItemListParams {
    * agent id returns that invocation. Omit the parameter for the complete
    * conversation. Discover exact ids from
    * `attributes.introspection.conversation.agents` on the conversation
-   * summary.
+   * singular conversation resource.
    */
   agent?: string;
   /** Filter items by service name (exact match). */
