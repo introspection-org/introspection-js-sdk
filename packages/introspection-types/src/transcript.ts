@@ -74,7 +74,7 @@ export interface TranscriptToolEntry {
  * `invoke_agent` / `create_agent` wrapper span (stored) or the `agent`
  * management tool's start call (live). This is the "shallow subagent
  * status" a main chat renders as a chip; `agentId` is the key a drill-in
- * read passes as the items `agent_id` filter to open the subagent's own
+ * read passes as the items `agent` filter to open the subagent's own
  * transcript.
  *
  * Correlation is by invocation, not agent role: two invocations of the

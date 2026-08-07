@@ -308,7 +308,22 @@ export interface IntrospectionConversation {
   failed_tool_use_count?: number;
   /** Whether any span in the conversation has errors (summary rollup). */
   has_errors?: boolean;
+  /** Complete agent index for the conversation, independent of item filtering. */
+  agents?: ConversationAgent[];
   [key: string]: unknown;
+}
+
+/** One agent invocation discoverable from a conversation summary. */
+export interface ConversationAgent {
+  /** Identifier accepted by the items `agent` selector. */
+  id: string;
+  name?: string;
+  /** Parent agent identifier; absent for the root. */
+  parent_id?: string;
+  /** Delegation invocation correlation identifier. */
+  invocation_id?: string;
+  /** Zero-based delegation depth. */
+  depth?: number;
 }
 
 /**
@@ -518,36 +533,14 @@ export interface ConversationItemListParams {
   order?: "asc" | "desc";
   /** Optional item expansions (repeated `include` param). */
   include?: ConversationItemInclude[];
-  /** Filter items by agent name (exact match). */
-  agent_name?: string;
   /**
-   * Filter items by agent ID (exact match) — the `gen_ai.agent.id` a
-   * delegation wrapper span carries in `attributes.gen_ai.agent.id`. This is
-   * the drill-in read: fetch a subagent's own transcript with the ID its
-   * `invoke_agent` wrapper handed you.
+   * Agent selector. `"root"` returns the depth-zero transcript; an exact
+   * agent id returns that invocation. Omit the parameter for the complete
+   * conversation. Discover exact ids from
+   * `attributes.introspection.conversation.agents` on the conversation
+   * summary.
    */
-  agent_id?: string;
-  /**
-   * Scope of agent activity to return. Progressive disclosure is the API's
-   * model: the server's end-state default is `"root"` — every consumer
-   * starts at the main transcript, and subagents are loaded individually
-   * via {@link agent_id}.
-   *
-   * `"root"` returns the root agent's spans plus one `invoke_agent` /
-   * `create_agent` wrapper span per delegation — the shallow subagent
-   * status (name, duration, outcome) without the subagent's internals, each
-   * wrapper carrying the `gen_ai.agent.id` to drill in with. `"all"`
-   * returns every span and is for consumers whose job is the full set
-   * (exports, debuggers, eval sweeps).
-   *
-   * Until the server's default flip lands, pass the scope you mean
-   * explicitly rather than relying on either default.
-   *
-   * @see cloud `docs/design/conversation-transcript-scope.md` — requires a
-   * DP deployment that implements the proposal; older servers reject
-   * unknown params.
-   */
-  agent_scope?: "all" | "root";
+  agent?: string;
   /** Filter items by service name (exact match). */
   service_name?: string;
   /** Filter items by operation name (exact match). */

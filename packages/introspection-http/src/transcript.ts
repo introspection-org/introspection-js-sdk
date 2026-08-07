@@ -11,7 +11,7 @@
  * This module folds both transports into the same `TranscriptEntry[]`:
  *
  * - {@link foldSpans} — spans (the refresh / hydration path). Pairs with the
- *   items read; with `agent_scope: "root"` the input is already the main
+ *   items read; with `agent: "root"` the input is already the main
  *   transcript plus delegation wrappers, and this fold turns it into render
  *   order.
  * - {@link foldAgui} / {@link TranscriptAccumulator} — AG-UI events (the
