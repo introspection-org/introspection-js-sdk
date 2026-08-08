@@ -1,5 +1,5 @@
 /**
- * Compares this SDK's task surface against the published API reference.
+ * Compares this SDK's request/response surface against the published API reference.
  *
  * `mode` and `system_id` sat on `TaskCreateParams` for the entire life of their
  * retirement, `Task.mode` described a field the API had stopped returning, and
@@ -20,7 +20,7 @@
  * and not about the commit under review — gating PRs on that trains people to
  * ignore it, and being ignorable is how the last one survived.
  *
- * Run: node scripts/check-task-contract.mjs [--spec URL|PATH]
+ * Run: node scripts/check-api-contract.mjs [--spec URL|PATH]
  */
 import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
@@ -32,13 +32,38 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const DEFAULT_SPEC = "https://docs.introspection.dev/openapi/dataplane.json";
 
 const TYPES = resolve(ROOT, "packages/introspection-types/src/api.ts");
-const BROWSER = resolve(ROOT, "packages/introspection-browser/src/api/tasks.ts");
+const BROWSER = resolve(
+  ROOT,
+  "packages/introspection-browser/src/api/tasks.ts",
+);
+const CONVERSATIONS = resolve(
+  ROOT,
+  "packages/introspection-types/src/conversations.ts",
+);
+/** Files searched for a base interface named in an `extends` clause. */
+const SEARCH_PATH = [TYPES, CONVERSATIONS, BROWSER];
 
 /**
- * Property names of an interface, following `extends` within the same file so
+ * Property names of an interface, following `extends` so
  * `TaskListParams extends ListParams` reports `limit`/`next`/`include_total`
  * too — they are on the wire regardless of which declaration carries them.
+ *
+ * Base interfaces are resolved across files, not just within one:
+ * `ConversationListParams` lives in `conversations.ts` but extends
+ * `CursorParams` from `api.ts`, and a same-file-only walk would silently
+ * report its inherited `limit`/`next` as missing. A checker that emits a
+ * finding it cannot substantiate is worse than one that stays quiet, because
+ * it teaches the reader to skim past real ones.
  */
+/** The file in SEARCH_PATH that declares `name`, if any. */
+function declaringFile(name) {
+  return SEARCH_PATH.find((candidate) =>
+    new RegExp(`^export interface ${name}\\b`, "m").test(
+      readFileSync(candidate, "utf8"),
+    ),
+  );
+}
+
 function interfaceMembers(file, name, seen = new Set()) {
   if (seen.has(name)) return new Set();
   seen.add(name);
@@ -54,7 +79,8 @@ function interfaceMembers(file, name, seen = new Set()) {
   let found = false;
 
   for (const statement of source.statements) {
-    if (!ts.isInterfaceDeclaration(statement) || statement.name.text !== name) continue;
+    if (!ts.isInterfaceDeclaration(statement) || statement.name.text !== name)
+      continue;
     found = true;
 
     for (const member of statement.members) {
@@ -66,7 +92,12 @@ function interfaceMembers(file, name, seen = new Set()) {
     for (const clause of statement.heritageClauses ?? []) {
       if (clause.token !== ts.SyntaxKind.ExtendsKeyword) continue;
       for (const type of clause.types) {
-        for (const inherited of interfaceMembers(file, type.expression.getText(source), seen)) {
+        const base = type.expression.getText(source);
+        for (const inherited of interfaceMembers(
+          declaringFile(base) ?? file,
+          base,
+          seen,
+        )) {
           members.add(inherited);
         }
       }
@@ -81,13 +112,15 @@ function interfaceMembers(file, name, seen = new Set()) {
 
 const schemaProperties = (spec, name) => {
   const schema = spec.components?.schemas?.[name];
-  if (!schema) throw new Error(`the reference has no components.schemas.${name}`);
+  if (!schema)
+    throw new Error(`the reference has no components.schemas.${name}`);
   return new Set(Object.keys(schema.properties ?? {}));
 };
 
 const queryParameters = (spec, path, method) => {
   const params = spec.paths?.[path]?.[method]?.parameters;
-  if (!params) throw new Error(`the reference has no parameters for ${method} ${path}`);
+  if (!params)
+    throw new Error(`the reference has no parameters for ${method} ${path}`);
   return new Set(params.map((p) => p.name));
 };
 
@@ -163,14 +196,153 @@ const SURFACES = [
     extraMeans: "sent as a query parameter the API does not accept",
     missingMeans: "accepted by the API but not exposed here",
   },
+  // --- files ---------------------------------------------------------------
+  {
+    name: "File",
+    where: "the file read model",
+    sdk: () => interfaceMembers(TYPES, "File"),
+    server: (spec) => schemaProperties(spec, "File"),
+    extraMeans:
+      "declared here but not returned by the API (the SDK describes a response that no longer exists)",
+    missingMeans: "returned by the API but not surfaced by this SDK",
+  },
+  {
+    name: "FileUpdateParams",
+    where: "PATCH /v1/files/{id} body",
+    sdk: () => interfaceMembers(TYPES, "FileUpdateParams"),
+    server: (spec) => schemaProperties(spec, "FileUpdate"),
+    extraMeans: "declared here but not accepted by the API",
+    missingMeans: "accepted by the API but unavailable to callers of this SDK",
+  },
+  {
+    name: "FileListParams",
+    where: "GET /v1/files query parameters",
+    sdk: () => interfaceMembers(TYPES, "FileListParams"),
+    server: (spec) => queryParameters(spec, "/v1/files", "get"),
+    // `identity_key` is privileged-only and 403s for these credentials;
+    // `task_id`/`share_id` are scoping params a runner already carries.
+    exempt: ["identity_key", "task_id", "share_id"],
+    missingIsFatal: false,
+    extraMeans: "sent as a query parameter the API does not accept",
+    missingMeans: "accepted by the API but not exposed here",
+  },
+  // --- shares --------------------------------------------------------------
+  {
+    name: "ShareCreateParams",
+    where: "POST /v1/shares body",
+    sdk: () => interfaceMembers(TYPES, "ShareCreateParams"),
+    server: (spec) => schemaProperties(spec, "ShareCreate"),
+    extraMeans: "declared here but not accepted by the API",
+    missingMeans: "accepted by the API but unavailable to callers of this SDK",
+  },
+  {
+    name: "ResourceShare",
+    where: "the share read model",
+    sdk: () => interfaceMembers(TYPES, "ResourceShare"),
+    server: (spec) => schemaProperties(spec, "ResourceShare"),
+    extraMeans:
+      "declared here but not returned by the API (the SDK describes a response that no longer exists)",
+    missingMeans: "returned by the API but not surfaced by this SDK",
+  },
+  {
+    name: "ShareListParams",
+    where: "GET /v1/shares query parameters",
+    sdk: () => interfaceMembers(TYPES, "ShareListParams"),
+    server: (spec) => queryParameters(spec, "/v1/shares", "get"),
+    missingIsFatal: false,
+    extraMeans: "sent as a query parameter the API does not accept",
+    missingMeans: "accepted by the API but not exposed here",
+  },
+  // --- events --------------------------------------------------------------
+  {
+    name: "event envelope",
+    where: "the common envelope on every event family",
+    // One family stands in for all six: the envelope is shared, so a field
+    // added or dropped there moves on every family at once.
+    sdk: () => interfaceMembers(TYPES, "FeedbackEvent"),
+    server: (spec) => schemaProperties(spec, "FeedbackEvent"),
+    extraMeans:
+      "declared here but not returned by the API (the SDK describes a response that no longer exists)",
+    missingMeans: "returned by the API but not surfaced by this SDK",
+  },
+  {
+    name: "EventListParams",
+    where: "GET /v1/events query parameters",
+    sdk: () => interfaceMembers(TYPES, "EventListParams"),
+    server: (spec) => queryParameters(spec, "/v1/events", "get"),
+    // Product-UI shaped filters; `event_id` is covered by `events.get`.
+    exempt: [
+      "event_id",
+      "owner_key",
+      "runtime_group_unattributed",
+      "runtime_group_id",
+      "conversation_ids",
+      "trace_id",
+      "span_id",
+    ],
+    // Resolved client-side and never sent: the ergonomic window aliases, and
+    // `format`, which selects Arrow via the Accept header rather than a param.
+    allowedExtra: ["order", "start", "end", "lookback", "format"],
+    missingIsFatal: false,
+    extraMeans: "sent as a query parameter the API does not accept",
+    missingMeans: "accepted by the API but not exposed here",
+  },
+  // --- conversations -------------------------------------------------------
+  // There is deliberately no `Conversation` read-model surface: the published
+  // reference declares no properties for that schema, so the comparison would
+  // pass by doing nothing. The list filters are declared, so they are checked.
+  {
+    name: "ConversationListParams",
+    where: "GET /v1/conversations query parameters",
+    sdk: () => interfaceMembers(CONVERSATIONS, "ConversationListParams"),
+    server: (spec) => queryParameters(spec, "/v1/conversations", "get"),
+    // Product-UI shaped filters this SDK does not surface.
+    exempt: [
+      "conversation_ids",
+      "owner_key",
+      "resolution",
+      "sentiment",
+      "share_id",
+    ],
+    // Resolved client-side and never sent: the ergonomic window aliases, and
+    // `format`, which selects Arrow via the Accept header.
+    allowedExtra: ["order", "start", "end", "lookback", "format"],
+    missingIsFatal: false,
+    extraMeans: "sent as a query parameter the API does not accept",
+    missingMeans: "accepted by the API but not exposed here",
+  },
+  // --- metrics -------------------------------------------------------------
+  {
+    name: "MetricQueryRequest",
+    where: "POST /v1/metrics body",
+    sdk: () => interfaceMembers(TYPES, "MetricQueryRequest"),
+    server: (spec) => schemaProperties(spec, "MetricQueryRequest"),
+    extraMeans: "declared here but not accepted by the API",
+    missingMeans: "accepted by the API but unavailable to callers of this SDK",
+  },
+  // --- task cancel ---------------------------------------------------------
+  {
+    name: "TaskCancelOptions",
+    where: "POST /v1/tasks/{id}/runs/{rid}/cancel body",
+    sdk: () => interfaceMembers(TYPES, "TaskCancelOptions"),
+    server: (spec) => schemaProperties(spec, "TaskCancelRequest"),
+    extraMeans: "declared here but not accepted by the API",
+    missingMeans: "accepted by the API but unavailable to callers of this SDK",
+  },
 ];
 
 const difference = (a, b) => new Set([...a].filter((x) => !b.has(x)));
-const listing = (fields) => [...fields].sort().map((f) => `\n      ${f}`).join("");
+const listing = (fields) =>
+  [...fields]
+    .sort()
+    .map((f) => `\n      ${f}`)
+    .join("");
 
 async function loadSpec(source) {
   if (source.startsWith("http://") || source.startsWith("https://")) {
-    const response = await fetch(source, { signal: AbortSignal.timeout(30_000) });
+    const response = await fetch(source, {
+      signal: AbortSignal.timeout(30_000),
+    });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     return response.json();
   }
@@ -185,7 +357,9 @@ async function main() {
   try {
     spec = await loadSpec(specSource);
   } catch (error) {
-    console.error(`could not read the API reference at ${specSource}: ${error.message}`);
+    console.error(
+      `could not read the API reference at ${specSource}: ${error.message}`,
+    );
     return 1;
   }
 
@@ -220,18 +394,23 @@ async function main() {
     }
     if (missing.size) {
       if (surface.missingIsFatal === false) {
-        console.log(`note: ${surface.name}: ${surface.missingMeans}:${listing(missing)}\n`);
+        console.log(
+          `note: ${surface.name}: ${surface.missingMeans}:${listing(missing)}\n`,
+        );
       } else {
         lines.push(`  ${surface.missingMeans}:${listing(missing)}`);
         fatal = true;
       }
     }
     if (stale.size) {
-      lines.push(`  exempted here but no longer in the API (drop the exemption):${listing(stale)}`);
+      lines.push(
+        `  exempted here but no longer in the API (drop the exemption):${listing(stale)}`,
+      );
       fatal = true;
     }
 
-    if (fatal) problems.push(`${surface.name} — ${surface.where}\n${lines.join("\n")}`);
+    if (fatal)
+      problems.push(`${surface.name} — ${surface.where}\n${lines.join("\n")}`);
   }
 
   if (problems.length) {
@@ -240,7 +419,9 @@ async function main() {
     return 1;
   }
 
-  console.log(`✓ task surface matches the published reference (${SURFACES.length} surfaces)`);
+  console.log(
+    `✓ SDK surface matches the published reference (${SURFACES.length} surfaces)`,
+  );
   return 0;
 }
 

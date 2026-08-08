@@ -33,6 +33,17 @@ export interface ListParams {
 }
 
 /**
+ * Cursor paging without `include_total`, for the routes that do not compute
+ * one. Counting the full match set is not free on the append-only telemetry
+ * stores, so `/v1/shares` and `/v1/events` deliberately do not offer it —
+ * inheriting the flag there would type a filter that silently does nothing.
+ */
+export interface CursorParams {
+  limit?: number;
+  next?: string;
+}
+
+/**
  * Response representation for the bounded telemetry list reads
  * (`GET /v1/conversations`, `GET /v1/events`). `"json"` (the default)
  * returns the {@link Paginated} envelope; `"arrow"` negotiates an Apache
@@ -336,8 +347,16 @@ export interface ResourceShare {
   resource_id: string;
   /** Member-targeted grant; `null` means a project-wide grant (everyone). */
   granted_member_id?: Uuid | null;
+  /**
+   * Identity-targeted grant — an asserted end-user identity rather than a
+   * member. Mutually exclusive with `granted_member_id`; both null means a
+   * project-wide grant.
+   */
+  granted_identity_key?: string | null;
   /** Grantor (always a member) — the revoke gate. */
   created_by_member_id: Uuid;
+  /** Grantor's coalesced identity, when the creator asserted one. */
+  created_by_identity_key?: string | null;
   /**
    * Fully-qualified canonical GET URL for the shared resource, carrying the
    * `?share_id` capability (e.g. `…/v1/files/{id}?share_id=…`). Always present on
@@ -346,15 +365,21 @@ export interface ResourceShare {
   url: string;
 }
 
-/** Omit `granted_member_id` for a project-wide grant; set it to target one member. */
+/**
+ * Set exactly one of `granted_member_id` / `granted_identity_key` to target a
+ * recipient, or omit both for a project-wide grant. The two are mutually
+ * exclusive; supplying both is rejected.
+ */
 export interface ShareCreateParams {
   resource_type: ShareResourceType;
   resource_id: string;
-  /** Target one member; omit for a project-wide grant (everyone in the project). */
+  /** Target one member. */
   granted_member_id?: Uuid;
+  /** Target one asserted end-user identity. */
+  granted_identity_key?: string;
 }
 
-export interface ShareListParams extends ListParams {
+export interface ShareListParams extends CursorParams {
   resource_type?: ShareResourceType;
   resource_id?: string;
   /** Only shares the caller created. */
@@ -432,22 +457,6 @@ export interface Recipe {
   created_by_member_id: Uuid;
   created_at: IsoDate;
   updated_at: IsoDate;
-}
-
-export interface RecipeCreate {
-  project: string;
-  repository_id: Uuid;
-  name: string;
-  git_ref: string;
-  git_commit_sha: string;
-  sub_path?: string;
-  slug?: string;
-  description?: string;
-}
-
-export interface RecipeUpdate {
-  name?: string;
-  description?: string;
 }
 
 export interface RecipeListParams extends ListParams {
@@ -534,42 +543,6 @@ export interface Experiment {
   halted_reason?: string | null;
   created_at: IsoDate;
   updated_at: IsoDate;
-}
-
-/**
- * `POST /v1/experiments` body. Creates a draft that routes nothing until
- * `start`. `arms` takes 2–20 runtime versions sharing one Runtime.
- */
-interface ExperimentCreateBase {
-  project: string;
-  name: string;
-  arms: ExperimentArm[];
-  goal_json: ExperimentGoal;
-  description?: string;
-  environment?: string;
-  scoring_interval_seconds?: number;
-  hash_key_fields?: string[];
-  sample_rate?: number;
-}
-
-/** Name the Runtime canonically by slug/group id, or use the legacy group-id spelling. */
-export type ExperimentCreate = ExperimentCreateBase &
-  (
-    | { runtime: string; runtime_group_id?: never }
-    | { runtime?: never; runtime_group_id: Uuid }
-  );
-
-/**
- * `PATCH /v1/experiments/{id}`. Status transitions use start/end/cancel;
- * `runtime_group_id` and `arms` are immutable once running.
- */
-export interface ExperimentUpdate {
-  name?: string;
-  description?: string;
-  goal_json?: ExperimentGoal;
-  scoring_interval_seconds?: number;
-  hash_key_fields?: string[];
-  sample_rate?: number;
 }
 
 export interface ExperimentListParams extends ListParams {
@@ -984,7 +957,7 @@ export type EventSortField =
  * 422 naming the family). All filters are combined with AND logic;
  * date-range filters are inclusive.
  */
-export interface EventListParams extends ListParams, ReadWindowParams {
+export interface EventListParams extends CursorParams, ReadWindowParams {
   /**
    * The family to list — required, exactly one. Unknown strings are
    * allowed for forward compatibility and type the rows as

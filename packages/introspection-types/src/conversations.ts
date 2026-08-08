@@ -35,7 +35,7 @@
  * semantic conventions and the server models verbatim.
  */
 
-import type { IsoDate, ListParams, ReadWindowParams, Uuid } from "./api.js";
+import type { CursorParams, IsoDate, ReadWindowParams, Uuid } from "./api.js";
 import type {
   InputMessage,
   OutputMessage,
@@ -513,10 +513,10 @@ export function genAiOutputMessages(span: GenAiSpan): OutputMessage[] {
 
 /**
  * Query params for `GET /v1/conversations` (cursor paging — `limit` /
- * `next` come from {@link ListParams}). All filters are optional and
+ * `next` come from {@link CursorParams}). All filters are optional and
  * combined with AND logic; date range filters are inclusive.
  */
-export interface ConversationListParams extends ListParams, ReadWindowParams {
+export interface ConversationListParams extends CursorParams, ReadWindowParams {
   /** Filter: conversation ID (exact match). */
   conversation_id?: string;
   /** Summary field to order by (server default `"created"`). */
@@ -580,6 +580,117 @@ export interface ConversationItemListParams {
 }
 
 /**
+ * Query params for `GET /v1/conversations/{id}/export`.
+ *
+ * The export is a complete, server-assembled conversation, so it carries
+ * no pagination: these are filters over what gets assembled, not a page
+ * window.
+ */
+export interface ConversationExportParams {
+  /**
+   * Agent selector. `"root"` returns the depth-zero transcript; an exact
+   * agent id returns that invocation. Omit for the complete conversation.
+   */
+  agent?: string;
+  /** Filter items by service name (exact match). */
+  service_name?: string;
+  /** Filter items by operation name (exact match). */
+  operation_name?: string;
+  /** Partition lookback bound in days (1-365). */
+  lookback_days?: number;
+  /** Read via a `/v1/shares` grant for this conversation. */
+  share_id?: Uuid;
+}
+
+/**
+ * One tool invocation inside a {@link TrajectoryAssistantRecord}.
+ *
+ * `args` is a **JSON-encoded string**, not an object — that is the
+ * upstream trajectory-v1 contract, not an oversight here. The encoded
+ * value is an object; a malformed or scalar source value arrives as
+ * `{"_raw": ...}` so the evidence survives without breaking the schema.
+ */
+export interface TrajectoryToolCall {
+  /** Identifier linking this call to its {@link TrajectoryToolRecord}. */
+  id: string;
+  /** Tool/function name. */
+  name: string;
+  /** JSON-encoded arguments object. */
+  args: string;
+}
+
+/** Leading record identifying the session the trajectory came from. */
+export interface TrajectoryMetaRecord {
+  role: "meta";
+  /** Harness that produced the session, e.g. `"claude-code"`. */
+  source: string;
+  cwd?: string;
+  git_branch?: string;
+  model?: string;
+}
+
+/** A user turn. */
+export interface TrajectoryUserRecord {
+  role: "user";
+  content: string;
+  /** ISO-8601 timestamp. */
+  timestamp: string;
+}
+
+/** Model reasoning, when the source exposed it. */
+export interface TrajectoryReasoningRecord {
+  role: "reasoning";
+  content: string;
+  /** ISO-8601 timestamp. */
+  timestamp: string;
+}
+
+/**
+ * An assistant turn — prose, or tool calls, never both.
+ *
+ * The two are distinguished by `content`: a prose record carries text and
+ * no `tool_calls`; a tool-call record carries `content: null`. That null
+ * is load-bearing and is always present on the wire, so it is typed as
+ * `string | null` rather than optional.
+ */
+export interface TrajectoryAssistantRecord {
+  role: "assistant";
+  content: string | null;
+  /** ISO-8601 timestamp. */
+  timestamp: string;
+  /** Present only on a tool-call record, and then never empty. */
+  tool_calls?: TrajectoryToolCall[];
+}
+
+/** A tool result, linked to its call by `tool_call_id`. */
+export interface TrajectoryToolRecord {
+  role: "tool";
+  tool_call_id: string;
+  content: string;
+  /** ISO-8601 timestamp. */
+  timestamp: string;
+  /** Source-native success status; absent when the source exposes none. */
+  ok?: boolean;
+}
+
+/** One record in a trajectory-v1 export, discriminated by `role`. */
+export type TrajectoryRecord =
+  | TrajectoryMetaRecord
+  | TrajectoryUserRecord
+  | TrajectoryReasoningRecord
+  | TrajectoryAssistantRecord
+  | TrajectoryToolRecord;
+
+/**
+ * The trajectory-v1 wire shape: a non-empty top-level array of records.
+ *
+ * This is a projection derived on read from the stored GenAI messages, not
+ * a second storage format, so it is available for export only — nothing
+ * accepts a trajectory as input.
+ */
+export type Trajectory = TrajectoryRecord[];
+
+/**
  * The read-only Conversations API surface, with the paging style each
  * method uses:
  *
@@ -597,6 +708,11 @@ export const ConversationsMethods = {
   "items.get": {
     method: "GET",
     path: "/v1/conversations/{conversation_id}/items/{item_id}",
+    paging: "none",
+  },
+  export: {
+    method: "GET",
+    path: "/v1/conversations/{conversation_id}/export",
     paging: "none",
   },
 } as const;
