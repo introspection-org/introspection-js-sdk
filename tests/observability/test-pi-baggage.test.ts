@@ -39,7 +39,7 @@ describe("Pi Agent SDK baggage — real Agent against Polly-recorded Anthropic",
   let polly: Polly | null = null;
   let disposeOTel: (() => void) | null = null;
 
-  // One Polly per file — see test-langchain-baggage.test.ts for the rationale.
+  // One Polly per file — Polly's global interception can't be scoped per test.
   beforeAll(async () => {
     try {
       await import("@earendil-works/pi-agent-core");

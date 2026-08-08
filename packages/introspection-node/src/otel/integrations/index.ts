@@ -32,8 +32,8 @@ const BUILTIN_INTEGRATIONS: ReadonlyArray<
 ];
 
 const installed = new Set<string>();
-// Teardown callbacks returned by integration setupOnce (e.g. uninstrument a
-// prototype patch), run by teardownIntegrations() on shutdown.
+// Teardown callbacks returned by integration setupOnce (e.g. detach a
+// framework hook), run by teardownIntegrations() on shutdown.
 const teardowns: Array<() => void> = [];
 
 async function availableIntegrations(

@@ -362,7 +362,7 @@ export async function shutdown(): Promise<void> {
       logger.debug(`Error shutting down provider: ${String(e)}`);
     }
   }
-  // Run integration teardowns (uninstrument prototype patches) + clear the
+  // Run integration teardowns + clear the
   // run-once guard so a later init() re-installs and rebuilds the handles
   // against the new provider instead of being skipped.
   teardownIntegrations();

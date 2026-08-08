@@ -125,7 +125,7 @@ export interface Integration {
   readonly identifier: string;
   /**
    * Identifiers of other integrations to disable when this one is active, so a
-   * wrapping framework (e.g. LangChain) does not double-trace the SDK it wraps.
+   * wrapping framework does not double-trace the SDK it wraps.
    */
   readonly deactivates?: readonly string[];
   /**
@@ -136,8 +136,8 @@ export interface Integration {
   isAvailable?(): boolean | Promise<boolean>;
   /**
    * Wire the framework into the shared pipeline. Runs once; may throw
-   * {@link DidNotEnable}. May return a teardown callback (e.g. to uninstrument a
-   * prototype patch) that `introspection.shutdown()` runs so a later `init()`
+   * {@link DidNotEnable}. May return a teardown callback (e.g. to detach a
+   * framework hook) that `introspection.shutdown()` runs so a later `init()`
    * re-installs cleanly against the rebuilt provider.
    */
   setupOnce(
