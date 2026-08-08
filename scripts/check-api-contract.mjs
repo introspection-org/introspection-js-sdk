@@ -331,6 +331,19 @@ const SURFACES = [
     extraMeans: "sent as a query parameter the API does not accept",
     missingMeans: "accepted by the API but not exposed here",
   },
+  // The items route is where the ordering bug hid: this SDK declared an
+  // `order` the route never accepted and omitted the window/share params it
+  // did, and no surface covered it. A sub-resource is still a route.
+  {
+    name: "ConversationItemListParams",
+    where: "GET /v1/conversations/{id}/items query parameters",
+    sdk: () => interfaceMembers(CONVERSATIONS, "ConversationItemListParams"),
+    server: (spec) =>
+      queryParameters(spec, "/v1/conversations/{conversation_id}/items", "get"),
+    missingIsFatal: true,
+    extraMeans: "sent as a query parameter the API does not accept",
+    missingMeans: "accepted by the API but not exposed here",
+  },
   // --- control plane -------------------------------------------------------
   {
     name: "ExperimentListParams",

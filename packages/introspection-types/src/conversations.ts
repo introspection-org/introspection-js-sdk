@@ -560,8 +560,6 @@ export interface ConversationItemListParams {
   limit?: number;
   /** Opaque cursor returned by the previous page. */
   next?: string;
-  /** Sort order for items (server default `"desc"`). */
-  order?: "asc" | "desc";
   /** Optional item expansions (repeated `include` param). */
   include?: ConversationItemInclude[];
   /**
@@ -575,8 +573,14 @@ export interface ConversationItemListParams {
   service_name?: string;
   /** Filter items by operation name (exact match). */
   operation_name?: string;
-  /** Filter items by existence of a raw attribute path. */
-  has_attribute?: string;
+  /** Lower bound on item start time (RFC 3339). */
+  start_date?: string;
+  /** Upper bound on item start time (RFC 3339). */
+  end_date?: string;
+  /** Relative window in days (1-365), instead of `start_date`/`end_date`. */
+  lookback_days?: number;
+  /** Read via a `/v1/shares` grant for this conversation. */
+  share_id?: string;
 }
 
 /**

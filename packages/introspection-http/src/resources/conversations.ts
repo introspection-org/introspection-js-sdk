@@ -36,8 +36,11 @@ export class ConversationItemsClient {
    * List items of a conversation. `await` the result for the first page
    * (an OpenAI-style {@link GenAiSpanList} envelope), or `for await` it to
    * stream every item across pages (fetched lazily — `limit` sets the page
-   * size, `next` the starting cursor; stop early to stop fetching). Pass
-   * `order: "asc"` to walk the transcript from the start.
+   * size, `next` the starting cursor; stop early to stop fetching).
+   *
+   * Items are always returned newest-first: the route hardcodes a
+   * descending sort and rejects a cursor that disagrees, so there is no
+   * ordering parameter. Collect the pages and reverse to read forwards.
    *
    * Items carry the turn-local delta in `attributes.gen_ai.input.messages`
    * — only the messages new to that turn. Use `get()` for the full input
@@ -208,7 +211,7 @@ export class ConversationsClient {
    * `null` when the conversation has no items.
    *
    * For the full per-turn transcript instead, iterate
-   * `items.list(conversationId, { order: "asc" })`.
+   * `items.list(conversationId)`, which is newest-first.
    */
   async retrieve(
     conversationId: string,
@@ -231,9 +234,8 @@ export class ConversationsClient {
     conversationId: string,
   ): Promise<string | null> {
     let fallback: GenAiSpan | null = null;
-    for await (const item of this.items.list(conversationId, {
-      order: "desc",
-    })) {
+    // The route is descending-only, so the first matching item is the latest.
+    for await (const item of this.items.list(conversationId)) {
       if (item.attributes.gen_ai?.operation?.name === "chat") {
         return item.span_id ?? null;
       }

@@ -172,7 +172,6 @@ describe("ConversationsApi", () => {
     const api = new ConversationsApi(http);
     const items = [];
     for await (const item of api.items.list("conv-1", {
-      order: "asc",
       include: ["events", "resource_attributes"],
     })) {
       items.push(item);
@@ -181,7 +180,8 @@ describe("ConversationsApi", () => {
     expect(http.request).toHaveBeenCalledWith({
       method: "GET",
       path: "/v1/conversations/conv-1/items",
-      query: { order: "asc", include: ["events", "resource_attributes"] },
+      // No ordering parameter: the route sorts descending and takes none.
+      query: { include: ["events", "resource_attributes"] },
     });
     expect(items).toHaveLength(1);
   });
@@ -229,7 +229,7 @@ describe("ConversationsApi", () => {
     await expect(consume()).rejects.toThrow("has_more without next");
   });
 
-  it("items.list() walks the ascending transcript when order=asc", async () => {
+  it("items.list() walks every page without an order param", async () => {
     const page1 = makePage([makeSpan("span-1")], true);
     const page2 = makePage([makeSpan("span-2")], false);
     const http = mockHttp();
@@ -239,14 +239,16 @@ describe("ConversationsApi", () => {
 
     const api = new ConversationsApi(http);
     const items = [];
-    for await (const item of api.items.list("conv-1", { order: "asc" })) {
+    for await (const item of api.items.list("conv-1")) {
       items.push(item);
     }
 
     expect(items.map((i) => i.span_id)).toEqual(["span-1", "span-2"]);
     const calls = (http.request as ReturnType<typeof vi.fn>).mock.calls;
-    expect(calls[0][0].query.order).toBe("asc");
-    expect(calls[1][0].query.order).toBe("asc");
+    // It used to send `order`, which the route silently dropped: a caller
+    // asking for "asc" got descending items and no error.
+    expect(calls[0][0].query.order).toBeUndefined();
+    expect(calls[1][0].query.order).toBeUndefined();
   });
 
   it("items.get() URL-encodes path segments", async () => {
@@ -281,7 +283,8 @@ describe("ConversationsApi", () => {
     const span = await api.retrieve("conv-1");
 
     const calls = (http.request as ReturnType<typeof vi.fn>).mock.calls;
-    expect(calls[0][0].query.order).toBe("desc");
+    // No ordering parameter is sent: the route is descending-only.
+    expect(calls[0][0].query.order).toBeUndefined();
     // No `include` to remember: the detail read returns the full history
     // unconditionally. A parameter that is always required is a trap.
     expect(calls[1][0]).toEqual({
