@@ -155,12 +155,17 @@ for await (const summary of client.conversations.list()) {
 // Resolve the latest turn of a conversation (Responses-API shape)
 const turn = await client.conversations.retrieve(conversationId);
 console.log(turn?.output_messages);
+
+// Complete exports — server-owned pagination, buffered or raw streaming
+const json = await client.conversations.exportJson(conversationId);
+const stream = await client.conversations.exportStream(conversationId, "json");
 ```
 
 `client.files` mirrors the Node SDK's `FilesApi` (`list` / `upload` /
 `createText` / `get` / `update` / `delete` / `download` / `downloadStream`,
 plus `files.versions`). `client.conversations` mirrors `ConversationsApi`
-(`list`, `retrieve`, and `conversations.items.list()` / `.get()`). Both `list`
+(`list`, `retrieve`, `exportJson`, `exportArrow`, `exportTrajectory`,
+`exportStream`, and `conversations.items.list()` / `.get()`). Both `list`
 helpers return a `Paginator` — `await` it for the first page or `for await` it
 to auto-page.
 

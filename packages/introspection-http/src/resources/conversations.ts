@@ -23,6 +23,8 @@ import {
 } from "./reads.js";
 import type { ResourceHttpClient } from "./types.js";
 
+export type ConversationExportFormat = "json" | "arrow" | "trajectory";
+
 /**
  * Items of a conversation (`/v1/conversations/{id}/items`). Read-only.
  *
@@ -146,13 +148,55 @@ export class ConversationsClient {
   }
 
   /**
+   * Export one complete conversation as the standard GenAI-span list.
+   * The server owns its internal 1,000-row pagination.
+   */
+  async exportJson(
+    conversationId: string,
+    params?: ConversationExportParams,
+  ): Promise<GenAiSpanList> {
+    const result = await this.http.request<GenAiSpanList>({
+      method: "GET",
+      path: `/v1/conversations/${encodeURIComponent(conversationId)}/export`,
+      query: params as Record<string, unknown> | undefined,
+      headers: { Accept: "application/json" },
+    });
+    return { ...result, data: result.data.map(normalizeSpan) };
+  }
+
+  /**
+   * Return the raw complete-export byte stream without buffering it in the SDK.
+   * Use this for direct file writes or custom incremental decoders.
+   */
+  exportStream(
+    conversationId: string,
+    format: ConversationExportFormat,
+    params?: ConversationExportParams,
+    signal?: AbortSignal,
+  ): Promise<ReadableStream<Uint8Array>> {
+    const accept =
+      format === "arrow"
+        ? ARROW_STREAM_MEDIA_TYPE
+        : format === "trajectory"
+          ? `${TRAJECTORY_MEDIA_TYPE};version=1`
+          : "application/json";
+    return this.http.request<ReadableStream<Uint8Array>>({
+      method: "GET",
+      path: `/v1/conversations/${encodeURIComponent(conversationId)}/export`,
+      query: params as Record<string, unknown> | undefined,
+      headers: { Accept: accept },
+      expect: "stream",
+      signal,
+    });
+  }
+
+  /**
    * Export one complete conversation as trajectory-v1: a non-empty array
    * of `meta` / `user` / `reasoning` / `assistant` / `tool` records.
    *
-   * This is not the paginated {@link ConversationItemsClient.list} read in
-   * another coat. The export is assembled server-side over the whole
-   * conversation, so it has no cursor and no page bound — the params are
-   * filters on what gets assembled.
+   * The server streams its internal pages into one response; this convenience
+   * method parses that response into a complete typed array. Use
+   * {@link exportStream} to consume raw bytes incrementally.
    *
    * The trajectory is a projection derived on read from the stored GenAI
    * messages, so a conversation that cannot be represented as trajectory-v1
@@ -174,9 +218,8 @@ export class ConversationsClient {
   /**
    * Export one complete conversation as a single Apache Arrow `Table`.
    *
-   * Unlike {@link listArrow}, this is one table for the whole conversation
-   * rather than an async iterable of pages: the export route assembles the
-   * complete conversation server-side and streams it in one response.
+   * Unlike {@link listArrow}, this returns one table for the whole conversation.
+   * Use {@link exportStream} to avoid buffering the Arrow response in the SDK.
    *
    * Requires the optional `apache-arrow` peer dependency.
    */
