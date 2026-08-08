@@ -138,12 +138,7 @@ const SURFACES = [
     // Runner-bound: the credential's claim is authoritative for runtime
     // selection and the API ignores a body `runtime_id` from such a caller, so
     // exposing it would be a field that silently does nothing.
-    exempt: ["runtime_id", "repository_id"],
-    // `repository_id` is retired from the public create body: the API accepted
-    // it, stamped it into task metadata, and read it nowhere. Listed here so
-    // the check stays green against a published reference that still declares
-    // it; once the reference catches up, the stale-exemption rule fails and
-    // this line comes out.
+    exempt: ["runtime_id"],
     extraMeans:
       "declared here but not accepted by the API (rejected with a 422 — the create body forbids undeclared fields)",
     missingMeans: "accepted by the API but unavailable to callers of this SDK",
@@ -157,12 +152,6 @@ const SURFACES = [
     // folds it into `metadata.identity`, which the API reads only when the
     // caller's token carries no identity claim of its own.
     allowedExtra: ["identity"],
-    exempt: ["repository_id"],
-    // `repository_id` is retired from the public create body: the API accepted
-    // it, stamped it into task metadata, and read it nowhere. Listed here so
-    // the check stays green against a published reference that still declares
-    // it; once the reference catches up, the stale-exemption rule fails and
-    // this line comes out.
     extraMeans:
       "declared here but not accepted by the API (rejected with a 422 — the create body forbids undeclared fields)",
     missingMeans: "accepted by the API but unavailable to callers of this SDK",
@@ -182,9 +171,7 @@ const SURFACES = [
     sdk: () => interfaceMembers(TYPES, "TaskRunCreateParams"),
     server: (spec) => schemaProperties(spec, "TaskRunCreate"),
     // `resume` is a separate typed call on this client, not a field here.
-    // `message` was the legacy shorthand for `prompt.text`, retired from the
-    // API in the same cycle; the exemption self-clears as above.
-    exempt: ["resume", "message"],
+    exempt: ["resume"],
     extraMeans: "declared here but not accepted by the API",
     missingMeans: "accepted by the API but unavailable to callers of this SDK",
   },
@@ -365,6 +352,21 @@ const SURFACES = [
     server: (spec) => queryParameters(spec, "/v1/recipes", "get"),
     exempt: ["project_id"],
     missingIsFatal: false,
+    extraMeans: "sent as a query parameter the API does not accept",
+    missingMeans: "accepted by the API but not exposed here",
+  },
+  // The last list surface without a declaration, and it had drifted: this
+  // SDK offered `only_active` and `exclude_yanked` filters the route never
+  // accepted, so they rode along as query parameters the server discarded
+  // and the caller's filter silently did nothing.
+  {
+    name: "RuntimeListParams",
+    where: "GET /v1/runtimes query parameters",
+    plane: "cp",
+    sdk: () => interfaceMembers(TYPES, "RuntimeListParams"),
+    server: (spec) => queryParameters(spec, "/v1/runtimes", "get"),
+    exempt: ["project_id"],
+    missingIsFatal: true,
     extraMeans: "sent as a query parameter the API does not accept",
     missingMeans: "accepted by the API but not exposed here",
   },

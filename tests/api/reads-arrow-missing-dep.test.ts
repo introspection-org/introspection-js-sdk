@@ -5,7 +5,7 @@ import { EventsApi, HttpClient } from "@introspection-sdk/introspection-node";
 // dynamic `import("apache-arrow")` inside `loadArrow()` (reads.ts) rejects,
 // and the catch must rethrow a clear, actionable install message from BOTH
 // Arrow consumers — the row-oriented `format: "arrow"` list decode and the
-// columnar `.arrow()` accessor. This lives in its own file so the throwing
+// columnar `.listArrow()` accessor. This lives in its own file so the throwing
 // module mock is isolated from the tests that build real IPC streams. The
 // mock factory throwing rejects the dynamic import.
 vi.mock("apache-arrow", () => {
@@ -48,7 +48,7 @@ describe("Arrow reads without apache-arrow installed", () => {
     const api = new EventsApi(http);
 
     const iterate = async () => {
-      for await (const table of api.arrow({
+      for await (const table of api.listArrow({
         event_name: "introspection.feedback",
       })) {
         void table;
@@ -62,7 +62,7 @@ describe("Arrow reads without apache-arrow installed", () => {
     const api = new EventsApi(http);
 
     await expect(
-      api.arrow({ event_name: "introspection.feedback" }).readAll(),
+      api.listArrow({ event_name: "introspection.feedback" }).readAll(),
     ).rejects.toThrow(INSTALL_MESSAGE);
   });
 });

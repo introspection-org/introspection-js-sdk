@@ -55,7 +55,7 @@ function requireEventNameAtCompileTime(api: EventsApi): void {
   // @ts-expect-error — `event_name` is a required param of list()
   void api.list();
   // @ts-expect-error — `event_name` is a required param of arrow()
-  void api.arrow({ limit: 5 });
+  void api.listArrow({ limit: 5 });
 }
 void requireEventNameAtCompileTime;
 
@@ -508,7 +508,7 @@ describe("EventsApi.arrow — columnar accessor", () => {
     const api = new EventsApi(http);
 
     const tables: arrow.Table[] = [];
-    for await (const table of api.arrow({
+    for await (const table of api.listArrow({
       event_name: "introspection.feedback",
       limit: 2,
     })) {
@@ -553,7 +553,7 @@ describe("EventsApi.arrow — columnar accessor", () => {
     const api = new EventsApi(http);
 
     const table = await api
-      .arrow({ event_name: "introspection.feedback" })
+      .listArrow({ event_name: "introspection.feedback" })
       .readAll();
 
     expect(table).toBeInstanceOf(arrow.Table);
@@ -573,7 +573,7 @@ describe("EventsApi.arrow — columnar accessor", () => {
     });
     const api = new EventsApi(http);
     const table = await api
-      .arrow({ event_name: "introspection.feedback" })
+      .listArrow({ event_name: "introspection.feedback" })
       .readAll();
     expect(table.numRows).toBe(0);
   });
