@@ -472,7 +472,7 @@ async function main() {
 
   if (problems.length) {
     console.error(problems.join("\n\n"));
-    console.error(`\nreference: ${specSource}`);
+    console.error(`\nreference: ${specSource} + ${cpSpecSource}`);
     return 1;
   }
 
