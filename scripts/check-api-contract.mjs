@@ -117,11 +117,14 @@ const schemaProperties = (spec, name) => {
   return new Set(Object.keys(schema.properties ?? {}));
 };
 
+// Query parameters only. A templated route also declares its path segments as
+// parameters, and counting those would report a path argument the caller passes
+// positionally as a query parameter the SDK forgot.
 const queryParameters = (spec, path, method) => {
   const params = spec.paths?.[path]?.[method]?.parameters;
   if (!params)
     throw new Error(`the reference has no parameters for ${method} ${path}`);
-  return new Set(params.map((p) => p.name));
+  return new Set(params.filter((p) => p.in === "query").map((p) => p.name));
 };
 
 const SURFACES = [
@@ -308,6 +311,21 @@ const SURFACES = [
     // `format`, which selects Arrow via the Accept header.
     allowedExtra: ["order", "start", "end", "lookback", "format"],
     missingIsFatal: false,
+    extraMeans: "sent as a query parameter the API does not accept",
+    missingMeans: "accepted by the API but not exposed here",
+  },
+  // The export route needs its own surface. Widening the check still left
+  // every route this SDK had just *gained* unchecked, so the conversation
+  // export shipped without `start_date`/`end_date` and nothing noticed: a
+  // guard that covers only what already existed goes blind exactly where new
+  // code lands.
+  {
+    name: "ConversationExportParams",
+    where: "GET /v1/conversations/{id}/export query parameters",
+    sdk: () => interfaceMembers(CONVERSATIONS, "ConversationExportParams"),
+    server: (spec) =>
+      queryParameters(spec, "/v1/conversations/{conversation_id}/export", "get"),
+    missingIsFatal: true,
     extraMeans: "sent as a query parameter the API does not accept",
     missingMeans: "accepted by the API but not exposed here",
   },

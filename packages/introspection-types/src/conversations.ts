@@ -600,6 +600,16 @@ export interface ConversationExportParams {
   lookback_days?: number;
   /** Read via a `/v1/shares` grant for this conversation. */
   share_id?: Uuid;
+  /**
+   * Lower bound on which records are assembled (ISO 8601).
+   *
+   * Named for the wire rather than aliased to `start`/`end` like the list
+   * params, because this route's relative window is the separate
+   * `lookback_days` integer.
+   */
+  start_date?: string;
+  /** Upper bound on which records are assembled (ISO 8601). */
+  end_date?: string;
 }
 
 /**
