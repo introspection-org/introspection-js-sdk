@@ -177,7 +177,6 @@ export interface TaskCreateParams {
   prompt?: string;
   /** Recipe agent to run; omit for the recipe default (`agents/agent.yaml`). */
   agent_name?: string;
-  repository_id?: Uuid;
   /**
    * Workspace repositories to clone into the sandbox's `workspace/repos/`
    * before the first turn, at most 10.
@@ -230,7 +229,6 @@ export type TaskRunKind = "prompt" | "steer";
 
 export interface TaskRunCreateParams {
   prompt?: TaskPrompt;
-  message?: string;
   kind?: TaskRunKind;
   metadata?: Record<string, unknown>;
   /**
