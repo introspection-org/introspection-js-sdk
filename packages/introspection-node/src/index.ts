@@ -99,7 +99,7 @@ export type {
   TaskCreateParams,
   TaskUpdateParams,
   TaskListParams,
-  TaskMode,
+  TaskKind,
   TaskStatus,
   TaskRunKind,
   TaskPrompt,

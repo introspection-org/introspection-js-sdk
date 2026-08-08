@@ -79,17 +79,16 @@ export interface ReadWindowParams {
 
 // --- tasks ---
 
-export type TaskMode =
-  | "agent"
-  | "introspect"
-  | "system_review"
-  | "system_instrumentation"
-  | "observation_review"
-  | "security_review"
-  | "repo_index"
-  | "system_discovery"
-  | "onboarding"
-  | "heartbeat";
+/**
+ * The execution shape of a task.
+ *
+ * `agent` boots the runtime-agent image and runs an interactive LLM agent;
+ * `process` runs a one-shot baked script and reports through the same
+ * completion path. This replaced the retired `TaskMode`: there are no task
+ * modes any more — every agent task is a conversation, and the recipe agent is
+ * selected by `agent_name`.
+ */
+export type TaskKind = "agent" | "process";
 
 export type TaskStatus =
   | "pending"
@@ -116,7 +115,7 @@ export interface Task {
   updated_at: IsoDate;
   title?: string | null;
   display_index?: number | null;
-  mode: TaskMode;
+  kind: TaskKind;
   status: TaskStatus;
   member_id?: Uuid | null;
   automation_id?: Uuid | null;
@@ -156,8 +155,8 @@ export interface TaskFileRef {
 export interface TaskCreateParams {
   title?: string;
   prompt?: string;
-  mode?: TaskMode;
-  system_id?: string;
+  /** Recipe agent to run; omit for the recipe default (`agents/agent.yaml`). */
+  agent_name?: string;
   repository_id?: Uuid;
   metadata?: Record<string, unknown>;
   /**
@@ -192,7 +191,6 @@ export interface TaskUpdateParams {
 
 export interface TaskListParams extends ListParams {
   statuses?: TaskStatus[];
-  modes?: TaskMode[];
   require_automation_id?: boolean;
   /** Privileged credentials only: audit a specific owner identity. */
   identity_key?: string;
