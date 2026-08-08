@@ -42,7 +42,7 @@ const TASK_FIXTURE = {
   project_id: "proj-1",
   created_at: "2025-01-01T00:00:00Z",
   updated_at: "2025-01-01T00:00:00Z",
-  mode: "agent" as const,
+  kind: "agent" as const,
   status: "running" as const,
   is_archived: false,
 };
@@ -516,8 +516,8 @@ describe("IntrospectionApiClient", () => {
 describe("environment-scoped sessions", () => {
   // The DP session cookie is named for its environment lane, so an app running
   // several lanes holds a live session for each in one browser. When more than
-  // one is present the DP cannot tell which a request means, so the client
-  // names it. See cloud docs/design/environment-scoped-browser-sessions.md.
+  // one is present the server cannot tell which a request means, so the
+  // client names it.
 
   function exchangeReturning(environment?: string) {
     return mockFetch({

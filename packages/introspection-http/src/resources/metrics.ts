@@ -14,8 +14,7 @@ import type { ResourceHttpClient } from "./types.js";
  * cursor-paginated envelope: aggregation, faceting, bucketing, and
  * percentiles all go through this one route. The request carries its own
  * explicit window (`from_timestamp` / `to_timestamp`), so it does not use
- * the ergonomic `lookback`/`start`/`end` params of the list reads. See
- * cloud `docs/design/metrics-api.md`.
+ * the ergonomic `lookback`/`start`/`end` params of the list reads.
  */
 export class MetricsClient {
   constructor(private readonly http: ResourceHttpClient) {}

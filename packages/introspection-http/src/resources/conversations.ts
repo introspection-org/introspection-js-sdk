@@ -1,5 +1,6 @@
 import type {
   Conversation,
+  ConversationExportParams,
   ConversationItemInclude,
   ConversationItemListParams,
   ConversationListParams,
@@ -7,10 +8,19 @@ import type {
   GenAiSpanList,
   MessagePart,
   ToolCallResponsePart,
+  Trajectory,
 } from "@introspection-sdk/types";
 import { genAiOutputMessages } from "@introspection-sdk/types";
 import { Paginator } from "../pagination.js";
-import { ArrowPages, arrowRead, listRead } from "./reads.js";
+import type { Table } from "apache-arrow";
+import {
+  ARROW_STREAM_MEDIA_TYPE,
+  TRAJECTORY_MEDIA_TYPE,
+  ArrowPages,
+  arrowRead,
+  listRead,
+  loadArrow,
+} from "./reads.js";
 import type { ResourceHttpClient } from "./types.js";
 
 /**
@@ -130,6 +140,56 @@ export class ConversationsClient {
    */
   arrow(params?: Omit<ConversationListParams, "format">): ArrowPages {
     return arrowRead(this.http, "/v1/conversations", params);
+  }
+
+  /**
+   * Export one complete conversation as trajectory-v1: a non-empty array
+   * of `meta` / `user` / `reasoning` / `assistant` / `tool` records.
+   *
+   * This is not the paginated {@link ConversationItemsClient.list} read in
+   * another coat. The export is assembled server-side over the whole
+   * conversation, so it has no cursor and no page bound — the params are
+   * filters on what gets assembled.
+   *
+   * The trajectory is a projection derived on read from the stored GenAI
+   * messages, so a conversation that cannot be represented as trajectory-v1
+   * fails with a `ValidationError` rather than returning a partial export.
+   * A conversation with no exportable records is a `NotFoundError`.
+   */
+  async exportTrajectory(
+    conversationId: string,
+    params?: ConversationExportParams,
+  ): Promise<Trajectory> {
+    return this.http.request<Trajectory>({
+      method: "GET",
+      path: `/v1/conversations/${encodeURIComponent(conversationId)}/export`,
+      query: params as Record<string, unknown> | undefined,
+      headers: { Accept: `${TRAJECTORY_MEDIA_TYPE};version=1` },
+    });
+  }
+
+  /**
+   * Export one complete conversation as a single Apache Arrow `Table`.
+   *
+   * Unlike {@link arrow}, this is one table for the whole conversation
+   * rather than an async iterable of pages: the export route assembles the
+   * complete conversation server-side and streams it in one response.
+   *
+   * Requires the optional `apache-arrow` peer dependency.
+   */
+  async exportArrow(
+    conversationId: string,
+    params?: ConversationExportParams,
+  ): Promise<Table> {
+    const res = await this.http.stream({
+      path: `/v1/conversations/${encodeURIComponent(conversationId)}/export`,
+      query: params as Record<string, unknown> | undefined,
+      headers: { Accept: ARROW_STREAM_MEDIA_TYPE },
+    });
+    const bytes = new Uint8Array(await res.arrayBuffer());
+    const arrow = await loadArrow();
+    if (bytes.byteLength === 0) return new arrow.Table();
+    return arrow.tableFromIPC(bytes);
   }
 
   /**

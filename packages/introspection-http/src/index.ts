@@ -55,9 +55,11 @@ export { MetricsApi, MetricsClient } from "./resources/metrics.js";
 export {
   ARROW_STREAM_MEDIA_TYPE,
   ArrowPages,
+  TRAJECTORY_MEDIA_TYPE,
   arrowRead,
   fetchArrowPage,
   listRead,
+  loadArrow,
   serializeReadParams,
 } from "./resources/reads.js";
 export type { ListReadParams } from "./resources/reads.js";

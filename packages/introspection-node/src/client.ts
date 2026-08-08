@@ -64,14 +64,15 @@ export class IntrospectionClient {
   readonly runtimes: RuntimesApi & RuntimeHandleFactory;
 
   /**
-   * CRUD on `/v1/experiments` and the `(id) => ExperimentHandle` factory.
+   * Reads on `/v1/experiments` plus the `(id) => ExperimentHandle` factory
+   * for run lifecycle. Authoring experiment definitions is a CLI action.
    */
   readonly experiments: ExperimentsApi & ExperimentHandleFactory;
 
   /**
-   * CRUD on `/v1/recipes`. Recipes are immutable build artefacts
+   * Reads on `/v1/recipes`. Recipes are immutable build artefacts
    * (repository + git ref + commit sha) referenced by runtimes and
-   * experiment arms.
+   * experiment arms; authoring them is a CLI action.
    */
   readonly recipes: RecipesApi;
 

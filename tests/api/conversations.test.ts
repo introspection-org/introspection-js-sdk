@@ -8,6 +8,7 @@ import type {
   Conversation,
   GenAiSpan,
   GenAiSpanList,
+  Trajectory,
 } from "@introspection-sdk/introspection-node";
 
 function mockHttp(overrides: Record<string, unknown> = {}) {
@@ -537,5 +538,96 @@ describe("ConversationsApi.arrow — columnar accessor", () => {
     });
     expect(table.numRows).toBe(3);
     expect(table.getChild("conversation_id")?.get(0)).toBe("c-1");
+  });
+});
+
+describe("conversations export", () => {
+  const TRAJECTORY: Trajectory = [
+    { role: "meta", source: "claude-code", model: "opus" },
+    { role: "user", content: "fix the bug", timestamp: "2025-01-01T00:00:00Z" },
+    {
+      role: "assistant",
+      content: null,
+      timestamp: "2025-01-01T00:00:01Z",
+      tool_calls: [{ id: "call_1", name: "edit", args: '{"path":"a.py"}' }],
+    },
+    {
+      role: "tool",
+      tool_call_id: "call_1",
+      content: "ok",
+      timestamp: "2025-01-01T00:00:02Z",
+      ok: true,
+    },
+    { role: "assistant", content: "done", timestamp: "2025-01-01T00:00:03Z" },
+  ];
+
+  it("negotiates trajectory v1 and returns the typed record array", async () => {
+    const http = mockHttp({ requestResult: TRAJECTORY });
+    const api = new ConversationsApi(http);
+
+    const records = await api.exportTrajectory("conv-1");
+
+    const call = (http.request as ReturnType<typeof vi.fn>).mock.calls[0][0];
+    expect(call.path).toBe("/v1/conversations/conv-1/export");
+    // The version parameter is load-bearing: without it a server serving a
+    // different trajectory version would be indistinguishable from v1.
+    expect(call.headers.Accept).toBe(
+      "application/vnd.letta.trajectory+json;version=1",
+    );
+
+    expect(records.map((r) => r.role)).toEqual([
+      "meta",
+      "user",
+      "assistant",
+      "tool",
+      "assistant",
+    ]);
+    const toolCall = records[2];
+    if (toolCall.role !== "assistant") throw new Error("expected assistant");
+    // `content: null` is what distinguishes a tool-call record from prose.
+    expect(toolCall.content).toBeNull();
+    expect(toolCall.tool_calls?.[0].args).toBe('{"path":"a.py"}');
+  });
+
+  it("sends filters and never a cursor or page bound", async () => {
+    const http = mockHttp({ requestResult: TRAJECTORY });
+    await new ConversationsApi(http).exportTrajectory("conv-1", {
+      agent: "root",
+      service_name: "svc",
+      lookback_days: 7,
+    });
+
+    const call = (http.request as ReturnType<typeof vi.fn>).mock.calls[0][0];
+    expect(call.query).toEqual({
+      agent: "root",
+      service_name: "svc",
+      lookback_days: 7,
+    });
+    // The export is assembled server-side over the whole conversation.
+    expect(call.query).not.toHaveProperty("limit");
+    expect(call.query).not.toHaveProperty("next");
+  });
+
+  it("returns one Arrow table for the whole conversation", async () => {
+    const table = arrow.tableFromArrays({
+      id: ["a", "b"],
+      content: ["hi", "there"],
+    });
+    const bytes = arrow.tableToIPC(table, "stream");
+    const http = mockHttp({
+      streamResult: new Response(bytes as unknown as BodyInit),
+    });
+
+    const result = await new ConversationsApi(http).exportArrow("conv-1");
+
+    const call = (http.stream as ReturnType<typeof vi.fn>).mock.calls[0][0];
+    expect(call.headers.Accept).toBe("application/vnd.apache.arrow.stream");
+    expect(result.numRows).toBe(2);
+  });
+
+  it("returns an empty table for an empty export body", async () => {
+    const http = mockHttp({ streamResult: new Response(new Uint8Array()) });
+    const result = await new ConversationsApi(http).exportArrow("conv-1");
+    expect(result.numRows).toBe(0);
   });
 });

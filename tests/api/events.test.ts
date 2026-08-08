@@ -578,3 +578,49 @@ describe("EventsApi.arrow — columnar accessor", () => {
     expect(table.numRows).toBe(0);
   });
 });
+
+describe("events.get", () => {
+  it("reads one event by id without sending an event_name", async () => {
+    const http = mockHttp({
+      requestResult: {
+        ...ENVELOPE,
+        id: "evt-1",
+        event_name: IntrospectionEventNames.FEEDBACK,
+        payload: { kind: "thumbs_up" },
+      },
+    });
+
+    const record = await new EventsApi(http).get("evt-1");
+
+    const call = (http.request as ReturnType<typeof vi.fn>).mock.calls[0][0];
+    expect(call.path).toBe("/v1/events/evt-1");
+    // The family is discovered from the response, not declared by the caller,
+    // which is exactly why this returns the widened union.
+    expect(call.query).toBeUndefined();
+    expect(isKnownEvent(record)).toBe(true);
+  });
+
+  it("surfaces a family this SDK version predates rather than failing", async () => {
+    const http = mockHttp({
+      requestResult: {
+        ...ENVELOPE,
+        id: "evt-future",
+        event_name: "introspection.seventh_family",
+        payload: { anything: 1 },
+      },
+    });
+
+    const record = await new EventsApi(http).get("evt-future");
+
+    // A new server-side family must not be reported as a missing event.
+    expect(isKnownEvent(record)).toBe(false);
+    expect(record.event_name).toBe("introspection.seventh_family");
+  });
+
+  it("percent-encodes the id", async () => {
+    const http = mockHttp({ requestResult: { ...ENVELOPE, id: "a/b" } });
+    await new EventsApi(http).get("a/b");
+    const call = (http.request as ReturnType<typeof vi.fn>).mock.calls[0][0];
+    expect(call.path).toBe("/v1/events/a%2Fb");
+  });
+});

@@ -3,8 +3,8 @@ import type { ResumeEntry } from "@ag-ui/core";
 /**
  * Public REST API types for the Introspection DP `/v1` surface.
  *
- * Field names are kept on-the-wire (snake_case) to match the DP
- * Pydantic models verbatim. See cloud `docs/design/sdk-tasks-files.md`.
+ * Field names are kept on-the-wire (snake_case) to match the server
+ * models verbatim.
  */
 
 export type Uuid = string;
@@ -33,13 +33,23 @@ export interface ListParams {
 }
 
 /**
+ * Cursor paging without `include_total`, for the routes that do not compute
+ * one. Counting the full match set is not free on the append-only telemetry
+ * stores, so `/v1/shares` and `/v1/events` deliberately do not offer it —
+ * inheriting the flag there would type a filter that silently does nothing.
+ */
+export interface CursorParams {
+  limit?: number;
+  next?: string;
+}
+
+/**
  * Response representation for the bounded telemetry list reads
  * (`GET /v1/conversations`, `GET /v1/events`). `"json"` (the default)
  * returns the {@link Paginated} envelope; `"arrow"` negotiates an Apache
  * Arrow IPC stream via the `Accept` header and reconstructs the same
  * {@link Paginated} shape from the response body + pagination headers, so
- * paging is identical across formats. See cloud
- * `docs/design/agent-cli-machine-contract.md`.
+ * paging is identical across formats.
  */
 export type ReadFormat = "json" | "arrow";
 
@@ -79,17 +89,16 @@ export interface ReadWindowParams {
 
 // --- tasks ---
 
-export type TaskMode =
-  | "agent"
-  | "introspect"
-  | "system_review"
-  | "system_instrumentation"
-  | "observation_review"
-  | "security_review"
-  | "repo_index"
-  | "system_discovery"
-  | "onboarding"
-  | "heartbeat";
+/**
+ * The execution shape of a task.
+ *
+ * `agent` boots the runtime-agent image and runs an interactive LLM agent;
+ * `process` runs a one-shot baked script and reports through the same
+ * completion path. This replaced the retired `TaskMode`: there are no task
+ * modes any more — every agent task is a conversation, and the recipe agent is
+ * selected by `agent_name`.
+ */
+export type TaskKind = "agent" | "process";
 
 export type TaskStatus =
   | "pending"
@@ -116,7 +125,7 @@ export interface Task {
   updated_at: IsoDate;
   title?: string | null;
   display_index?: number | null;
-  mode: TaskMode;
+  kind: TaskKind;
   status: TaskStatus;
   member_id?: Uuid | null;
   automation_id?: Uuid | null;
@@ -153,12 +162,36 @@ export interface TaskFileRef {
   size_bytes?: number;
 }
 
+/**
+ * One `repositories[]` entry: a repository plus the state to clone it at.
+ *
+ * The recipe's `runtime.github.repositories` grant decides what a runtime MAY
+ * clone; this decides what a task DOES clone, and at what ref. An entry
+ * outside the grant is dropped by the server, never a launch failure.
+ */
+export interface TaskRepoRequest {
+  /** Registered repository slug, `owner/name`. */
+  repo: string;
+  /**
+   * Branch, tag, or commit to check out.
+   *
+   * Omit it and the server uses the repository's registered default branch.
+   */
+  ref?: string;
+  /** Shallow-clone depth; `0` clones full history. Omit for the default. */
+  depth?: number;
+}
+
 export interface TaskCreateParams {
   title?: string;
   prompt?: string;
-  mode?: TaskMode;
-  system_id?: string;
-  repository_id?: Uuid;
+  /** Recipe agent to run; omit for the recipe default (`agents/agent.yaml`). */
+  agent_name?: string;
+  /**
+   * Workspace repositories to clone into the sandbox's `workspace/repos/`
+   * before the first turn, at most 10.
+   */
+  repositories?: TaskRepoRequest[];
   metadata?: Record<string, unknown>;
   /**
    * Files to attach to this task, by id. Materialized into the agent's
@@ -192,7 +225,6 @@ export interface TaskUpdateParams {
 
 export interface TaskListParams extends ListParams {
   statuses?: TaskStatus[];
-  modes?: TaskMode[];
   require_automation_id?: boolean;
   /** Privileged credentials only: audit a specific owner identity. */
   identity_key?: string;
@@ -207,7 +239,6 @@ export type TaskRunKind = "prompt" | "steer";
 
 export interface TaskRunCreateParams {
   prompt?: TaskPrompt;
-  message?: string;
   kind?: TaskRunKind;
   metadata?: Record<string, unknown>;
   /**
@@ -316,8 +347,16 @@ export interface ResourceShare {
   resource_id: string;
   /** Member-targeted grant; `null` means a project-wide grant (everyone). */
   granted_member_id?: Uuid | null;
+  /**
+   * Identity-targeted grant — an asserted end-user identity rather than a
+   * member. Mutually exclusive with `granted_member_id`; both null means a
+   * project-wide grant.
+   */
+  granted_identity_key?: string | null;
   /** Grantor (always a member) — the revoke gate. */
   created_by_member_id: Uuid;
+  /** Grantor's coalesced identity, when the creator asserted one. */
+  created_by_identity_key?: string | null;
   /**
    * Fully-qualified canonical GET URL for the shared resource, carrying the
    * `?share_id` capability (e.g. `…/v1/files/{id}?share_id=…`). Always present on
@@ -326,15 +365,21 @@ export interface ResourceShare {
   url: string;
 }
 
-/** Omit `granted_member_id` for a project-wide grant; set it to target one member. */
+/**
+ * Set exactly one of `granted_member_id` / `granted_identity_key` to target a
+ * recipient, or omit both for a project-wide grant. The two are mutually
+ * exclusive; supplying both is rejected.
+ */
 export interface ShareCreateParams {
   resource_type: ShareResourceType;
   resource_id: string;
-  /** Target one member; omit for a project-wide grant (everyone in the project). */
+  /** Target one member. */
   granted_member_id?: Uuid;
+  /** Target one asserted end-user identity. */
+  granted_identity_key?: string;
 }
 
-export interface ShareListParams extends ListParams {
+export interface ShareListParams extends CursorParams {
   resource_type?: ShareResourceType;
   resource_id?: string;
   /** Only shares the caller created. */
@@ -414,28 +459,10 @@ export interface Recipe {
   updated_at: IsoDate;
 }
 
-export interface RecipeCreate {
-  project: string;
-  repository_id: Uuid;
-  name: string;
-  git_ref: string;
-  git_commit_sha: string;
-  sub_path?: string;
-  slug?: string;
-  description?: string;
-}
-
-export interface RecipeUpdate {
-  name?: string;
-  description?: string;
-}
-
-export interface RecipeListParams extends ListParams {
+export interface RecipeListParams extends CursorParams {
   project?: string;
   repository_id?: Uuid;
   name?: string;
-  git_ref?: string;
-  git_commit_sha?: string;
 }
 
 export type ExperimentStatus = "draft" | "running" | "ended" | "cancelled";
@@ -516,47 +543,12 @@ export interface Experiment {
   updated_at: IsoDate;
 }
 
-/**
- * `POST /v1/experiments` body. Creates a draft that routes nothing until
- * `start`. `arms` takes 2–20 runtime versions sharing one Runtime.
- */
-interface ExperimentCreateBase {
-  project: string;
-  name: string;
-  arms: ExperimentArm[];
-  goal_json: ExperimentGoal;
-  description?: string;
-  environment?: string;
-  scoring_interval_seconds?: number;
-  hash_key_fields?: string[];
-  sample_rate?: number;
-}
-
-/** Name the Runtime canonically by slug/group id, or use the legacy group-id spelling. */
-export type ExperimentCreate = ExperimentCreateBase &
-  (
-    | { runtime: string; runtime_group_id?: never }
-    | { runtime?: never; runtime_group_id: Uuid }
-  );
-
-/**
- * `PATCH /v1/experiments/{id}`. Status transitions use start/end/cancel;
- * `runtime_group_id` and `arms` are immutable once running.
- */
-export interface ExperimentUpdate {
-  name?: string;
-  description?: string;
-  goal_json?: ExperimentGoal;
-  scoring_interval_seconds?: number;
-  hash_key_fields?: string[];
-  sample_rate?: number;
-}
-
-export interface ExperimentListParams extends ListParams {
+export interface ExperimentListParams extends CursorParams {
   project?: string;
   /** Runtime slug or group id. */
   runtime?: string;
-  name?: string;
+  /** Lane the experiment runs in. */
+  environment?: Environment;
   status?: ExperimentStatus;
 }
 
@@ -604,10 +596,8 @@ export interface RunnerDeployment {
 /**
  * CP `/run` response — the customer wire.
  *
- * Sandbox-internal fields (`credentials` for ext_proc egress injection,
- * the `bootstrap` repo manifest, DP `limits`, and the Otari
- * `llm_proxy` descriptor) live on `InternalRunnerSpec` on the CP→DP
- * internal route. They are never returned to customer callers.
+ * The fields it omits are server-internal and are never returned to
+ * customer callers.
  */
 export interface RunnerSpec {
   session_id: string;
@@ -966,7 +956,7 @@ export type EventSortField =
  * 422 naming the family). All filters are combined with AND logic;
  * date-range filters are inclusive.
  */
-export interface EventListParams extends ListParams, ReadWindowParams {
+export interface EventListParams extends CursorParams, ReadWindowParams {
   /**
    * The family to list — required, exactly one. Unknown strings are
    * allowed for forward compatibility and type the rows as
@@ -1118,7 +1108,6 @@ export interface MetricQueryConfig {
 /**
  * Request body for `POST /v1/metrics` — the bounded, allow-listed
  * telemetry aggregation contract. Unknown fields are rejected server-side.
- * See cloud `docs/design/metrics-api.md`.
  */
 export interface MetricQueryRequest {
   view: MetricView;
