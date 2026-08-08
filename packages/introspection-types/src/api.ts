@@ -459,12 +459,10 @@ export interface Recipe {
   updated_at: IsoDate;
 }
 
-export interface RecipeListParams extends ListParams {
+export interface RecipeListParams extends CursorParams {
   project?: string;
   repository_id?: Uuid;
   name?: string;
-  git_ref?: string;
-  git_commit_sha?: string;
 }
 
 export type ExperimentStatus = "draft" | "running" | "ended" | "cancelled";
@@ -545,11 +543,12 @@ export interface Experiment {
   updated_at: IsoDate;
 }
 
-export interface ExperimentListParams extends ListParams {
+export interface ExperimentListParams extends CursorParams {
   project?: string;
   /** Runtime slug or group id. */
   runtime?: string;
-  name?: string;
+  /** Lane the experiment runs in. */
+  environment?: Environment;
   status?: ExperimentStatus;
 }
 

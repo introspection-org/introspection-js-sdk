@@ -30,6 +30,8 @@ import ts from "typescript";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const DEFAULT_SPEC = "https://docs.introspection.dev/openapi/dataplane.json";
+const DEFAULT_CP_SPEC =
+  "https://docs.introspection.dev/openapi/controlplane.json";
 
 const TYPES = resolve(ROOT, "packages/introspection-types/src/api.ts");
 const BROWSER = resolve(
@@ -329,6 +331,30 @@ const SURFACES = [
     extraMeans: "sent as a query parameter the API does not accept",
     missingMeans: "accepted by the API but not exposed here",
   },
+  // --- control plane -------------------------------------------------------
+  {
+    name: "ExperimentListParams",
+    where: "GET /v1/experiments query parameters",
+    plane: "cp",
+    sdk: () => interfaceMembers(TYPES, "ExperimentListParams"),
+    server: (spec) => queryParameters(spec, "/v1/experiments", "get"),
+    // The deprecated spelling of `project`; this SDK sends the current one.
+    exempt: ["project_id"],
+    missingIsFatal: false,
+    extraMeans: "sent as a query parameter the API does not accept",
+    missingMeans: "accepted by the API but not exposed here",
+  },
+  {
+    name: "RecipeListParams",
+    where: "GET /v1/recipes query parameters",
+    plane: "cp",
+    sdk: () => interfaceMembers(TYPES, "RecipeListParams"),
+    server: (spec) => queryParameters(spec, "/v1/recipes", "get"),
+    exempt: ["project_id"],
+    missingIsFatal: false,
+    extraMeans: "sent as a query parameter the API does not accept",
+    missingMeans: "accepted by the API but not exposed here",
+  },
   // --- metrics -------------------------------------------------------------
   {
     name: "MetricQueryRequest",
@@ -367,18 +393,31 @@ async function loadSpec(source) {
   return JSON.parse(readFileSync(source, "utf8"));
 }
 
-async function main() {
-  const flag = process.argv.indexOf("--spec");
-  const specSource = flag === -1 ? DEFAULT_SPEC : process.argv[flag + 1];
+function specArg(name, fallback) {
+  const flag = process.argv.indexOf(name);
+  return flag === -1 ? fallback : process.argv[flag + 1];
+}
 
-  let spec;
-  try {
-    spec = await loadSpec(specSource);
-  } catch (error) {
-    console.error(
-      `could not read the API reference at ${specSource}: ${error.message}`,
-    );
-    return 1;
+async function main() {
+  const specSource = specArg("--spec", DEFAULT_SPEC);
+  const cpSpecSource = specArg("--cp-spec", DEFAULT_CP_SPEC);
+
+  // The two planes are separate services with separate references. The
+  // control-plane half went unchecked entirely until an experiments filter
+  // the API does not accept shipped in two SDKs at once.
+  const specs = {};
+  for (const [plane, source] of [
+    ["dp", specSource],
+    ["cp", cpSpecSource],
+  ]) {
+    try {
+      specs[plane] = await loadSpec(source);
+    } catch (error) {
+      console.error(
+        `could not read the API reference at ${source}: ${error.message}`,
+      );
+      return 1;
+    }
   }
 
   const problems = [];
@@ -387,7 +426,7 @@ async function main() {
     let server;
     let sdk;
     try {
-      server = surface.server(spec);
+      server = surface.server(specs[surface.plane ?? "dp"]);
       sdk = surface.sdk();
     } catch (error) {
       problems.push(`${surface.name} — ${surface.where}\n  ${error.message}`);
