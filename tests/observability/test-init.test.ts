@@ -1,12 +1,10 @@
 /**
  * Tests for the unified `introspection.init()` entry point.
  *
- * Covers four concerns as nested describes:
+ * Covers three concerns as nested describes:
  *  - the integration loader (run-once + `deactivates` + `DidNotEnable`),
  *  - `init()` wiring / idempotency / analytics proxies / `conversation()`,
- *  - auto-discovery of the installed frameworks,
- *  - the prototype-patch one-liner against the real Anthropic & Gemini SDKs
- *    (recordings-backed, per AGENTS.md).
+ *  - auto-discovery of the installed frameworks.
  *
  * This is a cross-framework feature, so it lives in its own file rather than
  * under any single framework's test.
@@ -26,18 +24,11 @@ import {
   setupIntegrations,
   resetInstalledForTests,
   DidNotEnable,
-  AnthropicInstrumentor,
-  GeminiInstrumentor,
-  IntrospectionSpanProcessor,
   type Integration,
   type IntegrationSetupContext,
 } from "@introspection-sdk/introspection-node/otel";
 import { TestSpanExporter } from "../testing";
-import {
-  installTestOTelGlobals,
-  setupPolly,
-  ensureEnvVarsForReplay,
-} from "../polly-setup";
+import { installTestOTelGlobals } from "../polly-setup";
 
 function fakeCtx(): IntegrationSetupContext {
   return {
@@ -215,191 +206,30 @@ describe("introspection.init()", () => {
     it("discovers every installed built-in integration", async () => {
       const ids = (await discoverIntegrations()).map((i) => i.identifier);
       expect(ids).toEqual(
-        expect.arrayContaining([
-          "anthropic",
-          "gemini",
-          "openai_agents",
-          "vercel",
-          "claude_agent",
-          "langchain",
-          "mastra",
-          "pi",
-        ]),
+        expect.arrayContaining(["vercel", "claude_agent", "pi"]),
       );
-    });
-  });
-
-  // -------------------------------------------------------------------------
-  describe("prototype patching (the one-liner)", () => {
-    it("AnthropicInstrumentor.instrumentClass traces any client", async () => {
-      const polly = setupPolly({ recordingName: "anthropic-thinking-basic" });
-      if (
-        !ensureEnvVarsForReplay(
-          ["ANTHROPIC_API_KEY"],
-          "anthropic-thinking-basic",
-        )
-      ) {
-        await polly.stop();
-        return;
-      }
-
-      const exp = new TestSpanExporter();
-      const provider = new NodeTracerProvider({
-        spanProcessors: [
-          new IntrospectionSpanProcessor({
-            token: "test-token",
-            advanced: {
-              spanExporter: exp,
-              useSimpleSpanProcessor: true,
-            } as never,
-          }),
-        ],
-      });
-      const Anthropic = (await import("@anthropic-ai/sdk")).default;
-      const instrumentor = new AnthropicInstrumentor();
-      instrumentor.instrumentClass({
-        anthropic: Anthropic,
-        tracerProvider: provider,
-      });
-
-      try {
-        // A client constructed AFTER the class patch is traced with no wiring.
-        const client = new Anthropic();
-        const response = (await client.messages.create({
-          model: "claude-sonnet-4-6",
-          max_tokens: 8000,
-          thinking: { type: "enabled", budget_tokens: 5000 },
-          messages: [
-            { role: "user", content: "What is 2+2? Think step by step." },
-          ],
-        })) as { content: { type: string }[] };
-        expect(response.content.length).toBeGreaterThanOrEqual(1);
-
-        await provider.forceFlush();
-        const spans = exp.getFinishedSpans();
-        expect(spans.length).toBeGreaterThanOrEqual(1);
-        expect(spans[0].attributes["gen_ai.request.model"]).toBe(
-          "claude-sonnet-4-6",
-        );
-        expect(spans[0].attributes["gen_ai.conversation.id"]).toBeDefined();
-      } finally {
-        instrumentor.uninstrument();
-        await provider.shutdown();
-        await polly.stop();
-      }
-    });
-
-    it("GeminiInstrumentor.instrumentClass traces any client", async () => {
-      const polly = setupPolly({ recordingName: "gemini-thinking-basic" });
-      if (
-        !ensureEnvVarsForReplay(["GEMINI_API_KEY"], "gemini-thinking-basic")
-      ) {
-        await polly.stop();
-        return;
-      }
-
-      const exp = new TestSpanExporter();
-      const provider = new NodeTracerProvider({
-        spanProcessors: [
-          new IntrospectionSpanProcessor({
-            token: "test-token",
-            advanced: {
-              spanExporter: exp,
-              useSimpleSpanProcessor: true,
-            } as never,
-          }),
-        ],
-      });
-      const genai = await import("@google/genai");
-      const instrumentor = new GeminiInstrumentor();
-      instrumentor.instrumentClass({ genai, tracerProvider: provider });
-
-      try {
-        const client = new genai.GoogleGenAI({
-          apiKey: process.env.GEMINI_API_KEY,
-        });
-        const response = await client.models.generateContent({
-          model: "gemini-2.5-flash",
-          contents: "What is 2+2? Think step by step.",
-          config: {
-            thinkingConfig: { thinkingBudget: 2048, includeThoughts: true },
-          },
-        });
-        expect(response.candidates?.length).toBeGreaterThanOrEqual(1);
-
-        await provider.forceFlush();
-        const spans = exp.getFinishedSpans();
-        expect(spans.length).toBeGreaterThanOrEqual(1);
-        expect(spans[0].attributes["gen_ai.request.model"]).toBe(
-          "gemini-2.5-flash",
-        );
-        expect(spans[0].attributes["gen_ai.provider.name"]).toBe("gemini");
-      } finally {
-        instrumentor.uninstrument();
-        await provider.shutdown();
-        await polly.stop();
-      }
     });
   });
 
   // -------------------------------------------------------------------------
   describe("auto-wires every installed framework", () => {
     it("runs each integration's setupOnce and publishes bound handles", async () => {
-      // Gemini's prototype patch is process-global; restore it afterward.
-      // (Anthropic is deactivated by the LangChain integration below.)
-      const genai = await import("@google/genai");
       const claudeSdk = await import("@anthropic-ai/claude-agent-sdk");
-      const origGemini = (genai.Models.prototype as Record<string, unknown>)
-        .generateContentInternal;
 
-      try {
-        // Full auto-discovery: exercises every built-in integration's
-        // setupOnce against the shared provider in one call.
-        await init({
-          token: "test-token",
-          serviceName: "init-autowire-test",
-          advanced: { spanExporter: new TestSpanExporter() },
-        });
+      // Full auto-discovery: exercises every built-in integration's
+      // setupOnce against the shared provider in one call.
+      await init({
+        token: "test-token",
+        serviceName: "init-autowire-test",
+        advanced: { spanExporter: new TestSpanExporter() },
+      });
 
-        // Gemini is patched globally (it is not deactivated).
-        expect(
-          (genai.Models.prototype as Record<string, unknown>)
-            .generateContentInternal,
-        ).not.toBe(origGemini);
-
-        // Instance/config-based frameworks publish bound handles.
-        const {
-          getLangchainHandler,
-          getMastraExporter,
-          instrumentClaudeAgent,
-        } = await import("@introspection-sdk/introspection-node/otel");
-        expect(getLangchainHandler()).toBeDefined();
-        expect(getMastraExporter()).toBeDefined();
-
-        const traced = instrumentClaudeAgent(claudeSdk);
-        expect(typeof traced.query).toBe("function");
-        await traced.shutdown();
-      } finally {
-        (
-          genai.Models.prototype as Record<string, unknown>
-        ).generateContentInternal = origGemini;
-      }
-    });
-
-    it("LangChain integration deactivates the Anthropic prototype patch", async () => {
-      // When LangChain drives Anthropic, the handler already traces the call,
-      // so the prototype patch must be skipped to avoid double-tracing.
-      const Anthropic = (await import("@anthropic-ai/sdk")).default;
-      const orig = Anthropic.Messages.prototype.create;
-      try {
-        await init({
-          token: "test-token",
-          advanced: { spanExporter: new TestSpanExporter() },
-        });
-        expect(Anthropic.Messages.prototype.create).toBe(orig);
-      } finally {
-        Anthropic.Messages.prototype.create = orig;
-      }
+      // Instance/config-based frameworks publish bound handles.
+      const { instrumentClaudeAgent } =
+        await import("@introspection-sdk/introspection-node/otel");
+      const traced = instrumentClaudeAgent(claudeSdk);
+      expect(typeof traced.query).toBe("function");
+      await traced.shutdown();
     });
   });
 });

@@ -3,18 +3,6 @@
  */
 
 export {
-  convertResponsesInputsToSemconv,
-  convertResponsesOutputsToSemconv,
-  convertResponsesToolsToSemconv,
-  convertResponsesInstructionsToSemconv,
-  type ResponseInputItem,
-  type ResponseOutputItem,
-  type ResponseTool,
-  type ResponseUsage,
-  type Response as OpenAIResponse,
-} from "./openai.js";
-
-export {
   isOpenInferenceSpan,
   convertOpenInferenceToGenAI,
   replaceOpenInferenceWithGenAI,
@@ -35,16 +23,3 @@ export {
   type ClaudeResponse,
   type ClaudeSessionData,
 } from "./claude.js";
-
-export {
-  convertGeminiContentsToInputMessages,
-  convertGeminiCandidatesToOutputMessages,
-  convertGeminiSystemInstructionToSemconv,
-  convertGeminiToolsToToolDefinitions,
-  GEMINI_PROVIDER_NAME,
-  type GeminiCandidate,
-  type GeminiContent,
-  type GeminiFunctionDeclaration,
-  type GeminiPart,
-  type GeminiTool,
-} from "./gemini.js";

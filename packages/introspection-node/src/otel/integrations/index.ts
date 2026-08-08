@@ -26,13 +26,8 @@ export type { Integration, IntegrationHandles, IntegrationSetupContext };
 const BUILTIN_INTEGRATIONS: ReadonlyArray<
   () => Promise<{ default: Integration }>
 > = [
-  () => import("./anthropic.js"),
-  () => import("./gemini.js"),
-  () => import("./openai-agents.js"),
   () => import("./vercel.js"),
   () => import("./claude-agent.js"),
-  () => import("./langchain.js"),
-  () => import("./mastra.js"),
   () => import("./pi.js"),
 ];
 

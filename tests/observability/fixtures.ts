@@ -22,8 +22,6 @@ type InstrumentationClass = new (
 ) => OpenInferenceInstrumentation;
 
 let OpenAIInstrumentationClass: InstrumentationClass | null = null;
-let LangChainInstrumentationClass: InstrumentationClass | null = null;
-let CallbackManagerModule: Record<string, unknown> | null = null;
 let VercelOpenInferenceModule: {
   OpenInferenceSimpleSpanProcessor: new (options: {
     exporter: unknown;
@@ -62,37 +60,6 @@ export async function loadVercelOpenInference(): Promise<
     const mod = await import("@arizeai/openinference-vercel");
     VercelOpenInferenceModule = mod as typeof VercelOpenInferenceModule;
     return VercelOpenInferenceModule;
-  } catch (error) {
-    if (isModuleNotFoundError(error)) {
-      return null;
-    }
-    throw error;
-  }
-}
-
-export async function loadLangChainInstrumentation(): Promise<{
-  LangChainInstrumentation: InstrumentationClass;
-  CallbackManagerModule: Record<string, unknown>;
-} | null> {
-  if (LangChainInstrumentationClass && CallbackManagerModule) {
-    return {
-      LangChainInstrumentation: LangChainInstrumentationClass,
-      CallbackManagerModule,
-    };
-  }
-  try {
-    const instrMod =
-      await import("@arizeai/openinference-instrumentation-langchain");
-    const cbMod = await import("@langchain/core/callbacks/manager");
-    const instrClass =
-      instrMod.LangChainInstrumentation as InstrumentationClass;
-    const cbModule = cbMod as Record<string, unknown>;
-    LangChainInstrumentationClass = instrClass;
-    CallbackManagerModule = cbModule;
-    return {
-      LangChainInstrumentation: instrClass,
-      CallbackManagerModule: cbModule,
-    };
   } catch (error) {
     if (isModuleNotFoundError(error)) {
       return null;
@@ -269,61 +236,6 @@ export async function createLangfuseProvider(): Promise<CaptureOpenInferenceSpan
   instrumentation.manuallyInstrument(
     (openaiModule as { default?: unknown }).default ?? openaiModule,
   );
-
-  return {
-    exporter,
-    processor: introspectionProcessor,
-    provider,
-    cleanup: async () => {
-      instrumentation.disable();
-      await provider.forceFlush();
-      await provider.shutdown();
-    },
-  };
-}
-
-export async function createLangChainProvider(): Promise<CaptureOpenInferenceSpans> {
-  const lcResult = await loadLangChainInstrumentation();
-  if (!lcResult) {
-    throw new Error(
-      "OpenInference LangChain instrumentation not installed. " +
-        "Install with: pnpm add -D @arizeai/openinference-instrumentation-langchain @langchain/core",
-    );
-  }
-
-  const {
-    LangChainInstrumentation: LCInstrClass,
-    CallbackManagerModule: CBModule,
-  } = lcResult;
-
-  const langsmithProcessor = new BatchSpanProcessor(
-    new OTLPTraceExporter({
-      url: "https://api.smith.langchain.com/otel/v1/traces",
-      headers: {
-        "x-api-key": process.env.LANGSMITH_API_KEY || "",
-        "Langsmith-Project":
-          process.env.LANGSMITH_PROJECT || "dual-export-test",
-      },
-    }),
-  );
-
-  const exporter = new TestSpanExporter();
-  const introspectionProcessor = new IntrospectionSpanProcessor({
-    token: process.env.INTROSPECTION_TOKEN,
-    advanced: {
-      spanExporter: exporter,
-    },
-  });
-
-  const provider = new NodeTracerProvider({
-    spanProcessors: [langsmithProcessor, introspectionProcessor],
-  });
-  provider.register();
-
-  const instrumentation = new LCInstrClass();
-  instrumentation.setTracerProvider(provider);
-  instrumentation.manuallyInstrument(CBModule);
-  instrumentation.enable();
 
   return {
     exporter,

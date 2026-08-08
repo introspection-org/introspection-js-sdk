@@ -8,10 +8,9 @@
  * ```
  *
  * Runs `introspection.init()` from the environment **before** the app's module
- * graph executes, so no `init()` call is needed in application source. Because
- * the Anthropic / Gemini one-liner works by prototype-patching the SDK classes
- * (see `AnthropicInstrumentor.instrumentClass`), every client constructed after
- * this preload is traced with zero code changes.
+ * graph executes, so no `init()` call is needed in application source —
+ * framework auto-discovery (Pi, Vercel AI SDK, Claude Agent SDK) runs before
+ * the application entry point evaluates.
  *
  * Configuration is read from the usual environment variables
  * (`INTROSPECTION_TOKEN`, `INTROSPECTION_SERVICE_NAME`,

@@ -19,12 +19,7 @@ pnpm test
 
 ### Test Utilities
 
-- **fixtures.ts** - `CaptureTracingProcessor` fixture for OpenAI Agents SDK tests
 - **testing.ts** - `IncrementalIdGenerator`, `TestSpanExporter`, and snapshot helpers
-
-### Processor Tests
-
-- **processors/tracing-processor.test.ts** - Tests `IntrospectionTracingProcessor` with OpenAI Agents SDK
 
 ### Observability Dual-Export Tests
 
@@ -35,7 +30,6 @@ Tests that verify spans are correctly exported to both a third-party observabili
 | `observability/test-arize.test.ts`      | Arize + Introspection                 |
 | `observability/test-braintrust.test.ts` | Braintrust + Introspection            |
 | `observability/test-langfuse.test.ts`   | Langfuse + Introspection              |
-| `observability/test-langchain.test.ts`  | LangSmith + Introspection             |
 | `observability/test-vercel.test.ts`     | Vercel AI SDK + Arize + Introspection |
 
 ## Environment Variables
@@ -107,7 +101,7 @@ Per-package / per-file detail is in the HTML report.
 
 **Always drive the real framework against a recorded LLM HTTP response. Do not mock the framework itself.**
 
-The goal is to exercise the actual instrumentation path users hit in production — real callback ordering, real event shapes, real metadata flow. Mocking a `RunnableLambda`, a fake AI SDK telemetry payload, or a hand-crafted `Mastra` span event drifts away from the contract we ship and lets regressions slip through unnoticed.
+The goal is to exercise the actual instrumentation path users hit in production — real callback ordering, real event shapes, real metadata flow. Mocking a fake AI SDK telemetry payload or a hand-crafted framework span event drifts away from the contract we ship and lets regressions slip through unnoticed.
 
 ### What this means in practice
 

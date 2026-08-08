@@ -12,8 +12,7 @@ import {
   init,
   shutdown,
   _resetForTests,
-  getLangchainHandler,
-  getMastraExporter,
+  instrumentClaudeAgent,
 } from "../../packages/introspection-node/src/otel/init";
 import type { Integration } from "../../packages/introspection-node/src/otel/integrations/index";
 
@@ -62,17 +61,17 @@ describe("re-init after shutdown()", () => {
   });
 
   it("rebuilds auto-discovered handles after shutdown + re-init", async () => {
+    const claudeSdk = await import("@anthropic-ai/claude-agent-sdk");
+
     await init({ ...baseOpts(), autoDiscover: true });
-    // @langchain/core + @mastra/core are installed (dev deps), so discovery
-    // publishes their handles.
-    expect(() => getLangchainHandler()).not.toThrow();
-    expect(() => getMastraExporter()).not.toThrow();
+    // @anthropic-ai/claude-agent-sdk is installed (dev dep), so discovery
+    // publishes its handle.
+    expect(() => instrumentClaudeAgent(claudeSdk)).not.toThrow();
 
     await shutdown();
 
-    // Before the fix, the run-once guard skipped re-install and these threw.
+    // Before the fix, the run-once guard skipped re-install and this threw.
     await init({ ...baseOpts(), autoDiscover: true });
-    expect(() => getLangchainHandler()).not.toThrow();
-    expect(() => getMastraExporter()).not.toThrow();
+    expect(() => instrumentClaudeAgent(claudeSdk)).not.toThrow();
   });
 });

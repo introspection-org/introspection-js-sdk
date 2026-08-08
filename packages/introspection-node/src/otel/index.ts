@@ -22,20 +22,6 @@ export type { SetupTracingOptions, ConflictBehavior } from "./setup.js";
 export { IntrospectionSpanProcessor } from "./span-processor.js";
 export type { IntrospectionSpanProcessorOptions } from "./span-processor.js";
 
-// OpenAI embeddings wrapper (metadata-only; never records inputs or vectors).
-export { tracedEmbeddingsCreate } from "./openai.js";
-export type {
-  OpenAIEmbeddingsClient,
-  TracedEmbeddingsOptions,
-} from "./openai.js";
-
-// OpenAI Agents SDK tracing processor.
-export { IntrospectionTracingProcessor } from "./tracing-processor.js";
-export type {
-  IntrospectionTracingProcessorOptions,
-  TracingProcessorAdvancedOptions,
-} from "./tracing-processor.js";
-
 // Claude Agent SDK hooks.
 export { IntrospectionClaudeHooks } from "./claude-hooks.js";
 export type {
@@ -62,22 +48,12 @@ export type {
   ClaudeAgentSDKModule,
 } from "./claude-wrapper.js";
 
-// Anthropic SDK instrumentor.
-export {
-  AnthropicInstrumentor,
-  tracedMessagesCreate,
-  REDACTED_THINKING_CONTENT,
-} from "./anthropic.js";
-
 // Pi Agent SDK instrumentor.
 export { IntrospectionPiInstrumentor } from "./pi.js";
 export type {
   IntrospectionPiInstrumentorOptions,
   AgentMeta as PiAgentMeta,
 } from "./pi.js";
-
-// Gemini SDK instrumentor.
-export { GeminiInstrumentor } from "./gemini.js";
 
 // OpenInference span exporter (drops Arize/OpenInference attrs onto a
 // downstream OTel SpanExporter).
@@ -103,8 +79,6 @@ export {
   newConversationId,
   getClient,
   getTracerProvider,
-  getLangchainHandler,
-  getMastraExporter,
   instrumentPi,
   instrumentClaudeAgent,
   _resetForTests,

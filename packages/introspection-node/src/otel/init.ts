@@ -6,14 +6,10 @@
  *
  * ```ts
  * import * as introspection from "@introspection-sdk/introspection-node/otel";
- * import Anthropic from "@anthropic-ai/sdk";
  *
  * await introspection.init({ serviceName: "my-app" });
- *
- * const client = new Anthropic(); // auto-traced — no per-client wiring
- * await introspection.conversation(() =>
- *   client.messages.create({ ... }),
- * );
+ * // Installed frameworks (Pi, Vercel AI SDK, Claude Agent SDK) are wired
+ * // into the shared provider automatically.
  * ```
  *
  * It also exposes the `track` / `feedback` / `identify` analytics surface and a
@@ -319,31 +315,6 @@ export function withAnonymousId<T>(
   callback: () => T | Promise<T>,
 ): Promise<T> {
   return getClient().withAnonymousId(anonymousId, callback);
-}
-
-/**
- * The LangChain handler bound by `init()`. Attach it per-invoke:
- * `chain.invoke(input, { callbacks: [introspection.getLangchainHandler()] })`.
- */
-export function getLangchainHandler() {
-  const handler = state.handles.langchainHandler;
-  if (!handler) {
-    throw new Error(
-      "LangChain integration not configured. Call introspection.init() with @langchain/core installed.",
-    );
-  }
-  return handler;
-}
-
-/** The Mastra exporter bound by `init()`. Put it in `observability.configs`. */
-export function getMastraExporter() {
-  const exporter = state.handles.mastraExporter;
-  if (!exporter) {
-    throw new Error(
-      "Mastra integration not configured. Call introspection.init() with @mastra/core installed.",
-    );
-  }
-  return exporter;
 }
 
 /** Instrument a Pi `Agent` against the shared provider. Requires {@link init}. */

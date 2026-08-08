@@ -14,14 +14,6 @@ export default defineConfig({
   //   2. Tests pick up SDK source changes without a rebuild step in between.
   resolve: {
     alias: {
-      "@introspection-sdk/introspection-node/langchain": resolve(
-        repoRoot,
-        "packages/introspection-node/src/otel/langchain-handler.ts",
-      ),
-      "@introspection-sdk/introspection-node/mastra": resolve(
-        repoRoot,
-        "packages/introspection-node/src/otel/mastra-exporter.ts",
-      ),
       "@introspection-sdk/introspection-node/otel": resolve(
         repoRoot,
         "packages/introspection-node/src/otel/index.ts",

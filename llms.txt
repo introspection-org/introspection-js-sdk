@@ -10,13 +10,12 @@ Package: `@introspection-sdk/introspection-node`
   (`IntrospectionClient`: runtimes / experiments / recipes / Runner). No OTel.
 - Subpath `@introspection-sdk/introspection-node/otel` → the **traces** surface:
   `init()`, `setupTracing()`, `IntrospectionSpanProcessor`, `IntrospectionLogs`,
-  the per-framework instrumentors, and the integration registry. This mirrors
-  the Python SDK's `introspection_sdk.otel` package.
+  the Pi / Vercel AI SDK / Claude Agent SDK integrations, and the integration
+  registry. This mirrors the Python SDK's `introspection_sdk.otel` package.
 
 Product support boundary:
 - Pi is the only supported agent-framework instrumentor.
-- Anthropic, Gemini, OpenAI Agents, Claude Agent, Vercel AI SDK, LangChain,
-  Mastra, and OpenClaw integrations are experimental.
+- Claude Agent SDK, Vercel AI SDK, and OpenClaw integrations are experimental.
 
 ## 1. The core model (read this first)
 
@@ -25,15 +24,12 @@ construct it (or adopt one you pass in) and register it. Every span processor �
 Introspection's and any vendor's — lives on that provider. Instrumentation's job
 is only to make sure the right **spans** reach that provider.
 
-Spans come from two places:
-
-1. **Frameworks that emit OTel natively** — Vercel AI SDK
-   (`experimental_telemetry`), OpenAI Agents, Mastra, LangChain (via its callback
-   handler), Pi. These already produce spans on the global provider. **Nothing to
-   patch** — adding our processor to the provider is all that's needed.
-2. **Raw SDKs that emit no OTel** — the raw Anthropic SDK (`@anthropic-ai/sdk`)
-   and Gemini (`@google/genai`). There is nothing for the provider to receive, so
-   we **create** spans by instrumenting the SDK (see §3).
+Spans come from frameworks that emit OTel natively — Vercel AI SDK
+(`experimental_telemetry`), Pi, and the Claude Agent SDK hooks. These produce
+spans on the global provider; **nothing to patch** — adding our processor to
+the provider is all that's needed. (Raw-SDK prototype-patch instrumentors for
+frameworks without native OTel were removed with the Pi pivot; recover them
+from git history if ever needed.)
 
 > Corollary: a dual-export request ("also send to Langfuse/Arize") is uniform —
 > add a second span processor to the provider. Only the span *source* differs.
@@ -69,20 +65,7 @@ copy to its own OTLP exporter. A co-located vendor processor therefore receives 
   vendor needs a specific convention (e.g. Arize/Phoenix want OpenInference), wrap
   its exporter (`OpenInferenceSpanExporter`) rather than relying on ordering.
 
-## 3. How raw-SDK auto-instrumentation works (Anthropic / Gemini)
-
-Implemented as **prototype monkey-patching**, not import-in-the-middle. Example:
-`AnthropicInstrumentor.instrumentClass({ anthropic })` patches
-`Anthropic.Messages.prototype.create` so every client constructed afterwards is
-traced. Key properties:
-- A `[PATCHED]` symbol marker makes a second `init()` a no-op; `uninstrument()`
-  restores the original.
-- Works in **ESM and CJS** without a loader hook, and is order-independent w.r.t.
-  client construction — it only requires `init()` to run **before the first
-  `.create()` call**.
-- It is coupled to the SDK's internal shape (`Anthropic.Messages.prototype.create`).
-  Keep the shape-guard + marker; if a vendor SDK restructures, the patch must fail
-  loudly or be updated.
+## 3. Zero-code preload
 
 **Load-order rule:** call `init()` (or use the preload below) before your first
 model call. For zero-code onboarding use the preload:
@@ -92,12 +75,9 @@ node --import @introspection-sdk/introspection-node/otel/register app.js
 ```
 
 `otel/register.ts` runs `init()` from the environment before the app's module
-graph executes. It drives the prototype-patch path; it intentionally does **not**
-register an import-in-the-middle loader hook (that machinery is only needed for the
-`InstrumentationBase` approach, which this SDK does not use). If you ever need
-strict OTel-convention auto-instrumentation or zero-config tracing in pure-ESM apps
-that never call `init()`, that's a deliberate migration to `InstrumentationBase` +
-`import-in-the-middle` — a real architectural change, not a drop-in.
+graph executes. It intentionally does **not** register an import-in-the-middle
+loader hook (that machinery is only needed for the `InstrumentationBase`
+approach, which this SDK does not use).
 
 ## 4. Adding a new framework integration (procedure)
 
@@ -113,9 +93,8 @@ const integration: Integration = {
   // deactivates: ["anthropic"],         // only if this framework WRAPS another SDK
   setupOnce(ctx) {                        // ctx: { tracerProvider, token, serviceName, baseUrl, advanced, handles }
     // Native-OTel framework: usually a no-op (the shared processor handles it).
-    // Raw SDK: patch it here, emitting onto ctx.tracerProvider.
     // Instance/config framework: publish a pre-bound handle on ctx.handles
-    //   (e.g. ctx.handles.langchainHandler = new IntrospectionCallbackHandler(...)).
+    //   (e.g. ctx.handles.piInstrumentor = new IntrospectionPiInstrumentor(...)).
   },
 };
 export default integration;
@@ -126,15 +105,15 @@ Steps:
    "<pkg>"`** is the availability gate — if the package isn't installed, the
    dynamic import in the loader rejects and the integration is skipped.
 2. Register it in `integrations/index.ts` `BUILTIN_INTEGRATIONS`.
-3. If the hook can't be wired globally (LangChain handler, Mastra exporter, Pi
-   instance, Claude Agent wrapper), publish a handle on `ctx.handles` and expose a
-   `getXxx()` accessor from `otel/init.ts` (mirror `getLangchainHandler()`).
+3. If the hook can't be wired globally (Pi instance, Claude Agent wrapper),
+   publish a handle on `ctx.handles` and expose an accessor from `otel/init.ts`
+   (mirror `instrumentPi()`).
 4. If the framework wraps another SDK, set `deactivates` so the inner SDK isn't
-   double-traced (see `integrations/langchain.ts` → `deactivates: ["anthropic"]`).
+   double-traced.
 5. Add tests under `tests/observability/` — **real SDK + HAR replay, no mocks**
    (see `AGENTS.md`). Pure attribute transforms don't need HAR.
 6. Add examples: `examples/otel/<framework>/<integration>-init.ts` (one-liner) and
-   a dual-export pair using `examples/_shared/dual-export.ts`.
+   a dual-export variant (mirror `examples/otel/vercel/ai-sdk-langfuse.ts`).
 
 ## 5. Baggage / conversation scoping
 
@@ -159,6 +138,4 @@ should let the processor own this — don't re-stamp baggage in each instrumento
 - `src/otel/span-processor.ts` — `IntrospectionSpanProcessor` (converts + exports a copy).
 - `src/otel/register.ts` — `--import` zero-code preload.
 - `src/otel/integrations/` — the framework registry (`base.ts`, `index.ts`, one file per framework).
-- `src/otel/anthropic.ts`, `src/otel/gemini.ts` — raw-SDK prototype-patch instrumentors.
-- `examples/_shared/dual-export.ts` — vendor span-processor helpers.
 - `AGENTS.md` — contributor conventions (test layout, naming, coverage).

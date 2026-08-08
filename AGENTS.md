@@ -4,8 +4,6 @@ Guidance for **anyone contributing to this repo** — humans and coding agents a
 
 If you're touching tests, examples, or framework integrations, the conventions in here are not optional: PRs that violate them will be sent back. The whole point of writing this down is that we've been bitten enough times that "we'll just do it right next time" stopped working.
 
-The detailed phased plan that this document operationalizes lives in `docs/cleanup-plan.md`.
-
 ---
 
 ## 1. Local development workflow
@@ -44,7 +42,7 @@ The coverage thresholds in `tests/vitest.config.ts` are the "do not regress" flo
 If your branch is intentionally adding code that can't be covered by unit tests right now, you have two options:
 
 - **Add a test that exercises the new code.** Almost always the right answer.
-- **Justify the gap in the PR description**, get explicit approval to lower a threshold, and update `docs/cleanup-plan.md` Phase 4 with the follow-up. Do not silently lower the threshold.
+- **Justify the gap in the PR description** and get explicit approval to lower a threshold. Do not silently lower the threshold.
 
 ---
 
@@ -56,8 +54,6 @@ If your branch is intentionally adding code that can't be covered by unit tests 
 
 ## 4. Repo layout conventions
 
-Set in `docs/cleanup-plan.md` and being applied across phases 2–5. Summary:
-
 ### Examples folder layout
 
 ```
@@ -66,17 +62,15 @@ examples/<framework>/<integration>[-<vendor>].ts
 
 Where:
 
-- `<framework>` is a flat folder name: `openai`, `anthropic`, `claude-agent`, `gemini`, `langchain`, `vercel`, `mastra`, `pi`, `openinference`, `openclaw`, `otel`.
+- `<framework>` is a flat folder name: `claude-agent`, `vercel`, `pi`, `openinference`, `openclaw`, `raw`.
 - `<integration>` describes the entrypoint (`agents`, `agent`, `handler`, `subagents`, `native`).
 - `<vendor>` is only present for dual-export examples (`arize`, `braintrust`, `langfuse`, `langsmith`).
 
 Examples (post-rename):
 
-- `examples/otel/openai/agents.ts` — base
-- `examples/otel/openai/agents-arize.ts` — dual-export
 - `examples/otel/claude-agent/agent.ts`, `examples/otel/claude-agent/subagents.ts`
-- `examples/otel/anthropic/native.ts` (raw Anthropic Node SDK — see naming note below)
-- `examples/otel/gemini/native.ts`
+- `examples/otel/vercel/ai-sdk.ts` — base
+- `examples/otel/vercel/ai-sdk-langfuse.ts` — dual-export
 - `examples/otel/raw/multi-turn-conversation.ts` (the wrapper-free OTel example)
 
 **Naming note — Anthropic is two SDKs, two folders:**
@@ -104,7 +98,7 @@ If a test concern genuinely spans multiple frameworks (e.g. `test-baggage-propag
 tests/recordings/<name>/recording.har
 ```
 
-Both Polly and the recording proxy write to this directory. Polly appends a `_<hash>` suffix (`langchain-baggage_1406006881/`); the proxy doesn't. Both formats are HAR 1.2 and inspectable in any HAR viewer.
+Both Polly and the recording proxy write to this directory. Polly appends a `_<hash>` suffix (`pi-baggage_884698661/`); the proxy doesn't. Both formats are HAR 1.2 and inspectable in any HAR viewer.
 
 ---
 
@@ -153,10 +147,8 @@ introspect.withBaggage(
 
 Any new integration that stamps `gen_ai.*` attributes on spans **must** read the active OTel baggage as a fallback source for `gen_ai.conversation.id`, `gen_ai.agent.name`, `gen_ai.agent.id`. Existing references:
 
-- `packages/introspection-node/src/anthropic.ts` — baggage read in patched `client.messages.create`
-- `packages/introspection-node/src/span-processor.ts` — baggage read in `onEnd`
-- `packages/introspection-node/src/claude-hooks.ts` — `_resolveIdentity` helper
-- `packages/introspection-node/src/langchain-handler.ts` — `_readBaggage` helper
+- `packages/introspection-node/src/otel/span-processor.ts` — baggage read in `onEnd`
+- `packages/introspection-node/src/otel/claude-hooks.ts` — `_resolveIdentity` helper
 - `packages/introspection-node/src/converters/vercel.ts` — maps `ai.*` → `gen_ai.*` for AI SDK spans (runs inside `IntrospectionSpanProcessor.onEnd`)
 
 This is what lets users wrap any framework call in `withAgent` / `withConversation` and get the right attributes without per-framework metadata threading.
@@ -165,19 +157,13 @@ This is what lets users wrap any framework call in `withAgent` / `withConversati
 
 The boilerplate a user copies to wire a new framework — setup + instrumentor construction + the per-call wrapping idiom — must be **fewer than 10 lines of code**, excluding business logic.
 
-| Framework          | Integration LOC |
-| ------------------ | --------------: |
-| OpenAI Agents SDK  |               1 |
-| Claude Agent SDK   |               2 |
-| LangChain          |               3 |
-| Vercel AI SDK      |               3 |
-| Pi                 |               3 |
-| Anthropic Node SDK |               7 |
-| Mastra             |               9 |
+| Framework        | Integration LOC |
+| ---------------- | --------------: |
+| Claude Agent SDK |               2 |
+| Vercel AI SDK    |               3 |
+| Pi               |               3 |
 
 If a new integration grows past 10 LOC, do not push the cost onto every example. Ask what the SDK should absorb instead: a missing baggage reader, a missing one-call bootstrap, a missing default that every caller is overriding the same way.
-
-Counter-pattern: a `RunnableLambda`-wrapped LangChain example that exists only because the handler didn't read baggage. The fix wasn't a smarter wrapper, it was making the handler honor baggage. The wrapper went away.
 
 ### `setupTracing()` is required for baggage to propagate
 
@@ -191,7 +177,7 @@ Tests installing their own provider should use the `installTestOTelGlobals()` he
 
 ### Polly recordings over mocks — no exceptions for HTTP-reachable APIs
 
-Always drive the real framework against a recorded LLM HTTP response. **Do not mock the framework itself** (no fake `RunnableLambda`s, no hand-crafted AI SDK telemetry event payloads, no fabricated Mastra span events, no mocked Claude Agent SDK async generators).
+Always drive the real framework against a recorded LLM HTTP response. **Do not mock the framework itself** (no hand-crafted AI SDK telemetry event payloads, no mocked Claude Agent SDK async generators).
 
 There are exactly two cases where a mock is acceptable. If your situation doesn't match one of them, use a recording.
 
@@ -200,7 +186,7 @@ There are exactly two cases where a mock is acceptable. If your situation doesn'
 
 Two recording mechanisms cover everything else:
 
-- **Polly** — for SDKs that make HTTP calls from the test process (LangChain, Vercel AI SDK, Mastra, Pi, OpenAI Agents SDK, raw Anthropic Node SDK, OpenAI Node SDK). See `tests/README.md`.
+- **Polly** — for SDKs that make HTTP calls from the test process (Vercel AI SDK, Pi, OpenAI Node SDK). See `tests/README.md`.
 - **Recording proxy** — for SDKs that make HTTP calls from a subprocess and bypass in-process interception (Claude Agent SDK). See `tests/recording-proxy/README.md`.
 
 If you reach for a mock, leave a one-line comment in the test header explaining which of the two exceptions applies. If neither applies, you're using the wrong tool.
@@ -227,14 +213,11 @@ Tests should pass `baseURL` explicitly to SDK clients via the `pollyEndpoints` c
 
 ---
 
-## 8. Open and tracked
+## 8. Supported integration surface
 
-Active cleanup work that operationalizes everything above lives in `docs/cleanup-plan.md`. Phases:
-
-- **Phase 1 — coverage tooling** (this branch). Baseline captured at 63% statements / 49% branches / 65% functions / 64% lines.
-- **Phase 2 — folder + file renames.** Applies the layout conventions in §4.
-- **Phase 3 — test consolidation.** Drops ~12 redundant test files.
-- **Phase 4 — close coverage gaps.** Raises thresholds toward 70%+.
-- **Phase 5 — dual-export examples refactor.** 11/36 → 28/28 coverage matrix, shared helper.
-
-If you're starting work on something not covered above, sanity-check it against `docs/cleanup-plan.md` first — your change might be pre-empted by an upcoming phase.
+The SDK ships three framework integrations — **Pi** (the supported harness),
+**Vercel AI SDK**, and **Claude Agent SDK** — plus the OpenClaw plugin package
+and the OpenInference conversion path in `IntrospectionSpanProcessor` for
+customer-owned OTel pipelines. The pre-Pi-pivot framework integrations
+(Mastra, LangChain/LangGraph, OpenAI Agents SDK, raw Anthropic SDK, Gemini)
+were removed; recover them from git history if one is ever needed again.
