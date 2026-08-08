@@ -29,6 +29,11 @@ export interface CreateTaskParams {
   agent_name?: string;
   title?: string;
   /**
+   * Recipe-source repository recorded on the task. Distinct from
+   * {@link CreateTaskParams.repositories}, which is what the task clones.
+   */
+  repository_id?: Uuid;
+  /**
    * Workspace repositories to clone into the sandbox's `workspace/repos/`
    * before the first turn, at most 10. Narrowed server-side to the runtime's
    * `runtime.github.repositories` grant.
