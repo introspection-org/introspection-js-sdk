@@ -26,7 +26,7 @@ export class RecipesApi {
    * lazily — `limit` sets the page size, `next` the starting cursor; stop
    * early to stop fetching).
    */
-  list(params: RecipeListParams): Paginator<Recipe> {
+  list(params: RecipeListParams = {}): Paginator<Recipe> {
     return cursorPaginate(
       (next) =>
         this.http.request<Paginated<Recipe>>({

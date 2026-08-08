@@ -141,7 +141,7 @@ export class ConversationsClient {
    *
    * Requires the optional `apache-arrow` peer dependency.
    */
-  arrow(params?: Omit<ConversationListParams, "format">): ArrowPages {
+  listArrow(params?: Omit<ConversationListParams, "format">): ArrowPages {
     return arrowRead(this.http, "/v1/conversations", params);
   }
 
@@ -174,7 +174,7 @@ export class ConversationsClient {
   /**
    * Export one complete conversation as a single Apache Arrow `Table`.
    *
-   * Unlike {@link arrow}, this is one table for the whole conversation
+   * Unlike {@link listArrow}, this is one table for the whole conversation
    * rather than an async iterable of pages: the export route assembles the
    * complete conversation server-side and streams it in one response.
    *

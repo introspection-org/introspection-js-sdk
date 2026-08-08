@@ -518,7 +518,7 @@ describe("ConversationsApi.arrow — columnar accessor", () => {
     const api = new ConversationsApi(http);
 
     const tables: arrow.Table[] = [];
-    for await (const table of api.arrow()) tables.push(table);
+    for await (const table of api.listArrow()) tables.push(table);
     expect(tables).toHaveLength(2);
     expect(tables[0]).toBeInstanceOf(arrow.Table);
     expect(tables[0].numRows).toBe(2);
@@ -531,7 +531,7 @@ describe("ConversationsApi.arrow — columnar accessor", () => {
         }),
       )
       .mockResolvedValueOnce(new Response(makeIpc(["c-3"]), { headers: {} }));
-    const table = await api.arrow().readAll();
+    const table = await api.listArrow().readAll();
 
     expect(http.stream).toHaveBeenCalledWith({
       path: "/v1/conversations",

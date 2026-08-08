@@ -428,17 +428,18 @@ export interface Runtime {
   metadata?: Record<string, unknown> | null;
 }
 
-export interface RuntimeListParams extends ListParams {
+export interface RuntimeListParams extends CursorParams {
   /** Project slug or id. */
   project?: string;
   /** Runtime slug or id. */
   runtime?: string;
   recipe_id?: Uuid;
-  only_active?: boolean;
-  /** Restrict to runtimes serving this environment (e.g. `"production"`). */
+  /**
+   * Restrict to runtimes serving this environment (e.g. `"production"`).
+   * An API key already selects its environment, so passing this alongside
+   * one is a 400.
+   */
   environment?: string;
-  /** Omit withdrawn runtimes — mirrors the server-side active resolution. */
-  exclude_yanked?: boolean;
 }
 
 // --- recipes ---

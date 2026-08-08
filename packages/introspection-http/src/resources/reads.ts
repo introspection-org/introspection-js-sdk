@@ -134,7 +134,7 @@ export function serializeReadParams(
 /**
  * Load the optional `apache-arrow` peer dependency on demand — the JSON
  * path never needs it, so it is imported only when `format: "arrow"` or
- * the columnar `.arrow()` accessor is used.
+ * the columnar `.listArrow()` accessor is used.
  */
 export async function loadArrow(): Promise<typeof import("apache-arrow")> {
   try {

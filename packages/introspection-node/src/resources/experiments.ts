@@ -54,7 +54,7 @@ export class ExperimentsApi {
    * (fetched lazily — `limit` sets the page size, `next` the starting
    * cursor; stop early to stop fetching).
    */
-  list(params: ExperimentListParams): Paginator<Experiment> {
+  list(params: ExperimentListParams = {}): Paginator<Experiment> {
     return cursorPaginate(
       (next) =>
         this.http.request<Paginated<Experiment>>({

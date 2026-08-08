@@ -10,7 +10,7 @@ import { ArrowPages, arrowRead, listRead } from "./reads.js";
 import type { ResourceHttpClient } from "./types.js";
 
 /**
- * Params accepted by {@link EventsClient.arrow} — the columnar accessor
+ * Params accepted by {@link EventsClient.listArrow} — the columnar accessor
  * always negotiates Arrow, so the row-oriented `format` switch is
  * omitted.
  */
@@ -29,7 +29,7 @@ export type EventArrowParams = Omit<EventListParams, "format">;
  * the ergonomic ordering/window params (`order`, `start`, `end`,
  * `lookback`) and an optional `format: "arrow"` that negotiates an
  * Apache Arrow IPC stream while exposing the identical page shape. For
- * columnar consumption use {@link arrow} instead, which yields
+ * columnar consumption use {@link listArrow} instead, which yields
  * apache-arrow `Table`s directly.
  */
 export class EventsClient {
@@ -85,7 +85,7 @@ export class EventsClient {
    *
    * Requires the optional `apache-arrow` peer dependency.
    */
-  arrow(params: EventArrowParams): ArrowPages {
+  listArrow(params: EventArrowParams): ArrowPages {
     return arrowRead(this.http, "/v1/events", params);
   }
 }
