@@ -152,12 +152,37 @@ export interface TaskFileRef {
   size_bytes?: number;
 }
 
+/**
+ * One `repositories[]` entry: a repository plus the state to clone it at.
+ *
+ * The recipe's `runtime.github.repositories` grant decides what a runtime MAY
+ * clone; this decides what a task DOES clone, and at what ref. An entry
+ * outside the grant is dropped by the server, never a launch failure.
+ */
+export interface TaskRepoRequest {
+  /** Registered repository slug, `owner/name`. */
+  repo: string;
+  /**
+   * Branch, tag, or commit to check out.
+   *
+   * Omit it and the server uses the repository's registered default branch.
+   */
+  ref?: string;
+  /** Shallow-clone depth; `0` clones full history. Omit for the default. */
+  depth?: number;
+}
+
 export interface TaskCreateParams {
   title?: string;
   prompt?: string;
   /** Recipe agent to run; omit for the recipe default (`agents/agent.yaml`). */
   agent_name?: string;
   repository_id?: Uuid;
+  /**
+   * Workspace repositories to clone into the sandbox's `workspace/repos/`
+   * before the first turn, at most 10.
+   */
+  repositories?: TaskRepoRequest[];
   metadata?: Record<string, unknown>;
   /**
    * Files to attach to this task, by id. Materialized into the agent's

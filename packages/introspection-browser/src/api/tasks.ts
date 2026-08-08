@@ -1,6 +1,7 @@
 import type {
   RunIdentityInput,
   TaskFileRef,
+  TaskRepoRequest,
   Uuid,
 } from "@introspection-sdk/types";
 import {
@@ -27,6 +28,12 @@ export interface CreateTaskParams {
   /** Named recipe agent, when no `runtime_id` is pinned. */
   agent_name?: string;
   title?: string;
+  /**
+   * Workspace repositories to clone into the sandbox's `workspace/repos/`
+   * before the first turn, at most 10. Narrowed server-side to the runtime's
+   * `runtime.github.repositories` grant.
+   */
+  repositories?: TaskRepoRequest[];
   metadata?: Record<string, unknown>;
   /**
    * Override the interactive idle window (seconds) before the sandbox is

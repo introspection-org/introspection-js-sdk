@@ -109,6 +109,7 @@ export type {
   TaskRunResponse,
   TaskCreateResponse,
   TaskFileRef,
+  TaskRepoRequest,
   TaskCancelResponse,
   TaskCancelOptions,
   AgentInfo,
