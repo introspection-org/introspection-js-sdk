@@ -6,8 +6,7 @@
  * shape (AGENTS.md §6 case 1).
  *
  * Two properties carry most of the weight, because they are the two the flat
- * representation got wrong (cloud `docs/design/conversations-genai-representation.md`
- * §1):
+ * representation got wrong:
  *
  * - **Nothing serializes as null.** An absent value is an absent key, so every
  *   optional field on these types is `?:` rather than `| null`.

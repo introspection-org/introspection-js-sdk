@@ -1,7 +1,9 @@
 import type {
+  Event,
   EventForName,
   EventListParams,
   IntrospectionEventName,
+  UnknownEvent,
 } from "@introspection-sdk/types";
 import type { Paginator } from "../pagination.js";
 import { ArrowPages, arrowRead, listRead } from "./reads.js";
@@ -55,6 +57,24 @@ export class EventsClient {
     const N extends IntrospectionEventName | (string & Record<never, never>),
   >(params: EventListParams & { event_name: N }): Paginator<EventForName<N>> {
     return listRead<EventForName<N>>(this.http, "/v1/events", params);
+  }
+
+  /**
+   * Read one event by id, across every family. Unlike {@link list}, no
+   * `event_name` is supplied, so the caller cannot know the family in
+   * advance: the result is the closed {@link Event} union widened with
+   * {@link UnknownEvent}, because a family added server-side after this
+   * SDK version is returned as-is rather than dropped. Narrow with
+   * `isKnownEvent` (or on `event_name`) before touching `payload`.
+   *
+   * Throws `NotFoundError` when the id does not resolve within the
+   * caller's tenant scope.
+   */
+  get(eventId: string): Promise<Event | UnknownEvent> {
+    return this.http.request<Event | UnknownEvent>({
+      method: "GET",
+      path: `/v1/events/${encodeURIComponent(eventId)}`,
+    });
   }
 
   /**

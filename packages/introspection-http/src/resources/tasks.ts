@@ -106,7 +106,7 @@ export class TaskRunsClient {
    * mid-turn disconnect (gateway idle-timeout, load-balancer recycle, network
    * blip): it re-attaches with the SSE-standard `Last-Event-ID` so the server
    * replays the missed frames, yielding a single gap-free `AGUIEvent` sequence
-   * (INT-252, see `docs/design/sdk-resumable-streams.md`). The iterator
+   * (INT-252). The iterator
    * completes when the turn finishes and throws only once recovery is
    * exhausted — there is no consumer-visible change from a plain stream.
    * `opts` tunes the recovery bounds.

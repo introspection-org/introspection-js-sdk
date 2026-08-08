@@ -30,6 +30,13 @@ import type { ResourceHttpClient } from "./types.js";
  */
 export const ARROW_STREAM_MEDIA_TYPE = "application/vnd.apache.arrow.stream";
 
+/**
+ * Base media type for a trajectory-v1 conversation export. Callers append
+ * the `version` parameter; a server that does not implement the requested
+ * version answers `406` rather than silently serving a different shape.
+ */
+export const TRAJECTORY_MEDIA_TYPE = "application/vnd.letta.trajectory+json";
+
 /** Ergonomic + control keys consumed by the client, never sent on the wire. */
 const CLIENT_ONLY_KEYS = new Set([
   "order",
@@ -129,7 +136,7 @@ export function serializeReadParams(
  * path never needs it, so it is imported only when `format: "arrow"` or
  * the columnar `.arrow()` accessor is used.
  */
-async function loadArrow(): Promise<typeof import("apache-arrow")> {
+export async function loadArrow(): Promise<typeof import("apache-arrow")> {
   try {
     return await import("apache-arrow");
   } catch (err) {

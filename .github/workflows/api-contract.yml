@@ -1,0 +1,38 @@
+# Watches the published API reference for drift against this SDK's task surface.
+# Scheduled rather than run on pull requests: it reaches the network and it goes
+# red when the *API* changes, which is a fact about the world and not about the
+# commit under review. Gating PRs on it would make it noise, and being ignorable
+# is how the last one of these went unnoticed.
+name: API Contract
+
+on:
+  schedule:
+    # 07:00 UTC daily, so a red run is waiting at the start of the day rather
+    # than arriving mid-afternoon.
+    - cron: "0 7 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  task-surface:
+    name: Task surface vs published reference
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          cache: pnpm
+
+      # Only the TypeScript compiler is needed, to read the interfaces the
+      # check compares — the packages themselves are never built.
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Compare the task surface against the reference
+        run: node scripts/check-api-contract.mjs

@@ -1,8 +1,6 @@
 import type {
   Experiment,
-  ExperimentCreate,
   ExperimentListParams,
-  ExperimentUpdate,
   Paginated,
   RunRequest,
   RunnerSpec,
@@ -36,6 +34,14 @@ function toRunBody(opts?: RunRequest): ExperimentRunRequestBody | undefined {
   return out;
 }
 
+/**
+ * Read access and lifecycle for `/v1/experiments` on the CP.
+ *
+ * Lookup and lifecycle only: a runner brackets its own execution, resolving
+ * the experiment and then `start` / `end` / `cancel` around the work it is
+ * being measured on. Authoring an experiment is a project-authoring act and
+ * lives in the CLI.
+ */
 export class ExperimentsApi {
   constructor(
     private readonly http: HttpClient,
@@ -64,30 +70,6 @@ export class ExperimentsApi {
     return this.http.request<Experiment>({
       method: "GET",
       path: `/v1/experiments/${encodeURIComponent(id)}`,
-    });
-  }
-
-  create(input: ExperimentCreate): Promise<Experiment> {
-    return this.http.request<Experiment>({
-      method: "POST",
-      path: "/v1/experiments",
-      body: input,
-    });
-  }
-
-  update(id: Uuid, input: ExperimentUpdate): Promise<Experiment> {
-    return this.http.request<Experiment>({
-      method: "PATCH",
-      path: `/v1/experiments/${encodeURIComponent(id)}`,
-      body: input,
-    });
-  }
-
-  delete(id: Uuid): Promise<void> {
-    return this.http.request<void>({
-      method: "DELETE",
-      path: `/v1/experiments/${encodeURIComponent(id)}`,
-      expect: "empty",
     });
   }
 
@@ -165,9 +147,6 @@ export function attachExperiments(
   const hybrid = factory as ExperimentsApi & ExperimentHandleFactory;
   hybrid.list = api.list.bind(api);
   hybrid.get = api.get.bind(api);
-  hybrid.create = api.create.bind(api);
-  hybrid.update = api.update.bind(api);
-  hybrid.delete = api.delete.bind(api);
   hybrid.startById = api.startById.bind(api);
   hybrid.endById = api.endById.bind(api);
   hybrid.cancelById = api.cancelById.bind(api);

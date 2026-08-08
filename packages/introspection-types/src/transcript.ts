@@ -5,8 +5,7 @@
  * AG-UI event stream while a run executes, and the persisted GenAI spans
  * after a refresh. Historically every consumer wrote its own spans→messages
  * logic and its own live↔stored reconciliation heuristics, and the two
- * projections drifted (`docs/design/conversation-transcript-scope.md` in the
- * cloud repo records the measured cost). These types are the shared target:
+ * projections drifted, at measured cost. These types are the shared target:
  * `foldSpans` and `foldAgui` in `@introspection-sdk/http` both produce
  * `TranscriptEntry[]`, so parity is a property of one module instead of a
  * per-app effort.

@@ -5,8 +5,7 @@ import { parseStreamFrames } from "./agui-stream.js";
 import type { ResourceHttpClient } from "./resources/types.js";
 
 /**
- * Transparent stream resume (see `docs/design/sdk-resumable-streams.md`,
- * INT-252).
+ * Transparent stream resume (INT-252).
  *
  * A turn is consumed over a long-lived SSE stream that can be severed before
  * the turn settles (gateway idle-timeout, load-balancer recycle, network

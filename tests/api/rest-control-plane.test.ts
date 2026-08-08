@@ -444,7 +444,7 @@ describe("IntrospectionClient (REST control-plane, real server)", () => {
   });
 
   describe("experiments", () => {
-    it("uses the stable runtime selector on create and list", async () => {
+    it("uses the stable runtime selector on list", async () => {
       const client = makeClient();
       requests = [];
 
@@ -455,53 +455,16 @@ describe("IntrospectionClient (REST control-plane, real server)", () => {
         }),
       );
       expect(requests[0]?.query.get("runtime")).toBe(RUNTIME.slug);
-
-      await client.experiments.create({
-        project: "proj-1",
-        name: "exp-a",
-        runtime: RUNTIME.slug,
-        arms: [
-          { runtime_id: RUNTIME.id, arm_label: "control" },
-          {
-            runtime_id: "44444444-4444-4444-4444-444444444444",
-            arm_label: "candidate",
-          },
-        ],
-        goal_json: {
-          kind: "composite",
-          components: [
-            {
-              source: "judge",
-              judge_id: "55555555-5555-5555-5555-555555555555",
-              weight: 1,
-            },
-          ],
-        },
-      });
-      expect(requests.at(-1)?.body).toMatchObject({ runtime: RUNTIME.slug });
     });
 
-    it("CRUD + lifecycle + run", async () => {
+    it("read + lifecycle + run", async () => {
       const client = makeClient();
       expect(
         await collect(client.experiments.list({ project: "proj-1" })),
       ).toHaveLength(1);
-      expect(
-        (await client.experiments.create({ name: "exp-a" } as never)).id,
-      ).toBe(EXPERIMENT.id);
       expect((await client.experiments.get(EXPERIMENT.id)).id).toBe(
         EXPERIMENT.id,
       );
-      expect(
-        (
-          await client.experiments.update(EXPERIMENT.id, {
-            name: "exp-renamed",
-          } as never)
-        ).name,
-      ).toBe("exp-renamed");
-      await expect(
-        client.experiments.delete(EXPERIMENT.id),
-      ).resolves.toBeUndefined();
 
       const handle = client.experiments(EXPERIMENT.id);
       expect((await handle.start()).status).toBe("running");
@@ -540,23 +503,12 @@ describe("IntrospectionClient (REST control-plane, real server)", () => {
   });
 
   describe("recipes", () => {
-    it("CRUD + list", async () => {
+    it("get + list", async () => {
       const client = makeClient();
       expect(
         await collect(client.recipes.list({ project: "proj-1" })),
       ).toHaveLength(1);
-      expect(
-        (await client.recipes.create({ git_ref: "main" } as never)).id,
-      ).toBe(RECIPE.id);
       expect((await client.recipes.get(RECIPE.id)).id).toBe(RECIPE.id);
-      expect(
-        (
-          await client.recipes.update(RECIPE.id, {
-            git_ref: "release",
-          } as never)
-        ).git_ref,
-      ).toBe("release");
-      await expect(client.recipes.delete(RECIPE.id)).resolves.toBeUndefined();
       const seen = [];
       for await (const r of client.recipes.list({ project: "proj-1" }))
         seen.push(r.id);
