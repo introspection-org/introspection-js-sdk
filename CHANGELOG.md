@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.20.0](https://github.com/introspection-org/introspection-js-sdk/compare/v0.19.1...v0.20.0) (2026-08-07)
+
+
+### Features
+
+* **conversations:** add summary resources and agent selection ([#297](https://github.com/introspection-org/introspection-js-sdk/issues/297)) ([d0af5fd](https://github.com/introspection-org/introspection-js-sdk/commit/d0af5fde557e87d96a8b56f72735096e28eac28a))
+
 ## [0.19.1](https://github.com/introspection-org/introspection-js-sdk/compare/v0.19.0...v0.19.1) (2026-08-06)
 
 
