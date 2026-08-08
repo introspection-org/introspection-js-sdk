@@ -14,7 +14,7 @@ import { fileURLToPath } from "node:url";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(__dirname, "../..");
 const OPTIONAL_FRAMEWORK_IMPORT =
-  /^import\s+(?!"type\b)(?:[^"']+\s+from\s+)?["'](@anthropic-ai|@openai|@google|@langchain|@mastra|@earendil|ai|openai)(?:\/[^"']*)?["'];/gm;
+  /^import\s+(?!"type\b)(?:[^"']+\s+from\s+)?["'](@anthropic-ai|@openai|@google|@earendil|ai|openai)(?:\/[^"']*)?["'];/gm;
 
 describe("public export barrels", () => {
   it("@introspection-sdk/introspection-node (REST root)", async () => {

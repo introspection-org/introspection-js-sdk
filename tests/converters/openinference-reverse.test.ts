@@ -30,23 +30,19 @@ function spanWith(attributes: Attributes): ReadableSpan {
 }
 
 describe("addOpenInferenceAttributes", () => {
-  it("maps mastra span types to openinference span kinds", () => {
+  it("maps gen_ai operation names to openinference span kinds", () => {
     expect(
-      addOpenInferenceAttributes(
-        spanWith({ "mastra.span.type": "MODEL_GENERATION" }),
-      ).attributes["openinference.span.kind"],
+      addOpenInferenceAttributes(spanWith({ "gen_ai.operation.name": "chat" }))
+        .attributes["openinference.span.kind"],
     ).toBe("LLM");
     expect(
-      addOpenInferenceAttributes(spanWith({ "mastra.span.type": "AGENT_RUN" }))
-        .attributes["openinference.span.kind"],
-    ).toBe("CHAIN");
-    expect(
-      addOpenInferenceAttributes(spanWith({ "mastra.span.type": "TOOL_CALL" }))
-        .attributes["openinference.span.kind"],
-    ).toBe("TOOL");
+      addOpenInferenceAttributes(
+        spanWith({ "gen_ai.operation.name": "invoke_agent" }),
+      ).attributes["openinference.span.kind"],
+    ).toBe("AGENT");
     expect(
       addOpenInferenceAttributes(
-        spanWith({ "mastra.span.type": "MCP_TOOL_CALL" }),
+        spanWith({ "gen_ai.operation.name": "execute_tool" }),
       ).attributes["openinference.span.kind"],
     ).toBe("TOOL");
   });
@@ -124,16 +120,7 @@ describe("addOpenInferenceAttributes", () => {
     expect(out["llm.input_messages.0.message.role"]).toBeUndefined();
   });
 
-  it("maps agent-run and tool input/output values", () => {
-    const agent = addOpenInferenceAttributes(
-      spanWith({
-        "mastra.agent_run.input": "q",
-        "mastra.agent_run.output": "a",
-      }),
-    ).attributes;
-    expect(agent["input.value"]).toBe("q");
-    expect(agent["output.value"]).toBe("a");
-
+  it("maps tool input/output values", () => {
     const tool = addOpenInferenceAttributes(
       spanWith({
         "gen_ai.tool.name": "search",
@@ -154,9 +141,8 @@ describe("OpenInferenceSpanExporter", () => {
     const inner = new InMemorySpanExporter();
     const exporter = new OpenInferenceSpanExporter(inner);
     const code = await new Promise<number>((resolve) => {
-      exporter.export(
-        [spanWith({ "mastra.span.type": "MODEL_GENERATION" })],
-        (r) => resolve(r.code),
+      exporter.export([spanWith({ "gen_ai.operation.name": "chat" })], (r) =>
+        resolve(r.code),
       );
     });
     expect(code).toBe(ExportResultCode.SUCCESS);

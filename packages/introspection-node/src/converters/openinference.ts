@@ -88,24 +88,6 @@ function getPath(obj: unknown, ...keys: string[]): unknown {
   return current;
 }
 
-/**
- * Extract response ID from LangChain's nested output structure.
- * Path: generations[*][*].message.kwargs.id
- */
-function extractLangChainResponseId(payload: unknown): string | undefined {
-  const generations = getPath(payload, "generations");
-  if (!Array.isArray(generations)) return undefined;
-
-  for (const outer of generations) {
-    const items = Array.isArray(outer) ? outer : [outer];
-    for (const item of items) {
-      const id = getPath(item, "message", "kwargs", "id");
-      if (typeof id === "string" && id) return id;
-    }
-  }
-  return undefined;
-}
-
 function extractResponseId(attrs: Attributes): string | undefined {
   const existing = attrs["gen_ai.response.id"];
   if (typeof existing === "string" && existing) return existing;
@@ -115,7 +97,7 @@ function extractResponseId(attrs: Attributes): string | undefined {
 
   try {
     const parsed = JSON.parse(outputValue);
-    return parsed?.id ?? extractLangChainResponseId(parsed);
+    return typeof parsed?.id === "string" && parsed.id ? parsed.id : undefined;
   } catch {
     return undefined;
   }
@@ -164,7 +146,7 @@ function extractToolDefinitions(
     try {
       const raw = typeof value === "string" ? JSON.parse(value) : value;
 
-      // LangChain format: {"type":"function","function":{name, description, parameters}}
+      // OpenAI function-wrapper format: {"type":"function","function":{name, description, parameters}}
       // Standard format: {title/name, description, parameters}
       const schema =
         raw?.type === "function" && raw?.function ? raw.function : raw;
@@ -522,7 +504,7 @@ function flattenGenAIMessages(
  * Enrich a {@link ReadableSpan} with OpenInference attributes derived from its
  * `gen_ai.*` attributes.
  *
- * Use this when exporting Mastra traces to Arize / Phoenix, which expects
+ * Use this when exporting `gen_ai` traces to Arize / Phoenix, which expect
  * OpenInference conventions (`openinference.span.kind`, `llm.model_name`,
  * flattened `llm.input_messages.N.message.role`, token counts, etc.).
  *
@@ -537,17 +519,16 @@ function flattenGenAIMessages(
  */
 export function addOpenInferenceAttributes(span: ReadableSpan): ReadableSpan {
   const attrs: Record<string, unknown> = { ...span.attributes };
-  const spanType = attrs["mastra.span.type"] as string;
 
-  switch (spanType) {
-    case "MODEL_GENERATION":
+  switch (attrs["gen_ai.operation.name"]) {
+    case "chat":
+    case "generate_content":
       attrs["openinference.span.kind"] = "LLM";
       break;
-    case "AGENT_RUN":
-      attrs["openinference.span.kind"] = "CHAIN";
+    case "invoke_agent":
+      attrs["openinference.span.kind"] = "AGENT";
       break;
-    case "TOOL_CALL":
-    case "MCP_TOOL_CALL":
+    case "execute_tool":
       attrs["openinference.span.kind"] = "TOOL";
       break;
   }
@@ -586,13 +567,6 @@ export function addOpenInferenceAttributes(span: ReadableSpan): ReadableSpan {
   flattenGenAIMessages(attrs, "gen_ai.input.messages", OI.INPUT_MESSAGES);
   flattenGenAIMessages(attrs, "gen_ai.output.messages", OI.OUTPUT_MESSAGES);
 
-  if (attrs["mastra.agent_run.input"]) {
-    attrs["input.value"] = attrs["mastra.agent_run.input"];
-  }
-  if (attrs["mastra.agent_run.output"]) {
-    attrs[OI.OUTPUT_VALUE] = attrs["mastra.agent_run.output"];
-  }
-
   if (attrs["gen_ai.tool.name"]) {
     attrs[OI.TOOL_NAME] = attrs["gen_ai.tool.name"];
   }
@@ -617,7 +591,7 @@ export function addOpenInferenceAttributes(span: ReadableSpan): ReadableSpan {
  * {@link SpanExporter} wrapper that enriches every span with OpenInference
  * attributes before forwarding it to the inner exporter.
  *
- * Use this when exporting Mastra / `gen_ai` traces to Arize or Phoenix.
+ * Use this when exporting `gen_ai` traces to Arize or Phoenix.
  *
  * @example
  * ```ts

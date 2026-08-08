@@ -184,18 +184,6 @@ describe("convertOpenInferenceToGenAI", () => {
     expect(result.responseId).toBe("existing-id");
   });
 
-  it("should extract LangChain response ID from nested structure", () => {
-    const attrs: Attributes = {
-      "output.value": JSON.stringify({
-        generations: [
-          [{ message: { kwargs: { id: "chatcmpl-langchain-123" } } }],
-        ],
-      }),
-    };
-    const result = convertOpenInferenceToGenAI(attrs);
-    expect(result.responseId).toBe("chatcmpl-langchain-123");
-  });
-
   it("should return empty object for undefined attrs", () => {
     const result = convertOpenInferenceToGenAI(undefined);
     expect(result).toEqual({});
