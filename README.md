@@ -8,7 +8,7 @@
   </a>
 </div>
 
-<h4 align="center">Deploy vertical agents that improve in production.</h4>
+<h4 align="center">The infrastructure for long-horizon vertical agents.</h4>
 
 <div align="center">
   <a href="https://introspection.dev"><img src="https://img.shields.io/badge/website-introspection.dev-blue" alt="Website"></a>
@@ -19,10 +19,12 @@
 
 <br>
 
-[Introspection](https://introspection.dev) is the managed cloud for vertical
-agents, powered by Pi. Define an agent as a recipe, deploy it to a
-commit-pinned runtime, and improve it in production with conversations,
-patterns, judges, and experiments.
+[Introspection](https://introspection.dev) is the infrastructure for
+long-horizon vertical agents, powered by Pi. Define an agent as a
+[Recipe](https://pi.recipes) — agents, skills, policies, and evals in plain
+source you own in Git — deploy it to a governed per-customer Runtime, and
+improve it in production with conversations, observations, judges, and
+experiments.
 
 This repository contains the JavaScript and TypeScript clients for driving the
 Introspection platform. Use them to open a runner against a deployed runtime,
@@ -32,13 +34,15 @@ where each client fits.
 
 ## Packages
 
-| Package                                                                         | Description                                                                                     |
-| ------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
-| [`@introspection-sdk/introspection-node`](./packages/introspection-node/)       | Server-side platform client for runtimes, tasks, files, conversations, recipes, and experiments |
-| [`@introspection-sdk/introspection-browser`](./packages/introspection-browser/) | Browser platform client for applications authenticated through a backend token broker           |
-| [`@introspection-sdk/types`](./packages/introspection-types/)                   | Shared types and constants                                                                      |
-| [`@introspection-sdk/introspection-pi`](./packages/introspection-pi/)           | Supported [Pi Agent SDK](https://withpi.ai) instrumentation                                     |
-| [`@introspection-sdk/introspection-proxy`](./packages/introspection-proxy/)     | Egress proxy helpers — credential injection and CONNECT forward proxy                           |
+| Package                                                                           | Description                                                                                     |
+| --------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| [`@introspection-sdk/introspection-node`](./packages/introspection-node/)         | Server-side platform client for runtimes, tasks, files, conversations, recipes, and experiments |
+| [`@introspection-sdk/introspection-browser`](./packages/introspection-browser/)   | Browser platform client for applications authenticated through a backend token broker           |
+| [`@introspection-sdk/types`](./packages/introspection-types/)                     | Shared types and constants                                                                      |
+| [`@introspection-sdk/introspection-pi`](./packages/introspection-pi/)             | Supported [Pi Agent SDK](https://withpi.ai) instrumentation                                     |
+| [`@introspection-sdk/introspection-openclaw`](./packages/introspection-openclaw/) | Experimental OpenClaw plugin — agent lifecycle spans in OTel GenAI semantic conventions         |
+| [`@introspection-sdk/coding-agent`](./packages/introspection-coding-agent/)       | Opt-in capture of Claude Code / Codex plugin sessions for the Introspection plugin              |
+| [`@introspection-sdk/introspection-proxy`](./packages/introspection-proxy/)       | Egress proxy helpers — credential injection and CONNECT forward proxy                           |
 
 ## Quick start
 
@@ -141,10 +145,13 @@ budget is spent the error surfaces (`RateLimitError` for 429,
 and `body` so you can decide how to back off further. Streaming has its own
 resume budget (above); multipart uploads are not auto-retried.
 
-### Pi instrumentation
+### Instrumentation (`/otel`)
 
-Pi is the supported agent-instrumentation path. `init()` discovers Pi and wires
-it into the shared trace pipeline:
+The `@introspection-sdk/introspection-node/otel` entrypoint records backend
+product signals (`track` / `feedback` / `identify`) and instruments an agent
+that runs outside an Introspection runtime. Pi is the supported
+agent-instrumentation path. `init()` discovers Pi and wires it into the shared
+trace pipeline:
 
 ```shell
 pnpm add @earendil-works/pi-agent-core @earendil-works/pi-ai
@@ -173,7 +180,10 @@ await agent.prompt("Help me understand my latest invoice.");
 await introspection.shutdown();
 ```
 
-> Support for other frameworks is experimental.
+> Beyond Pi, the Vercel AI SDK and Claude Agent SDK integrations (auto-discovered
+> by `init()`) and the [OpenClaw plugin](./packages/introspection-openclaw/) are
+> experimental. Agents emitting OpenInference spans are converted to GenAI
+> semantic conventions by `IntrospectionSpanProcessor` automatically.
 
 ### Egress proxy
 

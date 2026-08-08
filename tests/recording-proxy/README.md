@@ -2,7 +2,7 @@
 
 Local HTTP proxy that records and replays LLM API traffic for SDKs that bypass Polly's in-process adapters — primarily the **Claude Agent SDK**, whose `claude` binary makes Anthropic API calls from a subprocess so there's no in-process `fetch` / node-http call for Polly to intercept.
 
-For SDKs that make their calls from the test process (LangChain, Vercel AI SDK, Mastra, Pi, OpenAI Agents SDK, the raw Anthropic Node SDK), keep using Polly — see `tests/README.md`.
+For SDKs that make their calls from the test process (Vercel AI SDK, Pi, the OpenAI Node SDK), keep using Polly — see `tests/README.md`.
 
 ## Usage
 
