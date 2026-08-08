@@ -3,8 +3,8 @@ import type { ResumeEntry } from "@ag-ui/core";
 /**
  * Public REST API types for the Introspection DP `/v1` surface.
  *
- * Field names are kept on-the-wire (snake_case) to match the DP
- * Pydantic models verbatim. See cloud `docs/design/sdk-tasks-files.md`.
+ * Field names are kept on-the-wire (snake_case) to match the server
+ * models verbatim.
  */
 
 export type Uuid = string;
@@ -38,8 +38,7 @@ export interface ListParams {
  * returns the {@link Paginated} envelope; `"arrow"` negotiates an Apache
  * Arrow IPC stream via the `Accept` header and reconstructs the same
  * {@link Paginated} shape from the response body + pagination headers, so
- * paging is identical across formats. See cloud
- * `docs/design/agent-cli-machine-contract.md`.
+ * paging is identical across formats.
  */
 export type ReadFormat = "json" | "arrow";
 
@@ -625,10 +624,8 @@ export interface RunnerDeployment {
 /**
  * CP `/run` response — the customer wire.
  *
- * Sandbox-internal fields (`credentials` for ext_proc egress injection,
- * the `bootstrap` repo manifest, DP `limits`, and the Otari
- * `llm_proxy` descriptor) live on `InternalRunnerSpec` on the CP→DP
- * internal route. They are never returned to customer callers.
+ * The fields it omits are server-internal and are never returned to
+ * customer callers.
  */
 export interface RunnerSpec {
   session_id: string;
@@ -1139,7 +1136,6 @@ export interface MetricQueryConfig {
 /**
  * Request body for `POST /v1/metrics` — the bounded, allow-listed
  * telemetry aggregation contract. Unknown fields are rejected server-side.
- * See cloud `docs/design/metrics-api.md`.
  */
 export interface MetricQueryRequest {
   view: MetricView;

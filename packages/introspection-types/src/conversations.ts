@@ -32,10 +32,7 @@
  * type that never declared it and still round-trips — closing these types
  * would reintroduce exactly the lossiness this representation exists to
  * remove. Field names are kept on-the-wire (snake_case) to match both the
- * semantic conventions and the DP models verbatim
- * (`introspection_dataplane/models/genai_span.py`).
- *
- * @see cloud `docs/design/conversations-genai-representation.md`
+ * semantic conventions and the server models verbatim.
  */
 
 import type { IsoDate, ListParams, ReadWindowParams, Uuid } from "./api.js";
