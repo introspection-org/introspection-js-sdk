@@ -678,6 +678,209 @@ export interface RunRequest {
   scope?: string;
 }
 
+// --- connectors ---
+
+/**
+ * How a connector authenticates against its provider.
+ *
+ * - `"static"`             — a caller-supplied long-lived token.
+ * - `"oauth_stored"`       — OAuth tokens stored server-side after consent.
+ * - `"identity_assertion"` — per-call signed identity assertions.
+ * - `"federated_exchange"` — federated token exchange.
+ * - `"person_authorized"`  — per-action human-in-the-loop approval.
+ */
+export type ConnectorAuthMode =
+  | "static"
+  | "oauth_stored"
+  | "identity_assertion"
+  | "federated_exchange"
+  | "person_authorized";
+
+export type ConnectorStatus = "pending" | "active" | "error";
+
+export type ConnectionStatus =
+  "pending_authorization" | "active" | "refresh_failed" | "revoked";
+
+/** Who a connection acts as against the provider. */
+export type ConnectionSubjectType =
+  "app" | "user" | "federated" | "person" | "workspace";
+
+export type ConnectorPersonServerMode = "managed" | "byo" | "discovered";
+
+export type ConnectorApprovalPolicy =
+  "human" | "judge_advises_human" | "judge_auto_within_envelope";
+
+/**
+ * A connector — a project-scoped integration to an external provider
+ * (e.g. Slack, Gmail, Stripe) that connections are minted under.
+ *
+ * `client_secret` and `signing_secret` are write-only: accepted on create
+ * and update, absent from every response — this read model deliberately
+ * does not declare them.
+ */
+export interface Connector {
+  id: Uuid;
+  org_id: Uuid;
+  project_id: Uuid;
+  created_at: IsoDate;
+  updated_at: IsoDate;
+  /** Stable per-org identifier; create is idempotent on it. */
+  slug: string;
+  name: string;
+  /** Provider slug, e.g. `"slack"`, `"gmail"`, `"stripe"`. */
+  provider: string;
+  auth_mode: ConnectorAuthMode;
+  /** Create-time fact — not updatable. */
+  environment: Environment;
+  agent_member_id?: Uuid | null;
+  authorization_endpoint?: string | null;
+  token_endpoint?: string | null;
+  scopes: string[];
+  api_hosts: string[];
+  client_id?: string | null;
+  person_server_mode?: ConnectorPersonServerMode | null;
+  person_server_url?: string | null;
+  approval_policy: ConnectorApprovalPolicy;
+  application_id?: Uuid | null;
+  assertion_audience?: string | null;
+  webhook_url?: string | null;
+  status: ConnectorStatus;
+  created_by_member_id?: Uuid | null;
+  metadata?: Record<string, unknown> | null;
+  /**
+   * Server-derived: whether `authorize` must name a `runtime` for this
+   * connector (chat providers need the agent that replies). Read this —
+   * never hardcode a provider list.
+   */
+  requires_runtime: boolean;
+}
+
+export interface ConnectorCreateParams {
+  name: string;
+  /** Provider slug, e.g. `"slack"`, `"gmail"`, `"stripe"`. */
+  provider: string;
+  auth_mode: ConnectorAuthMode;
+  /** Derived from `name` when omitted. */
+  slug?: string;
+  /** Lane the connector serves (default `"production"`). */
+  environment?: Environment;
+  agent_member_id?: Uuid;
+  authorization_endpoint?: string;
+  token_endpoint?: string;
+  scopes?: string[];
+  api_hosts?: string[];
+  client_id?: string;
+  /** Write-only — never present on any response. */
+  client_secret?: string;
+  /** Write-only — never present on any response. */
+  signing_secret?: string;
+  metadata?: Record<string, unknown>;
+  /**
+   * OAuth discovery: when set and the endpoints are omitted, the server
+   * resolves `authorization_endpoint` / `token_endpoint` from the issuer's
+   * `.well-known` metadata. Not persisted.
+   */
+  issuer?: string;
+  person_server_mode?: ConnectorPersonServerMode;
+  person_server_url?: string;
+  approval_policy?: ConnectorApprovalPolicy;
+  application_id?: Uuid;
+  assertion_audience?: string;
+  webhook_url?: string;
+}
+
+/**
+ * PATCH body — only these fields are mutable (`environment`, `provider`,
+ * `auth_mode`, and `slug` are create-time facts). Only provided fields
+ * change; leaving `client_secret` / `signing_secret` blank means
+ * "unchanged", not "clear".
+ */
+export interface ConnectorUpdateParams {
+  name?: string;
+  agent_member_id?: Uuid;
+  scopes?: string[];
+  api_hosts?: string[];
+  status?: ConnectorStatus;
+  metadata?: Record<string, unknown>;
+  webhook_url?: string;
+  /** Write-only; omit to leave the stored secret unchanged. */
+  client_secret?: string;
+  /** Write-only; omit to leave the stored secret unchanged. */
+  signing_secret?: string;
+}
+
+export interface ConnectorListParams extends CursorParams {
+  /** Project slug or id. Optional when the token is project-scoped. */
+  project?: string;
+}
+
+/** Per-call options for the connector CRUD routes. */
+export interface ConnectorRequestOptions {
+  /** Project slug or id. Optional when the token is project-scoped. */
+  project?: string;
+}
+
+export interface ConnectorAuthorizeParams {
+  /**
+   * Runtime selector (slug or runtime group id). Required by the server
+   * (422) when the connector's provider is a chat provider — check
+   * `connector.requires_runtime`.
+   */
+  runtime?: string;
+  /** Who the consent is for (default `"app"`). */
+  subject?: "app" | "user" | "person";
+  /** Where the browser lands after consent. */
+  return_url?: string;
+  /**
+   * Seconds the URL stays valid (60–86400, server default 600). Raise it
+   * when handing the URL to someone else to open.
+   */
+  expires_in?: number;
+}
+
+/**
+ * A freshly minted consent URL. The URL embeds a single-use `state`, so it
+ * must never be cached, and `state` itself is never surfaced as a field.
+ */
+export interface ConnectorAuthorizeResponse {
+  authorize_url: string;
+  expires_in: number;
+  expires_at: IsoDate;
+}
+
+/**
+ * A connection — one authorized subject under a connector. Access and
+ * refresh tokens are never serialized.
+ */
+export interface Connection {
+  id: Uuid;
+  org_id: Uuid;
+  created_at: IsoDate;
+  updated_at: IsoDate;
+  connector_id: Uuid;
+  /**
+   * `null` = org-owned (app subject); for a Slack workspace install this
+   * points at the workspace customer member.
+   */
+  member_id?: Uuid | null;
+  /** Runtime group answering this connection's channels. */
+  runtime_group_id?: Uuid | null;
+  subject_type: ConnectionSubjectType;
+  scopes_granted: string[];
+  status: ConnectionStatus;
+  token_expires_at?: IsoDate | null;
+}
+
+/** Registered-mode create — the caller supplies a provider token. */
+export interface ConnectionCreateParams {
+  access_token: string;
+  /** Defaults to `"app"`. */
+  subject_type?: ConnectionSubjectType;
+  scopes_granted?: string[];
+  refresh_token?: string;
+  token_expires_at?: IsoDate;
+}
+
 // --- events ---
 
 /**

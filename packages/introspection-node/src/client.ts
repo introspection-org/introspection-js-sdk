@@ -28,6 +28,10 @@ import {
   type ExperimentsApi,
 } from "./resources/experiments.js";
 import { attachRecipes, type RecipesApi } from "./resources/recipes.js";
+import {
+  attachConnectors,
+  type ConnectorsApi,
+} from "./resources/connectors.js";
 import { DEV_TARGET_HEADER, resolveDevTarget } from "./dev-target.js";
 
 /**
@@ -76,6 +80,13 @@ export class IntrospectionClient {
    */
   readonly recipes: RecipesApi;
 
+  /**
+   * CRUD on `/v1/connectors` (with connections nested under
+   * `.connections`) plus `connectors.authorize(id)`, which mints the
+   * single-use consent URL a Business hands its customer.
+   */
+  readonly connectors: ConnectorsApi;
+
   constructor(options: IntrospectionClientOptions = {}) {
     const token = options.token || process.env.INTROSPECTION_TOKEN || "";
     const advanced = options.advanced || {};
@@ -122,6 +133,7 @@ export class IntrospectionClient {
     this.runtimes = attachRuntimes(this, this.cpHttp);
     this.experiments = attachExperiments(this, this.cpHttp);
     this.recipes = attachRecipes(this.cpHttp);
+    this.connectors = attachConnectors(this.cpHttp);
 
     sdkLogger.info(`IntrospectionClient initialized: api=${baseApiUrl}`);
   }
