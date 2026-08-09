@@ -114,14 +114,14 @@ export default defineConfig({
       // packages (a "do not regress" floor), NOT a per-file or all-metrics-≥70
       // guarantee. Concretely: line/statement/function coverage are high (~84/84/87%)
       // and the dominant target; branch coverage is tracked but intentionally
-      // lower (~67%, floor 63) since exhaustive branch coverage on multi-format
+      // lower (~73%, floor 63) since exhaustive branch coverage on multi-format
       // converters has steep diminishing returns. Some individual files are below
       // 70% (e.g. introspection-browser/src/client.ts is 0% — deferred pending a
       // browser harness; introspection-openclaw is excluded entirely as beta).
       // If a stricter "every file ≥ X" policy is wanted, tighten this block.
       //
       // Phase 1 baseline:  statements 62.86%  branches 48.65%  functions 64.65%  lines 64.24%
-      // Current measured:  statements 83.50%  branches 67.02%  functions 87.06%  lines 84.70%
+      // Current measured:  statements 84.42%  branches 73.03%  functions 86.94%  lines 85.67%
       // Floors sit just under the measured values to leave a small margin.
       thresholds: {
         lines: 82,

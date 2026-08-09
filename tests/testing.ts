@@ -117,7 +117,6 @@ export interface SimplifyOptions {
    * - gen_ai.usage.input_tokens → "<input_tokens>"
    * - gen_ai.usage.output_tokens → "<output_tokens>"
    * - gen_ai.output.messages → "<output_messages>"
-   * - openai_agents.span_data → "<span_data>"
    * - input.value → "<input_value>"
    * - output.value → stripped (flaky, depends on instrumentation timing)
    * - metadata → "<metadata>"
@@ -174,8 +173,6 @@ export function simplifySpansForSnapshot(
           continue;
         } else if (key === "gen_ai.output.messages") {
           attributes[key] = "<output_messages>";
-        } else if (key === "openai_agents.span_data") {
-          attributes[key] = "<span_data>";
         } else if (key === "input.value") {
           attributes[key] = "<input_value>";
         } else if (key === "output.value") {

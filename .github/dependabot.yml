@@ -46,7 +46,6 @@ updates:
           - "@anthropic-ai/*"
           - "@ai-sdk/*"
           - "@mariozechner/*"
-          - "@openai/*"
           - "ai"
           - "openai"
       ai-providers-security:
@@ -55,19 +54,8 @@ updates:
           - "@anthropic-ai/*"
           - "@ai-sdk/*"
           - "@mariozechner/*"
-          - "@openai/*"
           - "ai"
           - "openai"
-
-      # Mastra ecosystem.
-      mastra:
-        applies-to: version-updates
-        patterns:
-          - "@mastra/*"
-      mastra-security:
-        applies-to: security-updates
-        patterns:
-          - "@mastra/*"
 
       # TypeScript / test toolchain.
       typescript-tooling:
@@ -99,7 +87,6 @@ updates:
           - "@pollyjs/*"
           - "braintrust"
           - "langsmith"
-          - "@langchain/*"
       observability-vendors-security:
         applies-to: security-updates
         patterns:
@@ -107,10 +94,9 @@ updates:
           - "@pollyjs/*"
           - "braintrust"
           - "langsmith"
-          - "@langchain/*"
 
       # Catch-all for any security alert not matching a more specific group —
-      # rolls up everything else (transitive deps, langchain peers, etc.) into
+      # rolls up everything else (transitive deps, optional peers, etc.) into
       # one PR rather than one-PR-per-alert.
       security-rollup:
         applies-to: security-updates
