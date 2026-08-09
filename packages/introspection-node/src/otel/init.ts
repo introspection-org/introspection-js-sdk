@@ -57,7 +57,7 @@ export interface InitOptions {
   /**
    * Extra span processors composed onto the provider `init()` creates — the
    * one-call dual-export path. Each runs alongside the Introspection processor,
-   * e.g. `init({ spanProcessors: [new BatchSpanProcessor(langfuseExporter)] })`.
+   * e.g. `init({ spanProcessors: [new BatchSpanProcessor(otherBackendExporter)] })`.
    * Ignored when `tracerProvider` is supplied.
    */
   spanProcessors?: SpanProcessor[];
@@ -330,7 +330,15 @@ export function instrumentPi(agent: Agent, meta: AgentMeta): void {
   instrumentor.instrument(agent, meta);
 }
 
-/** Flush and shut down the logs client and (if owned) the provider. */
+/**
+ * Flush and shut down the logs client and, if `init()` created it, the
+ * provider.
+ *
+ * A provider you passed via `init({ tracerProvider })` is **yours** — this
+ * leaves it running, so any processors you attached to it (a second
+ * OTLP backend, for instance) are not flushed. Call `provider.shutdown()`
+ * yourself after this.
+ */
 export async function shutdown(): Promise<void> {
   const { logs, provider, ownsProvider } = state;
   if (logs) {

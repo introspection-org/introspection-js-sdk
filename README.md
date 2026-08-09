@@ -39,9 +39,10 @@ where each client fits.
 | [`@introspection-sdk/introspection-node`](./packages/introspection-node/)       | Server-side platform client for runtimes, tasks, files, conversations, recipes, and experiments |
 | [`@introspection-sdk/introspection-browser`](./packages/introspection-browser/) | Browser platform client for applications authenticated through a backend token broker           |
 | [`@introspection-sdk/types`](./packages/introspection-types/)                   | Shared types and constants                                                                      |
-| [`@introspection-sdk/introspection-pi`](./packages/introspection-pi/)           | Supported [Pi Agent SDK](https://withpi.ai) instrumentation                                     |
+| [`@introspection-sdk/introspection-pi`](./packages/introspection-pi/)           | Supported [Pi Agent SDK](https://github.com/badlogic/pi-mono) instrumentation                   |
 | [`@introspection-sdk/coding-agent`](./packages/introspection-coding-agent/)     | Opt-in capture of Claude Code / Codex plugin sessions for the Introspection plugin              |
 | [`@introspection-sdk/introspection-proxy`](./packages/introspection-proxy/)     | Egress proxy helpers — credential injection and CONNECT forward proxy                           |
+| [`@introspection-sdk/http`](./packages/introspection-http/)                     | Isomorphic HTTP transport, AG-UI stream parsing, error mapping, and cursor pagination           |
 
 ## Quick start
 
@@ -159,11 +160,13 @@ pnpm add @earendil-works/pi-agent-core @earendil-works/pi-ai
 ```typescript
 import * as introspection from "@introspection-sdk/introspection-node/otel";
 import { Agent } from "@earendil-works/pi-agent-core";
+import { streamSimple } from "@earendil-works/pi-ai/compat";
 import { getBuiltinModel } from "@earendil-works/pi-ai/providers/all";
 
 await introspection.init({ serviceName: "my-app" });
 
 const agent = new Agent({
+  streamFn: streamSimple,
   initialState: {
     model: getBuiltinModel("anthropic", "claude-sonnet-4-6"),
     systemPrompt: "You are a helpful support agent.",

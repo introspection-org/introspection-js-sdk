@@ -40,12 +40,6 @@ export interface AdvancedOptions {
   additionalHeaders?: Record<string, string>;
   /** Custom span exporter (for testing - use InMemorySpanExporter) */
   spanExporter?: SpanExporter;
-  /**
-   * Delay interval in milliseconds between batch exports.
-   * Lower values reduce latency but increase network requests.
-   * Defaults to 1000.
-   */
-  scheduledDelayMillis?: number;
   /** Custom `fetch` implementation (for tests or non-Node 18 runtimes). */
   fetch?: typeof fetch;
 }

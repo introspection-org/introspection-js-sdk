@@ -1,19 +1,25 @@
 /**
- * Pi Agent + Langfuse dual export — the explicit, bring-your-own-provider form.
+ * Pi Agent + a second OTLP backend — the explicit, bring-your-own-provider form.
  *
  * Construct the OTel `NodeTracerProvider` with the Introspection processor next
- * to the Langfuse one, register it, then `init({ tracerProvider })` adopts it.
- * The Pi instrumentor emits onto that provider, so every Pi span fans out to
- * both backends. (Pi agents are instrumented per instance, so you still call
- * `instrumentPi(agent, meta)`.)
+ * to a plain `BatchSpanProcessor` pointed at any other OTLP endpoint, register
+ * it, then `init({ tracerProvider })` adopts it. The Pi instrumentor emits onto
+ * that provider, so every Pi span fans out to both backends. (Pi agents are
+ * instrumented per instance, so you still call `instrumentPi(agent, meta)`.)
  *
- * Run with: pnpm pi-langfuse
+ * Nothing here is vendor-specific: point `OTEL_EXPORTER_OTLP_ENDPOINT` at
+ * whichever OTLP-compatible collector you use and supply whatever auth header
+ * it expects.
+ *
+ * Run with: pnpm pi-dual-export
  *
  * Required env vars:
- *   ANTHROPIC_API_KEY     - upstream provider key for the Pi agent
- *   INTROSPECTION_TOKEN   - Introspection API token
- *   LANGFUSE_PUBLIC_KEY   - Langfuse public key
- *   LANGFUSE_SECRET_KEY   - Langfuse secret key
+ *   ANTHROPIC_API_KEY             - upstream provider key for the Pi agent
+ *   INTROSPECTION_TOKEN           - Introspection API token
+ *   OTEL_EXPORTER_OTLP_ENDPOINT   - the second backend's OTLP traces endpoint
+ *
+ * Optional:
+ *   OTEL_EXPORTER_OTLP_HEADERS    - "key=value,key2=value2" auth headers
  */
 
 import { Agent, type AgentTool } from "@earendil-works/pi-agent-core";
@@ -31,21 +37,23 @@ import { BatchSpanProcessor } from "@opentelemetry/sdk-trace-base";
 import { resourceFromAttributes } from "@opentelemetry/resources";
 import { ATTR_SERVICE_NAME } from "@opentelemetry/semantic-conventions";
 
-function langfuseSpanProcessor(): BatchSpanProcessor {
-  const publicKey = process.env.LANGFUSE_PUBLIC_KEY;
-  const secretKey = process.env.LANGFUSE_SECRET_KEY;
-  if (!publicKey || !secretKey) {
-    throw new Error("LANGFUSE_PUBLIC_KEY and LANGFUSE_SECRET_KEY must be set");
+function secondBackendProcessor(): BatchSpanProcessor {
+  const url = process.env.OTEL_EXPORTER_OTLP_ENDPOINT;
+  if (!url) {
+    throw new Error("OTEL_EXPORTER_OTLP_ENDPOINT must be set");
   }
-  const baseUrl = process.env.LANGFUSE_BASE_URL || "https://cloud.langfuse.com";
-  return new BatchSpanProcessor(
-    new OTLPTraceExporter({
-      url: `${baseUrl}/api/public/otel/v1/traces`,
-      headers: {
-        Authorization: `Basic ${Buffer.from(`${publicKey}:${secretKey}`).toString("base64")}`,
-      },
-    }),
+  // The standard "key=value,key2=value2" spelling, so this works with any
+  // collector's auth scheme without the example knowing about it.
+  const headers = Object.fromEntries(
+    (process.env.OTEL_EXPORTER_OTLP_HEADERS ?? "")
+      .split(",")
+      .filter(Boolean)
+      .map((pair) => {
+        const index = pair.indexOf("=");
+        return [pair.slice(0, index).trim(), pair.slice(index + 1).trim()];
+      }),
   );
+  return new BatchSpanProcessor(new OTLPTraceExporter({ url, headers }));
 }
 
 const weatherTool: AgentTool = {
@@ -64,12 +72,14 @@ const weatherTool: AgentTool = {
 
 async function main() {
   const provider = new NodeTracerProvider({
-    resource: resourceFromAttributes({ [ATTR_SERVICE_NAME]: "pi-langfuse" }),
+    resource: resourceFromAttributes({
+      [ATTR_SERVICE_NAME]: "pi-dual-export",
+    }),
     spanProcessors: [
       new IntrospectionSpanProcessor({
         token: process.env.INTROSPECTION_TOKEN,
       }),
-      langfuseSpanProcessor(),
+      secondBackendProcessor(),
     ],
   });
   provider.register();
@@ -95,8 +105,12 @@ async function main() {
 
   await agent.prompt("What's the weather in Tokyo?");
 
+  // `init({ tracerProvider })` does not take ownership of a provider you
+  // built, so `introspection.shutdown()` leaves it running. Shut it down
+  // yourself or the second backend's batch processor is never flushed.
   await introspection.shutdown();
-  console.log("✓ Exported to Introspection + Langfuse.");
+  await provider.shutdown();
+  console.log("✓ Exported to Introspection + the second backend.");
 }
 
 main().catch((err) => {

@@ -332,6 +332,10 @@ function extractToolResultText(content: ToolResultMessage["content"]): string {
  *   break the assistant→tool_result pairing the providers expect.
  * - Strips trailing assistant `tool_call` blocks that never received a
  *   matching tool result (e.g. an aborted turn).
+ *
+ * User content round-trips in both directions: a text-only message comes
+ * back as the string form pi uses, and image blobs come back as
+ * `ImageContent` blocks in their original position.
  */
 export function inputMessagesToMessages(
   messages: readonly InputMessage[],
@@ -347,19 +351,39 @@ export function inputMessagesToMessages(
     if (message.role === "user") {
       // Compaction parts are re-rendered into the exact prefixed text Pi
       // originally sent to the model, so hydrated history is byte-identical.
-      const text = parts
-        .map((part) =>
-          isTextPart(part)
-            ? part.content
-            : isCompactionPart(part)
-              ? COMPACTION_SUMMARY_PREFIX +
-                part.content +
-                COMPACTION_SUMMARY_SUFFIX
-              : "",
-        )
-        .join("");
-      if (!text) continue;
-      result.push({ role: "user", content: text, timestamp: 0 });
+      // Blob parts carry the image payloads `userMessageToSemconv` recorded;
+      // collapsing them to text would silently drop an image-only message
+      // from the hydrated history.
+      const content: (TextContent | ImageContent)[] = [];
+      for (const part of parts) {
+        if (isTextPart(part)) {
+          if (part.content) content.push({ type: "text", text: part.content });
+        } else if (isCompactionPart(part)) {
+          content.push({
+            type: "text",
+            text:
+              COMPACTION_SUMMARY_PREFIX +
+              part.content +
+              COMPACTION_SUMMARY_SUFFIX,
+          });
+        } else if (isImageBlobPart(part)) {
+          content.push({
+            type: "image",
+            data: part.content,
+            mimeType: part.mime_type ?? "image/png",
+          });
+        }
+      }
+      if (content.length === 0) continue;
+      // A text-only message round-trips to the string form Pi itself uses.
+      const onlyText = content.every((block) => block.type === "text");
+      result.push({
+        role: "user",
+        content: onlyText
+          ? content.map((block) => (block as TextContent).text).join("")
+          : content,
+        timestamp: 0,
+      });
       continue;
     }
 
@@ -533,6 +557,10 @@ function isTextPart(part: MessagePart): part is TextPart {
 
 function isCompactionPart(part: MessagePart): part is CompactionPart {
   return part.type === "compaction";
+}
+
+function isImageBlobPart(part: MessagePart): part is BlobPart {
+  return part.type === "blob" && part.modality === "image";
 }
 
 function isReasoningPart(part: MessagePart): part is ReasoningPart {

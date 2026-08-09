@@ -33,8 +33,9 @@ export interface IntegrationHandles {
  * Thrown by an integration module/`setupOnce` when the framework cannot be
  * activated (package missing, version too old, …).
  *
- * Swallowed during auto-discovery so a missing framework just skips its shim;
- * re-raised only when an integration is requested explicitly.
+ * Always swallowed by `setupIntegrations`, whether the integration was
+ * auto-discovered or requested explicitly — a framework that cannot activate
+ * skips its shim. Any other error propagates.
  */
 export class DidNotEnable extends Error {
   constructor(message: string) {

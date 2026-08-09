@@ -147,12 +147,18 @@ export interface IntrospectionSpanProcessorOptions {
  * via OTLP, stamping baggage-derived identity onto each Gen AI
  * semantic convention attributes.
  *
+ * Processors are constructor-only in OTel SDK v2 — there is no post-hoc
+ * `addSpanProcessor` — so pass it when you build the provider.
+ *
  * @example
  * ```ts
- * import { IntrospectionSpanProcessor } from "@introspection-sdk/introspection-node";
+ * import { IntrospectionSpanProcessor } from "@introspection-sdk/introspection-node/otel";
+ * import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
  *
- * const processor = new IntrospectionSpanProcessor({ token: "sk-intro-…" });
- * tracerProvider.addSpanProcessor(processor);
+ * const provider = new NodeTracerProvider({
+ *   spanProcessors: [new IntrospectionSpanProcessor({ token: "intro_…" })],
+ * });
+ * provider.register();
  * ```
  */
 export class IntrospectionSpanProcessor implements SpanProcessor {

@@ -16,6 +16,7 @@ import {
   registerOTelGlobals,
 } from "../../packages/introspection-node/src/otel/setup";
 import {
+  init,
   getTracerProvider,
   getClient,
   shutdown,
@@ -71,6 +72,80 @@ describe("setupTracing({ additionalSpanProcessors })", () => {
     await provider.forceFlush();
     const spans = vendor.getFinishedSpans();
     expect(spans.map((s) => s.name)).toContain("unit-of-work");
+
+    await provider.shutdown();
+  });
+
+  it("stops returning a provider the caller has shut down", async () => {
+    // The module caches the provider it built. Without invalidation, a
+    // setupTracing() after shutdown() hands back the dead one and every
+    // subsequent span is dropped in silence.
+    const first = setupTracing({
+      token: "test-token",
+      onConflict: "replace",
+      advanced: { spanExporter: new InMemorySpanExporter() },
+    });
+    expect(setupTracing({ token: "test-token", onConflict: "replace" })).toBe(
+      first,
+    );
+
+    await first.shutdown();
+
+    const vendor = new InMemorySpanExporter();
+    const second = setupTracing({
+      token: "test-token",
+      onConflict: "replace",
+      advanced: { spanExporter: new InMemorySpanExporter() },
+      additionalSpanProcessors: [new SimpleSpanProcessor(vendor)],
+    });
+    expect(second).not.toBe(first);
+
+    second.getTracer("test").startSpan("after-shutdown").end();
+    await second.forceFlush();
+    expect(vendor.getFinishedSpans().map((s) => s.name)).toContain(
+      "after-shutdown",
+    );
+
+    await second.shutdown();
+  });
+});
+
+describe("init({ tracerProvider }) provider ownership", () => {
+  afterEach(async () => {
+    await shutdown();
+    _resetForTests();
+    resetOTelGlobals();
+  });
+
+  it("leaves a caller-supplied provider running so its processors keep exporting", async () => {
+    // The dual-export example got this wrong: it called only
+    // `introspection.shutdown()` and printed a success line, while the
+    // second backend's batch processor was never flushed.
+    const { NodeTracerProvider } =
+      await import("@opentelemetry/sdk-trace-node");
+    const { IntrospectionSpanProcessor } =
+      await import("../../packages/introspection-node/src/otel/span-processor");
+
+    registerOTelGlobals("replace");
+    const vendor = new InMemorySpanExporter();
+    const provider = new NodeTracerProvider({
+      spanProcessors: [
+        new IntrospectionSpanProcessor({
+          advanced: { spanExporter: new InMemorySpanExporter() },
+        }),
+        new SimpleSpanProcessor(vendor),
+      ],
+    });
+
+    await init({ tracerProvider: provider, autoDiscover: false, token: "t" });
+    await shutdown();
+
+    // Still live: the caller owns it, so the span lands.
+    provider.getTracer("test").startSpan("after-sdk-shutdown").end();
+    await provider.forceFlush();
+    expect(vendor.getFinishedSpans().map((s) => s.name)).toContain(
+      "after-sdk-shutdown",
+    );
 
     await provider.shutdown();
   });

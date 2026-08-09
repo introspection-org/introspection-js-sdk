@@ -6,7 +6,7 @@
  *
  * @example
  * ```ts
- * import { IntrospectionPiInstrumentor, setupTracing } from "@introspection-sdk/introspection-node";
+ * import { IntrospectionPiInstrumentor, setupTracing } from "@introspection-sdk/introspection-node/otel";
  * import { Agent } from "@earendil-works/pi-agent-core";
  *
  * setupTracing({ serviceName: "my-app" });

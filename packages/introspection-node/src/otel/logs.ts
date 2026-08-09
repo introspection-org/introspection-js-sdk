@@ -115,7 +115,11 @@ export class IntrospectionLogs {
 
     const processor = new BatchLogRecordProcessor({
       exporter,
-      maxQueueSize: options.maxBatchSize ?? 100,
+      // maxBatchSize is the export batch size, not the queue bound. Wiring it
+      // to maxQueueSize left the queue at 100 while the batch size kept its
+      // default of 512, which the OTel processor warns about and clamps on
+      // every construction.
+      maxExportBatchSize: options.maxBatchSize ?? 100,
       scheduledDelayMillis: options.flushInterval ?? 5000,
     });
 
@@ -164,11 +168,12 @@ export class IntrospectionLogs {
   }
 
   private getTimestamp(): [number, number] {
-    const hrTimeNs = process.hrtime.bigint();
+    // Wall-clock only. An earlier version subtracted one `process.hrtime`
+    // reading from another taken microseconds later, which looked like an
+    // hrtime/epoch correlation but only ever removed the elapsed call time.
     const epochNs = BigInt(Date.now()) * BigInt(1_000_000);
-    const offsetNs = hrTimeNs - process.hrtime.bigint() + epochNs;
-    const seconds = Number(offsetNs / BigInt(1_000_000_000));
-    const nanos = Number(offsetNs % BigInt(1_000_000_000));
+    const seconds = Number(epochNs / BigInt(1_000_000_000));
+    const nanos = Number(epochNs % BigInt(1_000_000_000));
     return [seconds, nanos];
   }
 

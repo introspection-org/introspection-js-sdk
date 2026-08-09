@@ -23,6 +23,9 @@
       "default": "./dist/otel/register.js"
     }
   },
+  "files": [
+    "dist/"
+  ],
   "scripts": {
     "lint": "eslint . --max-warnings 0",
     "check-types": "tsc --noEmit",

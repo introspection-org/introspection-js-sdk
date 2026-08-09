@@ -192,6 +192,39 @@ describe("systemPromptToInstructions", () => {
 });
 
 describe("inputMessagesToMessages (semconv → pi-ai)", () => {
+  it("round-trips user image content", () => {
+    // messagesToInputMessages records images as blob parts. Hydrating only
+    // the text parts silently dropped them, and an image-only message
+    // vanished from the history entirely.
+    const original: Message[] = [
+      {
+        role: "user",
+        content: [
+          { type: "text", text: "what is this?" },
+          { type: "image", data: "aGVsbG8=", mimeType: "image/png" },
+        ],
+        timestamp: 0,
+      },
+      {
+        role: "user",
+        content: [{ type: "image", data: "d29ybGQ=", mimeType: "image/jpeg" }],
+        timestamp: 0,
+      },
+    ];
+
+    const replayed = inputMessagesToMessages(messagesToInputMessages(original));
+
+    expect(replayed).toHaveLength(2);
+    expect((replayed[0] as UserMessage).content).toEqual([
+      { type: "text", text: "what is this?" },
+      { type: "image", data: "aGVsbG8=", mimeType: "image/png" },
+    ]);
+    // An image-only message survives rather than being dropped as "empty".
+    expect((replayed[1] as UserMessage).content).toEqual([
+      { type: "image", data: "d29ybGQ=", mimeType: "image/jpeg" },
+    ]);
+  });
+
   it("round-trips user / assistant text / toolCall / toolResult", () => {
     const original: Message[] = [
       userMessage("hello"),

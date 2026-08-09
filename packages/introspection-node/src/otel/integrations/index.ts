@@ -2,8 +2,8 @@
  * Integration discovery + setup loader for `introspection.init()`.
  *
  * Mirrors the Python SDK's registry: built-in integrations are resolved
- * lazily (a missing framework just skips its shim), `setupOnce` runs at most
- * once per identifier per process, and an integration may `deactivate` others.
+ * lazily (a missing framework just skips its shim) and `setupOnce` runs at
+ * most once per identifier per process.
  */
 
 import { logger } from "../../utils.js";

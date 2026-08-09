@@ -483,8 +483,8 @@ function isFiniteNumber(value: unknown): value is number {
 /**
  * How a requested abort is classified on a span
  * (`introspection.termination_reason`): `cancelled` for a user/runtime stop,
- * `awaiting_user` for a turn paused on an interrupt. Turn (`invoke_agent`)
- * spans additionally use `completed` and `error` for non-aborted endings.
+ * `awaiting_user` for a turn paused on an interrupt. A non-aborted ending
+ * leaves the attribute unset; the span status carries the outcome.
  */
 export type AbortTerminationReason = "cancelled" | "awaiting_user";
 

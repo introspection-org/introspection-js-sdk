@@ -57,21 +57,20 @@ If your branch is intentionally adding code that can't be covered by unit tests 
 ### Examples folder layout
 
 ```
-examples/<framework>/<integration>[-<vendor>].ts
+examples/<framework>/<integration>.ts
 ```
 
 Where:
 
 - `<framework>` is a flat folder name. Pi is the only one — the OTel examples
   cover Pi and nothing else.
-- `<integration>` describes the entrypoint (`init`, `native`, `subagents`).
-- `<vendor>` names the second backend in a dual-export example (`langfuse`,
-  `braintrust`).
+- `<integration>` describes the entrypoint (`init`, `native`, `subagents`,
+  `dual-export`).
 
 Examples:
 
 - `examples/otel/pi/native.ts`, `examples/otel/pi/subagents.ts`
-- `examples/otel/pi/langfuse.ts` — dual export
+- `examples/otel/pi/dual-export.ts` — dual export
 
 Example folders are top-level peers under `otel/`. Do not nest one under
 another.
@@ -79,12 +78,17 @@ another.
 ### Tests folder layout
 
 ```
-tests/observability/test-<framework>.test.ts
+tests/observability/test-<framework>-<concern>.test.ts
 ```
 
-**One file per framework.** Multiple surfaces (handler, subagents, baggage propagation, instrumentor lifecycle, etc.) become nested `describe()` blocks inside the same file. Three or four files per framework is a smell — that was the intern-era pattern this repo is moving away from.
+**One file per concern, named for the framework it drives.** Pi's surfaces
+each get their own file (`test-pi-attributes`, `test-pi-convert`,
+`test-pi-subagents`, one per recorded cassette, …) because they fail for
+independent reasons and a single file would be unreadable. Related surfaces
+within one concern are nested `describe()` blocks, not more files.
 
-If a test concern genuinely spans multiple frameworks (e.g. `test-baggage-propagation.test.ts` for cross-framework baggage behaviour), it can be its own file.
+A concern that spans frameworks (e.g. `test-baggage-propagation.test.ts`)
+drops the framework prefix.
 
 ### Recordings layout
 
@@ -92,7 +96,7 @@ If a test concern genuinely spans multiple frameworks (e.g. `test-baggage-propag
 tests/recordings/<name>/recording.har
 ```
 
-Both Polly and the recording proxy write to this directory. Polly appends a `_<hash>` suffix (`pi-baggage_884698661/`); the proxy doesn't. Both formats are HAR 1.2 and inspectable in any HAR viewer.
+Polly appends a `_<hash>` suffix to the cassette name (`pi-chat_3668022627/`). The files are HAR 1.2 and inspectable in any HAR viewer.
 
 ---
 
@@ -100,7 +104,8 @@ Both Polly and the recording proxy write to this directory. Polly appends a `_<h
 
 ### Do not add new `with*` context helpers
 
-`IntrospectionClient` already exposes the canonical baggage-setting API:
+`IntrospectionLogs` already exposes the canonical baggage-setting API (and
+`init()` re-exports each one as a module-level proxy):
 
 - `withAgent(agentName, agentId, callback)` — `gen_ai.agent.name` / `gen_ai.agent.id`
 - `withConversation(conversationId, previousResponseId, callback)` — `gen_ai.conversation.id` / `gen_ai.request.previous_response_id`
@@ -174,16 +179,13 @@ There are exactly two cases where a mock is acceptable. If your situation doesn'
 1. **OTel-only unit tests with no LLM call at all** — e.g. a test that just calls `tracer.startSpan()` and asserts the `IntrospectionSpanProcessor` reads baggage. Nothing crosses a network boundary, so there's nothing to record.
 2. **Provider-internal side-channel events that aren't surfaced as HTTP** — extremely rare. Even then, mock only the event payload shape, never the integration class.
 
-Two recording mechanisms cover everything else:
-
-- **Polly** — for SDKs that make HTTP calls from the test process (Pi, OpenAI Node SDK). See `tests/README.md`.
-- **Recording proxy** — for SDKs that make HTTP calls from a subprocess and bypass in-process interception. See `tests/recording-proxy/README.md`.
+Everything else uses **Polly**, which intercepts the HTTP calls the SDK makes from the test process. See `tests/README.md`.
 
 If you reach for a mock, leave a one-line comment in the test header explaining which of the two exceptions applies. If neither applies, you're using the wrong tool.
 
 ### Use the right base URL in tests
 
-Tests should pass `baseURL` explicitly to SDK clients via the `pollyEndpoints` constants in `tests/polly-setup.ts`, not rely on `ANTHROPIC_BASE_URL` / `OPENAI_BASE_URL` env vars. Host shells (Claude Code, AnyLLM dev setups) pre-set these and they break Polly URL matching across record and replay.
+Tests should pass the base URL explicitly via the `pollyEndpoints` constants in `tests/polly-setup.ts`, not rely on `ANTHROPIC_BASE_URL`. Host shells pre-set it and it breaks Polly URL matching across record and replay.
 
 ---
 
@@ -191,14 +193,14 @@ Tests should pass `baseURL` explicitly to SDK clients via the `pollyEndpoints` c
 
 | Trap                                                      | What happened                                                                                                     | What to do instead                                                  |
 | --------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
-| Mocking framework SDKs to "simplify" tests                | Mocks drift from real SDK behaviour, mask integration bugs, and tests pass while production breaks                | Real framework + Polly or recording proxy                           |
+| Mocking framework SDKs to "simplify" tests                | Mocks drift from real SDK behaviour, mask integration bugs, and tests pass while production breaks                | Real framework + Polly                                              |
 | Adding a new `with*` helper because nesting two is "ugly" | API surface bloats; users have N ways to do one thing                                                             | Nest the existing helpers, accept the two extra lines               |
 | `optionalDependencies` for things tests actually need     | pnpm configs that skip optional deps silently break tests                                                         | `devDependencies` if tests need them                                |
 | Per-test Polly init                                       | Each `polly.stop()` overwrites the HAR with only that test's entries                                              | One Polly per file (`beforeAll`/`afterAll`)                         |
 | Per-test OTel global registration                         | OTel silently refuses replacement; tests inherit stale state                                                      | `installTestOTelGlobals()` in `beforeEach`                          |
 | Forking a workflow file from the public repo              | App-token `repositories: introspection-js-sdk` becomes wrong on a fork                                            | Verify every `owner:` / `repositories:` reference matches THIS repo |
 | Hashing the request body for recording lookup             | SDKs auto-inject machine-specific content (default system prompts, billing nonces) — body differs across machines | Match on `method + URL + call-order` instead                        |
-| Four test files per framework with overlapping setup      | ~50 LOC of polly + beforeEach boilerplate duplicated per file                                                     | One file per framework, nested `describe`s                          |
+| Splitting one concern across files with overlapping setup | ~50 LOC of polly + beforeEach boilerplate duplicated per file                                                     | One file per concern, nested `describe`s                            |
 
 ---
 
@@ -217,6 +219,6 @@ ever needed again.
 
 Dual export is **not** an integration and is still supported: any second OTel
 span processor on the provider receives the same spans (see
-`examples/otel/pi/langfuse.ts` and `examples/otel/pi/braintrust.ts`). What was
-removed there were the vendor-specific tests and fixtures for frameworks that
-no longer exist, not the capability.
+`examples/otel/pi/dual-export.ts`, which is deliberately vendor-neutral —
+point it at any OTLP endpoint). What was removed were the vendor-specific
+tests and fixtures for frameworks that no longer exist, not the capability.

@@ -6,7 +6,7 @@
  *
  * 1. `AsyncLocalStorageContextManager` — without this, `context.with()` is a
  *    no-op (the default `NOOP_CONTEXT_MANAGER` silently drops the context),
- *    which makes `IntrospectionClient.withAgent()`, `.withConversation()`,
+ *    which makes `IntrospectionLogs.withAgent()`, `.withConversation()`,
  *    etc. dead code.
  * 2. `W3CBaggagePropagator` — so baggage is carried across HTTP boundaries
  *    via the `baggage` header (alongside W3C trace-context).
@@ -40,15 +40,15 @@
  *
  * @example
  * ```ts
- * import { setupTracing, IntrospectionClient } from "@introspection-sdk/introspection-node";
+ * import { setupTracing, IntrospectionLogs } from "@introspection-sdk/introspection-node/otel";
  *
  * setupTracing();
  *
- * const introspect = new IntrospectionClient();
+ * const logs = new IntrospectionLogs();
  *
- * await introspect.withAgent("researcher", "researcher-1", () =>
- *   introspect.withConversation(conversationId, undefined, () =>
- *     client.messages.create({ ... }),
+ * await logs.withAgent("researcher", "researcher-1", () =>
+ *   logs.withConversation(conversationId, undefined, () =>
+ *     runTheAgentTurn(),
  *   ),
  * );
  * ```
@@ -90,13 +90,13 @@ export interface SetupTracingOptions extends IntrospectionSpanProcessorOptions {
 
   /**
    * Extra span processors attached to the same `NodeTracerProvider`, so a
-   * single set of spans fans out to other backends (Langfuse, Arize, …).
+   * single set of spans fans out to any other OTLP-compatible backend.
    * This is the low-level dual-export hook:
    *
    * ```ts
    * setupTracing({
    *   serviceName: "my-app",
-   *   additionalSpanProcessors: [new BatchSpanProcessor(langfuseExporter)],
+   *   additionalSpanProcessors: [new BatchSpanProcessor(otherBackendExporter)],
    * });
    * ```
    *
@@ -209,6 +209,17 @@ export function setupTracing(
     ],
   });
   provider.register();
+
+  // Release the cache when the caller tears the provider down. Without this,
+  // `setupTracing()` after a `provider.shutdown()` returns the dead provider
+  // and every subsequent span is silently dropped.
+  const shutdown = provider.shutdown.bind(provider);
+  provider.shutdown = async () => {
+    if (registeredProvider === provider) {
+      registeredProvider = undefined;
+    }
+    return shutdown();
+  };
 
   registeredProvider = provider;
   return provider;

@@ -66,8 +66,7 @@ provider yourself with both span processors, then let `init({ tracerProvider })`
 adopt it.
 
 ```bash
-pnpm pi-langfuse                  # + Langfuse
-pnpm pi-braintrust                # + Braintrust
+pnpm pi-dual-export               # + a second OTLP backend
 ```
 
 ## Manual instrumentation

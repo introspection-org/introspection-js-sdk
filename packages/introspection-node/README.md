@@ -107,7 +107,7 @@ import { IntrospectionSpanProcessor } from "@introspection-sdk/introspection-nod
 const provider = new NodeTracerProvider({
   spanProcessors: [
     new IntrospectionSpanProcessor({ token: process.env.INTROSPECTION_TOKEN }),
-    new BatchSpanProcessor(langfuseExporter),
+    new BatchSpanProcessor(otherBackendExporter),
   ],
 });
 provider.register();
@@ -115,7 +115,7 @@ provider.register();
 await introspection.init({ tracerProvider: provider });
 ```
 
-`IntrospectionSpanProcessor` exports its own converted copy of each span, so the vendor processor receives the raw span and processor order is irrelevant. For a quick alternative: `init({ spanProcessors: [new BatchSpanProcessor(langfuseExporter)] })`.
+`IntrospectionSpanProcessor` exports its own converted copy of each span, so the vendor processor receives the raw span and processor order is irrelevant. For a quick alternative: `init({ spanProcessors: [new BatchSpanProcessor(otherBackendExporter)] })`.
 
 Support for other frameworks is experimental.
 
@@ -166,8 +166,7 @@ await logs.shutdown();
 Attach the processor to a provider you already own, or stand one up with
 `setupTracing`. Adding a second `IntrospectionSpanProcessor` pointed at another
 OTLP endpoint dual-exports the same spans — see
-[`examples/otel/pi/langfuse.ts`](../../examples/otel/pi/langfuse.ts) and
-[`examples/otel/pi/braintrust.ts`](../../examples/otel/pi/braintrust.ts).
+[`examples/otel/pi/dual-export.ts`](../../examples/otel/pi/dual-export.ts).
 
 ```typescript
 import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
