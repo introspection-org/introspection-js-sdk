@@ -74,9 +74,8 @@ pnpm pi-braintrust                # + Braintrust
 
 There are no examples for it here — the OTel examples cover Pi only. For
 everything else, instrument against the OTel APIs directly and attach
-`IntrospectionSpanProcessor`; it converts OpenInference attributes to GenAI
-semantic conventions on the way out, so an OpenInference-instrumented
-framework needs no Introspection-specific code. See `llms.txt`.
+`IntrospectionSpanProcessor`, emitting spans in GenAI semantic conventions.
+See `llms.txt`.
 
 ## Directory Structure
 

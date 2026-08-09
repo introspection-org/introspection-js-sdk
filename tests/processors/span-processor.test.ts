@@ -24,7 +24,7 @@ function makeProcessorHarness() {
 }
 
 describe("IntrospectionSpanProcessor", () => {
-  it("preserves parent span context when converting OpenInference spans", async () => {
+  it("preserves parent span context across the exported copy", async () => {
     const exporter = new InMemorySpanExporter();
     const provider = new BasicTracerProvider({
       idGenerator: new IncrementalIdGenerator(),
@@ -35,12 +35,14 @@ describe("IntrospectionSpanProcessor", () => {
         }),
       ],
     });
-    const tracer = provider.getTracer("openinference.instrumentation.test");
+    const tracer = provider.getTracer("manual.instrumentation.test");
 
+    // The processor exports a converted *copy* of each span, so parent/trace
+    // linkage has to survive the copy or the backend loses the tree.
     const parent = tracer.startSpan("agent", {
       kind: SpanKind.INTERNAL,
       attributes: {
-        "openinference.span.kind": "CHAIN",
+        "gen_ai.operation.name": "invoke_agent",
       },
     });
     const child = tracer.startSpan(
@@ -48,10 +50,11 @@ describe("IntrospectionSpanProcessor", () => {
       {
         kind: SpanKind.INTERNAL,
         attributes: {
-          "openinference.span.kind": "LLM",
-          "llm.model_name": "gpt-test",
-          "llm.input_messages.0.message.role": "user",
-          "llm.input_messages.0.message.content": "hi",
+          "gen_ai.operation.name": "chat",
+          "gen_ai.request.model": "gpt-test",
+          "gen_ai.input.messages": JSON.stringify([
+            { role: "user", parts: [{ type: "text", content: "hi" }] },
+          ]),
         },
       },
       trace.setSpan(context.active(), parent),

@@ -56,14 +56,15 @@ NodeTracerProvider({ spanProcessors })` call (or `init({ spanProcessors })` /
 
 ### Dual-export: an important, non-obvious fact
 
-`IntrospectionSpanProcessor.onEnd` **does not mutate the shared span**. It builds a
-converted copy (`ai.*`/OpenInference → canonical `gen_ai.*`) and forwards *that*
-copy to its own OTLP exporter. A co-located vendor processor therefore receives the
-**raw** span, independently of Introspection. Consequences:
+`IntrospectionSpanProcessor.onEnd` **does not mutate the shared span**. It builds
+an enriched copy (baggage-derived identity stamped onto the attributes) and
+forwards *that* copy to its own OTLP exporter. A co-located vendor processor
+therefore receives the **raw** span, independently of Introspection.
+Consequences:
 - **Processor order is irrelevant.**
-- Don't claim the vendor "sees normalized `gen_ai.*`" — it sees the raw span. If a
-  downstream consumer needs a specific convention (e.g. OpenInference), wrap its
-  exporter (`OpenInferenceSpanExporter`) rather than relying on ordering.
+- Don't claim the vendor "sees the enriched `gen_ai.*`" — it sees the raw span.
+  If a downstream consumer needs a different convention, wrap its exporter
+  rather than relying on ordering.
 
 ## 3. Zero-code preload
 

@@ -142,7 +142,6 @@ introspect.withBaggage(
 Any new integration that stamps `gen_ai.*` attributes on spans **must** read the active OTel baggage as a fallback source for `gen_ai.conversation.id`, `gen_ai.agent.name`, `gen_ai.agent.id`. Existing references:
 
 - `packages/introspection-node/src/otel/span-processor.ts` — baggage read in `onEnd`
-- `packages/introspection-node/src/converters/openinference.ts` — maps OpenInference `llm.*` → `gen_ai.*` (runs inside `IntrospectionSpanProcessor.onEnd`)
 
 This is what lets users wrap any framework call in `withAgent` / `withConversation` and get the right attributes without per-framework metadata threading.
 
@@ -206,9 +205,10 @@ Tests should pass `baseURL` explicitly to SDK clients via the `pollyEndpoints` c
 ## 8. Supported integration surface
 
 The SDK ships exactly one framework integration — **Pi** — plus the
-`@introspection-sdk/coding-agent` capture package and the OpenInference
-conversion path in `IntrospectionSpanProcessor` for customer-owned OTel
-pipelines. Everything else is manual instrumentation against the OTel APIs.
+`@introspection-sdk/coding-agent` capture package. Everything else is manual
+instrumentation: emit OTel GenAI semconv spans onto a provider carrying
+`IntrospectionSpanProcessor`, which enriches and exports them without
+translating any other span format.
 
 Every other integration has been removed: Mastra, LangChain/LangGraph,
 OpenAI Agents SDK, raw Anthropic SDK, Gemini, the Vercel AI SDK, the Claude

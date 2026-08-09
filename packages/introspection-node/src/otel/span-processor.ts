@@ -18,10 +18,6 @@ import { ExportResult, ExportResultCode } from "@opentelemetry/core";
 import { randomUUID } from "crypto";
 import type { AdvancedOptions } from "../types.js";
 import { logger, withOtlpHttpsProxy } from "../utils.js";
-import {
-  isOpenInferenceSpan,
-  replaceOpenInferenceWithGenAI,
-} from "../converters/index.js";
 
 /**
  * Extended span type that includes both v1 and v2 instrumentation properties.
@@ -62,7 +58,7 @@ const IDENTITY_BAGGAGE_TO_ATTRIBUTE: Readonly<Record<string, string>> = {
  * a converted set while delegating every other property to the original span.
  *
  * Used internally by {@link IntrospectionSpanProcessor} to convert
- * OpenInference attributes to Gen AI semantic conventions on-the-fly.
+ * `gen_ai` spans to the Introspection backend.
  */
 class ConvertedReadableSpan implements ReadableSpan {
   private _original: ReadableSpan;
@@ -148,7 +144,7 @@ export interface IntrospectionSpanProcessorOptions {
 
 /**
  * OTel {@link SpanProcessor} that forwards traces to the Introspection backend
- * via OTLP, automatically converting any OpenInference spans to Gen AI
+ * via OTLP, stamping baggage-derived identity onto each Gen AI
  * semantic convention attributes.
  *
  * @example
@@ -297,7 +293,7 @@ export class IntrospectionSpanProcessor implements SpanProcessor {
   }
 
   /**
-   * Called when a span ends. If the span originates from an OpenInference
+   * Called when a span ends. If the span
    * instrumentor, its attributes are converted to `gen_ai.*` semconv keys
    * before being forwarded.
    *
@@ -349,13 +345,9 @@ export class IntrospectionSpanProcessor implements SpanProcessor {
       return;
     }
 
-    const isOI =
-      isOpenInferenceSpan(scopeName) ||
-      typeof span.attributes["openinference.span.kind"] === "string";
     // Skip spans that have no LLM-relevant data — they are infrastructure spans
     // (e.g. Next.js route resolution, HTTP spans) that should not be exported.
     const hasGenAi =
-      isOI ||
       span.attributes["gen_ai.provider.name"] != null ||
       span.attributes["gen_ai.operation.name"] != null ||
       span.attributes["gen_ai.request.model"] != null ||
@@ -364,18 +356,7 @@ export class IntrospectionSpanProcessor implements SpanProcessor {
 
     if (!hasGenAi) return;
 
-    let attrs: Record<string, unknown>;
-    if (isOI) {
-      attrs = {
-        ...(replaceOpenInferenceWithGenAI(span.attributes) as Record<
-          string,
-          unknown
-        >),
-      };
-      logger.debug(`Converting OpenInference span: ${span.name}`);
-    } else {
-      attrs = { ...span.attributes };
-    }
+    const attrs: Record<string, unknown> = { ...span.attributes };
     delete attrs["gen_ai.system"];
 
     // Read baggage from active context

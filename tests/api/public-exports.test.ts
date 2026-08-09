@@ -65,14 +65,6 @@ describe("public export barrels", () => {
     expect(offenders).toEqual([]);
   });
 
-  it("converters barrel", async () => {
-    const mod =
-      await import("../../packages/introspection-node/src/converters/index");
-    expect(mod.isOpenInferenceSpan).toBeTypeOf("function");
-    expect(mod.convertOpenInferenceToGenAI).toBeTypeOf("function");
-    expect(mod.addOpenInferenceAttributes).toBeTypeOf("function");
-  });
-
   it("@introspection-sdk/introspection-pi", async () => {
     const mod = await import("@introspection-sdk/introspection-pi");
     expect(mod.toAttributes).toBeTypeOf("function");

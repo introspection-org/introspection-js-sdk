@@ -179,10 +179,10 @@ await agent.prompt("Help me understand my latest invoice.");
 await introspection.shutdown();
 ```
 
-> Pi is the only framework integration `init()` auto-discovers. Everything else
-> is manual instrumentation against the OTel APIs: agents emitting OpenInference
-> spans are converted to GenAI semantic conventions by
-> `IntrospectionSpanProcessor` automatically.
+> Pi is the only framework integration `init()` auto-discovers. Everything
+> else is manual instrumentation: emit spans in OTel GenAI semantic
+> conventions and `IntrospectionSpanProcessor` exports them as-is. The SDK
+> does not translate other span formats.
 
 ### Egress proxy
 

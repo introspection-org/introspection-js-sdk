@@ -62,8 +62,7 @@ export default defineConfig({
     //
     // Activated via `pnpm test:cov`. Reports the lines/branches/functions
     // actually exercised across the SDK source files (the `include` glob
-    // intentionally excludes test files, dist artefacts, and converters
-    // that have their own dedicated suites). Reporters:
+    // intentionally excludes test files and dist artefacts). Reporters:
     //
     //   - text          stdout summary so CI logs show the pass/fail
     //   - json-summary  machine-readable for downstream gating
@@ -80,8 +79,8 @@ export default defineConfig({
       reporter: ["text", "json-summary", "html"],
       // `all: true` forces the v8 provider to enumerate every matching
       // source file, not just the ones loaded by tests. Without it,
-      // un-imported files (e.g. converters used only by absent tests)
-      // silently disappear from the report instead of showing 0% — which
+      // un-imported files silently disappear from the report instead of
+      // showing 0% — which
       // is exactly the visibility we're adding coverage for.
       all: true,
       // Resolved via the workspace's symlinks: pnpm wires
@@ -108,14 +107,14 @@ export default defineConfig({
       // packages (a "do not regress" floor), NOT a per-file or all-metrics-≥70
       // guarantee. Concretely: line/statement/function coverage are high (~85/84/86%)
       // and the dominant target; branch coverage is tracked but intentionally
-      // lower (~73%, floor 63) since exhaustive branch coverage on multi-format
-      // converters has steep diminishing returns. Some individual files are below
+      // lower (floor 63) since exhaustive branch coverage has steep
+      // diminishing returns. Some individual files are below
       // 70% (e.g. introspection-browser/src/client.ts is 0% — deferred pending a
       // browser harness).
       // If a stricter "every file ≥ X" policy is wanted, tighten this block.
       //
       // Phase 1 baseline:  statements 62.86%  branches 48.65%  functions 64.65%  lines 64.24%
-      // Current measured:  statements 83.84%  branches 73.15%  functions 86.40%  lines 85.29%
+      // Current measured:  statements 83.80%  branches 72.73%  functions 86.46%  lines 85.18%
       // Floors sit just under the measured values to leave a small margin.
       thresholds: {
         lines: 82,

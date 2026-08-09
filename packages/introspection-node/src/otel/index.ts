@@ -29,13 +29,6 @@ export type {
   AgentMeta as PiAgentMeta,
 } from "./pi.js";
 
-// OpenInference span exporter (drops OpenInference attrs onto a
-// downstream OTel SpanExporter).
-export {
-  addOpenInferenceAttributes,
-  OpenInferenceSpanExporter,
-} from "../converters/openinference.js";
-
 // One-liner bootstrap (`introspection.init()`) + analytics proxies and the
 // per-framework handle accessors it binds. Auto-detects installed frameworks
 // and wires them into one shared provider.
