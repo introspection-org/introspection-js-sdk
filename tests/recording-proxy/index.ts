@@ -1,8 +1,8 @@
 /**
  * Local HTTP recording proxy for SDKs that bypass Polly's in-process
- * adapters (an agent CLI is the motivating case — its
- * binary calls Anthropic's API from a subprocess so there's no in-process
- * fetch / node-http call for Polly to intercept).
+ * adapters (an agent CLI is the motivating case — it calls the provider
+ * API from a subprocess, so there is no in-process fetch / node-http call
+ * for Polly to intercept).
  *
  * Storage format is Polly's HAR 1.2 shape on disk:
  *
@@ -16,10 +16,9 @@
  * entries in the HAR, and for each incoming request it serves the next
  * unconsumed entry whose method + url matches. Bodies are persisted
  * (scrubbed) for human inspection but intentionally NOT used for
- * matching — such SDKs auto-inject machine-specific
- * content into request bodies (default system prompt, tool registrations,
- * billing nonces) which would otherwise make replays brittle across
- * environments. The (method, url, order) tuple is stable across runs;
+ * matching — such SDKs auto-inject machine-specific content into request
+ * bodies (default system prompt, tool registrations, billing nonces)
+ * which would otherwise make replays brittle across environments. The (method, url, order) tuple is stable across runs;
  * the body is not.
  *
  * Mode is taken from the `POLLY_MODE` env var (record / replay), so the
@@ -322,7 +321,7 @@ export async function startProxy(opts: StartProxyOptions): Promise<Proxy> {
           // Log misses so the next record cycle is debuggable. Returning
           // 404 (terminal) instead of 5xx prevents SDK retry loops from
           // hanging the test.
-           
+
           console.warn(
             `[recording-proxy] replay miss: ${method} ${url} (no unconsumed entry; ` +
               `${replayHar.log.entries.length} total in HAR). Re-record to capture.`,
