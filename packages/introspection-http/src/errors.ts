@@ -47,7 +47,10 @@ function renderDetail(detail: unknown): string | undefined {
 function parseRetryAfter(header: string | null): number | null {
   if (!header) return null;
   const seconds = Number(header);
-  if (Number.isFinite(seconds)) return seconds;
+  // Clamped, like the date branch below: a negative delay is not a thing to
+  // wait for, and left unclamped it became a negative floor in `backoffMs`
+  // and then a negative `setTimeout`. A nonsense value means "retry now".
+  if (Number.isFinite(seconds)) return Math.max(0, seconds);
   const when = Date.parse(header);
   if (Number.isNaN(when)) return null;
   return Math.max(0, Math.ceil((when - Date.now()) / 1000));
