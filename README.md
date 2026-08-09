@@ -26,11 +26,17 @@ source you own in Git — deploy it to a governed per-customer Runtime, and
 improve it in production with conversations, observations, judges, and
 experiments.
 
-This repository contains the JavaScript and TypeScript clients for driving the
-Introspection platform. Use them to open a runner against a deployed runtime,
-start and stream tasks, and work with the platform from server and browser
-applications. See the [SDK overview](https://docs.introspection.dev/sdk) for
-where each client fits.
+This repository contains the JavaScript and TypeScript clients for
+Introspection, and it carries the widest surface of any of them: agent
+instrumentation for [Pi](https://github.com/badlogic/pi-mono), a browser client
+for token-brokered applications, egress-proxy helpers, and the platform API for
+runtimes and tasks. See the [SDK overview](https://docs.introspection.dev/sdk)
+for where each client fits.
+
+Reach for it when you are **instrumenting an agent that runs outside an
+Introspection runtime** — `init()` discovers Pi and wires it into one trace
+pipeline, so conversations, judges, and experiments see a locally-run agent the
+same way they see a deployed one.
 
 ## Packages
 
@@ -48,6 +54,77 @@ where each client fits.
 
 ```shell
 pnpm add @introspection-sdk/introspection-node
+```
+
+### Instrumentation (`/otel`)
+
+The `@introspection-sdk/introspection-node/otel` entrypoint records backend
+product signals (`track` / `feedback` / `identify`) and instruments an agent
+that runs outside an Introspection runtime. Pi is the supported
+agent-instrumentation path. `init()` discovers Pi and wires it into the shared
+trace pipeline:
+
+```shell
+pnpm add @earendil-works/pi-agent-core @earendil-works/pi-ai
+```
+
+```typescript
+import * as introspection from "@introspection-sdk/introspection-node/otel";
+import { Agent } from "@earendil-works/pi-agent-core";
+import { streamSimple } from "@earendil-works/pi-ai/compat";
+import { getBuiltinModel } from "@earendil-works/pi-ai/providers/all";
+
+await introspection.init({ serviceName: "my-app" });
+
+const agent = new Agent({
+  streamFn: streamSimple,
+  initialState: {
+    model: getBuiltinModel("anthropic", "claude-sonnet-4-6"),
+    systemPrompt: "You are a helpful support agent.",
+  },
+});
+introspection.instrumentPi(agent, {
+  conversationId: "conv_123",
+  agentId: "support-agent",
+  agentName: "Support",
+});
+
+await agent.prompt("Help me understand my latest invoice.");
+await introspection.shutdown();
+```
+
+> Pi is the only framework integration `init()` auto-discovers. Everything
+> else is manual instrumentation: emit spans in OTel GenAI semantic
+> conventions and `IntrospectionSpanProcessor` exports them as-is. The SDK
+> does not translate other span formats.
+
+#### Product signals and identity
+
+The same entrypoint emits `track` / `feedback` / `identify`, and scopes the
+identity and conversation that spans and events are attributed to. The `with*`
+helpers run a callback with the value on W3C baggage, so everything inside the
+callback — spans included — carries it:
+
+```typescript
+import * as introspection from "@introspection-sdk/introspection-node/otel";
+
+await introspection.withUserId("user_42", async () => {
+  await introspection.track("Invoice Explained", { turns: 3 });
+  await introspection.feedback("thumbs_up", { comments: "Great response!" });
+});
+```
+
+Starting a conversation rather than continuing one? `conversation()` mints an
+id in the platform's `intro_conv_<hex>` shape and scopes it for the callback.
+It needs no `init()` — an id is minted locally and scoped on baggage, so you
+can take one before telemetry is configured, or hand it to a service that
+exports on its own:
+
+```typescript
+const summary = await introspection.conversation(async (conversationId) => {
+  await agent.prompt("Help me understand my latest invoice.");
+  return conversationId; // what to record feedback against later
+});
 ```
 
 ### Introspection API (runtimes, tasks, files)
@@ -104,6 +181,32 @@ explicit, or `{ mode: "drain", drain_within_seconds: 60 }` for graceful
 teardown. Interrupted runs resume through
 `runner.tasks.runs.resume(taskId, { resume: entries })`.
 
+#### Reading conversations
+
+A runner exposes the read-only `runner.conversations` beside `runner.tasks` and
+`runner.files`. It lists conversation summaries, loads a conversation's latest
+LLM turn, and walks its per-turn items — every read returning the same
+`GenAiSpan` shape, keyed by OTel GenAI semantic-convention name.
+
+Complete exports are server-paginated in 1,000-row storage pages. Use a typed
+helper when you want the parsed result, or `exportStream` to forward raw JSON,
+trajectory, or Arrow bytes without buffering the whole response:
+
+```typescript
+const stream = await runner.conversations.exportStream(
+  conversationId,
+  "trajectory",
+  { agent: "root" },
+);
+for await (const chunk of stream) {
+  await destination.write(chunk);
+}
+
+const spans = await runner.conversations.exportJson(conversationId);
+const trajectory = await runner.conversations.exportTrajectory(conversationId);
+const table = await runner.conversations.exportArrow(conversationId);
+```
+
 #### Resilient streaming
 
 `run.stream()` **resumes transparently** across a mid-turn disconnect — gateway
@@ -144,48 +247,6 @@ budget is spent the error surfaces (`RateLimitError` for 429,
 `SandboxUnavailableError` for 503/504), each carrying `status`, `retryAfter`,
 and `body` so you can decide how to back off further. Streaming has its own
 resume budget (above); multipart uploads are not auto-retried.
-
-### Instrumentation (`/otel`)
-
-The `@introspection-sdk/introspection-node/otel` entrypoint records backend
-product signals (`track` / `feedback` / `identify`) and instruments an agent
-that runs outside an Introspection runtime. Pi is the supported
-agent-instrumentation path. `init()` discovers Pi and wires it into the shared
-trace pipeline:
-
-```shell
-pnpm add @earendil-works/pi-agent-core @earendil-works/pi-ai
-```
-
-```typescript
-import * as introspection from "@introspection-sdk/introspection-node/otel";
-import { Agent } from "@earendil-works/pi-agent-core";
-import { streamSimple } from "@earendil-works/pi-ai/compat";
-import { getBuiltinModel } from "@earendil-works/pi-ai/providers/all";
-
-await introspection.init({ serviceName: "my-app" });
-
-const agent = new Agent({
-  streamFn: streamSimple,
-  initialState: {
-    model: getBuiltinModel("anthropic", "claude-sonnet-4-6"),
-    systemPrompt: "You are a helpful support agent.",
-  },
-});
-introspection.instrumentPi(agent, {
-  conversationId: "conv_123",
-  agentId: "support-agent",
-  agentName: "Support",
-});
-
-await agent.prompt("Help me understand my latest invoice.");
-await introspection.shutdown();
-```
-
-> Pi is the only framework integration `init()` auto-discovers. Everything
-> else is manual instrumentation: emit spans in OTel GenAI semantic
-> conventions and `IntrospectionSpanProcessor` exports them as-is. The SDK
-> does not translate other span formats.
 
 ### Egress proxy
 
