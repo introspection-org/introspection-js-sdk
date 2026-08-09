@@ -77,6 +77,7 @@ function severed(...frames: Frame[]): () => Response {
 function rateLimited(retryAfterS: number | null): () => never {
   return () => {
     throw new RateLimitError({
+      message: "HTTP 429",
       status: 429,
       code: null,
       requestId: null,

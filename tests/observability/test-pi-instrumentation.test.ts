@@ -116,7 +116,7 @@ describe("instrumentStream", () => {
     });
 
     const wrapped = instrumentStream(upstream, { tracer, meta: META });
-    const stream = wrapped(
+    const stream = await wrapped(
       MODEL,
       {
         systemPrompt: "Be concise.",
@@ -182,9 +182,11 @@ describe("instrumentStream", () => {
         "introspection.client_message_id": "msg_42",
       }),
     });
-    await wrapped(MODEL, {
-      messages: [{ role: "user", content: "hi", timestamp: 0 }],
-    }).result();
+    await (
+      await wrapped(MODEL, {
+        messages: [{ role: "user", content: "hi", timestamp: 0 }],
+      })
+    ).result();
     await provider.forceFlush();
 
     const span = exporter
@@ -220,9 +222,11 @@ describe("instrumentStream", () => {
         meta: META,
         getParentContext: () => parentContext,
       });
-      await wrapped(MODEL, {
-        messages: [{ role: "user", content: "hi", timestamp: 0 }],
-      }).result();
+      await (
+        await wrapped(MODEL, {
+          messages: [{ role: "user", content: "hi", timestamp: 0 }],
+        })
+      ).result();
       parent.end();
     });
 
@@ -248,7 +252,7 @@ describe("instrumentStream", () => {
     };
 
     const wrapped = instrumentStream(upstream, { tracer, meta: META });
-    const stream = wrapped(MODEL, {
+    const stream = await wrapped(MODEL, {
       messages: [{ role: "user", content: "hi", timestamp: 0 }],
     });
     await stream.result();
@@ -280,9 +284,11 @@ describe("instrumentStream", () => {
     };
 
     const wrapped = instrumentStream(upstream, { tracer, meta: META });
-    await wrapped(MODEL, {
-      messages: [{ role: "user", content: "hi", timestamp: 0 }],
-    }).result();
+    await (
+      await wrapped(MODEL, {
+        messages: [{ role: "user", content: "hi", timestamp: 0 }],
+      })
+    ).result();
     await provider.forceFlush();
 
     const span = exporter
@@ -313,9 +319,11 @@ describe("instrumentStream", () => {
     };
 
     const wrapped = instrumentStream(upstream, { tracer, meta: META });
-    await wrapped(MODEL, {
-      messages: [{ role: "user", content: "hi", timestamp: 0 }],
-    }).result();
+    await (
+      await wrapped(MODEL, {
+        messages: [{ role: "user", content: "hi", timestamp: 0 }],
+      })
+    ).result();
     await provider.forceFlush();
 
     const span = exporter
@@ -353,9 +361,11 @@ describe("instrumentStream", () => {
       meta: META,
       abortTerminationReason: () => "awaiting_user",
     });
-    await wrapped(MODEL, {
-      messages: [{ role: "user", content: "hi", timestamp: 0 }],
-    }).result();
+    await (
+      await wrapped(MODEL, {
+        messages: [{ role: "user", content: "hi", timestamp: 0 }],
+      })
+    ).result();
     await provider.forceFlush();
 
     const span = exporter
@@ -388,9 +398,11 @@ describe("instrumentStream", () => {
       meta: META,
       abortTerminationReason: () => null,
     });
-    await wrapped(MODEL, {
-      messages: [{ role: "user", content: "hi", timestamp: 0 }],
-    }).result();
+    await (
+      await wrapped(MODEL, {
+        messages: [{ role: "user", content: "hi", timestamp: 0 }],
+      })
+    ).result();
     await provider.forceFlush();
 
     const span = exporter
@@ -426,7 +438,7 @@ describe("instrumentStream", () => {
     });
 
     const wrapped = instrumentStream(upstream, { tracer, meta: META });
-    const stream = wrapped(
+    const stream = await wrapped(
       MODEL,
       {
         systemPrompt: "Be concise.",

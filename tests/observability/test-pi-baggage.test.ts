@@ -75,7 +75,10 @@ describe("Pi Agent SDK baggage — real Agent against Polly-recorded Anthropic",
       spanProcessors: [
         new IntrospectionSpanProcessor({
           token: "test-token",
-          advanced: { spanExporter: exporter, useSimpleSpanProcessor: true },
+          // No `useSimpleSpanProcessor`: it is not an option this SDK has,
+          // so it was accepted by the object literal and ignored. Every
+          // consumer here force-flushes before asserting anyway.
+          advanced: { spanExporter: exporter },
         }),
       ],
     });

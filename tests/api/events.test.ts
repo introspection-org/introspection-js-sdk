@@ -7,6 +7,7 @@ import {
   HttpClient,
 } from "@introspection-sdk/introspection-node";
 import type { Event } from "@introspection-sdk/introspection-node";
+import { bytesBody } from "../testing";
 
 function mockHttp(overrides: Record<string, unknown> = {}) {
   return {
@@ -325,7 +326,7 @@ const SERVER_FEEDBACK_PAYLOAD_TYPE = new arrow.Struct([
 function feedbackIpc(
   ids: string[],
   payloads: { name: string; comments: string | null; value: number | null }[],
-): Uint8Array {
+): ArrayBuffer {
   const table = new arrow.Table({
     id: arrow.vectorFromArray(ids, new arrow.Utf8()),
     event_name: arrow.vectorFromArray(
@@ -334,7 +335,7 @@ function feedbackIpc(
     ),
     payload: arrow.vectorFromArray(payloads, FEEDBACK_PAYLOAD_TYPE),
   });
-  return arrow.tableToIPC(table, "stream");
+  return bytesBody(arrow.tableToIPC(table, "stream"));
 }
 
 describe("EventsApi.list — Arrow with a struct payload column", () => {
@@ -399,7 +400,7 @@ describe("EventsApi.list — Arrow with a struct payload column", () => {
       ),
     });
     const http = mockHttp({
-      streamResult: new Response(arrow.tableToIPC(table, "stream")),
+      streamResult: new Response(bytesBody(arrow.tableToIPC(table, "stream"))),
     });
 
     const page = await new EventsApi(http).list({
@@ -457,7 +458,7 @@ describe("EventsApi.list — Arrow with a struct payload column", () => {
       ),
     });
     const http = mockHttp({
-      streamResult: new Response(arrow.tableToIPC(table, "stream")),
+      streamResult: new Response(bytesBody(arrow.tableToIPC(table, "stream"))),
     });
 
     const page = await new EventsApi(http).list({

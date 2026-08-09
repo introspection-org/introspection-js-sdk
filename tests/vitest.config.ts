@@ -83,12 +83,10 @@ export default defineConfig({
     coverage: {
       provider: "v8",
       reporter: ["text", "json-summary", "html"],
-      // `all: true` forces the v8 provider to enumerate every matching
-      // source file, not just the ones loaded by tests. Without it,
-      // un-imported files silently disappear from the report instead of
-      // showing 0% — which
-      // is exactly the visibility we're adding coverage for.
-      all: true,
+      // No `all` flag: vitest 4 removed it. The v8 provider now enumerates
+      // every file matching `include` by default, so an un-imported file
+      // shows 0% rather than silently disappearing from the report — which
+      // is exactly the visibility this coverage config exists for.
       // Resolved via the workspace's symlinks: pnpm wires
       // `@introspection-sdk/*` → `packages/*/dist/`, and SDK packages
       // emit `.js.map` files (see typescript-config/base.json sourceMap),

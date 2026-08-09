@@ -213,12 +213,12 @@ describe("TaskRunsApi", () => {
   it("create() calls POST /v1/tasks/:id/runs", async () => {
     const http = mockHttp({ requestResult: { run: RUN_FIXTURE } });
     const runs = new TaskRunsApi(http);
-    const handle = await runs.create("task-1", { message: "hello" });
+    const handle = await runs.create("task-1", { prompt: { text: "hello" } });
 
     expect(http.request).toHaveBeenCalledWith({
       method: "POST",
       path: "/v1/tasks/task-1/runs",
-      body: { message: "hello" },
+      body: { prompt: { text: "hello" } },
     });
     expect(handle).toBeInstanceOf(RunHandle);
     expect(handle.task).toBeNull();

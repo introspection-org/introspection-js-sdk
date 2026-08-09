@@ -58,11 +58,15 @@ describe("introspection.init()", () => {
       const calls: string[] = [];
       const A: Integration = {
         identifier: "a",
-        setupOnce: () => calls.push("a"),
+        setupOnce: () => {
+          calls.push("a");
+        },
       };
       const B: Integration = {
         identifier: "b",
-        setupOnce: () => calls.push("b"),
+        setupOnce: () => {
+          calls.push("b");
+        },
       };
 
       const installed = await setupIntegrations([A, B], fakeCtx());
@@ -79,12 +83,16 @@ describe("introspection.init()", () => {
       const calls: string[] = [];
       const Available: Integration = {
         identifier: "available",
-        setupOnce: () => calls.push("available"),
+        setupOnce: () => {
+          calls.push("available");
+        },
       };
       const Missing: Integration = {
         identifier: "missing",
         isAvailable: () => false,
-        setupOnce: () => calls.push("missing"),
+        setupOnce: () => {
+          calls.push("missing");
+        },
       };
 
       const installed = await setupIntegrations(
@@ -278,7 +286,9 @@ describe("introspection.init()", () => {
       const seen: IntegrationSetupContext[] = [];
       const Fake: Integration = {
         identifier: "fake_test_integration",
-        setupOnce: (ctx) => seen.push(ctx),
+        setupOnce: (ctx) => {
+          seen.push(ctx);
+        },
       };
       await init({
         token: "t",

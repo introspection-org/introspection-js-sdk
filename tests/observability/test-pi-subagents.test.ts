@@ -10,6 +10,7 @@
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { trace } from "@opentelemetry/api";
+import type { StreamFn } from "@earendil-works/pi-agent-core";
 import { IntrospectionPiInstrumentor } from "@introspection-sdk/introspection-node/otel/pi";
 import {
   BasicTracerProvider,
@@ -68,7 +69,11 @@ function setupTracer() {
 }
 
 function makeMockStreamFn() {
-  return vi.fn(() => {
+  // Typed with the parameters `StreamFn` declares, even though the body
+  // ignores them: tests cast `agent.streamFunction` to `typeof streamFn`,
+  // and a zero-arg mock made that cast reject the two-argument call the
+  // agent actually makes.
+  return vi.fn((..._args: Parameters<StreamFn>) => {
     const stream = createAssistantMessageEventStream();
     stream.push({
       type: "done",
@@ -111,21 +116,21 @@ describe("Pi Subagents — distinct AgentMeta per instrumented agent", () => {
     });
 
     // Orchestrator: phase 1
-    const orchStream1 = wrappedOrch(MODEL, {
+    const orchStream1 = await wrappedOrch(MODEL, {
       systemPrompt: "Dispatch tasks.",
       messages: [{ role: "user", content: "List tasks.", timestamp: 0 }],
     });
     await orchStream1.result();
 
     // Researcher: processes a task
-    const researcherStream = wrappedResearcher(MODEL, {
+    const researcherStream = await wrappedResearcher(MODEL, {
       systemPrompt: "Research primes.",
       messages: [{ role: "user", content: "Explain primes.", timestamp: 0 }],
     });
     await researcherStream.result();
 
     // Orchestrator: phase 3 — same wrappedOrch, same AgentMeta → same conversation ID
-    const orchStream2 = wrappedOrch(MODEL, {
+    const orchStream2 = await wrappedOrch(MODEL, {
       systemPrompt: "Synthesise.",
       messages: [{ role: "user", content: "Summarise.", timestamp: 0 }],
     });
@@ -186,14 +191,20 @@ describe("Pi Subagents — distinct AgentMeta per instrumented agent", () => {
 
     // Run both in parallel — AsyncLocalStorage keeps spans isolated
     await Promise.all([
-      primesStream(MODEL, {
-        messages: [{ role: "user", content: "Explain primes.", timestamp: 0 }],
-      }).result(),
-      fibStream(MODEL, {
-        messages: [
-          { role: "user", content: "Explain Fibonacci.", timestamp: 0 },
-        ],
-      }).result(),
+      (
+        await primesStream(MODEL, {
+          messages: [
+            { role: "user", content: "Explain primes.", timestamp: 0 },
+          ],
+        })
+      ).result(),
+      (
+        await fibStream(MODEL, {
+          messages: [
+            { role: "user", content: "Explain Fibonacci.", timestamp: 0 },
+          ],
+        })
+      ).result(),
     ]);
 
     await provider.forceFlush();

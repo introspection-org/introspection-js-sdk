@@ -364,12 +364,12 @@ describe("RunHandle / TaskRunsClient", () => {
   it("runs.create() returns a handle on the new run", async () => {
     const http = mockHttp({ requestResult: { run: RUN_FIXTURE } });
     const runs = new TaskRunsClient(http);
-    const handle = await runs.create("task-1", { message: "again" });
+    const handle = await runs.create("task-1", { prompt: { text: "again" } });
 
     expect(http.request).toHaveBeenCalledWith({
       method: "POST",
       path: "/v1/tasks/task-1/runs",
-      body: { message: "again" },
+      body: { prompt: { text: "again" } },
     });
     expect(handle).toBeInstanceOf(RunHandle);
     expect(handle.task).toBeNull();
@@ -615,7 +615,8 @@ describe("environment-scoped sessions", () => {
     await client.connect();
     await client.tasks.get("task-1");
 
-    const [, init] = fetchImpl.mock.calls[1];
+    const calls = fetchImpl.mock.calls as unknown as [string, RequestInit][];
+    const [, init] = calls[1]!;
     expect(
       (init.headers as Record<string, string>)["x-introspection-environment"],
     ).toBe("staging");

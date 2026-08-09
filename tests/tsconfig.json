@@ -37,5 +37,5 @@
       "@introspection-sdk/types": ["packages/introspection-types/src/index.ts"]
     }
   },
-  "include": ["./**/*.ts"]
+  "include": ["./**/*.ts", "../packages/*/src/**/*.d.ts"]
 }

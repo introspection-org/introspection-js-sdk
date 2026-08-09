@@ -123,3 +123,16 @@ export class TestSpanExporter implements SpanExporter {
     return spansToDict(this._exporter.getFinishedSpans());
   }
 }
+
+/**
+ * Bytes as a `Response` body.
+ *
+ * `apache-arrow`'s `tableToIPC` returns `Uint8Array<ArrayBufferLike>`, and
+ * lib.dom's `BodyInit` accepts only the non-shared `Uint8Array<ArrayBuffer>`.
+ * The bytes are identical either way — `slice()` copies into an exact-sized
+ * `ArrayBuffer`, which satisfies the narrower type without a cast that would
+ * also hide a genuinely wrong argument.
+ */
+export function bytesBody(bytes: Uint8Array): ArrayBuffer {
+  return bytes.slice().buffer as ArrayBuffer;
+}

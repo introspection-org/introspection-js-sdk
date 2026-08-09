@@ -98,7 +98,7 @@ describe("chatRequestAttributes", () => {
       {
         ...MODEL,
         provider: "google" as Model<"anthropic-messages">["provider"],
-      },
+      } as Model<string>,
       ctx(),
       META,
     );
@@ -113,7 +113,7 @@ describe("chatRequestAttributes", () => {
     expect(attrs["server.port"]).toBe(443);
 
     const custom = chatRequestAttributes(
-      { ...MODEL, baseUrl: "http://localhost:11434/v1" },
+      { ...MODEL, baseUrl: "http://localhost:11434/v1" } as Model<string>,
       ctx(),
       META,
     );

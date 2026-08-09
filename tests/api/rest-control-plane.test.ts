@@ -265,7 +265,6 @@ beforeEach(() => {
 function makeClient() {
   return new IntrospectionClient({
     token: "test-token",
-    project: "proj-1",
     advanced: { baseApiUrl: baseUrl },
   });
 }
@@ -476,9 +475,7 @@ describe("IntrospectionClient (REST control-plane, real server)", () => {
 
       const handle = client.experiments(EXPERIMENT.id);
       expect((await handle.start()).status).toBe("running");
-      expect((await handle.end({ reason: "done" } as never)).status).toBe(
-        "completed",
-      );
+      expect((await handle.end()).status).toBe("completed");
       expect((await handle.cancel()).status).toBe("cancelled");
       requests = [];
       const runner = await handle.run({
