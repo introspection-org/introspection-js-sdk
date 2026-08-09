@@ -84,3 +84,52 @@ describe("parseAgUiEvents", () => {
     }).rejects.toThrow();
   });
 });
+
+describe("parseAgUiEvents stream lifecycle", () => {
+  it("cancels the response body when the consumer stops early", async () => {
+    let cancelled = false;
+    const encoder = new TextEncoder();
+    const body = new ReadableStream({
+      start(controller) {
+        for (let i = 0; i < 3; i++) {
+          controller.enqueue(
+            encoder.encode(
+              `event: ag_ui\ndata: ${JSON.stringify({
+                type: EventType.TEXT_MESSAGE_CONTENT,
+                messageId: "m1",
+                delta: `chunk-${i}`,
+              })}\n\n`,
+            ),
+          );
+        }
+        controller.close();
+      },
+      cancel() {
+        cancelled = true;
+      },
+    });
+
+    // A UI that stops at the first answer. Without the `finally`, the reader
+    // stayed locked and the connection open for the life of the process.
+    for await (const _ev of parseAgUiEvents(new Response(body))) {
+      break;
+    }
+
+    expect(cancelled).toBe(true);
+  });
+
+  it("discards a frame that has no terminating blank line", async () => {
+    // Truncated mid-payload by a severed connection. Flushing it used to hand
+    // the caller half a JSON document.
+    const events = await collect(
+      textResponse(
+        `event: ag_ui\ndata: ${JSON.stringify({
+          type: EventType.TEXT_MESSAGE_CONTENT,
+          messageId: "m1",
+          delta: "complete",
+        })}\n\nevent: ag_ui\ndata: {"type":"TEXT_MESSAGE_CO`,
+      ),
+    );
+    expect(events).toHaveLength(1);
+  });
+});

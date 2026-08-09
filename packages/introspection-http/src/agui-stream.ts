@@ -37,34 +37,45 @@ export async function* parseStreamFrames(
     retry = undefined;
     return frame;
   };
-  while (true) {
-    const { value, done } = await reader.read();
-    if (done) break;
-    buf += decoder.decode(value, { stream: true });
-    let nl: number;
-    while ((nl = buf.indexOf("\n")) >= 0) {
-      const line = buf.slice(0, nl).replace(/\r$/, "");
-      buf = buf.slice(nl + 1);
-      if (line === "") {
-        const frame = flush();
-        if (frame) yield frame;
-        continue;
-      }
-      if (line.startsWith(":")) continue;
-      const colon = line.indexOf(":");
-      const field = colon < 0 ? line : line.slice(0, colon);
-      const valueRaw = colon < 0 ? "" : line.slice(colon + 1).replace(/^ /, "");
-      if (field === "event") name = valueRaw;
-      else if (field === "data") data.push(valueRaw);
-      else if (field === "id") id = valueRaw;
-      else if (field === "retry") {
-        const n = Number(valueRaw);
-        if (Number.isFinite(n)) retry = n;
+  try {
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buf += decoder.decode(value, { stream: true });
+      let nl: number;
+      while ((nl = buf.indexOf("\n")) >= 0) {
+        const line = buf.slice(0, nl).replace(/\r$/, "");
+        buf = buf.slice(nl + 1);
+        if (line === "") {
+          const frame = flush();
+          if (frame) yield frame;
+          continue;
+        }
+        if (line.startsWith(":")) continue;
+        const colon = line.indexOf(":");
+        const field = colon < 0 ? line : line.slice(0, colon);
+        const valueRaw =
+          colon < 0 ? "" : line.slice(colon + 1).replace(/^ /, "");
+        if (field === "event") name = valueRaw;
+        else if (field === "data") data.push(valueRaw);
+        else if (field === "id") id = valueRaw;
+        else if (field === "retry") {
+          const n = Number(valueRaw);
+          if (Number.isFinite(n)) retry = n;
+        }
       }
     }
+    // Anything still in `buf` at EOF is a frame with no terminating blank
+    // line. SSE says to discard it, and it used to be flushed instead:
+    // half a JSON payload reaches `parseAgUiEvents`, which throws a bare
+    // SyntaxError that `streamResumable` then misreads as a transport drop.
+  } finally {
+    // Without this, a consumer that `break`s out of the `for await` (a UI
+    // that stops at the first answer) leaves the reader locked and the
+    // response body open: one leaked connection per run.
+    reader.cancel().catch(() => {});
+    reader.releaseLock();
   }
-  const frame = flush();
-  if (frame) yield frame;
 }
 
 /**

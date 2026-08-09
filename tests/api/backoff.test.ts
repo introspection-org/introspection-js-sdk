@@ -18,8 +18,16 @@ describe("backoffMs", () => {
     expect(backoffMs(1, 1000, 500, () => 1)).toBe(2000);
   });
 
-  it("caps the total delay", () => {
-    expect(backoffMs(4, 9000, 1000, () => 1)).toBe(MAX_BACKOFF_MS);
-    expect(backoffMs(0, 60000, 500, () => 1)).toBe(MAX_BACKOFF_MS);
+  it("caps the jitter it adds, not the server's floor", () => {
+    // Only the SDK's own exponential/jitter component is bounded.
+    expect(backoffMs(4, 0, 1000, () => 1)).toBe(MAX_BACKOFF_MS);
+    expect(backoffMs(4, 9000, 1000, () => 1)).toBe(9000 + MAX_BACKOFF_MS);
+  });
+
+  it("honours a Retry-After longer than the cap", () => {
+    // `Retry-After: 60` used to be clamped to 10s, so the SDK re-hit the
+    // rate limiter 50s before the server said it could.
+    expect(backoffMs(0, 60000, 500, () => 0)).toBe(60000);
+    expect(backoffMs(0, 60000, 500, () => 1)).toBe(60500);
   });
 });

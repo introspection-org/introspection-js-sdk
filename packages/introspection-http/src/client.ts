@@ -7,6 +7,19 @@ import { backoffMs, sleep } from "./backoff.js";
 import { buildQuery, joinUrl } from "./url.js";
 import { toApiError } from "./errors.js";
 
+/**
+ * Whether a thrown value is an abort rather than a transport failure.
+ *
+ * `fetch` rejects with a `DOMException` named `AbortError`; undici and older
+ * polyfills use a plain `Error` with the same name, so match on the name.
+ */
+function isAbort(err: unknown): boolean {
+  return (
+    err instanceof Error &&
+    (err.name === "AbortError" || err.name === "TimeoutError")
+  );
+}
+
 /** Statuses retried only for idempotent (GET) requests. */
 const IDEMPOTENT_RETRY_STATUSES = new Set([502, 503, 504]);
 
@@ -106,6 +119,11 @@ export class BaseHttpClient {
     try {
       return await doFetch();
     } catch (err) {
+      // A caller's `controller.abort()` is not a network failure. Wrapping it
+      // in `NetworkError` erased both `err.name === "AbortError"` and
+      // `instanceof DOMException`, so every standard way of recognising a
+      // user cancellation reported it as a transport problem instead.
+      if (isAbort(err)) throw err;
       throw new NetworkError({
         message: err instanceof Error ? err.message : "network request failed",
         code: null,
