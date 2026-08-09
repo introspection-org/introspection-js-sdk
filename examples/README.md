@@ -72,22 +72,18 @@ pnpm pi-braintrust                # + Braintrust
 
 ## Manual instrumentation
 
-For everything that is not Pi, instrument against the OTel APIs directly.
-`IntrospectionSpanProcessor` converts OpenInference attributes to GenAI
+There are no examples for it here — the OTel examples cover Pi only. For
+everything else, instrument against the OTel APIs directly and attach
+`IntrospectionSpanProcessor`; it converts OpenInference attributes to GenAI
 semantic conventions on the way out, so an OpenInference-instrumented
-framework needs no Introspection-specific code.
-
-```bash
-pnpm raw-conversation              # Multi-turn conversation with raw OTel APIs
-```
+framework needs no Introspection-specific code. See `llms.txt`.
 
 ## Directory Structure
 
 ```
 examples/
   api/              # REST API (no OTel)
-  otel/             # OTel-based instrumentation examples
+  otel/             # OTel instrumentation examples (Pi only)
     pi/             # Pi Agent
-    raw/            # Raw OTEL (no framework)
     run_all.sh      # Run all OTel examples
 ```

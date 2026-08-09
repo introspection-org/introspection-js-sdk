@@ -62,7 +62,8 @@ examples/<framework>/<integration>[-<vendor>].ts
 
 Where:
 
-- `<framework>` is a flat folder name: `pi` or `raw`.
+- `<framework>` is a flat folder name. Pi is the only one — the OTel examples
+  cover Pi and nothing else.
 - `<integration>` describes the entrypoint (`init`, `native`, `subagents`).
 - `<vendor>` names the second backend in a dual-export example (`langfuse`,
   `braintrust`).
@@ -71,7 +72,6 @@ Examples:
 
 - `examples/otel/pi/native.ts`, `examples/otel/pi/subagents.ts`
 - `examples/otel/pi/langfuse.ts` — dual export
-- `examples/otel/raw/multi-turn-conversation.ts` (the wrapper-free OTel example)
 
 Example folders are top-level peers under `otel/`. Do not nest one under
 another.
