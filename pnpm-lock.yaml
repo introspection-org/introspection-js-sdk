@@ -306,9 +306,6 @@ importers:
       '@earendil-works/pi-agent-core':
         specifier: ^0.83.0
         version: 0.83.0(@modelcontextprotocol/sdk@1.30.0(@cfworker/json-schema@4.1.1)(zod@4.4.3))(ws@8.21.1)(zod@4.4.3)
-      '@earendil-works/pi-ai':
-        specifier: ^0.83.0
-        version: 0.83.0(@modelcontextprotocol/sdk@1.30.0(@cfworker/json-schema@4.1.1)(zod@4.4.3))(ws@8.21.1)(zod@4.4.3)
       '@opentelemetry/api-logs':
         specifier: ^0.221.0
         version: 0.221.0
