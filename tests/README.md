@@ -19,18 +19,41 @@ pnpm test
 
 ### Test Utilities
 
-- **testing.ts** - `IncrementalIdGenerator`, `TestSpanExporter`, and snapshot helpers
+- **testing.ts** - `IncrementalIdGenerator`, `TestSpanExporter`
+- **polly-setup.ts** - Polly wiring, credential scrubbing, canonical provider base URLs
+- **observability/pi-fixtures.ts** - real `Agent` / tool / tracer / meter builders shared by the recorded Pi tests
+
+### Recorded Pi cassettes
+
+Pi is the only instrumented framework, so it is the only one with cassettes.
+Each file below drives a real `pi-agent-core` `Agent` against a committed HAR
+of the Anthropic response — no mocked pi events, no mocked stream.
+
+| Test file                         | Cassette     | What only a real run can prove                                                      |
+| --------------------------------- | ------------ | ----------------------------------------------------------------------------------- |
+| `test-pi-recorded-chat.test.ts`   | `pi-chat`    | chat-span semconv, provider response identity, usage, message serialization         |
+| `test-pi-recorded-tools.test.ts`  | `pi-tools`   | the tool loop: `execute_tool` spans, tool schema, call/result threading, active ctx |
+| `test-pi-recorded-run.test.ts`    | `pi-run`     | `invoke_agent` run span parenting the whole trace, and GenAI client metrics         |
+| `test-pi-recorded-errors.test.ts` | `pi-errors`  | a real provider 404 (status ERROR) vs. a real mid-stream abort (Unset + cancelled)  |
+| `test-pi-baggage.test.ts`         | `pi-baggage` | baggage overriding `AgentMeta` across concurrent agents                             |
+
+The remaining `test-pi-*.test.ts` files are unit tests over the attribute
+builders, converters, and wrappers; they need no network and no cassette.
+
+To re-record after a pi or provider upgrade, delete the cassette directory and
+run that one file with `POLLY_MODE=record` and a real `ANTHROPIC_API_KEY`.
+Credentials are scrubbed on write, never on read.
 
 ## Environment Variables
 
 See `.env.example` for all required variables. At minimum you need:
 
 ```
-OPENAI_API_KEY=sk-...
+ANTHROPIC_API_KEY=sk-ant-...   # only to (re-)record cassettes
 INTROSPECTION_TOKEN=your-token
 ```
 
-Additional variables are needed for specific observability platform tests.
+Replay needs no keys: `ensureEnvVarsForReplay` substitutes dummies.
 
 ## Running Specific Tests
 
@@ -80,8 +103,8 @@ harness.
 | Metric     | Phase 1 baseline | Current | Threshold (do-not-regress) |
 | ---------- | ---------------: | ------: | -------------------------: |
 | Statements |              63% |     84% |                        80% |
-| Branches   |              49% |     69% |                        63% |
-| Functions  |              65% |     88% |                        84% |
+| Branches   |              49% |     73% |                        63% |
+| Functions  |              65% |     87% |                        84% |
 | Lines      |              64% |     85% |                        82% |
 
 Per-package / per-file detail is in the HTML report.

@@ -114,7 +114,7 @@ export default defineConfig({
       // If a stricter "every file ≥ X" policy is wanted, tighten this block.
       //
       // Phase 1 baseline:  statements 62.86%  branches 48.65%  functions 64.65%  lines 64.24%
-      // Current measured:  statements 83.80%  branches 72.73%  functions 86.46%  lines 85.18%
+      // Current measured:  statements 83.93%  branches 72.78%  functions 86.89%  lines 85.29%
       // Floors sit just under the measured values to leave a small margin.
       thresholds: {
         lines: 82,
