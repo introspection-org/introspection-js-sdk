@@ -76,12 +76,12 @@ function scrubSecrets(text: string | undefined | null): string | undefined {
   return out;
 }
 
-export interface SetupPollyOptions {
+interface SetupPollyOptions {
   recordingName: string;
   adapters?: ("fetch" | "node-http")[];
 }
 
-export function getPollyMode(): PollyMode {
+function getPollyMode(): PollyMode {
   const mode = (process.env.POLLY_MODE || "replay") as PollyMode;
   if (mode !== "record" && mode !== "replay" && mode !== "passthrough") {
     throw new Error(
@@ -264,7 +264,7 @@ export const pollyEndpoints = {
  * Polly.js persister-fs may append a hash to the directory name,
  * so we check for any directory starting with the recording name.
  */
-export function hasRecording(recordingName: string): boolean {
+function hasRecording(recordingName: string): boolean {
   const recordingsDir = path.resolve(__dirname, "recordings");
   if (!fs.existsSync(recordingsDir)) return false;
   const entries = fs.readdirSync(recordingsDir);
