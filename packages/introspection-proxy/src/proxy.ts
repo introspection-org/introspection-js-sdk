@@ -105,25 +105,6 @@ function buildEgressDispatcher(proxyUrl: string): Dispatcher {
   });
 }
 
-/**
- * Returns a single dispatcher. When egress hosts are scoped, returns the
- * forward dispatcher (the egress/forward split is per-request inside
- * {@link createProxyFetch}).
- */
-export function getProxyDispatcher(
-  options: ProxyFetchOptions = {},
-): Dispatcher | undefined {
-  const egressUrl = resolveEgressUrl(options);
-  const egressHostSet = resolveEgressHosts(options);
-  if (egressUrl && egressHostSet.size > 0) {
-    return buildEgressDispatcher(egressUrl);
-  }
-  if (resolveForwardProxyUrl()) {
-    return new EnvHttpProxyAgent();
-  }
-  return undefined;
-}
-
 function toUrlString(input: RequestInfo | URL): string {
   if (typeof input === "string") return input;
   if (input instanceof URL) return input.toString();

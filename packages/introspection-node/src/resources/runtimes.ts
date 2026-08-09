@@ -2,14 +2,13 @@ import {
   RuntimeHandle,
   RuntimesClient,
   attachRuntimes as attachSharedRuntimes,
-  isUuid,
   type RuntimeHandleFactory as SharedRuntimeHandleFactory,
 } from "@introspection-sdk/http";
 import type { HttpClient } from "../http.js";
 import type { IntrospectionClient } from "../client.js";
 import { Runner } from "../runner.js";
 
-export { RuntimeHandle, isUuid };
+export { RuntimeHandle };
 
 export class RuntimesApi extends RuntimesClient<Runner> {
   constructor(

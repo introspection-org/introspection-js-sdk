@@ -91,6 +91,23 @@ describe("IntrospectionLogs", () => {
     expect(byEvent).toEqual({ a_event: "user_a", b_event: "user_b" });
   });
 
+  it("keeps the feedback name when an extra property is also called name", () => {
+    const records = captureEmits(logs);
+    // `name` is the positional argument. Spreading the extras last let a
+    // caller's own `name` property silently replace it, so the event went
+    // out labelled as something the caller never asked for.
+    logs.feedback("thumbs_up", {
+      comments: "great",
+      name: "not the feedback name",
+    } as Parameters<typeof logs.feedback>[1]);
+    expect(records).toHaveLength(1);
+    expect(records[0]).toMatchObject({
+      "event.name": "introspection.feedback",
+      "properties.name": "thumbs_up",
+      "properties.comments": "great",
+    });
+  });
+
   it("reports the anonymous id scoped on the current context", async () => {
     expect(logs.getAnonymousId()).toBeUndefined();
     await logs.withAnonymousId("anon_1", async () => {

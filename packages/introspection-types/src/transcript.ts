@@ -104,22 +104,6 @@ export interface TranscriptDelegationEntry {
   spanId?: string;
 }
 
-/**
- * An interruption awaiting outside input. Reserved: no fold emits it yet —
- * `awaiting_user` reaches clients as a run status today; the entry exists so
- * the projection can carry the prompt once run metadata exposes it.
- */
-export interface TranscriptInterruptEntry {
-  kind: "interrupt";
-  /** Stable entry ID. */
-  id: string;
-  /** Why the conversation is paused (e.g. `awaiting_user`). */
-  reason: string;
-}
-
 /** One entry of the folded transcript, in render order. */
 export type TranscriptEntry =
-  | TranscriptMessageEntry
-  | TranscriptToolEntry
-  | TranscriptDelegationEntry
-  | TranscriptInterruptEntry;
+  TranscriptMessageEntry | TranscriptToolEntry | TranscriptDelegationEntry;

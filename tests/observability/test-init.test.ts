@@ -133,6 +133,53 @@ describe("introspection.init()", () => {
       expect(getTracerProvider()).toBe(p1);
     });
 
+    it("collapses concurrent calls onto one provider", async () => {
+      // The `state.provider` guard is set only after discovery and
+      // integration setup have awaited. Two callers racing both saw it unset,
+      // both built a provider and a LoggerProvider with its own batch-export
+      // timer, and the second overwrote the first -- leaking the first's
+      // exporters with nothing left holding a reference to shut them down.
+      const opts = {
+        token: "t",
+        autoDiscover: false,
+        advanced: { spanExporter: exporter() },
+      };
+      const [p1, p2, p3] = await Promise.all([
+        init(opts),
+        init(opts),
+        init(opts),
+      ]);
+      expect(p2).toBe(p1);
+      expect(p3).toBe(p1);
+      expect(getTracerProvider()).toBe(p1);
+    });
+
+    it("lets a later call retry after a failed init", async () => {
+      // The in-flight promise must be cleared on rejection too, or one bad
+      // init() would wedge every later one onto the same failure.
+      const boom: Integration = {
+        identifier: "boom",
+        setupOnce: () => {
+          throw new Error("integration exploded");
+        },
+      };
+      await expect(
+        init({
+          token: "t",
+          autoDiscover: false,
+          integrations: [boom],
+          advanced: { spanExporter: exporter() },
+        }),
+      ).rejects.toThrow("integration exploded");
+      resetInstalledForTests();
+      const provider = await init({
+        token: "t",
+        autoDiscover: false,
+        advanced: { spanExporter: exporter() },
+      });
+      expect(getTracerProvider()).toBe(provider);
+    });
+
     it("requires a token", async () => {
       delete process.env.INTROSPECTION_TOKEN;
       await expect(init({ autoDiscover: false })).rejects.toThrow(/token/);

@@ -432,16 +432,16 @@ export class TranscriptAccumulator {
       // this is the fold's own backstop for emitters that do not. A running
       // delegation is deliberately left open — its completion is the child
       // run's, not this run's.
-      case EventType.RUN_FINISHED: {
-        for (const tool of this.toolsByCallId.values()) {
-          if (tool.status === "running") tool.status = "error";
-        }
-        return;
-      }
+      case EventType.RUN_FINISHED:
       case EventType.RUN_ERROR: {
         for (const tool of this.toolsByCallId.values()) {
           if (tool.status === "running") tool.status = "error";
         }
+        // Reasoning buffers until the assistant message it belongs to opens.
+        // A run that thinks and then ends -- an error mid-turn, or a turn
+        // that only ever calls tools -- has no such message, and the whole
+        // of the model's reasoning was dropped on the floor.
+        this.flushPendingThinking(event);
         return;
       }
       case EventType.ACTIVITY_SNAPSHOT:
@@ -465,6 +465,28 @@ export class TranscriptAccumulator {
       }
       default:
         return;
+    }
+  }
+
+  /**
+   * Attach buffered reasoning to the transcript at a terminal frame.
+   *
+   * Prefers the last assistant message; when the run produced none, opens a
+   * text-less assistant entry to carry it rather than losing it.
+   */
+  private flushPendingThinking(event: AGUIEvent): void {
+    if (!this.pendingThinking) return;
+    const target =
+      this.lastAssistant ??
+      this.openMessage(
+        `${(event as { runId?: string }).runId ?? "run"}:reasoning`,
+        "assistant",
+      );
+    // openMessage() drains the buffer itself when it opens an assistant
+    // entry, so only the already-open case is left to handle here.
+    if (this.pendingThinking) {
+      target.thinking = (target.thinking ?? "") + this.pendingThinking;
+      this.pendingThinking = "";
     }
   }
 

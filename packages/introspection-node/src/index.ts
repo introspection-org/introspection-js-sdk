@@ -74,7 +74,6 @@ export {
   RuntimesApi,
   RuntimeHandle,
   attachRuntimes,
-  isUuid,
 } from "./resources/runtimes.js";
 export type { RuntimeHandleFactory } from "./resources/runtimes.js";
 export {
@@ -225,7 +224,6 @@ export {
   ValidationError,
   RateLimitError,
   SandboxUnavailableError,
-  StreamError,
   NetworkError,
   apiErrorFromResponse,
 } from "@introspection-sdk/types";

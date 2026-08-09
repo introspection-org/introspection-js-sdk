@@ -11,7 +11,6 @@
  * in the full `introspection-node` surface.
  */
 export {
-  getProxyDispatcher,
   createProxyFetch,
   installProxyFetch,
   resolveForwardProxyUrl,

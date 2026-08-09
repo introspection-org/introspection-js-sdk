@@ -73,6 +73,16 @@ export interface InitOptions {
 
 interface InitState {
   provider: TracerProvider | null;
+  /**
+   * The in-flight `init()`, if one has not settled yet.
+   *
+   * The `state.provider` guard alone is not enough: `init()` awaits framework
+   * discovery and integration setup before assigning it, so two concurrent
+   * callers both saw `null`, both built a provider plus a `LoggerProvider`
+   * with its own batch-export timer, and the second overwrote the first --
+   * leaking the first's exporters with nothing left to shut them down.
+   */
+  pending: Promise<TracerProvider> | null;
   ownsProvider: boolean;
   logs: IntrospectionLogs | null;
   handles: IntegrationHandles;
@@ -81,6 +91,7 @@ interface InitState {
 
 const state: InitState = {
   provider: null,
+  pending: null,
   ownsProvider: false,
   logs: null,
   handles: {},
@@ -126,12 +137,25 @@ function resolveProvider(
  * Idempotent: repeated calls return the already-configured provider without
  * re-installing integrations.
  */
-export async function init(options: InitOptions = {}): Promise<TracerProvider> {
+export function init(options: InitOptions = {}): Promise<TracerProvider> {
   if (state.provider) {
     logger.debug("introspection.init() already called; returning provider");
-    return state.provider;
+    return Promise.resolve(state.provider);
   }
+  if (state.pending) {
+    logger.debug("introspection.init() already in flight; awaiting it");
+    return state.pending;
+  }
+  // Cleared on both paths: on success the `state.provider` guard takes over,
+  // and on failure a later init() has to be free to retry.
+  const pending = initOnce(options).finally(() => {
+    state.pending = null;
+  });
+  state.pending = pending;
+  return pending;
+}
 
+async function initOnce(options: InitOptions): Promise<TracerProvider> {
   const token = options.token ?? process.env.INTROSPECTION_TOKEN;
   const serviceName =
     options.serviceName ?? process.env.INTROSPECTION_SERVICE_NAME ?? undefined;
@@ -369,6 +393,7 @@ export async function shutdown(): Promise<void> {
 export function _resetForTests(): void {
   teardownIntegrations();
   state.provider = null;
+  state.pending = null;
   state.ownsProvider = false;
   state.logs = null;
   state.handles = {};

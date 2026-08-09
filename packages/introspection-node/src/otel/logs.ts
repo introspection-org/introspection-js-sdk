@@ -277,7 +277,10 @@ export class IntrospectionLogs {
   feedback(name: string, options: FeedbackOptions = {}): void {
     const { comments, conversationId, previousResponseId, eventId, ...extra } =
       options;
-    const properties: Record<string, unknown> = { name, ...extra };
+    // `name` last: it is the positional argument, so an `extra` key that
+    // happens to be called `name` must not silently replace the feedback
+    // name the caller passed.
+    const properties: Record<string, unknown> = { ...extra, name };
     if (comments) properties.comments = comments;
     const attributes = this.buildAttributes("introspection.feedback", {
       properties,

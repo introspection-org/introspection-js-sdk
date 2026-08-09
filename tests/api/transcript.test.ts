@@ -389,6 +389,69 @@ describe("foldAgui", () => {
     });
   });
 
+  it("flushes buffered reasoning onto the open assistant message at RUN_ERROR", () => {
+    // A turn that reasons, starts answering, then fails mid-stream. The
+    // buffered reasoning has no *next* message to attach to, and used to be
+    // discarded -- the transcript of a failed run lost the model's thinking
+    // entirely, which is the run you most want it for.
+    const entries = foldAgui([
+      {
+        type: EventType.TEXT_MESSAGE_START,
+        messageId: "m1",
+        role: "assistant",
+      },
+      { type: EventType.TEXT_MESSAGE_CONTENT, messageId: "m1", delta: "Let" },
+      {
+        type: EventType.REASONING_MESSAGE_CONTENT,
+        messageId: "r1",
+        delta: "second thoughts",
+      },
+      { type: EventType.RUN_ERROR, threadId: "t", runId: "r", message: "boom" },
+    ] as AGUIEvent[]);
+    expect(entries).toHaveLength(1);
+    expect(entries[0]).toMatchObject({
+      id: "m1",
+      text: "Let",
+      thinking: "second thoughts",
+    });
+  });
+
+  it("carries reasoning on a turn that produced no assistant message", () => {
+    // Reasoning, then tool calls, then the run ends. There is no message to
+    // hang the thinking off, so the fold opens one rather than dropping it.
+    const entries = foldAgui([
+      {
+        type: EventType.REASONING_MESSAGE_CONTENT,
+        messageId: "r1",
+        delta: "plan the call",
+      },
+      { type: EventType.TOOL_CALL_START, toolCallId: "c1", toolCallName: "ls" },
+      { type: EventType.TOOL_CALL_RESULT, toolCallId: "c1", content: "ok" },
+      { type: EventType.RUN_FINISHED, threadId: "t", runId: "run_7" },
+    ] as AGUIEvent[]);
+    const message = entries.find((e) => e.kind === "message");
+    expect(message).toMatchObject({
+      id: "run_7:reasoning",
+      role: "assistant",
+      text: "",
+      thinking: "plan the call",
+    });
+  });
+
+  it("adds nothing when there is no buffered reasoning to flush", () => {
+    const entries = foldAgui([
+      {
+        type: EventType.TEXT_MESSAGE_START,
+        messageId: "m1",
+        role: "assistant",
+      },
+      { type: EventType.TEXT_MESSAGE_CONTENT, messageId: "m1", delta: "Go." },
+      { type: EventType.RUN_FINISHED, threadId: "t", runId: "r" },
+    ] as AGUIEvent[]);
+    expect(entries).toHaveLength(1);
+    expect((entries[0] as { thinking?: string }).thinking).toBeUndefined();
+  });
+
   it("aliases a live message id via introspection.message_identity", () => {
     const entries = foldAgui([
       {
