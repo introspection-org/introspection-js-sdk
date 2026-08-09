@@ -15,7 +15,7 @@
  * `conversation()` scope, proxied to a global {@link IntrospectionLogs}.
  */
 
-import { type TracerProvider } from "@opentelemetry/api";
+import { context, propagation, type TracerProvider } from "@opentelemetry/api";
 import {
   defaultResource,
   resourceFromAttributes,
@@ -303,6 +303,14 @@ export function identify(
  * await introspection.conversation((id) => client.messages.create({ ... }));
  * await introspection.conversation("conv_123", (id) => run());
  * ```
+ *
+ * Unlike the `with*` helpers below, this does not require {@link init}: a
+ * conversation id is minted locally and scoped on W3C baggage, which is
+ * ordinary OpenTelemetry context and needs no exporter behind it. Routing it
+ * through the global client made `conversation()` throw before `init()` even
+ * though nothing in it had anything to send -- so the id a caller wanted to
+ * mint before configuring telemetry, or to hand to a service that exports on
+ * its own, was unreachable.
  */
 export function conversation<T>(
   callback: (conversationId: string) => T | Promise<T>,
@@ -319,9 +327,13 @@ export function conversation<T>(
   const callback = (typeof a === "string" ? b : a) as (
     id: string,
   ) => T | Promise<T>;
-  return getClient().withConversation(conversationId, undefined, () =>
-    callback(conversationId),
+  const ctx = propagation.setBaggage(
+    context.active(),
+    (
+      propagation.getBaggage(context.active()) ?? propagation.createBaggage()
+    ).setEntry("gen_ai.conversation.id", { value: conversationId }),
   );
+  return Promise.resolve(context.with(ctx, () => callback(conversationId)));
 }
 
 /**

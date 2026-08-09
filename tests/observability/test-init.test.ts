@@ -328,6 +328,32 @@ describe("introspection.init()", () => {
       const id = await conversation((cid) => cid);
       expect(id).toMatch(/^intro_conv_[0-9a-f]+$/);
     });
+
+    it("conversation() works before init(), unlike the with* helpers", async () => {
+      // Minting an id and scoping it is W3C baggage and nothing else: no
+      // exporter is involved, so there is nothing for `init()` to supply.
+      // Routing it through the global client made this throw, which put the
+      // id out of reach of anyone wanting one before telemetry is
+      // configured, or to hand to a service that exports on its own.
+      let captured: string | undefined;
+      const id = await conversation((cid) => {
+        captured = propagation
+          .getBaggage(context.active())
+          ?.getEntry("gen_ai.conversation.id")?.value;
+        return cid;
+      });
+      expect(id).toMatch(/^intro_conv_[0-9a-f]+$/);
+      expect(captured).toBe(id);
+    });
+
+    it("conversation() leaves the scope when the callback returns", async () => {
+      await conversation("conv-scoped", () => undefined);
+      expect(
+        propagation
+          .getBaggage(context.active())
+          ?.getEntry("gen_ai.conversation.id")?.value,
+      ).toBeUndefined();
+    });
   });
 
   // -------------------------------------------------------------------------
