@@ -113,20 +113,20 @@ export default defineConfig({
       // packages (a "do not regress" floor), NOT a per-file or all-metrics-≥70
       // guarantee. Concretely: line/statement/function coverage are high (~85/84/86%)
       // and the dominant target; branch coverage is tracked but intentionally
-      // lower (floor 63) since exhaustive branch coverage has steep
-      // diminishing returns. Some individual files are below
-      // 70% (e.g. introspection-browser/src/client.ts is 0% — deferred pending a
-      // browser harness).
+      // lower (floor 76) since exhaustive branch coverage has steep
+      // diminishing returns. Some individual files are still below 70% (e.g.
+      // http/src/resources/shares.ts, and the DOM-only half of
+      // introspection-browser/src/client.ts, which needs a browser harness).
       // If a stricter "every file ≥ X" policy is wanted, tighten this block.
       //
       // Phase 1 baseline:  statements 62.86%  branches 48.65%  functions 64.65%  lines 64.24%
-      // Current measured:  statements 83.93%  branches 72.78%  functions 86.89%  lines 85.29%
+      // Current measured:  statements 89.08%  branches 78.27%  functions 90.87%  lines 90.85%
       // Floors sit just under the measured values to leave a small margin.
       thresholds: {
-        lines: 82,
-        functions: 84,
-        branches: 63,
-        statements: 80,
+        lines: 88,
+        functions: 88,
+        branches: 76,
+        statements: 87,
       },
     },
   },
