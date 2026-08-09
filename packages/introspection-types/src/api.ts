@@ -984,6 +984,7 @@ export interface EventListParams extends CursorParams, ReadWindowParams {
   trace_id?: string;
   /** Filter by span ID. */
   span_id?: string;
+  owner_key?: string;
   /** Filter by event IDs (repeated param, max 500). */
   event_id?: string[];
   // --- family-scoped filters (server-validated allow-map, one family each) ---
