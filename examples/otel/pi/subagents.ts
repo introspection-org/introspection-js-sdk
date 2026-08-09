@@ -22,11 +22,13 @@ import { streamSimple } from "@earendil-works/pi-ai/compat";
 import { getBuiltinModel } from "@earendil-works/pi-ai/providers/all";
 import { randomUUID } from "crypto";
 import {
-  IntrospectionPiInstrumentor,
   setupTracing,
   IntrospectionLogs,
-  type PiAgentMeta,
 } from "@introspection-sdk/introspection-node/otel";
+import {
+  IntrospectionPiInstrumentor,
+  type PiAgentMeta,
+} from "@introspection-sdk/introspection-node/otel/pi";
 
 const token = process.env.INTROSPECTION_TOKEN;
 if (!token) throw new Error("INTROSPECTION_TOKEN must be set");

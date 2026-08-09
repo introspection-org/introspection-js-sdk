@@ -22,12 +22,15 @@ export type { SetupTracingOptions, ConflictBehavior } from "./setup.js";
 export { IntrospectionSpanProcessor } from "./span-processor.js";
 export type { IntrospectionSpanProcessorOptions } from "./span-processor.js";
 
-// Pi Agent SDK instrumentor.
-export { IntrospectionPiInstrumentor } from "./pi.js";
-export type {
-  IntrospectionPiInstrumentorOptions,
-  AgentMeta as PiAgentMeta,
-} from "./pi.js";
+// Pi Agent SDK instrumentor: `@introspection-sdk/introspection-node/otel/pi`.
+//
+// Deliberately not re-exported here. `./pi.js` reaches
+// `@earendil-works/pi-ai` for a value (`createAssistantMessageEventStream`),
+// so a static export would make importing this barrel throw
+// ERR_MODULE_NOT_FOUND for every user who does not have Pi installed --
+// exactly the invariant `integrations/base.ts` states. `init()` still wires
+// Pi automatically when it is present, via the lazy integration loader, and
+// exposes the bound handle as `introspection.instrumentPi()`.
 
 // One-liner bootstrap (`introspection.init()`) + analytics proxies and the
 // per-framework handle accessors it binds. Auto-detects installed frameworks

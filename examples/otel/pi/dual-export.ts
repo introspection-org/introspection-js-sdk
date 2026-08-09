@@ -27,10 +27,8 @@ import { Type } from "@earendil-works/pi-ai";
 import { streamSimple } from "@earendil-works/pi-ai/compat";
 import { getBuiltinModel } from "@earendil-works/pi-ai/providers/all";
 import * as introspection from "@introspection-sdk/introspection-node/otel";
-import {
-  IntrospectionSpanProcessor,
-  type PiAgentMeta,
-} from "@introspection-sdk/introspection-node/otel";
+import { IntrospectionSpanProcessor } from "@introspection-sdk/introspection-node/otel";
+import type { PiAgentMeta } from "@introspection-sdk/introspection-node/otel/pi";
 import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
 import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-proto";
 import { BatchSpanProcessor } from "@opentelemetry/sdk-trace-base";

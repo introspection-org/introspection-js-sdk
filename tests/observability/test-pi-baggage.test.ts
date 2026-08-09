@@ -21,9 +21,9 @@ import type { Polly } from "@pollyjs/core";
 
 import {
   IntrospectionLogs,
-  IntrospectionPiInstrumentor,
   IntrospectionSpanProcessor,
 } from "@introspection-sdk/introspection-node/otel";
+import { IntrospectionPiInstrumentor } from "@introspection-sdk/introspection-node/otel/pi";
 import { TestSpanExporter, IncrementalIdGenerator } from "../testing";
 import {
   setupPolly,

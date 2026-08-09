@@ -20,7 +20,7 @@ import {
 import { SpanKind, SpanStatusCode, trace } from "@opentelemetry/api";
 import type { Polly } from "@pollyjs/core";
 
-import { IntrospectionPiInstrumentor } from "@introspection-sdk/introspection-node/otel";
+import { IntrospectionPiInstrumentor } from "@introspection-sdk/introspection-node/otel/pi";
 import type {
   InputMessage,
   OutputMessage,

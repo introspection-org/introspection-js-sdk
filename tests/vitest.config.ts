@@ -14,6 +14,12 @@ export default defineConfig({
   //   2. Tests pick up SDK source changes without a rebuild step in between.
   resolve: {
     alias: {
+      // Longest specifier first: vitest matches string aliases by prefix, so
+      // `.../otel` would otherwise swallow `.../otel/pi`.
+      "@introspection-sdk/introspection-node/otel/pi": resolve(
+        repoRoot,
+        "packages/introspection-node/src/otel/pi.ts",
+      ),
       "@introspection-sdk/introspection-node/otel": resolve(
         repoRoot,
         "packages/introspection-node/src/otel/index.ts",

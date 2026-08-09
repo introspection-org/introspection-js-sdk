@@ -2,7 +2,7 @@
   "name": "@introspection-sdk/introspection-pi",
   "version": "0.1.0",
   "license": "Apache-2.0",
-  "description": "Introspection observability extension for the Pi Agent SDK — OTEL GenAI semantic-convention spans for chat completions and tool execution",
+  "description": "Introspection observability extension for the Pi Agent SDK \u2014 OTEL GenAI semantic-convention spans for chat completions and tool execution",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -30,9 +30,6 @@
     "@earendil-works/pi-ai": ">=0.75.0"
   },
   "peerDependenciesMeta": {
-    "@earendil-works/pi-ai": {
-      "optional": true
-    },
     "@earendil-works/pi-agent-core": {
       "optional": true
     }

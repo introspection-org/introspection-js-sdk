@@ -34,7 +34,11 @@ import {
 } from "@introspection-sdk/introspection-pi";
 import { VERSION } from "../version.js";
 
-export type { AgentMeta } from "@introspection-sdk/introspection-pi";
+export type {
+  AgentMeta,
+  // Alias kept from when this lived on the /otel barrel.
+  AgentMeta as PiAgentMeta,
+} from "@introspection-sdk/introspection-pi";
 
 export interface IntrospectionPiInstrumentorOptions {
   /** Tracer name used for all spans produced by this instrumentor. */

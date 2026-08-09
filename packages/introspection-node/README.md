@@ -117,7 +117,12 @@ await introspection.init({ tracerProvider: provider });
 
 `IntrospectionSpanProcessor` exports its own converted copy of each span, so the vendor processor receives the raw span and processor order is irrelevant. For a quick alternative: `init({ spanProcessors: [new BatchSpanProcessor(otherBackendExporter)] })`.
 
-Support for other frameworks is experimental.
+Pi is the only framework with a built-in integration. `init()` detects it and
+wires it automatically; to instrument an `Agent` by hand, import
+`IntrospectionPiInstrumentor` from
+`@introspection-sdk/introspection-node/otel/pi`. It lives on its own subpath
+because it reaches into `@earendil-works/pi-ai` at runtime, and the `/otel`
+barrel must stay importable without it.
 
 ## Analytics events (track, feedback, identify)
 
