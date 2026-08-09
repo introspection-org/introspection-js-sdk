@@ -43,6 +43,12 @@ async function main() {
   //    Create is idempotent on `slug`, so re-running this is safe — it
   //    returns the existing row rather than a duplicate. `client_secret` is
   //    write-only: it goes up here and is absent from every response.
+  //
+  //    This example assumes the Slack app already exists. Registering a new
+  //    one is a second pass: its delivery URL contains the connector id
+  //    (`{cp-host}/v1/webhooks/slack/{connector.id}`), so the connector has to
+  //    exist first, and the credentials come back afterwards via
+  //    `connectors.update(connector.id, { webhook_url, client_secret, ... })`.
   const connector = await client.connectors.create(
     {
       name: "Slack (support)",
