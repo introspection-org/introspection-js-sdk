@@ -16,7 +16,10 @@
  */
 
 import { type TracerProvider } from "@opentelemetry/api";
-import { resourceFromAttributes } from "@opentelemetry/resources";
+import {
+  defaultResource,
+  resourceFromAttributes,
+} from "@opentelemetry/resources";
 import type {
   BasicTracerProvider,
   SpanProcessor,
@@ -25,7 +28,7 @@ import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
 import { ATTR_SERVICE_NAME } from "@opentelemetry/semantic-conventions";
 
 import type { AdvancedOptions, FeedbackOptions, UserTraits } from "../types.js";
-import { logger } from "../utils.js";
+import { DEFAULT_SERVICE_NAME, logger } from "../utils.js";
 import {
   discoverIntegrations,
   setupIntegrations,
@@ -116,9 +119,20 @@ function resolveProvider(
   if (options.tracerProvider) return options.tracerProvider;
 
   const provider = new NodeTracerProvider({
-    resource: serviceName
-      ? resourceFromAttributes({ [ATTR_SERVICE_NAME]: serviceName })
-      : undefined,
+    // Merged onto the default resource, not substituted for it: a bare
+    // `resourceFromAttributes` replaces `defaultResource()` outright, which
+    // is where `telemetry.sdk.language` and the SDK version come from.
+    //
+    // Defaulted, because we are building this provider ourselves and the
+    // logs stream beside it defaults to the same name. Only here: a caller
+    // who passed their own `tracerProvider` returns above, and the span
+    // processor still gets `serviceName` undefined so it leaves a provider
+    // the caller already labelled alone.
+    resource: defaultResource().merge(
+      resourceFromAttributes({
+        [ATTR_SERVICE_NAME]: serviceName ?? DEFAULT_SERVICE_NAME,
+      }),
+    ),
     // Order is irrelevant (IntrospectionSpanProcessor exports an isolated
     // converted copy and never mutates the shared span); listed first to match
     // setupTracing()'s ordering.

@@ -18,7 +18,7 @@ import { W3CBaggagePropagator } from "@opentelemetry/core";
 import { InMemoryLogRecordExporter } from "@opentelemetry/sdk-logs";
 import { IntrospectionLogs } from "@introspection-sdk/introspection-node/otel";
 // Internal helper, imported by path rather than widening the public barrel.
-import { exporterHeaders } from "../../packages/introspection-node/src/otel/logs.js";
+import { exporterHeaders } from "../../packages/introspection-node/src/utils.js";
 
 function captureEmits(logs: IntrospectionLogs): LogAttributes[] {
   const records: LogAttributes[] = [];
@@ -112,6 +112,15 @@ describe("exporter headers", () => {
   it("lets caller headers override", () => {
     const headers = exporterHeaders("t", { "User-Agent": "my-app/1.0" });
     expect(headers["User-Agent"]).toBe("my-app/1.0");
+  });
+
+  it("sends no Authorization at all rather than a bare Bearer", () => {
+    // A tokenless client is either warned about (logs) or running a
+    // caller-supplied exporter carrying its own auth (spans). Neither
+    // wants `Bearer ` with nothing after it on the wire.
+    const headers = exporterHeaders(undefined);
+    expect(headers["Authorization"]).toBeUndefined();
+    expect(headers["User-Agent"]).toMatch(/^introspection-sdk\//);
   });
 });
 
@@ -251,12 +260,31 @@ describe("IntrospectionLogs", () => {
     });
   });
 
+  it("carries an empty comment rather than dropping it", () => {
+    const records = captureEmits(logs);
+    // `""` is a comment the caller supplied. A truthiness check dropped it,
+    // so the same call produced a `properties.comments` key in the Python
+    // and Rust SDKs and no key at all here.
+    logs.feedback("thumbs_down", { comments: "" });
+    expect(records[0]).toMatchObject({ "properties.comments": "" });
+  });
+
   it("reports the anonymous id scoped on the current context", async () => {
     expect(logs.getAnonymousId()).toBeUndefined();
     await logs.withAnonymousId("anon_1", async () => {
       expect(logs.getAnonymousId()).toBe("anon_1");
     });
     expect(logs.getAnonymousId()).toBeUndefined();
+  });
+
+  it("reports the user id scoped on the current context", async () => {
+    // The anonymous-id getter existed alone; the Python and Rust SDKs
+    // expose both halves of the identity they read from the same baggage.
+    expect(logs.getUserId()).toBeUndefined();
+    await logs.withUserId("u_42", async () => {
+      expect(logs.getUserId()).toBe("u_42");
+    });
+    expect(logs.getUserId()).toBeUndefined();
   });
 
   it("withUserId / withAnonymousId / withBaggage push baggage in scope", async () => {

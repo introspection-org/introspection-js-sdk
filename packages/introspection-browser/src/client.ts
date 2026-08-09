@@ -496,7 +496,9 @@ export class IntrospectionClient {
     // happens to be called `name` must not silently replace the feedback
     // name the caller passed.
     const properties: Record<string, unknown> = { ...extra, name };
-    if (comments) {
+    // `!= null`, not truthiness: `comments: ""` is a comment the caller
+    // supplied, and the Python and Rust SDKs both carry it.
+    if (comments != null) {
       properties.comments = comments;
     }
 
@@ -604,6 +606,21 @@ export class IntrospectionClient {
    */
   getAnonymousId(): string {
     return this.anonymousId;
+  }
+
+  /**
+   * Get the identified user, if {@link identify} or {@link setUserId} has
+   * been called (in this session or a previous one — it is persisted).
+   *
+   * @returns The user ID, or `undefined` while the visitor is anonymous.
+   *
+   * @example
+   * ```ts
+   * const userId = client.getUserId();
+   * ```
+   */
+  getUserId(): string | undefined {
+    return this.userId;
   }
 
   /**

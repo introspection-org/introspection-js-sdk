@@ -42,7 +42,12 @@ import {
 import { ATTR_SERVICE_NAME } from "@opentelemetry/semantic-conventions";
 import { propagation, context } from "@opentelemetry/api";
 
-import { logger as sdkLogger, withOtlpHttpsProxy } from "../utils.js";
+import {
+  DEFAULT_SERVICE_NAME,
+  exporterHeaders,
+  logger as sdkLogger,
+  withOtlpHttpsProxy,
+} from "../utils.js";
 import { VERSION } from "../version.js";
 import {
   generateEventId,
@@ -83,27 +88,6 @@ export interface IntrospectionLogsOptions {
   logExporter?: LogRecordExporter;
 }
 
-/**
- * Headers for the analytics OTLP exporter.
- *
- * `User-Agent` matches what the Python and Rust SDKs send. Node was the only
- * server-side surface sending none, so its events arrived at the collector
- * unattributable to a client or a release. Caller headers are merged last so
- * they can override either.
- *
- * @internal Exported for tests; not part of the package's public surface.
- */
-export function exporterHeaders(
-  token: string,
-  additionalHeaders?: Record<string, string>,
-): Record<string, string> {
-  return {
-    "User-Agent": `introspection-sdk/${VERSION}`,
-    Authorization: `Bearer ${token}`,
-    ...(additionalHeaders || {}),
-  };
-}
-
 export class IntrospectionLogs {
   private loggerProvider: LoggerProvider;
   private otelLogger: ReturnType<LoggerProvider["getLogger"]>;
@@ -113,7 +97,7 @@ export class IntrospectionLogs {
     const serviceName =
       options.serviceName ||
       process.env.INTROSPECTION_SERVICE_NAME ||
-      "introspection-client";
+      DEFAULT_SERVICE_NAME;
     const baseOtelUrl =
       options.baseOtelUrl ||
       process.env.INTROSPECTION_BASE_OTEL_URL ||
@@ -303,7 +287,10 @@ export class IntrospectionLogs {
     // happens to be called `name` must not silently replace the feedback
     // name the caller passed.
     const properties: Record<string, unknown> = { ...extra, name };
-    if (comments) properties.comments = comments;
+    // `!= null`, not truthiness: `comments: ""` is a comment the caller
+    // supplied, and the Python and Rust SDKs both carry it. Dropping it here
+    // made the same call produce a different event shape per SDK.
+    if (comments != null) properties.comments = comments;
     const attributes = this.buildAttributes("introspection.feedback", {
       properties,
       conversationId: conversationId as string | undefined,
@@ -421,6 +408,11 @@ export class IntrospectionLogs {
       this.createBaggageContext({ "identity.anonymous_id": anonymousId }),
       callback,
     );
+  }
+
+  /** The user id on the current async context, if one is scoped. */
+  getUserId(): string | undefined {
+    return this.getIdentityFromContext().userId;
   }
 
   /** The anonymous id on the current async context, if one is scoped. */

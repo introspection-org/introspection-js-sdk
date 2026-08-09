@@ -13,6 +13,8 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { context, propagation } from "@opentelemetry/api";
 import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
+import { InMemorySpanExporter } from "@opentelemetry/sdk-trace-base";
+import { resourceFromAttributes } from "@opentelemetry/resources";
 import {
   init,
   _resetForTests,
@@ -22,6 +24,7 @@ import {
   getClient,
   discoverIntegrations,
   setupIntegrations,
+  IntrospectionSpanProcessor,
   resetInstalledForTests,
   DidNotEnable,
   type Integration,
@@ -121,6 +124,65 @@ describe("introspection.init()", () => {
   // -------------------------------------------------------------------------
   describe("wiring", () => {
     const exporter = () => new TestSpanExporter();
+
+    it("names its own provider the same service the events use", async () => {
+      // The provider only got a resource when a serviceName was supplied, so
+      // spans arrived as `unknown_service:node` while the events beside them
+      // said `introspection-client`: one process, two services.
+      const spans = new InMemorySpanExporter();
+      await init({
+        token: "t",
+        autoDiscover: false,
+        advanced: { spanExporter: spans },
+      });
+      const tracer = getTracerProvider().getTracer("t");
+      tracer
+        .startSpan("s", {
+          attributes: { "gen_ai.request.model": "claude-haiku-4-5" },
+        })
+        .end();
+      await (getTracerProvider() as NodeTracerProvider).forceFlush();
+
+      const [exported] = spans.getFinishedSpans();
+      expect(exported!.resource.attributes["service.name"]).toBe(
+        "introspection-client",
+      );
+      // Merged onto the default resource rather than replacing it: that is
+      // where `telemetry.sdk.language` comes from.
+      expect(exported!.resource.attributes["telemetry.sdk.language"]).toBe(
+        "nodejs",
+      );
+    });
+
+    it("leaves a provider the caller supplied unlabelled", async () => {
+      // Defaulting the name must not reach through to someone else's
+      // provider: a process that built its own as "checkout-api" would see
+      // every LLM span rewritten.
+      const spans = new InMemorySpanExporter();
+      const own = new NodeTracerProvider({
+        resource: resourceFromAttributes({ "service.name": "checkout-api" }),
+        spanProcessors: [
+          new IntrospectionSpanProcessor({
+            token: "t",
+            advanced: { spanExporter: spans },
+          }),
+        ],
+      });
+      await init({ token: "t", autoDiscover: false, tracerProvider: own });
+      own
+        .getTracer("t")
+        .startSpan("s", {
+          attributes: { "gen_ai.request.model": "claude-haiku-4-5" },
+        })
+        .end();
+      await own.forceFlush();
+
+      const [exported] = spans.getFinishedSpans();
+      expect(exported!.resource.attributes["service.name"]).toBe(
+        "checkout-api",
+      );
+      await own.shutdown();
+    });
 
     it("is idempotent — repeated calls return the same provider", async () => {
       const p1 = await init({

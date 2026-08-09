@@ -17,7 +17,7 @@ import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-proto";
 import { ExportResult, ExportResultCode } from "@opentelemetry/core";
 import { randomUUID } from "crypto";
 import type { AdvancedOptions } from "../types.js";
-import { logger, withOtlpHttpsProxy } from "../utils.js";
+import { exporterHeaders, logger, withOtlpHttpsProxy } from "../utils.js";
 
 /**
  * Extended span type that includes both v1 and v2 instrumentation properties.
@@ -195,10 +195,7 @@ export class IntrospectionSpanProcessor implements SpanProcessor {
       process.env.INTROSPECTION_BASE_OTEL_URL ||
       "https://otel.introspection.dev";
 
-    const headers: Record<string, string> = {
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...(advanced.additionalHeaders || {}),
-    };
+    const headers = exporterHeaders(token, advanced.additionalHeaders);
 
     // Construct endpoint URL
     let endpoint: string;

@@ -2,6 +2,45 @@ import { DiagLogLevel, DiagLogger } from "@opentelemetry/api";
 import { HttpsProxyAgent } from "https-proxy-agent";
 import { getProxyForUrl } from "proxy-from-env";
 
+import { VERSION } from "./version.js";
+
+/**
+ * `service.name` for telemetry this SDK emits when the caller names none.
+ *
+ * One constant for both streams. `init()` used to label its own provider
+ * only when a name was supplied, so spans arrived as `unknown_service:node`
+ * while the events beside them said `introspection-client` — one process,
+ * two services, nothing tying them together. The Python and Rust SDKs
+ * default both streams to this same string.
+ */
+export const DEFAULT_SERVICE_NAME = "introspection-client";
+
+/**
+ * Headers for an OTLP exporter pointed at Introspection.
+ *
+ * Shared by both streams. `User-Agent` matches what the Python and Rust
+ * SDKs send on their traces *and* logs exporters; Node used to send it on
+ * logs only, so exported spans arrived at the collector unattributable to
+ * a client or a release.
+ *
+ * `Authorization` is omitted for an empty token rather than sent as a bare
+ * `Bearer `. A tokenless client is either warned about (logs) or running a
+ * caller-supplied exporter that carries its own auth (spans), and neither
+ * wants a malformed credential on the wire.
+ *
+ * Caller headers are merged last so they can override either.
+ */
+export function exporterHeaders(
+  token: string | undefined,
+  additionalHeaders?: Record<string, string>,
+): Record<string, string> {
+  return {
+    "User-Agent": `introspection-sdk/${VERSION}`,
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    ...(additionalHeaders || {}),
+  };
+}
+
 /**
  * Attach a forward-proxy agent to OTLP exporter options when a proxy is
  * configured for the exporter's endpoint.

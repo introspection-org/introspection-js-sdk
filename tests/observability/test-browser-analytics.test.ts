@@ -75,6 +75,18 @@ describe("browser analytics emit the shared wire contract", () => {
     expect(record["properties.name"]).toBe("thumbs_up");
   });
 
+  it("feedback: carries an empty comment rather than dropping it", async () => {
+    client.feedback("thumbs_down", { comments: "" });
+    const [record] = await records();
+    expect(record["properties.comments"]).toBe("");
+  });
+
+  it("reports the identified user, like the Node and Python SDKs", async () => {
+    expect(client.getUserId()).toBeUndefined();
+    client.identify("user_42");
+    expect(client.getUserId()).toBe("user_42");
+  });
+
   it("identify: the reserved event name, the user id, and prefixed traits", async () => {
     client.identify("user_42", { plan: "pro" });
     const [record] = await records();
