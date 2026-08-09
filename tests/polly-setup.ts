@@ -246,19 +246,16 @@ export function installTestOTelGlobals(): () => void {
  * Usage:
  *
  *   const client = new Anthropic({ baseURL: pollyEndpoints.anthropic.node });
- *   const m = openai({ baseURL: pollyEndpoints.openai.aiSdk })("gpt-5-nano");
+ *   const client = new OpenAI({ baseURL: pollyEndpoints.openai.node });
  */
 export const pollyEndpoints = {
   anthropic: {
     /** Anthropic Node SDK appends `/v1/messages` itself. */
     node: "https://api.anthropic.com",
-    /** `@ai-sdk/anthropic` appends just `/messages` — base must include /v1. */
-    aiSdk: "https://api.anthropic.com/v1",
   },
   openai: {
-    /** OpenAI Node SDK and `@ai-sdk/openai` use the same base. */
+    /** OpenAI Node SDK. */
     node: "https://api.openai.com/v1",
-    aiSdk: "https://api.openai.com/v1",
   },
 } as const;
 
