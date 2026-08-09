@@ -68,8 +68,8 @@ export default defineConfig({
     //   - json-summary  machine-readable for downstream gating
     //   - html          coverage/index.html for local inspection
     //
-    // Thresholds are currently set to the baseline measured at the time
-    // this was wired up (see docs/cleanup-plan.md Phase 1). They are
+    // Thresholds are set to the baseline measured when this was wired up.
+    // They are
     // **not aspirational**: their job is "don't regress". Raising them
     // happens in Phase 4 once new tests are written for the gap files.
     //

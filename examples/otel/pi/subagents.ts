@@ -1,7 +1,7 @@
 /**
  * Multi-Agent Subagent Example — Pi Agent SDK (Baggage propagation)
  *
- * Same scenario as anthropic-sdk/subagents-baggage.ts but built on
+ * Same baggage scenario covered by tests/observability/test-pi-baggage.test.ts but built on
  * `@earendil-works/pi-agent-core`:
  *
  *   - setupTracing() + IntrospectionPiInstrumentor handle all OTel setup.

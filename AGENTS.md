@@ -22,7 +22,7 @@ pnpm --filter introspection-tests test
 pnpm --filter introspection-tests test:cov
 
 # Open the HTML coverage report after a coverage run
-open tests/coverage/index.html
+open coverage/index.html
 ```
 
 Tests run in vitest with `isolate: true` + `pool: "forks"`, so each test file gets its own worker process. OTel global state cannot leak between files. Within a single file, use `installTestOTelGlobals()` from `tests/polly-setup.ts` to keep the per-test state clean.

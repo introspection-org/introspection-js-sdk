@@ -39,7 +39,6 @@
     "@opentelemetry/exporter-trace-otlp-proto": "^0.221.0",
     "@opentelemetry/resources": "^2.10.0",
     "@opentelemetry/sdk-trace-base": "^2.10.0",
-    "@opentelemetry/semantic-conventions": "^1.39.0",
     "https-proxy-agent": "^7.0.6",
     "proxy-from-env": "^2.1.0"
   },

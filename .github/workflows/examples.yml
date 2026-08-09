@@ -46,9 +46,6 @@ jobs:
       - name: Build packages
         run: pnpm build
 
-      - name: Install Claude Code CLI
-        run: npm install -g @anthropic-ai/claude-code
-
       - name: Run examples
         if: inputs.run_examples
         working-directory: examples/otel

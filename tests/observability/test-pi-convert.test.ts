@@ -256,6 +256,32 @@ describe("inputMessagesToMessages (semconv → pi-ai)", () => {
     ]);
   });
 
+  it('hydrates parts stored as "thinking", the spelling ingest writes', () => {
+    // This SDK emits "reasoning" per semconv, but OTLP ingest normalizes it to
+    // "thinking" before storage — so a part read back off a stored span always
+    // says "thinking". A reader that narrows on one spelling drops the block
+    // and its signature, which extended thinking needs to continue a turn.
+    const replayed = inputMessagesToMessages([
+      {
+        role: "assistant",
+        parts: [
+          { type: "thinking", content: "stored spans", signature: "sig-old" },
+          { type: "text", content: "Done." },
+        ],
+      },
+    ]);
+
+    const assistant = replayed[0] as AssistantMessage;
+    expect(assistant.content).toEqual([
+      {
+        type: "thinking",
+        thinking: "stored spans",
+        thinkingSignature: "sig-old",
+      },
+      { type: "text", text: "Done." },
+    ]);
+  });
+
   it("drops orphaned tool results with no matching assistant tool call", () => {
     const replayed = inputMessagesToMessages([
       { role: "user", parts: [{ type: "text", content: "hi" }] },

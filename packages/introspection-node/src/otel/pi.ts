@@ -61,7 +61,7 @@ export class IntrospectionPiInstrumentor {
 
   /**
    * Instrument a pi {@link Agent}:
-   * - Wraps the agent stream function to emit a `chat ${provider}` span per
+   * - Wraps the agent stream function to emit a `chat ${model}` span per
    *   LLM call.
    * - Subscribes to the agent loop to emit an `execute_tool ${name}` span per
    *   tool execution.

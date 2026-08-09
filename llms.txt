@@ -86,12 +86,12 @@ Integrations live in `packages/introspection-node/src/otel/integrations/`. Contr
 is in `integrations/base.ts`:
 
 ```ts
-import "the-framework-package";          // top-level import = the presence gate
 import type { Integration } from "./base.js";
+import { importOptionalPeer, isOptionalPeerInstalled, OPTIONAL_PEERS } from "./base.js";
 
 const integration: Integration = {
   identifier: "my-framework",
-  // deactivates: ["other-integration"], // only if this framework WRAPS another SDK
+  isAvailable: () => isOptionalPeerInstalled(OPTIONAL_PEERS.myFramework),
   setupOnce(ctx) {                        // ctx: { tracerProvider, token, serviceName, baseUrl, advanced, handles }
     // Native-OTel framework: usually a no-op (the shared processor handles it).
     // Instance/config framework: publish a pre-bound handle on ctx.handles
@@ -102,15 +102,15 @@ export default integration;
 ```
 
 Steps:
-1. Create `integrations/<framework>.ts` as above. The **top-level `import
-   "<pkg>"`** is the availability gate — if the package isn't installed, the
-   dynamic import in the loader rejects and the integration is skipped.
+1. Create `integrations/<framework>.ts` as above. **`isAvailable`** is the
+   gate: it probes the optional peer with `isOptionalPeerInstalled`, and the
+   loader skips the integration when the package isn't installed. Import the
+   peer inside `setupOnce` with `importOptionalPeer` so no static import edge
+   is left for bundlers.
 2. Register it in `integrations/index.ts` `BUILTIN_INTEGRATIONS`.
 3. If the hook can't be wired globally (e.g. a per-instance Pi agent),
    publish a handle on `ctx.handles` and expose an accessor from `otel/init.ts`
    (mirror `instrumentPi()`).
-4. If the framework wraps another SDK, set `deactivates` so the inner SDK isn't
-   double-traced.
 5. Add tests under `tests/observability/` — **real SDK + HAR replay, no mocks**
    (see `AGENTS.md`). Pure attribute transforms don't need HAR.
 6. Add examples: `examples/otel/<framework>/init.ts` (the one-liner form,

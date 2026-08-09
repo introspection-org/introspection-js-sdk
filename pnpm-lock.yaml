@@ -225,9 +225,6 @@ importers:
       '@opentelemetry/sdk-trace-base':
         specifier: ^2.0.1
         version: 2.10.0(@opentelemetry/api@1.9.1)
-      '@opentelemetry/semantic-conventions':
-        specifier: ^1.39.0
-        version: 1.43.0
       https-proxy-agent:
         specifier: ^7.0.6
         version: 7.0.6

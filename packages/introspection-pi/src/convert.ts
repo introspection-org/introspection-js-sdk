@@ -536,7 +536,11 @@ function isCompactionPart(part: MessagePart): part is CompactionPart {
 }
 
 function isReasoningPart(part: MessagePart): part is ReasoningPart {
-  return part.type === "reasoning";
+  // Both spellings: this SDK emits "reasoning" per semconv, but OTLP ingest
+  // normalizes to "thinking", so a part read back off a stored span always
+  // says "thinking". Narrowing on one spelling silently drops the block —
+  // including its signature, which extended thinking needs for continuity.
+  return part.type === "reasoning" || part.type === "thinking";
 }
 
 function isToolCallRequestPart(part: MessagePart): part is ToolCallRequestPart {

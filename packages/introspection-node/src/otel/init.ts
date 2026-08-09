@@ -181,6 +181,10 @@ export async function init(options: InitOptions = {}): Promise<TracerProvider> {
     await setupIntegrations(toInstall, ctx);
   } catch (e) {
     state.handles = {};
+    // The logs client owns a LoggerProvider with a batch export timer. It was
+    // built before this try, so without shutting it down a failed init()
+    // leaves that timer running with nothing referencing it.
+    await logs.shutdown().catch(() => undefined);
     throw e;
   }
 

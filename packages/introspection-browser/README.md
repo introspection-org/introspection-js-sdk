@@ -26,7 +26,7 @@ client.track("Button Clicked", { buttonId: "submit" });
 // Track feedback
 client.feedback("thumbs_up", { comments: "Very helpful response" });
 client.feedback("thumbs_down", {
-  responseId: "msg_123",
+  previousResponseId: "msg_123",
   comments: "Off topic",
 });
 ```
@@ -36,7 +36,7 @@ client.feedback("thumbs_down", {
 The `@introspection-sdk/introspection-browser/api` entry point lets a
 single-page app **create and stream Introspection tasks directly from the
 browser, with no API key in JavaScript**. Authentication is the standard B2B2C
-flow (see the [`sample-auth`](../../examples/apps/sample-auth) example):
+flow (see the [`auth`](../../examples/auth) example):
 
 **The browser talks only to the Data Plane.** Runtime resolution is a Control
 Plane call and stays on your backend, so the CP never has to serve CORS to

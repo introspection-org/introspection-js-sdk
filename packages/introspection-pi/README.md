@@ -122,7 +122,7 @@ agent.streamFn = instrumentStream(agent.streamFn, {
 
 ## What gets emitted
 
-For each LLM call (`chat ${provider}` span):
+For each LLM call (`chat ${model}` span):
 
 - `gen_ai.conversation.id`, `gen_ai.agent.id`, `gen_ai.agent.name`
 - `gen_ai.operation.name = "chat"`

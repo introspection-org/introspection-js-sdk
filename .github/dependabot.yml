@@ -40,22 +40,14 @@ updates:
           - "@opentelemetry/*"
 
       # AI provider SDKs + pi-mono peers travel together, often in lockstep.
-      ai-providers:
+      pi-peers:
         applies-to: version-updates
         patterns:
-          - "@anthropic-ai/*"
-          - "@ai-sdk/*"
-          - "@mariozechner/*"
-          - "ai"
-          - "openai"
-      ai-providers-security:
+          - "@earendil-works/*"
+      pi-peers-security:
         applies-to: security-updates
         patterns:
-          - "@anthropic-ai/*"
-          - "@ai-sdk/*"
-          - "@mariozechner/*"
-          - "ai"
-          - "openai"
+          - "@earendil-works/*"
 
       # TypeScript / test toolchain.
       typescript-tooling:
@@ -92,7 +84,7 @@ updates:
         update-types:
           - "version-update:semver-major"
 
-  # ── GitHub Actions (used by ci.yml / publish.yml / release-tag.yml) ──
+  # ── GitHub Actions (used by ci.yml / publish.yml / tag.yml) ──
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:

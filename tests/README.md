@@ -70,7 +70,7 @@ pnpm test:watch
 
 ## Code coverage
 
-Coverage is enforced — both locally (`.husky/pre-commit`) and in CI (`.github/workflows/ci.yml`). Thresholds in `vitest.config.ts` are set at the current baseline as a "do not regress" floor; raising them is tracked in `docs/cleanup-plan.md` Phase 4.
+Coverage is enforced — both locally (`.husky/pre-commit`) and in CI (`.github/workflows/ci.yml`). Thresholds in `vitest.config.ts` are set at the current baseline as a "do not regress" floor; raise them deliberately as coverage climbs.
 
 ```bash
 # Run the full suite WITH coverage. This is what pre-commit and CI run.
@@ -84,7 +84,7 @@ open coverage/index.html        # macOS
 xdg-open coverage/index.html    # Linux
 ```
 
-The report lives at `tests/coverage/`. The `coverage/index.html` page lets you click into any file and see exact uncovered lines.
+The report lives at `coverage/` in the repo root. The `coverage/index.html` page lets you click into any file and see exact uncovered lines.
 
 ### Workflow when you add code
 
@@ -120,7 +120,7 @@ The goal is to exercise the actual instrumentation path users hit in production 
 For a new framework integration test:
 
 1. Pick a small, realistic input prompt.
-2. Call the real entry point (`ChatAnthropic.invoke`, `generateText`, `agent.generate`, `agent.prompt`, `client.messages.create`, …).
+2. Call the real entry point (`agent.prompt`, `session.prompt`, …).
 3. Run once in record mode to capture the HAR:
 
    ```bash

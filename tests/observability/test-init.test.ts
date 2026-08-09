@@ -133,9 +133,21 @@ describe("introspection.init()", () => {
       expect(getTracerProvider()).toBe(p1);
     });
 
-    it("requires a token (or a custom exporter)", async () => {
+    it("requires a token", async () => {
       delete process.env.INTROSPECTION_TOKEN;
       await expect(init({ autoDiscover: false })).rejects.toThrow(/token/);
+    });
+
+    it("accepts a custom exporter in place of a token", async () => {
+      // init() documents the exemption; the span processor used to enforce a
+      // token regardless, so this path threw for tokenless callers.
+      delete process.env.INTROSPECTION_TOKEN;
+      const provider = await init({
+        autoDiscover: false,
+        advanced: { spanExporter: exporter() },
+      });
+      expect(provider).toBeDefined();
+      expect(getTracerProvider()).toBe(provider);
     });
 
     it("analytics proxies throw before init", () => {

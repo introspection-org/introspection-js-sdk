@@ -27,5 +27,13 @@
     "@opentelemetry/sdk-trace-base": "^2.10.0",
     "@repo/typescript-config": "workspace:*",
     "typescript": "5.9.3"
+  },
+  "peerDependencies": {
+    "@opentelemetry/sdk-trace-base": ">=2.0.0"
+  },
+  "peerDependenciesMeta": {
+    "@opentelemetry/sdk-trace-base": {
+      "optional": true
+    }
   }
 }

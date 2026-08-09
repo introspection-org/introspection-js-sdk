@@ -158,11 +158,21 @@ export interface IntrospectionSpanProcessorOptions {
 export class IntrospectionSpanProcessor implements SpanProcessor {
   private _spanProcessor: SpanProcessor;
   private _serviceName?: string;
+  /**
+   * Fallback conversation id per trace, so spans in one trace agree when no
+   * conversation is set. Bounded and FIFO-evicted: one entry per trace in a
+   * long-lived process is a slow leak, and traces are short-lived, so the
+   * oldest entry is the one least likely to still be receiving spans.
+   */
   private _conversationIds: Map<string, string> = new Map();
+  private static readonly MAX_TRACKED_TRACES = 4096;
 
   constructor(options: IntrospectionSpanProcessorOptions = {}) {
     const token = options.token || process.env.INTROSPECTION_TOKEN;
-    if (!token) {
+    // A custom exporter carries its own transport and auth, so it stands in
+    // for a token — the same exemption init() documents. Without this,
+    // init({ advanced: { spanExporter } }) threw here for tokenless callers.
+    if (!token && !options.advanced?.spanExporter) {
       throw new Error("INTROSPECTION_TOKEN is required");
     }
 
@@ -180,7 +190,7 @@ export class IntrospectionSpanProcessor implements SpanProcessor {
       "https://otel.introspection.dev";
 
     const headers: Record<string, string> = {
-      Authorization: `Bearer ${token}`,
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...(advanced.additionalHeaders || {}),
     };
 
@@ -375,6 +385,14 @@ export class IntrospectionSpanProcessor implements SpanProcessor {
           traceId,
           `intro_conv_${randomUUID().replace(/-/g, "")}`,
         );
+        while (
+          this._conversationIds.size >
+          IntrospectionSpanProcessor.MAX_TRACKED_TRACES
+        ) {
+          const oldest = this._conversationIds.keys().next();
+          if (oldest.done) break;
+          this._conversationIds.delete(oldest.value);
+        }
       }
       attrs["gen_ai.conversation.id"] = this._conversationIds.get(traceId)!;
     }
