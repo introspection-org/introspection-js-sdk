@@ -564,6 +564,47 @@ describe("conversations export", () => {
     { role: "assistant", content: "done", timestamp: "2025-01-01T00:00:03Z" },
   ];
 
+  it("requests the server-owned complete JSON export", async () => {
+    const page = makePage([makeSpan("span-1")], false);
+    const http = mockHttp({ requestResult: page });
+
+    const result = await new ConversationsApi(http).exportJson("conv/1", {
+      agent: "root",
+    });
+
+    expect(http.request).toHaveBeenCalledWith({
+      method: "GET",
+      path: "/v1/conversations/conv%2F1/export",
+      query: { agent: "root" },
+      headers: { Accept: "application/json" },
+    });
+    expect(result.data).toHaveLength(1);
+  });
+
+  it.each([
+    ["json", "application/json"],
+    ["arrow", "application/vnd.apache.arrow.stream"],
+    ["trajectory", "application/vnd.letta.trajectory+json;version=1"],
+  ] as const)("returns the raw %s export stream", async (format, accept) => {
+    const stream = new ReadableStream<Uint8Array>();
+    const http = mockHttp({ requestResult: stream });
+
+    const result = await new ConversationsApi(http).exportStream(
+      "conv-1",
+      format,
+    );
+
+    expect(result).toBe(stream);
+    expect(http.request).toHaveBeenCalledWith({
+      method: "GET",
+      path: "/v1/conversations/conv-1/export",
+      query: undefined,
+      headers: { Accept: accept },
+      expect: "stream",
+      signal: undefined,
+    });
+  });
+
   it("negotiates trajectory v1 and returns the typed record array", async () => {
     const http = mockHttp({ requestResult: TRAJECTORY });
     const api = new ConversationsApi(http);
@@ -606,7 +647,7 @@ describe("conversations export", () => {
       service_name: "svc",
       lookback_days: 7,
     });
-    // The export is assembled server-side over the whole conversation.
+    // The server owns pagination; callers never send export cursors.
     expect(call.query).not.toHaveProperty("limit");
     expect(call.query).not.toHaveProperty("next");
   });

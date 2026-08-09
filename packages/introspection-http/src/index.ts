@@ -49,6 +49,7 @@ export {
   ConversationsApi,
   ConversationsClient,
 } from "./resources/conversations.js";
+export type { ConversationExportFormat } from "./resources/conversations.js";
 export { EventsApi, EventsClient } from "./resources/events.js";
 export type { EventArrowParams } from "./resources/events.js";
 export { MetricsApi, MetricsClient } from "./resources/metrics.js";
