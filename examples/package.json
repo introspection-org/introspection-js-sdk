@@ -7,6 +7,8 @@
     "check-types": "tsc --noEmit",
     "pi-native": "node --import tsx otel/pi/native.ts",
     "pi-init": "node --import tsx otel/pi/init.ts",
+    "pi-langfuse": "node --import tsx otel/pi/langfuse.ts",
+    "pi-braintrust": "node --import tsx otel/pi/braintrust.ts",
     "pi-subagents": "node --import tsx otel/pi/subagents.ts",
     "raw-conversation": "node --import tsx otel/raw/multi-turn-conversation.ts",
     "api-runtimes": "node --import tsx api/runtimes.ts",

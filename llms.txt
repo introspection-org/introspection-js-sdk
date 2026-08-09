@@ -30,8 +30,9 @@ adding our processor to the provider is all that's needed. (Raw-SDK
 prototype-patch instrumentors for frameworks without native OTel were removed
 with the Pi pivot; recover them from git history if ever needed.)
 
-> Corollary: sending spans to a second destination is uniform — add a second
-> span processor to the provider. Only the span *source* differs.
+> Corollary: sending spans to a second destination ("also send to
+> Langfuse/Braintrust") is uniform — add a second span processor to the
+> provider. Only the span *source* differs. See `examples/otel/pi/langfuse.ts`.
 
 ## 2. Three ways to wire tracing (pick the smallest that fits)
 
@@ -46,7 +47,7 @@ with the Pi pivot; recover them from git history if ever needed.)
 - **Bring-your-own provider** — construct `new NodeTracerProvider({ spanProcessors:
   [...] })` yourself, `provider.register()`, then `init({ tracerProvider: provider })`
   to add baggage globals + discovery + logs onto *your* provider. This is the most
-  explicit form when you need a second destination alongside Introspection.
+  explicit dual-export form (see `examples/otel/pi/langfuse.ts`).
 
 OTel JS v2 fixes a provider's processors at **construction time** — there is no
 post-hoc `addSpanProcessor`. So dual-export wiring goes in the `new
@@ -111,8 +112,9 @@ Steps:
    double-traced.
 5. Add tests under `tests/observability/` — **real SDK + HAR replay, no mocks**
    (see `AGENTS.md`). Pure attribute transforms don't need HAR.
-6. Add an example: `examples/otel/<framework>/init.ts` (the one-liner form;
-   mirror `examples/otel/pi/init.ts`).
+6. Add examples: `examples/otel/<framework>/init.ts` (the one-liner form,
+   mirror `examples/otel/pi/init.ts`) and a dual-export variant (mirror
+   `examples/otel/pi/langfuse.ts`).
 
 ## 5. Baggage / conversation scoping
 

@@ -59,6 +59,17 @@ pnpm pi-init                      # introspection.init() + instrumentPi(agent, m
 pnpm pi-subagents                 # Multi-agent baggage
 ```
 
+### Dual export
+
+Pi spans can fan out to a second backend alongside Introspection: build the
+provider yourself with both span processors, then let `init({ tracerProvider })`
+adopt it.
+
+```bash
+pnpm pi-langfuse                  # + Langfuse
+pnpm pi-braintrust                # + Braintrust
+```
+
 ## Manual instrumentation
 
 For everything that is not Pi, instrument against the OTel APIs directly.

@@ -64,10 +64,13 @@ Where:
 
 - `<framework>` is a flat folder name: `pi` or `raw`.
 - `<integration>` describes the entrypoint (`init`, `native`, `subagents`).
+- `<vendor>` names the second backend in a dual-export example (`langfuse`,
+  `braintrust`).
 
 Examples:
 
 - `examples/otel/pi/native.ts`, `examples/otel/pi/subagents.ts`
+- `examples/otel/pi/langfuse.ts` — dual export
 - `examples/otel/raw/multi-turn-conversation.ts` (the wrapper-free OTel example)
 
 Example folders are top-level peers under `otel/`. Do not nest one under
@@ -209,6 +212,11 @@ pipelines. Everything else is manual instrumentation against the OTel APIs.
 
 Every other integration has been removed: Mastra, LangChain/LangGraph,
 OpenAI Agents SDK, raw Anthropic SDK, Gemini, the Vercel AI SDK, the Claude
-Agent SDK, the OpenClaw plugin, and all vendor dual-export paths (Arize,
-Braintrust, Langfuse, LangSmith). Recover them from git history if one is
+Agent SDK, and the OpenClaw plugin. Recover them from git history if one is
 ever needed again.
+
+Dual export is **not** an integration and is still supported: any second OTel
+span processor on the provider receives the same spans (see
+`examples/otel/pi/langfuse.ts` and `examples/otel/pi/braintrust.ts`). What was
+removed there were the vendor-specific tests and fixtures for frameworks that
+no longer exist, not the capability.
