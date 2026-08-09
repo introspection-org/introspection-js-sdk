@@ -13,7 +13,7 @@
  */
 
 import type { AdvancedOptions } from "@introspection-sdk/types";
-import { logger as sdkLogger } from "./utils.js";
+import { logger as sdkLogger, USER_AGENT } from "./utils.js";
 import type { IntrospectionClientOptions } from "./types.js";
 import { serviceAccountToken, type ServiceAccountTokenParams } from "./auth.js";
 import { HttpClient } from "./http.js";
@@ -96,9 +96,17 @@ export class IntrospectionClient {
     // Merged first, so an explicit `additionalHeaders` entry still wins, and
     // stored on advancedOptions so the Runner's own DP client inherits it.
     const devTarget = resolveDevTarget();
-    const additionalHeaders = devTarget
-      ? { [DEV_TARGET_HEADER]: devTarget, ...advanced.additionalHeaders }
-      : advanced.additionalHeaders;
+    // `User-Agent` is set here rather than in the shared HTTP client because
+    // that client also backs the browser package, where the header is
+    // forbidden and the request would be rejected. On Node it identifies the
+    // SDK and its release on REST calls the way it already does on the two
+    // OTLP streams, and rides `advancedOptions` so the Runner's DP client
+    // inherits it. Merged first, so an explicit `additionalHeaders` wins.
+    const additionalHeaders = {
+      "User-Agent": USER_AGENT,
+      ...(devTarget ? { [DEV_TARGET_HEADER]: devTarget } : {}),
+      ...advanced.additionalHeaders,
+    };
     this.advancedOptions = { ...advanced, additionalHeaders };
 
     // CP HTTP client — talks to the customer-facing API with the customer
