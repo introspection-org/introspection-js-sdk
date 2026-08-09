@@ -206,10 +206,21 @@ Hosts in `INTROSPECTION_ENDPOINT_HOSTS` go through the egress reverse proxy for 
 ## Environment variables
 
 ```shell
+# Introspection API (IntrospectionClient)
 export INTROSPECTION_TOKEN="intro_xxx"
 export INTROSPECTION_BASE_API_URL="https://api.introspection.dev"   # optional
+
+# Development only: route this process's tasks to your own `introspection dev`
+# server when several developers share one Runtime. `introspection dev` prints
+# the line to copy. No default — see "Sharing a Runtime with another developer" above.
+export INTROSPECTION_DEV_TARGET="roland"                            # optional
+
+# OTel (IntrospectionLogs + IntrospectionSpanProcessor)
 export INTROSPECTION_BASE_OTEL_URL="https://otel.introspection.dev" # optional
 export INTROSPECTION_SERVICE_NAME="my-service"                      # optional
+
+# SDK diagnostics: error, warn, info, debug, verbose. Default: warn.
+export INTROSPECTION_LOG_LEVEL="debug"                              # optional
 ```
 
 ## Documentation

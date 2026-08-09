@@ -73,8 +73,15 @@ class IntrospectionLogger implements DiagLogger {
   private logLevel: DiagLogLevel;
 
   constructor() {
+    // WARN, because these methods write straight to `console`. At INFO —
+    // the old default — merely constructing a client or a span processor
+    // printed lines onto an application's stdout that nobody asked for.
+    // The Python SDK attaches a NullHandler and inherits the application's
+    // level; the Rust SDK emits through `tracing` and prints nothing
+    // without a subscriber. A library should be quiet unless asked.
+    // `INTROSPECTION_LOG_LEVEL=info` asks.
     const logLevelStr = (
-      process.env.INTROSPECTION_LOG_LEVEL || "INFO"
+      process.env.INTROSPECTION_LOG_LEVEL || "WARN"
     ).toUpperCase();
     this.logLevel = this.parseLogLevel(logLevelStr);
   }
@@ -92,7 +99,7 @@ class IntrospectionLogger implements DiagLogger {
       case "VERBOSE":
         return DiagLogLevel.VERBOSE;
       default:
-        return DiagLogLevel.INFO;
+        return DiagLogLevel.WARN;
     }
   }
 
