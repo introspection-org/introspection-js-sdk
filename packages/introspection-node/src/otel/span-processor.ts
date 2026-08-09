@@ -294,8 +294,13 @@ export class IntrospectionSpanProcessor implements SpanProcessor {
       },
     };
 
-    // Use BatchSpanProcessor like logfire does
-    this._spanProcessor = new BatchSpanProcessor(exporter);
+    // `flushInterval` / `maxBatchSize` are documented on AdvancedOptions and
+    // honoured for the logs pipeline; passing no options here left them inert
+    // for spans.
+    this._spanProcessor = new BatchSpanProcessor(exporter, {
+      maxExportBatchSize: options.advanced?.maxBatchSize,
+      scheduledDelayMillis: options.advanced?.flushInterval,
+    });
   }
 
   /**

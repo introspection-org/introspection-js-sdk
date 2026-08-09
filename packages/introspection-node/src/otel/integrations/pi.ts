@@ -21,7 +21,15 @@ const integration: Integration = {
     await importOptionalPeer(OPTIONAL_PEERS.piAgentCore);
     // The instrumentor emits onto the global tracer, which `init()` has just
     // registered with the shared IntrospectionSpanProcessor.
-    handles.piInstrumentor = new IntrospectionPiInstrumentor();
+    const instrumentor = new IntrospectionPiInstrumentor();
+    handles.piInstrumentor = instrumentor;
+    // Returning the teardown is what makes `introspection.shutdown()` reach
+    // the instrumentor. Without it, open `execute_tool` spans stayed open and
+    // instrumented agents kept emitting onto a shut-down provider.
+    return () => {
+      instrumentor.stop();
+      handles.piInstrumentor = undefined;
+    };
   },
 };
 

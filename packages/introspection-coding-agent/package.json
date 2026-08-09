@@ -2,7 +2,7 @@
   "name": "@introspection-sdk/coding-agent",
   "version": "0.1.0",
   "license": "Apache-2.0",
-  "description": "Opt-in OTEL capture of Claude Code and Codex sessions for the Introspection plugin — normalizes host transcripts and exports GenAI spans",
+  "description": "Opt-in OTEL capture of Claude Code and Codex sessions for the Introspection plugin \u2014 normalizes host transcripts and exports GenAI spans",
   "engines": {
     "node": ">=22"
   },
@@ -26,10 +26,11 @@
     "dist/"
   ],
   "scripts": {
-    "build": "tsc",
+    "build": "rm -rf dist && tsc",
     "check-types": "tsc --noEmit",
     "lint": "eslint . --max-warnings 0",
-    "prepare": "tsc"
+    "prepare": "rm -rf dist && tsc",
+    "clean": "rm -rf dist"
   },
   "dependencies": {
     "@introspection-sdk/types": "workspace:*",

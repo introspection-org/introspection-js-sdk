@@ -33,8 +33,9 @@
   "scripts": {
     "lint": "eslint . --max-warnings 0",
     "check-types": "tsc --noEmit",
-    "build": "tsc",
-    "prepare": "tsc"
+    "build": "rm -rf dist && tsc",
+    "prepare": "rm -rf dist && tsc",
+    "clean": "rm -rf dist"
   },
   "devDependencies": {
     "@earendil-works/pi-agent-core": "^0.83.0",

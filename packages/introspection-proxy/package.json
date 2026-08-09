@@ -4,7 +4,7 @@
   "license": "Apache-2.0",
   "description": "Outbound HTTP proxy helpers for routing fetch-based clients through the Introspection egress proxy or a standard forward proxy",
   "engines": {
-    "node": ">=22.19.0"
+    "node": ">=22"
   },
   "type": "module",
   "main": "./dist/index.js",
@@ -25,9 +25,9 @@
   "scripts": {
     "lint": "eslint . --max-warnings 0",
     "check-types": "tsc --noEmit",
-    "build": "tsc",
+    "build": "rm -rf dist && tsc",
     "clean": "rm -rf dist",
-    "prepare": "tsc"
+    "prepare": "rm -rf dist && tsc"
   },
   "dependencies": {
     "@opentelemetry/api": "^1.9.0",

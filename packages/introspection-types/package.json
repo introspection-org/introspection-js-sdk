@@ -19,9 +19,9 @@
     "dist/"
   ],
   "scripts": {
-    "build": "tsc",
+    "build": "rm -rf dist && tsc",
     "clean": "rm -rf dist",
-    "prepare": "tsc"
+    "prepare": "rm -rf dist && tsc"
   },
   "dependencies": {
     "@ag-ui/core": "0.0.57"

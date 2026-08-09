@@ -97,9 +97,28 @@ class Logger {
  * client.track("Button Clicked", { buttonId: "submit" });
  * ```
  */
+/**
+ * Attach the page-hide flush listeners and return a function that removes
+ * them again.
+ */
+function attachFlushListeners(flush: () => void): () => void {
+  const onUnload = () => flush();
+  const onVisibility = () => {
+    if (document.visibilityState === "hidden") flush();
+  };
+  window.addEventListener("beforeunload", onUnload);
+  document.addEventListener("visibilitychange", onVisibility);
+  return () => {
+    window.removeEventListener("beforeunload", onUnload);
+    document.removeEventListener("visibilitychange", onVisibility);
+  };
+}
+
 export class IntrospectionClient {
   private loggerProvider: LoggerProvider;
   private otelLogger: ReturnType<LoggerProvider["getLogger"]>;
+  /** Removes the page-unload flush listeners; set only in a browser. */
+  private detachFlushListeners?: () => void;
   private userId: string | undefined;
   private anonymousId: string;
   private traits: Record<string, unknown> = {};
@@ -152,7 +171,11 @@ export class IntrospectionClient {
     // Create batch processor
     const processor = new BatchLogRecordProcessor({
       exporter,
-      maxQueueSize: advanced.maxBatchSize ?? 100,
+      // maxBatchSize is the export batch size, not the queue bound. Wired to
+      // maxQueueSize it left the queue at 100 while the batch size kept its
+      // default of 512, which OTel warns about and clamps on every
+      // construction. Same mis-wiring the Node logs stream had.
+      maxExportBatchSize: advanced.maxBatchSize ?? 100,
       scheduledDelayMillis: advanced.flushInterval ?? 5000,
     });
 
@@ -167,16 +190,14 @@ export class IntrospectionClient {
       VERSION,
     );
 
-    // Flush on page unload
+    // Flush on page unload. Kept as named handlers so `shutdown()` can
+    // remove them: left attached, they call `forceFlush()` on a dead
+    // provider at the next page-hide, and pin the client for the page's
+    // lifetime -- an SPA that recreates the client accumulates a pair per
+    // instance.
     if (typeof window !== "undefined") {
-      window.addEventListener("beforeunload", () => {
-        this.loggerProvider.forceFlush();
-      });
-
-      document.addEventListener("visibilitychange", () => {
-        if (document.visibilityState === "hidden") {
-          this.loggerProvider.forceFlush();
-        }
+      this.detachFlushListeners = attachFlushListeners(() => {
+        void this.loggerProvider.forceFlush();
       });
     }
 
@@ -790,6 +811,8 @@ export class IntrospectionClient {
    * @returns A promise that resolves once shutdown is complete.
    */
   async shutdown(): Promise<void> {
+    this.detachFlushListeners?.();
+    this.detachFlushListeners = undefined;
     await this.loggerProvider.shutdown();
     this.logger.log("Shutdown complete");
   }

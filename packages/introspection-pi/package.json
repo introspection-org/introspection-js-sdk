@@ -16,10 +16,11 @@
     "dist/"
   ],
   "scripts": {
-    "build": "tsc",
+    "build": "rm -rf dist && tsc",
     "check-types": "tsc --noEmit",
     "lint": "eslint . --max-warnings 0",
-    "prepare": "tsc"
+    "prepare": "rm -rf dist && tsc",
+    "clean": "rm -rf dist"
   },
   "dependencies": {
     "@introspection-sdk/types": "workspace:*",

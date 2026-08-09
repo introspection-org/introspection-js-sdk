@@ -453,6 +453,61 @@ describe("IntrospectionApiClient", () => {
     );
   });
 
+  it("re-exchanges once for concurrent 401s", async () => {
+    // Three parallel calls hitting an expired cookie used to invoke the
+    // app's getToken three times and race three exchanges; if the broker
+    // single-uses its tokens the losers surfaced AuthenticationError even
+    // though the session had just refreshed.
+    let exchanges = 0;
+    let sessionValid = false;
+    const fetchImpl = vi.fn(async (url: string) => {
+      if (url === "https://dp.example.com/v1/oauth/exchange") {
+        exchanges += 1;
+        // Deliberately slow, so all three 401s land before the first
+        // exchange resolves.
+        await new Promise((resolve) => setTimeout(resolve, 5));
+        sessionValid = true;
+        return {
+          ok: true,
+          status: 200,
+          headers: new Headers({ "content-type": "application/json" }),
+          json: () => Promise.resolve({}),
+        };
+      }
+      if (!sessionValid) {
+        return {
+          ok: false,
+          status: 401,
+          headers: new Headers({ "content-type": "application/json" }),
+          json: () => Promise.resolve({ detail: "expired" }),
+          text: () => Promise.resolve("expired"),
+        };
+      }
+      return {
+        ok: true,
+        status: 200,
+        headers: new Headers({ "content-type": "application/json" }),
+        json: () => Promise.resolve(TASK_FIXTURE),
+      };
+    });
+    const getToken = vi.fn().mockResolvedValue("intro_access_token");
+    const client = new IntrospectionApiClient({
+      dpUrl: "https://dp.example.com",
+      getToken,
+      fetch: fetchImpl as unknown as typeof fetch,
+    });
+
+    const tasks = await Promise.all([
+      client.tasks.get("task-1"),
+      client.tasks.get("task-2"),
+      client.tasks.get("task-3"),
+    ]);
+
+    expect(tasks).toEqual([TASK_FIXTURE, TASK_FIXTURE, TASK_FIXTURE]);
+    expect(exchanges).toBe(1);
+    expect(getToken).toHaveBeenCalledOnce();
+  });
+
   it("starts a task with a server-resolved runtime_id over the cookie session", async () => {
     const fetchImpl = vi.fn(async (url: string, init: RequestInit) => {
       if (url === "https://dp.example.com/v1/oauth/exchange") {

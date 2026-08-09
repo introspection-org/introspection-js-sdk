@@ -256,7 +256,7 @@ function toolResultToSemconv(message: ToolResultMessage): InputMessage {
         type: "tool_call_response",
         id: message.toolCallId,
         name: message.toolName,
-        response: extractToolResultText(message.content),
+        response: toolResultResponse(message.content),
       },
     ],
   };
@@ -309,13 +309,25 @@ function extractTextFromUserContent(
     .join("");
 }
 
-function extractToolResultText(content: ToolResultMessage["content"]): string {
+/**
+ * The value to put on a `tool_call_response` part.
+ *
+ * Text-only results stay a plain string, which is what a reader expects and
+ * what every provider actually returns. A result carrying anything else --
+ * pi's `ToolResultMessage.content` is `(TextContent | ImageContent)[]`, so a
+ * screenshot or browser tool returns images -- keeps its blocks verbatim
+ * instead of being flattened to the empty string.
+ */
+function toolResultResponse(content: ToolResultMessage["content"]): unknown {
   if (typeof content === "string") return content;
   if (!Array.isArray(content)) return "";
-  return content
-    .map((block) => (block.type === "text" ? block.text : ""))
-    .filter(Boolean)
-    .join("\n");
+  if (content.every((block) => block.type === "text")) {
+    return content
+      .map((block) => (block.type === "text" ? block.text : ""))
+      .filter(Boolean)
+      .join("\n");
+  }
+  return content;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -419,6 +431,8 @@ export function inputMessagesToMessages(
           toolCallId: id,
           toolName,
           content: [{ type: "text", text: stringifyToolResult(part.response) }],
+          // The GenAI semconv has no field for a failed tool result, so the
+          // flag does not survive the round trip in either direction.
           isError: false,
           timestamp: 0,
         });

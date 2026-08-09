@@ -116,6 +116,28 @@ describe("messagesToInputMessages", () => {
     ]);
   });
 
+  it("keeps an image a tool returned instead of dropping it", () => {
+    // pi's ToolResultMessage.content is (TextContent | ImageContent)[]. A
+    // screenshot or browser tool returns images, and mapping only text
+    // blocks flattened the whole result to the empty string.
+    const message: ToolResultMessage = {
+      role: "toolResult",
+      toolCallId: "call-1",
+      toolName: "screenshot",
+      content: [
+        { type: "text", text: "captured" },
+        { type: "image", data: "aGk=", mimeType: "image/png" },
+      ] as ToolResultMessage["content"],
+      isError: false,
+      timestamp: 0,
+    };
+    const [input] = messagesToInputMessages([message]);
+    const response = (input?.parts?.[0] as { response?: unknown } | undefined)
+      ?.response;
+    expect(Array.isArray(response)).toBe(true);
+    expect(response).toEqual(message.content);
+  });
+
   it("encodes toolResult into a tool message with response field", () => {
     const message: ToolResultMessage = {
       role: "toolResult",

@@ -66,7 +66,7 @@ const run = await runner.tasks.start({
 });
 
 for await (const event of run.stream()) {
-  console.log(`[${event.event}] ${event.data}`);
+  console.log(event.type, event);
 }
 
 await runner.close();
@@ -119,7 +119,7 @@ for await (const event of run.stream({
   maxReconnects: 5,
   timeoutMs: 300_000,
 })) {
-  console.log(`[${event.event}] ${event.data}`);
+  console.log(event.type, event);
 }
 ```
 
