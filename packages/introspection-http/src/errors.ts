@@ -51,9 +51,27 @@ function parseRetryAfter(header: string | null): number | null {
   // wait for, and left unclamped it became a negative floor in `backoffMs`
   // and then a negative `setTimeout`. A nonsense value means "retry now".
   if (Number.isFinite(seconds)) return Math.max(0, seconds);
-  const when = Date.parse(header);
+  const when = Date.parse(asUtc(header));
   if (Number.isNaN(when)) return null;
   return Math.max(0, Math.ceil((when - Date.now()) / 1000));
+}
+
+/**
+ * An HTTP-date carrying an explicit zone, so `Date.parse` cannot read it as
+ * local time.
+ *
+ * Of the three forms RFC 9110 allows, `asctime` ("Sun Nov  6 08:49:37 1994")
+ * is the one with no zone in it, and a date-time string without a zone is
+ * local time to `Date.parse` -- while an HTTP-date is always GMT. West of
+ * GMT that turned "come back in 3 seconds" into a delay of hours, which the
+ * retry then slept through; east of it the delay went negative, clamped to
+ * zero, and hammered the server the header was asking us to back off from.
+ *
+ * The other two forms are recognisable by the comma after the day name, and
+ * both already carry `GMT`, so they are left exactly as they arrived.
+ */
+function asUtc(header: string): string {
+  return header.includes(",") ? header : `${header} GMT`;
 }
 
 export async function toApiError(
