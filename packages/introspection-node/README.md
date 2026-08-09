@@ -163,17 +163,22 @@ await logs.shutdown();
 
 ## OpenTelemetry span processor
 
-```typescript
-import { IntrospectionSpanProcessor } from "@introspection-sdk/introspection-node/otel";
-import logfire from "@logfire/node";
+Attach the processor to a provider you already own, or stand one up with
+`setupTracing`. Adding a second `IntrospectionSpanProcessor` pointed at another
+OTLP endpoint dual-exports the same spans — see
+[`examples/otel/pi/langfuse.ts`](../../examples/otel/pi/langfuse.ts) and
+[`examples/otel/pi/braintrust.ts`](../../examples/otel/pi/braintrust.ts).
 
-logfire.configure({
-  additionalSpanProcessors: [
+```typescript
+import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
+import { IntrospectionSpanProcessor } from "@introspection-sdk/introspection-node/otel";
+
+const provider = new NodeTracerProvider({
+  spanProcessors: [
     new IntrospectionSpanProcessor({ token: process.env.INTROSPECTION_TOKEN }),
   ],
 });
-
-logfire.instrumentOpenAI();
+provider.register();
 ```
 
 ## Environment variables

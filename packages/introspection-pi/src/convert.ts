@@ -36,7 +36,7 @@ import type {
  * `@earendil-works/pi-coding-agent`'s `core/messages.ts` — not exported,
  * so mirrored here). This is only the FALLBACK detection path for callers
  * that cannot supply {@link ConvertOptions.compactionSummaries}; the
- * contract test in `tests/converters/pi.test.ts` pins these against pi's
+ * contract test in `tests/observability/test-pi-convert.test.ts` pins these against pi's
  * real `convertToLlm` output, so a rewording in pi fails the SDK tests
  * instead of silently breaking the fallback.
  */

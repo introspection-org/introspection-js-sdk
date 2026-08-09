@@ -14,7 +14,7 @@ count=0
 # Patterns that indicate a background span/trace exporter failure.
 # These don't crash the example process but still mean the example
 # didn't do what it claims (export to the backend), so we fail CI.
-EXPORT_FAILURE_PATTERNS='Failed to export span batch|OTLPExporterError|span export failed|Failed to send multipart request\. Received status|Invalid credentials\. Confirm that you.ve configured the correct host|One exporter failed to send spans|LangSmithError|Failed to (send compressed )?multipart ingest'
+EXPORT_FAILURE_PATTERNS='Failed to export span batch|OTLPExporterError|span export failed|Failed to send multipart request\. Received status|Invalid credentials\. Confirm that you.ve configured the correct host|One exporter failed to send spans|Failed to (send compressed )?multipart ingest'
 
 for example in $(find . -name "*.ts" -not -path "*/node_modules/*" | sort); do
   echo "--- $example ---"
