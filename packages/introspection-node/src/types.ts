@@ -10,4 +10,4 @@ export type {
 
 export type { GenAiContext, IdentityContext } from "@introspection-sdk/types";
 
-export { generateEventId } from "@introspection-sdk/types";
+export { generateEventId, toAttributeValue } from "@introspection-sdk/types";

@@ -82,6 +82,14 @@ describe("browser analytics emit the shared wire contract", () => {
     expect(record["context.traits.plan"]).toBe("pro");
   });
 
+  it("coerces every property kind the same way Node does", async () => {
+    client.track("E", { obj: { a: 1 }, big: 9007199254740993n, n: 2 });
+    const [record] = await records();
+    expect(record["properties.obj"]).toBe('{"a":1}');
+    expect(record["properties.big"]).toBe("9007199254740993");
+    expect(record["properties.n"]).toBe(2);
+  });
+
   it("emits at severity INFO", async () => {
     client.track("E");
     await client.flush();

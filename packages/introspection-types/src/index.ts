@@ -191,3 +191,36 @@ export const StorageKey = {
   USER_ID: "introspection_user_id",
   TRAITS: "introspection_traits",
 } as const;
+
+/**
+ * Coerce a `track` property or `identify` trait into something OTLP can carry.
+ *
+ * A telemetry call must never silently lose data the caller handed it. The
+ * previous inline version kept only object / string / number / boolean and
+ * dropped everything else with no attribute emitted at all -- so a `bigint`
+ * id, a `symbol`, or a stray function vanished without a trace. `bigint` in
+ * particular cannot go through `JSON.stringify`, which throws on it.
+ *
+ * Matches the Python SDK's `_attribute_value`: native scalars stay native,
+ * structured values are JSON, and anything else -- `bigint` included --
+ * degrades to a string via the final fallback rather than disappearing.
+ */
+export function toAttributeValue(value: unknown): string | number | boolean {
+  if (
+    typeof value === "string" ||
+    typeof value === "number" ||
+    typeof value === "boolean"
+  ) {
+    return value;
+  }
+  if (typeof value === "object") {
+    try {
+      return JSON.stringify(value);
+    } catch {
+      // Circular, or a BigInt nested inside. A lossy attribute beats a
+      // telemetry call throwing into the caller's business logic.
+      return String(value);
+    }
+  }
+  return String(value);
+}

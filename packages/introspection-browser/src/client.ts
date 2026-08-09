@@ -16,6 +16,7 @@ import { propagation, context } from "@opentelemetry/api";
 import { VERSION } from "./version.js";
 import {
   generateEventId,
+  toAttributeValue,
   type IntrospectionClientOptions,
   type FeedbackOptions,
   type UserTraits,
@@ -386,15 +387,7 @@ export class IntrospectionClient {
       for (const [key, value] of Object.entries(properties)) {
         if (value != null) {
           const attrKey = `properties.${key}`;
-          if (typeof value === "object") {
-            attributes[attrKey] = JSON.stringify(value);
-          } else if (
-            typeof value === "string" ||
-            typeof value === "number" ||
-            typeof value === "boolean"
-          ) {
-            attributes[attrKey] = value;
-          }
+          attributes[attrKey] = toAttributeValue(value);
         }
       }
     }
@@ -404,15 +397,7 @@ export class IntrospectionClient {
       for (const [key, value] of Object.entries(traits)) {
         if (value != null) {
           const attrKey = `context.traits.${key}`;
-          if (typeof value === "object") {
-            attributes[attrKey] = JSON.stringify(value);
-          } else if (
-            typeof value === "string" ||
-            typeof value === "number" ||
-            typeof value === "boolean"
-          ) {
-            attributes[attrKey] = value;
-          }
+          attributes[attrKey] = toAttributeValue(value);
         }
       }
     }

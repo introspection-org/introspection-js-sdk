@@ -17,6 +17,8 @@ import { W3CBaggagePropagator } from "@opentelemetry/core";
 
 import { InMemoryLogRecordExporter } from "@opentelemetry/sdk-logs";
 import { IntrospectionLogs } from "@introspection-sdk/introspection-node/otel";
+// Internal helper, imported by path rather than widening the public barrel.
+import { exporterHeaders } from "../../packages/introspection-node/src/otel/logs.js";
 
 function captureEmits(logs: IntrospectionLogs): LogAttributes[] {
   const records: LogAttributes[] = [];
@@ -70,6 +72,76 @@ describe("IntrospectionLogs exports through the real pipeline", () => {
     });
     expect(byName["identify"]?.severityText).toBe("INFO");
 
+    await logs.shutdown();
+  });
+});
+
+describe("exporter headers", () => {
+  it("identifies the SDK and release, like Python and Rust do", () => {
+    const headers = exporterHeaders("intro_test");
+    expect(headers["User-Agent"]).toMatch(/^introspection-sdk\/\d+\.\d+\.\d+/);
+    expect(headers["Authorization"]).toBe("Bearer intro_test");
+  });
+
+  it("lets caller headers override", () => {
+    const headers = exporterHeaders("t", { "User-Agent": "my-app/1.0" });
+    expect(headers["User-Agent"]).toBe("my-app/1.0");
+  });
+});
+
+describe("property and trait coercion", () => {
+  // A telemetry call must never silently lose what the caller handed it. The
+  // previous inline branch kept only object/string/number/boolean and emitted
+  // no attribute at all for anything else.
+  it("carries every value kind, degrading rather than dropping", async () => {
+    const exporter = new InMemoryLogRecordExporter();
+    const logs = new IntrospectionLogs({
+      token: "intro_test",
+      logExporter: exporter,
+      flushInterval: 1,
+    });
+    logs.track("E", {
+      str: "s",
+      num: 1.5,
+      bool: false,
+      obj: { a: 1 },
+      arr: [1, 2],
+      big: 9007199254740993n,
+      nothing: null,
+      missing: undefined,
+    });
+    await logs.flush();
+    const attrs = exporter.getFinishedLogRecords()[0]!.attributes;
+
+    expect(attrs["properties.str"]).toBe("s");
+    expect(attrs["properties.num"]).toBe(1.5);
+    expect(attrs["properties.bool"]).toBe(false);
+    expect(attrs["properties.obj"]).toBe('{"a":1}');
+    expect(attrs["properties.arr"]).toBe("[1,2]");
+    // bigint cannot go through JSON.stringify -- it throws -- and used to be
+    // dropped outright.
+    expect(attrs["properties.big"]).toBe("9007199254740993");
+    // null / undefined stay dropped: absent is the honest representation.
+    expect("properties.nothing" in attrs).toBe(false);
+    expect("properties.missing" in attrs).toBe(false);
+
+    await logs.shutdown();
+  });
+
+  it("does not throw on a circular object", async () => {
+    const exporter = new InMemoryLogRecordExporter();
+    const logs = new IntrospectionLogs({
+      token: "intro_test",
+      logExporter: exporter,
+      flushInterval: 1,
+    });
+    const circular: Record<string, unknown> = { name: "loop" };
+    circular.self = circular;
+    expect(() => logs.track("E", { circular })).not.toThrow();
+    await logs.flush();
+    expect(
+      exporter.getFinishedLogRecords()[0]!.attributes["properties.circular"],
+    ).toBeDefined();
     await logs.shutdown();
   });
 });

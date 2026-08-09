@@ -46,6 +46,7 @@ import { logger as sdkLogger, withOtlpHttpsProxy } from "../utils.js";
 import { VERSION } from "../version.js";
 import {
   generateEventId,
+  toAttributeValue,
   type FeedbackOptions,
   type UserTraits,
   type GenAiContext,
@@ -82,6 +83,27 @@ export interface IntrospectionLogsOptions {
   logExporter?: LogRecordExporter;
 }
 
+/**
+ * Headers for the analytics OTLP exporter.
+ *
+ * `User-Agent` matches what the Python and Rust SDKs send. Node was the only
+ * server-side surface sending none, so its events arrived at the collector
+ * unattributable to a client or a release. Caller headers are merged last so
+ * they can override either.
+ *
+ * @internal Exported for tests; not part of the package's public surface.
+ */
+export function exporterHeaders(
+  token: string,
+  additionalHeaders?: Record<string, string>,
+): Record<string, string> {
+  return {
+    "User-Agent": `introspection-sdk/${VERSION}`,
+    Authorization: `Bearer ${token}`,
+    ...(additionalHeaders || {}),
+  };
+}
+
 export class IntrospectionLogs {
   private loggerProvider: LoggerProvider;
   private otelLogger: ReturnType<LoggerProvider["getLogger"]>;
@@ -108,10 +130,7 @@ export class IntrospectionLogs {
       ? baseOtelUrl
       : `${baseOtelUrl.replace(/\/$/, "")}/v1/logs`;
 
-    const headers: Record<string, string> = {
-      Authorization: `Bearer ${token}`,
-      ...(options.additionalHeaders || {}),
-    };
+    const headers = exporterHeaders(token, options.additionalHeaders);
 
     const exporter =
       options.logExporter ??
@@ -236,15 +255,7 @@ export class IntrospectionLogs {
       for (const [key, value] of Object.entries(properties)) {
         if (value != null) {
           const attrKey = `properties.${key}`;
-          if (typeof value === "object") {
-            attributes[attrKey] = JSON.stringify(value);
-          } else if (
-            typeof value === "string" ||
-            typeof value === "number" ||
-            typeof value === "boolean"
-          ) {
-            attributes[attrKey] = value;
-          }
+          attributes[attrKey] = toAttributeValue(value);
         }
       }
     }
@@ -253,15 +264,7 @@ export class IntrospectionLogs {
       for (const [key, value] of Object.entries(traits)) {
         if (value != null) {
           const attrKey = `context.traits.${key}`;
-          if (typeof value === "object") {
-            attributes[attrKey] = JSON.stringify(value);
-          } else if (
-            typeof value === "string" ||
-            typeof value === "number" ||
-            typeof value === "boolean"
-          ) {
-            attributes[attrKey] = value;
-          }
+          attributes[attrKey] = toAttributeValue(value);
         }
       }
     }
