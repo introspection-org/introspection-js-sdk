@@ -17,7 +17,12 @@ import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-proto";
 import { ExportResult, ExportResultCode } from "@opentelemetry/core";
 import { randomUUID } from "crypto";
 import type { AdvancedOptions } from "../types.js";
-import { exporterHeaders, logger, withOtlpHttpsProxy } from "../utils.js";
+import {
+  exporterHeaders,
+  logger,
+  otlpUserAgent,
+  withOtlpHttpsProxy,
+} from "../utils.js";
 
 /**
  * Extended span type that includes both v1 and v2 instrumentation properties.
@@ -217,6 +222,7 @@ export class IntrospectionSpanProcessor implements SpanProcessor {
         withOtlpHttpsProxy({
           url: endpoint,
           headers,
+          ...otlpUserAgent,
         }),
       );
 

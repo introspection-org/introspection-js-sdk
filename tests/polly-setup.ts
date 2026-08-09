@@ -22,9 +22,8 @@ Polly.register(FSPersister);
 
 type PollyMode = "record" | "replay" | "passthrough";
 
-// Cassette scrubbing
-// (introspection-python-sdk `tests/conftest.py` SENSITIVE_HEADERS) so both
-// SDKs redact the same credential headers from recordings.
+// Cassette scrubbing: credential-bearing headers are redacted before a
+// recording is written, so cassettes stay committable.
 const SENSITIVE_HEADERS = [
   "authorization",
   "api-key",

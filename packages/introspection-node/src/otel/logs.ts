@@ -46,6 +46,7 @@ import {
   DEFAULT_SERVICE_NAME,
   exporterHeaders,
   logger as sdkLogger,
+  otlpUserAgent,
   withOtlpHttpsProxy,
 } from "../utils.js";
 import { VERSION } from "../version.js";
@@ -132,6 +133,7 @@ export class IntrospectionLogs {
         withOtlpHttpsProxy({
           url: endpoint,
           headers,
+          ...otlpUserAgent,
         }),
       );
 

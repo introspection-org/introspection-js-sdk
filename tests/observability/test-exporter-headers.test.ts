@@ -1,12 +1,16 @@
 /**
- * What the two OTLP exporters put in their request headers.
+ * How the two OTLP exporters identify the SDK and its release.
  *
- * Both streams have to identify the SDK and its release, the way the Python
- * on both exporters. The logs exporter got a `User-Agent`
- * and the traces exporter three files over did not, so exported spans
- * arrived at the collector unattributable to a client or a version. The
- * header set is built by one shared helper now; these assert that each
- * exporter is actually constructed with it.
+ * The logs exporter got a `User-Agent` and the traces exporter three files
+ * over did not, so exported spans arrived at the collector unattributable to
+ * a client or a version. The header set is built by one shared helper now.
+ *
+ * The user agent is not one of those headers. The OTLP HTTP transport assigns
+ * `headers['User-Agent']` unconditionally just before it sends, so a value
+ * passed through `headers` is always discarded — asserting on the header
+ * alone passed while every export on the wire still carried the stock
+ * exporter agent. It travels as the transport's own `userAgent` option
+ * instead, which is prepended to that stock value.
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -53,6 +57,10 @@ function headersOf(args: unknown[]): Record<string, string> {
   return last?.headers ?? {};
 }
 
+function userAgentOf(args: unknown[]): string | undefined {
+  return (args.at(-1) as { userAgent?: string })?.userAgent;
+}
+
 beforeEach(() => {
   traceExporterArgs.length = 0;
   logExporterArgs.length = 0;
@@ -79,6 +87,20 @@ describe("both OTLP exporters identify the SDK", () => {
     expect(headersOf(traceExporterArgs)["User-Agent"]).toBe(
       headersOf(logExporterArgs)["User-Agent"],
     );
+  });
+
+  it("sends the user agent as the transport option, not as a header", () => {
+    new IntrospectionSpanProcessor({ token: "intro_test" });
+    new IntrospectionLogs({ token: "intro_test" });
+    // The header form never survives to the wire, so the option is the only
+    // one of the two that actually identifies this SDK to the collector.
+    expect(userAgentOf(traceExporterArgs)).toMatch(
+      /^introspection-sdk\/\d+\.\d+\.\d+/,
+    );
+    expect(userAgentOf(logExporterArgs)).toMatch(
+      /^introspection-sdk\/\d+\.\d+\.\d+/,
+    );
+    expect(userAgentOf(traceExporterArgs)).toBe(userAgentOf(logExporterArgs));
   });
 
   it("let the caller override either header on the traces stream", () => {

@@ -28,12 +28,23 @@ export const DEFAULT_SERVICE_NAME = "introspection-client";
  *
  * Caller headers are merged last so they can override either.
  */
+export const USER_AGENT = `introspection-sdk/${VERSION}`;
+
+/**
+ * The OTLP HTTP transport takes the client's user agent as a dedicated option
+ * rather than a header: it assigns `headers['User-Agent']` unconditionally
+ * just before the request, so a `User-Agent` supplied through `headers` is
+ * always discarded. Passing it here instead prepends it to the exporter's own
+ * token, and exports arrive attributable to a client and a release.
+ */
+export const otlpUserAgent = { userAgent: USER_AGENT } as const;
+
 export function exporterHeaders(
   token: string | undefined,
   additionalHeaders?: Record<string, string>,
 ): Record<string, string> {
   return {
-    "User-Agent": `introspection-sdk/${VERSION}`,
+    "User-Agent": USER_AGENT,
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
     ...(additionalHeaders || {}),
   };
