@@ -1,6 +1,5 @@
 /**
- * Integration base contract, modeled on Sentry's integration registry and the
- * Python SDK's `Integration` ABC.
+ * Integration base contract, modeled on Sentry's integration registry.
  *
  * An {@link Integration} knows how to wire one framework (currently Pi) into
  * the shared Introspection trace pipeline. `init()`
