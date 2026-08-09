@@ -76,18 +76,6 @@ function extractTokenCounts(attrs: Attributes): {
   };
 }
 
-type JsonObject = Record<string, unknown>;
-
-/** Safely traverse nested object path */
-function getPath(obj: unknown, ...keys: string[]): unknown {
-  let current: unknown = obj;
-  for (const key of keys) {
-    if (typeof current !== "object" || current === null) return undefined;
-    current = (current as JsonObject)[key];
-  }
-  return current;
-}
-
 function extractResponseId(attrs: Attributes): string | undefined {
   const existing = attrs["gen_ai.response.id"];
   if (typeof existing === "string" && existing) return existing;
