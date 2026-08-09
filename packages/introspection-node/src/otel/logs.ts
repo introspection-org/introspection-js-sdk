@@ -32,6 +32,7 @@ import { SeverityNumber, type LogAttributes } from "@opentelemetry/api-logs";
 import {
   LoggerProvider,
   BatchLogRecordProcessor,
+  type LogRecordExporter,
 } from "@opentelemetry/sdk-logs";
 import { OTLPLogExporter } from "@opentelemetry/exporter-logs-otlp-proto";
 import {
@@ -70,6 +71,15 @@ export interface IntrospectionLogsOptions {
   flushInterval?: number;
   /** Maximum queue size before auto-flush (default: 100). */
   maxBatchSize?: number;
+  /**
+   * Custom log record exporter, bypassing OTLP construction.
+   *
+   * The analytics stream is the contract that has to match across SDKs, and
+   * this is the seam for asserting what goes out on it. Matches the Python
+   * SDK's `log_exporter` constructor argument, the Rust config's
+   * `log_exporter`, and the browser client's `advanced.logExporter`.
+   */
+  logExporter?: LogRecordExporter;
 }
 
 export class IntrospectionLogs {
@@ -103,12 +113,14 @@ export class IntrospectionLogs {
       ...(options.additionalHeaders || {}),
     };
 
-    const exporter = new OTLPLogExporter(
-      withOtlpHttpsProxy({
-        url: endpoint,
-        headers,
-      }),
-    );
+    const exporter =
+      options.logExporter ??
+      new OTLPLogExporter(
+        withOtlpHttpsProxy({
+          url: endpoint,
+          headers,
+        }),
+      );
 
     const processor = new BatchLogRecordProcessor({
       exporter,
@@ -190,6 +202,8 @@ export class IntrospectionLogs {
       conversationId?: string;
       previousResponseId?: string;
       eventId?: string;
+      /** Identity known at the call site, overriding the context. */
+      identity?: IdentityContext;
     } = {},
   ): LogAttributes {
     const { properties, traits, conversationId, previousResponseId, eventId } =
@@ -200,7 +214,7 @@ export class IntrospectionLogs {
       "event.id": eventId || generateEventId(),
     };
 
-    const identity = this.getIdentityFromContext();
+    const identity = options.identity ?? this.getIdentityFromContext();
     if (identity.userId) attributes["identity.user.id"] = identity.userId;
     if (identity.anonymousId)
       attributes["identity.anonymous.id"] = identity.anonymousId;
@@ -314,11 +328,23 @@ export class IntrospectionLogs {
     const identity: Record<string, string> = { "identity.user_id": userId };
     if (anonymousId) identity["identity.anonymous_id"] = anonymousId;
 
-    // Emit inside the identity baggage rather than reading it off the
-    // instance, so the record carries the ids without any state outliving the
-    // call.
+    // The ids are passed straight through rather than round-tripped via
+    // baggage. Reading them back off the context made the identify event
+    // depend on a globally registered context manager: `init()` registers
+    // one, but a standalone `new IntrospectionLogs()` -- the form the README
+    // shows -- gets the API's no-op manager, where `context.with()` runs the
+    // callback and `context.active()` still returns ROOT. The event then went
+    // out with no identity on it at all, silently.
+    //
+    // The scope is still entered, so anything the emit touches (a span, a
+    // downstream propagator) sees the same identity when a real manager is
+    // installed.
     context.with(this.createBaggageContext(identity), () => {
-      const attributes = this.buildAttributes("identify", { traits, eventId });
+      const attributes = this.buildAttributes("identify", {
+        traits,
+        eventId,
+        identity: { userId, anonymousId },
+      });
       this.otelLogger.emit({
         timestamp: this.getTimestamp(),
         context: context.active(),

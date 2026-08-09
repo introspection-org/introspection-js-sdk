@@ -15,6 +15,7 @@ import type { LogAttributes } from "@opentelemetry/api-logs";
 import { AsyncLocalStorageContextManager } from "@opentelemetry/context-async-hooks";
 import { W3CBaggagePropagator } from "@opentelemetry/core";
 
+import { InMemoryLogRecordExporter } from "@opentelemetry/sdk-logs";
 import { IntrospectionLogs } from "@introspection-sdk/introspection-node/otel";
 
 function captureEmits(logs: IntrospectionLogs): LogAttributes[] {
@@ -28,6 +29,50 @@ function captureEmits(logs: IntrospectionLogs): LogAttributes[] {
   };
   return records;
 }
+
+describe("IntrospectionLogs exports through the real pipeline", () => {
+  // `captureEmits` below swaps the logger and stops one level above the
+  // exporter. This test goes through the whole batch/export path with the
+  // `logExporter` seam -- the same hook Python, Rust, and the browser client
+  // expose -- so the contract is asserted where it actually leaves the SDK.
+  it("puts the shared contract keys on the exported record", async () => {
+    const exporter = new InMemoryLogRecordExporter();
+    const logs = new IntrospectionLogs({
+      token: "intro_test",
+      logExporter: exporter,
+      flushInterval: 1,
+    });
+    logs.track("Button Clicked", { buttonId: "submit", count: 3 });
+    logs.feedback("thumbs_up", { comments: "great" });
+    logs.identify("user_42", { plan: "pro" });
+    await logs.flush();
+
+    const records = exporter.getFinishedLogRecords();
+    expect(records).toHaveLength(3);
+    const byName = Object.fromEntries(
+      records.map((r) => [r.attributes["event.name"], r]),
+    );
+
+    expect(byName["Button Clicked"]?.attributes).toMatchObject({
+      "properties.buttonId": "submit",
+      "properties.count": 3,
+    });
+    expect(byName["Button Clicked"]?.attributes["event.id"]).toMatch(
+      /^intro_event_[0-9a-f]+-[0-9a-z]+$/,
+    );
+    expect(byName["introspection.feedback"]?.attributes).toMatchObject({
+      "properties.name": "thumbs_up",
+      "properties.comments": "great",
+    });
+    expect(byName["identify"]?.attributes).toMatchObject({
+      "identity.user.id": "user_42",
+      "context.traits.plan": "pro",
+    });
+    expect(byName["identify"]?.severityText).toBe("INFO");
+
+    await logs.shutdown();
+  });
+});
 
 describe("IntrospectionLogs", () => {
   let logs: IntrospectionLogs;
