@@ -218,6 +218,6 @@ Tests should pass `baseURL` explicitly to SDK clients via the `pollyEndpoints` c
 The SDK ships three framework integrations — **Pi** (the supported harness),
 **Vercel AI SDK**, and **Claude Agent SDK** — plus the OpenClaw plugin package
 and the OpenInference conversion path in `IntrospectionSpanProcessor` for
-customer-owned OTel pipelines. The pre-Pi-pivot framework integrations
+customer-owned OTel pipelines. The legacy framework integrations
 (Mastra, LangChain/LangGraph, OpenAI Agents SDK, raw Anthropic SDK, Gemini)
 were removed; recover them from git history if one is ever needed again.
