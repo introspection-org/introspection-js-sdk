@@ -25,11 +25,7 @@ export type { Integration, IntegrationHandles, IntegrationSetupContext };
  */
 const BUILTIN_INTEGRATIONS: ReadonlyArray<
   () => Promise<{ default: Integration }>
-> = [
-  () => import("./vercel.js"),
-  () => import("./claude-agent.js"),
-  () => import("./pi.js"),
-];
+> = [() => import("./pi.js")];
 
 const installed = new Set<string>();
 // Teardown callbacks returned by integration setupOnce (e.g. detach a

@@ -21,17 +21,6 @@ pnpm test
 
 - **testing.ts** - `IncrementalIdGenerator`, `TestSpanExporter`, and snapshot helpers
 
-### Observability Dual-Export Tests
-
-Tests that verify spans are correctly exported to both a third-party observability platform and Introspection simultaneously:
-
-| Test File                               | Platforms                             |
-| --------------------------------------- | ------------------------------------- |
-| `observability/test-arize.test.ts`      | Arize + Introspection                 |
-| `observability/test-braintrust.test.ts` | Braintrust + Introspection            |
-| `observability/test-langfuse.test.ts`   | Langfuse + Introspection              |
-| `observability/test-vercel.test.ts`     | Vercel AI SDK + Arize + Introspection |
-
 ## Environment Variables
 
 See `.env.example` for all required variables. At minimum you need:
@@ -85,8 +74,8 @@ The report lives at `tests/coverage/`. The `coverage/index.html` page lets you c
 
 Repo-wide aggregate across the `include` packages (the gate is a repo-wide
 "do-not-regress" floor, not a per-file guarantee — see the `coverage` block in
-`vitest.config.ts`). `introspection-openclaw` is excluded (beta) and
-`introspection-browser` is deferred pending a browser harness.
+`vitest.config.ts`). `introspection-browser` is deferred pending a browser
+harness.
 
 | Metric     | Phase 1 baseline | Current | Threshold (do-not-regress) |
 | ---------- | ---------------: | ------: | -------------------------: |
@@ -122,7 +111,7 @@ For a new framework integration test:
 
 Only when Polly genuinely cannot record what the test needs. Specifically:
 
-- **Subprocess / stdio SDKs.** The Claude Agent SDK (`@anthropic-ai/claude-agent-sdk`) spawns a `claude` binary and communicates over stdio; no HTTP from this process means nothing for Polly to intercept. `test-claude-wrapper.test.ts`, `test-claude-subagents.test.ts`, and the Claude portion of `test-baggage-propagation.test.ts` use mocked async generators for this reason.
+- **Subprocess / stdio SDKs.** An SDK that spawns a binary and communicates over stdio makes no HTTP call from this process, so there is nothing for Polly to intercept. Mock the stdio message stream in that case.
 - **Side-channel events from the provider SDK.** Some providers manage state (e.g. OpenAI Responses-API conversation state) via internal events that aren't HTTP-visible at the call site we're testing. Mock the event shape only — never mock the integration class itself.
 - **OTel-only unit tests.** A test that just verifies "baggage on the active context lands on a `tracer.startSpan()` attribute via `IntrospectionSpanProcessor`" makes no LLM call. No HTTP, no Polly needed.
 

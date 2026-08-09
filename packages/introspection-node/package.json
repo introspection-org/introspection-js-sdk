@@ -30,7 +30,6 @@
     "prepare": "tsc"
   },
   "devDependencies": {
-    "@anthropic-ai/claude-agent-sdk": "^0.3.220",
     "@earendil-works/pi-agent-core": "^0.83.0",
     "@earendil-works/pi-ai": "^0.83.0",
     "@opentelemetry/api-logs": "^0.221.0",
@@ -46,12 +45,10 @@
     "@repo/eslint-config": "workspace:*",
     "@repo/typescript-config": "workspace:*",
     "@types/node": "^22.20.1",
-    "ai": "^6.0.238",
     "eslint": "^9.39.5",
     "typescript": "5.9.3"
   },
   "peerDependencies": {
-    "@anthropic-ai/claude-agent-sdk": ">=0.2.0",
     "@earendil-works/pi-agent-core": ">=0.75.0",
     "@earendil-works/pi-ai": ">=0.75.0",
     "@opentelemetry/api-logs": ">=0.50.0",
@@ -63,16 +60,9 @@
     "@opentelemetry/sdk-logs": ">=0.50.0",
     "@opentelemetry/sdk-trace-base": ">=1.20.0 || >=2.0.0",
     "@opentelemetry/sdk-trace-node": ">=1.20.0 || >=2.0.0",
-    "@opentelemetry/semantic-conventions": ">=1.20.0",
-    "ai": ">=4.0.0"
+    "@opentelemetry/semantic-conventions": ">=1.20.0"
   },
   "peerDependenciesMeta": {
-    "@anthropic-ai/claude-agent-sdk": {
-      "optional": true
-    },
-    "ai": {
-      "optional": true
-    },
     "@earendil-works/pi-agent-core": {
       "optional": true
     },

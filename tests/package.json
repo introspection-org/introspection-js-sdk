@@ -18,9 +18,6 @@
     "@introspection-sdk/introspection-pi": "workspace:*"
   },
   "devDependencies": {
-    "@ai-sdk/anthropic": "^3.0.104",
-    "@ai-sdk/openai": "^3.0.90",
-    "@anthropic-ai/claude-agent-sdk": "^0.3.220",
     "@earendil-works/pi-agent-core": "^0.83.0",
     "@earendil-works/pi-ai": "^0.83.0",
     "@earendil-works/pi-coding-agent": "^0.82.1",
@@ -39,16 +36,11 @@
     "@pollyjs/persister-fs": "^6.0.6",
     "@types/node": "^22.20.1",
     "@vitest/coverage-v8": "^4.1.10",
-    "ai": "^6.0.238",
     "apache-arrow": "^21.2.0",
     "dotenv": "^16.4.0",
     "openai": "^6.49.0",
     "typescript": "^5.9.3",
     "vitest": "^4.1.10",
     "zod": "^4.4.3"
-  },
-  "optionalDependencies": {
-    "@arizeai/openinference-instrumentation-openai": "^4.1.5",
-    "@arizeai/openinference-vercel": "^2.8.1"
   }
 }

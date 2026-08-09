@@ -205,17 +205,13 @@ describe("introspection.init()", () => {
   describe("auto-discovery", () => {
     it("discovers every installed built-in integration", async () => {
       const ids = (await discoverIntegrations()).map((i) => i.identifier);
-      expect(ids).toEqual(
-        expect.arrayContaining(["vercel", "claude_agent", "pi"]),
-      );
+      expect(ids).toEqual(expect.arrayContaining(["pi"]));
     });
   });
 
   // -------------------------------------------------------------------------
   describe("auto-wires every installed framework", () => {
     it("runs each integration's setupOnce and publishes bound handles", async () => {
-      const claudeSdk = await import("@anthropic-ai/claude-agent-sdk");
-
       // Full auto-discovery: exercises every built-in integration's
       // setupOnce against the shared provider in one call.
       await init({
@@ -224,12 +220,18 @@ describe("introspection.init()", () => {
         advanced: { spanExporter: new TestSpanExporter() },
       });
 
-      // Instance/config-based frameworks publish bound handles.
-      const { instrumentClaudeAgent } =
+      // Instance-based frameworks publish bound handles. Pi's handle is
+      // bound when @earendil-works/pi-agent-core is installed, so the
+      // accessor must not report the integration as unconfigured.
+      const { instrumentPi } =
         await import("@introspection-sdk/introspection-node/otel");
-      const traced = instrumentClaudeAgent(claudeSdk);
-      expect(typeof traced.query).toBe("function");
-      await traced.shutdown();
+      let message = "";
+      try {
+        instrumentPi({ streamFn: () => undefined } as never, {} as never);
+      } catch (e) {
+        message = String(e);
+      }
+      expect(message).not.toContain("Pi integration not configured");
     });
   });
 });

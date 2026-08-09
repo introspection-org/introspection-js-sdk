@@ -56,44 +56,15 @@ Pi is the supported agent-instrumentation path.
 ```bash
 pnpm pi-native                    # IntrospectionPiInstrumentor
 pnpm pi-init                      # introspection.init() + instrumentPi(agent, meta)
-pnpm pi-langfuse                  # + Langfuse dual export (explicit provider)
 pnpm pi-subagents                 # Multi-agent baggage
 ```
 
-## Experimental support for other frameworks
+## Manual instrumentation
 
-These framework examples are experimental.
-
-### Claude Agent SDK
-
-```bash
-pnpm claude-agent                 # withIntrospection() wrapper
-pnpm claude-agent-init            # introspection.init() + instrumentClaudeAgent(sdk)
-pnpm claude-agent-braintrust      # + Braintrust dual export
-pnpm claude-agent-langsmith       # + LangSmith dual export
-pnpm claude-agent-langfuse        # + Langfuse dual export
-```
-
-### Vercel AI SDK
-
-```bash
-pnpm ai-sdk                       # Vercel AI SDK native telemetry
-pnpm ai-sdk-init                  # introspection.init() one-liner
-pnpm ai-sdk-langfuse              # + Langfuse dual export (explicit provider)
-pnpm ai-sdk-subagents             # Multi-agent baggage
-```
-
-## OpenInference (Third-Party / Unsupported Frameworks)
-
-For frameworks that use OpenInference instrumentation. Uses `IntrospectionSpanProcessor` to convert OpenInference attributes to GenAI semantic conventions.
-
-```bash
-pnpm openinference-openai-arize        # Arize/Phoenix + Introspection
-pnpm openinference-openai-braintrust   # Braintrust + Introspection
-pnpm openinference-openai-langfuse     # Langfuse + Introspection
-```
-
-### Raw OTEL
+For everything that is not Pi, instrument against the OTel APIs directly.
+`IntrospectionSpanProcessor` converts OpenInference attributes to GenAI
+semantic conventions on the way out, so an OpenInference-instrumented
+framework needs no Introspection-specific code.
 
 ```bash
 pnpm raw-conversation              # Multi-turn conversation with raw OTel APIs
@@ -105,11 +76,7 @@ pnpm raw-conversation              # Multi-turn conversation with raw OTel APIs
 examples/
   api/              # REST API (no OTel)
   otel/             # OTel-based instrumentation examples
-    claude-agent/   # Claude Agent SDK (@anthropic-ai/claude-agent-sdk)
-    vercel/         # Vercel AI SDK
-    openinference/  # OpenInference-based frameworks
     pi/             # Pi Agent
-    openclaw/       # OpenClaw simulator
     raw/            # Raw OTEL (no framework)
     run_all.sh      # Run all OTel examples
 ```

@@ -26,10 +26,6 @@ export default defineConfig({
         repoRoot,
         "packages/introspection-pi/src/index.ts",
       ),
-      "@introspection-sdk/introspection-openclaw": resolve(
-        repoRoot,
-        "packages/introspection-openclaw/src/index.ts",
-      ),
       "@introspection-sdk/introspection-browser/api": resolve(
         repoRoot,
         "packages/introspection-browser/src/api/index.ts",
@@ -99,8 +95,6 @@ export default defineConfig({
         "packages/introspection-browser/src/**/*.ts",
         "packages/introspection-types/src/**/*.ts",
         "packages/introspection-http/src/**/*.ts",
-        // introspection-openclaw is a beta package with its own lifecycle;
-        // excluded from the coverage gate until it graduates + gets a harness.
       ],
       exclude: [
         "**/*.test.ts",
@@ -112,16 +106,16 @@ export default defineConfig({
       ],
       // POLICY: the gate is REPO-WIDE aggregate coverage across the `include`
       // packages (a "do not regress" floor), NOT a per-file or all-metrics-≥70
-      // guarantee. Concretely: line/statement/function coverage are high (~84/84/87%)
+      // guarantee. Concretely: line/statement/function coverage are high (~85/84/86%)
       // and the dominant target; branch coverage is tracked but intentionally
       // lower (~73%, floor 63) since exhaustive branch coverage on multi-format
       // converters has steep diminishing returns. Some individual files are below
       // 70% (e.g. introspection-browser/src/client.ts is 0% — deferred pending a
-      // browser harness; introspection-openclaw is excluded entirely as beta).
+      // browser harness).
       // If a stricter "every file ≥ X" policy is wanted, tighten this block.
       //
       // Phase 1 baseline:  statements 62.86%  branches 48.65%  functions 64.65%  lines 64.24%
-      // Current measured:  statements 84.42%  branches 73.03%  functions 86.94%  lines 85.67%
+      // Current measured:  statements 83.84%  branches 73.15%  functions 86.40%  lines 85.29%
       // Floors sit just under the measured values to leave a small margin.
       thresholds: {
         lines: 82,

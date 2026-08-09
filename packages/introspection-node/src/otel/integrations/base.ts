@@ -2,8 +2,8 @@
  * Integration base contract, modeled on Sentry's integration registry and the
  * Python SDK's `Integration` ABC.
  *
- * An {@link Integration} knows how to wire one framework (Pi, Vercel AI SDK,
- * Claude Agent SDK) into the shared Introspection trace pipeline. `init()`
+ * An {@link Integration} knows how to wire one framework (currently Pi) into
+ * the shared Introspection trace pipeline. `init()`
  * discovers the integrations whose framework is importable and runs each
  * `setupOnce()` exactly once.
  */
@@ -11,29 +11,22 @@
 import type { BasicTracerProvider } from "@opentelemetry/sdk-trace-base";
 
 import type { AdvancedOptions } from "../../types.js";
-import type { InstrumentedClaudeAgentSDK } from "../claude-wrapper.js";
 import type { IntrospectionPiInstrumentor } from "../pi.js";
 
 export const OPTIONAL_PEERS = {
-  claudeAgent: "@anthropic-ai/claude-agent-sdk",
   piAgentCore: "@earendil-works/pi-agent-core",
-  vercelAi: "ai",
 } as const;
 
 /**
  * Bound framework handles published by instance/config-based integrations.
  *
  * Some JS framework hooks cannot be wired globally — the caller still has to
- * instrument an Agent instance or wrap the Claude Agent SDK module. For those,
- * the integration publishes a handle here, pre-bound to the `init()` token /
- * provider, and `init()` re-exposes it (e.g. `introspection.instrumentPi()`).
+ * instrument an Agent instance. For those, the integration publishes a handle
+ * here, pre-bound to the `init()` token / provider, and `init()` re-exposes it
+ * (e.g. `introspection.instrumentPi()`).
  */
 export interface IntegrationHandles {
   piInstrumentor?: IntrospectionPiInstrumentor;
-  instrumentClaudeAgent?: (
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    sdk: any,
-  ) => InstrumentedClaudeAgentSDK;
 }
 
 /**
@@ -97,9 +90,9 @@ export async function isOptionalPeerInstalled(
 /**
  * Everything an integration needs to wire itself into the shared pipeline.
  *
- * Instrumentors that emit onto the shared `TracerProvider` (Vercel AI SDK,
- * Pi, Claude Agent SDK) use `tracerProvider`; hooks that own their own OTLP
- * export pipeline only need the `token` / `serviceName` / `baseUrl`.
+ * Instrumentors that emit onto the shared `TracerProvider` (currently Pi) use
+ * `tracerProvider`; hooks that own their own OTLP export pipeline only need
+ * the `token` / `serviceName` / `baseUrl`.
  */
 export interface IntegrationSetupContext {
   /** The shared provider built (or adopted) by `init()`. */

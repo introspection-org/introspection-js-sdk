@@ -21,8 +21,6 @@ import { logger, withOtlpHttpsProxy } from "../utils.js";
 import {
   isOpenInferenceSpan,
   replaceOpenInferenceWithGenAI,
-  isVercelAISpan,
-  convertVercelAIToGenAI,
 } from "../converters/index.js";
 
 /**
@@ -354,25 +352,10 @@ export class IntrospectionSpanProcessor implements SpanProcessor {
     const isOI =
       isOpenInferenceSpan(scopeName) ||
       typeof span.attributes["openinference.span.kind"] === "string";
-    const isVercel = isVercelAISpan(span.attributes);
-
-    // Skip Vercel AI SDK wrapper spans (ai.streamText, ai.generateText).
-    // They duplicate the child doStream/doGenerate output without proper
-    // input message windows, causing empty user messages in conversation view.
-    // This applies regardless of whether OI attributes are also present.
-    const aiOperationId = span.attributes["ai.operationId"];
-    if (
-      typeof aiOperationId === "string" &&
-      !String(aiOperationId).includes(".do")
-    ) {
-      return;
-    }
-
     // Skip spans that have no LLM-relevant data — they are infrastructure spans
     // (e.g. Next.js route resolution, HTTP spans) that should not be exported.
     const hasGenAi =
       isOI ||
-      isVercel ||
       span.attributes["gen_ai.provider.name"] != null ||
       span.attributes["gen_ai.operation.name"] != null ||
       span.attributes["gen_ai.request.model"] != null ||
@@ -389,32 +372,7 @@ export class IntrospectionSpanProcessor implements SpanProcessor {
           unknown
         >),
       };
-      // When both OI and Vercel attrs present, merge Vercel-specific
-      // enrichments (conversation ID from metadata, etc.)
-      if (isVercel) {
-        const vercelAttrs = convertVercelAIToGenAI(span.attributes);
-        for (const [key, value] of Object.entries(vercelAttrs)) {
-          // Prefer Vercel output messages when they contain reasoning.
-          // Either spelling counts: converters emit `"reasoning"`, but a part
-          // that has been through ingest normalization says `"thinking"`.
-          if (
-            key === "gen_ai.output.messages" &&
-            typeof value === "string" &&
-            (value.includes('"reasoning"') || value.includes('"thinking"'))
-          ) {
-            attrs[key] = value;
-          } else if (attrs[key] === undefined) {
-            attrs[key] = value;
-          }
-        }
-      }
       logger.debug(`Converting OpenInference span: ${span.name}`);
-    } else if (isVercel) {
-      attrs = {
-        ...span.attributes,
-        ...convertVercelAIToGenAI(span.attributes),
-      };
-      logger.debug(`Converting Vercel AI span: ${span.name}`);
     } else {
       attrs = { ...span.attributes };
     }

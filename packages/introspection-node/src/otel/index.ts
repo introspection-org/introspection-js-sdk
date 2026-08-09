@@ -22,32 +22,6 @@ export type { SetupTracingOptions, ConflictBehavior } from "./setup.js";
 export { IntrospectionSpanProcessor } from "./span-processor.js";
 export type { IntrospectionSpanProcessorOptions } from "./span-processor.js";
 
-// Claude Agent SDK hooks.
-export { IntrospectionClaudeHooks } from "./claude-hooks.js";
-export type {
-  IntrospectionClaudeHooksOptions,
-  ClaudeHooksAdvancedOptions,
-  ClaudeHooksConfig,
-  ClaudeHookCallbackMatcher,
-  ClaudeHookEvent,
-  ClaudeHookInput,
-  ClaudeHookOutput,
-  ClaudeHookCallback,
-  ClaudeUsage,
-  ClaudeModelUsage,
-  ClaudeResultMessage,
-  ClaudeAssistantMessage,
-  ClaudeSDKMessage,
-} from "./claude-hooks.js";
-
-// Claude Agent SDK wrapper.
-export { withIntrospection } from "./claude-wrapper.js";
-export type {
-  WithIntrospectionOptions,
-  InstrumentedClaudeAgentSDK,
-  ClaudeAgentSDKModule,
-} from "./claude-wrapper.js";
-
 // Pi Agent SDK instrumentor.
 export { IntrospectionPiInstrumentor } from "./pi.js";
 export type {
@@ -80,7 +54,6 @@ export {
   getClient,
   getTracerProvider,
   instrumentPi,
-  instrumentClaudeAgent,
   _resetForTests,
 } from "./init.js";
 export type { InitOptions } from "./init.js";

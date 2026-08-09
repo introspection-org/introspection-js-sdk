@@ -8,8 +8,7 @@
  * import * as introspection from "@introspection-sdk/introspection-node/otel";
  *
  * await introspection.init({ serviceName: "my-app" });
- * // Installed frameworks (Pi, Vercel AI SDK, Claude Agent SDK) are wired
- * // into the shared provider automatically.
+ * // An installed Pi agent is wired into the shared provider automatically.
  * ```
  *
  * It also exposes the `track` / `feedback` / `identify` analytics surface and a
@@ -27,7 +26,6 @@ import { ATTR_SERVICE_NAME } from "@opentelemetry/semantic-conventions";
 
 import type { AdvancedOptions, FeedbackOptions, UserTraits } from "../types.js";
 import { logger } from "../utils.js";
-import type { InstrumentedClaudeAgentSDK } from "./claude-wrapper.js";
 import {
   discoverIntegrations,
   setupIntegrations,
@@ -326,23 +324,6 @@ export function instrumentPi(agent: Agent, meta: AgentMeta): void {
     );
   }
   instrumentor.instrument(agent, meta);
-}
-
-/**
- * Wrap the Claude Agent SDK module so its `query()` calls are traced.
- * Equivalent to `withIntrospection(sdk)` but pre-bound to the `init()` config.
- */
-export function instrumentClaudeAgent(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  sdk: any,
-): InstrumentedClaudeAgentSDK {
-  const fn = state.handles.instrumentClaudeAgent;
-  if (!fn) {
-    throw new Error(
-      "Claude Agent integration not configured. Call introspection.init() with @anthropic-ai/claude-agent-sdk installed.",
-    );
-  }
-  return fn(sdk);
 }
 
 /** Flush and shut down the logs client and (if owned) the provider. */

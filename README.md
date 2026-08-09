@@ -34,15 +34,14 @@ where each client fits.
 
 ## Packages
 
-| Package                                                                           | Description                                                                                     |
-| --------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
-| [`@introspection-sdk/introspection-node`](./packages/introspection-node/)         | Server-side platform client for runtimes, tasks, files, conversations, recipes, and experiments |
-| [`@introspection-sdk/introspection-browser`](./packages/introspection-browser/)   | Browser platform client for applications authenticated through a backend token broker           |
-| [`@introspection-sdk/types`](./packages/introspection-types/)                     | Shared types and constants                                                                      |
-| [`@introspection-sdk/introspection-pi`](./packages/introspection-pi/)             | Supported [Pi Agent SDK](https://withpi.ai) instrumentation                                     |
-| [`@introspection-sdk/introspection-openclaw`](./packages/introspection-openclaw/) | Experimental OpenClaw plugin — agent lifecycle spans in OTel GenAI semantic conventions         |
-| [`@introspection-sdk/coding-agent`](./packages/introspection-coding-agent/)       | Opt-in capture of Claude Code / Codex plugin sessions for the Introspection plugin              |
-| [`@introspection-sdk/introspection-proxy`](./packages/introspection-proxy/)       | Egress proxy helpers — credential injection and CONNECT forward proxy                           |
+| Package                                                                         | Description                                                                                     |
+| ------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| [`@introspection-sdk/introspection-node`](./packages/introspection-node/)       | Server-side platform client for runtimes, tasks, files, conversations, recipes, and experiments |
+| [`@introspection-sdk/introspection-browser`](./packages/introspection-browser/) | Browser platform client for applications authenticated through a backend token broker           |
+| [`@introspection-sdk/types`](./packages/introspection-types/)                   | Shared types and constants                                                                      |
+| [`@introspection-sdk/introspection-pi`](./packages/introspection-pi/)           | Supported [Pi Agent SDK](https://withpi.ai) instrumentation                                     |
+| [`@introspection-sdk/coding-agent`](./packages/introspection-coding-agent/)     | Opt-in capture of Claude Code / Codex plugin sessions for the Introspection plugin              |
+| [`@introspection-sdk/introspection-proxy`](./packages/introspection-proxy/)     | Egress proxy helpers — credential injection and CONNECT forward proxy                           |
 
 ## Quick start
 
@@ -180,10 +179,10 @@ await agent.prompt("Help me understand my latest invoice.");
 await introspection.shutdown();
 ```
 
-> Beyond Pi, the Vercel AI SDK and Claude Agent SDK integrations (auto-discovered
-> by `init()`) and the [OpenClaw plugin](./packages/introspection-openclaw/) are
-> experimental. Agents emitting OpenInference spans are converted to GenAI
-> semantic conventions by `IntrospectionSpanProcessor` automatically.
+> Pi is the only framework integration `init()` auto-discovers. Everything else
+> is manual instrumentation against the OTel APIs: agents emitting OpenInference
+> spans are converted to GenAI semantic conventions by
+> `IntrospectionSpanProcessor` automatically.
 
 ### Egress proxy
 

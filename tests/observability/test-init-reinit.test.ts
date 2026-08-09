@@ -12,7 +12,7 @@ import {
   init,
   shutdown,
   _resetForTests,
-  instrumentClaudeAgent,
+  instrumentPi,
 } from "../../packages/introspection-node/src/otel/init";
 import type { Integration } from "../../packages/introspection-node/src/otel/integrations/index";
 
@@ -60,18 +60,29 @@ describe("re-init after shutdown()", () => {
     expect(setups).toBe(2);
   });
 
-  it("rebuilds auto-discovered handles after shutdown + re-init", async () => {
-    const claudeSdk = await import("@anthropic-ai/claude-agent-sdk");
+  // `instrumentPi` throws a distinctive "not configured" error when the Pi
+  // handle is absent, and some other error once the handle is bound (the
+  // stub agent below is not a real pi Agent). Only the former means the
+  // handle failed to rebuild, so that is what we assert on.
+  const piHandleBound = (): boolean => {
+    try {
+      instrumentPi({ streamFn: () => undefined } as never, {} as never);
+      return true;
+    } catch (e) {
+      return !String(e).includes("Pi integration not configured");
+    }
+  };
 
+  it("rebuilds auto-discovered handles after shutdown + re-init", async () => {
     await init({ ...baseOpts(), autoDiscover: true });
-    // @anthropic-ai/claude-agent-sdk is installed (dev dep), so discovery
+    // @earendil-works/pi-agent-core is installed (dev dep), so discovery
     // publishes its handle.
-    expect(() => instrumentClaudeAgent(claudeSdk)).not.toThrow();
+    expect(piHandleBound()).toBe(true);
 
     await shutdown();
 
     // Before the fix, the run-once guard skipped re-install and this threw.
     await init({ ...baseOpts(), autoDiscover: true });
-    expect(() => instrumentClaudeAgent(claudeSdk)).not.toThrow();
+    expect(piHandleBound()).toBe(true);
   });
 });
