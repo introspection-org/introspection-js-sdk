@@ -31,8 +31,8 @@ export interface TextPart {
 /**
  * A reasoning / thinking content part in a message.
  *
- * `"thinking"` is the canonical spelling: it is what the platform stores, what
- * the backend stores, and the vocabulary the provider SDKs use. The semantic
+ * `"thinking"` is the canonical spelling: it is what the platform stores and
+ * the vocabulary the provider SDKs use. The semantic
  * conventions spell it `"reasoning"`, which this SDK emits and ingest accepts —
  * OTLP ingest normalizes either to `"thinking"` before writing.
  *

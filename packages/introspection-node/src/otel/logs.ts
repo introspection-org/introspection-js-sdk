@@ -144,8 +144,7 @@ export class IntrospectionLogs {
       maxExportBatchSize: options.maxBatchSize ?? 100,
       scheduledDelayMillis: options.flushInterval ?? 5000,
       // Passed only when set, so an unset option leaves the OTel SDK's own
-      // default (and its env-var override) in charge, which is what the
-      // env-var override) in charge.
+      // default (and its env-var override) in charge.
       ...(options.maxQueueSize != null
         ? { maxQueueSize: options.maxQueueSize }
         : {}),
