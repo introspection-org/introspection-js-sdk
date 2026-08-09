@@ -6,7 +6,7 @@
  * `gen_ai.tool.definitions` span attributes.
  *
  * Used by all `@introspection-sdk/*` packages that emit GenAI spans:
- * `introspection-node`, `introspection-openclaw`, `introspection-pi-agent`.
+ * `introspection-node`, `introspection-pi`.
  *
  * @see https://opentelemetry.io/docs/specs/semconv/gen-ai/
  */

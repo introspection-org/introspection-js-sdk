@@ -79,22 +79,6 @@ updates:
           - "@typescript-eslint/*"
           - "prettier"
 
-      # Observability backends used by the example dual-export tests.
-      observability-vendors:
-        applies-to: version-updates
-        patterns:
-          - "@arizeai/*"
-          - "@pollyjs/*"
-          - "braintrust"
-          - "langsmith"
-      observability-vendors-security:
-        applies-to: security-updates
-        patterns:
-          - "@arizeai/*"
-          - "@pollyjs/*"
-          - "braintrust"
-          - "langsmith"
-
       # Catch-all for any security alert not matching a more specific group —
       # rolls up everything else (transitive deps, optional peers, etc.) into
       # one PR rather than one-PR-per-alert.

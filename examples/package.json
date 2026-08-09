@@ -17,7 +17,6 @@
     "proxy-deepwiki-mcporter": "node --import tsx proxy/deepwiki-mcporter.ts"
   },
   "dependencies": {
-    "@arizeai/openinference-semantic-conventions": "^2.5.0",
     "@introspection-sdk/introspection-node": "workspace:*",
     "@introspection-sdk/introspection-pi": "workspace:*",
     "@introspection-sdk/introspection-proxy": "workspace:*",

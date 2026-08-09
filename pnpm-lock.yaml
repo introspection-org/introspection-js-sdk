@@ -29,9 +29,6 @@ importers:
 
   examples:
     dependencies:
-      '@arizeai/openinference-semantic-conventions':
-        specifier: ^2.5.0
-        version: 2.5.0
       '@introspection-sdk/introspection-node':
         specifier: workspace:*
         version: link:../packages/introspection-node
@@ -542,9 +539,6 @@ packages:
     peerDependenciesMeta:
       zod:
         optional: true
-
-  '@arizeai/openinference-semantic-conventions@2.5.0':
-    resolution: {integrity: sha512-4ZeSwiFX3YxB0WSE6x568wM4PVHiYmz3yiOxic6WGKVrE/KIGggMFP/eqUNQhikBKP68IDV0qiILlZAIYnheAQ==}
 
   '@aws-crypto/sha256-browser@5.2.0':
     resolution: {integrity: sha512-AXfN/lGotSQwu6HNcEsIASo7kWXZ5HYWvfOmSNKDsEqC4OashTp8alTmaz+F7TC2L083SFv5RdB+qU3Vs1kZqw==}
@@ -4462,8 +4456,6 @@ snapshots:
       json-schema-to-ts: 3.1.1
     optionalDependencies:
       zod: 4.4.3
-
-  '@arizeai/openinference-semantic-conventions@2.5.0': {}
 
   '@aws-crypto/sha256-browser@5.2.0':
     dependencies:

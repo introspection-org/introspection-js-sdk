@@ -144,7 +144,7 @@ export function simplifySpansForSnapshot(
       // Skip undefined values — they're non-deterministic from instrumentation
       if (value === undefined) continue;
       if (normalize) {
-        // The Vercel AI SDK (and others) may emit increasingly detailed usage
+        // Some instrumentation emits increasingly detailed usage
         // breakdown attributes (e.g. cache hits, reasoning tokens). These fields
         // are not semantically important for our snapshot assertions and tend to
         // change shape across dependency bumps, so we omit them.

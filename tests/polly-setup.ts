@@ -36,7 +36,6 @@ const SENSITIVE_HEADERS = [
   "anthropic-organization-id",
   "x-goog-api-key",
   "x-goog-user-project",
-  "x-langfuse-public-key",
   "space_id",
   "cookie",
   "set-cookie",
@@ -65,11 +64,6 @@ const SECRET_PATTERNS: [RegExp, string][] = [
   [/sk-proj-[A-Za-z0-9_-]{20,}/g, "REDACTED_OPENAI_KEY"],
   [/AIza[A-Za-z0-9_-]{35}/g, "REDACTED_GOOGLE_KEY"],
   [/sk-ant-api\d+-[A-Za-z0-9_-]{20,}/g, "REDACTED_ANTHROPIC_KEY"],
-  [/sk-D8K[A-Za-z0-9_-]{20,}/g, "REDACTED_BRAINTRUST_KEY"],
-  [/lsv2_pt_[a-f0-9]{32}_[a-f0-9]+/g, "REDACTED_LANGSMITH_KEY"],
-  [/sk-lf-[a-f0-9-]{36}/g, "REDACTED_LANGFUSE_SECRET"],
-  [/pk-lf-[a-f0-9-]{36}/g, "REDACTED_LANGFUSE_PUBLIC"],
-  [/ak-[a-f0-9-]{36}-[A-Za-z0-9_-]+/g, "REDACTED_ARIZE_KEY"],
   [/intro_dev_[A-Za-z0-9_-]{20,}/g, "REDACTED_INTROSPECTION_TOKEN"],
 ];
 

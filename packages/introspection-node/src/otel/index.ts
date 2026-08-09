@@ -29,7 +29,7 @@ export type {
   AgentMeta as PiAgentMeta,
 } from "./pi.js";
 
-// OpenInference span exporter (drops Arize/OpenInference attrs onto a
+// OpenInference span exporter (drops OpenInference attrs onto a
 // downstream OTel SpanExporter).
 export {
   addOpenInferenceAttributes,

@@ -9,7 +9,7 @@
  *
  * Runs `introspection.init()` from the environment **before** the app's module
  * graph executes, so no `init()` call is needed in application source —
- * framework auto-discovery (Pi, Vercel AI SDK, Claude Agent SDK) runs before
+ * framework auto-discovery (Pi) runs before
  * the application entry point evaluates.
  *
  * Configuration is read from the usual environment variables

@@ -59,7 +59,7 @@ const UUID_RE =
   /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi;
 const UUID_PLACEHOLDER = "00000000-0000-0000-0000-000000000000";
 
-// The Claude Agent SDK embeds a `cch=<hex>` nonce inside the
+// Some agent CLIs embed a `cch=<hex>` nonce inside the
 // `x-anthropic-billing-header` text on every outbound request. The value
 // changes every call and would make hash lookups miss on replay. Scrub it
 // before both hashing and persistence so recordings are reusable across runs.
