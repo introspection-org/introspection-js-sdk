@@ -4,9 +4,7 @@
  * These methods write straight to `console`, so the default level decides
  * whether importing this library prints onto an application's stdout. It
  * used to default to INFO, and constructing a client or a span processor
- * emitted an unsolicited line. The Python SDK attaches a NullHandler and
- * the Rust SDK prints nothing without a `tracing` subscriber; a library
- * should be quiet unless asked.
+ * emitted an unsolicited line. A library should be quiet unless asked.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 

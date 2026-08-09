@@ -155,7 +155,7 @@ describe("INTROSPECTION_DEV_TARGET", () => {
   });
 
   it("encodes exactly as the Python and Rust clients do", async () => {
-    // The three SDKs must put identical bytes on the wire for one target.
+    // The header must carry identical bytes on the wire for one target.
     // `encodeURIComponent` alone leaves `!'()*` where the others encode them;
     // the unreserved set must survive untouched in all three.
     const cases: Array<[string, string]> = [

@@ -185,15 +185,23 @@ export class IntrospectionClient {
       // maxBatchSize is the export batch size, not the queue bound. Wired to
       // maxQueueSize it left the queue at 100 while the batch size kept its
       // default of 512, which OTel warns about and clamps on every
-      // construction. Same mis-wiring the Node logs stream had.
+      // construction.
       maxExportBatchSize: advanced.maxBatchSize ?? 100,
       scheduledDelayMillis: advanced.flushInterval ?? 5000,
+      // Passed only when set, so an unset option leaves the OTel SDK's own
+      // default (and its env-var override) in charge.
+      ...(advanced.maxQueueSize != null
+        ? { maxQueueSize: advanced.maxQueueSize }
+        : {}),
+      ...(advanced.exportTimeoutMillis != null
+        ? { exportTimeoutMillis: advanced.exportTimeoutMillis }
+        : {}),
     });
 
     // Merge onto the default resource rather than replacing it: the default
     // is what supplies `telemetry.sdk.language` ("webjs") and the SDK
-    // version, which is how a record is attributed to this surface now that
-    // the scope name is shared across all four SDKs. Passing no resource at
+    // version, which is how a record is attributed to this surface, since
+    // the scope name alone does not name a platform. Passing no resource at
     // all left `service.name` at `unknown_service` -- the `serviceName`
     // option was accepted and never applied.
     this.loggerProvider = new LoggerProvider({
@@ -210,8 +218,7 @@ export class IntrospectionClient {
     // The dist name, per the OTel convention that the scope names the
     // instrumentation library. Deliberately not platform-tagged: the SDK
     // language already rides the resource as `telemetry.sdk.language`, which
-    // is the semconv-designated place for it. All four Introspection SDKs use
-    // this same scope name.
+    // is the semconv-designated place for it.
     this.otelLogger = this.loggerProvider.getLogger(
       "introspection-sdk",
       VERSION,
@@ -497,7 +504,7 @@ export class IntrospectionClient {
     // name the caller passed.
     const properties: Record<string, unknown> = { ...extra, name };
     // `!= null`, not truthiness: `comments: ""` is a comment the caller
-    // supplied, and the Python and Rust SDKs both carry it.
+    // supplied.
     if (comments != null) {
       properties.comments = comments;
     }

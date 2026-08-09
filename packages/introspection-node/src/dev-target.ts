@@ -38,7 +38,7 @@ export const DEV_TARGET_HEADER = "x-introspection-dev-target";
 export const DEV_TARGET_ENV = "INTROSPECTION_DEV_TARGET";
 
 /**
- * Percent-encode to RFC 3986, so the three SDKs put identical bytes on the
+ * Percent-encode to RFC 3986, so the header carries identical bytes on the
  * wire for the same target.
  *
  * `encodeURIComponent` leaves `!'()*` alone where Python's `quote(safe="")`

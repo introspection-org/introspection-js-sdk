@@ -42,7 +42,7 @@ export interface StreamOptions {
    * "reconnecting…" affordance or record telemetry. Default `false` — the
    * stream is otherwise fully transparent. The marker rides the same `CUSTOM`
    * channel the DP uses for `resume_gap`, so it is expressible identically
-   * across the JS/Python/Rust SDKs.
+   * in every language Introspection supports.
    */
   emitReconnectEvents?: boolean;
   /** Abort the stream (and any in-flight reconnect). */

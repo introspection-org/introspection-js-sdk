@@ -75,8 +75,18 @@ export interface IntrospectionLogsOptions {
   additionalHeaders?: Record<string, string>;
   /** Flush interval in milliseconds (default: 5000). */
   flushInterval?: number;
-  /** Maximum queue size before auto-flush (default: 100). */
+  /** Maximum export batch size (default: 100). */
   maxBatchSize?: number;
+  /**
+   * Maximum records buffered before new ones are dropped. Omit to keep the
+   * OTel SDK's default. See {@link AdvancedOptions.maxQueueSize}.
+   */
+  maxQueueSize?: number;
+  /**
+   * How long one export may take before it is abandoned, in milliseconds.
+   * Omit to keep the OTel SDK's default.
+   */
+  exportTimeoutMillis?: number;
   /**
    * Custom log record exporter, bypassing OTLP construction.
    *
@@ -133,6 +143,15 @@ export class IntrospectionLogs {
       // every construction.
       maxExportBatchSize: options.maxBatchSize ?? 100,
       scheduledDelayMillis: options.flushInterval ?? 5000,
+      // Passed only when set, so an unset option leaves the OTel SDK's own
+      // default (and its env-var override) in charge, which is what the
+      // env-var override) in charge.
+      ...(options.maxQueueSize != null
+        ? { maxQueueSize: options.maxQueueSize }
+        : {}),
+      ...(options.exportTimeoutMillis != null
+        ? { exportTimeoutMillis: options.exportTimeoutMillis }
+        : {}),
     });
 
     const baseResource = defaultResource();
@@ -149,8 +168,7 @@ export class IntrospectionLogs {
     // The dist name, per the OTel convention that the scope names the
     // instrumentation library. Deliberately not platform-tagged: the SDK
     // language already rides the resource as `telemetry.sdk.language`, which
-    // is the semconv-designated place for it. All four Introspection SDKs use
-    // this same scope name.
+    // is the semconv-designated place for it.
     this.otelLogger = this.loggerProvider.getLogger(
       "introspection-sdk",
       VERSION,
@@ -288,7 +306,7 @@ export class IntrospectionLogs {
     // name the caller passed.
     const properties: Record<string, unknown> = { ...extra, name };
     // `!= null`, not truthiness: `comments: ""` is a comment the caller
-    // supplied, and the Python and Rust SDKs both carry it. Dropping it here
+    // supplied. Dropping it here
     // made the same call produce a different event shape per SDK.
     if (comments != null) properties.comments = comments;
     const attributes = this.buildAttributes("introspection.feedback", {

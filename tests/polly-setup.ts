@@ -22,7 +22,7 @@ Polly.register(FSPersister);
 
 type PollyMode = "record" | "replay" | "passthrough";
 
-// Kept in sync with the Python SDK's cassette scrubbing
+// Cassette scrubbing
 // (introspection-python-sdk `tests/conftest.py` SENSITIVE_HEADERS) so both
 // SDKs redact the same credential headers from recordings.
 const SENSITIVE_HEADERS = [
@@ -54,7 +54,7 @@ function isSensitiveHeader(name: string): boolean {
   return SENSITIVE_HEADERS.includes(n) || SENSITIVE_HEADER_PATTERN.test(n);
 }
 
-// Mirror of the Python SDK's single source of truth for secret scrubbing
+// Single source of truth for secret scrubbing
 // (introspection-python-sdk `introspection_sdk/testing/redaction.py`
 // SECRET_PATTERNS): identical regexes and identical REDACTED_* placeholders,
 // so a secret is scrubbed the same way whether it lands in a JS or Python

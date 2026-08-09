@@ -35,6 +35,21 @@ export interface AdvancedOptions {
   flushInterval?: number;
   /** Maximum batch size before auto-flush (default: 100) */
   maxBatchSize?: number;
+  /**
+   * Maximum records buffered before new ones are dropped. Omit to keep the
+   * installed OTel SDK's default (2048), including any env-var override it
+   * honours.
+   *
+   * Distinct from {@link maxBatchSize}, which bounds one export rather than
+   * the queue behind it. Under a burst larger than the queue, spans and
+   * events are dropped silently — this is the knob that raises the ceiling.
+   */
+  maxQueueSize?: number;
+  /**
+   * How long one export may take before it is abandoned, in milliseconds.
+   * Omit to keep the installed OTel SDK's default (30000).
+   */
+  exportTimeoutMillis?: number;
   /** Enable debug logging to console */
   debug?: boolean;
   /** Additional HTTP headers to include in requests */
@@ -51,7 +66,7 @@ export interface AdvancedOptions {
    *
    * The analytics stream (`track` / `feedback` / `identify`) is OTLP logs on
    * every platform, so this is the seam for asserting what actually goes out
-   * on the wire. Matches the Python SDK's `log_exporter` constructor hook.
+   * on the wire.
    */
   logExporter?: LogRecordExporter;
   /**
@@ -201,7 +216,7 @@ export const StorageKey = {
  * id, a `symbol`, or a stray function vanished without a trace. `bigint` in
  * particular cannot go through `JSON.stringify`, which throws on it.
  *
- * Matches the Python SDK's `_attribute_value`: native scalars stay native,
+ * Native scalars stay native,
  * structured values are JSON, and anything else -- `bigint` included --
  * degrades to a string via the final fallback rather than disappearing.
  */

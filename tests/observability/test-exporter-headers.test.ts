@@ -2,7 +2,7 @@
  * What the two OTLP exporters put in their request headers.
  *
  * Both streams have to identify the SDK and its release, the way the Python
- * and Rust SDKs do on both of theirs. The logs exporter got a `User-Agent`
+ * on both exporters. The logs exporter got a `User-Agent`
  * and the traces exporter three files over did not, so exported spans
  * arrived at the collector unattributable to a client or a version. The
  * header set is built by one shared helper now; these assert that each

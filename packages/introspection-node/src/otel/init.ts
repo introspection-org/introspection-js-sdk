@@ -2,7 +2,7 @@
  * One-liner bootstrap for the Introspection OTel surface.
  *
  * `init()` detects the installed LLM frameworks and wires them into one shared
- * pipeline, mirroring the Python SDK's `introspection.init()`:
+ * pipeline:
  *
  * ```ts
  * import * as introspection from "@introspection-sdk/introspection-node/otel";
@@ -101,7 +101,7 @@ const state: InitState = {
   shutdownRegistered: false,
 };
 
-/** Generate a fresh conversation id (matches the Python SDK's format). */
+/** Generate a fresh conversation id in the format the backend expects. */
 export function newConversationId(): string {
   return `intro_conv_${crypto.randomUUID().replace(/-/g, "")}`;
 }
@@ -177,6 +177,11 @@ async function initOnce(options: InitOptions): Promise<TracerProvider> {
     options.baseUrl ?? process.env.INTROSPECTION_BASE_OTEL_URL ?? undefined;
   const advanced = options.advanced;
 
+  // `AdvancedOptions.debug` is shared with the browser client, which honours
+  // it; Node only ever read INTROSPECTION_LOG_LEVEL, so passing it here was
+  // silently inert.
+  if (advanced?.debug) logger.enableDebug();
+
   // A custom span exporter (tests) stands in for a token; otherwise a token is
   // required for anything to be exported.
   if (!token && !advanced?.spanExporter && !options.tracerProvider) {
@@ -196,6 +201,14 @@ async function initOnce(options: InitOptions): Promise<TracerProvider> {
     additionalHeaders: advanced?.additionalHeaders,
     flushInterval: advanced?.flushInterval,
     maxBatchSize: advanced?.maxBatchSize,
+    maxQueueSize: advanced?.maxQueueSize,
+    exportTimeoutMillis: advanced?.exportTimeoutMillis,
+    // Dropped here until now, so `init({ advanced: { logExporter } })` built
+    // an OTLP exporter anyway and every analytics event went to the real
+    // collector — from the one option documented as the seam for asserting
+    // what goes out on the wire. `spanExporter` was forwarded all along;
+    // this is its counterpart on the logs pipeline.
+    logExporter: advanced?.logExporter,
   });
 
   const ctx: IntegrationSetupContext = {

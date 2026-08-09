@@ -190,6 +190,7 @@ export class IntrospectionSpanProcessor implements SpanProcessor {
     this._serviceName = serviceName;
 
     const advanced = options.advanced || {};
+    if (advanced.debug) logger.enableDebug();
     const baseUrl =
       advanced.baseUrl ||
       process.env.INTROSPECTION_BASE_OTEL_URL ||
@@ -297,6 +298,12 @@ export class IntrospectionSpanProcessor implements SpanProcessor {
     this._spanProcessor = new BatchSpanProcessor(exporter, {
       maxExportBatchSize: options.advanced?.maxBatchSize,
       scheduledDelayMillis: options.advanced?.flushInterval,
+      // The queue bound and the export deadline. Under a burst larger than
+      // the default queue the OTel processor drops spans silently, and there
+      // was no knob here to raise it. `undefined` leaves the OTel default in
+      // place.
+      maxQueueSize: options.advanced?.maxQueueSize,
+      exportTimeoutMillis: options.advanced?.exportTimeoutMillis,
     });
   }
 

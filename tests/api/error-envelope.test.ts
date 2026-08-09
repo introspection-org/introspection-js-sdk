@@ -107,7 +107,7 @@ describe("toApiError parses both Retry-After forms", () => {
 
   it("reads a negative delta as now, not as a negative delay", async () => {
     // Unclamped it became a negative floor in `backoffMs` and then a
-    // negative `setTimeout`. All three SDKs clamp, the same way they all
+    // negative `setTimeout`. Clamped, the same way we
     // clamp a date already in the past.
     const err = await toApiError(
       jsonResponse(429, { detail: "slow down" }, { "retry-after": "-5" }),

@@ -2,7 +2,7 @@
  * The browser analytics client's wire contract.
  *
  * `track` / `feedback` / `identify` are OTLP logs on every platform, and the
- * attribute keys have to match what the Node and Python SDKs emit or the same
+ * attribute keys have to match what the Node analytics stream emits or the same
  * event lands in two shapes depending on where it was recorded. This file
  * asserts the browser half against a real in-memory log exporter, through the
  * `advanced.logExporter` seam.
@@ -43,7 +43,7 @@ describe("browser analytics emit the shared wire contract", () => {
     client.track("Button Clicked", { buttonId: "submit", count: 3 });
     const [record] = await records();
     expect(record["event.name"]).toBe("Button Clicked");
-    // Same id format as the Node and Python SDKs.
+    // Same id format the backend expects everywhere else.
     expect(record["event.id"]).toMatch(/^intro_event_[0-9a-f]+-[0-9a-z]{8}$/);
     expect(record["properties.buttonId"]).toBe("submit");
     expect(record["properties.count"]).toBe(3);
@@ -81,7 +81,7 @@ describe("browser analytics emit the shared wire contract", () => {
     expect(record["properties.comments"]).toBe("");
   });
 
-  it("reports the identified user, like the Node and Python SDKs", async () => {
+  it("reports the identified user, like the Node client", async () => {
     expect(client.getUserId()).toBeUndefined();
     client.identify("user_42");
     expect(client.getUserId()).toBe("user_42");

@@ -78,7 +78,7 @@ describe("IntrospectionLogs exports through the real pipeline", () => {
 
 describe("instrumentation scope and resource", () => {
   it("names the SDK, and leaves the language to the resource", async () => {
-    // All four Introspection SDKs share this scope name. The language is not
+    // The language is not
     // encoded in it on purpose: `telemetry.sdk.language` on the resource is
     // the semconv-designated place, and it is set for free. Asserted here
     // because the scope name's brevity depends on it being present.
@@ -264,7 +264,7 @@ describe("IntrospectionLogs", () => {
     const records = captureEmits(logs);
     // `""` is a comment the caller supplied. A truthiness check dropped it,
     // so the same call produced a `properties.comments` key in the Python
-    // and Rust SDKs and no key at all here.
+    // and no key at all here.
     logs.feedback("thumbs_down", { comments: "" });
     expect(records[0]).toMatchObject({ "properties.comments": "" });
   });
@@ -278,7 +278,7 @@ describe("IntrospectionLogs", () => {
   });
 
   it("reports the user id scoped on the current context", async () => {
-    // The anonymous-id getter existed alone; the Python and Rust SDKs
+    // The anonymous-id getter existed alone; callers
     // expose both halves of the identity they read from the same baggage.
     expect(logs.getUserId()).toBeUndefined();
     await logs.withUserId("u_42", async () => {
