@@ -76,6 +76,32 @@ describe("IntrospectionLogs exports through the real pipeline", () => {
   });
 });
 
+describe("instrumentation scope and resource", () => {
+  it("names the SDK, and leaves the language to the resource", async () => {
+    // All four Introspection SDKs share this scope name. The language is not
+    // encoded in it on purpose: `telemetry.sdk.language` on the resource is
+    // the semconv-designated place, and it is set for free. Asserted here
+    // because the scope name's brevity depends on it being present.
+    const exporter = new InMemoryLogRecordExporter();
+    const logs = new IntrospectionLogs({
+      token: "intro_test",
+      logExporter: exporter,
+      flushInterval: 1,
+    });
+    logs.track("E");
+    await logs.flush();
+    const [record] = exporter.getFinishedLogRecords();
+
+    expect(record!.instrumentationScope.name).toBe("introspection-sdk");
+    expect(record!.instrumentationScope.version).toMatch(/^\d+\.\d+\.\d+/);
+    expect(record!.resource.attributes["telemetry.sdk.language"]).toBe(
+      "nodejs",
+    );
+
+    await logs.shutdown();
+  });
+});
+
 describe("exporter headers", () => {
   it("identifies the SDK and release, like Python and Rust do", () => {
     const headers = exporterHeaders("intro_test");

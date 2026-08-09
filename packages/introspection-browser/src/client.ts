@@ -13,6 +13,11 @@ import {
 } from "@opentelemetry/sdk-logs";
 import { OTLPLogExporter } from "@opentelemetry/exporter-logs-otlp-http";
 import { propagation, context } from "@opentelemetry/api";
+import {
+  defaultResource,
+  resourceFromAttributes,
+} from "@opentelemetry/resources";
+import { ATTR_SERVICE_NAME } from "@opentelemetry/semantic-conventions";
 import { VERSION } from "./version.js";
 import {
   generateEventId,
@@ -185,14 +190,30 @@ export class IntrospectionClient {
       scheduledDelayMillis: advanced.flushInterval ?? 5000,
     });
 
-    // Create logger provider with processor
+    // Merge onto the default resource rather than replacing it: the default
+    // is what supplies `telemetry.sdk.language` ("webjs") and the SDK
+    // version, which is how a record is attributed to this surface now that
+    // the scope name is shared across all four SDKs. Passing no resource at
+    // all left `service.name` at `unknown_service` -- the `serviceName`
+    // option was accepted and never applied.
     this.loggerProvider = new LoggerProvider({
+      resource: defaultResource().merge(
+        resourceFromAttributes({
+          [ATTR_SERVICE_NAME]:
+            options.serviceName ?? "introspection-browser-client",
+        }),
+      ),
       processors: [processor],
     });
 
     // Get a logger instance
+    // The dist name, per the OTel convention that the scope names the
+    // instrumentation library. Deliberately not platform-tagged: the SDK
+    // language already rides the resource as `telemetry.sdk.language`, which
+    // is the semconv-designated place for it. All four Introspection SDKs use
+    // this same scope name.
     this.otelLogger = this.loggerProvider.getLogger(
-      "@introspection-sdk/introspection-browser",
+      "introspection-sdk",
       VERSION,
     );
 

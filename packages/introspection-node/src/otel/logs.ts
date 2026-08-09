@@ -162,8 +162,13 @@ export class IntrospectionLogs {
       processors: [processor],
     });
 
+    // The dist name, per the OTel convention that the scope names the
+    // instrumentation library. Deliberately not platform-tagged: the SDK
+    // language already rides the resource as `telemetry.sdk.language`, which
+    // is the semconv-designated place for it. All four Introspection SDKs use
+    // this same scope name.
     this.otelLogger = this.loggerProvider.getLogger(
-      "@introspection-sdk/introspection-node",
+      "introspection-sdk",
       VERSION,
     );
 

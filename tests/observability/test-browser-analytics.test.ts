@@ -22,6 +22,7 @@ beforeEach(() => {
   exporter = new InMemoryLogRecordExporter();
   client = new IntrospectionClient({
     token: "intro_test",
+    serviceName: "shop-frontend",
     advanced: { logExporter: exporter, flushInterval: 1 },
   });
 });
@@ -88,6 +89,26 @@ describe("browser analytics emit the shared wire contract", () => {
     expect(record["properties.obj"]).toBe('{"a":1}');
     expect(record["properties.big"]).toBe("9007199254740993");
     expect(record["properties.n"]).toBe(2);
+  });
+
+  it("shares the SDK scope name and carries its own resource", async () => {
+    // The provider used to be constructed with no resource at all, so
+    // `service.name` stayed `unknown_service` and the `serviceName` option
+    // was accepted and never applied. That mattered more once the scope name
+    // became the same string all four SDKs use: `telemetry.sdk.language`
+    // ("webjs") and service.name are what identify this surface now.
+    client.track("E");
+    await client.flush();
+    const [record] = exporter.getFinishedLogRecords();
+
+    expect(record!.instrumentationScope.name).toBe("introspection-sdk");
+    expect(record!.resource.attributes["service.name"]).toBe("shop-frontend");
+    // Present, not a specific value: `@opentelemetry/resources` picks the
+    // language through conditional exports, so a real browser bundle reports
+    // "webjs" while this suite -- which runs under Node -- sees "nodejs".
+    // What matters is that the attribute is there at all, since the scope
+    // name no longer distinguishes the surfaces.
+    expect(record!.resource.attributes["telemetry.sdk.language"]).toBeTruthy();
   });
 
   it("emits at severity INFO", async () => {
