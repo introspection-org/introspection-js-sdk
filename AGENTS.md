@@ -73,14 +73,9 @@ Examples (post-rename):
 - `examples/otel/vercel/ai-sdk-langfuse.ts` — dual-export
 - `examples/otel/raw/multi-turn-conversation.ts` (the wrapper-free OTel example)
 
-**Naming note — Anthropic is two SDKs, two folders:**
-
-| Folder                        | npm package                                                              |
-| ----------------------------- | ------------------------------------------------------------------------ |
-| `examples/otel/anthropic/`    | `@anthropic-ai/sdk` (raw Node SDK)                                       |
-| `examples/otel/claude-agent/` | `@anthropic-ai/claude-agent-sdk` (agent SDK; spawns the `claude` binary) |
-
-Top-level peers under `otel/`. Do not nest one under the other.
+**Naming note:** `examples/otel/claude-agent/` is the Claude Agent SDK
+(`@anthropic-ai/claude-agent-sdk`, which spawns the `claude` binary). Example
+folders are top-level peers under `otel/`. Do not nest one under another.
 
 ### Tests folder layout
 
