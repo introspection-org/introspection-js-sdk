@@ -107,7 +107,7 @@ describe("browser analytics emit the shared wire contract", () => {
     // The provider used to be constructed with no resource at all, so
     // `service.name` stayed `unknown_service` and the `serviceName` option
     // was accepted and never applied. That mattered more once the scope name
-    // became the same string all four SDKs use: `telemetry.sdk.language`
+    // became one shared string: `telemetry.sdk.language`
     // ("webjs") and service.name are what identify this surface now.
     client.track("E");
     await client.flush();

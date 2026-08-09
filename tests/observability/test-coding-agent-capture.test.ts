@@ -574,8 +574,8 @@ describe("span construction", () => {
 
   it("keeps tool payloads off the tool span, where nothing encrypts them", async () => {
     // The processor encrypts a closed set of GenAI attributes. Content on
-    // `gen_ai.tool.call.arguments` / `.result` would land in ClickHouse in the
-    // clear, so it must live in the messages instead — even at `full`.
+    // `gen_ai.tool.call.arguments` / `.result` would be stored in the clear,
+    // so it must live in the messages instead — even at `full`.
     await seedConsent({
       version: 1,
       enabled: true,

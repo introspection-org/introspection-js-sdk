@@ -161,7 +161,7 @@ const json = await client.conversations.exportJson(conversationId);
 const stream = await client.conversations.exportStream(conversationId, "json");
 ```
 
-`client.files` mirrors the Node SDK's `FilesApi` (`list` / `upload` /
+`client.files` covers the same file surface (`list` / `upload` /
 `createText` / `get` / `update` / `delete` / `download` / `downloadStream`,
 plus `files.versions`). `client.conversations` mirrors `ConversationsApi`
 (`list`, `retrieve`, `exportJson`, `exportArrow`, `exportTrajectory`,

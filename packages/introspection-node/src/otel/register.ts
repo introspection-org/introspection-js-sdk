@@ -17,8 +17,7 @@
  * `INTROSPECTION_BASE_OTEL_URL`). If no token is configured the preload logs a
  * warning and does nothing, so it never crashes the host application.
  *
- * This is the counterpart to the private SDK's `register.ts`, adapted to the
- * `src/otel` surface: it drives the existing `init()` rather than registering an
+ * It drives the existing `init()` rather than registering an
  * import-in-the-middle loader hook.
  */
 import { logger } from "../utils.js";
