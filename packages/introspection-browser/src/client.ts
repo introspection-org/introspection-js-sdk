@@ -162,11 +162,16 @@ export class IntrospectionClient {
       Object.assign(headers, advanced.additionalHeaders);
     }
 
-    // Create OTLP log exporter with HTTP/JSON
-    const exporter = new OTLPLogExporter({
-      url: endpoint,
-      headers,
-    });
+    // Create OTLP log exporter with HTTP/JSON. `advanced.logExporter` swaps
+    // it for an in-memory one: the analytics stream is the whole point of
+    // this client, and without a seam there was no way to assert what it
+    // puts on the wire short of standing up a collector.
+    const exporter =
+      advanced.logExporter ??
+      new OTLPLogExporter({
+        url: endpoint,
+        headers,
+      });
 
     // Create batch processor
     const processor = new BatchLogRecordProcessor({
@@ -481,7 +486,10 @@ export class IntrospectionClient {
     const { comments, conversationId, previousResponseId, eventId, ...extra } =
       options;
 
-    const properties: Record<string, unknown> = { name, ...extra };
+    // `name` last: it is the positional argument, so an `extra` key that
+    // happens to be called `name` must not silently replace the feedback
+    // name the caller passed.
+    const properties: Record<string, unknown> = { ...extra, name };
     if (comments) {
       properties.comments = comments;
     }

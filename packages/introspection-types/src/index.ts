@@ -4,6 +4,7 @@
  */
 
 import type { SpanExporter } from "@opentelemetry/sdk-trace-base";
+import type { LogRecordExporter } from "@opentelemetry/sdk-logs";
 
 export { EventType } from "@ag-ui/core";
 export type {
@@ -38,9 +39,28 @@ export interface AdvancedOptions {
   debug?: boolean;
   /** Additional HTTP headers to include in requests */
   additionalHeaders?: Record<string, string>;
-  /** Custom span exporter (for testing - use InMemorySpanExporter) */
+  /**
+   * Custom span exporter (for testing - use InMemorySpanExporter).
+   *
+   * Node only. The browser client has no span pipeline -- it emits analytics
+   * events as OTLP logs; see {@link AdvancedOptions.logExporter}.
+   */
   spanExporter?: SpanExporter;
-  /** Custom `fetch` implementation (for tests or non-Node 18 runtimes). */
+  /**
+   * Custom log record exporter (for testing - use InMemoryLogRecordExporter).
+   *
+   * The analytics stream (`track` / `feedback` / `identify`) is OTLP logs on
+   * every platform, so this is the seam for asserting what actually goes out
+   * on the wire. Matches the Python SDK's `log_exporter` constructor hook.
+   */
+  logExporter?: LogRecordExporter;
+  /**
+   * Custom `fetch` implementation (for tests or non-Node 18 runtimes).
+   *
+   * Node only. In the browser, pass `fetch` to the REST client
+   * (`IntrospectionApiClient`) instead -- the analytics client reaches the
+   * collector through the OTLP exporter, which does not take one.
+   */
   fetch?: typeof fetch;
 }
 
