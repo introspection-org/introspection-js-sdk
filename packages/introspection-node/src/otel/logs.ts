@@ -75,9 +75,6 @@ export interface IntrospectionLogsOptions {
 export class IntrospectionLogs {
   private loggerProvider: LoggerProvider;
   private otelLogger: ReturnType<LoggerProvider["getLogger"]>;
-  private userId: string | undefined;
-  private anonymousId: string | undefined;
-  private traits: Record<string, unknown> = {};
 
   constructor(options: IntrospectionLogsOptions = {}) {
     const token = options.token || process.env.INTROSPECTION_TOKEN || "";
@@ -157,13 +154,21 @@ export class IntrospectionLogs {
     };
   }
 
-  /** Get identity from baggage or instance state */
+  /**
+   * Get identity from baggage.
+   *
+   * Baggage only, deliberately. This used to fall back to `userId` /
+   * `anonymousId` held on the instance, but `init()` builds one instance per
+   * process: under any concurrency, the identity of whichever request called
+   * `identify()` last attached itself to every other request's events. Scope
+   * identity with {@link withUserId} / {@link withAnonymousId} instead, which
+   * carry it on the async context where it belongs.
+   */
   private getIdentityFromContext(): IdentityContext {
     const baggage = propagation.getBaggage(context.active());
     return {
-      userId: baggage?.getEntry("identity.user_id")?.value || this.userId,
-      anonymousId:
-        baggage?.getEntry("identity.anonymous_id")?.value || this.anonymousId,
+      userId: baggage?.getEntry("identity.user_id")?.value,
+      anonymousId: baggage?.getEntry("identity.anonymous_id")?.value,
     };
   }
 
@@ -290,22 +295,34 @@ export class IntrospectionLogs {
     sdkLogger.debug(`Feedback: ${name}`);
   }
 
+  /**
+   * Emit an `identify` event associating `userId` with `traits`.
+   *
+   * The identity lands on this event only. It does not persist onto later
+   * `track` / `feedback` calls — wrap those in {@link withUserId} (or set the
+   * baggage yourself) to scope identity across several events.
+   */
   identify(
     userId: string,
     traits?: UserTraits,
     anonymousId?: string,
     eventId?: string,
   ): void {
-    this.userId = userId;
-    if (anonymousId) this.anonymousId = anonymousId;
-    if (traits) this.traits = { ...this.traits, ...traits };
-    const attributes = this.buildAttributes("identify", { traits, eventId });
-    this.otelLogger.emit({
-      timestamp: this.getTimestamp(),
-      context: context.active(),
-      severityNumber: SeverityNumber.INFO,
-      severityText: "INFO",
-      attributes,
+    const identity: Record<string, string> = { "identity.user_id": userId };
+    if (anonymousId) identity["identity.anonymous_id"] = anonymousId;
+
+    // Emit inside the identity baggage rather than reading it off the
+    // instance, so the record carries the ids without any state outliving the
+    // call.
+    context.with(this.createBaggageContext(identity), () => {
+      const attributes = this.buildAttributes("identify", { traits, eventId });
+      this.otelLogger.emit({
+        timestamp: this.getTimestamp(),
+        context: context.active(),
+        severityNumber: SeverityNumber.INFO,
+        severityText: "INFO",
+        attributes,
+      });
     });
     sdkLogger.debug(`Identified: ${userId}`);
   }
@@ -349,14 +366,6 @@ export class IntrospectionLogs {
     return await context.with(this.createBaggageContext(values), callback);
   }
 
-  setUserId(userId: string): void {
-    this.userId = userId;
-  }
-
-  setAnonymousId(anonymousId: string): void {
-    this.anonymousId = anonymousId;
-  }
-
   async withUserId<T>(
     userId: string,
     callback: () => T | Promise<T>,
@@ -377,15 +386,9 @@ export class IntrospectionLogs {
     );
   }
 
+  /** The anonymous id on the current async context, if one is scoped. */
   getAnonymousId(): string | undefined {
-    return this.anonymousId;
-  }
-
-  reset(): void {
-    this.userId = undefined;
-    this.anonymousId = undefined;
-    this.traits = {};
-    sdkLogger.debug("IntrospectionLogs state reset");
+    return this.getIdentityFromContext().anonymousId;
   }
 
   async flush(): Promise<void> {
