@@ -2,7 +2,7 @@
  * Tests for the unified `introspection.init()` entry point.
  *
  * Covers three concerns as nested describes:
- *  - the integration loader (run-once + `deactivates` + `DidNotEnable`),
+ *  - the integration loader (run-once + `isAvailable` + `DidNotEnable`),
  *  - `init()` wiring / idempotency / analytics proxies / `conversation()`,
  *  - auto-discovery of the installed frameworks.
  *
@@ -51,7 +51,7 @@ describe("introspection.init()", () => {
 
   // -------------------------------------------------------------------------
   describe("integration loader", () => {
-    it("runs setupOnce once and respects deactivates", async () => {
+    it("runs setupOnce exactly once per identifier", async () => {
       const calls: string[] = [];
       const A: Integration = {
         identifier: "a",
@@ -59,40 +59,38 @@ describe("introspection.init()", () => {
       };
       const B: Integration = {
         identifier: "b",
-        deactivates: ["a"],
         setupOnce: () => calls.push("b"),
       };
 
       const installed = await setupIntegrations([A, B], fakeCtx());
+      expect(installed.has("a")).toBe(true);
       expect(installed.has("b")).toBe(true);
-      expect(installed.has("a")).toBe(false); // deactivated by B
-      expect(calls).toEqual(["b"]);
+      expect(calls).toEqual(["a", "b"]);
 
       // Second call is a no-op for already-installed identifiers.
-      await setupIntegrations([B], fakeCtx());
-      expect(calls).toEqual(["b"]);
+      await setupIntegrations([A, B], fakeCtx());
+      expect(calls).toEqual(["a", "b"]);
     });
 
-    it("does not apply deactivates from unavailable integrations", async () => {
+    it("skips integrations whose isAvailable resolves false", async () => {
       const calls: string[] = [];
       const Available: Integration = {
         identifier: "available",
         setupOnce: () => calls.push("available"),
       };
-      const MissingWrapper: Integration = {
-        identifier: "missing-wrapper",
-        deactivates: ["available"],
+      const Missing: Integration = {
+        identifier: "missing",
         isAvailable: () => false,
-        setupOnce: () => calls.push("missing-wrapper"),
+        setupOnce: () => calls.push("missing"),
       };
 
       const installed = await setupIntegrations(
-        [MissingWrapper, Available],
+        [Missing, Available],
         fakeCtx(),
       );
 
       expect(installed.has("available")).toBe(true);
-      expect(installed.has("missing-wrapper")).toBe(false);
+      expect(installed.has("missing")).toBe(false);
       expect(calls).toEqual(["available"]);
     });
 

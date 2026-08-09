@@ -114,17 +114,12 @@ export interface IntegrationSetupContext {
  * users may also pass custom integrations to `init({ integrations: [...] })`.
  */
 export interface Integration {
-  /** Stable identifier used for the run-once guard and `deactivates`. */
+  /** Stable identifier used for the run-once guard. */
   readonly identifier: string;
   /**
-   * Identifiers of other integrations to disable when this one is active, so a
-   * wrapping framework does not double-trace the SDK it wraps.
-   */
-  readonly deactivates?: readonly string[];
-  /**
    * Optional availability probe for built-in integrations backed by optional
-   * peer packages. Missing peers should return false so their `deactivates`
-   * rules do not affect installed integrations.
+   * peer packages. Missing peers should return false so the integration is
+   * skipped quietly.
    */
   isAvailable?(): boolean | Promise<boolean>;
   /**

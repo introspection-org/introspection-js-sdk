@@ -76,7 +76,7 @@ export async function discoverIntegrations(): Promise<Integration[]> {
 }
 
 /**
- * Run each integration's `setupOnce` once, honouring `deactivates`.
+ * Run each integration's `setupOnce` exactly once.
  *
  * @returns the set of identifiers installed so far this process.
  */
@@ -92,18 +92,7 @@ export async function setupIntegrations(
     }
   }
 
-  const disabled = new Set<string>();
-  for (const integration of byId.values()) {
-    for (const id of integration.deactivates ?? []) disabled.add(id);
-  }
-
   for (const [identifier, integration] of byId) {
-    if (disabled.has(identifier)) {
-      logger.debug(
-        `Skipping ${identifier} (deactivated by another integration)`,
-      );
-      continue;
-    }
     if (installed.has(identifier)) continue;
     try {
       const teardown = await integration.setupOnce(ctx);
