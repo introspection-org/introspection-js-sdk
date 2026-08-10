@@ -107,7 +107,7 @@ await analytics.shutdown();
 In a browser, `@introspection-sdk/introspection-browser` records the same three
 signals. Give it a browser-safe telemetry token, never a project API key.
 
-See [Product signals and external agents](https://docs.introspection.dev/sdk/javascript/product-signals).
+See [Product signals and tracing](https://docs.introspection.dev/sdk/javascript/product-signals).
 
 ## Instrument a Pi agent
 
@@ -176,7 +176,7 @@ export INTROSPECTION_LOG_LEVEL="debug"           # optional
 - [Browser applications](https://docs.introspection.dev/sdk/javascript/browser-applications)
 - [Files and shares](https://docs.introspection.dev/sdk/javascript/files-and-shares)
 - [Production evidence](https://docs.introspection.dev/sdk/javascript/production-evidence)
-- [Product signals and external agents](https://docs.introspection.dev/sdk/javascript/product-signals)
+- [Product signals and tracing](https://docs.introspection.dev/sdk/javascript/product-signals)
 - [Platform operations](https://docs.introspection.dev/sdk/javascript/platform-operations)
 - [JavaScript SDK reference](https://docs.introspection.dev/sdk/javascript/reference)
 - [Authentication](https://docs.introspection.dev/sdk/authentication)
