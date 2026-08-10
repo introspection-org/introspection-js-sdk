@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.21.1](https://github.com/introspection-org/introspection-js-sdk/compare/v0.21.0...v0.21.1) (2026-08-10)
+
+
+### Bug Fixes
+
+* **ci:** remove competing release tagger ([#324](https://github.com/introspection-org/introspection-js-sdk/issues/324)) ([4e2db67](https://github.com/introspection-org/introspection-js-sdk/commit/4e2db6781768b9c856e839a776d67927e6fd8cf2))
+
 ## [0.21.0](https://github.com/introspection-org/introspection-js-sdk/compare/v0.20.0...v0.21.0) (2026-08-10)
 
 
