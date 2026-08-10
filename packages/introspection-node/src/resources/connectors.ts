@@ -184,6 +184,10 @@ export class ConnectorsApi {
    * `expires_in` when handing the link to someone else to open later. A
    * chat-provider connector (`connector.requires_runtime === true`) 422s
    * unless `runtime` names the agent that replies.
+   *
+   * Passing `params.identity` mints a `customer` member for the asserted
+   * end user, so it can raise a {@link ConflictError} (409) when the org has
+   * reached its member limit — a plan conflict, not back-pressure.
    */
   authorize(
     connectorId: Uuid,
