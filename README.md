@@ -80,6 +80,10 @@ const followUp = await runner.tasks.runs.create(handle.run.task_id, {
 console.log(await followUp.text());
 ```
 
+See [Tasks and streaming](https://docs.introspection.dev/sdk/javascript/tasks-and-streaming) for reconnects,
+interrupts, and cancellation, and [Browser applications](https://docs.introspection.dev/sdk/javascript/browser-applications)
+for running tasks from a browser through a backend token broker.
+
 ## Record feedback
 
 The `/otel` entrypoint emits `track` / `feedback` / `identify` and attaches
@@ -102,6 +106,8 @@ await analytics.shutdown();
 
 In a browser, `@introspection-sdk/introspection-browser` records the same three
 signals. Give it a browser-safe telemetry token, never a project API key.
+
+See [Product signals and external agents](https://docs.introspection.dev/sdk/javascript/product-signals).
 
 ## Instrument a Pi agent
 
@@ -139,6 +145,10 @@ await introspection.shutdown();
 
 Spans in the OpenTelemetry GenAI semantic conventions are exported as they are.
 
+Read the durable record of any of this with
+[Production evidence](https://docs.introspection.dev/sdk/javascript/production-evidence), and give an agent
+durable inputs with [Files and shares](https://docs.introspection.dev/sdk/javascript/files-and-shares).
+
 ## Packages
 
 | Package                                                                         | Description                                                                       |
@@ -161,7 +171,15 @@ export INTROSPECTION_LOG_LEVEL="debug"           # optional
 
 ## Documentation
 
-Full documentation is available at [docs.introspection.dev](https://docs.introspection.dev).
+- [JavaScript quickstart](https://docs.introspection.dev/sdk/javascript/quickstart)
+- [Tasks and streaming](https://docs.introspection.dev/sdk/javascript/tasks-and-streaming)
+- [Browser applications](https://docs.introspection.dev/sdk/javascript/browser-applications)
+- [Files and shares](https://docs.introspection.dev/sdk/javascript/files-and-shares)
+- [Production evidence](https://docs.introspection.dev/sdk/javascript/production-evidence)
+- [Product signals and external agents](https://docs.introspection.dev/sdk/javascript/product-signals)
+- [Platform operations](https://docs.introspection.dev/sdk/javascript/platform-operations)
+- [JavaScript SDK reference](https://docs.introspection.dev/sdk/javascript/reference)
+- [Authentication](https://docs.introspection.dev/sdk/authentication)
 
 ## License
 
