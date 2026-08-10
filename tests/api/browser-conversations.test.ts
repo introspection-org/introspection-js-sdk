@@ -69,7 +69,7 @@ describe("browser ConversationsClient", () => {
     const items = new ConversationItemsClient(http);
 
     const ids: (string | undefined)[] = [];
-    for await (const span of items.list("conv-1", { order: "asc" })) {
+    for await (const span of items.list("conv-1")) {
       ids.push(span.span_id);
     }
 
@@ -139,7 +139,6 @@ describe("browser ConversationsClient", () => {
   it("is exposed on IntrospectionApiClient.conversations", () => {
     const client = new IntrospectionApiClient({
       dpUrl: "https://dp.example.com",
-      projectId: "proj-1",
       getToken: () => "token",
       fetch: vi.fn() as unknown as typeof fetch,
     });

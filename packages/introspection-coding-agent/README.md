@@ -34,11 +34,6 @@ choice matters beyond not writing two parsers: it is the same normalization the
 eval harness reaches through Harbor's ATIF export, so a production onboarding
 session and an eval trajectory describe the same run the same way.
 
-> Note: `@introspection-sdk/introspection-node` already exports
-> `IntrospectionClaudeHooks`. That instruments the **Claude Agent SDK** — the
-> in-process `query()` API with callback hooks — which is a different execution
-> model from the CLI. The two are complementary, not redundant.
-
 ## Consent
 
 Capture is **off unless a recorded opt-in enables it**. A missing, unreadable, or

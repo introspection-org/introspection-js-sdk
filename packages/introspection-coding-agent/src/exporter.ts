@@ -132,9 +132,12 @@ export function createTracing(
       withProxy({
         url: endpoint,
         headers: {
-          "User-Agent": `introspection-sdk/${VERSION}`,
           Authorization: `Bearer ${token}`,
         },
+        // Not a `User-Agent` header: the OTLP HTTP transport overwrites that
+        // one unconditionally just before the request, so it never reaches
+        // the collector. This option is prepended to the exporter's own.
+        userAgent: `introspection-sdk/${VERSION}`,
         // Bounded so a hung collector cannot hold a hook open. The caller
         // enforces its own outer deadline too; this is the transport-level one.
         timeoutMillis: 10_000,

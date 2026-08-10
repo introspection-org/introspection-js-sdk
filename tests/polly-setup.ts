@@ -22,9 +22,8 @@ Polly.register(FSPersister);
 
 type PollyMode = "record" | "replay" | "passthrough";
 
-// Kept in sync with the Python SDK's cassette scrubbing
-// (introspection-python-sdk `tests/conftest.py` SENSITIVE_HEADERS) so both
-// SDKs redact the same credential headers from recordings.
+// Cassette scrubbing: credential-bearing headers are redacted before a
+// recording is written, so cassettes stay committable.
 const SENSITIVE_HEADERS = [
   "authorization",
   "api-key",
@@ -36,7 +35,6 @@ const SENSITIVE_HEADERS = [
   "anthropic-organization-id",
   "x-goog-api-key",
   "x-goog-user-project",
-  "x-langfuse-public-key",
   "space_id",
   "cookie",
   "set-cookie",
@@ -55,7 +53,7 @@ function isSensitiveHeader(name: string): boolean {
   return SENSITIVE_HEADERS.includes(n) || SENSITIVE_HEADER_PATTERN.test(n);
 }
 
-// Mirror of the Python SDK's single source of truth for secret scrubbing
+// Single source of truth for secret scrubbing
 // (introspection-python-sdk `introspection_sdk/testing/redaction.py`
 // SECRET_PATTERNS): identical regexes and identical REDACTED_* placeholders,
 // so a secret is scrubbed the same way whether it lands in a JS or Python
@@ -65,11 +63,6 @@ const SECRET_PATTERNS: [RegExp, string][] = [
   [/sk-proj-[A-Za-z0-9_-]{20,}/g, "REDACTED_OPENAI_KEY"],
   [/AIza[A-Za-z0-9_-]{35}/g, "REDACTED_GOOGLE_KEY"],
   [/sk-ant-api\d+-[A-Za-z0-9_-]{20,}/g, "REDACTED_ANTHROPIC_KEY"],
-  [/sk-D8K[A-Za-z0-9_-]{20,}/g, "REDACTED_BRAINTRUST_KEY"],
-  [/lsv2_pt_[a-f0-9]{32}_[a-f0-9]+/g, "REDACTED_LANGSMITH_KEY"],
-  [/sk-lf-[a-f0-9-]{36}/g, "REDACTED_LANGFUSE_SECRET"],
-  [/pk-lf-[a-f0-9-]{36}/g, "REDACTED_LANGFUSE_PUBLIC"],
-  [/ak-[a-f0-9-]{36}-[A-Za-z0-9_-]+/g, "REDACTED_ARIZE_KEY"],
   [/intro_dev_[A-Za-z0-9_-]{20,}/g, "REDACTED_INTROSPECTION_TOKEN"],
 ];
 
@@ -82,12 +75,12 @@ function scrubSecrets(text: string | undefined | null): string | undefined {
   return out;
 }
 
-export interface SetupPollyOptions {
+interface SetupPollyOptions {
   recordingName: string;
   adapters?: ("fetch" | "node-http")[];
 }
 
-export function getPollyMode(): PollyMode {
+function getPollyMode(): PollyMode {
   const mode = (process.env.POLLY_MODE || "replay") as PollyMode;
   if (mode !== "record" && mode !== "replay" && mode !== "passthrough") {
     throw new Error(
@@ -252,24 +245,11 @@ export function installTestOTelGlobals(): () => void {
  * Usage:
  *
  *   const client = new Anthropic({ baseURL: pollyEndpoints.anthropic.node });
- *   const model = new ChatAnthropic({
- *     anthropicApiUrl: pollyEndpoints.anthropic.langchain,
- *   });
- *   const m = openai({ baseURL: pollyEndpoints.openai.aiSdk })("gpt-5-nano");
  */
 export const pollyEndpoints = {
   anthropic: {
     /** Anthropic Node SDK appends `/v1/messages` itself. */
     node: "https://api.anthropic.com",
-    /** `@langchain/anthropic` uses the same base as the Node SDK. */
-    langchain: "https://api.anthropic.com",
-    /** `@ai-sdk/anthropic` appends just `/messages` — base must include /v1. */
-    aiSdk: "https://api.anthropic.com/v1",
-  },
-  openai: {
-    /** OpenAI Node SDK and `@ai-sdk/openai` use the same base. */
-    node: "https://api.openai.com/v1",
-    aiSdk: "https://api.openai.com/v1",
   },
 } as const;
 
@@ -278,7 +258,7 @@ export const pollyEndpoints = {
  * Polly.js persister-fs may append a hash to the directory name,
  * so we check for any directory starting with the recording name.
  */
-export function hasRecording(recordingName: string): boolean {
+function hasRecording(recordingName: string): boolean {
   const recordingsDir = path.resolve(__dirname, "recordings");
   if (!fs.existsSync(recordingsDir)) return false;
   const entries = fs.readdirSync(recordingsDir);

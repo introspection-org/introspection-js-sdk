@@ -33,9 +33,18 @@ describe("IntrospectionClient construction", () => {
     vi.unstubAllEnvs();
   });
 
-  it("defaults advanced to {} when not provided", () => {
+  it("defaults advanced to the SDK's own headers and nothing else", () => {
     const client = new IntrospectionClient({ token: "tok" });
-    expect(client.advancedOptions).toEqual({});
+    // `additionalHeaders` is always populated now: the client identifies the
+    // SDK and its release on every REST call, and the Runner's Data-Plane
+    // client inherits the set from here.
+    expect(client.advancedOptions).toEqual({
+      additionalHeaders: {
+        "User-Agent": expect.stringMatching(
+          /^introspection-sdk\/\d+\.\d+\.\d+/,
+        ),
+      },
+    });
   });
 
   it("uses an explicit token and advanced.baseApiUrl", async () => {

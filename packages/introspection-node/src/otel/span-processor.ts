@@ -17,13 +17,12 @@ import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-proto";
 import { ExportResult, ExportResultCode } from "@opentelemetry/core";
 import { randomUUID } from "crypto";
 import type { AdvancedOptions } from "../types.js";
-import { logger, withOtlpHttpsProxy } from "../utils.js";
 import {
-  isOpenInferenceSpan,
-  replaceOpenInferenceWithGenAI,
-  isVercelAISpan,
-  convertVercelAIToGenAI,
-} from "../converters/index.js";
+  exporterHeaders,
+  logger,
+  otlpUserAgent,
+  withOtlpHttpsProxy,
+} from "../utils.js";
 
 /**
  * Extended span type that includes both v1 and v2 instrumentation properties.
@@ -64,7 +63,7 @@ const IDENTITY_BAGGAGE_TO_ATTRIBUTE: Readonly<Record<string, string>> = {
  * a converted set while delegating every other property to the original span.
  *
  * Used internally by {@link IntrospectionSpanProcessor} to convert
- * OpenInference attributes to Gen AI semantic conventions on-the-fly.
+ * `gen_ai` spans to the Introspection backend.
  */
 class ConvertedReadableSpan implements ReadableSpan {
   private _original: ReadableSpan;
@@ -150,25 +149,41 @@ export interface IntrospectionSpanProcessorOptions {
 
 /**
  * OTel {@link SpanProcessor} that forwards traces to the Introspection backend
- * via OTLP, automatically converting any OpenInference spans to Gen AI
+ * via OTLP, stamping baggage-derived identity onto each Gen AI
  * semantic convention attributes.
+ *
+ * Processors are constructor-only in OTel SDK v2 — there is no post-hoc
+ * `addSpanProcessor` — so pass it when you build the provider.
  *
  * @example
  * ```ts
- * import { IntrospectionSpanProcessor } from "@introspection-sdk/introspection-node";
+ * import { IntrospectionSpanProcessor } from "@introspection-sdk/introspection-node/otel";
+ * import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
  *
- * const processor = new IntrospectionSpanProcessor({ token: "sk-intro-…" });
- * tracerProvider.addSpanProcessor(processor);
+ * const provider = new NodeTracerProvider({
+ *   spanProcessors: [new IntrospectionSpanProcessor({ token: "intro_…" })],
+ * });
+ * provider.register();
  * ```
  */
 export class IntrospectionSpanProcessor implements SpanProcessor {
   private _spanProcessor: SpanProcessor;
   private _serviceName?: string;
+  /**
+   * Fallback conversation id per trace, so spans in one trace agree when no
+   * conversation is set. Bounded and FIFO-evicted: one entry per trace in a
+   * long-lived process is a slow leak, and traces are short-lived, so the
+   * oldest entry is the one least likely to still be receiving spans.
+   */
   private _conversationIds: Map<string, string> = new Map();
+  private static readonly MAX_TRACKED_TRACES = 4096;
 
   constructor(options: IntrospectionSpanProcessorOptions = {}) {
     const token = options.token || process.env.INTROSPECTION_TOKEN;
-    if (!token) {
+    // A custom exporter carries its own transport and auth, so it stands in
+    // for a token — the same exemption init() documents. Without this,
+    // init({ advanced: { spanExporter } }) threw here for tokenless callers.
+    if (!token && !options.advanced?.spanExporter) {
       throw new Error("INTROSPECTION_TOKEN is required");
     }
 
@@ -180,15 +195,13 @@ export class IntrospectionSpanProcessor implements SpanProcessor {
     this._serviceName = serviceName;
 
     const advanced = options.advanced || {};
+    if (advanced.debug) logger.enableDebug();
     const baseUrl =
       advanced.baseUrl ||
       process.env.INTROSPECTION_BASE_OTEL_URL ||
       "https://otel.introspection.dev";
 
-    const headers: Record<string, string> = {
-      Authorization: `Bearer ${token}`,
-      ...(advanced.additionalHeaders || {}),
-    };
+    const headers = exporterHeaders(token, advanced.additionalHeaders);
 
     // Construct endpoint URL
     let endpoint: string;
@@ -209,6 +222,7 @@ export class IntrospectionSpanProcessor implements SpanProcessor {
         withOtlpHttpsProxy({
           url: endpoint,
           headers,
+          ...otlpUserAgent,
         }),
       );
 
@@ -284,8 +298,19 @@ export class IntrospectionSpanProcessor implements SpanProcessor {
       },
     };
 
-    // Use BatchSpanProcessor like logfire does
-    this._spanProcessor = new BatchSpanProcessor(exporter);
+    // `flushInterval` / `maxBatchSize` are documented on AdvancedOptions and
+    // honoured for the logs pipeline; passing no options here left them inert
+    // for spans.
+    this._spanProcessor = new BatchSpanProcessor(exporter, {
+      maxExportBatchSize: options.advanced?.maxBatchSize,
+      scheduledDelayMillis: options.advanced?.flushInterval,
+      // The queue bound and the export deadline. Under a burst larger than
+      // the default queue the OTel processor drops spans silently, and there
+      // was no knob here to raise it. `undefined` leaves the OTel default in
+      // place.
+      maxQueueSize: options.advanced?.maxQueueSize,
+      exportTimeoutMillis: options.advanced?.exportTimeoutMillis,
+    });
   }
 
   /**
@@ -299,7 +324,7 @@ export class IntrospectionSpanProcessor implements SpanProcessor {
   }
 
   /**
-   * Called when a span ends. If the span originates from an OpenInference
+   * Called when a span ends. If the span
    * instrumentor, its attributes are converted to `gen_ai.*` semconv keys
    * before being forwarded.
    *
@@ -351,28 +376,9 @@ export class IntrospectionSpanProcessor implements SpanProcessor {
       return;
     }
 
-    const isOI =
-      isOpenInferenceSpan(scopeName) ||
-      typeof span.attributes["openinference.span.kind"] === "string";
-    const isVercel = isVercelAISpan(span.attributes);
-
-    // Skip Vercel AI SDK wrapper spans (ai.streamText, ai.generateText).
-    // They duplicate the child doStream/doGenerate output without proper
-    // input message windows, causing empty user messages in conversation view.
-    // This applies regardless of whether OI attributes are also present.
-    const aiOperationId = span.attributes["ai.operationId"];
-    if (
-      typeof aiOperationId === "string" &&
-      !String(aiOperationId).includes(".do")
-    ) {
-      return;
-    }
-
     // Skip spans that have no LLM-relevant data — they are infrastructure spans
     // (e.g. Next.js route resolution, HTTP spans) that should not be exported.
     const hasGenAi =
-      isOI ||
-      isVercel ||
       span.attributes["gen_ai.provider.name"] != null ||
       span.attributes["gen_ai.operation.name"] != null ||
       span.attributes["gen_ai.request.model"] != null ||
@@ -381,43 +387,7 @@ export class IntrospectionSpanProcessor implements SpanProcessor {
 
     if (!hasGenAi) return;
 
-    let attrs: Record<string, unknown>;
-    if (isOI) {
-      attrs = {
-        ...(replaceOpenInferenceWithGenAI(span.attributes) as Record<
-          string,
-          unknown
-        >),
-      };
-      // When both OI and Vercel attrs present, merge Vercel-specific
-      // enrichments (conversation ID from metadata, etc.)
-      if (isVercel) {
-        const vercelAttrs = convertVercelAIToGenAI(span.attributes);
-        for (const [key, value] of Object.entries(vercelAttrs)) {
-          // Prefer Vercel output messages when they contain reasoning.
-          // Either spelling counts: converters emit `"reasoning"`, but a part
-          // that has been through ingest normalization says `"thinking"`.
-          if (
-            key === "gen_ai.output.messages" &&
-            typeof value === "string" &&
-            (value.includes('"reasoning"') || value.includes('"thinking"'))
-          ) {
-            attrs[key] = value;
-          } else if (attrs[key] === undefined) {
-            attrs[key] = value;
-          }
-        }
-      }
-      logger.debug(`Converting OpenInference span: ${span.name}`);
-    } else if (isVercel) {
-      attrs = {
-        ...span.attributes,
-        ...convertVercelAIToGenAI(span.attributes),
-      };
-      logger.debug(`Converting Vercel AI span: ${span.name}`);
-    } else {
-      attrs = { ...span.attributes };
-    }
+    const attrs: Record<string, unknown> = { ...span.attributes };
     delete attrs["gen_ai.system"];
 
     // Read baggage from active context
@@ -436,6 +406,14 @@ export class IntrospectionSpanProcessor implements SpanProcessor {
           traceId,
           `intro_conv_${randomUUID().replace(/-/g, "")}`,
         );
+        while (
+          this._conversationIds.size >
+          IntrospectionSpanProcessor.MAX_TRACKED_TRACES
+        ) {
+          const oldest = this._conversationIds.keys().next();
+          if (oldest.done) break;
+          this._conversationIds.delete(oldest.value);
+        }
       }
       attrs["gen_ai.conversation.id"] = this._conversationIds.get(traceId)!;
     }

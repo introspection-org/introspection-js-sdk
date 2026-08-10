@@ -101,6 +101,25 @@ jobs:
             fi
             jq --arg v "$VERSION" '.version = $v' "$pkg" > tmp.json && mv tmp.json "$pkg"
             echo "Stamped $(jq -r .name "$pkg") → ${VERSION}"
+
+            # src/version.ts is the OTel instrumentation-scope version. Left
+            # unstamped it ships as the hardcoded placeholder, so every
+            # released span and log record reports the wrong scope version.
+            version_ts="$(dirname "$pkg")/src/version.ts"
+            if [ -f "$version_ts" ]; then
+              sed -i "s/export const VERSION = \".*\";/export const VERSION = \"${VERSION}\";/" "$version_ts"
+              echo "Stamped $version_ts → ${VERSION}"
+            fi
+          done
+
+      - name: Verify no version placeholder survived
+        run: |
+          VERSION="${{ needs.resolve-version.outputs.version }}"
+          for f in packages/*/src/version.ts; do
+            grep -q "\"${VERSION}\"" "$f" || {
+              echo "::error::$f was not stamped to ${VERSION}"
+              exit 1
+            }
           done
 
       - name: Build all packages

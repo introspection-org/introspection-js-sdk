@@ -84,10 +84,14 @@ export class RuntimesClient<TRunner> {
 
   /** Resolve a runtime group slug or ID by querying `/v1/runtimes?runtime=…`. */
   async resolve(runtime: string, project?: string): Promise<Runtime> {
+    // `limit: 1`: the route answers newest-first, so a slug published more
+    // than once resolves to the version the group currently serves. This
+    // asked for 2 and discarded the second, implying an ambiguity check that
+    // was never written.
     for await (const match of this.list({
       project,
       runtime,
-      limit: 2,
+      limit: 1,
     })) {
       return match;
     }

@@ -36,7 +36,7 @@ import type {
  * `@earendil-works/pi-coding-agent`'s `core/messages.ts` — not exported,
  * so mirrored here). This is only the FALLBACK detection path for callers
  * that cannot supply {@link ConvertOptions.compactionSummaries}; the
- * contract test in `tests/converters/pi.test.ts` pins these against pi's
+ * contract test in `tests/observability/test-pi-convert.test.ts` pins these against pi's
  * real `convertToLlm` output, so a rewording in pi fails the SDK tests
  * instead of silently breaking the fallback.
  */
@@ -256,7 +256,7 @@ function toolResultToSemconv(message: ToolResultMessage): InputMessage {
         type: "tool_call_response",
         id: message.toolCallId,
         name: message.toolName,
-        response: extractToolResultText(message.content),
+        response: toolResultResponse(message.content),
       },
     ],
   };
@@ -309,13 +309,25 @@ function extractTextFromUserContent(
     .join("");
 }
 
-function extractToolResultText(content: ToolResultMessage["content"]): string {
+/**
+ * The value to put on a `tool_call_response` part.
+ *
+ * Text-only results stay a plain string, which is what a reader expects and
+ * what every provider actually returns. A result carrying anything else --
+ * pi's `ToolResultMessage.content` is `(TextContent | ImageContent)[]`, so a
+ * screenshot or browser tool returns images -- keeps its blocks verbatim
+ * instead of being flattened to the empty string.
+ */
+function toolResultResponse(content: ToolResultMessage["content"]): unknown {
   if (typeof content === "string") return content;
   if (!Array.isArray(content)) return "";
-  return content
-    .map((block) => (block.type === "text" ? block.text : ""))
-    .filter(Boolean)
-    .join("\n");
+  if (content.every((block) => block.type === "text")) {
+    return content
+      .map((block) => (block.type === "text" ? block.text : ""))
+      .filter(Boolean)
+      .join("\n");
+  }
+  return content;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -332,6 +344,10 @@ function extractToolResultText(content: ToolResultMessage["content"]): string {
  *   break the assistant→tool_result pairing the providers expect.
  * - Strips trailing assistant `tool_call` blocks that never received a
  *   matching tool result (e.g. an aborted turn).
+ *
+ * User content round-trips in both directions: a text-only message comes
+ * back as the string form pi uses, and image blobs come back as
+ * `ImageContent` blocks in their original position.
  */
 export function inputMessagesToMessages(
   messages: readonly InputMessage[],
@@ -347,19 +363,39 @@ export function inputMessagesToMessages(
     if (message.role === "user") {
       // Compaction parts are re-rendered into the exact prefixed text Pi
       // originally sent to the model, so hydrated history is byte-identical.
-      const text = parts
-        .map((part) =>
-          isTextPart(part)
-            ? part.content
-            : isCompactionPart(part)
-              ? COMPACTION_SUMMARY_PREFIX +
-                part.content +
-                COMPACTION_SUMMARY_SUFFIX
-              : "",
-        )
-        .join("");
-      if (!text) continue;
-      result.push({ role: "user", content: text, timestamp: 0 });
+      // Blob parts carry the image payloads `userMessageToSemconv` recorded;
+      // collapsing them to text would silently drop an image-only message
+      // from the hydrated history.
+      const content: (TextContent | ImageContent)[] = [];
+      for (const part of parts) {
+        if (isTextPart(part)) {
+          if (part.content) content.push({ type: "text", text: part.content });
+        } else if (isCompactionPart(part)) {
+          content.push({
+            type: "text",
+            text:
+              COMPACTION_SUMMARY_PREFIX +
+              part.content +
+              COMPACTION_SUMMARY_SUFFIX,
+          });
+        } else if (isImageBlobPart(part)) {
+          content.push({
+            type: "image",
+            data: part.content,
+            mimeType: part.mime_type ?? "image/png",
+          });
+        }
+      }
+      if (content.length === 0) continue;
+      // A text-only message round-trips to the string form Pi itself uses.
+      const onlyText = content.every((block) => block.type === "text");
+      result.push({
+        role: "user",
+        content: onlyText
+          ? content.map((block) => (block as TextContent).text).join("")
+          : content,
+        timestamp: 0,
+      });
       continue;
     }
 
@@ -395,6 +431,8 @@ export function inputMessagesToMessages(
           toolCallId: id,
           toolName,
           content: [{ type: "text", text: stringifyToolResult(part.response) }],
+          // The GenAI semconv has no field for a failed tool result, so the
+          // flag does not survive the round trip in either direction.
           isError: false,
           timestamp: 0,
         });
@@ -535,8 +573,16 @@ function isCompactionPart(part: MessagePart): part is CompactionPart {
   return part.type === "compaction";
 }
 
+function isImageBlobPart(part: MessagePart): part is BlobPart {
+  return part.type === "blob" && part.modality === "image";
+}
+
 function isReasoningPart(part: MessagePart): part is ReasoningPart {
-  return part.type === "reasoning";
+  // Both spellings: this SDK emits "reasoning" per semconv, but OTLP ingest
+  // normalizes to "thinking", so a part read back off a stored span always
+  // says "thinking". Narrowing on one spelling silently drops the block —
+  // including its signature, which extended thinking needs for continuity.
+  return part.type === "reasoning" || part.type === "thinking";
 }
 
 function isToolCallRequestPart(part: MessagePart): part is ToolCallRequestPart {

@@ -21,7 +21,7 @@ import { TestSpanExporter, IncrementalIdGenerator } from "../testing";
  *
  * Tests here intentionally don't go through any LLM SDK — they isolate the
  * processor-side baggage merge using plain tracer.startSpan() calls.
- * Framework-specific baggage paths (LangChain, Vercel AI SDK, Pi, Claude
+ * Framework-specific baggage paths (Pi and
  * Agent SDK) live in their dedicated test files and use real SDK calls
  * against recordings.
  */

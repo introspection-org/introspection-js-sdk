@@ -106,19 +106,6 @@ export class SandboxUnavailableError extends IntrospectionAPIError {
   }
 }
 
-/** Stream transport failed mid-run after a 2xx open. */
-export class StreamError extends IntrospectionAPIError {
-  constructor(
-    opts: Omit<
-      ConstructorParameters<typeof IntrospectionAPIError>[0],
-      "status"
-    > & { status?: number },
-  ) {
-    super({ ...opts, status: opts.status ?? 0 });
-    this.name = "StreamError";
-  }
-}
-
 /** Transport failure before any HTTP response (DNS, TLS, abort, etc.). */
 export class NetworkError extends IntrospectionAPIError {
   constructor(

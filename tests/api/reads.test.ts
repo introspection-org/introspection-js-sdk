@@ -10,6 +10,7 @@ import type {
   EventListParams,
   MetricQueryRequest,
 } from "@introspection-sdk/introspection-node";
+import { bytesBody } from "../testing";
 
 function mockHttp(overrides: Record<string, unknown> = {}) {
   return {
@@ -154,7 +155,7 @@ describe("EventsApi.list — Arrow format", () => {
     headers: Record<string, string>,
   ): Response {
     const ipc = tableToIPC(tableFromArrays(rows), "stream");
-    return new Response(ipc, { headers });
+    return new Response(bytesBody(ipc), { headers });
   }
 
   it("negotiates Arrow and rebuilds the Paginated shape from headers", async () => {

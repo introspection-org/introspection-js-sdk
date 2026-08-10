@@ -20,14 +20,16 @@ import type { ResourceHttpClient } from "./resources/types.js";
  *
  * Readiness folds in the same way: a not-yet-attachable run answers the attach
  * with `429` + `Retry-After`, which is honoured as a backoff floor and retried
- * — never surfaced to the caller.
+ * — never surfaced to the caller. Readiness waits are counted separately from
+ * reconnects and are bounded by `timeoutMs`, not `maxReconnects`: a run that
+ * is slow to provision has not failed at anything.
  */
 
 export interface StreamOptions {
   /**
    * Maximum consecutive reconnects with no forward progress before the stream
    * gives up and throws. Reset whenever a reconnect delivers a new event.
-   * Default `5`.
+   * Does not bound `429` readiness waits — `timeoutMs` does. Default `5`.
    */
   maxReconnects?: number;
   /** Base (ms) for the capped-exponential reconnect/readiness backoff. Default `500`. */
@@ -40,7 +42,7 @@ export interface StreamOptions {
    * "reconnecting…" affordance or record telemetry. Default `false` — the
    * stream is otherwise fully transparent. The marker rides the same `CUSTOM`
    * channel the DP uses for `resume_gap`, so it is expressible identically
-   * across the JS/Python/Rust SDKs.
+   * in every language Introspection supports.
    */
   emitReconnectEvents?: boolean;
   /** Abort the stream (and any in-flight reconnect). */
@@ -90,6 +92,12 @@ export async function* streamResumable(
   // that is not a valid resume cursor, so only numeric ids advance it.
   let lastEventId: string | null = null;
   let reconnects = 0;
+  // Readiness waits are counted separately from reconnects: a 429 means the
+  // run is not attachable yet, which is not a failed attempt. It still needs
+  // its own counter, though -- feeding a pinned 0 to `backoffMs` left the
+  // delay at a flat 0-500ms for the whole window, roughly 1200 attach
+  // attempts against an endpoint that had just asked us to back off.
+  let readinessWaits = 0;
 
   for (;;) {
     if (opts.signal?.aborted) {
@@ -111,12 +119,14 @@ export async function* streamResumable(
         isRateLimit && err.retryAfter != null ? err.retryAfter * 1000 : null;
       // A 429 (not attachable yet) is a readiness wait, not a failed attempt;
       // any other connect error counts toward the no-progress reconnect budget.
-      if (!isRateLimit) reconnects += 1;
+      if (isRateLimit) readinessWaits += 1;
+      else reconnects += 1;
       if (reconnects > maxReconnects || Date.now() >= deadline) throw err;
+      const attempt = isRateLimit ? readinessWaits : reconnects;
       if (opts.emitReconnectEvents) {
         yield reconnectEvent({
           reason: isRateLimit ? "readiness" : "connect_error",
-          attempt: reconnects,
+          attempt,
           lastEventId,
           phase: isRateLimit ? phaseOf(err.body) : null,
           retryAfterMs,
@@ -124,7 +134,7 @@ export async function* streamResumable(
       }
       await sleep(
         Math.min(
-          backoffMs(reconnects, retryAfterMs, baseMs),
+          backoffMs(attempt, retryAfterMs, baseMs),
           deadline - Date.now(),
         ),
         opts.signal,

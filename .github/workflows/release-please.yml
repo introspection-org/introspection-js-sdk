@@ -3,7 +3,8 @@ name: Release Please
 # Maintains the release PR (changelog + version.txt bump) AND cuts the
 # vX.Y.Z tag + GitHub Release when that PR merges — the release-PR merge IS
 # the release. The tag (app-token push) triggers publish.yml as before.
-# release-tag.yml remains as a dispatch-only break-glass tagger.
+# ci.yml's `create-tag` job is the idempotent fallback tagger for a release
+# PR that merged without its tag.
 
 on:
   push:

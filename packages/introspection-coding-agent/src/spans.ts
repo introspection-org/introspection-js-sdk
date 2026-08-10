@@ -19,7 +19,7 @@
  * platform's encryption is keyed on a **closed set** of GenAI attribute names
  * (`gen_ai.input.messages`, `gen_ai.output.messages`,
  * `gen_ai.system_instructions`, `gen_ai.tool.definitions`). Anything outside
- * that set is written to ClickHouse in the clear. A new attribute family would
+ * that set is stored in the clear. A new attribute family would
  * therefore be born unencrypted, and would need a parallel classifier, a second
  * storage shape, and a second read path forever.
  *
@@ -264,8 +264,8 @@ export function emitTurnSpans(
             // Tool spans carry identity and timing only. The arguments and the
             // result live in the messages above, which is the only place the
             // platform encrypts — putting a copy on
-            // `gen_ai.tool.call.arguments` would write the same payload to
-            // ClickHouse in the clear.
+            // `gen_ai.tool.call.arguments` would store the same payload in
+            // the clear.
             const span = tracer.startSpan(
               `execute_tool ${call.name}`,
               {

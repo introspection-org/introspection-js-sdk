@@ -9,6 +9,9 @@
  */
 
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { trace } from "@opentelemetry/api";
+import type { StreamFn } from "@earendil-works/pi-agent-core";
+import { IntrospectionPiInstrumentor } from "@introspection-sdk/introspection-node/otel/pi";
 import {
   BasicTracerProvider,
   InMemorySpanExporter,
@@ -66,7 +69,11 @@ function setupTracer() {
 }
 
 function makeMockStreamFn() {
-  return vi.fn(() => {
+  // Typed with the parameters `StreamFn` declares, even though the body
+  // ignores them: tests cast `agent.streamFunction` to `typeof streamFn`,
+  // and a zero-arg mock made that cast reject the two-argument call the
+  // agent actually makes.
+  return vi.fn((..._args: Parameters<StreamFn>) => {
     const stream = createAssistantMessageEventStream();
     stream.push({
       type: "done",
@@ -109,21 +116,21 @@ describe("Pi Subagents — distinct AgentMeta per instrumented agent", () => {
     });
 
     // Orchestrator: phase 1
-    const orchStream1 = wrappedOrch(MODEL, {
+    const orchStream1 = await wrappedOrch(MODEL, {
       systemPrompt: "Dispatch tasks.",
       messages: [{ role: "user", content: "List tasks.", timestamp: 0 }],
     });
     await orchStream1.result();
 
     // Researcher: processes a task
-    const researcherStream = wrappedResearcher(MODEL, {
+    const researcherStream = await wrappedResearcher(MODEL, {
       systemPrompt: "Research primes.",
       messages: [{ role: "user", content: "Explain primes.", timestamp: 0 }],
     });
     await researcherStream.result();
 
     // Orchestrator: phase 3 — same wrappedOrch, same AgentMeta → same conversation ID
-    const orchStream2 = wrappedOrch(MODEL, {
+    const orchStream2 = await wrappedOrch(MODEL, {
       systemPrompt: "Synthesise.",
       messages: [{ role: "user", content: "Summarise.", timestamp: 0 }],
     });
@@ -184,14 +191,20 @@ describe("Pi Subagents — distinct AgentMeta per instrumented agent", () => {
 
     // Run both in parallel — AsyncLocalStorage keeps spans isolated
     await Promise.all([
-      primesStream(MODEL, {
-        messages: [{ role: "user", content: "Explain primes.", timestamp: 0 }],
-      }).result(),
-      fibStream(MODEL, {
-        messages: [
-          { role: "user", content: "Explain Fibonacci.", timestamp: 0 },
-        ],
-      }).result(),
+      (
+        await primesStream(MODEL, {
+          messages: [
+            { role: "user", content: "Explain primes.", timestamp: 0 },
+          ],
+        })
+      ).result(),
+      (
+        await fibStream(MODEL, {
+          messages: [
+            { role: "user", content: "Explain Fibonacci.", timestamp: 0 },
+          ],
+        })
+      ).result(),
     ]);
 
     await provider.forceFlush();
@@ -211,5 +224,72 @@ describe("Pi Subagents — distinct AgentMeta per instrumented agent", () => {
     // Same agent name, different agent IDs and conversation IDs
     expect(primesSpan?.attributes["gen_ai.agent.id"]).toBe("researcher-primes");
     expect(fibSpan?.attributes["gen_ai.agent.id"]).toBe("researcher-fib");
+  });
+});
+
+describe("IntrospectionPiInstrumentor lifecycle", () => {
+  /** A stand-in Agent: only what the instrumentor touches. */
+  function fakeAgent(streamFn: ReturnType<typeof makeMockStreamFn>) {
+    return {
+      streamFunction: streamFn,
+      subscribe: () => () => {},
+    } as unknown as Parameters<IntrospectionPiInstrumentor["instrument"]>[0];
+  }
+
+  const META: AgentMeta = {
+    agentName: "worker",
+    agentId: "w-1",
+    conversationId: "conv-1",
+  };
+
+  it("replaces instrumentation instead of stacking it", async () => {
+    const { exporter, provider } = setupTracer();
+    trace.setGlobalTracerProvider(provider);
+    const instrumentor = new IntrospectionPiInstrumentor();
+    const streamFn = makeMockStreamFn();
+    const agent = fakeAgent(streamFn);
+
+    // AgentMeta carries the conversation id, so a host reusing one Agent
+    // across conversations calls this again by design. Double-wrapping
+    // produced two chat spans per call, the inner one stamped with the
+    // previous conversation.
+    instrumentor.instrument(agent, META);
+    instrumentor.instrument(agent, { ...META, conversationId: "conv-2" });
+
+    await (agent as unknown as { streamFunction: typeof streamFn })
+      .streamFunction(MODEL, {
+        systemPrompt: "go",
+        messages: [{ role: "user", content: "hi", timestamp: 0 }],
+      })
+      .result();
+
+    const chats = exporter
+      .getFinishedSpans()
+      .filter((s) => s.name.startsWith("chat"));
+    expect(chats).toHaveLength(1);
+    expect(chats[0]?.attributes["gen_ai.conversation.id"]).toBe("conv-2");
+    instrumentor.stop();
+  });
+
+  it("puts the original stream function back on stop", async () => {
+    const { exporter, provider } = setupTracer();
+    trace.setGlobalTracerProvider(provider);
+    const instrumentor = new IntrospectionPiInstrumentor();
+    const streamFn = makeMockStreamFn();
+    const agent = fakeAgent(streamFn);
+
+    instrumentor.instrument(agent, META);
+    instrumentor.stop();
+
+    await (agent as unknown as { streamFunction: typeof streamFn })
+      .streamFunction(MODEL, {
+        systemPrompt: "go",
+        messages: [{ role: "user", content: "hi", timestamp: 0 }],
+      })
+      .result();
+
+    // A stopped instrumentor's agents used to keep emitting forever, onto a
+    // provider that may already be shut down.
+    expect(exporter.getFinishedSpans()).toHaveLength(0);
   });
 });

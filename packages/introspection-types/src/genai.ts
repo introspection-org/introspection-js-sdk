@@ -6,7 +6,7 @@
  * `gen_ai.tool.definitions` span attributes.
  *
  * Used by all `@introspection-sdk/*` packages that emit GenAI spans:
- * `introspection-node`, `introspection-openclaw`, `introspection-pi-agent`.
+ * `introspection-node`, `introspection-pi`.
  *
  * @see https://opentelemetry.io/docs/specs/semconv/gen-ai/
  */
@@ -31,8 +31,8 @@ export interface TextPart {
 /**
  * A reasoning / thinking content part in a message.
  *
- * `"thinking"` is the canonical spelling: it is what the platform stores, what
- * the Python SDK emits, and the vocabulary the provider SDKs use. The semantic
+ * `"thinking"` is the canonical spelling: it is what the platform stores and
+ * the vocabulary the provider SDKs use. The semantic
  * conventions spell it `"reasoning"`, which this SDK emits and ingest accepts —
  * OTLP ingest normalizes either to `"thinking"` before writing.
  *
@@ -182,7 +182,7 @@ export interface CompactionPart {
  * unrecognized part is not an error here — it simply flows through as data,
  * and a `switch` over `type` falls to its default. Adding an open catch-all
  * member would buy nothing and would cost the narrowing every consumer relies
- * on. (The Python SDK does need one, because its union *is* a runtime
+ * on. (A runtime-validated union would need one, because it *is* a runtime
  * validator and an unknown tag there fails the whole message.)
  */
 export type MessagePart =
@@ -483,8 +483,8 @@ function isFiniteNumber(value: unknown): value is number {
 /**
  * How a requested abort is classified on a span
  * (`introspection.termination_reason`): `cancelled` for a user/runtime stop,
- * `awaiting_user` for a turn paused on an interrupt. Turn (`invoke_agent`)
- * spans additionally use `completed` and `error` for non-aborted endings.
+ * `awaiting_user` for a turn paused on an interrupt. A non-aborted ending
+ * leaves the attribute unset; the span status carries the outcome.
  */
 export type AbortTerminationReason = "cancelled" | "awaiting_user";
 

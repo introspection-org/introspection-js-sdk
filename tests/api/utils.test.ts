@@ -45,7 +45,9 @@ describe("withOtlpHttpsProxy", () => {
 
   it("adds an httpAgentOptions factory for an https endpoint behind HTTPS_PROXY", () => {
     process.env.HTTPS_PROXY = "http://127.0.0.1:8888";
-    const out = withOtlpHttpsProxy({ url: "https://example.com" }) as {
+    const out = withOtlpHttpsProxy({
+      url: "https://example.com",
+    }) as unknown as {
       httpAgentOptions: () => unknown;
     };
     expect(typeof out.httpAgentOptions).toBe("function");

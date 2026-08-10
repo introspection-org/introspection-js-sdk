@@ -32,6 +32,7 @@ import { SeverityNumber, type LogAttributes } from "@opentelemetry/api-logs";
 import {
   LoggerProvider,
   BatchLogRecordProcessor,
+  type LogRecordExporter,
 } from "@opentelemetry/sdk-logs";
 import { OTLPLogExporter } from "@opentelemetry/exporter-logs-otlp-proto";
 import {
@@ -41,10 +42,17 @@ import {
 import { ATTR_SERVICE_NAME } from "@opentelemetry/semantic-conventions";
 import { propagation, context } from "@opentelemetry/api";
 
-import { logger as sdkLogger, withOtlpHttpsProxy } from "../utils.js";
+import {
+  DEFAULT_SERVICE_NAME,
+  exporterHeaders,
+  logger as sdkLogger,
+  otlpUserAgent,
+  withOtlpHttpsProxy,
+} from "../utils.js";
 import { VERSION } from "../version.js";
 import {
   generateEventId,
+  toAttributeValue,
   type FeedbackOptions,
   type UserTraits,
   type GenAiContext,
@@ -68,23 +76,39 @@ export interface IntrospectionLogsOptions {
   additionalHeaders?: Record<string, string>;
   /** Flush interval in milliseconds (default: 5000). */
   flushInterval?: number;
-  /** Maximum queue size before auto-flush (default: 100). */
+  /** Maximum export batch size (default: 100). */
   maxBatchSize?: number;
+  /**
+   * Maximum records buffered before new ones are dropped. Omit to keep the
+   * OTel SDK's default. See {@link AdvancedOptions.maxQueueSize}.
+   */
+  maxQueueSize?: number;
+  /**
+   * How long one export may take before it is abandoned, in milliseconds.
+   * Omit to keep the OTel SDK's default.
+   */
+  exportTimeoutMillis?: number;
+  /**
+   * Custom log record exporter, bypassing OTLP construction.
+   *
+   * The analytics stream is the contract that has to match across SDKs, and
+   * this is the seam for asserting what goes out on it. Matches the Python
+   * SDK's `log_exporter` constructor argument, the Rust config's
+   * `log_exporter`, and the browser client's `advanced.logExporter`.
+   */
+  logExporter?: LogRecordExporter;
 }
 
 export class IntrospectionLogs {
   private loggerProvider: LoggerProvider;
   private otelLogger: ReturnType<LoggerProvider["getLogger"]>;
-  private userId: string | undefined;
-  private anonymousId: string | undefined;
-  private traits: Record<string, unknown> = {};
 
   constructor(options: IntrospectionLogsOptions = {}) {
     const token = options.token || process.env.INTROSPECTION_TOKEN || "";
     const serviceName =
       options.serviceName ||
       process.env.INTROSPECTION_SERVICE_NAME ||
-      "introspection-client";
+      DEFAULT_SERVICE_NAME;
     const baseOtelUrl =
       options.baseOtelUrl ||
       process.env.INTROSPECTION_BASE_OTEL_URL ||
@@ -101,22 +125,34 @@ export class IntrospectionLogs {
       ? baseOtelUrl
       : `${baseOtelUrl.replace(/\/$/, "")}/v1/logs`;
 
-    const headers: Record<string, string> = {
-      Authorization: `Bearer ${token}`,
-      ...(options.additionalHeaders || {}),
-    };
+    const headers = exporterHeaders(token, options.additionalHeaders);
 
-    const exporter = new OTLPLogExporter(
-      withOtlpHttpsProxy({
-        url: endpoint,
-        headers,
-      }),
-    );
+    const exporter =
+      options.logExporter ??
+      new OTLPLogExporter(
+        withOtlpHttpsProxy({
+          url: endpoint,
+          headers,
+          ...otlpUserAgent,
+        }),
+      );
 
     const processor = new BatchLogRecordProcessor({
       exporter,
-      maxQueueSize: options.maxBatchSize ?? 100,
+      // maxBatchSize is the export batch size, not the queue bound. Wiring it
+      // to maxQueueSize left the queue at 100 while the batch size kept its
+      // default of 512, which the OTel processor warns about and clamps on
+      // every construction.
+      maxExportBatchSize: options.maxBatchSize ?? 100,
       scheduledDelayMillis: options.flushInterval ?? 5000,
+      // Passed only when set, so an unset option leaves the OTel SDK's own
+      // default (and its env-var override) in charge.
+      ...(options.maxQueueSize != null
+        ? { maxQueueSize: options.maxQueueSize }
+        : {}),
+      ...(options.exportTimeoutMillis != null
+        ? { exportTimeoutMillis: options.exportTimeoutMillis }
+        : {}),
     });
 
     const baseResource = defaultResource();
@@ -130,8 +166,12 @@ export class IntrospectionLogs {
       processors: [processor],
     });
 
+    // The dist name, per the OTel convention that the scope names the
+    // instrumentation library. Deliberately not platform-tagged: the SDK
+    // language already rides the resource as `telemetry.sdk.language`, which
+    // is the semconv-designated place for it.
     this.otelLogger = this.loggerProvider.getLogger(
-      "@introspection-sdk/introspection-node",
+      "introspection-sdk",
       VERSION,
     );
 
@@ -153,22 +193,31 @@ export class IntrospectionLogs {
     };
   }
 
-  /** Get identity from baggage or instance state */
+  /**
+   * Get identity from baggage.
+   *
+   * Baggage only, deliberately. This used to fall back to `userId` /
+   * `anonymousId` held on the instance, but `init()` builds one instance per
+   * process: under any concurrency, the identity of whichever request called
+   * `identify()` last attached itself to every other request's events. Scope
+   * identity with {@link withUserId} / {@link withAnonymousId} instead, which
+   * carry it on the async context where it belongs.
+   */
   private getIdentityFromContext(): IdentityContext {
     const baggage = propagation.getBaggage(context.active());
     return {
-      userId: baggage?.getEntry("identity.user_id")?.value || this.userId,
-      anonymousId:
-        baggage?.getEntry("identity.anonymous_id")?.value || this.anonymousId,
+      userId: baggage?.getEntry("identity.user_id")?.value,
+      anonymousId: baggage?.getEntry("identity.anonymous_id")?.value,
     };
   }
 
   private getTimestamp(): [number, number] {
-    const hrTimeNs = process.hrtime.bigint();
+    // Wall-clock only. An earlier version subtracted one `process.hrtime`
+    // reading from another taken microseconds later, which looked like an
+    // hrtime/epoch correlation but only ever removed the elapsed call time.
     const epochNs = BigInt(Date.now()) * BigInt(1_000_000);
-    const offsetNs = hrTimeNs - process.hrtime.bigint() + epochNs;
-    const seconds = Number(offsetNs / BigInt(1_000_000_000));
-    const nanos = Number(offsetNs % BigInt(1_000_000_000));
+    const seconds = Number(epochNs / BigInt(1_000_000_000));
+    const nanos = Number(epochNs % BigInt(1_000_000_000));
     return [seconds, nanos];
   }
 
@@ -180,6 +229,8 @@ export class IntrospectionLogs {
       conversationId?: string;
       previousResponseId?: string;
       eventId?: string;
+      /** Identity known at the call site, overriding the context. */
+      identity?: IdentityContext;
     } = {},
   ): LogAttributes {
     const { properties, traits, conversationId, previousResponseId, eventId } =
@@ -190,7 +241,7 @@ export class IntrospectionLogs {
       "event.id": eventId || generateEventId(),
     };
 
-    const identity = this.getIdentityFromContext();
+    const identity = options.identity ?? this.getIdentityFromContext();
     if (identity.userId) attributes["identity.user.id"] = identity.userId;
     if (identity.anonymousId)
       attributes["identity.anonymous.id"] = identity.anonymousId;
@@ -212,15 +263,7 @@ export class IntrospectionLogs {
       for (const [key, value] of Object.entries(properties)) {
         if (value != null) {
           const attrKey = `properties.${key}`;
-          if (typeof value === "object") {
-            attributes[attrKey] = JSON.stringify(value);
-          } else if (
-            typeof value === "string" ||
-            typeof value === "number" ||
-            typeof value === "boolean"
-          ) {
-            attributes[attrKey] = value;
-          }
+          attributes[attrKey] = toAttributeValue(value);
         }
       }
     }
@@ -229,15 +272,7 @@ export class IntrospectionLogs {
       for (const [key, value] of Object.entries(traits)) {
         if (value != null) {
           const attrKey = `context.traits.${key}`;
-          if (typeof value === "object") {
-            attributes[attrKey] = JSON.stringify(value);
-          } else if (
-            typeof value === "string" ||
-            typeof value === "number" ||
-            typeof value === "boolean"
-          ) {
-            attributes[attrKey] = value;
-          }
+          attributes[attrKey] = toAttributeValue(value);
         }
       }
     }
@@ -267,8 +302,14 @@ export class IntrospectionLogs {
   feedback(name: string, options: FeedbackOptions = {}): void {
     const { comments, conversationId, previousResponseId, eventId, ...extra } =
       options;
-    const properties: Record<string, unknown> = { name, ...extra };
-    if (comments) properties.comments = comments;
+    // `name` last: it is the positional argument, so an `extra` key that
+    // happens to be called `name` must not silently replace the feedback
+    // name the caller passed.
+    const properties: Record<string, unknown> = { ...extra, name };
+    // `!= null`, not truthiness: `comments: ""` is a comment the caller
+    // supplied. Dropping it here
+    // made the same call produce a different event shape per SDK.
+    if (comments != null) properties.comments = comments;
     const attributes = this.buildAttributes("introspection.feedback", {
       properties,
       conversationId: conversationId as string | undefined,
@@ -285,22 +326,46 @@ export class IntrospectionLogs {
     sdkLogger.debug(`Feedback: ${name}`);
   }
 
+  /**
+   * Emit an `identify` event associating `userId` with `traits`.
+   *
+   * The identity lands on this event only. It does not persist onto later
+   * `track` / `feedback` calls — wrap those in {@link withUserId} (or set the
+   * baggage yourself) to scope identity across several events.
+   */
   identify(
     userId: string,
     traits?: UserTraits,
     anonymousId?: string,
     eventId?: string,
   ): void {
-    this.userId = userId;
-    if (anonymousId) this.anonymousId = anonymousId;
-    if (traits) this.traits = { ...this.traits, ...traits };
-    const attributes = this.buildAttributes("identify", { traits, eventId });
-    this.otelLogger.emit({
-      timestamp: this.getTimestamp(),
-      context: context.active(),
-      severityNumber: SeverityNumber.INFO,
-      severityText: "INFO",
-      attributes,
+    const identity: Record<string, string> = { "identity.user_id": userId };
+    if (anonymousId) identity["identity.anonymous_id"] = anonymousId;
+
+    // The ids are passed straight through rather than round-tripped via
+    // baggage. Reading them back off the context made the identify event
+    // depend on a globally registered context manager: `init()` registers
+    // one, but a standalone `new IntrospectionLogs()` -- the form the README
+    // shows -- gets the API's no-op manager, where `context.with()` runs the
+    // callback and `context.active()` still returns ROOT. The event then went
+    // out with no identity on it at all, silently.
+    //
+    // The scope is still entered, so anything the emit touches (a span, a
+    // downstream propagator) sees the same identity when a real manager is
+    // installed.
+    context.with(this.createBaggageContext(identity), () => {
+      const attributes = this.buildAttributes("identify", {
+        traits,
+        eventId,
+        identity: { userId, anonymousId },
+      });
+      this.otelLogger.emit({
+        timestamp: this.getTimestamp(),
+        context: context.active(),
+        severityNumber: SeverityNumber.INFO,
+        severityText: "INFO",
+        attributes,
+      });
     });
     sdkLogger.debug(`Identified: ${userId}`);
   }
@@ -344,14 +409,6 @@ export class IntrospectionLogs {
     return await context.with(this.createBaggageContext(values), callback);
   }
 
-  setUserId(userId: string): void {
-    this.userId = userId;
-  }
-
-  setAnonymousId(anonymousId: string): void {
-    this.anonymousId = anonymousId;
-  }
-
   async withUserId<T>(
     userId: string,
     callback: () => T | Promise<T>,
@@ -372,15 +429,14 @@ export class IntrospectionLogs {
     );
   }
 
-  getAnonymousId(): string | undefined {
-    return this.anonymousId;
+  /** The user id on the current async context, if one is scoped. */
+  getUserId(): string | undefined {
+    return this.getIdentityFromContext().userId;
   }
 
-  reset(): void {
-    this.userId = undefined;
-    this.anonymousId = undefined;
-    this.traits = {};
-    sdkLogger.debug("IntrospectionLogs state reset");
+  /** The anonymous id on the current async context, if one is scoped. */
+  getAnonymousId(): string | undefined {
+    return this.getIdentityFromContext().anonymousId;
   }
 
   async flush(): Promise<void> {

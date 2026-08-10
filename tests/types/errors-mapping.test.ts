@@ -14,7 +14,6 @@ import {
   ValidationError,
   RateLimitError,
   SandboxUnavailableError,
-  StreamError,
   NetworkError,
 } from "@introspection-sdk/types";
 
@@ -93,28 +92,20 @@ describe("apiErrorFromResponse", () => {
 });
 
 describe("transport errors default their status to 0", () => {
-  it("StreamError and NetworkError", () => {
-    const stream = new StreamError({
-      message: "mid-stream",
-      code: null,
-      requestId: null,
-    });
-    expect(stream).toBeInstanceOf(IntrospectionAPIError);
-    expect(stream.status).toBe(0);
-    expect(stream.name).toBe("StreamError");
-
+  it("NetworkError", () => {
     const net = new NetworkError({
       message: "dns",
       code: null,
       requestId: null,
       body: undefined,
     });
+    expect(net).toBeInstanceOf(IntrospectionAPIError);
     expect(net.status).toBe(0);
     expect(net.name).toBe("NetworkError");
 
     // explicit status override is honoured
     expect(
-      new StreamError({
+      new NetworkError({
         message: "x",
         code: null,
         requestId: null,

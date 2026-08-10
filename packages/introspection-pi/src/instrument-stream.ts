@@ -249,9 +249,31 @@ async function runUpstream({
     }
   } finally {
     if (!finished) {
-      // Upstream ended without a terminal event — close the span anyway so
-      // we don't leak.
-      span.end();
+      // Upstream iterated to completion without a `done` or `error` event.
+      // That is a protocol violation, and it is not survivable by staying
+      // quiet: `EventStream` only settles on a terminal event, so the
+      // consumer's `for await` and `result()` would both park forever on a
+      // call that has already returned. Synthesize the error, which ends the
+      // stream, settles `result()`, and closes the span.
+      finished = true;
+      const errorEvent: Extract<AssistantMessageEvent, { type: "error" }> = {
+        type: "error",
+        reason: "error",
+        error: assistantErrorMessage(
+          model,
+          "Upstream stream ended without a terminal event",
+          false,
+        ),
+      };
+      proxy.push(errorEvent);
+      finishSpan({
+        span,
+        event: errorEvent,
+        model,
+        startedAt,
+        metrics,
+        abortTerminationReason,
+      });
     }
   }
 }

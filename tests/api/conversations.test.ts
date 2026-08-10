@@ -10,6 +10,7 @@ import type {
   GenAiSpanList,
   Trajectory,
 } from "@introspection-sdk/introspection-node";
+import { bytesBody } from "../testing";
 
 function mockHttp(overrides: Record<string, unknown> = {}) {
   return {
@@ -452,7 +453,7 @@ describe("ConversationsApi.list — Arrow format", () => {
       "stream",
     );
     const http = mockHttp({
-      streamResult: new Response(ipc, {
+      streamResult: new Response(bytesBody(ipc), {
         headers: {
           "x-result-count": "2",
           "x-truncated": "true",
@@ -501,11 +502,13 @@ describe("ConversationsApi.list — Arrow format", () => {
 describe("ConversationsApi.arrow — columnar accessor", () => {
   it("yields Tables over /v1/conversations and readAll() concatenates", async () => {
     const makeIpc = (ids: string[]) =>
-      arrow.tableToIPC(
-        new arrow.Table({
-          conversation_id: arrow.vectorFromArray(ids, new arrow.Utf8()),
-        }),
-        "stream",
+      bytesBody(
+        arrow.tableToIPC(
+          new arrow.Table({
+            conversation_id: arrow.vectorFromArray(ids, new arrow.Utf8()),
+          }),
+          "stream",
+        ),
       );
     const page1 = new Response(makeIpc(["c-1", "c-2"]), {
       headers: { "x-next-cursor": "cursor-2" },

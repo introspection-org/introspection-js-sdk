@@ -86,6 +86,8 @@ export class IntrospectionApiClient {
    * scope — two clients on one page holding different lanes is the point.
    */
   private resolvedEnvironment?: Environment;
+  /** The exchange currently in flight, shared by every concurrent 401. */
+  private inFlightExchange?: Promise<boolean>;
 
   constructor(private readonly opts: IntrospectionApiClientOptions) {
     // Native browser `fetch` throws "Illegal invocation" when called as a
@@ -184,13 +186,21 @@ export class IntrospectionApiClient {
     }
   }
 
-  /** 401 recovery: re-exchange, reporting success so the call can retry. */
+  /**
+   * 401 recovery: re-exchange, reporting success so the call can retry.
+   *
+   * Single-flight. Three requests failing 401 together used to call the
+   * app's `getToken` three times and race three exchanges; if the broker
+   * single-uses its tokens, the losers surfaced `AuthenticationError` even
+   * though the session had just been refreshed.
+   */
   private async reexchange(): Promise<boolean> {
-    try {
-      await this.exchange();
-      return true;
-    } catch {
-      return false;
-    }
+    this.inFlightExchange ??= this.exchange()
+      .then(() => true)
+      .catch(() => false)
+      .finally(() => {
+        this.inFlightExchange = undefined;
+      });
+    return this.inFlightExchange;
   }
 }

@@ -59,12 +59,12 @@ export class Runner {
   ) {
     this.spec = spec;
     this.http = this.buildHttp();
-    this.tasks = new TasksApi(this.guardedHttp(this.http));
-    this.files = new FilesApi(this.guardedHttp(this.http));
-    this.conversations = new ConversationsApi(this.guardedHttp(this.http));
-    this.events = new EventsApi(this.guardedHttp(this.http));
-    this.metrics = new MetricsApi(this.guardedHttp(this.http));
-    this.shares = new SharesApi(this.guardedHttp(this.http));
+    this.tasks = new TasksApi(this.guardedHttp());
+    this.files = new FilesApi(this.guardedHttp());
+    this.conversations = new ConversationsApi(this.guardedHttp());
+    this.events = new EventsApi(this.guardedHttp());
+    this.metrics = new MetricsApi(this.guardedHttp());
+    this.shares = new SharesApi(this.guardedHttp());
   }
 
   // --- public accessors ---
@@ -121,10 +121,14 @@ export class Runner {
     }
     const fresh = await this.requestFreshSpec();
     this.spec = fresh;
-    // Note: we intentionally don't swap the underlying `http` here — the
-    // constructor-time bindings stay stable for the lifetime of the Runner.
-    // Callers wanting a freshly-bound Runner should call
-    // `client.runtimes(id).run(...)` again.
+    // The transport has to follow the spec. This used to leave `this.http`
+    // bound to the *previous* deployment and session token, so after a
+    // refresh `runner.dpEndpoint` and `runner.session_id` reported the new
+    // session while every request still went to the old host with the old
+    // bearer -- and the usual reason to call refresh() is that the old
+    // bearer stopped working, so the calls kept failing while the runner
+    // insisted it had a fresh session.
+    this.http = this.buildHttp();
   }
 
   /**
@@ -151,24 +155,28 @@ export class Runner {
   }
 
   /**
-   * Wrap an HttpClient so that calls after `close()` fail with a clear
-   * `RunnerExpiredError` instead of hitting the network with a stale
-   * bearer. No 401 retry / refresh logic — that is the DP materializer's
-   * job in v1.
+   * A stable handle over whatever client the runner currently holds.
+   *
+   * The namespaces (`runner.tasks`, …) are built once in the constructor and
+   * handed out by reference, so they must not capture a client: they read
+   * `this.http` per call, which is what lets {@link refresh} repoint them.
+   * Calls after `close()` fail with a clear `RunnerExpiredError` instead of
+   * hitting the network with a stale bearer. No 401 retry / refresh logic --
+   * that is the DP materializer's job in v1.
    */
-  private guardedHttp(http: HttpClient): HttpClient {
-    const proxy: HttpClient = Object.create(http);
+  private guardedHttp(): HttpClient {
+    const proxy: HttpClient = Object.create(this.http);
     proxy.request = async <T>(
       opts: Parameters<HttpClient["request"]>[0],
     ): Promise<T> => {
       this.assertOpen();
-      return http.request<T>(opts);
+      return this.http.request<T>(opts);
     };
     proxy.stream = async (
       opts: Parameters<HttpClient["stream"]>[0],
     ): Promise<Response> => {
       this.assertOpen();
-      return http.stream(opts);
+      return this.http.stream(opts);
     };
     return proxy;
   }

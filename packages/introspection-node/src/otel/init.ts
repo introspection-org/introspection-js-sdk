@@ -2,26 +2,24 @@
  * One-liner bootstrap for the Introspection OTel surface.
  *
  * `init()` detects the installed LLM frameworks and wires them into one shared
- * pipeline, mirroring the Python SDK's `introspection.init()`:
+ * pipeline:
  *
  * ```ts
  * import * as introspection from "@introspection-sdk/introspection-node/otel";
- * import Anthropic from "@anthropic-ai/sdk";
  *
  * await introspection.init({ serviceName: "my-app" });
- *
- * const client = new Anthropic(); // auto-traced — no per-client wiring
- * await introspection.conversation(() =>
- *   client.messages.create({ ... }),
- * );
+ * // An installed Pi agent is wired into the shared provider automatically.
  * ```
  *
  * It also exposes the `track` / `feedback` / `identify` analytics surface and a
  * `conversation()` scope, proxied to a global {@link IntrospectionLogs}.
  */
 
-import { type TracerProvider } from "@opentelemetry/api";
-import { resourceFromAttributes } from "@opentelemetry/resources";
+import { context, propagation, type TracerProvider } from "@opentelemetry/api";
+import {
+  defaultResource,
+  resourceFromAttributes,
+} from "@opentelemetry/resources";
 import type {
   BasicTracerProvider,
   SpanProcessor,
@@ -30,8 +28,7 @@ import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
 import { ATTR_SERVICE_NAME } from "@opentelemetry/semantic-conventions";
 
 import type { AdvancedOptions, FeedbackOptions, UserTraits } from "../types.js";
-import { logger } from "../utils.js";
-import type { InstrumentedClaudeAgentSDK } from "./claude-wrapper.js";
+import { DEFAULT_SERVICE_NAME, logger } from "../utils.js";
 import {
   discoverIntegrations,
   setupIntegrations,
@@ -63,7 +60,7 @@ export interface InitOptions {
   /**
    * Extra span processors composed onto the provider `init()` creates — the
    * one-call dual-export path. Each runs alongside the Introspection processor,
-   * e.g. `init({ spanProcessors: [new BatchSpanProcessor(langfuseExporter)] })`.
+   * e.g. `init({ spanProcessors: [new BatchSpanProcessor(otherBackendExporter)] })`.
    * Ignored when `tracerProvider` is supplied.
    */
   spanProcessors?: SpanProcessor[];
@@ -79,6 +76,16 @@ export interface InitOptions {
 
 interface InitState {
   provider: TracerProvider | null;
+  /**
+   * The in-flight `init()`, if one has not settled yet.
+   *
+   * The `state.provider` guard alone is not enough: `init()` awaits framework
+   * discovery and integration setup before assigning it, so two concurrent
+   * callers both saw `null`, both built a provider plus a `LoggerProvider`
+   * with its own batch-export timer, and the second overwrote the first --
+   * leaking the first's exporters with nothing left to shut them down.
+   */
+  pending: Promise<TracerProvider> | null;
   ownsProvider: boolean;
   logs: IntrospectionLogs | null;
   handles: IntegrationHandles;
@@ -87,13 +94,14 @@ interface InitState {
 
 const state: InitState = {
   provider: null,
+  pending: null,
   ownsProvider: false,
   logs: null,
   handles: {},
   shutdownRegistered: false,
 };
 
-/** Generate a fresh conversation id (matches the Python SDK's format). */
+/** Generate a fresh conversation id in the format the backend expects. */
 export function newConversationId(): string {
   return `intro_conv_${crypto.randomUUID().replace(/-/g, "")}`;
 }
@@ -111,9 +119,20 @@ function resolveProvider(
   if (options.tracerProvider) return options.tracerProvider;
 
   const provider = new NodeTracerProvider({
-    resource: serviceName
-      ? resourceFromAttributes({ [ATTR_SERVICE_NAME]: serviceName })
-      : undefined,
+    // Merged onto the default resource, not substituted for it: a bare
+    // `resourceFromAttributes` replaces `defaultResource()` outright, which
+    // is where `telemetry.sdk.language` and the SDK version come from.
+    //
+    // Defaulted, because we are building this provider ourselves and the
+    // logs stream beside it defaults to the same name. Only here: a caller
+    // who passed their own `tracerProvider` returns above, and the span
+    // processor still gets `serviceName` undefined so it leaves a provider
+    // the caller already labelled alone.
+    resource: defaultResource().merge(
+      resourceFromAttributes({
+        [ATTR_SERVICE_NAME]: serviceName ?? DEFAULT_SERVICE_NAME,
+      }),
+    ),
     // Order is irrelevant (IntrospectionSpanProcessor exports an isolated
     // converted copy and never mutates the shared span); listed first to match
     // setupTracing()'s ordering.
@@ -132,18 +151,36 @@ function resolveProvider(
  * Idempotent: repeated calls return the already-configured provider without
  * re-installing integrations.
  */
-export async function init(options: InitOptions = {}): Promise<TracerProvider> {
+export function init(options: InitOptions = {}): Promise<TracerProvider> {
   if (state.provider) {
     logger.debug("introspection.init() already called; returning provider");
-    return state.provider;
+    return Promise.resolve(state.provider);
   }
+  if (state.pending) {
+    logger.debug("introspection.init() already in flight; awaiting it");
+    return state.pending;
+  }
+  // Cleared on both paths: on success the `state.provider` guard takes over,
+  // and on failure a later init() has to be free to retry.
+  const pending = initOnce(options).finally(() => {
+    state.pending = null;
+  });
+  state.pending = pending;
+  return pending;
+}
 
+async function initOnce(options: InitOptions): Promise<TracerProvider> {
   const token = options.token ?? process.env.INTROSPECTION_TOKEN;
   const serviceName =
     options.serviceName ?? process.env.INTROSPECTION_SERVICE_NAME ?? undefined;
   const baseUrl =
     options.baseUrl ?? process.env.INTROSPECTION_BASE_OTEL_URL ?? undefined;
   const advanced = options.advanced;
+
+  // `AdvancedOptions.debug` is shared with the browser client, which honours
+  // it; Node only ever read INTROSPECTION_LOG_LEVEL, so passing it here was
+  // silently inert.
+  if (advanced?.debug) logger.enableDebug();
 
   // A custom span exporter (tests) stands in for a token; otherwise a token is
   // required for anything to be exported.
@@ -164,6 +201,14 @@ export async function init(options: InitOptions = {}): Promise<TracerProvider> {
     additionalHeaders: advanced?.additionalHeaders,
     flushInterval: advanced?.flushInterval,
     maxBatchSize: advanced?.maxBatchSize,
+    maxQueueSize: advanced?.maxQueueSize,
+    exportTimeoutMillis: advanced?.exportTimeoutMillis,
+    // Dropped here until now, so `init({ advanced: { logExporter } })` built
+    // an OTLP exporter anyway and every analytics event went to the real
+    // collector — from the one option documented as the seam for asserting
+    // what goes out on the wire. `spanExporter` was forwarded all along;
+    // this is its counterpart on the logs pipeline.
+    logExporter: advanced?.logExporter,
   });
 
   const ctx: IntegrationSetupContext = {
@@ -187,6 +232,10 @@ export async function init(options: InitOptions = {}): Promise<TracerProvider> {
     await setupIntegrations(toInstall, ctx);
   } catch (e) {
     state.handles = {};
+    // The logs client owns a LoggerProvider with a batch export timer. It was
+    // built before this try, so without shutting it down a failed init()
+    // leaves that timer running with nothing referencing it.
+    await logs.shutdown().catch(() => undefined);
     throw e;
   }
 
@@ -254,6 +303,14 @@ export function identify(
  * await introspection.conversation((id) => client.messages.create({ ... }));
  * await introspection.conversation("conv_123", (id) => run());
  * ```
+ *
+ * Unlike the `with*` helpers below, this does not require {@link init}: a
+ * conversation id is minted locally and scoped on W3C baggage, which is
+ * ordinary OpenTelemetry context and needs no exporter behind it. Routing it
+ * through the global client made `conversation()` throw before `init()` even
+ * though nothing in it had anything to send -- so the id a caller wanted to
+ * mint before configuring telemetry, or to hand to a service that exports on
+ * its own, was unreachable.
  */
 export function conversation<T>(
   callback: (conversationId: string) => T | Promise<T>,
@@ -270,9 +327,13 @@ export function conversation<T>(
   const callback = (typeof a === "string" ? b : a) as (
     id: string,
   ) => T | Promise<T>;
-  return getClient().withConversation(conversationId, undefined, () =>
-    callback(conversationId),
+  const ctx = propagation.setBaggage(
+    context.active(),
+    (
+      propagation.getBaggage(context.active()) ?? propagation.createBaggage()
+    ).setEntry("gen_ai.conversation.id", { value: conversationId }),
   );
+  return Promise.resolve(context.with(ctx, () => callback(conversationId)));
 }
 
 /**
@@ -321,31 +382,6 @@ export function withAnonymousId<T>(
   return getClient().withAnonymousId(anonymousId, callback);
 }
 
-/**
- * The LangChain handler bound by `init()`. Attach it per-invoke:
- * `chain.invoke(input, { callbacks: [introspection.getLangchainHandler()] })`.
- */
-export function getLangchainHandler() {
-  const handler = state.handles.langchainHandler;
-  if (!handler) {
-    throw new Error(
-      "LangChain integration not configured. Call introspection.init() with @langchain/core installed.",
-    );
-  }
-  return handler;
-}
-
-/** The Mastra exporter bound by `init()`. Put it in `observability.configs`. */
-export function getMastraExporter() {
-  const exporter = state.handles.mastraExporter;
-  if (!exporter) {
-    throw new Error(
-      "Mastra integration not configured. Call introspection.init() with @mastra/core installed.",
-    );
-  }
-  return exporter;
-}
-
 /** Instrument a Pi `Agent` against the shared provider. Requires {@link init}. */
 export function instrumentPi(agent: Agent, meta: AgentMeta): void {
   const instrumentor = state.handles.piInstrumentor;
@@ -358,23 +394,14 @@ export function instrumentPi(agent: Agent, meta: AgentMeta): void {
 }
 
 /**
- * Wrap the Claude Agent SDK module so its `query()` calls are traced.
- * Equivalent to `withIntrospection(sdk)` but pre-bound to the `init()` config.
+ * Flush and shut down the logs client and, if `init()` created it, the
+ * provider.
+ *
+ * A provider you passed via `init({ tracerProvider })` is **yours** — this
+ * leaves it running, so any processors you attached to it (a second
+ * OTLP backend, for instance) are not flushed. Call `provider.shutdown()`
+ * yourself after this.
  */
-export function instrumentClaudeAgent(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  sdk: any,
-): InstrumentedClaudeAgentSDK {
-  const fn = state.handles.instrumentClaudeAgent;
-  if (!fn) {
-    throw new Error(
-      "Claude Agent integration not configured. Call introspection.init() with @anthropic-ai/claude-agent-sdk installed.",
-    );
-  }
-  return fn(sdk);
-}
-
-/** Flush and shut down the logs client and (if owned) the provider. */
 export async function shutdown(): Promise<void> {
   const { logs, provider, ownsProvider } = state;
   if (logs) {
@@ -391,7 +418,7 @@ export async function shutdown(): Promise<void> {
       logger.debug(`Error shutting down provider: ${String(e)}`);
     }
   }
-  // Run integration teardowns (uninstrument prototype patches) + clear the
+  // Run integration teardowns + clear the
   // run-once guard so a later init() re-installs and rebuilds the handles
   // against the new provider instead of being skipped.
   teardownIntegrations();
@@ -405,6 +432,7 @@ export async function shutdown(): Promise<void> {
 export function _resetForTests(): void {
   teardownIntegrations();
   state.provider = null;
+  state.pending = null;
   state.ownsProvider = false;
   state.logs = null;
   state.handles = {};

@@ -18,35 +18,27 @@
       "types": "./dist/otel/index.d.ts",
       "default": "./dist/otel/index.js"
     },
+    "./otel/pi": {
+      "types": "./dist/otel/pi.d.ts",
+      "default": "./dist/otel/pi.js"
+    },
     "./otel/register": {
       "types": "./dist/otel/register.d.ts",
       "default": "./dist/otel/register.js"
-    },
-    "./mastra": {
-      "types": "./dist/otel/mastra-exporter.d.ts",
-      "default": "./dist/otel/mastra-exporter.js"
-    },
-    "./langchain": {
-      "types": "./dist/otel/langchain-handler.d.ts",
-      "default": "./dist/otel/langchain-handler.js"
     }
   },
+  "files": [
+    "dist/"
+  ],
   "scripts": {
     "lint": "eslint . --max-warnings 0",
     "check-types": "tsc --noEmit",
-    "build": "tsc",
-    "prepare": "tsc"
+    "build": "rm -rf dist && tsc",
+    "prepare": "rm -rf dist && tsc",
+    "clean": "rm -rf dist"
   },
   "devDependencies": {
-    "@anthropic-ai/claude-agent-sdk": "^0.3.220",
-    "@anthropic-ai/sdk": "^0.115.0",
     "@earendil-works/pi-agent-core": "^0.83.0",
-    "@earendil-works/pi-ai": "^0.83.0",
-    "@google/genai": "^2.15.0",
-    "@langchain/core": "^1.2.4",
-    "@mastra/core": "^1.55.0",
-    "@mastra/observability": "^1.16.3",
-    "@openai/agents": "^0.14.1",
     "@opentelemetry/api-logs": "^0.221.0",
     "@opentelemetry/context-async-hooks": "^2.10.0",
     "@opentelemetry/core": "^2.10.0",
@@ -60,20 +52,11 @@
     "@repo/eslint-config": "workspace:*",
     "@repo/typescript-config": "workspace:*",
     "@types/node": "^22.20.1",
-    "ai": "^6.0.238",
     "eslint": "^9.39.5",
-    "openai": "^6.49.0",
     "typescript": "5.9.3"
   },
   "peerDependencies": {
-    "@anthropic-ai/claude-agent-sdk": ">=0.2.0",
     "@earendil-works/pi-agent-core": ">=0.75.0",
-    "@earendil-works/pi-ai": ">=0.75.0",
-    "@langchain/core": ">=0.3.0",
-    "@mastra/core": ">=1.0.0",
-    "@mastra/observability": ">=1.0.0",
-    "@openai/agents": ">=0.0.1",
-    "openai": ">=4.0.0",
     "@opentelemetry/api-logs": ">=0.50.0",
     "@opentelemetry/context-async-hooks": ">=1.20.0 || >=2.0.0",
     "@opentelemetry/core": ">=1.20.0 || >=2.0.0",
@@ -83,35 +66,10 @@
     "@opentelemetry/sdk-logs": ">=0.50.0",
     "@opentelemetry/sdk-trace-base": ">=1.20.0 || >=2.0.0",
     "@opentelemetry/sdk-trace-node": ">=1.20.0 || >=2.0.0",
-    "@opentelemetry/semantic-conventions": ">=1.20.0",
-    "ai": ">=4.0.0"
+    "@opentelemetry/semantic-conventions": ">=1.20.0"
   },
   "peerDependenciesMeta": {
-    "@openai/agents": {
-      "optional": true
-    },
-    "openai": {
-      "optional": true
-    },
-    "@anthropic-ai/claude-agent-sdk": {
-      "optional": true
-    },
-    "ai": {
-      "optional": true
-    },
-    "@mastra/core": {
-      "optional": true
-    },
-    "@mastra/observability": {
-      "optional": true
-    },
-    "@langchain/core": {
-      "optional": true
-    },
     "@earendil-works/pi-agent-core": {
-      "optional": true
-    },
-    "@earendil-works/pi-ai": {
       "optional": true
     },
     "@opentelemetry/api-logs": {

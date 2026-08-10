@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { HttpClient } from "@introspection-sdk/introspection-node";
 import {
   IntrospectionAPIError,
+  NetworkError,
   RateLimitError,
   SandboxUnavailableError,
 } from "@introspection-sdk/types";
@@ -290,6 +291,37 @@ describe("HttpClient", () => {
 
     const [, init] = fetchImpl.mock.calls[0];
     expect(init.headers["X-Custom"]).toBe("val");
+  });
+
+  describe("abort", () => {
+    it("surfaces the caller's abort instead of a NetworkError", async () => {
+      const controller = new AbortController();
+      const fetchImpl = vi.fn(() => {
+        controller.abort();
+        return Promise.reject(
+          new DOMException("This operation was aborted", "AbortError"),
+        );
+      });
+      const client = makeClient(
+        fetchImpl as unknown as ReturnType<typeof mockFetch>,
+      );
+
+      const err = await client
+        .request({
+          method: "GET",
+          path: "/v1/things",
+          signal: controller.signal,
+        })
+        .then(
+          () => null,
+          (e: unknown) => e,
+        );
+
+      // Wrapping this in NetworkError erased both of the ways a caller
+      // recognises a cancellation.
+      expect((err as Error).name).toBe("AbortError");
+      expect(err).not.toBeInstanceOf(NetworkError);
+    });
   });
 
   describe("stream()", () => {

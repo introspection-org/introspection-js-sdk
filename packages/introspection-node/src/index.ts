@@ -74,7 +74,6 @@ export {
   RuntimesApi,
   RuntimeHandle,
   attachRuntimes,
-  isUuid,
 } from "./resources/runtimes.js";
 export type { RuntimeHandleFactory } from "./resources/runtimes.js";
 export {
@@ -225,7 +224,6 @@ export {
   ValidationError,
   RateLimitError,
   SandboxUnavailableError,
-  StreamError,
   NetworkError,
   apiErrorFromResponse,
 } from "@introspection-sdk/types";
@@ -246,33 +244,3 @@ export type {
   MessagePart,
 } from "@introspection-sdk/types";
 export { toAttributes } from "@introspection-sdk/types";
-
-// OpenAI converter exports (pure functions, no OTel SDK imports).
-export {
-  convertResponsesInputsToSemconv,
-  convertResponsesOutputsToSemconv,
-  convertResponsesToolsToSemconv,
-  convertResponsesInstructionsToSemconv,
-} from "./converters/openai.js";
-export type {
-  ResponseInputItem,
-  ResponseOutputItem,
-  ResponseTool,
-  ResponseUsage,
-  Response as OpenAIResponse,
-} from "./converters/openai.js";
-
-// Gemini converters (pure functions, no OTel SDK imports).
-export {
-  convertGeminiContentsToInputMessages,
-  convertGeminiCandidatesToOutputMessages,
-  convertGeminiSystemInstructionToSemconv,
-  convertGeminiToolsToToolDefinitions,
-} from "./converters/gemini.js";
-export type {
-  GeminiCandidate,
-  GeminiContent,
-  GeminiFunctionDeclaration,
-  GeminiPart,
-  GeminiTool,
-} from "./converters/gemini.js";

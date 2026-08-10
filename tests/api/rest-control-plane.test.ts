@@ -11,7 +11,7 @@
  * The `/run` routes return a `RunnerSpec` whose `deployment.endpoint` points
  * back at the same server, so Data-Plane runner calls hit it too.
  */
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { createServer, type IncomingMessage, type Server } from "node:http";
 import { AddressInfo } from "node:net";
 import {
@@ -69,11 +69,11 @@ const RECIPE = {
   updated_at: "2025-01-01T00:00:00Z",
 };
 
-function runnerSpec(endpoint: string) {
+function runnerSpec(endpoint: string, generation = 1) {
   return {
-    session_id: "sess-1",
+    session_id: `sess-${generation}`,
     deployment: { endpoint, slug: "gcp01", region: "us-east-1" },
-    session_token: "runner-jwt",
+    session_token: `runner-jwt-${generation}`,
     expires_at: "2025-01-01T01:00:00Z",
     runtime_context: {
       runtime_id: RUNTIME.id,
@@ -98,6 +98,8 @@ function runnerSpec(endpoint: string) {
 let server: Server;
 let baseUrl: string;
 let requests: CapturedRequest[] = [];
+/** Bumped per `/v1/runtimes/{id}/run`, so each mint is distinguishable. */
+let runGeneration = 0;
 
 function readBody(req: IncomingMessage): Promise<unknown> {
   return new Promise((resolve) => {
@@ -202,7 +204,7 @@ beforeAll(async () => {
     if (path === `/v1/runtimes/${RUNTIME.id}` && method === "GET")
       return json(res, 200, RUNTIME);
     if (path === `/v1/runtimes/${RUNTIME.id}/run` && method === "POST")
-      return json(res, 200, runnerSpec(baseUrl));
+      return json(res, 200, runnerSpec(baseUrl, ++runGeneration));
 
     // --- Control-plane: experiments ---
     if (path === "/v1/experiments" && method === "GET")
@@ -254,10 +256,15 @@ beforeAll(async () => {
 
 afterAll(() => new Promise<void>((resolve) => server.close(() => resolve())));
 
+// Each test gets its own mint counter, so `sess-1` always means "the first
+// session this test opened".
+beforeEach(() => {
+  runGeneration = 0;
+});
+
 function makeClient() {
   return new IntrospectionClient({
     token: "test-token",
-    project: "proj-1",
     advanced: { baseApiUrl: baseUrl },
   });
 }
@@ -468,9 +475,7 @@ describe("IntrospectionClient (REST control-plane, real server)", () => {
 
       const handle = client.experiments(EXPERIMENT.id);
       expect((await handle.start()).status).toBe("running");
-      expect((await handle.end({ reason: "done" } as never)).status).toBe(
-        "completed",
-      );
+      expect((await handle.end()).status).toBe("completed");
       expect((await handle.cancel()).status).toBe("cancelled");
       requests = [];
       const runner = await handle.run({
@@ -536,7 +541,7 @@ describe("IntrospectionClient (REST control-plane, real server)", () => {
       const tasks = await collect(runner.tasks.list());
       expect(tasks[0].id).toBe("task-1");
       expect(requests.find((r) => r.path === "/v1/tasks")?.auth).toBe(
-        "Bearer runner-jwt",
+        "Bearer runner-jwt-1",
       );
 
       // Manual escape hatch: refresh re-calls the CP /run route.
@@ -546,6 +551,18 @@ describe("IntrospectionClient (REST control-plane, real server)", () => {
           agent_name: "specialist",
           scope: "tasks:read",
         },
+      );
+      expect(runner.session_id).toBe("sess-2");
+
+      // ...and the namespaces follow it. The refresh used to replace the
+      // spec while leaving the transport bound to the previous session, so
+      // the accessors reported a fresh session that no request ever used --
+      // and the usual reason to refresh is that the old bearer stopped
+      // working.
+      requests = [];
+      await collect(runner.tasks.list());
+      expect(requests.find((r) => r.path === "/v1/tasks")?.auth).toBe(
+        "Bearer runner-jwt-2",
       );
 
       // After close, guarded HTTP rejects further DP calls. The guard

@@ -301,9 +301,11 @@ describe("metrics", () => {
       meta: META,
       meter,
     });
-    await wrapped(MODEL, {
-      messages: [{ role: "user", content: "hi", timestamp: 0 }],
-    }).result();
+    await (
+      await wrapped(MODEL, {
+        messages: [{ role: "user", content: "hi", timestamp: 0 }],
+      })
+    ).result();
     await provider.forceFlush();
 
     const duration = records["gen_ai.client.operation.duration"];
@@ -353,9 +355,11 @@ describe("metrics", () => {
       meta: META,
       meter,
     });
-    await wrapped(MODEL, {
-      messages: [{ role: "user", content: "hi", timestamp: 0 }],
-    }).result();
+    await (
+      await wrapped(MODEL, {
+        messages: [{ role: "user", content: "hi", timestamp: 0 }],
+      })
+    ).result();
     await provider.forceFlush();
 
     const duration = records["gen_ai.client.operation.duration"];
@@ -422,9 +426,11 @@ describe("chat span semconv upgrades", () => {
     };
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const wrapped = instrumentStream(upstream as any, { tracer, meta: META });
-    await wrapped(MODEL, {
-      messages: [{ role: "user", content: "hi", timestamp: 0 }],
-    }).result();
+    await (
+      await wrapped(MODEL, {
+        messages: [{ role: "user", content: "hi", timestamp: 0 }],
+      })
+    ).result();
     await provider.forceFlush();
 
     const span = exporter
@@ -450,9 +456,11 @@ describe("chat span semconv upgrades", () => {
     };
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const wrapped = instrumentStream(upstream as any, { tracer, meta: META });
-    await wrapped(MODEL, {
-      messages: [{ role: "user", content: "hi", timestamp: 0 }],
-    }).result();
+    await (
+      await wrapped(MODEL, {
+        messages: [{ role: "user", content: "hi", timestamp: 0 }],
+      })
+    ).result();
     await provider.forceFlush();
 
     const span = exporter

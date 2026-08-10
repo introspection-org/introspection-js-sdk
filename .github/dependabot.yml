@@ -40,34 +40,14 @@ updates:
           - "@opentelemetry/*"
 
       # AI provider SDKs + pi-mono peers travel together, often in lockstep.
-      ai-providers:
+      pi-peers:
         applies-to: version-updates
         patterns:
-          - "@anthropic-ai/*"
-          - "@ai-sdk/*"
-          - "@mariozechner/*"
-          - "@openai/*"
-          - "ai"
-          - "openai"
-      ai-providers-security:
+          - "@earendil-works/*"
+      pi-peers-security:
         applies-to: security-updates
         patterns:
-          - "@anthropic-ai/*"
-          - "@ai-sdk/*"
-          - "@mariozechner/*"
-          - "@openai/*"
-          - "ai"
-          - "openai"
-
-      # Mastra ecosystem.
-      mastra:
-        applies-to: version-updates
-        patterns:
-          - "@mastra/*"
-      mastra-security:
-        applies-to: security-updates
-        patterns:
-          - "@mastra/*"
+          - "@earendil-works/*"
 
       # TypeScript / test toolchain.
       typescript-tooling:
@@ -91,26 +71,8 @@ updates:
           - "@typescript-eslint/*"
           - "prettier"
 
-      # Observability backends used by the example dual-export tests.
-      observability-vendors:
-        applies-to: version-updates
-        patterns:
-          - "@arizeai/*"
-          - "@pollyjs/*"
-          - "braintrust"
-          - "langsmith"
-          - "@langchain/*"
-      observability-vendors-security:
-        applies-to: security-updates
-        patterns:
-          - "@arizeai/*"
-          - "@pollyjs/*"
-          - "braintrust"
-          - "langsmith"
-          - "@langchain/*"
-
       # Catch-all for any security alert not matching a more specific group —
-      # rolls up everything else (transitive deps, langchain peers, etc.) into
+      # rolls up everything else (transitive deps, optional peers, etc.) into
       # one PR rather than one-PR-per-alert.
       security-rollup:
         applies-to: security-updates
@@ -122,7 +84,7 @@ updates:
         update-types:
           - "version-update:semver-major"
 
-  # ── GitHub Actions (used by ci.yml / publish.yml / release-tag.yml) ──
+  # ── GitHub Actions (used by ci.yml / publish.yml / tag.yml) ──
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:

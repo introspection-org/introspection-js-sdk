@@ -4,6 +4,7 @@
  */
 
 import type { SpanExporter } from "@opentelemetry/sdk-trace-base";
+import type { LogRecordExporter } from "@opentelemetry/sdk-logs";
 
 export { EventType } from "@ag-ui/core";
 export type {
@@ -34,19 +35,47 @@ export interface AdvancedOptions {
   flushInterval?: number;
   /** Maximum batch size before auto-flush (default: 100) */
   maxBatchSize?: number;
+  /**
+   * Maximum records buffered before new ones are dropped. Omit to keep the
+   * installed OTel SDK's default (2048), including any env-var override it
+   * honours.
+   *
+   * Distinct from {@link maxBatchSize}, which bounds one export rather than
+   * the queue behind it. Under a burst larger than the queue, spans and
+   * events are dropped silently — this is the knob that raises the ceiling.
+   */
+  maxQueueSize?: number;
+  /**
+   * How long one export may take before it is abandoned, in milliseconds.
+   * Omit to keep the installed OTel SDK's default (30000).
+   */
+  exportTimeoutMillis?: number;
   /** Enable debug logging to console */
   debug?: boolean;
   /** Additional HTTP headers to include in requests */
   additionalHeaders?: Record<string, string>;
-  /** Custom span exporter (for testing - use InMemorySpanExporter) */
+  /**
+   * Custom span exporter (for testing - use InMemorySpanExporter).
+   *
+   * Node only. The browser client has no span pipeline -- it emits analytics
+   * events as OTLP logs; see {@link AdvancedOptions.logExporter}.
+   */
   spanExporter?: SpanExporter;
   /**
-   * Delay interval in milliseconds between batch exports.
-   * Lower values reduce latency but increase network requests.
-   * Defaults to 1000.
+   * Custom log record exporter (for testing - use InMemoryLogRecordExporter).
+   *
+   * The analytics stream (`track` / `feedback` / `identify`) is OTLP logs on
+   * every platform, so this is the seam for asserting what actually goes out
+   * on the wire.
    */
-  scheduledDelayMillis?: number;
-  /** Custom `fetch` implementation (for tests or non-Node 18 runtimes). */
+  logExporter?: LogRecordExporter;
+  /**
+   * Custom `fetch` implementation (for tests or non-Node 18 runtimes).
+   *
+   * Node only. In the browser, pass `fetch` to the REST client
+   * (`IntrospectionApiClient`) instead -- the analytics client reaches the
+   * collector through the OTLP exporter, which does not take one.
+   */
   fetch?: typeof fetch;
 }
 
@@ -177,3 +206,36 @@ export const StorageKey = {
   USER_ID: "introspection_user_id",
   TRAITS: "introspection_traits",
 } as const;
+
+/**
+ * Coerce a `track` property or `identify` trait into something OTLP can carry.
+ *
+ * A telemetry call must never silently lose data the caller handed it. The
+ * previous inline version kept only object / string / number / boolean and
+ * dropped everything else with no attribute emitted at all -- so a `bigint`
+ * id, a `symbol`, or a stray function vanished without a trace. `bigint` in
+ * particular cannot go through `JSON.stringify`, which throws on it.
+ *
+ * Native scalars stay native,
+ * structured values are JSON, and anything else -- `bigint` included --
+ * degrades to a string via the final fallback rather than disappearing.
+ */
+export function toAttributeValue(value: unknown): string | number | boolean {
+  if (
+    typeof value === "string" ||
+    typeof value === "number" ||
+    typeof value === "boolean"
+  ) {
+    return value;
+  }
+  if (typeof value === "object") {
+    try {
+      return JSON.stringify(value);
+    } catch {
+      // Circular, or a BigInt nested inside. A lossy attribute beats a
+      // telemetry call throwing into the caller's business logic.
+      return String(value);
+    }
+  }
+  return String(value);
+}

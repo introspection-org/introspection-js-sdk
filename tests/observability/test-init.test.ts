@@ -1,12 +1,10 @@
 /**
  * Tests for the unified `introspection.init()` entry point.
  *
- * Covers four concerns as nested describes:
- *  - the integration loader (run-once + `deactivates` + `DidNotEnable`),
+ * Covers three concerns as nested describes:
+ *  - the integration loader (run-once + `isAvailable` + `DidNotEnable`),
  *  - `init()` wiring / idempotency / analytics proxies / `conversation()`,
- *  - auto-discovery of the installed frameworks,
- *  - the prototype-patch one-liner against the real Anthropic & Gemini SDKs
- *    (recordings-backed, per AGENTS.md).
+ *  - auto-discovery of the installed frameworks.
  *
  * This is a cross-framework feature, so it lives in its own file rather than
  * under any single framework's test.
@@ -15,6 +13,8 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { context, propagation } from "@opentelemetry/api";
 import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
+import { InMemorySpanExporter } from "@opentelemetry/sdk-trace-base";
+import { resourceFromAttributes } from "@opentelemetry/resources";
 import {
   init,
   _resetForTests,
@@ -24,20 +24,14 @@ import {
   getClient,
   discoverIntegrations,
   setupIntegrations,
+  IntrospectionSpanProcessor,
   resetInstalledForTests,
   DidNotEnable,
-  AnthropicInstrumentor,
-  GeminiInstrumentor,
-  IntrospectionSpanProcessor,
   type Integration,
   type IntegrationSetupContext,
 } from "@introspection-sdk/introspection-node/otel";
 import { TestSpanExporter } from "../testing";
-import {
-  installTestOTelGlobals,
-  setupPolly,
-  ensureEnvVarsForReplay,
-} from "../polly-setup";
+import { installTestOTelGlobals } from "../polly-setup";
 
 function fakeCtx(): IntegrationSetupContext {
   return {
@@ -60,48 +54,54 @@ describe("introspection.init()", () => {
 
   // -------------------------------------------------------------------------
   describe("integration loader", () => {
-    it("runs setupOnce once and respects deactivates", async () => {
+    it("runs setupOnce exactly once per identifier", async () => {
       const calls: string[] = [];
       const A: Integration = {
         identifier: "a",
-        setupOnce: () => calls.push("a"),
+        setupOnce: () => {
+          calls.push("a");
+        },
       };
       const B: Integration = {
         identifier: "b",
-        deactivates: ["a"],
-        setupOnce: () => calls.push("b"),
+        setupOnce: () => {
+          calls.push("b");
+        },
       };
 
       const installed = await setupIntegrations([A, B], fakeCtx());
+      expect(installed.has("a")).toBe(true);
       expect(installed.has("b")).toBe(true);
-      expect(installed.has("a")).toBe(false); // deactivated by B
-      expect(calls).toEqual(["b"]);
+      expect(calls).toEqual(["a", "b"]);
 
       // Second call is a no-op for already-installed identifiers.
-      await setupIntegrations([B], fakeCtx());
-      expect(calls).toEqual(["b"]);
+      await setupIntegrations([A, B], fakeCtx());
+      expect(calls).toEqual(["a", "b"]);
     });
 
-    it("does not apply deactivates from unavailable integrations", async () => {
+    it("skips integrations whose isAvailable resolves false", async () => {
       const calls: string[] = [];
       const Available: Integration = {
         identifier: "available",
-        setupOnce: () => calls.push("available"),
+        setupOnce: () => {
+          calls.push("available");
+        },
       };
-      const MissingWrapper: Integration = {
-        identifier: "missing-wrapper",
-        deactivates: ["available"],
+      const Missing: Integration = {
+        identifier: "missing",
         isAvailable: () => false,
-        setupOnce: () => calls.push("missing-wrapper"),
+        setupOnce: () => {
+          calls.push("missing");
+        },
       };
 
       const installed = await setupIntegrations(
-        [MissingWrapper, Available],
+        [Missing, Available],
         fakeCtx(),
       );
 
       expect(installed.has("available")).toBe(true);
-      expect(installed.has("missing-wrapper")).toBe(false);
+      expect(installed.has("missing")).toBe(false);
       expect(calls).toEqual(["available"]);
     });
 
@@ -133,6 +133,65 @@ describe("introspection.init()", () => {
   describe("wiring", () => {
     const exporter = () => new TestSpanExporter();
 
+    it("names its own provider the same service the events use", async () => {
+      // The provider only got a resource when a serviceName was supplied, so
+      // spans arrived as `unknown_service:node` while the events beside them
+      // said `introspection-client`: one process, two services.
+      const spans = new InMemorySpanExporter();
+      await init({
+        token: "t",
+        autoDiscover: false,
+        advanced: { spanExporter: spans },
+      });
+      const tracer = getTracerProvider().getTracer("t");
+      tracer
+        .startSpan("s", {
+          attributes: { "gen_ai.request.model": "claude-haiku-4-5" },
+        })
+        .end();
+      await (getTracerProvider() as NodeTracerProvider).forceFlush();
+
+      const [exported] = spans.getFinishedSpans();
+      expect(exported!.resource.attributes["service.name"]).toBe(
+        "introspection-client",
+      );
+      // Merged onto the default resource rather than replacing it: that is
+      // where `telemetry.sdk.language` comes from.
+      expect(exported!.resource.attributes["telemetry.sdk.language"]).toBe(
+        "nodejs",
+      );
+    });
+
+    it("leaves a provider the caller supplied unlabelled", async () => {
+      // Defaulting the name must not reach through to someone else's
+      // provider: a process that built its own as "checkout-api" would see
+      // every LLM span rewritten.
+      const spans = new InMemorySpanExporter();
+      const own = new NodeTracerProvider({
+        resource: resourceFromAttributes({ "service.name": "checkout-api" }),
+        spanProcessors: [
+          new IntrospectionSpanProcessor({
+            token: "t",
+            advanced: { spanExporter: spans },
+          }),
+        ],
+      });
+      await init({ token: "t", autoDiscover: false, tracerProvider: own });
+      own
+        .getTracer("t")
+        .startSpan("s", {
+          attributes: { "gen_ai.request.model": "claude-haiku-4-5" },
+        })
+        .end();
+      await own.forceFlush();
+
+      const [exported] = spans.getFinishedSpans();
+      expect(exported!.resource.attributes["service.name"]).toBe(
+        "checkout-api",
+      );
+      await own.shutdown();
+    });
+
     it("is idempotent — repeated calls return the same provider", async () => {
       const p1 = await init({
         token: "t",
@@ -144,9 +203,68 @@ describe("introspection.init()", () => {
       expect(getTracerProvider()).toBe(p1);
     });
 
-    it("requires a token (or a custom exporter)", async () => {
+    it("collapses concurrent calls onto one provider", async () => {
+      // The `state.provider` guard is set only after discovery and
+      // integration setup have awaited. Two callers racing both saw it unset,
+      // both built a provider and a LoggerProvider with its own batch-export
+      // timer, and the second overwrote the first -- leaking the first's
+      // exporters with nothing left holding a reference to shut them down.
+      const opts = {
+        token: "t",
+        autoDiscover: false,
+        advanced: { spanExporter: exporter() },
+      };
+      const [p1, p2, p3] = await Promise.all([
+        init(opts),
+        init(opts),
+        init(opts),
+      ]);
+      expect(p2).toBe(p1);
+      expect(p3).toBe(p1);
+      expect(getTracerProvider()).toBe(p1);
+    });
+
+    it("lets a later call retry after a failed init", async () => {
+      // The in-flight promise must be cleared on rejection too, or one bad
+      // init() would wedge every later one onto the same failure.
+      const boom: Integration = {
+        identifier: "boom",
+        setupOnce: () => {
+          throw new Error("integration exploded");
+        },
+      };
+      await expect(
+        init({
+          token: "t",
+          autoDiscover: false,
+          integrations: [boom],
+          advanced: { spanExporter: exporter() },
+        }),
+      ).rejects.toThrow("integration exploded");
+      resetInstalledForTests();
+      const provider = await init({
+        token: "t",
+        autoDiscover: false,
+        advanced: { spanExporter: exporter() },
+      });
+      expect(getTracerProvider()).toBe(provider);
+    });
+
+    it("requires a token", async () => {
       delete process.env.INTROSPECTION_TOKEN;
       await expect(init({ autoDiscover: false })).rejects.toThrow(/token/);
+    });
+
+    it("accepts a custom exporter in place of a token", async () => {
+      // init() documents the exemption; the span processor used to enforce a
+      // token regardless, so this path threw for tokenless callers.
+      delete process.env.INTROSPECTION_TOKEN;
+      const provider = await init({
+        autoDiscover: false,
+        advanced: { spanExporter: exporter() },
+      });
+      expect(provider).toBeDefined();
+      expect(getTracerProvider()).toBe(provider);
     });
 
     it("analytics proxies throw before init", () => {
@@ -168,7 +286,9 @@ describe("introspection.init()", () => {
       const seen: IntegrationSetupContext[] = [];
       const Fake: Integration = {
         identifier: "fake_test_integration",
-        setupOnce: (ctx) => seen.push(ctx),
+        setupOnce: (ctx) => {
+          seen.push(ctx);
+        },
       };
       await init({
         token: "t",
@@ -208,198 +328,65 @@ describe("introspection.init()", () => {
       const id = await conversation((cid) => cid);
       expect(id).toMatch(/^intro_conv_[0-9a-f]+$/);
     });
+
+    it("conversation() works before init(), unlike the with* helpers", async () => {
+      // Minting an id and scoping it is W3C baggage and nothing else: no
+      // exporter is involved, so there is nothing for `init()` to supply.
+      // Routing it through the global client made this throw, which put the
+      // id out of reach of anyone wanting one before telemetry is
+      // configured, or to hand to a service that exports on its own.
+      let captured: string | undefined;
+      const id = await conversation((cid) => {
+        captured = propagation
+          .getBaggage(context.active())
+          ?.getEntry("gen_ai.conversation.id")?.value;
+        return cid;
+      });
+      expect(id).toMatch(/^intro_conv_[0-9a-f]+$/);
+      expect(captured).toBe(id);
+    });
+
+    it("conversation() leaves the scope when the callback returns", async () => {
+      await conversation("conv-scoped", () => undefined);
+      expect(
+        propagation
+          .getBaggage(context.active())
+          ?.getEntry("gen_ai.conversation.id")?.value,
+      ).toBeUndefined();
+    });
   });
 
   // -------------------------------------------------------------------------
   describe("auto-discovery", () => {
     it("discovers every installed built-in integration", async () => {
       const ids = (await discoverIntegrations()).map((i) => i.identifier);
-      expect(ids).toEqual(
-        expect.arrayContaining([
-          "anthropic",
-          "gemini",
-          "openai_agents",
-          "vercel",
-          "claude_agent",
-          "langchain",
-          "mastra",
-          "pi",
-        ]),
-      );
-    });
-  });
-
-  // -------------------------------------------------------------------------
-  describe("prototype patching (the one-liner)", () => {
-    it("AnthropicInstrumentor.instrumentClass traces any client", async () => {
-      const polly = setupPolly({ recordingName: "anthropic-thinking-basic" });
-      if (
-        !ensureEnvVarsForReplay(
-          ["ANTHROPIC_API_KEY"],
-          "anthropic-thinking-basic",
-        )
-      ) {
-        await polly.stop();
-        return;
-      }
-
-      const exp = new TestSpanExporter();
-      const provider = new NodeTracerProvider({
-        spanProcessors: [
-          new IntrospectionSpanProcessor({
-            token: "test-token",
-            advanced: {
-              spanExporter: exp,
-              useSimpleSpanProcessor: true,
-            } as never,
-          }),
-        ],
-      });
-      const Anthropic = (await import("@anthropic-ai/sdk")).default;
-      const instrumentor = new AnthropicInstrumentor();
-      instrumentor.instrumentClass({
-        anthropic: Anthropic,
-        tracerProvider: provider,
-      });
-
-      try {
-        // A client constructed AFTER the class patch is traced with no wiring.
-        const client = new Anthropic();
-        const response = (await client.messages.create({
-          model: "claude-sonnet-4-6",
-          max_tokens: 8000,
-          thinking: { type: "enabled", budget_tokens: 5000 },
-          messages: [
-            { role: "user", content: "What is 2+2? Think step by step." },
-          ],
-        })) as { content: { type: string }[] };
-        expect(response.content.length).toBeGreaterThanOrEqual(1);
-
-        await provider.forceFlush();
-        const spans = exp.getFinishedSpans();
-        expect(spans.length).toBeGreaterThanOrEqual(1);
-        expect(spans[0].attributes["gen_ai.request.model"]).toBe(
-          "claude-sonnet-4-6",
-        );
-        expect(spans[0].attributes["gen_ai.conversation.id"]).toBeDefined();
-      } finally {
-        instrumentor.uninstrument();
-        await provider.shutdown();
-        await polly.stop();
-      }
-    });
-
-    it("GeminiInstrumentor.instrumentClass traces any client", async () => {
-      const polly = setupPolly({ recordingName: "gemini-thinking-basic" });
-      if (
-        !ensureEnvVarsForReplay(["GEMINI_API_KEY"], "gemini-thinking-basic")
-      ) {
-        await polly.stop();
-        return;
-      }
-
-      const exp = new TestSpanExporter();
-      const provider = new NodeTracerProvider({
-        spanProcessors: [
-          new IntrospectionSpanProcessor({
-            token: "test-token",
-            advanced: {
-              spanExporter: exp,
-              useSimpleSpanProcessor: true,
-            } as never,
-          }),
-        ],
-      });
-      const genai = await import("@google/genai");
-      const instrumentor = new GeminiInstrumentor();
-      instrumentor.instrumentClass({ genai, tracerProvider: provider });
-
-      try {
-        const client = new genai.GoogleGenAI({
-          apiKey: process.env.GEMINI_API_KEY,
-        });
-        const response = await client.models.generateContent({
-          model: "gemini-2.5-flash",
-          contents: "What is 2+2? Think step by step.",
-          config: {
-            thinkingConfig: { thinkingBudget: 2048, includeThoughts: true },
-          },
-        });
-        expect(response.candidates?.length).toBeGreaterThanOrEqual(1);
-
-        await provider.forceFlush();
-        const spans = exp.getFinishedSpans();
-        expect(spans.length).toBeGreaterThanOrEqual(1);
-        expect(spans[0].attributes["gen_ai.request.model"]).toBe(
-          "gemini-2.5-flash",
-        );
-        expect(spans[0].attributes["gen_ai.provider.name"]).toBe("gemini");
-      } finally {
-        instrumentor.uninstrument();
-        await provider.shutdown();
-        await polly.stop();
-      }
+      expect(ids).toEqual(expect.arrayContaining(["pi"]));
     });
   });
 
   // -------------------------------------------------------------------------
   describe("auto-wires every installed framework", () => {
     it("runs each integration's setupOnce and publishes bound handles", async () => {
-      // Gemini's prototype patch is process-global; restore it afterward.
-      // (Anthropic is deactivated by the LangChain integration below.)
-      const genai = await import("@google/genai");
-      const claudeSdk = await import("@anthropic-ai/claude-agent-sdk");
-      const origGemini = (genai.Models.prototype as Record<string, unknown>)
-        .generateContentInternal;
+      // Full auto-discovery: exercises every built-in integration's
+      // setupOnce against the shared provider in one call.
+      await init({
+        token: "test-token",
+        serviceName: "init-autowire-test",
+        advanced: { spanExporter: new TestSpanExporter() },
+      });
 
+      // Instance-based frameworks publish bound handles. Pi's handle is
+      // bound when @earendil-works/pi-agent-core is installed, so the
+      // accessor must not report the integration as unconfigured.
+      const { instrumentPi } =
+        await import("@introspection-sdk/introspection-node/otel");
+      let message = "";
       try {
-        // Full auto-discovery: exercises every built-in integration's
-        // setupOnce against the shared provider in one call.
-        await init({
-          token: "test-token",
-          serviceName: "init-autowire-test",
-          advanced: { spanExporter: new TestSpanExporter() },
-        });
-
-        // Gemini is patched globally (it is not deactivated).
-        expect(
-          (genai.Models.prototype as Record<string, unknown>)
-            .generateContentInternal,
-        ).not.toBe(origGemini);
-
-        // Instance/config-based frameworks publish bound handles.
-        const {
-          getLangchainHandler,
-          getMastraExporter,
-          instrumentClaudeAgent,
-        } = await import("@introspection-sdk/introspection-node/otel");
-        expect(getLangchainHandler()).toBeDefined();
-        expect(getMastraExporter()).toBeDefined();
-
-        const traced = instrumentClaudeAgent(claudeSdk);
-        expect(typeof traced.query).toBe("function");
-        await traced.shutdown();
-      } finally {
-        (
-          genai.Models.prototype as Record<string, unknown>
-        ).generateContentInternal = origGemini;
+        instrumentPi({ streamFn: () => undefined } as never, {} as never);
+      } catch (e) {
+        message = String(e);
       }
-    });
-
-    it("LangChain integration deactivates the Anthropic prototype patch", async () => {
-      // When LangChain drives Anthropic, the handler already traces the call,
-      // so the prototype patch must be skipped to avoid double-tracing.
-      const Anthropic = (await import("@anthropic-ai/sdk")).default;
-      const orig = Anthropic.Messages.prototype.create;
-      try {
-        await init({
-          token: "test-token",
-          advanced: { spanExporter: new TestSpanExporter() },
-        });
-        expect(Anthropic.Messages.prototype.create).toBe(orig);
-      } finally {
-        Anthropic.Messages.prototype.create = orig;
-      }
+      expect(message).not.toContain("Pi integration not configured");
     });
   });
 });

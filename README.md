@@ -8,7 +8,7 @@
   </a>
 </div>
 
-<h4 align="center">Deploy vertical agents that improve in production.</h4>
+<h4 align="center">The infrastructure for long-horizon vertical agents.</h4>
 
 <div align="center">
   <a href="https://introspection.dev"><img src="https://img.shields.io/badge/website-introspection.dev-blue" alt="Website"></a>
@@ -19,16 +19,24 @@
 
 <br>
 
-[Introspection](https://introspection.dev) is the managed cloud for vertical
-agents, powered by Pi. Define an agent as a recipe, deploy it to a
-commit-pinned runtime, and improve it in production with conversations,
-patterns, judges, and experiments.
+[Introspection](https://introspection.dev) is the infrastructure for
+long-horizon vertical agents, powered by Pi. Define an agent as a
+[Recipe](https://pi.recipes) — agents, skills, policies, and evals in plain
+source you own in Git — deploy it to a governed per-customer Runtime, and
+improve it in production with conversations, observations, judges, and
+experiments.
 
-This repository contains the JavaScript and TypeScript clients for driving the
-Introspection platform. Use them to open a runner against a deployed runtime,
-start and stream tasks, and work with the platform from server and browser
-applications. See the [SDK overview](https://docs.introspection.dev/sdk) for
-where each client fits.
+This repository contains the JavaScript and TypeScript clients for
+Introspection, and it carries the widest surface of any of them: agent
+instrumentation for [Pi](https://github.com/badlogic/pi-mono), a browser client
+for token-brokered applications, egress-proxy helpers, and the platform API for
+runtimes and tasks. See the [SDK overview](https://docs.introspection.dev/sdk)
+for where each client fits.
+
+Reach for it when you are **instrumenting an agent that runs outside an
+Introspection runtime** — `init()` discovers Pi and wires it into one trace
+pipeline, so conversations, judges, and experiments see a locally-run agent the
+same way they see a deployed one.
 
 ## Packages
 
@@ -37,13 +45,86 @@ where each client fits.
 | [`@introspection-sdk/introspection-node`](./packages/introspection-node/)       | Server-side platform client for runtimes, tasks, files, conversations, recipes, and experiments |
 | [`@introspection-sdk/introspection-browser`](./packages/introspection-browser/) | Browser platform client for applications authenticated through a backend token broker           |
 | [`@introspection-sdk/types`](./packages/introspection-types/)                   | Shared types and constants                                                                      |
-| [`@introspection-sdk/introspection-pi`](./packages/introspection-pi/)           | Supported [Pi Agent SDK](https://withpi.ai) instrumentation                                     |
+| [`@introspection-sdk/introspection-pi`](./packages/introspection-pi/)           | Supported [Pi Agent SDK](https://github.com/badlogic/pi-mono) instrumentation                   |
+| [`@introspection-sdk/coding-agent`](./packages/introspection-coding-agent/)     | Opt-in capture of Claude Code / Codex plugin sessions for the Introspection plugin              |
 | [`@introspection-sdk/introspection-proxy`](./packages/introspection-proxy/)     | Egress proxy helpers — credential injection and CONNECT forward proxy                           |
+| [`@introspection-sdk/http`](./packages/introspection-http/)                     | Isomorphic HTTP transport, AG-UI stream parsing, error mapping, and cursor pagination           |
 
 ## Quick start
 
 ```shell
 pnpm add @introspection-sdk/introspection-node
+```
+
+### Instrumentation (`/otel`)
+
+The `@introspection-sdk/introspection-node/otel` entrypoint records backend
+product signals (`track` / `feedback` / `identify`) and instruments an agent
+that runs outside an Introspection runtime. Pi is the supported
+agent-instrumentation path. `init()` discovers Pi and wires it into the shared
+trace pipeline:
+
+```shell
+pnpm add @earendil-works/pi-agent-core @earendil-works/pi-ai
+```
+
+```typescript
+import * as introspection from "@introspection-sdk/introspection-node/otel";
+import { Agent } from "@earendil-works/pi-agent-core";
+import { streamSimple } from "@earendil-works/pi-ai/compat";
+import { getBuiltinModel } from "@earendil-works/pi-ai/providers/all";
+
+await introspection.init({ serviceName: "my-app" });
+
+const agent = new Agent({
+  streamFn: streamSimple,
+  initialState: {
+    model: getBuiltinModel("anthropic", "claude-sonnet-4-6"),
+    systemPrompt: "You are a helpful support agent.",
+  },
+});
+introspection.instrumentPi(agent, {
+  conversationId: "conv_123",
+  agentId: "support-agent",
+  agentName: "Support",
+});
+
+await agent.prompt("Help me understand my latest invoice.");
+await introspection.shutdown();
+```
+
+> Pi is the only framework integration `init()` auto-discovers. Everything
+> else is manual instrumentation: emit spans in OTel GenAI semantic
+> conventions and `IntrospectionSpanProcessor` exports them as-is. The SDK
+> does not translate other span formats.
+
+#### Product signals and identity
+
+The same entrypoint emits `track` / `feedback` / `identify`, and scopes the
+identity and conversation that spans and events are attributed to. The `with*`
+helpers run a callback with the value on W3C baggage, so everything inside the
+callback — spans included — carries it:
+
+```typescript
+import * as introspection from "@introspection-sdk/introspection-node/otel";
+
+await introspection.withUserId("user_42", async () => {
+  await introspection.track("Invoice Explained", { turns: 3 });
+  await introspection.feedback("thumbs_up", { comments: "Great response!" });
+});
+```
+
+Starting a conversation rather than continuing one? `conversation()` mints an
+id in the platform's `intro_conv_<hex>` shape and scopes it for the callback.
+It needs no `init()` — an id is minted locally and scoped on baggage, so you
+can take one before telemetry is configured, or hand it to a service that
+exports on its own:
+
+```typescript
+const summary = await introspection.conversation(async (conversationId) => {
+  await agent.prompt("Help me understand my latest invoice.");
+  return conversationId; // what to record feedback against later
+});
 ```
 
 ### Introspection API (runtimes, tasks, files)
@@ -62,7 +143,7 @@ const run = await runner.tasks.start({
 });
 
 for await (const event of run.stream()) {
-  console.log(`[${event.event}] ${event.data}`);
+  console.log(event.type, event);
 }
 
 await runner.close();
@@ -100,6 +181,32 @@ explicit, or `{ mode: "drain", drain_within_seconds: 60 }` for graceful
 teardown. Interrupted runs resume through
 `runner.tasks.runs.resume(taskId, { resume: entries })`.
 
+#### Reading conversations
+
+A runner exposes the read-only `runner.conversations` beside `runner.tasks` and
+`runner.files`. It lists conversation summaries, loads a conversation's latest
+LLM turn, and walks its per-turn items — every read returning the same
+`GenAiSpan` shape, keyed by OTel GenAI semantic-convention name.
+
+Complete exports are server-paginated in 1,000-row storage pages. Use a typed
+helper when you want the parsed result, or `exportStream` to forward raw JSON,
+trajectory, or Arrow bytes without buffering the whole response:
+
+```typescript
+const stream = await runner.conversations.exportStream(
+  conversationId,
+  "trajectory",
+  { agent: "root" },
+);
+for await (const chunk of stream) {
+  await destination.write(chunk);
+}
+
+const spans = await runner.conversations.exportJson(conversationId);
+const trajectory = await runner.conversations.exportTrajectory(conversationId);
+const table = await runner.conversations.exportArrow(conversationId);
+```
+
 #### Resilient streaming
 
 `run.stream()` **resumes transparently** across a mid-turn disconnect — gateway
@@ -115,7 +222,7 @@ for await (const event of run.stream({
   maxReconnects: 5,
   timeoutMs: 300_000,
 })) {
-  console.log(`[${event.event}] ${event.data}`);
+  console.log(event.type, event);
 }
 ```
 
@@ -141,40 +248,6 @@ budget is spent the error surfaces (`RateLimitError` for 429,
 and `body` so you can decide how to back off further. Streaming has its own
 resume budget (above); multipart uploads are not auto-retried.
 
-### Pi instrumentation
-
-Pi is the supported agent-instrumentation path. `init()` discovers Pi and wires
-it into the shared trace pipeline:
-
-```shell
-pnpm add @earendil-works/pi-agent-core @earendil-works/pi-ai
-```
-
-```typescript
-import * as introspection from "@introspection-sdk/introspection-node/otel";
-import { Agent } from "@earendil-works/pi-agent-core";
-import { getBuiltinModel } from "@earendil-works/pi-ai/providers/all";
-
-await introspection.init({ serviceName: "my-app" });
-
-const agent = new Agent({
-  initialState: {
-    model: getBuiltinModel("anthropic", "claude-sonnet-4-6"),
-    systemPrompt: "You are a helpful support agent.",
-  },
-});
-introspection.instrumentPi(agent, {
-  conversationId: "conv_123",
-  agentId: "support-agent",
-  agentName: "Support",
-});
-
-await agent.prompt("Help me understand my latest invoice.");
-await introspection.shutdown();
-```
-
-> Support for other frameworks is experimental.
-
 ### Egress proxy
 
 Route outbound `fetch` through the Introspection egress proxy for credential injection:
@@ -194,10 +267,21 @@ Hosts in `INTROSPECTION_ENDPOINT_HOSTS` go through the egress reverse proxy for 
 ## Environment variables
 
 ```shell
+# Introspection API (IntrospectionClient)
 export INTROSPECTION_TOKEN="intro_xxx"
 export INTROSPECTION_BASE_API_URL="https://api.introspection.dev"   # optional
+
+# Development only: route this process's tasks to your own `introspection dev`
+# server when several developers share one Runtime. `introspection dev` prints
+# the line to copy. No default — see "Sharing a Runtime with another developer" above.
+export INTROSPECTION_DEV_TARGET="roland"                            # optional
+
+# OTel (IntrospectionLogs + IntrospectionSpanProcessor)
 export INTROSPECTION_BASE_OTEL_URL="https://otel.introspection.dev" # optional
 export INTROSPECTION_SERVICE_NAME="my-service"                      # optional
+
+# SDK diagnostics: error, warn, info, debug, verbose. Default: warn.
+export INTROSPECTION_LOG_LEVEL="debug"                              # optional
 ```
 
 ## Documentation

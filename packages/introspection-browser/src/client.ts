@@ -13,9 +13,15 @@ import {
 } from "@opentelemetry/sdk-logs";
 import { OTLPLogExporter } from "@opentelemetry/exporter-logs-otlp-http";
 import { propagation, context } from "@opentelemetry/api";
+import {
+  defaultResource,
+  resourceFromAttributes,
+} from "@opentelemetry/resources";
+import { ATTR_SERVICE_NAME } from "@opentelemetry/semantic-conventions";
 import { VERSION } from "./version.js";
 import {
   generateEventId,
+  toAttributeValue,
   type IntrospectionClientOptions,
   type FeedbackOptions,
   type UserTraits,
@@ -97,9 +103,28 @@ class Logger {
  * client.track("Button Clicked", { buttonId: "submit" });
  * ```
  */
+/**
+ * Attach the page-hide flush listeners and return a function that removes
+ * them again.
+ */
+function attachFlushListeners(flush: () => void): () => void {
+  const onUnload = () => flush();
+  const onVisibility = () => {
+    if (document.visibilityState === "hidden") flush();
+  };
+  window.addEventListener("beforeunload", onUnload);
+  document.addEventListener("visibilitychange", onVisibility);
+  return () => {
+    window.removeEventListener("beforeunload", onUnload);
+    document.removeEventListener("visibilitychange", onVisibility);
+  };
+}
+
 export class IntrospectionClient {
   private loggerProvider: LoggerProvider;
   private otelLogger: ReturnType<LoggerProvider["getLogger"]>;
+  /** Removes the page-unload flush listeners; set only in a browser. */
+  private detachFlushListeners?: () => void;
   private userId: string | undefined;
   private anonymousId: string;
   private traits: Record<string, unknown> = {};
@@ -143,40 +168,70 @@ export class IntrospectionClient {
       Object.assign(headers, advanced.additionalHeaders);
     }
 
-    // Create OTLP log exporter with HTTP/JSON
-    const exporter = new OTLPLogExporter({
-      url: endpoint,
-      headers,
-    });
+    // Create OTLP log exporter with HTTP/JSON. `advanced.logExporter` swaps
+    // it for an in-memory one: the analytics stream is the whole point of
+    // this client, and without a seam there was no way to assert what it
+    // puts on the wire short of standing up a collector.
+    const exporter =
+      advanced.logExporter ??
+      new OTLPLogExporter({
+        url: endpoint,
+        headers,
+      });
 
     // Create batch processor
     const processor = new BatchLogRecordProcessor({
       exporter,
-      maxQueueSize: advanced.maxBatchSize ?? 100,
+      // maxBatchSize is the export batch size, not the queue bound. Wired to
+      // maxQueueSize it left the queue at 100 while the batch size kept its
+      // default of 512, which OTel warns about and clamps on every
+      // construction.
+      maxExportBatchSize: advanced.maxBatchSize ?? 100,
       scheduledDelayMillis: advanced.flushInterval ?? 5000,
+      // Passed only when set, so an unset option leaves the OTel SDK's own
+      // default (and its env-var override) in charge.
+      ...(advanced.maxQueueSize != null
+        ? { maxQueueSize: advanced.maxQueueSize }
+        : {}),
+      ...(advanced.exportTimeoutMillis != null
+        ? { exportTimeoutMillis: advanced.exportTimeoutMillis }
+        : {}),
     });
 
-    // Create logger provider with processor
+    // Merge onto the default resource rather than replacing it: the default
+    // is what supplies `telemetry.sdk.language` ("webjs") and the SDK
+    // version, which is how a record is attributed to this surface, since
+    // the scope name alone does not name a platform. Passing no resource at
+    // all left `service.name` at `unknown_service` -- the `serviceName`
+    // option was accepted and never applied.
     this.loggerProvider = new LoggerProvider({
+      resource: defaultResource().merge(
+        resourceFromAttributes({
+          [ATTR_SERVICE_NAME]:
+            options.serviceName ?? "introspection-browser-client",
+        }),
+      ),
       processors: [processor],
     });
 
     // Get a logger instance
+    // The dist name, per the OTel convention that the scope names the
+    // instrumentation library. Deliberately not platform-tagged: the SDK
+    // language already rides the resource as `telemetry.sdk.language`, which
+    // is the semconv-designated place for it.
     this.otelLogger = this.loggerProvider.getLogger(
-      "@introspection-sdk/introspection-browser",
+      "introspection-sdk",
       VERSION,
     );
 
-    // Flush on page unload
+    // Flush on page unload. Kept as named handlers so `shutdown()` can
+    // remove them: left attached, they call `forceFlush()` on a dead
+    // provider at the next page-hide, and pin the client for the page's
+    // lifetime -- an SPA that recreates the client accumulates a pair per
+    // instance.
     if (typeof window !== "undefined") {
-      window.addEventListener("beforeunload", () => {
-        this.loggerProvider.forceFlush();
-      });
-
-      document.addEventListener("visibilitychange", () => {
-        if (document.visibilityState === "hidden") {
-          this.loggerProvider.forceFlush();
-        }
+      this.detachFlushListeners = attachFlushListeners(() => {
+        void this.loggerProvider.forceFlush();
       });
     }
 
@@ -360,15 +415,7 @@ export class IntrospectionClient {
       for (const [key, value] of Object.entries(properties)) {
         if (value != null) {
           const attrKey = `properties.${key}`;
-          if (typeof value === "object") {
-            attributes[attrKey] = JSON.stringify(value);
-          } else if (
-            typeof value === "string" ||
-            typeof value === "number" ||
-            typeof value === "boolean"
-          ) {
-            attributes[attrKey] = value;
-          }
+          attributes[attrKey] = toAttributeValue(value);
         }
       }
     }
@@ -378,15 +425,7 @@ export class IntrospectionClient {
       for (const [key, value] of Object.entries(traits)) {
         if (value != null) {
           const attrKey = `context.traits.${key}`;
-          if (typeof value === "object") {
-            attributes[attrKey] = JSON.stringify(value);
-          } else if (
-            typeof value === "string" ||
-            typeof value === "number" ||
-            typeof value === "boolean"
-          ) {
-            attributes[attrKey] = value;
-          }
+          attributes[attrKey] = toAttributeValue(value);
         }
       }
     }
@@ -460,8 +499,13 @@ export class IntrospectionClient {
     const { comments, conversationId, previousResponseId, eventId, ...extra } =
       options;
 
-    const properties: Record<string, unknown> = { name, ...extra };
-    if (comments) {
+    // `name` last: it is the positional argument, so an `extra` key that
+    // happens to be called `name` must not silently replace the feedback
+    // name the caller passed.
+    const properties: Record<string, unknown> = { ...extra, name };
+    // `!= null`, not truthiness: `comments: ""` is a comment the caller
+    // supplied.
+    if (comments != null) {
       properties.comments = comments;
     }
 
@@ -569,6 +613,21 @@ export class IntrospectionClient {
    */
   getAnonymousId(): string {
     return this.anonymousId;
+  }
+
+  /**
+   * Get the identified user, if {@link identify} or {@link setUserId} has
+   * been called (in this session or a previous one — it is persisted).
+   *
+   * @returns The user ID, or `undefined` while the visitor is anonymous.
+   *
+   * @example
+   * ```ts
+   * const userId = client.getUserId();
+   * ```
+   */
+  getUserId(): string | undefined {
+    return this.userId;
   }
 
   /**
@@ -790,6 +849,8 @@ export class IntrospectionClient {
    * @returns A promise that resolves once shutdown is complete.
    */
   async shutdown(): Promise<void> {
+    this.detachFlushListeners?.();
+    this.detachFlushListeners = undefined;
     await this.loggerProvider.shutdown();
     this.logger.log("Shutdown complete");
   }

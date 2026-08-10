@@ -116,7 +116,7 @@ describe("instrumentStream", () => {
     });
 
     const wrapped = instrumentStream(upstream, { tracer, meta: META });
-    const stream = wrapped(
+    const stream = await wrapped(
       MODEL,
       {
         systemPrompt: "Be concise.",
@@ -182,9 +182,11 @@ describe("instrumentStream", () => {
         "introspection.client_message_id": "msg_42",
       }),
     });
-    await wrapped(MODEL, {
-      messages: [{ role: "user", content: "hi", timestamp: 0 }],
-    }).result();
+    await (
+      await wrapped(MODEL, {
+        messages: [{ role: "user", content: "hi", timestamp: 0 }],
+      })
+    ).result();
     await provider.forceFlush();
 
     const span = exporter
@@ -220,9 +222,11 @@ describe("instrumentStream", () => {
         meta: META,
         getParentContext: () => parentContext,
       });
-      await wrapped(MODEL, {
-        messages: [{ role: "user", content: "hi", timestamp: 0 }],
-      }).result();
+      await (
+        await wrapped(MODEL, {
+          messages: [{ role: "user", content: "hi", timestamp: 0 }],
+        })
+      ).result();
       parent.end();
     });
 
@@ -248,7 +252,7 @@ describe("instrumentStream", () => {
     };
 
     const wrapped = instrumentStream(upstream, { tracer, meta: META });
-    const stream = wrapped(MODEL, {
+    const stream = await wrapped(MODEL, {
       messages: [{ role: "user", content: "hi", timestamp: 0 }],
     });
     await stream.result();
@@ -280,9 +284,11 @@ describe("instrumentStream", () => {
     };
 
     const wrapped = instrumentStream(upstream, { tracer, meta: META });
-    await wrapped(MODEL, {
-      messages: [{ role: "user", content: "hi", timestamp: 0 }],
-    }).result();
+    await (
+      await wrapped(MODEL, {
+        messages: [{ role: "user", content: "hi", timestamp: 0 }],
+      })
+    ).result();
     await provider.forceFlush();
 
     const span = exporter
@@ -313,9 +319,11 @@ describe("instrumentStream", () => {
     };
 
     const wrapped = instrumentStream(upstream, { tracer, meta: META });
-    await wrapped(MODEL, {
-      messages: [{ role: "user", content: "hi", timestamp: 0 }],
-    }).result();
+    await (
+      await wrapped(MODEL, {
+        messages: [{ role: "user", content: "hi", timestamp: 0 }],
+      })
+    ).result();
     await provider.forceFlush();
 
     const span = exporter
@@ -353,9 +361,11 @@ describe("instrumentStream", () => {
       meta: META,
       abortTerminationReason: () => "awaiting_user",
     });
-    await wrapped(MODEL, {
-      messages: [{ role: "user", content: "hi", timestamp: 0 }],
-    }).result();
+    await (
+      await wrapped(MODEL, {
+        messages: [{ role: "user", content: "hi", timestamp: 0 }],
+      })
+    ).result();
     await provider.forceFlush();
 
     const span = exporter
@@ -388,9 +398,11 @@ describe("instrumentStream", () => {
       meta: META,
       abortTerminationReason: () => null,
     });
-    await wrapped(MODEL, {
-      messages: [{ role: "user", content: "hi", timestamp: 0 }],
-    }).result();
+    await (
+      await wrapped(MODEL, {
+        messages: [{ role: "user", content: "hi", timestamp: 0 }],
+      })
+    ).result();
     await provider.forceFlush();
 
     const span = exporter
@@ -402,6 +414,71 @@ describe("instrumentStream", () => {
     expect(
       span?.attributes["introspection.termination_reason"],
     ).toBeUndefined();
+  });
+
+  it("terminates the stream when upstream ends without a terminal event", async () => {
+    // `EventStream` only settles on a `done`/`error` push, so an upstream
+    // that just stops leaves the consumer's `for await` and `result()`
+    // parked forever. The wrapper has to synthesize the terminal event.
+    const { exporter, tracer, provider } = setupTracer();
+
+    const upstream = vi.fn(() => {
+      const stream = createAssistantMessageEventStream();
+      setTimeout(() => {
+        stream.push({
+          type: "text_delta",
+          contentIndex: 0,
+          delta: "partial",
+          partial: assistantMessage(),
+        });
+        // No `done`, no `error` — just end the iteration.
+        stream.end();
+      }, 1);
+      return stream;
+    });
+
+    const wrapped = instrumentStream(upstream, { tracer, meta: META });
+    const stream = await wrapped(
+      MODEL,
+      {
+        systemPrompt: "Be concise.",
+        messages: [{ role: "user", content: "Inspect", timestamp: 0 }],
+      },
+      {},
+    );
+
+    const seen: string[] = [];
+    const drain = (async () => {
+      for await (const event of stream) seen.push(event.type);
+    })();
+
+    // Both of these hang forever if the wrapper stays quiet.
+    await expect(
+      Promise.race([
+        drain,
+        new Promise((_, reject) =>
+          setTimeout(
+            () => reject(new Error("iteration never terminated")),
+            1000,
+          ),
+        ),
+      ]),
+    ).resolves.toBeUndefined();
+    await expect(
+      Promise.race([
+        stream.result(),
+        new Promise((_, reject) =>
+          setTimeout(() => reject(new Error("result() never settled")), 1000),
+        ),
+      ]),
+    ).resolves.toBeDefined();
+
+    expect(seen).toContain("error");
+
+    await provider.forceFlush();
+    const span = exporter.getFinishedSpans().at(-1);
+    expect(span?.name).toContain("chat");
+    expect(span?.attributes["error.type"]).toBeDefined();
   });
 });
 

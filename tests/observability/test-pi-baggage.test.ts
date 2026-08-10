@@ -21,9 +21,9 @@ import type { Polly } from "@pollyjs/core";
 
 import {
   IntrospectionLogs,
-  IntrospectionPiInstrumentor,
   IntrospectionSpanProcessor,
 } from "@introspection-sdk/introspection-node/otel";
+import { IntrospectionPiInstrumentor } from "@introspection-sdk/introspection-node/otel/pi";
 import { TestSpanExporter, IncrementalIdGenerator } from "../testing";
 import {
   setupPolly,
@@ -39,7 +39,7 @@ describe("Pi Agent SDK baggage — real Agent against Polly-recorded Anthropic",
   let polly: Polly | null = null;
   let disposeOTel: (() => void) | null = null;
 
-  // One Polly per file — see test-langchain-baggage.test.ts for the rationale.
+  // One Polly per file — Polly's global interception can't be scoped per test.
   beforeAll(async () => {
     try {
       await import("@earendil-works/pi-agent-core");
@@ -75,7 +75,10 @@ describe("Pi Agent SDK baggage — real Agent against Polly-recorded Anthropic",
       spanProcessors: [
         new IntrospectionSpanProcessor({
           token: "test-token",
-          advanced: { spanExporter: exporter, useSimpleSpanProcessor: true },
+          // No `useSimpleSpanProcessor`: it is not an option this SDK has,
+          // so it was accepted by the object literal and ignored. Every
+          // consumer here force-flushes before asserting anyway.
+          advanced: { spanExporter: exporter },
         }),
       ],
     });

@@ -70,7 +70,6 @@ export {
   RuntimesApi,
   RuntimesClient,
   attachRuntimes,
-  isUuid,
 } from "./resources/runtimes.js";
 export type {
   RuntimeHandleFactory,

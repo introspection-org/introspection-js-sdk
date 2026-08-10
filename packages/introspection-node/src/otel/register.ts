@@ -8,19 +8,17 @@
  * ```
  *
  * Runs `introspection.init()` from the environment **before** the app's module
- * graph executes, so no `init()` call is needed in application source. Because
- * the Anthropic / Gemini one-liner works by prototype-patching the SDK classes
- * (see `AnthropicInstrumentor.instrumentClass`), every client constructed after
- * this preload is traced with zero code changes.
+ * graph executes, so no `init()` call is needed in application source —
+ * framework auto-discovery (Pi) runs before
+ * the application entry point evaluates.
  *
  * Configuration is read from the usual environment variables
  * (`INTROSPECTION_TOKEN`, `INTROSPECTION_SERVICE_NAME`,
  * `INTROSPECTION_BASE_OTEL_URL`). If no token is configured the preload logs a
  * warning and does nothing, so it never crashes the host application.
  *
- * This is the counterpart to the private SDK's `register.ts`, adapted to the
- * `src/otel` surface: it drives the existing `init()` rather than registering an
- * import-in-the-middle loader hook (the prototype-patch path does not need one).
+ * It drives the existing `init()` rather than registering an
+ * import-in-the-middle loader hook.
  */
 import { logger } from "../utils.js";
 import { init } from "./init.js";
@@ -28,8 +26,8 @@ import { init } from "./init.js";
 /**
  * Run `init()` if a token is configured. Exported (and awaited at module load)
  * so tests can invoke it deterministically; the module-level `await` below
- * guarantees the preload finishes — including framework auto-discovery and the
- * prototype patch — before Node evaluates the application entry point.
+ * guarantees the preload finishes — including framework auto-discovery —
+ * before Node evaluates the application entry point.
  */
 export async function registerFromEnv(): Promise<void> {
   if (!process.env.INTROSPECTION_TOKEN) {

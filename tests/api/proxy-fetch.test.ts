@@ -176,7 +176,8 @@ describe("introspection-proxy-call spans", () => {
     clearProxyEnv();
     let traceparent: string | undefined;
     server = createServer((req, res) => {
-      traceparent = req.headers.traceparent;
+      // Node types every incoming header as `string | string[]`.
+      traceparent = req.headers.traceparent as string | undefined;
       res.end("ok");
     });
     await new Promise<void>((resolve) => server?.listen(0, resolve));
@@ -202,7 +203,7 @@ describe("introspection-proxy-call spans", () => {
     clearProxyEnv();
     const baggageHeaders: Array<string | undefined> = [];
     server = createServer((req, res) => {
-      baggageHeaders.push(req.headers.baggage);
+      baggageHeaders.push(req.headers.baggage as string | undefined);
       res.end("ok");
     });
     await new Promise<void>((resolve) => server?.listen(0, resolve));

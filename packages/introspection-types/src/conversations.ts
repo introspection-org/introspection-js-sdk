@@ -516,6 +516,14 @@ export function genAiOutputMessages(span: GenAiSpan): OutputMessage[] {
  * `next` come from {@link CursorParams}). All filters are optional and
  * combined with AND logic; date range filters are inclusive.
  */
+/** `resolution` filter on the conversations list. */
+export type ConversationResolution =
+  "resolved" | "blocked" | "unresolved" | "pending";
+
+/** `sentiment` filter on the conversations list. */
+export type ConversationSentiment =
+  "positive" | "negative" | "mixed" | "neutral";
+
 export interface ConversationListParams extends CursorParams, ReadWindowParams {
   /** Filter: conversation ID (exact match). */
   conversation_id?: string;
@@ -546,6 +554,13 @@ export interface ConversationListParams extends CursorParams, ReadWindowParams {
   experiment_id?: Uuid;
   /** Filter: recipe git commit SHA. */
   recipe_git_commit_sha?: string;
+  /** Restrict to several conversations. */
+  conversation_ids?: string[];
+  /** Read through one or more share grants. */
+  share_id?: string[];
+  resolution?: ConversationResolution;
+  sentiment?: ConversationSentiment;
+  owner_key?: string;
   /** Start of date range (inclusive). */
   start_date?: IsoDate;
   /** End of date range (inclusive). */

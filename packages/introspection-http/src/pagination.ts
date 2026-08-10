@@ -44,7 +44,13 @@ export class Paginator<T, TPage = Paginated<T>>
     do {
       const page = await this.source.fetch(cursor);
       for (const item of this.source.items(page)) yield item;
-      cursor = this.source.next(page);
+      const next = this.source.next(page);
+      // A cursor that does not move is exhaustion, not another page. Without
+      // this the loop re-requests the same page forever, yielding the same
+      // records each time -- an infinite `for await` against a server that
+      // echoes the cursor it was given.
+      if (next === cursor) return;
+      cursor = next;
     } while (cursor !== undefined);
   }
 }
@@ -62,7 +68,10 @@ export function cursorPaginate<T>(
     {
       fetch,
       items: (page) => page.records,
-      next: (page) => page.next ?? undefined,
+      // `?? undefined` alone let `""` through as a cursor: empty string is
+      // not nullish, so an envelope reporting no next page as `""` rather
+      // than `null` paged forever.
+      next: (page) => page.next || undefined,
     },
     start,
   );

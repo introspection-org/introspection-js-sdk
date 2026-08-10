@@ -12,14 +12,14 @@ describe("isModuleNotFound", () => {
     expect(isModuleNotFound({ code: "ERR_MODULE_NOT_FOUND" })).toBe(true);
     expect(isModuleNotFound({ code: "MODULE_NOT_FOUND" })).toBe(true);
     expect(
-      isModuleNotFound(new Error("Cannot find module '@mastra/core'")),
+      isModuleNotFound(
+        new Error("Cannot find module '@earendil-works/pi-agent-core'"),
+      ),
     ).toBe(true);
     expect(
       isModuleNotFound(new Error("Cannot find package 'ai' imported from x")),
     ).toBe(true);
-    expect(
-      isModuleNotFound(new Error("Failed to resolve '@openai/agents'")),
-    ).toBe(true);
+    expect(isModuleNotFound(new Error("Failed to resolve 'ai'"))).toBe(true);
   });
 
   it("treats real integration errors as NOT module-not-found", () => {

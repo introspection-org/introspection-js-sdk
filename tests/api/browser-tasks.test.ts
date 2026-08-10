@@ -364,12 +364,12 @@ describe("RunHandle / TaskRunsClient", () => {
   it("runs.create() returns a handle on the new run", async () => {
     const http = mockHttp({ requestResult: { run: RUN_FIXTURE } });
     const runs = new TaskRunsClient(http);
-    const handle = await runs.create("task-1", { message: "again" });
+    const handle = await runs.create("task-1", { prompt: { text: "again" } });
 
     expect(http.request).toHaveBeenCalledWith({
       method: "POST",
       path: "/v1/tasks/task-1/runs",
-      body: { message: "again" },
+      body: { prompt: { text: "again" } },
     });
     expect(handle).toBeInstanceOf(RunHandle);
     expect(handle.task).toBeNull();
@@ -451,6 +451,61 @@ describe("IntrospectionApiClient", () => {
     expect(fetchImpl.mock.calls[1][0]).toBe(
       "https://dp.example.com/v1/oauth/exchange",
     );
+  });
+
+  it("re-exchanges once for concurrent 401s", async () => {
+    // Three parallel calls hitting an expired cookie used to invoke the
+    // app's getToken three times and race three exchanges; if the broker
+    // single-uses its tokens the losers surfaced AuthenticationError even
+    // though the session had just refreshed.
+    let exchanges = 0;
+    let sessionValid = false;
+    const fetchImpl = vi.fn(async (url: string) => {
+      if (url === "https://dp.example.com/v1/oauth/exchange") {
+        exchanges += 1;
+        // Deliberately slow, so all three 401s land before the first
+        // exchange resolves.
+        await new Promise((resolve) => setTimeout(resolve, 5));
+        sessionValid = true;
+        return {
+          ok: true,
+          status: 200,
+          headers: new Headers({ "content-type": "application/json" }),
+          json: () => Promise.resolve({}),
+        };
+      }
+      if (!sessionValid) {
+        return {
+          ok: false,
+          status: 401,
+          headers: new Headers({ "content-type": "application/json" }),
+          json: () => Promise.resolve({ detail: "expired" }),
+          text: () => Promise.resolve("expired"),
+        };
+      }
+      return {
+        ok: true,
+        status: 200,
+        headers: new Headers({ "content-type": "application/json" }),
+        json: () => Promise.resolve(TASK_FIXTURE),
+      };
+    });
+    const getToken = vi.fn().mockResolvedValue("intro_access_token");
+    const client = new IntrospectionApiClient({
+      dpUrl: "https://dp.example.com",
+      getToken,
+      fetch: fetchImpl as unknown as typeof fetch,
+    });
+
+    const tasks = await Promise.all([
+      client.tasks.get("task-1"),
+      client.tasks.get("task-2"),
+      client.tasks.get("task-3"),
+    ]);
+
+    expect(tasks).toEqual([TASK_FIXTURE, TASK_FIXTURE, TASK_FIXTURE]);
+    expect(exchanges).toBe(1);
+    expect(getToken).toHaveBeenCalledOnce();
   });
 
   it("starts a task with a server-resolved runtime_id over the cookie session", async () => {
@@ -560,7 +615,8 @@ describe("environment-scoped sessions", () => {
     await client.connect();
     await client.tasks.get("task-1");
 
-    const [, init] = fetchImpl.mock.calls[1];
+    const calls = fetchImpl.mock.calls as unknown as [string, RequestInit][];
+    const [, init] = calls[1]!;
     expect(
       (init.headers as Record<string, string>)["x-introspection-environment"],
     ).toBe("staging");

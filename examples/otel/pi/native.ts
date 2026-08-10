@@ -21,11 +21,11 @@ import { Agent, type AgentTool } from "@earendil-works/pi-agent-core";
 import { Type } from "@earendil-works/pi-ai";
 import { streamSimple } from "@earendil-works/pi-ai/compat";
 import { getBuiltinModel } from "@earendil-works/pi-ai/providers/all";
+import { setupTracing } from "@introspection-sdk/introspection-node/otel";
 import {
   IntrospectionPiInstrumentor,
-  setupTracing,
   type PiAgentMeta,
-} from "@introspection-sdk/introspection-node/otel";
+} from "@introspection-sdk/introspection-node/otel/pi";
 
 function getWeather(city: string): string {
   const data: Record<string, string> = {

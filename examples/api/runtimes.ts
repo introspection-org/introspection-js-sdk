@@ -1,6 +1,5 @@
 /**
- * End-to-end Runner walkthrough — Node sibling of the Rust
- * `examples/tasks_files.rs` example.
+ * End-to-end Runner walkthrough.
  *
  * Looks up a runtime by runtime group slug or ID, opens a Runner against it, spawns a
  * task and streams the run, then uploads a couple of files via the

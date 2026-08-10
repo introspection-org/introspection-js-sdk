@@ -1,9 +1,8 @@
 /**
  * Integration discovery + setup loader for `introspection.init()`.
  *
- * Mirrors the Python SDK's registry: built-in integrations are resolved
- * lazily (a missing framework just skips its shim), `setupOnce` runs at most
- * once per identifier per process, and an integration may `deactivate` others.
+ * Built-in integrations are resolved lazily (a missing framework just skips
+ * its shim) and `setupOnce` runs at most once per identifier per process.
  */
 
 import { logger } from "../../utils.js";
@@ -25,20 +24,11 @@ export type { Integration, IntegrationHandles, IntegrationSetupContext };
  */
 const BUILTIN_INTEGRATIONS: ReadonlyArray<
   () => Promise<{ default: Integration }>
-> = [
-  () => import("./anthropic.js"),
-  () => import("./gemini.js"),
-  () => import("./openai-agents.js"),
-  () => import("./vercel.js"),
-  () => import("./claude-agent.js"),
-  () => import("./langchain.js"),
-  () => import("./mastra.js"),
-  () => import("./pi.js"),
-];
+> = [() => import("./pi.js")];
 
 const installed = new Set<string>();
-// Teardown callbacks returned by integration setupOnce (e.g. uninstrument a
-// prototype patch), run by teardownIntegrations() on shutdown.
+// Teardown callbacks returned by integration setupOnce (e.g. detach a
+// framework hook), run by teardownIntegrations() on shutdown.
 const teardowns: Array<() => void> = [];
 
 async function availableIntegrations(
@@ -85,7 +75,7 @@ export async function discoverIntegrations(): Promise<Integration[]> {
 }
 
 /**
- * Run each integration's `setupOnce` once, honouring `deactivates`.
+ * Run each integration's `setupOnce` exactly once.
  *
  * @returns the set of identifiers installed so far this process.
  */
@@ -101,18 +91,7 @@ export async function setupIntegrations(
     }
   }
 
-  const disabled = new Set<string>();
-  for (const integration of byId.values()) {
-    for (const id of integration.deactivates ?? []) disabled.add(id);
-  }
-
   for (const [identifier, integration] of byId) {
-    if (disabled.has(identifier)) {
-      logger.debug(
-        `Skipping ${identifier} (deactivated by another integration)`,
-      );
-      continue;
-    }
     if (installed.has(identifier)) continue;
     try {
       const teardown = await integration.setupOnce(ctx);

@@ -55,6 +55,7 @@ instrumentSession(session, {
 ```ts
 import { trace } from "@opentelemetry/api";
 import { Agent } from "@earendil-works/pi-agent-core";
+import { streamSimple } from "@earendil-works/pi-ai/compat";
 import { getBuiltinModel } from "@earendil-works/pi-ai/providers/all";
 import {
   instrumentAgent,
@@ -70,6 +71,7 @@ const meta: AgentMeta = {
 };
 
 const agent = new Agent({
+  streamFn: streamSimple,
   initialState: {
     model: getBuiltinModel("anthropic", "claude-sonnet-4-6"),
     systemPrompt: "You are a helpful support agent.",
@@ -77,7 +79,7 @@ const agent = new Agent({
 });
 
 // One chat span per LLM call
-agent.streamFn = instrumentStream(agent.streamFn, { tracer, meta });
+agent.streamFunction = instrumentStream(agent.streamFunction, { tracer, meta });
 
 // One execute_tool span per tool call
 const tools = instrumentAgent(agent, { tracer, meta });
@@ -94,7 +96,7 @@ Use the `extraAttributes` hook to layer non-semconv attributes on every
 chat span (tenant labels, correlation IDs, feature flags):
 
 ```ts
-agent.streamFn = instrumentStream(agent.streamFn, {
+agent.streamFunction = instrumentStream(agent.streamFunction, {
   tracer,
   meta,
   extraAttributes: (model, ctx) => ({
@@ -113,7 +115,7 @@ If you wrap an entire user turn in your own span, pass
 const turnSpan = tracer.startSpan(`turn ${meta.agentName}`);
 const turnContext = trace.setSpan(context.active(), turnSpan);
 
-agent.streamFn = instrumentStream(agent.streamFn, {
+agent.streamFunction = instrumentStream(agent.streamFunction, {
   tracer,
   meta,
   getParentContext: () => turnContext,
@@ -122,7 +124,7 @@ agent.streamFn = instrumentStream(agent.streamFn, {
 
 ## What gets emitted
 
-For each LLM call (`chat ${provider}` span):
+For each LLM call (`chat ${model}` span):
 
 - `gen_ai.conversation.id`, `gen_ai.agent.id`, `gen_ai.agent.name`
 - `gen_ai.operation.name = "chat"`

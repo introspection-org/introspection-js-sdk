@@ -77,6 +77,7 @@ function severed(...frames: Frame[]): () => Response {
 function rateLimited(retryAfterS: number | null): () => never {
   return () => {
     throw new RateLimitError({
+      message: "HTTP 429",
       status: 429,
       code: null,
       requestId: null,
@@ -167,6 +168,36 @@ describe("stream (transparent resume)", () => {
     ]);
     expect(await deltas(http, FAST)).toEqual(["a"]);
     expect(http.streamCalls).toBe(3); // two 429s + one live attach
+  });
+
+  it("advances the readiness backoff exponent on each 429", async () => {
+    // The 429 branch used to leave `reconnects` pinned at 0, so every wait
+    // was drawn from the same flat 0-baseMs window: against a run that stays
+    // unattachable, roughly 1200 attach attempts inside the default timeout.
+    const http = new FakeHttp([
+      rateLimited(null),
+      rateLimited(null),
+      rateLimited(null),
+      clean(content("1", "a"), FINISH),
+    ]);
+    const attempts: number[] = [];
+    const api = new TaskRunsApi(http as never);
+    for await (const ev of api.stream("task-1", "run-1", {
+      ...FAST,
+      emitReconnectEvents: true,
+    })) {
+      const e = ev as AGUIEvent & {
+        name?: string;
+        value?: { reason?: string; attempt?: number };
+      };
+      if (
+        e.name === "introspection.reconnect" &&
+        e.value?.reason === "readiness"
+      ) {
+        attempts.push(e.value.attempt ?? -1);
+      }
+    }
+    expect(attempts).toEqual([1, 2, 3]);
   });
 
   it("exhausts reconnects with no progress → throws", async () => {

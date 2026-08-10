@@ -107,7 +107,7 @@ import { IntrospectionSpanProcessor } from "@introspection-sdk/introspection-nod
 const provider = new NodeTracerProvider({
   spanProcessors: [
     new IntrospectionSpanProcessor({ token: process.env.INTROSPECTION_TOKEN }),
-    new BatchSpanProcessor(langfuseExporter),
+    new BatchSpanProcessor(otherBackendExporter),
   ],
 });
 provider.register();
@@ -115,9 +115,14 @@ provider.register();
 await introspection.init({ tracerProvider: provider });
 ```
 
-`IntrospectionSpanProcessor` exports its own converted copy of each span, so the vendor processor receives the raw span and processor order is irrelevant. For a quick alternative: `init({ spanProcessors: [new BatchSpanProcessor(langfuseExporter)] })`.
+`IntrospectionSpanProcessor` exports its own converted copy of each span, so the vendor processor receives the raw span and processor order is irrelevant. For a quick alternative: `init({ spanProcessors: [new BatchSpanProcessor(otherBackendExporter)] })`.
 
-Support for other frameworks is experimental.
+Pi is the only framework with a built-in integration. `init()` detects it and
+wires it automatically; to instrument an `Agent` by hand, import
+`IntrospectionPiInstrumentor` from
+`@introspection-sdk/introspection-node/otel/pi`. It lives on its own subpath
+because it reaches into `@earendil-works/pi-ai` at runtime, and the `/otel`
+barrel must stay importable without it.
 
 ## Analytics events (track, feedback, identify)
 
@@ -163,24 +168,39 @@ await logs.shutdown();
 
 ## OpenTelemetry span processor
 
-```typescript
-import { IntrospectionSpanProcessor } from "@introspection-sdk/introspection-node/otel";
-import logfire from "@logfire/node";
+Attach the processor to a provider you already own, or stand one up with
+`setupTracing`. Adding a second `IntrospectionSpanProcessor` pointed at another
+OTLP endpoint dual-exports the same spans — see
+[`examples/otel/pi/dual-export.ts`](../../examples/otel/pi/dual-export.ts).
 
-logfire.configure({
-  additionalSpanProcessors: [
+```typescript
+import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
+import { IntrospectionSpanProcessor } from "@introspection-sdk/introspection-node/otel";
+
+const provider = new NodeTracerProvider({
+  spanProcessors: [
     new IntrospectionSpanProcessor({ token: process.env.INTROSPECTION_TOKEN }),
   ],
 });
-
-logfire.instrumentOpenAI();
+provider.register();
 ```
 
 ## Environment variables
 
 ```shell
+# Introspection API (IntrospectionClient)
 export INTROSPECTION_TOKEN="intro_xxx"
 export INTROSPECTION_BASE_API_URL="https://api.introspection.dev"   # optional
+
+# Development only: route this process's tasks to your own `introspection dev`
+# server when several developers share one Runtime. `introspection dev` prints
+# the line to copy. No default.
+export INTROSPECTION_DEV_TARGET="roland"                            # optional
+
+# OTel (IntrospectionLogs + IntrospectionSpanProcessor)
 export INTROSPECTION_BASE_OTEL_URL="https://otel.introspection.dev" # optional
 export INTROSPECTION_SERVICE_NAME="my-service"                      # optional
+
+# SDK diagnostics: error, warn, info, debug, verbose. Default: warn.
+export INTROSPECTION_LOG_LEVEL="debug"                              # optional
 ```

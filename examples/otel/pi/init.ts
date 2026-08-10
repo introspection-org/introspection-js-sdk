@@ -18,7 +18,7 @@ import { Type } from "@earendil-works/pi-ai";
 import { streamSimple } from "@earendil-works/pi-ai/compat";
 import { getBuiltinModel } from "@earendil-works/pi-ai/providers/all";
 import * as introspection from "@introspection-sdk/introspection-node/otel";
-import type { PiAgentMeta } from "@introspection-sdk/introspection-node/otel";
+import type { PiAgentMeta } from "@introspection-sdk/introspection-node/otel/pi";
 
 const weatherTool: AgentTool = {
   name: "get_weather",

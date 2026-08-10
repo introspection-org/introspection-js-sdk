@@ -14,13 +14,11 @@ export default defineConfig({
   //   2. Tests pick up SDK source changes without a rebuild step in between.
   resolve: {
     alias: {
-      "@introspection-sdk/introspection-node/langchain": resolve(
+      // Longest specifier first: vitest matches string aliases by prefix, so
+      // `.../otel` would otherwise swallow `.../otel/pi`.
+      "@introspection-sdk/introspection-node/otel/pi": resolve(
         repoRoot,
-        "packages/introspection-node/src/otel/langchain-handler.ts",
-      ),
-      "@introspection-sdk/introspection-node/mastra": resolve(
-        repoRoot,
-        "packages/introspection-node/src/otel/mastra-exporter.ts",
+        "packages/introspection-node/src/otel/pi.ts",
       ),
       "@introspection-sdk/introspection-node/otel": resolve(
         repoRoot,
@@ -33,10 +31,6 @@ export default defineConfig({
       "@introspection-sdk/introspection-pi": resolve(
         repoRoot,
         "packages/introspection-pi/src/index.ts",
-      ),
-      "@introspection-sdk/introspection-openclaw": resolve(
-        repoRoot,
-        "packages/introspection-openclaw/src/index.ts",
       ),
       "@introspection-sdk/introspection-browser/api": resolve(
         repoRoot,
@@ -74,15 +68,14 @@ export default defineConfig({
     //
     // Activated via `pnpm test:cov`. Reports the lines/branches/functions
     // actually exercised across the SDK source files (the `include` glob
-    // intentionally excludes test files, dist artefacts, and converters
-    // that have their own dedicated suites). Reporters:
+    // intentionally excludes test files and dist artefacts). Reporters:
     //
     //   - text          stdout summary so CI logs show the pass/fail
     //   - json-summary  machine-readable for downstream gating
     //   - html          coverage/index.html for local inspection
     //
-    // Thresholds are currently set to the baseline measured at the time
-    // this was wired up (see docs/cleanup-plan.md Phase 1). They are
+    // Thresholds are set to the baseline measured when this was wired up.
+    // They are
     // **not aspirational**: their job is "don't regress". Raising them
     // happens in Phase 4 once new tests are written for the gap files.
     //
@@ -90,12 +83,10 @@ export default defineConfig({
     coverage: {
       provider: "v8",
       reporter: ["text", "json-summary", "html"],
-      // `all: true` forces the v8 provider to enumerate every matching
-      // source file, not just the ones loaded by tests. Without it,
-      // un-imported files (e.g. converters used only by absent tests)
-      // silently disappear from the report instead of showing 0% — which
-      // is exactly the visibility we're adding coverage for.
-      all: true,
+      // No `all` flag: vitest 4 removed it. The v8 provider now enumerates
+      // every file matching `include` by default, so an un-imported file
+      // shows 0% rather than silently disappearing from the report — which
+      // is exactly the visibility this coverage config exists for.
       // Resolved via the workspace's symlinks: pnpm wires
       // `@introspection-sdk/*` → `packages/*/dist/`, and SDK packages
       // emit `.js.map` files (see typescript-config/base.json sourceMap),
@@ -107,8 +98,6 @@ export default defineConfig({
         "packages/introspection-browser/src/**/*.ts",
         "packages/introspection-types/src/**/*.ts",
         "packages/introspection-http/src/**/*.ts",
-        // introspection-openclaw is a beta package with its own lifecycle;
-        // excluded from the coverage gate until it graduates + gets a harness.
       ],
       exclude: [
         "**/*.test.ts",
@@ -120,22 +109,22 @@ export default defineConfig({
       ],
       // POLICY: the gate is REPO-WIDE aggregate coverage across the `include`
       // packages (a "do not regress" floor), NOT a per-file or all-metrics-≥70
-      // guarantee. Concretely: line/statement/function coverage are high (~84/84/87%)
+      // guarantee. Concretely: line/statement/function coverage are high (~85/84/86%)
       // and the dominant target; branch coverage is tracked but intentionally
-      // lower (~67%, floor 63) since exhaustive branch coverage on multi-format
-      // converters has steep diminishing returns. Some individual files are below
-      // 70% (e.g. introspection-browser/src/client.ts is 0% — deferred pending a
-      // browser harness; introspection-openclaw is excluded entirely as beta).
+      // lower (floor 76) since exhaustive branch coverage has steep
+      // diminishing returns. Some individual files are still below 70% (e.g.
+      // http/src/resources/shares.ts, and the DOM-only half of
+      // introspection-browser/src/client.ts, which needs a browser harness).
       // If a stricter "every file ≥ X" policy is wanted, tighten this block.
       //
       // Phase 1 baseline:  statements 62.86%  branches 48.65%  functions 64.65%  lines 64.24%
-      // Current measured:  statements 83.50%  branches 67.02%  functions 87.06%  lines 84.70%
+      // Current measured:  statements 89.08%  branches 78.27%  functions 90.87%  lines 90.85%
       // Floors sit just under the measured values to leave a small margin.
       thresholds: {
-        lines: 82,
-        functions: 84,
-        branches: 63,
-        statements: 80,
+        lines: 88,
+        functions: 88,
+        branches: 76,
+        statements: 87,
       },
     },
   },
