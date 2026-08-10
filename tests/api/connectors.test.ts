@@ -40,6 +40,7 @@ const CONNECTION_FIXTURE = {
   updated_at: "2026-08-08T00:00:00Z",
   connector_id: CONNECTOR_ID,
   member_id: "member-1",
+  created_by_member_id: "installer-1",
   runtime_group_id: "rg-1",
   subject_type: "workspace" as const,
   scopes_granted: ["chat:write"],
@@ -179,6 +180,32 @@ describe("ConnectorsApi", () => {
     expect(minted).not.toHaveProperty("state");
   });
 
+  it("authorize() carries an asserted end customer", async () => {
+    const http = mockHttp({
+      requestResult: {
+        authorize_url: "https://slack.com/oauth/v2/authorize?state=abc",
+        expires_in: 600,
+        expires_at: "2026-08-08T20:10:00Z",
+      },
+    });
+
+    await new ConnectorsApi(http).authorize(CONNECTOR_ID, {
+      runtime: "support-agent",
+      identity: { user_id: "u_demo" },
+    });
+
+    expect(http.request).toHaveBeenCalledWith({
+      method: "POST",
+      path: "/v1/oauth/connections/authorize",
+      body: {
+        connector_id: CONNECTOR_ID,
+        runtime: "support-agent",
+        // Only the asserted field rides along.
+        identity: { user_id: "u_demo" },
+      },
+    });
+  });
+
   it("authorize() sends only connector_id when no options are given", async () => {
     const http = mockHttp({
       requestResult: {
@@ -216,6 +243,9 @@ describe("ConnectionsApi", () => {
       query: { limit: 50, next: undefined },
     });
     expect(first.records[0].subject_type).toBe("workspace");
+    // The installer is recorded apart from the subject: for a workspace
+    // install they are never the same principal.
+    expect(first.records[0].created_by_member_id).toBe("installer-1");
   });
 
   it("create() registers an already-obtained token", async () => {

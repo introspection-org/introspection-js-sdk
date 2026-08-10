@@ -320,8 +320,13 @@ export interface FileListParams extends ListParams {
   storage_path?: string;
   /** Accounting view: files stamped with this task. Access rules still apply. */
   task_id?: Uuid;
-  /** Privileged credentials only: audit a specific owner identity. */
-  identity_key?: string;
+  /**
+   * Privileged credentials only: audit a specific owner. Replaced
+   * `identity_key`, which the route stopped accepting when file ownership
+   * converged onto member ids — and which FastAPI would have dropped as an
+   * unknown query param, serving the caller every file in the project.
+   */
+  member_id?: Uuid;
 }
 
 export interface FileUpdateParams {
@@ -822,6 +827,14 @@ export interface ConnectorRequestOptions {
 
 export interface ConnectorAuthorizeParams {
   /**
+   * The end customer this grant is being made for, asserted by the caller.
+   * Its `user_id` resolves a `customer` member recorded as the connection's
+   * `created_by_member_id`, so a partner can associate the connection with
+   * their own caller rather than the agent member that made the API call.
+   * Omit to attribute the grant to the authenticated principal.
+   */
+  identity?: RunIdentityInput;
+  /**
    * Runtime selector (slug or runtime group id). Required by the server
    * (422) when the connector's provider is a chat provider — check
    * `connector.requires_runtime`.
@@ -863,6 +876,12 @@ export interface Connection {
    * points at the workspace customer member.
    */
   member_id?: Uuid | null;
+  /**
+   * The member who performed the grant, as distinct from `member_id` (whose
+   * credential this is). For `app` and `workspace` subjects those are never
+   * the same principal. `null` for grants made before the column existed.
+   */
+  created_by_member_id?: Uuid | null;
   /** Runtime group answering this connection's channels. */
   runtime_group_id?: Uuid | null;
   subject_type: ConnectionSubjectType;

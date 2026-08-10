@@ -94,6 +94,7 @@ const CONNECTION = {
   updated_at: "2026-08-08T00:00:00Z",
   connector_id: CONNECTOR.id,
   member_id: "member-1",
+  created_by_member_id: "installer-1",
   runtime_group_id: "rg-1",
   subject_type: "workspace",
   scopes_granted: ["chat:write"],
@@ -706,6 +707,7 @@ describe("IntrospectionClient (REST control-plane, real server)", () => {
       );
       expect(connections).toHaveLength(1);
       expect(connections[0].subject_type).toBe("workspace");
+      expect(connections[0].created_by_member_id).toBe("installer-1");
 
       const registered = await client.connectors.connections.create(
         CONNECTOR.id,
