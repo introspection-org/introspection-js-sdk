@@ -1,5 +1,29 @@
 # Changelog
 
+## [0.21.0](https://github.com/introspection-org/introspection-js-sdk/compare/v0.20.0...v0.21.0) (2026-08-10)
+
+
+### ⚠ BREAKING CHANGES
+
+* the ./mastra and ./langchain subpath exports and the AnthropicInstrumentor, GeminiInstrumentor, IntrospectionTracingProcessor, tracedMessagesCreate, tracedEmbeddingsCreate, getLangchainHandler, getMastraExporter, and OpenAI/Gemini converter exports are removed.
+* experiments.create/update/delete and recipes.create/update/delete are removed, along with the RecipeCreate, RecipeUpdate, ExperimentCreate and ExperimentUpdate types. Use the CLI to author definitions.
+
+### Features
+
+* align the SDK with the current API and the runner-plane boundary ([#302](https://github.com/introspection-org/introspection-js-sdk/issues/302)) ([8428f4e](https://github.com/introspection-org/introspection-js-sdk/commit/8428f4e13f5da2b8bc7443bb1f6a359eefb5539d))
+* **conversations:** expose complete export streams ([#306](https://github.com/introspection-org/introspection-js-sdk/issues/306)) ([a9bdf34](https://github.com/introspection-org/introspection-js-sdk/commit/a9bdf344d4e53ee84fb078e3ad222f3ca23b81a4))
+
+
+### Bug Fixes
+
+* **deps:** repair the duplicated lockfile key that broke every CI job ([#320](https://github.com/introspection-org/introspection-js-sdk/issues/320)) ([ffebe85](https://github.com/introspection-org/introspection-js-sdk/commit/ffebe8592ef05ab97e4afef9626c3b65489e9cfe))
+* drop runtime-list filters the API never accepted ([#305](https://github.com/introspection-org/introspection-js-sdk/issues/305)) ([2a330f4](https://github.com/introspection-org/introspection-js-sdk/commit/2a330f4a8c3d2a7ef1d3fcf55dd3e7fdd44c5e09))
+
+
+### Code Refactoring
+
+* reduce to Pi + manual instrumentation, and the defect pass over it ([#307](https://github.com/introspection-org/introspection-js-sdk/issues/307)) ([6ce08a1](https://github.com/introspection-org/introspection-js-sdk/commit/6ce08a1b572041fcd8be2df00e6711140b94e687))
+
 ## [0.20.0](https://github.com/introspection-org/introspection-js-sdk/compare/v0.19.1...v0.20.0) (2026-08-07)
 
 
