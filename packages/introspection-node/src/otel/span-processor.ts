@@ -178,6 +178,21 @@ export class IntrospectionSpanProcessor implements SpanProcessor {
   private _conversationIds: Map<string, string> = new Map();
   private static readonly MAX_TRACKED_TRACES = 4096;
 
+  /**
+   * Eager-flush state. `_messageFlushDebounceMs` of 0 disables it entirely;
+   * `_messageFlushDeadline` caps a resetting debounce at the batch processor's
+   * own interval, so this can only ever export sooner than the default.
+   */
+  private _messageFlushDebounceMs: number;
+  private _messageFlushMaxWaitMs: number;
+  private _messageFlushTimer: ReturnType<typeof setTimeout> | null = null;
+  private _messageFlushDeadline: number | null = null;
+
+  /** Default wait after the last conversation span before flushing. */
+  private static readonly DEFAULT_MESSAGE_FLUSH_DEBOUNCE_MS = 250;
+  /** OTel's `scheduledDelayMillis` default, which is the cap when unset. */
+  private static readonly DEFAULT_SCHEDULED_DELAY_MS = 5000;
+
   constructor(options: IntrospectionSpanProcessorOptions = {}) {
     const token = options.token || process.env.INTROSPECTION_TOKEN;
     // A custom exporter carries its own transport and auth, so it stands in
@@ -311,6 +326,58 @@ export class IntrospectionSpanProcessor implements SpanProcessor {
       maxQueueSize: options.advanced?.maxQueueSize,
       exportTimeoutMillis: options.advanced?.exportTimeoutMillis,
     });
+
+    this._messageFlushDebounceMs = Math.max(
+      0,
+      options.advanced?.messageFlushDebounceMs ??
+        IntrospectionSpanProcessor.DEFAULT_MESSAGE_FLUSH_DEBOUNCE_MS,
+    );
+    this._messageFlushMaxWaitMs =
+      options.advanced?.flushInterval ??
+      IntrospectionSpanProcessor.DEFAULT_SCHEDULED_DELAY_MS;
+  }
+
+  /**
+   * Bring the export of a just-ended conversation span forward.
+   *
+   * Debounced so a turn's spans still leave together — see
+   * {@link AdvancedOptions.messageFlushDebounceMs} for why batching them
+   * matters downstream — and capped at the batch processor's own interval so a
+   * steady span stream can't reset the timer indefinitely.
+   */
+  private _scheduleMessageFlush(): void {
+    if (this._messageFlushDebounceMs === 0) return;
+
+    const now = Date.now();
+    if (this._messageFlushDeadline === null) {
+      this._messageFlushDeadline = now + this._messageFlushMaxWaitMs;
+    }
+    const delay = Math.max(
+      0,
+      Math.min(this._messageFlushDebounceMs, this._messageFlushDeadline - now),
+    );
+
+    if (this._messageFlushTimer) clearTimeout(this._messageFlushTimer);
+    this._messageFlushTimer = setTimeout(() => {
+      this._messageFlushTimer = null;
+      this._messageFlushDeadline = null;
+      // Fire-and-forget: the batch processor still owns the span either way,
+      // so a failed early flush just falls back to the scheduled one.
+      void this._spanProcessor.forceFlush().catch((error: unknown) => {
+        logger.debug(
+          `Eager message flush failed: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      });
+    }, delay);
+    // Never hold the process open for a flush the exit path already handles.
+    this._messageFlushTimer.unref?.();
+  }
+
+  /** Cancel a pending eager flush — a real flush is already happening. */
+  private _cancelMessageFlush(): void {
+    if (this._messageFlushTimer) clearTimeout(this._messageFlushTimer);
+    this._messageFlushTimer = null;
+    this._messageFlushDeadline = null;
   }
 
   /**
@@ -468,6 +535,10 @@ export class IntrospectionSpanProcessor implements SpanProcessor {
       resource,
     );
     this._spanProcessor.onEnd(processedSpan);
+    // Everything reaching here is a conversation row (the `hasGenAi` gate
+    // above rejects infrastructure spans), so this is exactly "a message was
+    // logged".
+    this._scheduleMessageFlush();
   }
 
   /**
@@ -476,6 +547,7 @@ export class IntrospectionSpanProcessor implements SpanProcessor {
    * @returns A promise that resolves once all pending spans are flushed.
    */
   async shutdown(): Promise<void> {
+    this._cancelMessageFlush();
     await this._spanProcessor.shutdown();
   }
 
@@ -485,6 +557,7 @@ export class IntrospectionSpanProcessor implements SpanProcessor {
    * @returns A promise that resolves once the flush completes.
    */
   async forceFlush(): Promise<void> {
+    this._cancelMessageFlush();
     await this._spanProcessor.forceFlush();
   }
 }

@@ -223,4 +223,116 @@ describe("IntrospectionSpanProcessor infra spans", () => {
 
     await provider.shutdown();
   });
+
+  describe("eager message flush", () => {
+    /** Build a provider whose scheduled flush is far away, so anything that
+     *  gets exported can only have come from the eager path. */
+    function makeEagerHarness(messageFlushDebounceMs: number) {
+      const exporter = new InMemorySpanExporter();
+      const provider = new BasicTracerProvider({
+        idGenerator: new IncrementalIdGenerator(),
+        spanProcessors: [
+          new IntrospectionSpanProcessor({
+            token: "test-token",
+            advanced: {
+              spanExporter: exporter,
+              flushInterval: 60_000,
+              messageFlushDebounceMs,
+            },
+          }),
+        ],
+      });
+      return { exporter, provider };
+    }
+
+    const settle = (ms: number) =>
+      new Promise((resolve) => setTimeout(resolve, ms));
+
+    it("exports a conversation span without waiting for the scheduled flush", async () => {
+      const { exporter, provider } = makeEagerHarness(20);
+      provider
+        .getTracer("manual.instrumentation.test")
+        .startSpan("chat", {
+          attributes: { "gen_ai.operation.name": "chat" },
+        })
+        .end();
+
+      expect(exporter.getFinishedSpans()).toHaveLength(0);
+      await settle(200);
+      expect(exporter.getFinishedSpans()).toHaveLength(1);
+
+      await provider.shutdown();
+    });
+
+    it("leaves the span to the scheduled flush when disabled", async () => {
+      const { exporter, provider } = makeEagerHarness(0);
+      provider
+        .getTracer("manual.instrumentation.test")
+        .startSpan("chat", {
+          attributes: { "gen_ai.operation.name": "chat" },
+        })
+        .end();
+
+      await settle(200);
+      expect(exporter.getFinishedSpans()).toHaveLength(0);
+
+      await provider.shutdown();
+    });
+
+    it("batches a burst into one export rather than one per span", async () => {
+      const { exporter, provider } = makeEagerHarness(40);
+      const tracer = provider.getTracer("manual.instrumentation.test");
+      for (let i = 0; i < 5; i++) {
+        tracer
+          .startSpan(`chat-${i}`, {
+            attributes: { "gen_ai.operation.name": "chat" },
+          })
+          .end();
+      }
+
+      await settle(300);
+      // All five arrive, and they arrive together — the ingest processor
+      // deduplicates provider spans sharing a response id only within a batch.
+      expect(exporter.getFinishedSpans()).toHaveLength(5);
+
+      await provider.shutdown();
+    });
+
+    it("ignores infrastructure spans", async () => {
+      const { exporter, provider } = makeEagerHarness(20);
+      provider
+        .getTracer("manual.instrumentation.test")
+        .startSpan("GET /health")
+        .end();
+
+      await settle(200);
+      expect(exporter.getFinishedSpans()).toHaveLength(0);
+
+      await provider.shutdown();
+    });
+
+    it("does not keep the event loop alive", async () => {
+      const { provider } = makeEagerHarness(50_000);
+      provider
+        .getTracer("manual.instrumentation.test")
+        .startSpan("chat", {
+          attributes: { "gen_ai.operation.name": "chat" },
+        })
+        .end();
+
+      // A pending eager flush must be unref'd; otherwise a short-lived script
+      // that logged one message would hang until the timer fired.
+      const handles = (
+        process as unknown as { _getActiveHandles(): unknown[] }
+      )._getActiveHandles();
+      const pendingRefdTimers = handles.filter(
+        (handle) =>
+          handle?.constructor?.name === "Timeout" &&
+          (handle as { hasRef?: () => boolean }).hasRef?.() === true,
+      );
+      expect(pendingRefdTimers).toHaveLength(0);
+
+      await provider.shutdown();
+    });
+  });
 });

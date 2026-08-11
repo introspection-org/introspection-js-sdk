@@ -36,6 +36,25 @@ export interface AdvancedOptions {
   /** Maximum batch size before auto-flush (default: 100) */
   maxBatchSize?: number;
   /**
+   * How long to wait after the last conversation span ends before flushing it,
+   * in milliseconds (default: 250). Set to `0` to disable and export on
+   * {@link flushInterval} alone.
+   *
+   * Spans are emitted on span *end*, so a logged message is exportable the
+   * moment it completes — but the batch processor would still sit on it for
+   * {@link flushInterval}. This shortens that wait so a message reaches the
+   * platform (and any live view of it) about as fast as it was produced.
+   *
+   * It is a debounce rather than a flush-per-span so a turn's spans still
+   * export together: single-span batches are wasteful on the wire, and the
+   * ingest processor deduplicates provider spans that share a
+   * `gen_ai.response.id` within one batch, which it can only do when they
+   * arrive together. A continuous span stream can keep resetting the debounce,
+   * so the flush is capped at {@link flushInterval} after the first pending
+   * span — this option only ever makes an export sooner, never later.
+   */
+  messageFlushDebounceMs?: number;
+  /**
    * Maximum records buffered before new ones are dropped. Omit to keep the
    * installed OTel SDK's default (2048), including any env-var override it
    * honours.
