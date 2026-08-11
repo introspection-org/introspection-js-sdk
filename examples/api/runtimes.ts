@@ -40,7 +40,12 @@ async function main() {
 
   // 2) Spawn a task on the runner (cursor-style sugar: one call
   //    creates the task and its first run) and stream its events.
+  // Tags stamped here group the task for `tasks.list({ tag })`, and are
+  // access-bearing: a caller whose member tags intersect them can read and
+  // write this task. Member tags are set by an org owner through the members
+  // API — a runner identity cannot assert its own.
   const run = await runner.tasks.start({
+    tags: ["project:x"],
     prompt: "Say hello in one sentence.",
   });
   console.log(`spawned task=${run.task?.id}, run=${run.run.id}`);

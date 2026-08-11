@@ -32,6 +32,44 @@ const RUN_FIXTURE = {
 };
 
 describe("TasksApi", () => {
+  it("create() forwards grouping tags", async () => {
+    const http = mockHttp({ requestResult: { task: TASK_FIXTURE } });
+    await new TasksApi(http).create({
+      prompt: "go",
+      tags: ["customer:acme", "env:prod"],
+    });
+
+    expect(http.request).toHaveBeenCalledWith({
+      method: "POST",
+      path: "/v1/tasks",
+      body: { prompt: "go", tags: ["customer:acme", "env:prod"] },
+    });
+  });
+
+  it("list() sends the tag filter", async () => {
+    const http = mockHttp({
+      requestResult: { records: [TASK_FIXTURE], count: 1, total_count: 1 },
+    });
+    await new TasksApi(http).list({ tag: "customer:acme" });
+
+    expect(http.request).toHaveBeenCalledWith({
+      method: "GET",
+      path: "/v1/tasks",
+      query: { tag: "customer:acme" },
+    });
+  });
+
+  it("update() replaces the tag list wholesale, including clearing it", async () => {
+    const http = mockHttp({ requestResult: TASK_FIXTURE });
+    await new TasksApi(http).update("task-1", { tags: [] });
+
+    expect(http.request).toHaveBeenCalledWith({
+      method: "PATCH",
+      path: "/v1/tasks/task-1",
+      body: { tags: [] },
+    });
+  });
+
   it("list() calls GET /v1/tasks", async () => {
     const http = mockHttp({
       requestResult: {

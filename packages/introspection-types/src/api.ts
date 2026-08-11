@@ -137,6 +137,8 @@ export interface Task {
   metadata?: Record<string, unknown> | null;
   agent?: AgentInfo | null;
   identity_key?: string | null;
+  /** `key:value` grouping tags stamped on this task. */
+  tags?: string[];
 }
 
 /**
@@ -213,6 +215,16 @@ export interface TaskCreateParams {
    */
   idle_timeout_seconds?: number;
   /**
+   * `key:value` grouping tags stamped on the task at create time (e.g.
+   * `customer:acme`). Key is `[a-z0-9][a-z0-9_.-]*`, 1–64 chars and may not
+   * contain `:`; value is 1–256 chars; at most 64 tags. Duplicates collapse.
+   *
+   * Filter with {@link TaskListParams.tag}. Tags are also access-bearing: a
+   * caller whose member tags intersect a row's tags can read and write it, so
+   * a tag shared with a member cohort hands them the task.
+   */
+  tags?: string[];
+  /**
    * Fork from a shared conversation: the `/v1/shares` grant id for the source
    * conversation. Its presence makes this create a fork — the new task is seeded
    * with that conversation's history, read via the share (the permissions
@@ -225,11 +237,18 @@ export interface TaskUpdateParams {
   title?: string;
   is_archived?: boolean;
   metadata?: Record<string, unknown>;
+  /**
+   * Replaces the tag list wholesale (unlike `metadata`, which is merged).
+   * Omit to leave tags untouched; pass `[]` to clear them.
+   */
+  tags?: string[];
 }
 
 export interface TaskListParams extends ListParams {
   statuses?: TaskStatus[];
   require_automation_id?: boolean;
+  /** Filter by one `key:value` tag. ANDed with the ownership predicate, so it only narrows. */
+  tag?: string;
   /** Privileged credentials only: audit a specific owner identity. */
   identity_key?: string;
 }
