@@ -585,6 +585,8 @@ export interface RunnerIdentity {
   user_id: string | null;
   anonymous_id: string | null;
   conversation_id: string | null;
+  /** Member tags asserted on the request; see {@link RunIdentityInput.tags}. */
+  tags?: string[] | null;
 }
 
 export interface RunnerRecipeSummary {
@@ -648,6 +650,14 @@ export interface RunIdentityInput {
   user_id?: string;
   anonymous_id?: string;
   conversation_id?: string;
+  /**
+   * Tags to stamp on the `customer` member this identity mints, **if that
+   * member is new**. Access-bearing, and bounded on both sides: attenuated to
+   * the asserting agent member's own tags, and applied on create only — an
+   * existing member's tags are never changed here. Same `key:value` grammar as
+   * every other tag write.
+   */
+  tags?: string[];
 }
 
 /**

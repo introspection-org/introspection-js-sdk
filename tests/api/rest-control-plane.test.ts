@@ -611,6 +611,22 @@ describe("IntrospectionClient (REST control-plane, real server)", () => {
     });
   });
 
+  it("run() forwards identity tags for the member it mints", async () => {
+    requests = [];
+    const client = makeClient();
+
+    await client.runtimes(RUNTIME.runtime_group_id).run({
+      identity: { user_id: "u_demo", tags: ["project:x"] },
+    });
+
+    const run = requests.find((r) => r.path.endsWith("/run"));
+    expect(run?.body).toMatchObject({
+      identity: { user_id: "u_demo", tags: ["project:x"] },
+    });
+
+    await client.shutdown();
+  });
+
   describe("connectors", () => {
     it("round-trips CRUD and scopes reads by project", async () => {
       requests = [];
