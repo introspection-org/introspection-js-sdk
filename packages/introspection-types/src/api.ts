@@ -557,6 +557,12 @@ export interface RunnerIdentity {
   user_id: string | null;
   anonymous_id: string | null;
   conversation_id: string | null;
+  /**
+   * Tags requested for a newly-minted member, echoed back as sent. This is the
+   * *request*, not the grant: the server attenuates before applying, so the
+   * member's effective tags may be a subset. Read those from the member itself.
+   */
+  tags: string[] | null;
 }
 
 export interface RunnerRecipeSummary {
@@ -620,6 +626,20 @@ export interface RunIdentityInput {
   user_id?: string;
   anonymous_id?: string;
   conversation_id?: string;
+  /**
+   * Tags to stamp on the `customer` member this identity mints, **if that
+   * member is new**. An existing member's tags are never changed here — first
+   * assertion wins, and later edits go through `PATCH /v1/members/{id}`.
+   *
+   * Tags are access-bearing: a member may read and write any file or task whose
+   * tags intersect its own. So this list is attenuated server-side to the tags
+   * the asserting agent member already carries, and anything it does not hold
+   * is dropped silently. An agent member with no tags can grant none.
+   *
+   * Opaque strings — `key:value` is convention only, matching is exact and
+   * case-sensitive, and whitespace is rejected.
+   */
+  tags?: string[];
 }
 
 /**

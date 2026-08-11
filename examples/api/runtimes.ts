@@ -32,8 +32,12 @@ async function main() {
   //    it via `/v1/runtimes?runtime=…`, then calls
   //    `/v1/runtimes/{id}/run` which mints a short-lived access token
   //    and tells the runner which DP to talk to.
+  //    `identity.tags` seeds the customer member this identity mints, if it is
+  //    new — a way to put a customer in a shared cohort at first sight. The
+  //    server attenuates it to tags the asserting agent member already holds,
+  //    so it grants nothing until an admin has tagged that agent member.
   const runner = await client.runtimes(runtime).run({
-    identity: { user_id: "u_demo" },
+    identity: { user_id: "u_demo", tags: ["project:x"] },
   });
   console.log(
     `runner -> dp=${runner.dpEndpoint}, runtime=${runner.context?.runtime_id ?? "?"}, expires=${runner.expires_at ?? "?"}`,
