@@ -173,9 +173,11 @@ export interface TaskRepoRequest {
   /** Registered repository slug, `owner/name`. */
   repo: string;
   /**
-   * Branch, tag, or commit to check out.
+   * Branch, tag, or full 40-character commit sha to check out.
    *
-   * Omit it and the server uses the repository's registered default branch.
+   * Omit it and the server uses the repository's registered default branch. An
+   * abbreviated sha is read as a branch name, so the clone fails and the
+   * repository is dropped.
    */
   ref?: string;
   /** Shallow-clone depth; `0` clones full history. Omit for the default. */
