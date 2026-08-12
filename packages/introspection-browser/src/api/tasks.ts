@@ -18,8 +18,8 @@ import {
  * SDK's runner-bound create — it selects the agent itself: pass
  * `runtime_id` to pin a recipe runtime, or `agent_name` to fall back to
  * a named recipe agent. `identity` is a convenience that is folded into
- * `metadata.identity` for attribution (the DP derives the owning
- * `identity_key` from the session's JWT claims, never from this body).
+ * `metadata.identity` for attribution (the DP derives the owning member from
+ * the session's JWT claims, never from this body).
  */
 export interface CreateTaskParams {
   prompt?: string;
@@ -30,8 +30,9 @@ export interface CreateTaskParams {
   title?: string;
   /**
    * Workspace repositories to clone into the sandbox's `workspace/repos/`
-   * before the first turn, at most 10. Narrowed server-side to the runtime's
-   * `runtime.github.repositories` grant.
+   * before the first turn. No count limit — the server refuses a statically
+   * wrong list (duplicate slugs, folder collisions), not a long one. Narrowed
+   * server-side to the runtime's `runtime.github.repositories` grant.
    */
   repositories?: TaskRepoRequest[];
   metadata?: Record<string, unknown>;

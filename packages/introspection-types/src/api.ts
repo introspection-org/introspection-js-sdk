@@ -173,9 +173,12 @@ export interface TaskRepoRequest {
   /** Registered repository slug, `owner/name`. */
   repo: string;
   /**
-   * Branch, tag, or commit to check out.
+   * Branch, tag, or full 40-character commit sha to check out.
    *
-   * Omit it and the server uses the repository's registered default branch.
+   * Omit it and the clone takes the repository's default branch — git resolves
+   * the remote's HEAD, so nothing is stored or has to be kept in sync. An
+   * abbreviated sha is read as a branch name, so the clone fails and the
+   * repository is dropped.
    */
   ref?: string;
   /** Shallow-clone depth; `0` clones full history. Omit for the default. */
@@ -189,7 +192,8 @@ export interface TaskCreateParams {
   agent_name?: string;
   /**
    * Workspace repositories to clone into the sandbox's `workspace/repos/`
-   * before the first turn, at most 10.
+   * before the first turn. No count limit — the server refuses a statically
+   * wrong list (duplicate slugs, folder collisions), not a long one.
    */
   repositories?: TaskRepoRequest[];
   metadata?: Record<string, unknown>;
