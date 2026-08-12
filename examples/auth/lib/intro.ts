@@ -9,10 +9,9 @@
  * `/v1/tasks`, or WebSocket plumbing in the app.
  */
 import {
-  EventType,
+  type BaseEvent,
   IntrospectionApiClient,
   genAiOutputMessages,
-  type AGUIEvent,
 } from "@introspection-sdk/introspection-browser/api";
 
 export const CP_URL = (
@@ -104,12 +103,11 @@ export function randomToken(): string {
 /**
  * The session the broker establishes server-side and hands back. Everything
  * the browser needs to run a task — and nothing more: the access token, the
- * project, the server-resolved `runtimeId`, and the DP URL from the CP token
- * response. No CP/DP/runtime config lives in the browser.
+ * server-resolved `runtimeId`, and the DP URL from the CP token response. No
+ * CP/DP/runtime config lives in the browser.
  */
 export interface BrokerSession {
   token: string;
-  project: string;
   runtimeId: string;
   dpUrl: string;
 }
@@ -170,27 +168,21 @@ export interface RunSession {
 
 const CONVERSATION_POLL_INTERVAL_MS = 5_000;
 const CONVERSATION_POLL_TIMEOUT_MS = 30_000;
+const DP_PROXY_URL = "/api/introspection-dp";
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-function truncate(value: string): string {
-  return value.length > 200 ? `${value.slice(0, 200)}...` : value;
+function conversationId(record: unknown): string | undefined {
+  const id = (record as { id?: unknown } | undefined)?.id;
+  return typeof id === "string" ? id : undefined;
 }
 
-function formatEvent(ev: AGUIEvent): string {
-  switch (ev.type) {
-    case EventType.TEXT_MESSAGE_CONTENT:
-    case EventType.TEXT_MESSAGE_CHUNK:
-      return `${ev.type}: ${truncate(ev.delta ?? "")}`;
-    case EventType.TOOL_CALL_RESULT:
-      return `${ev.type}: ${truncate(ev.content)}`;
-    case EventType.RUN_ERROR:
-      return `${ev.type}: ${truncate(ev.message)}`;
-    default:
-      return ev.type;
-  }
+function formatEvent(ev: BaseEvent): string {
+  const payload = JSON.stringify(ev);
+  const data = payload.length > 200 ? `${payload.slice(0, 200)}…` : payload;
+  return `${ev.type}: ${data}`;
 }
 
 /**
@@ -226,15 +218,15 @@ async function verifyConversationLogged(opts: {
       );
       return;
     }
-    const fresh = records.find((conversation) => !seen.has(conversation.id));
-    const conversationId = fresh?.id;
-    if (conversationId) {
-      append("ok", `   ✓ conversation logged: ${conversationId}`);
+    const newConversationId = records
+      .map(conversationId)
+      .find((id): id is string => typeof id === "string" && !seen.has(id));
+    if (newConversationId) {
+      append("ok", `   ✓ conversation logged: ${newConversationId}`);
       try {
-        const turn = await client.conversations.retrieve(conversationId);
+        const turn = await client.conversations.retrieve(newConversationId);
         if (turn) {
-          const genAi = turn.attributes.gen_ai;
-          const model = genAi?.response?.model ?? genAi?.request?.model ?? "?";
+          const model = turn.attributes?.gen_ai?.request?.model ?? "?";
           append(
             "info",
             `   ◂ latest turn — model=${model}, ${genAiOutputMessages(turn).length} output message(s)`,
@@ -281,12 +273,18 @@ export async function runTaskWithToken(
   // The session's project is derived from the token's claims at exchange —
   // the client takes no project selector. The DP URL came from the CP token response
   // (via the broker), so the browser is configured entirely from the server.
+  const localDp = ["localhost", "127.0.0.1", "::1"].includes(
+    new URL(dpUrl).hostname,
+  );
   const client = new IntrospectionApiClient({
-    dpUrl,
+    dpUrl: localDp ? DP_PROXY_URL : dpUrl,
     getToken: () => token,
   });
 
-  append("info", "Exchanging for a Data Plane session cookie …");
+  append(
+    "info",
+    `Exchanging for a Data Plane session cookie${localDp ? " through the same-origin proxy" : ""} …`,
+  );
   await client.connect();
   append("ok", "   ✓ intro_dp_session cookie set");
 
@@ -295,9 +293,9 @@ export async function runTaskWithToken(
   // addressed by the gen_ai `conversation_id` (the `/v1/conversations/{id}`
   // path key) — never the raw trace id.
   const seen = new Set(
-    (await client.conversations.list({ limit: 50 })).records.map(
-      (conversation) => conversation.id,
-    ),
+    (await client.conversations.list({ limit: 50 })).records
+      .map(conversationId)
+      .filter((id): id is string => typeof id === "string"),
   );
 
   append("info", `Creating a task for runtime ${runtimeId.slice(0, 8)}… …`);

@@ -9,9 +9,11 @@ Every mode obtains an Introspection token → exchanges it at the Data Plane for
 an `intro_dp_session` cookie → then creates and streams a task against a
 runtime, **with no API key in the browser**.
 
-> Talks to Introspection purely over HTTP (Control Plane + Data Plane URLs are
-> env vars) — no SDK package or monorepo wiring required. Works against the
-> hosted platform (`https://api.introspection.dev`) or a self-hosted stack.
+> Uses the SDK workspace packages for every Introspection call. The confidential
+> broker resolves the Data Plane URL and runtime server-side; local Data Plane
+> traffic goes through a same-origin proxy so the session cookie behaves like it
+> does in deployment. Works against the hosted platform
+> (`https://api.introspection.dev`) or a self-hosted stack.
 
 ## What it demonstrates
 

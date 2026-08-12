@@ -1,7 +1,7 @@
 /**
  * Confidential broker — establishes an Introspection session server-side and
- * hands the browser exactly what it needs: `{ token, project, runtimeId,
- * dpUrl }`. Every Introspection token POST runs here through the Node SDK, so
+ * hands the browser exactly what it needs: `{ token, runtimeId, dpUrl }`.
+ * Every Introspection token POST runs here through the Node SDK, so
  * the browser never hand-rolls an OAuth call. Three modes:
  *
  *  - `service_account`    — `client_credentials`; mints a machine token.
@@ -124,7 +124,6 @@ export async function POST(request: Request) {
     const runtimeId = await resolveRuntimeId();
     return NextResponse.json({
       token: token.access_token,
-      project: project(),
       runtimeId,
       dpUrl: dpUrlOrThrow(token),
     });
