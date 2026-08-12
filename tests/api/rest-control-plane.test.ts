@@ -69,6 +69,41 @@ const RECIPE = {
   updated_at: "2025-01-01T00:00:00Z",
 };
 
+const CONNECTOR = {
+  id: "44444444-4444-4444-4444-444444444444",
+  org_id: "org-1",
+  project_id: "proj-1",
+  created_at: "2026-08-08T00:00:00Z",
+  updated_at: "2026-08-08T00:00:00Z",
+  slug: "slack-support",
+  name: "Slack (support)",
+  provider: "slack",
+  auth_mode: "oauth_stored",
+  environment: "production",
+  scopes: ["chat:write"],
+  api_hosts: ["slack.com"],
+  approval_policy: "human",
+  status: "active",
+  requires_runtime: true,
+};
+
+const CONNECTION = {
+  id: "55555555-5555-5555-5555-555555555555",
+  org_id: "org-1",
+  created_at: "2026-08-08T00:00:00Z",
+  updated_at: "2026-08-08T00:00:00Z",
+  connector_id: CONNECTOR.id,
+  member_id: "member-1",
+  created_by_member_id: "installer-1",
+  runtime_group_id: "rg-1",
+  subject_type: "workspace",
+  scopes_granted: ["chat:write"],
+  status: "active",
+  token_expires_at: null,
+};
+
+const DISABLED_CONNECTOR_ID = "66666666-6666-6666-6666-666666666666";
+
 function runnerSpec(endpoint: string, generation = 1) {
   return {
     session_id: `sess-${generation}`,
@@ -240,6 +275,61 @@ beforeAll(async () => {
     if (path === `/v1/recipes/${RECIPE.id}` && method === "DELETE") {
       res.writeHead(204);
       return res.end();
+    }
+
+    // --- Control-plane: connectors + nested connections ---
+    if (path === "/v1/connectors" && method === "GET")
+      return json(res, 200, page([CONNECTOR]));
+    if (path === "/v1/connectors" && method === "POST")
+      return json(res, 201, CONNECTOR);
+    if (path === `/v1/connectors/${CONNECTOR.id}` && method === "GET")
+      return json(res, 200, CONNECTOR);
+    if (path === `/v1/connectors/${CONNECTOR.id}` && method === "PATCH")
+      return json(res, 200, { ...CONNECTOR, name: "Slack (renamed)" });
+    if (path === `/v1/connectors/${CONNECTOR.id}` && method === "DELETE") {
+      res.writeHead(204);
+      return res.end();
+    }
+    if (
+      path === `/v1/connectors/${CONNECTOR.id}/connections` &&
+      method === "GET"
+    )
+      return json(res, 200, page([CONNECTION]));
+    if (
+      path === `/v1/connectors/${CONNECTOR.id}/connections` &&
+      method === "POST"
+    )
+      return json(res, 201, CONNECTION);
+    if (
+      path === `/v1/connectors/${CONNECTOR.id}/connections/${CONNECTION.id}` &&
+      method === "GET"
+    )
+      return json(res, 200, CONNECTION);
+    if (
+      path === `/v1/connectors/${CONNECTOR.id}/connections/${CONNECTION.id}` &&
+      method === "DELETE"
+    ) {
+      res.writeHead(204);
+      return res.end();
+    }
+    // The connector whose slug names a deployment with the feature flag off.
+    if (path === `/v1/connectors/${DISABLED_CONNECTOR_ID}`)
+      return json(res, 404, { detail: "Connectors are not enabled" });
+    if (path === "/v1/oauth/connections/authorize" && method === "POST") {
+      const sent = body as Record<string, unknown>;
+      // A chat provider must name the agent that replies (server-side 422).
+      if (!sent.runtime) {
+        return json(res, 422, {
+          detail:
+            "`runtime` is required for a slack connector — it names the agent that replies",
+        });
+      }
+      const expiresIn = (sent.expires_in as number) ?? 600;
+      return json(res, 200, {
+        authorize_url: `https://slack.com/oauth/v2/authorize?client_id=abc&state=single-use-${expiresIn}`,
+        expires_in: expiresIn,
+        expires_at: "2026-08-08T21:00:00Z",
+      });
     }
 
     // --- Data-plane (runner) ---
@@ -518,6 +608,138 @@ describe("IntrospectionClient (REST control-plane, real server)", () => {
       for await (const r of client.recipes.list({ project: "proj-1" }))
         seen.push(r.id);
       expect(seen).toEqual([RECIPE.id]);
+    });
+  });
+
+  it("run() forwards identity tags for the member it mints", async () => {
+    requests = [];
+    const client = makeClient();
+
+    await client.runtimes(RUNTIME.runtime_group_id).run({
+      identity: { user_id: "u_demo", tags: ["project:x"] },
+    });
+
+    const run = requests.find((r) => r.path.endsWith("/run"));
+    expect(run?.body).toMatchObject({
+      identity: { user_id: "u_demo", tags: ["project:x"] },
+    });
+
+    await client.shutdown();
+  });
+
+  describe("connectors", () => {
+    it("round-trips CRUD in the authenticated project", async () => {
+      requests = [];
+      const client = makeClient();
+
+      const created = await client.connectors.create({
+        name: "Slack (support)",
+        provider: "slack",
+        auth_mode: "oauth_stored",
+        scopes: ["chat:write"],
+        client_secret: "secret-xyz",
+      });
+      expect(created.slug).toBe("slack-support");
+      // The write-only secret is accepted on the way in and never comes back.
+      expect(created).not.toHaveProperty("client_secret");
+      expect(await collect(client.connectors.list())).toHaveLength(1);
+      expect((await client.connectors.get(CONNECTOR.id)).id).toBe(CONNECTOR.id);
+      expect(
+        (
+          await client.connectors.update(CONNECTOR.id, {
+            name: "Slack (renamed)",
+          })
+        ).name,
+      ).toBe("Slack (renamed)");
+      await expect(
+        client.connectors.delete(CONNECTOR.id),
+      ).resolves.toBeUndefined();
+
+      await client.shutdown();
+    });
+
+    it("mints an install link carrying both expiry forms and no state", async () => {
+      const client = makeClient();
+
+      const minted = await client.connectors.authorize(CONNECTOR.id, {
+        runtime: "support-agent",
+        expires_in: 3600,
+      });
+
+      expect(minted.authorize_url).toContain("https://slack.com/oauth");
+      expect(minted.expires_in).toBe(3600);
+      expect(minted.expires_at).toBe("2026-08-08T21:00:00Z");
+      expect(minted).not.toHaveProperty("state");
+
+      await client.shutdown();
+    });
+
+    it("surfaces the 422 for a chat connector authorized without a runtime", async () => {
+      const client = makeClient();
+
+      await expect(
+        client.connectors.authorize(CONNECTOR.id),
+      ).rejects.toMatchObject({
+        status: 422,
+        message:
+          "`runtime` is required for a slack connector — it names the agent that replies",
+      });
+      await expect(client.connectors.authorize(CONNECTOR.id)).rejects.toThrow(
+        ValidationError,
+      );
+
+      await client.shutdown();
+    });
+
+    it("surfaces 'Connectors are not enabled' rather than a bare not-found", async () => {
+      const client = makeClient();
+
+      await expect(
+        client.connectors.get(DISABLED_CONNECTOR_ID),
+      ).rejects.toMatchObject({
+        status: 404,
+        message: "Connectors are not enabled",
+      });
+
+      await client.shutdown();
+    });
+
+    it("lists and revokes connections under their connector", async () => {
+      requests = [];
+      const client = makeClient();
+
+      const connections = await collect(
+        client.connectors.connections.list(CONNECTOR.id),
+      );
+      expect(connections).toHaveLength(1);
+      expect(connections[0].subject_type).toBe("workspace");
+      expect(connections[0].created_by_member_id).toBe("installer-1");
+
+      const registered = await client.connectors.connections.create(
+        CONNECTOR.id,
+        { access_token: "xoxb-token" },
+      );
+      expect(registered.connector_id).toBe(CONNECTOR.id);
+      expect(registered).not.toHaveProperty("access_token");
+
+      expect(
+        (await client.connectors.connections.get(CONNECTOR.id, CONNECTION.id))
+          .id,
+      ).toBe(CONNECTION.id);
+
+      await expect(
+        client.connectors.connections.revoke(CONNECTOR.id, CONNECTION.id),
+      ).resolves.toBeUndefined();
+      expect(
+        requests.find(
+          (r) =>
+            r.method === "DELETE" &&
+            r.path ===
+              `/v1/connectors/${CONNECTOR.id}/connections/${CONNECTION.id}`,
+        ),
+      ).toBeDefined();
+
+      await client.shutdown();
     });
   });
 

@@ -370,6 +370,58 @@ const SURFACES = [
     extraMeans: "sent as a query parameter the API does not accept",
     missingMeans: "accepted by the API but not exposed here",
   },
+  // --- connectors ----------------------------------------------------------
+  {
+    name: "ConnectorListParams",
+    where: "GET /v1/connectors query parameters",
+    plane: "cp",
+    sdk: () => interfaceMembers(TYPES, "CursorParams"),
+    server: (spec) => queryParameters(spec, "/v1/connectors", "get"),
+    // Project scope comes from the authenticated credential.
+    exempt: ["project", "project_id"],
+    missingIsFatal: false,
+    extraMeans: "sent as a query parameter the API does not accept",
+    missingMeans: "accepted by the API but not exposed here",
+  },
+  {
+    name: "ConnectorCreateParams",
+    where: "POST /v1/connectors body",
+    plane: "cp",
+    sdk: () => interfaceMembers(TYPES, "ConnectorCreateParams"),
+    server: (spec) => schemaProperties(spec, "ConnectorCreate"),
+    extraMeans: "declared here but not accepted by the API",
+    missingMeans: "accepted by the API but unavailable to callers of this SDK",
+  },
+  {
+    name: "ConnectorUpdateParams",
+    where: "PATCH /v1/connectors/{id} body",
+    plane: "cp",
+    sdk: () => interfaceMembers(TYPES, "ConnectorUpdateParams"),
+    server: (spec) => schemaProperties(spec, "ConnectorUpdate"),
+    extraMeans: "declared here but not accepted by the API",
+    missingMeans: "accepted by the API but unavailable to callers of this SDK",
+  },
+  {
+    name: "ConnectionCreateParams",
+    where: "POST /v1/connectors/{id}/connections body",
+    plane: "cp",
+    sdk: () => interfaceMembers(TYPES, "ConnectionCreateParams"),
+    server: (spec) => schemaProperties(spec, "ConnectionCreate"),
+    extraMeans: "declared here but not accepted by the API",
+    missingMeans: "accepted by the API but unavailable to callers of this SDK",
+  },
+  {
+    // `connector_id` is a method argument here, not a caller-supplied field:
+    // `authorize(connectorId, params)` merges it into the body.
+    name: "ConnectorAuthorizeParams",
+    where: "POST /v1/oauth/connections/authorize body",
+    plane: "cp",
+    sdk: () => interfaceMembers(TYPES, "ConnectorAuthorizeParams"),
+    server: (spec) => schemaProperties(spec, "ConnectAuthorizeRequest"),
+    exempt: ["connector_id"],
+    extraMeans: "declared here but not accepted by the API",
+    missingMeans: "accepted by the API but unavailable to callers of this SDK",
+  },
   // --- metrics -------------------------------------------------------------
   {
     name: "MetricQueryRequest",

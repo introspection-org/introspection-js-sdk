@@ -83,6 +83,11 @@ export {
 } from "./resources/experiments.js";
 export type { ExperimentHandleFactory } from "./resources/experiments.js";
 export { RecipesApi, attachRecipes } from "./resources/recipes.js";
+export {
+  ConnectorsApi,
+  ConnectionsApi,
+  attachConnectors,
+} from "./resources/connectors.js";
 
 // REST API wire types
 export type {
@@ -131,6 +136,27 @@ export type {
   ExperimentArm,
   Recipe,
   RecipeListParams,
+  Connector,
+  ConnectorAuthMode,
+  ConnectorStatus,
+  ConnectorPersonServerMode,
+  ConnectorApprovalPolicy,
+  ConnectorCreateParams,
+  ConnectorUpdateParams,
+  ConnectorListParams,
+  ConnectorAuthorizeParams,
+  ConnectorAuthorizeResponse,
+  Connection,
+  ConnectionStatus,
+  ConnectionSubjectType,
+  ConnectionCreateSubjectType,
+  ConnectionBrokerSubjectType,
+  ConnectionCreateParams,
+  ConnectionMissionConstraints,
+  ConnectionTokenParams,
+  ConnectionToken,
+  ConnectionAuthorizationPending,
+  ConnectionTokenResult,
   RunnerSpec,
   RunnerDeployment,
   RunnerContext,

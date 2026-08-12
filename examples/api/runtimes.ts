@@ -31,8 +31,12 @@ async function main() {
   //    it via `/v1/runtimes?runtime=…`, then calls
   //    `/v1/runtimes/{id}/run` which mints a short-lived access token
   //    and tells the runner which DP to talk to.
+  // `identity.tags` stamps the customer member this identity mints, when it
+  // is new — the member then reaches every file and task carrying a matching
+  // tag. Attenuated to this credential's own tags, so it can never widen what
+  // the caller already has.
   const runner = await client.runtimes(runtime).run({
-    identity: { user_id: "u_demo" },
+    identity: { user_id: "u_demo", tags: ["project:x"] },
   });
   console.log(
     `runner -> dp=${runner.dpEndpoint}, runtime=${runner.context?.runtime_id ?? "?"}, expires=${runner.expires_at ?? "?"}`,
@@ -40,7 +44,12 @@ async function main() {
 
   // 2) Spawn a task on the runner (cursor-style sugar: one call
   //    creates the task and its first run) and stream its events.
+  // Tags stamped here group the task for `tasks.list({ tag })`, and are
+  // access-bearing: a caller whose member tags intersect them can read and
+  // write this task. Member tags are set by an org owner through the members
+  // API — a runner identity cannot assert its own.
   const run = await runner.tasks.start({
+    tags: ["project:x"],
     prompt: "Say hello in one sentence.",
   });
   console.log(`spawned task=${run.task?.id}, run=${run.run.id}`);
