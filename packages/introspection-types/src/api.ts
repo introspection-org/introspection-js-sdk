@@ -175,7 +175,9 @@ export interface TaskRepoRequest {
   /**
    * Branch, tag, or full 40-character commit sha to check out.
    *
-   * Omit it and the server uses the repository's registered default branch. An
+   * Omit it and the server uses `main` — registration never records the
+   * repository's real default branch, so pass this explicitly when it is not
+   * `main`. An
    * abbreviated sha is read as a branch name, so the clone fails and the
    * repository is dropped.
    */
