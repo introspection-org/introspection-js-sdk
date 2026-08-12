@@ -54,7 +54,7 @@ export function spaClientId(): string {
  * sample runtime slug.
  */
 export function runtime(): string {
-  return process.env.INTRO_RUNTIME ?? "customer-agent";
+  return process.env.INTRO_RUNTIME ?? "coding-agent";
 }
 
 /**
