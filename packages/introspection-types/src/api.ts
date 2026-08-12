@@ -189,7 +189,8 @@ export interface TaskCreateParams {
   agent_name?: string;
   /**
    * Workspace repositories to clone into the sandbox's `workspace/repos/`
-   * before the first turn, at most 10.
+   * before the first turn. No count limit — the server refuses a statically
+   * wrong list (duplicate slugs, folder collisions), not a long one.
    */
   repositories?: TaskRepoRequest[];
   metadata?: Record<string, unknown>;
