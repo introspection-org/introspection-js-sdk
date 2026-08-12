@@ -57,12 +57,12 @@ describe("ConnectorsApi", () => {
     const http = mockHttp({ requestResult: page([CONNECTOR_FIXTURE]) });
     const api = new ConnectorsApi(http);
 
-    const first = await api.list({ project: "proj-1", limit: 10 });
+    const first = await api.list({ limit: 10 });
 
     expect(http.request).toHaveBeenCalledWith({
       method: "GET",
       path: "/v1/connectors",
-      query: { project: "proj-1", limit: 10, next: undefined },
+      query: { limit: 10, next: undefined },
     });
     expect(first.records[0].slug).toBe("slack-support");
     expect(first.records[0].requires_runtime).toBe(true);
@@ -79,26 +79,22 @@ describe("ConnectorsApi", () => {
     });
   });
 
-  it("create() POSTs the body and carries project on the query", async () => {
+  it("create() POSTs the body using authenticated project scope", async () => {
     const http = mockHttp({ requestResult: CONNECTOR_FIXTURE });
     const api = new ConnectorsApi(http);
 
-    await api.create(
-      {
-        name: "Slack (support)",
-        provider: "slack",
-        auth_mode: "oauth_stored",
-        scopes: ["chat:write"],
-        client_id: "client-abc",
-        client_secret: "secret-xyz",
-      },
-      { project: "proj-1" },
-    );
+    await api.create({
+      name: "Slack (support)",
+      provider: "slack",
+      auth_mode: "oauth_stored",
+      scopes: ["chat:write"],
+      client_id: "client-abc",
+      client_secret: "secret-xyz",
+    });
 
     expect(http.request).toHaveBeenCalledWith({
       method: "POST",
       path: "/v1/connectors",
-      query: { project: "proj-1" },
       body: {
         name: "Slack (support)",
         provider: "slack",
@@ -110,41 +106,36 @@ describe("ConnectorsApi", () => {
     });
   });
 
-  it("omits the project query entirely when none is given", async () => {
+  it("get() uses authenticated project scope", async () => {
     const http = mockHttp({ requestResult: CONNECTOR_FIXTURE });
     await new ConnectorsApi(http).get(CONNECTOR_ID);
 
     expect(http.request).toHaveBeenCalledWith({
       method: "GET",
       path: `/v1/connectors/${CONNECTOR_ID}`,
-      query: undefined,
     });
   });
 
   it("update() PATCHes only the fields it is given", async () => {
     const http = mockHttp({ requestResult: CONNECTOR_FIXTURE });
-    await new ConnectorsApi(http).update(
-      CONNECTOR_ID,
-      { name: "Slack (renamed)" },
-      { project: "proj-1" },
-    );
+    await new ConnectorsApi(http).update(CONNECTOR_ID, {
+      name: "Slack (renamed)",
+    });
 
     expect(http.request).toHaveBeenCalledWith({
       method: "PATCH",
       path: `/v1/connectors/${CONNECTOR_ID}`,
-      query: { project: "proj-1" },
       body: { name: "Slack (renamed)" },
     });
   });
 
   it("delete() expects an empty body", async () => {
     const http = mockHttp();
-    await new ConnectorsApi(http).delete(CONNECTOR_ID, { project: "proj-1" });
+    await new ConnectorsApi(http).delete(CONNECTOR_ID);
 
     expect(http.request).toHaveBeenCalledWith({
       method: "DELETE",
       path: `/v1/connectors/${CONNECTOR_ID}`,
-      query: { project: "proj-1" },
       expect: "empty",
     });
   });
@@ -286,6 +277,51 @@ describe("ConnectionsApi", () => {
       path: `/v1/connectors/${CONNECTOR_ID}/connections/${CONNECTION_ID}`,
       expect: "empty",
     });
+  });
+
+  it("getToken() returns a provider token through the broker", async () => {
+    const http = mockHttp({
+      requestResult: {
+        token: "provider-token",
+        token_type: "bearer",
+        expires_at: null,
+        scopes: ["calendar.read"],
+      },
+    });
+    const result = await new ConnectionsApi(http).getToken(CONNECTOR_ID, {
+      subject: "user",
+      action: "calendar.list",
+      requested_permissions: { host: "calendar.example.com" },
+    });
+
+    expect(http.request).toHaveBeenCalledWith({
+      method: "POST",
+      path: "/v1/oauth/connections/token",
+      body: {
+        connector_id: CONNECTOR_ID,
+        subject: "user",
+        action: "calendar.list",
+        requested_permissions: { host: "calendar.example.com" },
+      },
+    });
+    expect(result).toHaveProperty("token", "provider-token");
+  });
+
+  it("getToken() preserves authorization-pending responses", async () => {
+    const http = mockHttp({
+      requestResult: {
+        status: "authorization_pending",
+        mission_id: "33333333-3333-3333-3333-333333333333",
+        approval_url: "https://consent.example/m/333?cap=secret",
+      },
+    });
+    const result = await new ConnectionsApi(http).getToken(CONNECTOR_ID, {
+      subject: "person",
+      action: "booking.reserve",
+    });
+
+    expect(result).toHaveProperty("status", "authorization_pending");
+    expect(result).toHaveProperty("approval_url");
   });
 
   it("encodes ids that are not bare uuids", async () => {

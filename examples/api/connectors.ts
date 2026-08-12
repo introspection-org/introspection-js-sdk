@@ -15,7 +15,6 @@
  *
  * Optional env:
  *   INTROSPECTION_BASE_API_URL  - CP API host (default https://api.introspection.dev)
- *   INTROSPECTION_PROJECT       - project slug or id, when the key is not project-scoped
  *   REVOKE_FIRST_CONNECTION=1   - revoke the first listed connection (destructive)
  *
  * Connectors sit behind a server-side feature flag. If every call 404s with
@@ -34,10 +33,6 @@ async function main() {
   }
 
   const client = new IntrospectionClient();
-  // Only needed when the API key is not already scoped to one project.
-  const project = process.env.INTROSPECTION_PROJECT;
-  const scope = project ? { project } : {};
-
   // 1) Create the connector. This is the org-level definition of the
   //    provider: your Slack app's credentials plus the scopes it asks for.
   //    Create is idempotent on `slug`, so re-running this is safe — it
@@ -49,19 +44,16 @@ async function main() {
   //    (`{cp-host}/v1/webhooks/slack/{connector.id}`), so the connector has to
   //    exist first, and the credentials come back afterwards via
   //    `connectors.update(connector.id, { webhook_url, client_secret, ... })`.
-  const connector = await client.connectors.create(
-    {
-      name: "Slack (support)",
-      slug: "slack-support",
-      provider: "slack",
-      auth_mode: "oauth_stored",
-      scopes: ["chat:write", "channels:read", "app_mentions:read"],
-      api_hosts: ["slack.com"],
-      client_id: clientId,
-      client_secret: clientSecret,
-    },
-    scope,
-  );
+  const connector = await client.connectors.create({
+    name: "Slack (support)",
+    slug: "slack-support",
+    provider: "slack",
+    auth_mode: "oauth_stored",
+    scopes: ["chat:write", "channels:read", "app_mentions:read"],
+    api_hosts: ["slack.com"],
+    client_id: clientId,
+    client_secret: clientSecret,
+  });
   console.log(
     `connector -> ${connector.slug} (${connector.id}), status=${connector.status}`,
   );

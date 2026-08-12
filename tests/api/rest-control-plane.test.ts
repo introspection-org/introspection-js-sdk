@@ -628,31 +628,21 @@ describe("IntrospectionClient (REST control-plane, real server)", () => {
   });
 
   describe("connectors", () => {
-    it("round-trips CRUD and scopes reads by project", async () => {
+    it("round-trips CRUD in the authenticated project", async () => {
       requests = [];
       const client = makeClient();
 
-      const created = await client.connectors.create(
-        {
-          name: "Slack (support)",
-          provider: "slack",
-          auth_mode: "oauth_stored",
-          scopes: ["chat:write"],
-          client_secret: "secret-xyz",
-        },
-        { project: "proj-1" },
-      );
+      const created = await client.connectors.create({
+        name: "Slack (support)",
+        provider: "slack",
+        auth_mode: "oauth_stored",
+        scopes: ["chat:write"],
+        client_secret: "secret-xyz",
+      });
       expect(created.slug).toBe("slack-support");
       // The write-only secret is accepted on the way in and never comes back.
       expect(created).not.toHaveProperty("client_secret");
-      const createRequest = requests.find(
-        (r) => r.path === "/v1/connectors" && r.method === "POST",
-      );
-      expect(createRequest?.query.get("project")).toBe("proj-1");
-
-      expect(
-        await collect(client.connectors.list({ project: "proj-1" })),
-      ).toHaveLength(1);
+      expect(await collect(client.connectors.list())).toHaveLength(1);
       expect((await client.connectors.get(CONNECTOR.id)).id).toBe(CONNECTOR.id);
       expect(
         (

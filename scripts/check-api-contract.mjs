@@ -375,9 +375,10 @@ const SURFACES = [
     name: "ConnectorListParams",
     where: "GET /v1/connectors query parameters",
     plane: "cp",
-    sdk: () => interfaceMembers(TYPES, "ConnectorListParams"),
+    sdk: () => interfaceMembers(TYPES, "CursorParams"),
     server: (spec) => queryParameters(spec, "/v1/connectors", "get"),
-    exempt: ["project_id"],
+    // Project scope comes from the authenticated credential.
+    exempt: ["project", "project_id"],
     missingIsFatal: false,
     extraMeans: "sent as a query parameter the API does not accept",
     missingMeans: "accepted by the API but not exposed here",

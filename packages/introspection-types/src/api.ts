@@ -215,13 +215,16 @@ export interface TaskCreateParams {
    */
   idle_timeout_seconds?: number;
   /**
-   * `key:value` grouping tags stamped on the task at create time (e.g.
-   * `customer:acme`). Key is `[a-z0-9][a-z0-9_.-]*`, 1–64 chars and may not
-   * contain `:`; value is 1–256 chars; at most 64 tags. Duplicates collapse.
+   * Grouping tags stamped on the task at create time (e.g.
+   * `customer:acme`). A tag is an opaque, exact, case-sensitive string:
+   * `key:value` is a convention, not a grammar. Each tag is 1–128 characters
+   * with no whitespace or control characters; at most 64 tags. Duplicates
+   * collapse.
    *
    * Filter with {@link TaskListParams.tag}. Tags are also access-bearing: a
    * caller whose member tags intersect a row's tags can read and write it, so
-   * a tag shared with a member cohort hands them the task.
+   * a tag shared with a member cohort hands them the task. Shared writers may
+   * not replace the tags themselves; that remains owner/privileged-only.
    */
   tags?: string[];
   /**
@@ -654,8 +657,8 @@ export interface RunIdentityInput {
    * Tags to stamp on the `customer` member this identity mints, **if that
    * member is new**. Access-bearing, and bounded on both sides: attenuated to
    * the asserting agent member's own tags, and applied on create only — an
-   * existing member's tags are never changed here. Same `key:value` grammar as
-   * every other tag write.
+   * existing member's tags are never changed here. Tags use the same opaque,
+   * exact-match validation as every other tag write.
    */
   tags?: string[];
 }
@@ -738,6 +741,12 @@ export type ConnectionStatus =
 /** Who a connection acts as against the provider. */
 export type ConnectionSubjectType =
   "app" | "user" | "federated" | "person" | "workspace";
+
+/** Subjects currently accepted by registered connection creation. */
+export type ConnectionCreateSubjectType = "app" | "user";
+
+/** Subjects currently accepted by authorize and token-broker operations. */
+export type ConnectionBrokerSubjectType = "app" | "user" | "person";
 
 export type ConnectorPersonServerMode = "managed" | "byo" | "discovered";
 
@@ -843,16 +852,7 @@ export interface ConnectorUpdateParams {
   signing_secret?: string;
 }
 
-export interface ConnectorListParams extends CursorParams {
-  /** Project slug or id. Optional when the token is project-scoped. */
-  project?: string;
-}
-
-/** Per-call options for the connector CRUD routes. */
-export interface ConnectorRequestOptions {
-  /** Project slug or id. Optional when the token is project-scoped. */
-  project?: string;
-}
+export type ConnectorListParams = CursorParams;
 
 export interface ConnectorAuthorizeParams {
   /**
@@ -870,7 +870,7 @@ export interface ConnectorAuthorizeParams {
    */
   runtime?: string;
   /** Who the consent is for (default `"app"`). */
-  subject?: "app" | "user" | "person";
+  subject?: ConnectionBrokerSubjectType;
   /** Where the browser lands after consent. */
   return_url?: string;
   /**
@@ -923,11 +923,47 @@ export interface Connection {
 export interface ConnectionCreateParams {
   access_token: string;
   /** Defaults to `"app"`. */
-  subject_type?: ConnectionSubjectType;
+  subject_type?: ConnectionCreateSubjectType;
   scopes_granted?: string[];
   refresh_token?: string;
   token_expires_at?: IsoDate;
 }
+
+/** Deterministic, non-PII envelope for a person-authorized action. */
+export interface ConnectionMissionConstraints {
+  host?: string;
+  /** Opaque or hashed resource identifier; never raw PII. */
+  resource?: string;
+  limits?: Record<string, unknown>;
+  window_start?: IsoDate;
+  window_end?: IsoDate;
+  /** SHA-256 of the approved artifact. */
+  payload_binding?: string;
+}
+
+export interface ConnectionTokenParams {
+  /** Defaults to `"app"`. */
+  subject?: ConnectionBrokerSubjectType;
+  /** Mission label shown to the human for person-authorized connectors. */
+  action?: string;
+  requested_permissions?: ConnectionMissionConstraints;
+}
+
+export interface ConnectionToken {
+  token: string;
+  token_type: string;
+  expires_at?: IsoDate | null;
+  scopes: string[];
+}
+
+export interface ConnectionAuthorizationPending {
+  status: "authorization_pending";
+  mission_id: Uuid;
+  approval_url: string;
+}
+
+export type ConnectionTokenResult =
+  ConnectionToken | ConnectionAuthorizationPending;
 
 // --- events ---
 

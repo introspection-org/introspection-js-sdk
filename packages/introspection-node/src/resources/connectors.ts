@@ -1,12 +1,13 @@
 import type {
   Connection,
   ConnectionCreateParams,
+  ConnectionTokenParams,
+  ConnectionTokenResult,
   Connector,
   ConnectorAuthorizeParams,
   ConnectorAuthorizeResponse,
   ConnectorCreateParams,
   ConnectorListParams,
-  ConnectorRequestOptions,
   ConnectorUpdateParams,
   CursorParams,
   Paginated,
@@ -14,12 +15,6 @@ import type {
 } from "@introspection-sdk/types";
 import type { HttpClient } from "../http.js";
 import { Paginator, cursorPaginate } from "../pagination.js";
-
-function projectQuery(
-  options: ConnectorRequestOptions,
-): Record<string, unknown> | undefined {
-  return options.project ? { project: options.project } : undefined;
-}
 
 /**
  * Connections nested under a connector
@@ -84,6 +79,22 @@ export class ConnectionsApi {
       expect: "empty",
     });
   }
+
+  /**
+   * Resolve a connector credential for the authenticated subject. For a
+   * `person_authorized` connector this may return `authorization_pending`
+   * with the mission and approval URL instead of a token.
+   */
+  getToken(
+    connectorId: Uuid,
+    params: ConnectionTokenParams = {},
+  ): Promise<ConnectionTokenResult> {
+    return this.http.request<ConnectionTokenResult>({
+      method: "POST",
+      path: "/v1/oauth/connections/token",
+      body: { connector_id: connectorId, ...params },
+    });
+  }
 }
 
 /**
@@ -91,14 +102,10 @@ export class ConnectionsApi {
  * (`POST /v1/oauth/connections/authorize`), with connections nested as
  * {@link ConnectionsApi} under `.connections`.
  *
- * Connector CRUD routes are project-scoped: pass `project` (a slug or id)
- * in the options bag unless the token is already project-scoped.
+ * Connector CRUD uses the project carried by the authenticated credential.
  * `client_secret` / `signing_secret` are write-only — accepted on create
  * and update, absent from every read.
  *
- * The whole family sits behind a server-side feature flag; when it is off
- * every route returns a 404 whose detail reads "Connectors are not
- * enabled" (as opposed to a plain not-found for a missing connector).
  */
 export class ConnectorsApi {
   readonly connections: ConnectionsApi;
@@ -126,51 +133,34 @@ export class ConnectorsApi {
   }
 
   /** Create a connector. Idempotent on `slug` — a repeat POST returns the live row. */
-  create(
-    params: ConnectorCreateParams,
-    options: ConnectorRequestOptions = {},
-  ): Promise<Connector> {
+  create(params: ConnectorCreateParams): Promise<Connector> {
     return this.http.request<Connector>({
       method: "POST",
       path: "/v1/connectors",
-      query: projectQuery(options),
       body: params,
     });
   }
 
-  get(
-    connectorId: Uuid,
-    options: ConnectorRequestOptions = {},
-  ): Promise<Connector> {
+  get(connectorId: Uuid): Promise<Connector> {
     return this.http.request<Connector>({
       method: "GET",
       path: `/v1/connectors/${encodeURIComponent(connectorId)}`,
-      query: projectQuery(options),
     });
   }
 
-  update(
-    connectorId: Uuid,
-    params: ConnectorUpdateParams,
-    options: ConnectorRequestOptions = {},
-  ): Promise<Connector> {
+  update(connectorId: Uuid, params: ConnectorUpdateParams): Promise<Connector> {
     return this.http.request<Connector>({
       method: "PATCH",
       path: `/v1/connectors/${encodeURIComponent(connectorId)}`,
-      query: projectQuery(options),
       body: params,
     });
   }
 
   /** Soft-delete a connector; the server revokes its connections. */
-  delete(
-    connectorId: Uuid,
-    options: ConnectorRequestOptions = {},
-  ): Promise<void> {
+  delete(connectorId: Uuid): Promise<void> {
     return this.http.request<void>({
       method: "DELETE",
       path: `/v1/connectors/${encodeURIComponent(connectorId)}`,
-      query: projectQuery(options),
       expect: "empty",
     });
   }
