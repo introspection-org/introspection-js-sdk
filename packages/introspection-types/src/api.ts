@@ -136,7 +136,6 @@ export interface Task {
   last_user_message_at?: IsoDate | null;
   metadata?: Record<string, unknown> | null;
   agent?: AgentInfo | null;
-  identity_key?: string | null;
   /** `key:value` grouping tags stamped on this task. */
   tags?: string[];
 }
@@ -252,8 +251,6 @@ export interface TaskListParams extends ListParams {
   require_automation_id?: boolean;
   /** Filter by one `key:value` tag. ANDed with the ownership predicate, so it only narrows. */
   tag?: string;
-  /** Privileged credentials only: audit a specific owner identity. */
-  identity_key?: string;
 }
 
 export interface TaskPrompt {
@@ -332,8 +329,12 @@ export interface File {
   version: number;
   parent_id?: Uuid | null;
   storage_version_id?: string | null;
-  identity_key?: string | null;
   task_id?: Uuid | null;
+  /**
+   * Grouping tags stamped on this file. Tags belong to the file rather than
+   * to a version, so they carry forward when a new version is written.
+   */
+  tags?: string[];
 }
 
 export interface FileListParams extends ListParams {
@@ -349,11 +350,27 @@ export interface FileListParams extends ListParams {
    * unknown query param, serving the caller every file in the project.
    */
   member_id?: Uuid;
+  /** Filter by one tag. ANDed with the ownership predicate, so it only narrows. */
+  tag?: string;
 }
 
 export interface FileUpdateParams {
   name?: string;
   metadata?: Record<string, unknown>;
+  /**
+   * Replaces the tag list wholesale (unlike `metadata`, which is merged).
+   * Omit to leave tags untouched; pass `[]` to clear them.
+   *
+   * A tag is an opaque, exact, case-sensitive string: `key:value` is a
+   * convention, not a grammar. Each tag is 1–128 characters with no
+   * whitespace or control characters; at most 64 tags. Duplicates collapse.
+   *
+   * Tags are access-bearing: a caller whose member tags intersect a file's
+   * tags can read and write it, so a tag shared with a member cohort hands
+   * them the file. Shared writers may not replace the tags themselves; that
+   * remains owner/privileged-only.
+   */
+  tags?: string[];
 }
 
 export interface FileCreateTextParams {
@@ -378,16 +395,8 @@ export interface ResourceShare {
   resource_id: string;
   /** Member-targeted grant; `null` means a project-wide grant (everyone). */
   granted_member_id?: Uuid | null;
-  /**
-   * Identity-targeted grant — an asserted end-user identity rather than a
-   * member. Mutually exclusive with `granted_member_id`; both null means a
-   * project-wide grant.
-   */
-  granted_identity_key?: string | null;
   /** Grantor (always a member) — the revoke gate. */
   created_by_member_id: Uuid;
-  /** Grantor's coalesced identity, when the creator asserted one. */
-  created_by_identity_key?: string | null;
   /**
    * Fully-qualified canonical GET URL for the shared resource, carrying the
    * `?share_id` capability (e.g. `…/v1/files/{id}?share_id=…`). Always present on
@@ -397,17 +406,14 @@ export interface ResourceShare {
 }
 
 /**
- * Set exactly one of `granted_member_id` / `granted_identity_key` to target a
- * recipient, or omit both for a project-wide grant. The two are mutually
- * exclusive; supplying both is rejected.
+ * Set `granted_member_id` to target one member, or omit it for a project-wide
+ * grant. An end customer is a member, so there is no separate identity target.
  */
 export interface ShareCreateParams {
   resource_type: ShareResourceType;
   resource_id: string;
-  /** Target one member. */
+  /** Target one member; omit for a project-wide grant. */
   granted_member_id?: Uuid;
-  /** Target one asserted end-user identity. */
-  granted_identity_key?: string;
 }
 
 export interface ShareListParams extends CursorParams {

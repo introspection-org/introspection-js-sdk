@@ -150,20 +150,6 @@ describe("TasksApi", () => {
     });
   });
 
-  it("list() forwards the identity_key filter", async () => {
-    const http = mockHttp({
-      requestResult: { records: [], count: 0, total_count: 0, next: null },
-    });
-    const api = new TasksApi(http);
-    await api.list({ identity_key: "user:u_a" });
-
-    expect(http.request).toHaveBeenCalledWith({
-      method: "GET",
-      path: "/v1/tasks",
-      query: { identity_key: "user:u_a" },
-    });
-  });
-
   it("get() calls GET /v1/tasks/:id", async () => {
     const http = mockHttp({ requestResult: TASK_FIXTURE });
     const api = new TasksApi(http);
