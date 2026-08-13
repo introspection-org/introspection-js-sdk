@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.22.0](https://github.com/introspection-org/introspection-js-sdk/compare/v0.21.1...v0.22.0) (2026-08-13)
+
+
+### Features
+
+* **connectors:** add connectors, connections, and the install link ([#326](https://github.com/introspection-org/introspection-js-sdk/issues/326)) ([aed6074](https://github.com/introspection-org/introspection-js-sdk/commit/aed60748ec58787c578d921f8ee9fccf490e5a24))
+
+
+### Bug Fixes
+
+* **auth-example:** align with the current SDK session flow ([#328](https://github.com/introspection-org/introspection-js-sdk/issues/328)) ([5b0b24f](https://github.com/introspection-org/introspection-js-sdk/commit/5b0b24fd1df1fecb29e25e1782091fdd0c7f2e67))
+* expose file tags, and drop identity_key ([#330](https://github.com/introspection-org/introspection-js-sdk/issues/330)) ([5543a28](https://github.com/introspection-org/introspection-js-sdk/commit/5543a2888e3521a1697dad06bbf3813ba72b390b))
+
 ## [0.21.1](https://github.com/introspection-org/introspection-js-sdk/compare/v0.21.0...v0.21.1) (2026-08-10)
 
 
