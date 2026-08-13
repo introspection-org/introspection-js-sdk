@@ -226,6 +226,42 @@ describe("FilesApi", () => {
   });
 });
 
+describe("FilesApi tags", () => {
+  it("list() sends the tag filter", async () => {
+    const http = mockHttp({
+      requestResult: { records: [FILE_FIXTURE], count: 1, total_count: 1 },
+    });
+    await new FilesApi(http).list({ tag: "customer:acme" });
+
+    expect(http.request).toHaveBeenCalledWith({
+      method: "GET",
+      path: "/v1/files",
+      query: { tag: "customer:acme", next: undefined },
+    });
+  });
+
+  it("update() replaces the tag list wholesale, including clearing it", async () => {
+    const http = mockHttp({ requestResult: FILE_FIXTURE });
+    await new FilesApi(http).update("file-1", { tags: [] });
+
+    // Replaces wholesale, so [] must reach the wire rather than be dropped.
+    expect(http.request).toHaveBeenCalledWith({
+      method: "PATCH",
+      path: "/v1/files/file-1",
+      body: { tags: [] },
+    });
+  });
+
+  it("reads tags back off a file", async () => {
+    const http = mockHttp({
+      requestResult: { ...FILE_FIXTURE, tags: ["customer:acme"] },
+    });
+    const file = await new FilesApi(http).get("file-1");
+
+    expect(file.tags).toEqual(["customer:acme"]);
+  });
+});
+
 describe("FileVersionsApi", () => {
   it("list() calls GET /v1/files/:id/versions", async () => {
     const http = mockHttp({

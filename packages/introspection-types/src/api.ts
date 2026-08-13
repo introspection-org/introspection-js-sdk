@@ -334,6 +334,11 @@ export interface File {
   storage_version_id?: string | null;
   identity_key?: string | null;
   task_id?: Uuid | null;
+  /**
+   * Grouping tags stamped on this file. Tags belong to the file rather than
+   * to a version, so they carry forward when a new version is written.
+   */
+  tags?: string[];
 }
 
 export interface FileListParams extends ListParams {
@@ -349,11 +354,27 @@ export interface FileListParams extends ListParams {
    * unknown query param, serving the caller every file in the project.
    */
   member_id?: Uuid;
+  /** Filter by one tag. ANDed with the ownership predicate, so it only narrows. */
+  tag?: string;
 }
 
 export interface FileUpdateParams {
   name?: string;
   metadata?: Record<string, unknown>;
+  /**
+   * Replaces the tag list wholesale (unlike `metadata`, which is merged).
+   * Omit to leave tags untouched; pass `[]` to clear them.
+   *
+   * A tag is an opaque, exact, case-sensitive string: `key:value` is a
+   * convention, not a grammar. Each tag is 1–128 characters with no
+   * whitespace or control characters; at most 64 tags. Duplicates collapse.
+   *
+   * Tags are access-bearing: a caller whose member tags intersect a file's
+   * tags can read and write it, so a tag shared with a member cohort hands
+   * them the file. Shared writers may not replace the tags themselves; that
+   * remains owner/privileged-only.
+   */
+  tags?: string[];
 }
 
 export interface FileCreateTextParams {
