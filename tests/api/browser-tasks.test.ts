@@ -240,12 +240,12 @@ describe("TasksClient", () => {
       },
     });
     const tasks = new TasksClient(http);
-    const page = await tasks.list({ limit: 10, identity_key: "user:u_a" });
+    const page = await tasks.list({ limit: 10, tag: "customer:acme" });
 
     expect(http.request).toHaveBeenCalledWith({
       method: "GET",
       path: "/v1/tasks",
-      query: { limit: 10, identity_key: "user:u_a" },
+      query: { limit: 10, tag: "customer:acme" },
     });
     expect(page.records).toHaveLength(1);
   });
