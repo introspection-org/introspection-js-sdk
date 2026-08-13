@@ -22,6 +22,7 @@ function mockHttp(overrides: Record<string, unknown> = {}) {
 const SUMMARY_FIXTURE: Conversation = {
   object: "conversation",
   id: "conv-1",
+  task_title: "Map Australian fintech leaders",
   created_at: "2025-01-01T00:00:00Z",
   updated_at: "2025-01-01T00:00:05Z",
   usage: { input_tokens: 10, output_tokens: 20, total_tokens: 30 },
@@ -115,6 +116,7 @@ describe("ConversationsApi", () => {
     });
     expect(summaries).toHaveLength(1);
     expect(summaries[0].id).toBe("conv-1");
+    expect(summaries[0].task_title).toBe("Map Australian fintech leaders");
     expect(summaries[0].metrics.span_count).toBe(3);
   });
 
@@ -448,6 +450,7 @@ describe("ConversationsApi.list — Arrow format", () => {
       arrow.tableFromArrays({
         trace_id: ["trace-1", "trace-2"],
         conversation_id: ["conv-1", "conv-2"],
+        task_title: ["Map Australian fintech leaders", null],
         model: ["claude-x", "claude-y"],
       }),
       "stream",
@@ -472,8 +475,18 @@ describe("ConversationsApi.list — Arrow format", () => {
       signal: undefined,
     });
     expect(page.records).toEqual([
-      { trace_id: "trace-1", conversation_id: "conv-1", model: "claude-x" },
-      { trace_id: "trace-2", conversation_id: "conv-2", model: "claude-y" },
+      {
+        trace_id: "trace-1",
+        conversation_id: "conv-1",
+        task_title: "Map Australian fintech leaders",
+        model: "claude-x",
+      },
+      {
+        trace_id: "trace-2",
+        conversation_id: "conv-2",
+        task_title: null,
+        model: "claude-y",
+      },
     ]);
     expect(page.count).toBe(2);
     expect(page.total_count).toBe(7);

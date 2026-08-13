@@ -342,6 +342,7 @@ export interface ConversationMetrics {
 export interface Conversation {
   object: "conversation";
   id: string;
+  task_title?: string | null;
   created_at: IsoDate;
   updated_at: IsoDate;
   /** Complete only on the singular conversation read. */
