@@ -357,6 +357,13 @@ export interface Conversation {
   experiment_id?: Uuid;
   recipe_git_commit_sha?: string;
   owner_key?: string;
+  /**
+   * Customer-defined dimensions, stamped at ingest via `introspection.metadata.<key>`
+   * span attributes. Folded wholesale from the earliest span of the conversation
+   * carrying any, so it is the conversation's set rather than a per-span one.
+   * Absent (rather than `{}`) when the conversation carries none.
+   */
+  metadata?: Record<string, string>;
 }
 
 /**
@@ -562,6 +569,16 @@ export interface ConversationListParams extends CursorParams, ReadWindowParams {
   resolution?: ConversationResolution;
   sentiment?: ConversationSentiment;
   owner_key?: string;
+  /**
+   * Filter: customer-defined metadata as `key:value` (e.g. `flow:company`).
+   *
+   * Matches a conversation carrying the pair on ANY of its spans. Split on the
+   * first colon, so a value may contain colons; the key may not (a dot is
+   * rejected too — see the server-side grammar). Narrows only: metadata is
+   * never an access grant, so naming a pair you cannot already read returns
+   * nothing rather than revealing it.
+   */
+  metadata?: string;
   /** Start of date range (inclusive). */
   start_date?: IsoDate;
   /** End of date range (inclusive). */
