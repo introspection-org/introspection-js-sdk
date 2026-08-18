@@ -199,6 +199,26 @@ export interface TaskCreateParams {
   repositories?: TaskRepoRequest[];
   metadata?: Record<string, unknown>;
   /**
+   * Customer-defined filter dimensions stamped onto this task's conversation
+   * telemetry — e.g. `{ flow: "ask_about_company" }` — then filtered with
+   * {@link ConversationListParams.metadata} (`?metadata=flow:ask_about_company`).
+   *
+   * Distinct from {@link TaskCreateParams.metadata} above, which is an opaque
+   * task-row bag the platform also writes to (`last_response`,
+   * `conversation_id`) and which reaches no telemetry. Setting a dimension
+   * there does NOT make it filterable on conversations; that is what this
+   * field is for.
+   *
+   * Keys are one level deep — letters, digits, `_` and `-`, no `.` — because a
+   * dotted key would be stored as a nested path and become unfilterable, with
+   * no error. Values are non-empty strings (≤1024 chars); at most 64 keys.
+   * The server answers a violation with a 422 naming it.
+   *
+   * Grants nothing: metadata is never an access grant, so it only ever narrows
+   * what a caller can already read.
+   */
+  conversation_metadata?: Record<string, string>;
+  /**
    * Files to attach to this task, by id. Materialized into the agent's
    * workspace and announced to it before the first turn runs.
    *
