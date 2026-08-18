@@ -197,27 +197,24 @@ export interface TaskCreateParams {
    * wrong list (duplicate slugs, folder collisions), not a long one.
    */
   repositories?: TaskRepoRequest[];
-  metadata?: Record<string, unknown>;
   /**
-   * Customer-defined filter dimensions stamped onto this task's conversation
-   * telemetry — e.g. `{ flow: "ask_about_company" }` — then filtered with
-   * {@link ConversationListParams.metadata} (`?metadata=flow:ask_about_company`).
+   * Free-form task metadata.
    *
-   * Distinct from {@link TaskCreateParams.metadata} above, which is an opaque
-   * task-row bag the platform also writes to (`last_response`,
-   * `conversation_id`) and which reaches no telemetry. Setting a dimension
-   * there does NOT make it filterable on conversations; that is what this
-   * field is for.
+   * Its **top-level string entries also become conversation filter
+   * dimensions**: `{ flow: "ask_about_company" }` here is filterable later as
+   * {@link ConversationListParams.metadata} `"flow:ask_about_company"`.
    *
-   * Keys are one level deep — letters, digits, `_` and `-`, no `.` — because a
-   * dotted key would be stored as a nested path and become unfilterable, with
-   * no error. Values are non-empty strings (≤1024 chars); at most 64 keys.
-   * The server answers a violation with a 422 naming it.
+   * Projection is best-effort and lossy by design — an entry is projected only
+   * when its key is one level (`[A-Za-z0-9_-]`, no `.`) and its value is a
+   * non-empty string of at most 1024 characters. Nested objects, numbers and
+   * booleans stay task-only, and platform-owned keys are never projected. No
+   * error is raised for an entry that does not qualify; this field predates the
+   * filter and cannot start rejecting payloads that were previously valid.
    *
-   * Grants nothing: metadata is never an access grant, so it only ever narrows
-   * what a caller can already read.
+   * Note that projected entries land in **append-only telemetry**, which unlike
+   * this bag cannot later be edited or deleted.
    */
-  conversation_metadata?: Record<string, string>;
+  metadata?: Record<string, unknown>;
   /**
    * Files to attach to this task, by id. Materialized into the agent's
    * workspace and announced to it before the first turn runs.
