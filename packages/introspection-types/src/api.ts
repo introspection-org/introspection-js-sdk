@@ -200,21 +200,29 @@ export interface TaskCreateParams {
   /**
    * Free-form task metadata.
    *
-   * Its **top-level string entries also become conversation filter
-   * dimensions**: `{ flow: "ask_about_company" }` here is filterable later as
-   * {@link ConversationListParams.metadata} `"flow:ask_about_company"`.
+   * Entries nested under **`custom`** also become conversation filter
+   * dimensions: `{ custom: { flow: "ask_about_company" } }` here is filterable
+   * later as {@link ConversationListParams.metadata}
+   * `"flow:ask_about_company"`.
    *
-   * Projection is best-effort and lossy by design — an entry is projected only
-   * when its key is one level (`[A-Za-z0-9_-]`, no `.`) and its value is a
-   * non-empty string of at most 1024 characters. Nested objects, numbers and
-   * booleans stay task-only, and platform-owned keys are never projected. No
-   * error is raised for an entry that does not qualify; this field predates the
-   * filter and cannot start rejecting payloads that were previously valid.
+   * `custom` is yours alone — the platform only ever writes at the top level of
+   * this bag (`last_response`, `conversation_id`, ...), so nothing of yours is
+   * excluded by name and nothing of ours leaks into your filter namespace.
+   * Top-level entries are NOT projected, which keeps this opt-in: metadata you
+   * already send today is unaffected.
+   *
+   * A `custom` entry projects when its key is one level (`[A-Za-z0-9_-]`, no
+   * `.`) and its value is a non-empty string of at most 1024 characters; at
+   * most 64 keys. Nested objects, numbers and booleans stay task-only. No error
+   * is raised for an entry that does not qualify.
    *
    * Note that projected entries land in **append-only telemetry**, which unlike
    * this bag cannot later be edited or deleted.
    */
-  metadata?: Record<string, unknown>;
+  metadata?: Record<string, unknown> & {
+    /** Conversation filter dimensions. See {@link TaskCreateParams.metadata}. */
+    custom?: Record<string, string>;
+  };
   /**
    * Files to attach to this task, by id. Materialized into the agent's
    * workspace and announced to it before the first turn runs.
