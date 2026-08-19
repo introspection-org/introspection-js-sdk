@@ -46,6 +46,71 @@ describe("TasksApi", () => {
     });
   });
 
+  it("create() folds conversation_metadata into metadata.conversation", async () => {
+    const http = mockHttp({ requestResult: { task: TASK_FIXTURE } });
+    await new TasksApi(http).create({
+      prompt: "go",
+      conversation_metadata: { flow: "checkout" },
+    });
+
+    // The nesting is a wire constraint — `metadata` is shared with platform
+    // keys, so the caller's dimensions need their own level — and is resolved
+    // here rather than being something callers have to model.
+    expect(http.request).toHaveBeenCalledWith({
+      method: "POST",
+      path: "/v1/tasks",
+      body: { prompt: "go", metadata: { conversation: { flow: "checkout" } } },
+    });
+  });
+
+  it("create() preserves other metadata entries alongside the fold", async () => {
+    const http = mockHttp({ requestResult: { task: TASK_FIXTURE } });
+    await new TasksApi(http).create({
+      prompt: "go",
+      metadata: { ticket: "T-1" },
+      conversation_metadata: { flow: "checkout" },
+    });
+
+    expect(http.request).toHaveBeenCalledWith({
+      method: "POST",
+      path: "/v1/tasks",
+      body: {
+        prompt: "go",
+        metadata: { ticket: "T-1", conversation: { flow: "checkout" } },
+      },
+    });
+  });
+
+  it("create() refuses both spellings of the same field", () => {
+    const http = mockHttp({ requestResult: { task: TASK_FIXTURE } });
+    // Merging or silently preferring one would mean the dimensions the caller
+    // did not expect simply never appear — a quiet wrong answer rather than an
+    // error. Two sources of truth for one field is the thing to reject.
+    // Thrown synchronously, before any request is sent — matching how the read
+    // params reject a `lookback`/`start` conflict.
+    expect(() =>
+      new TasksApi(http).create({
+        prompt: "go",
+        metadata: { conversation: { flow: "a" } },
+        conversation_metadata: { flow: "b" },
+      } as never),
+    ).toThrow(/not both/);
+    expect(http.request).not.toHaveBeenCalled();
+  });
+
+  it("update() folds conversation_metadata too", async () => {
+    const http = mockHttp({ requestResult: TASK_FIXTURE });
+    await new TasksApi(http).update("task-1", {
+      conversation_metadata: { flow: "checkout" },
+    });
+
+    expect(http.request).toHaveBeenCalledWith({
+      method: "PATCH",
+      path: "/v1/tasks/task-1",
+      body: { metadata: { conversation: { flow: "checkout" } } },
+    });
+  });
+
   it("list() sends the tag filter", async () => {
     const http = mockHttp({
       requestResult: { records: [TASK_FIXTURE], count: 1, total_count: 1 },

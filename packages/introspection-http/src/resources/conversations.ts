@@ -26,8 +26,8 @@ import type { ResourceHttpClient } from "./types.js";
 export type ConversationExportFormat = "json" | "arrow" | "trajectory";
 
 /**
- * Flatten the `metadata` dict into the repeated `?metadata=key:value` params
- * the API takes.
+ * Flatten the `conversation_metadata` dict into the repeated `?metadata=key:value`
+ * params the API takes.
  *
  * The wire format is a repeated string param because a query string has no
  * native encoding for a map; the dict lives here so the ergonomics land in the
@@ -39,14 +39,18 @@ function encodeListParams(
     format?: "json" | "arrow";
   },
 ):
-  | (Omit<ConversationListParams, "metadata"> & { metadata?: string[] })
+  | (Omit<ConversationListParams, "conversation_metadata"> & {
+      metadata?: string[];
+    })
   | undefined {
   if (!params) return undefined;
-  const { metadata, ...rest } = params;
-  if (!metadata) return rest;
+  const { conversation_metadata, ...rest } = params;
+  if (!conversation_metadata) return rest;
   return {
     ...rest,
-    metadata: Object.entries(metadata).map(([key, value]) => `${key}:${value}`),
+    metadata: Object.entries(conversation_metadata).map(
+      ([key, value]) => `${key}:${value}`,
+    ),
   };
 }
 

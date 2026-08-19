@@ -150,7 +150,7 @@ describe("ConversationsApi", () => {
     ).toBe("cursor-2");
   });
 
-  it("list() flattens the metadata dict into repeated key:value params", async () => {
+  it("list() flattens conversation_metadata into repeated key:value params", async () => {
     const http = mockHttp({
       requestResult: {
         records: [SUMMARY_FIXTURE],
@@ -161,7 +161,7 @@ describe("ConversationsApi", () => {
     });
     const api = new ConversationsApi(http);
     for await (const _ of api.list({
-      metadata: { flow: "company", tenant: "acme" },
+      conversation_metadata: { flow: "company", tenant: "acme" },
     }));
 
     // A query string cannot carry a map, so the dict becomes the repeated
@@ -174,7 +174,7 @@ describe("ConversationsApi", () => {
     });
   });
 
-  it("list() omits metadata entirely when it was not asked for", async () => {
+  it("list() omits metadata entirely when no dimensions were asked for", async () => {
     const http = mockHttp({
       requestResult: {
         records: [SUMMARY_FIXTURE],

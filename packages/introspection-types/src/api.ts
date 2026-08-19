@@ -198,31 +198,36 @@ export interface TaskCreateParams {
    */
   repositories?: TaskRepoRequest[];
   /**
-   * Free-form task metadata.
-   *
-   * Entries nested under **`custom`** also become conversation filter
-   * dimensions: `{ custom: { flow: "ask_about_company" } }` here is filterable
-   * later as {@link ConversationListParams.metadata}
-   * `"flow:ask_about_company"`.
-   *
-   * `custom` is yours alone — the platform only ever writes at the top level of
-   * this bag (`last_response`, `conversation_id`, ...), so nothing of yours is
-   * excluded by name and nothing of ours leaks into your filter namespace.
-   * Top-level entries are NOT projected, which keeps this opt-in: metadata you
-   * already send today is unaffected.
-   *
-   * A `custom` entry projects when its key is one level (`[A-Za-z0-9_-]`, no
-   * `.`) and its value is a non-empty string of at most 1024 characters; at
-   * most 64 keys. Nested objects, numbers and booleans stay task-only. No error
-   * is raised for an entry that does not qualify.
-   *
-   * Note that projected entries land in **append-only telemetry**, which unlike
-   * this bag cannot later be edited or deleted.
+   * Free-form task metadata. A mutable bag the platform also writes into
+   * (`last_response`, `conversation_id`, ...); nothing here is projected onto
+   * telemetry. For conversation filter dimensions use
+   * {@link TaskCreateParams.conversation_metadata}.
    */
-  metadata?: Record<string, unknown> & {
-    /** Conversation filter dimensions. See {@link TaskCreateParams.metadata}. */
-    custom?: Record<string, string>;
-  };
+  metadata?: Record<string, unknown>;
+  /**
+   * Conversation filter dimensions for this task.
+   *
+   * ```ts
+   * await client.tasks.create({ prompt, conversation_metadata: { flow: "checkout" } });
+   * await client.conversations.list({ conversation_metadata: { flow: "checkout" } });
+   * ```
+   *
+   * Stamped onto every span of the run, so the conversation this task produces
+   * is filterable by any pair here. Sent as `metadata.conversation` — the nesting
+   * exists because `metadata` is shared with platform keys and the dimensions
+   * need their own level to stay separate, which is a wire detail rather than
+   * something to model in your own code.
+   *
+   * An entry lands when its key is one level (`[A-Za-z0-9_-]`, **no `.`** — a
+   * dot is rejected outright, because ClickHouse would store `user.tier`
+   * nested and the key you filter by would not be the key that was kept) and
+   * its value is a non-empty string of at most 1024 characters; at most 64
+   * keys.
+   *
+   * Note that these land in **append-only telemetry**, which unlike the
+   * `metadata` bag cannot later be edited or deleted.
+   */
+  conversation_metadata?: Record<string, string>;
   /**
    * Files to attach to this task, by id. Materialized into the agent's
    * workspace and announced to it before the first turn runs.
@@ -264,6 +269,13 @@ export interface TaskUpdateParams {
   title?: string;
   is_archived?: boolean;
   metadata?: Record<string, unknown>;
+  /**
+   * Conversation filter dimensions, merged into the task's existing set. See
+   * {@link TaskCreateParams.conversation_metadata} — a PATCH can introduce them
+   * after create, since the projection reads the persisted row when the task
+   * spawns.
+   */
+  conversation_metadata?: Record<string, string>;
   /**
    * Replaces the tag list wholesale (unlike `metadata`, which is merged).
    * Omit to leave tags untouched; pass `[]` to clear them.

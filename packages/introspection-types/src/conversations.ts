@@ -588,7 +588,7 @@ export interface ConversationListParams extends CursorParams, ReadWindowParams {
    * grant, so naming a pair you cannot already read returns nothing rather
    * than revealing it.
    */
-  metadata?: Record<string, string>;
+  conversation_metadata?: Record<string, string>;
   /** Start of date range (inclusive). */
   start_date?: IsoDate;
   /** End of date range (inclusive). */
