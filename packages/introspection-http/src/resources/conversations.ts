@@ -30,9 +30,8 @@ export type ConversationExportFormat = "json" | "arrow" | "trajectory";
  * params the API takes.
  *
  * The wire format is a repeated string param because a query string has no
- * native encoding for a map; the dict lives here so the ergonomics land in the
- * typed layer, where a key typo is a compile error rather than a filter that
- * silently returns the wrong page.
+ * native encoding for a map; the dict lives here so callers do not have to
+ * hand-encode the transport representation or manage repeated query params.
  */
 function encodeListParams(
   params?: Omit<ConversationListParams, "format"> & {
@@ -45,10 +44,11 @@ function encodeListParams(
   | undefined {
   if (!params) return undefined;
   const { metadata, ...rest } = params;
-  if (!metadata) return rest;
+  const entries = Object.entries(metadata ?? {});
+  if (entries.length === 0) return rest;
   return {
     ...rest,
-    metadata: Object.entries(metadata).map(([key, value]) => `${key}:${value}`),
+    metadata: entries.map(([key, value]) => `${key}:${value}`),
   };
 }
 

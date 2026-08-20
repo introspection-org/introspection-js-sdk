@@ -60,7 +60,7 @@ describe("TasksApi", () => {
     });
   });
 
-  it("create() preserves other metadata entries alongside the fold", async () => {
+  it("create() preserves ordinary task metadata alongside conversation metadata", async () => {
     const http = mockHttp({ requestResult: { task: TASK_FIXTURE } });
     await new TasksApi(http).create({
       prompt: "go",

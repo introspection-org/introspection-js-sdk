@@ -191,6 +191,27 @@ describe("ConversationsApi", () => {
     expect(query).not.toHaveProperty("metadata");
   });
 
+  it("list() treats an empty metadata map as no filter", async () => {
+    const http = mockHttp({
+      requestResult: {
+        records: [SUMMARY_FIXTURE],
+        count: 1,
+        total_count: 1,
+        next: null,
+      },
+    });
+    const api = new ConversationsApi(http);
+    const conversations = [];
+    for await (const conversation of api.list({ metadata: {} })) {
+      conversations.push(conversation);
+    }
+
+    const query = (http.request as ReturnType<typeof vi.fn>).mock.calls[0][0]
+      .query;
+    expect(conversations).toHaveLength(1);
+    expect(query).not.toHaveProperty("metadata");
+  });
+
   it("get() returns the complete structural agent index", async () => {
     const http = mockHttp({
       requestResult: {
