@@ -571,17 +571,17 @@ export interface ConversationListParams extends CursorParams, ReadWindowParams {
   owner_key?: string;
   /**
    * Filter: customer-defined metadata dimensions, stamped on the task as
-   * `metadata.custom` (see `TaskCreateParams.metadata`).
+   * `metadata.conversation` (see `TaskCreateParams.conversation_metadata`).
    *
    * ```ts
-   * client.conversations.list({ metadata: { flow: "company", tenant: "acme" } });
+   * client.conversations.list({ conversation_metadata: { flow: "company", tenant: "acme" } });
    * ```
    *
    * One entry matches a conversation carrying that pair on ANY of its spans.
    * Several entries are ANDed, and must **co-occur on the same span** — the
-   * platform stamps every `custom` key on every span of a run, so that holds
-   * for anything set at task creation; only attributes you stamp yourself at
-   * different points in a trace can miss.
+   * platform stamps every conversation dimension on every span of a run, so
+   * that holds for anything set at task creation; only attributes you stamp
+   * yourself at different points in a trace can miss.
    *
    * Values may contain colons; keys may not, and a key may not contain a dot
    * (see the server-side grammar). Narrows only: metadata is never an access

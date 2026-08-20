@@ -222,7 +222,8 @@ export interface TaskCreateParams {
    * dot is rejected outright, because ClickHouse would store `user.tier`
    * nested and the key you filter by would not be the key that was kept) and
    * its value is a non-empty string of at most 1024 characters; at most 64
-   * keys.
+   * keys. The server rejects an invalid entry with HTTP 422 rather than
+   * accepting the task and silently dropping the dimension.
    *
    * Note that these land in **append-only telemetry**, which unlike the
    * `metadata` bag cannot later be edited or deleted.
