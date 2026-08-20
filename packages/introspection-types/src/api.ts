@@ -135,6 +135,8 @@ export interface Task {
   completed_at?: IsoDate | null;
   last_user_message_at?: IsoDate | null;
   metadata?: Record<string, unknown> | null;
+  /** Immutable filter dimensions stamped onto this task's conversation. */
+  conversation_metadata?: Record<string, string> | null;
   agent?: AgentInfo | null;
   /** `key:value` grouping tags stamped on this task. */
   tags?: string[];
@@ -209,14 +211,12 @@ export interface TaskCreateParams {
    *
    * ```ts
    * await client.tasks.create({ prompt, conversation_metadata: { flow: "checkout" } });
-   * await client.conversations.list({ conversation_metadata: { flow: "checkout" } });
+   * await client.conversations.list({ metadata: { flow: "checkout" } });
    * ```
    *
    * Stamped onto every span of the run, so the conversation this task produces
-   * is filterable by any pair here. Sent as `metadata.conversation` — the nesting
-   * exists because `metadata` is shared with platform keys and the dimensions
-   * need their own level to stay separate, which is a wire detail rather than
-   * something to model in your own code.
+   * is filterable by any pair here. This is a first-class task-create field;
+   * ordinary `metadata` remains mutable task data and is never projected.
    *
    * An entry lands when its key is one level (`[A-Za-z0-9_-]`, **no `.`** — a
    * dot is rejected outright, because ClickHouse would store `user.tier`
@@ -270,13 +270,6 @@ export interface TaskUpdateParams {
   title?: string;
   is_archived?: boolean;
   metadata?: Record<string, unknown>;
-  /**
-   * Conversation filter dimensions, merged into the task's existing set. See
-   * {@link TaskCreateParams.conversation_metadata} — a PATCH can introduce them
-   * after create, since the projection reads the persisted row when the task
-   * spawns.
-   */
-  conversation_metadata?: Record<string, string>;
   /**
    * Replaces the tag list wholesale (unlike `metadata`, which is merged).
    * Omit to leave tags untouched; pass `[]` to clear them.

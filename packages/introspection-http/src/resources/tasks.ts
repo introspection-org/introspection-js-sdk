@@ -13,7 +13,6 @@ import type {
   TaskUpdateParams,
 } from "@introspection-sdk/types";
 import { EventType, type AGUIEvent } from "@ag-ui/core";
-import { ValidationError } from "@introspection-sdk/types";
 import { Paginator, cursorPaginate } from "../pagination.js";
 import { streamResumable, type StreamOptions } from "../resumable.js";
 import type { ResourceHttpClient } from "./types.js";
@@ -30,42 +29,6 @@ function identityTaskBody<TCreate extends object>(
   body: TCreate,
 ): Record<string, unknown> {
   return body as Record<string, unknown>;
-}
-
-/**
- * Fold the flat `conversation_metadata` param into the nested
- * `metadata.conversation` the API takes.
- *
- * The nesting is a wire constraint, not a thing callers should have to model:
- * `metadata` is a shared bag the platform also writes into, so the caller's
- * filter dimensions need their own level to keep the two apart. Nothing about
- * that is the caller's problem, so it is resolved here.
- *
- * Applied after the injected body mapper so every client gets it, not only
- * those using the default mapper.
- */
-export function foldConversationMetadata(
-  body: Record<string, unknown>,
-): Record<string, unknown> {
-  if (body.conversation_metadata === undefined) return body;
-  const { conversation_metadata, ...rest } = body;
-  const metadata = (rest.metadata ?? {}) as Record<string, unknown>;
-  // Both spellings set is refused rather than merged or silently preferred.
-  // They mean the same thing, so a caller who set both has two sources of
-  // truth for one field, and picking either would be a guess that fails
-  // quietly — the dimension they did not expect simply never appears.
-  if (metadata.conversation !== undefined) {
-    throw new ValidationError({
-      message:
-        "Set either `conversation_metadata` or `metadata.conversation`, not both — they are the same field. Prefer `conversation_metadata`.",
-      status: 422,
-      code: "invalid_request",
-    });
-  }
-  return {
-    ...rest,
-    metadata: { ...metadata, conversation: conversation_metadata },
-  };
 }
 
 export class RunHandle {
@@ -194,7 +157,7 @@ export class TasksClient<
     return this.http.request<TaskCreateResponse>({
       method: "POST",
       path: "/v1/tasks",
-      body: foldConversationMetadata(this.mapTaskBody(body)),
+      body: this.mapTaskBody(body),
     });
   }
 
@@ -209,9 +172,7 @@ export class TasksClient<
     return this.http.request<Task>({
       method: "PATCH",
       path: `/v1/tasks/${encodeURIComponent(taskId)}`,
-      // A PATCH can introduce `conversation` after create, and the projection reads
-      // the persisted row at spawn, so the flat spelling has to work here too.
-      body: foldConversationMetadata(body as Record<string, unknown>),
+      body,
     });
   }
 

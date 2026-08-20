@@ -570,11 +570,11 @@ export interface ConversationListParams extends CursorParams, ReadWindowParams {
   sentiment?: ConversationSentiment;
   owner_key?: string;
   /**
-   * Filter: customer-defined metadata dimensions, stamped on the task as
-   * `metadata.conversation` (see `TaskCreateParams.conversation_metadata`).
+   * Filter: customer-defined metadata dimensions stamped through
+   * `TaskCreateParams.conversation_metadata`.
    *
    * ```ts
-   * client.conversations.list({ conversation_metadata: { flow: "company", tenant: "acme" } });
+   * client.conversations.list({ metadata: { flow: "company", tenant: "acme" } });
    * ```
    *
    * One entry matches a conversation carrying that pair on ANY of its spans.
@@ -588,7 +588,7 @@ export interface ConversationListParams extends CursorParams, ReadWindowParams {
    * grant, so naming a pair you cannot already read returns nothing rather
    * than revealing it.
    */
-  conversation_metadata?: Record<string, string>;
+  metadata?: Record<string, string>;
   /** Start of date range (inclusive). */
   start_date?: IsoDate;
   /** End of date range (inclusive). */
