@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.23.0](https://github.com/introspection-org/introspection-js-sdk/compare/v0.22.0...v0.23.0) (2026-08-20)
+
+
+### Features
+
+* **conversations:** add metadata filter, response field and dict param ([#341](https://github.com/introspection-org/introspection-js-sdk/issues/341)) ([1fda0d3](https://github.com/introspection-org/introspection-js-sdk/commit/1fda0d301b376f51de131dc41be1ed7dd381e2bb))
+
+
+### Bug Fixes
+
+* expose conversation task titles ([48a0608](https://github.com/introspection-org/introspection-js-sdk/commit/48a06082c9b93499a68518a05f84f9028876f9cd))
+
 ## [0.22.0](https://github.com/introspection-org/introspection-js-sdk/compare/v0.21.1...v0.22.0) (2026-08-13)
 
 
