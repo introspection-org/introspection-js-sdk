@@ -26,6 +26,33 @@ import type { ResourceHttpClient } from "./types.js";
 export type ConversationExportFormat = "json" | "arrow" | "trajectory";
 
 /**
+ * Flatten the `metadata` dict into the repeated `?metadata=key:value`
+ * params the API takes.
+ *
+ * The wire format is a repeated string param because a query string has no
+ * native encoding for a map; the dict lives here so callers do not have to
+ * hand-encode the transport representation or manage repeated query params.
+ */
+function encodeListParams(
+  params?: Omit<ConversationListParams, "format"> & {
+    format?: "json" | "arrow";
+  },
+):
+  | (Omit<ConversationListParams, "metadata"> & {
+      metadata?: string[];
+    })
+  | undefined {
+  if (!params) return undefined;
+  const { metadata, ...rest } = params;
+  const entries = Object.entries(metadata ?? {});
+  if (entries.length === 0) return rest;
+  return {
+    ...rest,
+    metadata: entries.map(([key, value]) => `${key}:${value}`),
+  };
+}
+
+/**
  * Items of a conversation (`/v1/conversations/{id}/items`). Read-only.
  *
  * The OpenAI-style envelope retains span-id metadata while `list()` drives
@@ -122,7 +149,11 @@ export class ConversationsClient {
    * `ValidationError` before any request is sent.
    */
   list(params?: ConversationListParams): Paginator<Conversation> {
-    return listRead<Conversation>(this.http, "/v1/conversations", params);
+    return listRead<Conversation>(
+      this.http,
+      "/v1/conversations",
+      encodeListParams(params),
+    );
   }
 
   /** Fetch one conversation summary with its complete agent index. */
@@ -144,7 +175,7 @@ export class ConversationsClient {
    * Requires the optional `apache-arrow` peer dependency.
    */
   listArrow(params?: Omit<ConversationListParams, "format">): ArrowPages {
-    return arrowRead(this.http, "/v1/conversations", params);
+    return arrowRead(this.http, "/v1/conversations", encodeListParams(params));
   }
 
   /**

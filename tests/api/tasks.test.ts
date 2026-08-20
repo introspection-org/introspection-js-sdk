@@ -46,6 +46,39 @@ describe("TasksApi", () => {
     });
   });
 
+  it("create() sends conversation_metadata as a first-class field", async () => {
+    const http = mockHttp({ requestResult: { task: TASK_FIXTURE } });
+    await new TasksApi(http).create({
+      prompt: "go",
+      conversation_metadata: { flow: "checkout" },
+    });
+
+    expect(http.request).toHaveBeenCalledWith({
+      method: "POST",
+      path: "/v1/tasks",
+      body: { prompt: "go", conversation_metadata: { flow: "checkout" } },
+    });
+  });
+
+  it("create() preserves ordinary task metadata alongside conversation metadata", async () => {
+    const http = mockHttp({ requestResult: { task: TASK_FIXTURE } });
+    await new TasksApi(http).create({
+      prompt: "go",
+      metadata: { ticket: "T-1" },
+      conversation_metadata: { flow: "checkout" },
+    });
+
+    expect(http.request).toHaveBeenCalledWith({
+      method: "POST",
+      path: "/v1/tasks",
+      body: {
+        prompt: "go",
+        metadata: { ticket: "T-1" },
+        conversation_metadata: { flow: "checkout" },
+      },
+    });
+  });
+
   it("list() sends the tag filter", async () => {
     const http = mockHttp({
       requestResult: { records: [TASK_FIXTURE], count: 1, total_count: 1 },

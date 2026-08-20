@@ -135,6 +135,8 @@ export interface Task {
   completed_at?: IsoDate | null;
   last_user_message_at?: IsoDate | null;
   metadata?: Record<string, unknown> | null;
+  /** Immutable filter dimensions stamped onto this task's conversation. */
+  conversation_metadata?: Record<string, string> | null;
   agent?: AgentInfo | null;
   /** `key:value` grouping tags stamped on this task. */
   tags?: string[];
@@ -197,7 +199,36 @@ export interface TaskCreateParams {
    * wrong list (duplicate slugs, folder collisions), not a long one.
    */
   repositories?: TaskRepoRequest[];
+  /**
+   * Free-form task metadata. A mutable bag the platform also writes into
+   * (`last_response`, `conversation_id`, ...); nothing here is projected onto
+   * telemetry. For conversation filter dimensions use
+   * {@link TaskCreateParams.conversation_metadata}.
+   */
   metadata?: Record<string, unknown>;
+  /**
+   * Conversation filter dimensions for this task.
+   *
+   * ```ts
+   * await client.tasks.create({ prompt, conversation_metadata: { flow: "checkout" } });
+   * await client.conversations.list({ metadata: { flow: "checkout" } });
+   * ```
+   *
+   * Stamped onto every span of the run, so the conversation this task produces
+   * is filterable by any pair here. This is a first-class task-create field;
+   * ordinary `metadata` remains mutable task data and is never projected.
+   *
+   * An entry lands when its key is one level (`[A-Za-z0-9_-]`, **no `.`** — a
+   * dot is rejected outright, because ClickHouse would store `user.tier`
+   * nested and the key you filter by would not be the key that was kept) and
+   * its value is a non-empty string of at most 1024 characters; at most 64
+   * keys. The server rejects an invalid entry with HTTP 422 rather than
+   * accepting the task and silently dropping the dimension.
+   *
+   * Note that these land in **append-only telemetry**, which unlike the
+   * `metadata` bag cannot later be edited or deleted.
+   */
+  conversation_metadata?: Record<string, string>;
   /**
    * Files to attach to this task, by id. Materialized into the agent's
    * workspace and announced to it before the first turn runs.
