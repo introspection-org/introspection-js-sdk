@@ -214,8 +214,8 @@ importers:
         specifier: workspace:*
         version: link:../introspection-types
       '@letta-ai/trajectory':
-        specifier: ^0.2.5
-        version: 0.2.5
+        specifier: ^0.3.0
+        version: 0.3.0
       '@opentelemetry/api':
         specifier: ^1.9.1
         version: 1.9.1
@@ -1151,8 +1151,8 @@ packages:
   '@jridgewell/trace-mapping@0.3.31':
     resolution: {integrity: sha512-zzNR+SdQSDJzc8joaeP8QQoCQr8NuYx2dIIytl1QeBEZHJ9uW6hebsrYgbz8hJwUQao3TWCMtmfV8Nu1twOLAw==}
 
-  '@letta-ai/trajectory@0.2.5':
-    resolution: {integrity: sha512-ywtjBtqvBPc075gK9sSFew6ff3Z5hJX7ePHpNaCHtRCL4BFYWpS5zqYk5XYr1t6/aStIOkRO5vMjdxw6SkAbtw==}
+  '@letta-ai/trajectory@0.3.0':
+    resolution: {integrity: sha512-7omHLu28WcbQWcfz+KF92OuomPM59jv5ATAEqpvYWXjAqJwkcHUxWQSHXXImz90bGBfmc3FeUtmTKjb/DwSSgQ==}
     engines: {node: '>=20'}
 
   '@mariozechner/clipboard-darwin-arm64@0.3.9':
@@ -5151,7 +5151,7 @@ snapshots:
       '@jridgewell/resolve-uri': 3.1.2
       '@jridgewell/sourcemap-codec': 1.5.5
 
-  '@letta-ai/trajectory@0.2.5': {}
+  '@letta-ai/trajectory@0.3.0': {}
 
   '@mariozechner/clipboard-darwin-arm64@0.3.9':
     optional: true
