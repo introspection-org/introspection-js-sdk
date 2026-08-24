@@ -47,8 +47,10 @@ export {
   type StartTaskParams,
 } from "./tasks.js";
 export {
+  AnnotationsClient,
   ConversationItemsClient,
   ConversationsClient,
+  DatasetsClient,
   FileVersionsClient,
   FilesClient,
   SharesClient,
@@ -122,6 +124,17 @@ export type {
   ShareResourceType,
   ShareCreateParams,
   ShareListParams,
+  Annotation,
+  AnnotationKind,
+  AnnotationSelection,
+  AnnotationCreateParams,
+  AnnotationUpdateParams,
+  AnnotationListParams,
+  ActorType,
+  Dataset,
+  DatasetCreateParams,
+  DatasetUpdateParams,
+  DatasetListParams,
 } from "@introspection-sdk/types";
 export {
   IntrospectionAPIError,

@@ -65,6 +65,8 @@ export {
 } from "./resources/reads.js";
 export type { ListReadParams } from "./resources/reads.js";
 export { SharesApi, SharesClient } from "./resources/shares.js";
+export { AnnotationsApi, AnnotationsClient } from "./resources/annotations.js";
+export { DatasetsApi, DatasetsClient } from "./resources/datasets.js";
 export {
   RuntimeHandle,
   RuntimesApi,

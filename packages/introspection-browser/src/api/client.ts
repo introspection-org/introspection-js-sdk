@@ -30,7 +30,9 @@
 import { BrowserHttpClient, stripTrailingSlash, toApiError } from "./http.js";
 import { resolveBrowserFetch } from "./fetch.js";
 import {
+  AnnotationsClient,
   ConversationsClient,
+  DatasetsClient,
   FilesClient,
   SharesClient,
 } from "@introspection-sdk/http";
@@ -42,6 +44,8 @@ type CookieClients = {
   files: FilesClient;
   conversations: ConversationsClient;
   shares: SharesClient;
+  annotations: AnnotationsClient;
+  datasets: DatasetsClient;
 };
 
 export interface IntrospectionApiClientOptions {
@@ -111,6 +115,8 @@ export class IntrospectionApiClient {
       files: new FilesClient(http),
       conversations: new ConversationsClient(http),
       shares: new SharesClient(http),
+      annotations: new AnnotationsClient(http),
+      datasets: new DatasetsClient(http),
     };
   }
 
@@ -132,6 +138,16 @@ export class IntrospectionApiClient {
   /** `/v1/shares` read-sharing grants bound to the session cookie. */
   get shares(): SharesClient {
     return this.cookieClients.shares;
+  }
+
+  /** `/v1/annotations` conversation annotations bound to the session cookie. */
+  get annotations(): AnnotationsClient {
+    return this.cookieClients.annotations;
+  }
+
+  /** `/v1/datasets` conversation collections bound to the session cookie. */
+  get datasets(): DatasetsClient {
+    return this.cookieClients.datasets;
   }
 
   /**

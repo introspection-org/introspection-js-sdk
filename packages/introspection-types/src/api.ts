@@ -456,6 +456,133 @@ export interface ShareListParams extends CursorParams {
   granted_to_me?: boolean;
 }
 
+// --- annotations (/v1/annotations) ---
+
+/**
+ * What an annotation row asserts:
+ *
+ * - `"review"`     — an open-coding review pass over a conversation (or a
+ *                    span of it); completing it stamps `completed_at`.
+ * - `"mark"`       — a labeled/commented mark on a conversation or selection.
+ * - `"membership"` — places the conversation in a dataset (`dataset_id`).
+ */
+export type AnnotationKind = "review" | "mark" | "membership";
+
+/** Who acted for the owning member, from the session's `act` claim. */
+export type ActorType = "agent" | "dev" | "impersonation";
+
+/**
+ * The span of conversation an annotation targets. Omitted entirely for a
+ * whole-conversation annotation.
+ */
+export interface AnnotationSelection {
+  message_id?: string;
+  span_id?: string;
+  part_index?: number;
+  start?: number;
+  end?: number;
+  /** The selected text verbatim — required whenever a selection is present. */
+  quoted_text: string;
+}
+
+/** An expert-distillation annotation over a conversation (`/v1/annotations`). */
+export interface Annotation {
+  id: Uuid;
+  org_id: Uuid;
+  project_id: Uuid;
+  conversation_id: string;
+  kind: AnnotationKind;
+  /** Threaded reply target — another annotation's id. */
+  parent_id?: string | null;
+  selection?: AnnotationSelection | null;
+  labels: string[];
+  comment: string;
+  /** Owning member (for a review: the assignee). */
+  member_id: Uuid;
+  actor_member_id?: string | null;
+  actor_type?: ActorType | null;
+  share_id?: string | null;
+  /** Dataset this row places the conversation in (`kind: "membership"`). */
+  dataset_id?: string | null;
+  /** Stamped when a review is completed; `null` while pending. */
+  completed_at?: IsoDate | null;
+  created_at: IsoDate;
+  updated_at: IsoDate;
+}
+
+/**
+ * Create is idempotent for pending-review and membership dedup: repeating an
+ * equivalent create returns the existing row rather than minting a duplicate.
+ */
+export interface AnnotationCreateParams {
+  conversation_id: string;
+  kind: AnnotationKind;
+  /** Review assignee; assigning a foreign member is privileged-only. */
+  member_id?: Uuid;
+  parent_id?: string;
+  selection?: AnnotationSelection;
+  labels?: string[];
+  comment?: string;
+  dataset_id?: string;
+}
+
+export interface AnnotationUpdateParams {
+  /** Replaces the label list wholesale; `[]` clears; omit to leave untouched. */
+  labels?: string[];
+  comment?: string;
+  selection?: AnnotationSelection;
+  /** `true` stamps `completed_at`, `false` clears it. */
+  completed?: boolean;
+}
+
+export interface AnnotationListParams extends ListParams {
+  kind?: AnnotationKind;
+  member_id?: Uuid;
+  conversation_id?: string;
+  dataset_id?: string;
+  parent_id?: string;
+  /** Only reviews not yet completed (`completed_at` unset). */
+  pending?: boolean;
+  /** Filter by one label. */
+  label?: string;
+}
+
+// --- datasets (/v1/datasets) ---
+
+/**
+ * A named collection of conversations (`/v1/datasets`). Membership rides
+ * annotations: a `kind: "membership"` annotation's `dataset_id` places its
+ * conversation in the dataset.
+ */
+export interface Dataset {
+  id: Uuid;
+  org_id: Uuid;
+  project_id: Uuid;
+  slug: string;
+  description: string;
+  created_by_member_id: Uuid;
+  created_at: IsoDate;
+  updated_at: IsoDate;
+}
+
+/**
+ * Create is idempotent on the live slug: a repeat POST returns the existing
+ * row. The server slugifies the given `slug`.
+ */
+export interface DatasetCreateParams {
+  slug: string;
+  description?: string;
+}
+
+export interface DatasetUpdateParams {
+  description?: string;
+}
+
+export interface DatasetListParams extends CursorParams {
+  slug?: string;
+  created_by_member_id?: Uuid;
+}
+
 // --- runtimes / experiments / runner ---
 
 /**
