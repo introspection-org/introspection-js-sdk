@@ -257,8 +257,8 @@ importers:
   packages/introspection-http:
     dependencies:
       '@ag-ui/core':
-        specifier: 0.0.57
-        version: 0.0.57
+        specifier: 0.0.58
+        version: 0.0.58
       '@introspection-sdk/types':
         specifier: workspace:*
         version: link:../introspection-types
@@ -414,8 +414,8 @@ importers:
   packages/introspection-types:
     dependencies:
       '@ag-ui/core':
-        specifier: 0.0.57
-        version: 0.0.57
+        specifier: 0.0.58
+        version: 0.0.58
     devDependencies:
       '@opentelemetry/sdk-logs':
         specifier: ^0.221.0
@@ -513,8 +513,8 @@ importers:
 
 packages:
 
-  '@ag-ui/core@0.0.57':
-    resolution: {integrity: sha512-gho1OWjNE6E3Rl7ZEZ1wr2CEpUHjLFU0FqzCZZk439TicLu+BfLCMkMokB07bMGlRmbJ60hM6LW60iOVauCx+Q==}
+  '@ag-ui/core@0.0.58':
+    resolution: {integrity: sha512-XgGb7YmhV+yMBaEmlrpsd5S+nUxq0JgSegss2t4gIFR1j7w3w0ibtKfRgcQHWeMvwZxcT5S28VEEarqtgxYYHw==}
 
   '@anthropic-ai/sdk@0.91.1':
     resolution: {integrity: sha512-LAmu761tSN9r66ixvmciswUj/ZC+1Q4iAfpedTfSVLeswRwnY3n2Nb6Tsk+cLPP28aLOPWeMgIuTuCcMC6W/iw==}
@@ -4419,7 +4419,7 @@ packages:
 
 snapshots:
 
-  '@ag-ui/core@0.0.57':
+  '@ag-ui/core@0.0.58':
     dependencies:
       zod: 3.25.76
 

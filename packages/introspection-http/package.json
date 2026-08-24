@@ -34,7 +34,7 @@
     "typescript": "5.9.3"
   },
   "dependencies": {
-    "@ag-ui/core": "0.0.57",
+    "@ag-ui/core": "0.0.58",
     "@introspection-sdk/types": "workspace:*"
   },
   "peerDependencies": {
