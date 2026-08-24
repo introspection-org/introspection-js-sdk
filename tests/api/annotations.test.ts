@@ -15,18 +15,12 @@ const ANNOTATION_FIXTURE = {
   id: "ann-1",
   org_id: "org-1",
   project_id: "proj-1",
-  conversation_id: "conv-1",
-  kind: "mark" as const,
-  parent_id: null,
-  selection: null,
+  trace_id: "trace-1",
+  span_id: "span-1",
   labels: ["tone"],
   comment: "Too formal",
   member_id: "member-1",
-  actor_member_id: null,
-  actor_type: null,
-  share_id: null,
-  dataset_id: null,
-  completed_at: null,
+  completed_at: "2025-01-01T00:00:00Z",
   created_at: "2025-01-01T00:00:00Z",
   updated_at: "2025-01-01T00:00:00Z",
 };
@@ -44,8 +38,9 @@ describe("AnnotationsApi", () => {
     const api = new AnnotationsApi(http);
     const annotations = [];
     for await (const a of api.list({
-      kind: "review",
-      conversation_id: "conv-1",
+      trace_id: "trace-1",
+      span_id: "span-1",
+      dataset_id: "ds-1",
       pending: true,
       label: "tone",
       limit: 5,
@@ -57,8 +52,9 @@ describe("AnnotationsApi", () => {
       method: "GET",
       path: "/v1/annotations",
       query: {
-        kind: "review",
-        conversation_id: "conv-1",
+        trace_id: "trace-1",
+        span_id: "span-1",
+        dataset_id: "ds-1",
         pending: true,
         label: "tone",
         limit: 5,
@@ -97,9 +93,8 @@ describe("AnnotationsApi", () => {
     const http = mockHttp({ requestResult: ANNOTATION_FIXTURE });
     const api = new AnnotationsApi(http);
     await api.create({
-      conversation_id: "conv-1",
-      kind: "mark",
-      selection: { message_id: "msg-1", quoted_text: "hello" },
+      trace_id: "trace-1",
+      span_id: "span-1",
       labels: ["tone"],
       comment: "Too formal",
     });
@@ -108,11 +103,35 @@ describe("AnnotationsApi", () => {
       method: "POST",
       path: "/v1/annotations",
       body: {
-        conversation_id: "conv-1",
-        kind: "mark",
-        selection: { message_id: "msg-1", quoted_text: "hello" },
+        trace_id: "trace-1",
+        span_id: "span-1",
         labels: ["tone"],
         comment: "Too formal",
+      },
+    });
+  });
+
+  it("create() forwards completed: false for a pending review", async () => {
+    const http = mockHttp({
+      requestResult: { ...ANNOTATION_FIXTURE, completed_at: null },
+    });
+    const api = new AnnotationsApi(http);
+    await api.create({
+      trace_id: "trace-1",
+      span_id: "span-1",
+      member_id: "member-2",
+      completed: false,
+    });
+
+    // `false` must reach the wire — the server default is completed: true.
+    expect(http.request).toHaveBeenCalledWith({
+      method: "POST",
+      path: "/v1/annotations",
+      body: {
+        trace_id: "trace-1",
+        span_id: "span-1",
+        member_id: "member-2",
+        completed: false,
       },
     });
   });

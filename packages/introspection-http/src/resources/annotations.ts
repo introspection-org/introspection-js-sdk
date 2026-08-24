@@ -11,10 +11,10 @@ import type { ResourceHttpClient } from "./types.js";
 /**
  * Runner-bound Annotations API (`/v1/annotations`).
  *
- * Expert-distillation open coding over conversations: `create` / `list` /
- * `get` / `update` / `delete`. An annotation is a `review`, a `mark`, or a
- * dataset `membership` row, optionally scoped to a selection within the
- * conversation. Reviews complete via `update(id, { completed: true })`.
+ * Expert-distillation open coding over spans: `create` / `list` / `get` /
+ * `update` / `delete`. An annotation is a member's labels + comment on one
+ * OpenTelemetry span (`trace_id` + `span_id`); a row without `completed_at`
+ * is a pending review, finished via `update(id, { completed: true })`.
  */
 export class AnnotationsClient {
   constructor(private readonly http: ResourceHttpClient) {}
@@ -36,8 +36,8 @@ export class AnnotationsClient {
   }
 
   /**
-   * Create an annotation. Idempotent for pending-review and membership
-   * dedup — a repeat create returns the existing row.
+   * Create an annotation on a span. Completed by default; pass
+   * `completed: false` to create a pending review instead.
    */
   create(body: AnnotationCreateParams): Promise<Annotation> {
     return this.http.request<Annotation>({

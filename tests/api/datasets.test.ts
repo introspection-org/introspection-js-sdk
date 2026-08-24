@@ -14,6 +14,7 @@ const DATASET_FIXTURE = {
   project_id: "proj-1",
   slug: "gold-conversations",
   description: "Curated gold set",
+  labels: ["gold", "tone"],
   created_by_member_id: "member-1",
   created_at: "2025-01-01T00:00:00Z",
   updated_at: "2025-01-01T00:00:00Z",
@@ -83,12 +84,17 @@ describe("DatasetsApi", () => {
     await api.create({
       slug: "gold-conversations",
       description: "Curated gold set",
+      labels: ["gold", "tone"],
     });
 
     expect(http.request).toHaveBeenCalledWith({
       method: "POST",
       path: "/v1/datasets",
-      body: { slug: "gold-conversations", description: "Curated gold set" },
+      body: {
+        slug: "gold-conversations",
+        description: "Curated gold set",
+        labels: ["gold", "tone"],
+      },
     });
   });
 
@@ -112,6 +118,18 @@ describe("DatasetsApi", () => {
       method: "PATCH",
       path: "/v1/datasets/ds-1",
       body: { description: "Renamed set" },
+    });
+  });
+
+  it("update() replaces the label predicate", async () => {
+    const http = mockHttp({ requestResult: DATASET_FIXTURE });
+    const api = new DatasetsApi(http);
+    await api.update("ds-1", { labels: ["gold"] });
+
+    expect(http.request).toHaveBeenCalledWith({
+      method: "PATCH",
+      path: "/v1/datasets/ds-1",
+      body: { labels: ["gold"] },
     });
   });
 

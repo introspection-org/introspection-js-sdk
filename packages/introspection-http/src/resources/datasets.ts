@@ -11,10 +11,10 @@ import type { ResourceHttpClient } from "./types.js";
 /**
  * Runner-bound Datasets API (`/v1/datasets`).
  *
- * Named conversation collections: `create` / `list` / `get` / `update` /
- * `delete`. Membership rides annotations — a `kind: "membership"` annotation
- * carrying `dataset_id` places its conversation in the dataset (see
- * `AnnotationsClient`).
+ * Named label predicates over annotations: `create` / `list` / `get` /
+ * `update` / `delete`. A dataset is a saved filter — its `labels` (min 1)
+ * select matching annotations via `annotations.list({ dataset_id })` — not
+ * a collection; there are no memberships (see `AnnotationsClient`).
  */
 export class DatasetsClient {
   constructor(private readonly http: ResourceHttpClient) {}
@@ -55,7 +55,7 @@ export class DatasetsClient {
     });
   }
 
-  /** Update a dataset's description. */
+  /** Update a dataset's description or label predicate (min 1 label). */
   update(datasetId: string, body: DatasetUpdateParams): Promise<Dataset> {
     return this.http.request<Dataset>({
       method: "PATCH",

@@ -459,89 +459,67 @@ export interface ShareListParams extends CursorParams {
 // --- annotations (/v1/annotations) ---
 
 /**
- * What an annotation row asserts:
- *
- * - `"review"`     — an open-coding review pass over a conversation (or a
- *                    span of it); completing it stamps `completed_at`.
- * - `"mark"`       — a labeled/commented mark on a conversation or selection.
- * - `"membership"` — places the conversation in a dataset (`dataset_id`).
+ * A member's annotation on one OpenTelemetry span (`/v1/annotations`),
+ * addressed by `trace_id` + `span_id`. Expert-distillation open coding:
+ * labels plus a free-text comment, with `completed_at` distinguishing a
+ * finished annotation from a pending review assignment.
  */
-export type AnnotationKind = "review" | "mark" | "membership";
-
-/** Who acted for the owning member, from the session's `act` claim. */
-export type ActorType = "agent" | "dev" | "impersonation";
-
-/**
- * The span of conversation an annotation targets. Omitted entirely for a
- * whole-conversation annotation.
- */
-export interface AnnotationSelection {
-  message_id?: string;
-  span_id?: string;
-  part_index?: number;
-  start?: number;
-  end?: number;
-  /** The selected text verbatim — required whenever a selection is present. */
-  quoted_text: string;
-}
-
-/** An expert-distillation annotation over a conversation (`/v1/annotations`). */
 export interface Annotation {
   id: Uuid;
   org_id: Uuid;
   project_id: Uuid;
-  conversation_id: string;
-  kind: AnnotationKind;
-  /** Threaded reply target — another annotation's id. */
-  parent_id?: string | null;
-  selection?: AnnotationSelection | null;
+  trace_id: string;
+  span_id: string;
+  /** Normalized server-side: slugified, deduped, sorted. */
   labels: string[];
   comment: string;
-  /** Owning member (for a review: the assignee). */
+  /** Owning member — for a review assignment, the assignee. */
   member_id: Uuid;
-  actor_member_id?: string | null;
-  actor_type?: ActorType | null;
-  share_id?: string | null;
-  /** Dataset this row places the conversation in (`kind: "membership"`). */
-  dataset_id?: string | null;
-  /** Stamped when a review is completed; `null` while pending. */
+  /** Stamped when the annotation is completed; `null` = pending review. */
   completed_at?: IsoDate | null;
   created_at: IsoDate;
   updated_at: IsoDate;
 }
 
 /**
- * Create is idempotent for pending-review and membership dedup: repeating an
- * equivalent create returns the existing row rather than minting a duplicate.
+ * Create defaults to a completed annotation (`completed: true`); pass
+ * `completed: false` to create a pending review instead. Assigning a
+ * foreign `member_id` is privileged-only, requires empty `labels`/`comment`,
+ * and the server forces the row pending.
  */
 export interface AnnotationCreateParams {
-  conversation_id: string;
-  kind: AnnotationKind;
-  /** Review assignee; assigning a foreign member is privileged-only. */
+  trace_id: string;
+  span_id: string;
+  /** Assignee; foreign members are privileged-only (see above). */
   member_id?: Uuid;
-  parent_id?: string;
-  selection?: AnnotationSelection;
+  /** Normalized server-side: slugified, deduped, sorted. */
   labels?: string[];
   comment?: string;
-  dataset_id?: string;
+  /** Defaults to `true`; `false` creates a pending review. */
+  completed?: boolean;
 }
 
 export interface AnnotationUpdateParams {
-  /** Replaces the label list wholesale; `[]` clears; omit to leave untouched. */
+  /**
+   * Replaces the label list wholesale (normalized server-side); `[]` clears;
+   * omit to leave untouched.
+   */
   labels?: string[];
   comment?: string;
-  selection?: AnnotationSelection;
-  /** `true` stamps `completed_at`, `false` clears it. */
+  /** `true` stamps `completed_at`, `false` clears it (back to pending). */
   completed?: boolean;
 }
 
 export interface AnnotationListParams extends ListParams {
-  kind?: AnnotationKind;
   member_id?: Uuid;
-  conversation_id?: string;
+  trace_id?: string;
+  span_id?: string;
+  /**
+   * Applies that dataset's label predicate as a saved filter — this is not
+   * a membership; a dataset is a named label filter over annotations.
+   */
   dataset_id?: string;
-  parent_id?: string;
-  /** Only reviews not yet completed (`completed_at` unset). */
+  /** Only pending reviews (`completed_at` unset). */
   pending?: boolean;
   /** Filter by one label. */
   label?: string;
@@ -550,9 +528,9 @@ export interface AnnotationListParams extends ListParams {
 // --- datasets (/v1/datasets) ---
 
 /**
- * A named collection of conversations (`/v1/datasets`). Membership rides
- * annotations: a `kind: "membership"` annotation's `dataset_id` places its
- * conversation in the dataset.
+ * A named label predicate over annotations (`/v1/datasets`) — a saved
+ * filter, not a collection: `labels` (min 1) is the predicate, and there
+ * are no memberships. Apply it via `AnnotationListParams.dataset_id`.
  */
 export interface Dataset {
   id: Uuid;
@@ -560,6 +538,8 @@ export interface Dataset {
   project_id: Uuid;
   slug: string;
   description: string;
+  /** The label predicate (min 1, normalized server-side). */
+  labels: string[];
   created_by_member_id: Uuid;
   created_at: IsoDate;
   updated_at: IsoDate;
@@ -572,10 +552,14 @@ export interface Dataset {
 export interface DatasetCreateParams {
   slug: string;
   description?: string;
+  /** The label predicate — required, min 1, normalized server-side. */
+  labels: string[];
 }
 
 export interface DatasetUpdateParams {
   description?: string;
+  /** Replaces the label predicate; min 1 when present. */
+  labels?: string[];
 }
 
 export interface DatasetListParams extends CursorParams {
