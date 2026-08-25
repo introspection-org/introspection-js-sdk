@@ -88,6 +88,11 @@ export {
   ConnectionsApi,
   attachConnectors,
 } from "./resources/connectors.js";
+export {
+  ProjectLabelsApi,
+  ReviewsApi,
+  attachReviews,
+} from "./resources/reviews.js";
 
 // REST API wire types
 export type {
@@ -157,6 +162,15 @@ export type {
   ConnectionToken,
   ConnectionAuthorizationPending,
   ConnectionTokenResult,
+  ReviewTarget,
+  ReviewState,
+  ReviewListParams,
+  ReviewMutation,
+  ReviewEventOptions,
+  ProjectLabel,
+  ProjectLabelListParams,
+  ProjectLabelCreate,
+  ProjectLabelUpdate,
   RunnerSpec,
   RunnerDeployment,
   RunnerContext,

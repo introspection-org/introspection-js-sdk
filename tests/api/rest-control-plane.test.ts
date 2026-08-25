@@ -526,6 +526,7 @@ describe("IntrospectionClient (REST control-plane, real server)", () => {
         project: "proj-1",
         baseApiUrl: baseUrl,
       });
+      expect(client.advancedOptions.dpUrl).toBe("https://dp.example.com");
       const runner = await client.runtimes(RUNTIME.slug).run({
         identity: { user_id: "u_demo" },
       });

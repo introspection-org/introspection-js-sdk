@@ -32,6 +32,7 @@ import {
   attachConnectors,
   type ConnectorsApi,
 } from "./resources/connectors.js";
+import { attachReviews, type ReviewsApi } from "./resources/reviews.js";
 import { DEV_TARGET_HEADER, resolveDevTarget } from "./dev-target.js";
 
 /**
@@ -57,6 +58,8 @@ import { DEV_TARGET_HEADER, resolveDevTarget } from "./dev-target.js";
 export class IntrospectionClient {
   /** @internal — HTTP client pointed at the CP API with the customer key. */
   readonly cpHttp: HttpClient;
+  /** @internal — HTTP client pointed at the project Data Plane. */
+  readonly dpHttp: HttpClient;
   /** @internal — passed through to Runner so it can build its own DP HTTP client. */
   readonly advancedOptions: AdvancedOptions;
 
@@ -87,6 +90,9 @@ export class IntrospectionClient {
    */
   readonly connectors: ConnectorsApi;
 
+  /** Qualitative trace/span review queue and its managed label catalog. */
+  readonly reviews: ReviewsApi;
+
   constructor(options: IntrospectionClientOptions = {}) {
     const token = options.token || process.env.INTROSPECTION_TOKEN || "";
     const advanced = options.advanced || {};
@@ -94,6 +100,10 @@ export class IntrospectionClient {
       advanced.baseApiUrl ||
       process.env.INTROSPECTION_BASE_API_URL ||
       "https://api.introspection.dev";
+    // Self-hosted/local stacks commonly route both planes on one host. Hosted
+    // token exchanges return the regional DP URL explicitly; callers pass it
+    // as `dpUrl` and fromServiceAccount wires it automatically.
+    const dpUrl = advanced.dpUrl || baseApiUrl;
 
     if (!token) {
       sdkLogger.warn(
@@ -126,6 +136,13 @@ export class IntrospectionClient {
     this.cpHttp = new HttpClient({
       apiUrl: baseApiUrl,
       token,
+      cpSession: options.cpSession,
+      additionalHeaders: this.advancedOptions.additionalHeaders,
+      fetch: advanced.fetch,
+    });
+    this.dpHttp = new HttpClient({
+      apiUrl: dpUrl,
+      token,
       additionalHeaders: this.advancedOptions.additionalHeaders,
       fetch: advanced.fetch,
     });
@@ -134,6 +151,7 @@ export class IntrospectionClient {
     this.experiments = attachExperiments(this, this.cpHttp);
     this.recipes = attachRecipes(this.cpHttp);
     this.connectors = attachConnectors(this.cpHttp);
+    this.reviews = attachReviews(this.cpHttp, this.dpHttp);
 
     sdkLogger.info(`IntrospectionClient initialized: api=${baseApiUrl}`);
   }
@@ -167,11 +185,15 @@ export class IntrospectionClient {
   static async fromServiceAccount(
     params: ServiceAccountTokenParams & { serviceName?: string },
   ): Promise<IntrospectionClient> {
-    const { access_token } = await serviceAccountToken(params);
+    const { access_token, dp_url } = await serviceAccountToken(params);
     return new IntrospectionClient({
       token: access_token,
       serviceName: params.serviceName,
-      advanced: { baseApiUrl: params.baseApiUrl, fetch: params.fetch },
+      advanced: {
+        baseApiUrl: params.baseApiUrl,
+        dpUrl: dp_url ?? undefined,
+        fetch: params.fetch,
+      },
     });
   }
 
