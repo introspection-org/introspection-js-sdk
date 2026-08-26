@@ -20,7 +20,7 @@ export type {
 export * from "./genai.js";
 export * from "./api.js";
 export * from "./conversations.js";
-export * from "./reviews.js";
+export * from "./annotations.js";
 export * from "./transcript.js";
 export * from "./errors.js";
 

@@ -89,10 +89,11 @@ export {
   attachConnectors,
 } from "./resources/connectors.js";
 export {
+  AnnotationsApi,
   ProjectLabelsApi,
-  ReviewsApi,
-  attachReviews,
-} from "./resources/reviews.js";
+  attachAnnotations,
+  attachProjectLabels,
+} from "./resources/annotations.js";
 
 // REST API wire types
 export type {
@@ -162,11 +163,11 @@ export type {
   ConnectionToken,
   ConnectionAuthorizationPending,
   ConnectionTokenResult,
-  ReviewTarget,
-  ReviewState,
-  ReviewListParams,
-  ReviewMutation,
-  ReviewEventOptions,
+  AnnotationTarget,
+  AnnotationState,
+  AnnotationListParams,
+  AnnotationMutation,
+  AnnotationEventOptions,
   ProjectLabel,
   ProjectLabelListParams,
   ProjectLabelCreate,

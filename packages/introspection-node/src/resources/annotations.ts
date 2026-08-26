@@ -8,17 +8,17 @@ import {
   type ProjectLabelCreate,
   type ProjectLabelListParams,
   type ProjectLabelUpdate,
-  type ReviewListParams,
-  type ReviewEventOptions,
-  type ReviewMutation,
-  type ReviewState,
-  type ReviewTarget,
+  type AnnotationListParams,
+  type AnnotationEventOptions,
+  type AnnotationMutation,
+  type AnnotationState,
+  type AnnotationTarget,
   type Uuid,
 } from "@introspection-sdk/types";
 import type { HttpClient } from "../http.js";
 import { Paginator, cursorPaginate } from "../pagination.js";
 
-interface ReviewMember {
+interface AnnotationMember {
   id: Uuid;
   email: string | null;
   is_deactivated: boolean;
@@ -34,7 +34,7 @@ function clientValidationError(message: string, code: string): ValidationError {
 }
 
 /** Mint a time-ordered UUIDv7 without adding a runtime dependency. */
-function reviewEventId(now = Date.now()): Uuid {
+function annotationEventId(now = Date.now()): Uuid {
   const bytes = Buffer.allocUnsafe(16);
   let timestamp = BigInt(now);
   for (let index = 5; index >= 0; index--) {
@@ -58,20 +58,20 @@ function normalizedEmails(emails: string | readonly string[]): string[] {
     normalized.some((email) => email.length === 0)
   ) {
     throw clientValidationError(
-      "At least one non-empty assignee email is required",
-      "invalid_review_assignee_email",
+      "At least one non-empty reviewer email is required",
+      "invalid_annotation_reviewer_email",
     );
   }
   if (normalized.length > 64) {
     throw clientValidationError(
-      "At most 64 assignee emails are allowed",
-      "too_many_review_assignees",
+      "At most 64 reviewer emails are allowed",
+      "too_many_annotation_reviewers",
     );
   }
   return normalized;
 }
 
-/** Managed project label catalog used by qualitative reviews. */
+/** Managed project label catalog used by annotations. */
 export class ProjectLabelsApi {
   constructor(private readonly dpHttp: HttpClient) {}
 
@@ -137,23 +137,19 @@ export class ProjectLabelsApi {
 }
 
 /**
- * Qualitative review API. Mutations append one event; labels and assignees are
- * complete snapshots, while comments append to the span's review history.
+ * Member-authored span annotations. Every create call appends exactly one
+ * event; labels and reviewers are complete snapshots.
  */
-export class ReviewsApi {
-  readonly labels: ProjectLabelsApi;
-
+export class AnnotationsApi {
   constructor(
     private readonly cpHttp: HttpClient,
     private readonly dpHttp: HttpClient,
-  ) {
-    this.labels = new ProjectLabelsApi(dpHttp);
-  }
+  ) {}
 
-  list(params: ReviewListParams = {}): Paginator<ReviewState> {
+  list(params: AnnotationListParams = {}): Paginator<AnnotationState> {
     return cursorPaginate(
       (next) =>
-        this.dpHttp.request<Paginated<ReviewState>>({
+        this.dpHttp.request<Paginated<AnnotationState>>({
           method: "GET",
           path: "/v1/annotations",
           query: { ...params, next } as Record<string, unknown>,
@@ -162,124 +158,47 @@ export class ReviewsApi {
     );
   }
 
-  /** Append exactly one qualitative-review mutation. */
-  create(
-    target: ReviewTarget,
-    mutation: ReviewMutation,
-    options: ReviewEventOptions = {},
+  /** Append exactly one annotation mutation. */
+  async create(
+    target: AnnotationTarget,
+    mutation: AnnotationMutation,
+    options: AnnotationEventOptions = {},
   ): Promise<void> {
+    const wireMutation =
+      mutation.reviewerEmails !== undefined
+        ? {
+            assignee_member_ids:
+              mutation.reviewerEmails.length === 0
+                ? []
+                : await this.resolveReviewerIds(mutation.reviewerEmails),
+          }
+        : mutation;
     return this.dpHttp.request<void>({
       method: "POST",
       path: "/v1/annotations",
       body: {
         ...target,
-        event_id: options.event_id ?? reviewEventId(),
-        ...mutation,
+        event_id: options.event_id ?? annotationEventId(),
+        ...wireMutation,
       },
       expect: "empty",
     });
   }
 
-  comment(
-    target: ReviewTarget,
-    comment: string,
-    options?: ReviewEventOptions,
-  ): Promise<void> {
-    return this.create(target, { comment }, options);
-  }
-
-  setLabels(
-    target: ReviewTarget,
-    labels: string[],
-    options?: ReviewEventOptions,
-  ): Promise<void> {
-    return this.create(target, { labels }, options);
-  }
-
-  setAssignees(
-    target: ReviewTarget,
-    memberIds: Uuid[],
-    options?: ReviewEventOptions,
-  ): Promise<void> {
-    return this.create(target, { assignee_member_ids: memberIds }, options);
-  }
-
-  clearAssignees(
-    target: ReviewTarget,
-    options?: ReviewEventOptions,
-  ): Promise<void> {
-    return this.setAssignees(target, [], options);
-  }
-
-  /**
-   * Resolve active business members by exact email, merge them into the
-   * target's current assignees, then emit the resulting complete snapshot.
-   * All member pages are checked so an ambiguous identity can never be
-   * selected by list order.
-   */
-  async assignByEmail(
-    target: ReviewTarget,
-    emails: string | readonly string[],
-    options?: ReviewEventOptions,
-  ): Promise<void> {
-    const requestedMemberIds =
-      await this.resolveActiveBusinessMemberIdsByEmail(emails);
-    const current = await this.list({ ...target, limit: 1 });
-    const existing = current.records[0]?.assignee_member_ids ?? [];
-    const memberIds = [...new Set([...existing, ...requestedMemberIds])];
-    if (memberIds.length > 64) {
-      throw clientValidationError(
-        "At most 64 review assignees are allowed",
-        "too_many_review_assignees",
-      );
-    }
-    if (memberIds.length === existing.length) return;
-    await this.setAssignees(target, memberIds, options);
-  }
-
-  /**
-   * Remove the requested active business members from the current assignee
-   * snapshot. Already-unassigned members are an idempotent no-op.
-   */
-  async unassignByEmail(
-    target: ReviewTarget,
-    emails: string | readonly string[],
-    options?: ReviewEventOptions,
-  ): Promise<void> {
-    const current = await this.list({ ...target, limit: 1 });
-    const assignees = current.records[0]?.assignee_member_ids ?? [];
-    const memberIds = new Set(
-      await this.resolveActiveBusinessMemberIdsByEmail(
-        emails,
-        new Set(assignees),
-      ),
-    );
-    const remaining = assignees.filter((memberId) => !memberIds.has(memberId));
-    if (remaining.length === assignees.length) return;
-    await this.setAssignees(target, remaining, options);
-  }
-
-  private async resolveActiveBusinessMemberIdsByEmail(
-    emails: string | readonly string[],
-    currentlyAssigned = new Set<Uuid>(),
-  ): Promise<Uuid[]> {
+  private async resolveReviewerIds(emails: readonly string[]): Promise<Uuid[]> {
     const requested = normalizedEmails(emails);
-    const matches = new Map<string, ReviewMember[]>();
+    const matches = new Map<string, AnnotationMember[]>();
     for (const email of requested) matches.set(email, []);
 
     const members = cursorPaginate((next) =>
-      this.cpHttp.request<Paginated<ReviewMember>>({
+      this.cpHttp.request<Paginated<AnnotationMember>>({
         method: "GET",
         path: "/v1/members",
         query: { limit: 1000, member_type: "business", next },
       }),
     );
     for await (const member of members) {
-      if (
-        (member.is_deactivated && !currentlyAssigned.has(member.id)) ||
-        !member.email
-      )
-        continue;
+      if (member.is_deactivated || !member.email) continue;
       matches.get(member.email.trim().toLowerCase())?.push(member);
     }
 
@@ -290,7 +209,7 @@ export class ReviewsApi {
         throw new NotFoundError({
           message: `No active domain expert found for '${email}'`,
           status: 404,
-          code: "review_assignee_not_found",
+          code: "annotation_reviewer_not_found",
           body: { email },
         });
       }
@@ -298,7 +217,7 @@ export class ReviewsApi {
         throw new ConflictError({
           message: `Multiple active domain experts found for '${email}'`,
           status: 409,
-          code: "review_assignee_ambiguous",
+          code: "annotation_reviewer_ambiguous",
           body: { email, member_ids: candidates.map((member) => member.id) },
         });
       }
@@ -309,9 +228,13 @@ export class ReviewsApi {
   }
 }
 
-export function attachReviews(
+export function attachAnnotations(
   cpHttp: HttpClient,
   dpHttp: HttpClient,
-): ReviewsApi {
-  return new ReviewsApi(cpHttp, dpHttp);
+): AnnotationsApi {
+  return new AnnotationsApi(cpHttp, dpHttp);
+}
+
+export function attachProjectLabels(dpHttp: HttpClient): ProjectLabelsApi {
+  return new ProjectLabelsApi(dpHttp);
 }

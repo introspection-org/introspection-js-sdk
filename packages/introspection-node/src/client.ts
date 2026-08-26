@@ -13,6 +13,7 @@
  */
 
 import type { AdvancedOptions } from "@introspection-sdk/types";
+import { EventsApi } from "@introspection-sdk/http";
 import { logger as sdkLogger, USER_AGENT } from "./utils.js";
 import type { IntrospectionClientOptions } from "./types.js";
 import { serviceAccountToken, type ServiceAccountTokenParams } from "./auth.js";
@@ -32,7 +33,12 @@ import {
   attachConnectors,
   type ConnectorsApi,
 } from "./resources/connectors.js";
-import { attachReviews, type ReviewsApi } from "./resources/reviews.js";
+import {
+  attachAnnotations,
+  attachProjectLabels,
+  type AnnotationsApi,
+  type ProjectLabelsApi,
+} from "./resources/annotations.js";
 import { DEV_TARGET_HEADER, resolveDevTarget } from "./dev-target.js";
 
 /**
@@ -90,8 +96,14 @@ export class IntrospectionClient {
    */
   readonly connectors: ConnectorsApi;
 
-  /** Qualitative trace/span review queue and its managed label catalog. */
-  readonly reviews: ReviewsApi;
+  /** Read folded span annotations and append one annotation mutation. */
+  readonly annotations: AnnotationsApi;
+
+  /** Manage reusable project labels. */
+  readonly projectLabels: ProjectLabelsApi;
+
+  /** Read immutable annotation activity and other typed platform events. */
+  readonly events: EventsApi;
 
   constructor(options: IntrospectionClientOptions = {}) {
     const token = options.token || process.env.INTROSPECTION_TOKEN || "";
@@ -151,7 +163,9 @@ export class IntrospectionClient {
     this.experiments = attachExperiments(this, this.cpHttp);
     this.recipes = attachRecipes(this.cpHttp);
     this.connectors = attachConnectors(this.cpHttp);
-    this.reviews = attachReviews(this.cpHttp, this.dpHttp);
+    this.annotations = attachAnnotations(this.cpHttp, this.dpHttp);
+    this.projectLabels = attachProjectLabels(this.dpHttp);
+    this.events = new EventsApi(this.dpHttp);
 
     sdkLogger.info(`IntrospectionClient initialized: api=${baseApiUrl}`);
   }
