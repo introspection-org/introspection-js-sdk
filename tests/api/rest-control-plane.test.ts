@@ -526,6 +526,7 @@ describe("IntrospectionClient (REST control-plane, real server)", () => {
         project: "proj-1",
         baseApiUrl: baseUrl,
       });
+      expect(client.advancedOptions.dpUrl).toBe("https://dp.example.com");
       const runner = await client.runtimes(RUNTIME.slug).run({
         identity: { user_id: "u_demo" },
       });
@@ -541,6 +542,34 @@ describe("IntrospectionClient (REST control-plane, real server)", () => {
   });
 
   describe("experiments", () => {
+    it("creates, updates, and deletes exact control-plane documents", async () => {
+      const client = makeClient();
+      requests = [];
+      const document = {
+        project_id: "proj-1",
+        name: "exp-created",
+        custom: { preserved: true },
+      };
+      expect((await client.experiments.create(document)).id).toBe(
+        EXPERIMENT.id,
+      );
+      expect(
+        (
+          await client.experiments.update(
+            EXPERIMENT.id,
+            { name: "exp-renamed" },
+            "proj-1",
+          )
+        ).name,
+      ).toBe("exp-renamed");
+      await client.experiments.delete(EXPERIMENT.id, "proj-1");
+
+      expect(requests[0]?.body).toEqual(document);
+      expect(requests[1]?.query.get("project")).toBe("proj-1");
+      expect(requests[1]?.body).toEqual({ name: "exp-renamed" });
+      expect(requests[2]?.method).toBe("DELETE");
+    });
+
     it("uses the stable runtime selector on list", async () => {
       const client = makeClient();
       requests = [];

@@ -88,6 +88,12 @@ export {
   ConnectionsApi,
   attachConnectors,
 } from "./resources/connectors.js";
+export {
+  AnnotationsApi,
+  ProjectLabelsApi,
+  attachAnnotations,
+  attachProjectLabels,
+} from "./resources/annotations.js";
 
 // REST API wire types
 export type {
@@ -157,6 +163,15 @@ export type {
   ConnectionToken,
   ConnectionAuthorizationPending,
   ConnectionTokenResult,
+  AnnotationTarget,
+  AnnotationState,
+  AnnotationListParams,
+  AnnotationMutation,
+  AnnotationEventOptions,
+  ProjectLabel,
+  ProjectLabelListParams,
+  ProjectLabelCreate,
+  ProjectLabelUpdate,
   RunnerSpec,
   RunnerDeployment,
   RunnerContext,

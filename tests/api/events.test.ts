@@ -32,6 +32,9 @@ const ENVELOPE = {
 
 /** Narrowing on the top-level `event_name` discriminator must work. */
 function narrowEvent(ev: Event): string | null | undefined {
+  if (ev.event_name === "introspection.annotation") {
+    return ev.payload.comment;
+  }
   if (ev.event_name === "introspection.feedback") {
     return ev.payload.name;
   }

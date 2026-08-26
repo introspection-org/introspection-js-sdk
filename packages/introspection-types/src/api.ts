@@ -1005,7 +1005,7 @@ export type ConnectionTokenResult =
 // --- events ---
 
 /**
- * The six canonical platform event families served by `GET /v1/events` —
+ * The seven canonical platform event families served by `GET /v1/events` —
  * a closed, typed set. Legacy stored names (e.g.
  * `introspection.observation.generated`, `introspection.pattern.created`)
  * are normalized server-side to these canonical names; anything outside
@@ -1013,6 +1013,7 @@ export type ConnectionTokenResult =
  * `/v1/events` and is reachable through `POST /v1/metrics` only.
  */
 export const IntrospectionEventNames = {
+  ANNOTATION: "introspection.annotation",
   FEEDBACK: "introspection.feedback",
   OBSERVATION: "introspection.observation",
   OBSERVATION_CLUSTERING_RUN: "introspection.observation_clustering.run",
@@ -1165,6 +1166,17 @@ export interface FeedbackPayload {
   properties?: Record<string, unknown> | null;
 }
 
+/** One member-authored annotation mutation. */
+export interface AnnotationPayload {
+  member_id: Uuid;
+  /** Complete label snapshot when this event changes labels. */
+  labels?: string[] | null;
+  /** Immutable qualitative comment when this event adds one. */
+  comment?: string | null;
+  /** Complete reviewer snapshot when this event changes assignments. */
+  assignee_member_ids?: Uuid[] | null;
+}
+
 /** One judgement, mirroring the runtime-agent judges emitter. */
 export interface JudgementPayload {
   judgement_id: string;
@@ -1203,13 +1215,18 @@ export interface FeedbackEvent extends IntrospectionEventEnvelope {
   payload: FeedbackPayload;
 }
 
+export interface AnnotationEvent extends IntrospectionEventEnvelope {
+  event_name: typeof IntrospectionEventNames.ANNOTATION;
+  payload: AnnotationPayload;
+}
+
 export interface JudgementEvent extends IntrospectionEventEnvelope {
   event_name: typeof IntrospectionEventNames.JUDGEMENT;
   payload: JudgementPayload;
 }
 
 /**
- * The discriminated union of the six canonical families. Narrow on the
+ * The discriminated union of the seven canonical families. Narrow on the
  * top-level `event_name`:
  *
  * ```ts
@@ -1222,6 +1239,7 @@ export interface JudgementEvent extends IntrospectionEventEnvelope {
  * as {@link UnknownEvent} instead — see {@link EventForName}.
  */
 export type Event =
+  | AnnotationEvent
   | ObservationEvent
   | PatternEvent
   | PatternAssignmentEvent
@@ -1232,7 +1250,7 @@ export type Event =
 /**
  * Structurally-typed fallback for forward compatibility: a row whose
  * `event_name` isn't one of the {@link IntrospectionEventNames} this SDK
- * version knows (e.g. a seventh family added server-side). Such rows are
+ * version knows (e.g. an eighth family added server-side). Such rows are
  * surfaced as-is — never dropped, never a thrown error.
  */
 export interface UnknownEvent extends IntrospectionEventEnvelope {
@@ -1240,7 +1258,7 @@ export interface UnknownEvent extends IntrospectionEventEnvelope {
   payload?: unknown;
 }
 
-/** True when `ev` belongs to one of the six known families. */
+/** True when `ev` belongs to one of the seven known families. */
 export function isKnownEvent(ev: {
   event_name: string;
 }): ev is Event & { event_name: IntrospectionEventName } {

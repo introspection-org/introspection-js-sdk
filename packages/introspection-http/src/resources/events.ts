@@ -18,7 +18,7 @@ export type EventArrowParams = Omit<EventListParams, "format">;
 
 /**
  * Read-only Events API (`GET /v1/events`) — the typed, discriminated
- * read surface over the six canonical platform event families
+ * read surface over the seven canonical platform event families
  * ({@link IntrospectionEventName}). Every request names exactly one
  * family via the REQUIRED `event_name` param, so every page is
  * homogeneous: rows are `Event` union members with the common envelope

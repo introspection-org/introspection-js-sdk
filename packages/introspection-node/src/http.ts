@@ -9,6 +9,8 @@ export interface ResolvedApiConfig {
   apiUrl: string;
   /** Bearer token. Customer API key for CP, runner JWT for DP. */
   token: string;
+  /** Encoded member session used instead of bearer auth on Control Plane calls. */
+  cpSession?: string;
   additionalHeaders?: Record<string, string>;
   fetch?: typeof fetch;
   /**
@@ -22,10 +24,9 @@ export interface ResolvedApiConfig {
 }
 
 /**
- * Bearer-token HTTP client used by both the CP-bound IntrospectionClient
- * and each DP-bound Runner. The request/response machinery lives in the
- * shared {@link BaseHttpClient}; this only pins the auth strategy —
- * `Authorization: Bearer <token>` on every request, no cookie credentials.
+ * Authenticated HTTP client used by the CP-bound IntrospectionClient and each
+ * DP-bound Runner. A member-authored Node workflow may supply the encoded
+ * `intro_cp_session` for CP-only operations; all other calls use bearer auth.
  */
 export class HttpClient extends BaseHttpClient {
   constructor(cfg: ResolvedApiConfig) {
@@ -36,7 +37,12 @@ export class HttpClient extends BaseHttpClient {
       maxRetries: cfg.maxRetries,
       retryBaseMs: cfg.retryBaseMs,
       transport: {
-        authHeaders: () => ({ Authorization: `Bearer ${cfg.token}` }),
+        authHeaders: (): Record<string, string> => {
+          if (cfg.cpSession) {
+            return { Cookie: `intro_cp_session=${cfg.cpSession}` };
+          }
+          return { Authorization: `Bearer ${cfg.token}` };
+        },
       },
     });
   }

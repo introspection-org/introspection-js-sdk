@@ -20,6 +20,7 @@ export type {
 export * from "./genai.js";
 export * from "./api.js";
 export * from "./conversations.js";
+export * from "./annotations.js";
 export * from "./transcript.js";
 export * from "./errors.js";
 
@@ -29,8 +30,13 @@ export * from "./errors.js";
 export interface AdvancedOptions {
   /** Base URL for the OTLP collector (env: INTROSPECTION_BASE_OTEL_URL, default: "https://otel.introspection.dev") */
   baseUrl?: string;
-  /** Base URL for the DP REST API (env: INTROSPECTION_BASE_API_URL, default: "https://api.introspection.dev"). Independent of baseUrl. */
+  /** Base URL for the Control Plane REST API (env: INTROSPECTION_BASE_API_URL, default: "https://api.introspection.dev"). Independent of baseUrl. */
   baseApiUrl?: string;
+  /**
+   * Data Plane REST base URL returned as `dp_url` by token exchange. Omit only
+   * for a local/single-host stack where the Control Plane URL routes both.
+   */
+  dpUrl?: string;
   /** Flush interval in milliseconds (default: 5000) */
   flushInterval?: number;
   /** Maximum batch size before auto-flush (default: 100) */
@@ -85,6 +91,15 @@ export interface AdvancedOptions {
 export interface IntrospectionClientOptions {
   /** Authentication token (env: INTROSPECTION_TOKEN) */
   token?: string;
+  /**
+   * Encoded `intro_cp_session` value returned by the CLI device flow.
+   *
+   * Node clients use this only for Control Plane requests that require an
+   * authenticated business member (for example resolving review assignees by
+   * email). Data Plane requests continue to use {@link token}. Never expose
+   * this value to browser JavaScript.
+   */
+  cpSession?: string;
   /** Service name for telemetry (env: INTROSPECTION_SERVICE_NAME, default: "introspection-client") */
   serviceName?: string;
   /** Advanced options for configuration and testing */

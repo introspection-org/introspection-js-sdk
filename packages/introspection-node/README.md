@@ -54,6 +54,52 @@ teardown.
 Interrupted runs resume through
 `runner.tasks.runs.resume(taskId, { resume: entries })`.
 
+### Annotations
+
+Annotations capture what a domain expert found good or bad on an OTel span. They
+are labels, comments, and assignments—not numeric scores. Writes require an
+authenticated business-member token with `annotations:write`; project API
+keys and sandbox credentials cannot write annotations.
+
+```typescript
+const client = new IntrospectionClient({
+  token: memberAccessToken,
+  cpSession: encodedMemberSession,
+  advanced: {
+    baseApiUrl: "https://api.introspection.dev", // Control Plane
+    dpUrl: memberDataPlaneUrl,
+  },
+});
+
+const span = {
+  trace_id: "0123456789abcdef0123456789abcdef",
+  span_id: "0123456789abcdef",
+};
+
+await client.projectLabels.create({
+  slug: "strong-structure",
+  color: "#f97316",
+  description: "A useful structure to preserve during distillation",
+});
+await client.annotations.create(span, { labels: ["strong-structure"] });
+await client.annotations.create(span, {
+  comment: "Keep the conclusion before the evidence.",
+});
+await client.annotations.create(span, {
+  reviewerEmails: ["expert@example.com"],
+});
+await client.annotations.create(span, { reviewerEmails: [] });
+```
+
+Labels and reviewers are complete snapshots; pass `[]` to clear one. Comments
+append. Every mutation gets a UUIDv7 `event_id` before its
+first transport attempt, so an automatic retry remains one event. Supply
+`{ event_id }` as the final method argument when retrying across processes.
+`client.annotations.list()` and `client.projectLabels.list()` are both awaitable
+for the first page and async-iterable across every cursor page.
+Read immutable annotation history with
+`client.events.list({ event_name: "introspection.annotation", trace_id, span_id })`.
+
 ## Pi instrumentation
 
 Pi is the supported agent-instrumentation path:

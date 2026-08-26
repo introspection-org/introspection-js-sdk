@@ -35,12 +35,9 @@ function toRunBody(opts?: RunRequest): ExperimentRunRequestBody | undefined {
 }
 
 /**
- * Read access and lifecycle for `/v1/experiments` on the CP.
- *
- * Lookup and lifecycle only: a runner brackets its own execution, resolving
- * the experiment and then `start` / `end` / `cancel` around the work it is
- * being measured on. Authoring an experiment is a project-authoring act and
- * lives in the CLI.
+ * CRUD, lifecycle, and execution for `/v1/experiments` on the CP. Create and
+ * update accept the exact Control Plane request document so its schema remains
+ * the source of truth.
  */
 export class ExperimentsApi {
   constructor(
@@ -70,6 +67,36 @@ export class ExperimentsApi {
     return this.http.request<Experiment>({
       method: "GET",
       path: `/v1/experiments/${encodeURIComponent(id)}`,
+    });
+  }
+
+  create(document: Record<string, unknown>): Promise<Experiment> {
+    return this.http.request<Experiment>({
+      method: "POST",
+      path: "/v1/experiments",
+      body: document,
+    });
+  }
+
+  update(
+    id: Uuid,
+    document: Record<string, unknown>,
+    project?: string,
+  ): Promise<Experiment> {
+    return this.http.request<Experiment>({
+      method: "PATCH",
+      path: `/v1/experiments/${encodeURIComponent(id)}`,
+      query: project ? { project } : undefined,
+      body: document,
+    });
+  }
+
+  delete(id: Uuid, project?: string): Promise<void> {
+    return this.http.request<void>({
+      method: "DELETE",
+      path: `/v1/experiments/${encodeURIComponent(id)}`,
+      query: project ? { project } : undefined,
+      expect: "empty",
     });
   }
 
@@ -147,6 +174,9 @@ export function attachExperiments(
   const hybrid = factory as ExperimentsApi & ExperimentHandleFactory;
   hybrid.list = api.list.bind(api);
   hybrid.get = api.get.bind(api);
+  hybrid.create = api.create.bind(api);
+  hybrid.update = api.update.bind(api);
+  hybrid.delete = api.delete.bind(api);
   hybrid.startById = api.startById.bind(api);
   hybrid.endById = api.endById.bind(api);
   hybrid.cancelById = api.cancelById.bind(api);
