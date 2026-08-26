@@ -246,6 +246,30 @@ describe("annotations", () => {
     expect(requests.at(-1)?.query.get("next")).toBe("annotation-page-2");
   });
 
+  it("resolves email list filters once before paginating the data plane", async () => {
+    const listing = client().annotations.list({
+      annotated_by_email: "bob@example.com",
+      assigned_to_email: "alice@example.com",
+      limit: 1,
+    });
+    const all: AnnotationState[] = [];
+    for await (const annotation of listing) all.push(annotation);
+    expect(all).toHaveLength(2);
+    expect(
+      requests.filter((request) => request.path === "/v1/members"),
+    ).toHaveLength(2);
+    const annotationRequests = requests.filter(
+      (request) => request.path === "/v1/annotations",
+    );
+    expect(annotationRequests).toHaveLength(2);
+    expect(annotationRequests[0]!.query.get("annotated_by_member_id")).toBe(
+      BOB_ID,
+    );
+    expect(annotationRequests[0]!.query.get("assignee_member_id")).toBe(
+      ALICE_ID,
+    );
+  });
+
   it("appends one comment, label snapshot, or reviewer snapshot", async () => {
     const api = client().annotations;
     await api.create(TARGET, { comment: "Strong conclusion; weak evidence." });

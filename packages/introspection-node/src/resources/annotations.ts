@@ -147,12 +147,50 @@ export class AnnotationsApi {
   ) {}
 
   list(params: AnnotationListParams = {}): Paginator<AnnotationState> {
+    if (params.annotated_by_member_id && params.annotated_by_email) {
+      throw clientValidationError(
+        "Use annotated_by_member_id or annotated_by_email, not both",
+        "conflicting_annotation_annotator_filters",
+      );
+    }
+    if (params.assignee_member_id && params.assigned_to_email) {
+      throw clientValidationError(
+        "Use assignee_member_id or assigned_to_email, not both",
+        "conflicting_annotation_assignee_filters",
+      );
+    }
+    const { annotated_by_email, assigned_to_email, ...wireParams } = params;
+    let resolvedFilters: Promise<Record<string, unknown>> | undefined;
+    const resolveFilters = () => {
+      resolvedFilters ??= (async () => {
+        const emails = [annotated_by_email, assigned_to_email].filter(
+          (email): email is string => Boolean(email),
+        );
+        const ids = emails.length ? await this.resolveReviewerIds(emails) : [];
+        const sameEmail =
+          annotated_by_email !== undefined &&
+          assigned_to_email !== undefined &&
+          annotated_by_email.trim().toLowerCase() ===
+            assigned_to_email.trim().toLowerCase();
+        return {
+          ...wireParams,
+          ...(annotated_by_email ? { annotated_by_member_id: ids[0] } : {}),
+          ...(assigned_to_email
+            ? {
+                assignee_member_id:
+                  ids[annotated_by_email && !sameEmail ? 1 : 0],
+              }
+            : {}),
+        };
+      })();
+      return resolvedFilters;
+    };
     return cursorPaginate(
-      (next) =>
+      async (next) =>
         this.dpHttp.request<Paginated<AnnotationState>>({
           method: "GET",
           path: "/v1/annotations",
-          query: { ...params, next } as Record<string, unknown>,
+          query: { ...(await resolveFilters()), next },
         }),
       params.next,
     );

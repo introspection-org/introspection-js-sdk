@@ -76,10 +76,7 @@ export class IntrospectionClient {
    */
   readonly runtimes: RuntimesApi & RuntimeHandleFactory;
 
-  /**
-   * Reads on `/v1/experiments` plus the `(id) => ExperimentHandle` factory
-   * for run lifecycle. Authoring experiment definitions is a CLI action.
-   */
+  /** CRUD on `/v1/experiments` plus the callable run-lifecycle handle. */
   readonly experiments: ExperimentsApi & ExperimentHandleFactory;
 
   /**

@@ -25,6 +25,10 @@ export interface AnnotationState extends AnnotationTarget {
 export interface AnnotationListParams extends ListParams {
   annotated_by_member_id?: Uuid;
   assignee_member_id?: Uuid;
+  /** Resolve this active Business-member email before reading. */
+  annotated_by_email?: string;
+  /** Resolve this active Business-member email before reading. */
+  assigned_to_email?: string;
   trace_id?: string;
   span_id?: string;
   conversation_id?: string;
