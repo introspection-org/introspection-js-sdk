@@ -37,7 +37,7 @@
     "@pollyjs/core": "^6.0.6",
     "@pollyjs/persister-fs": "^6.0.6",
     "@types/node": "^22.20.1",
-    "@vitest/coverage-v8": "^4.1.10",
+    "@vitest/coverage-v8": "^4.1.11",
     "apache-arrow": "^21.2.0",
     "dotenv": "^16.4.0",
     "typescript": "^5.9.3",
