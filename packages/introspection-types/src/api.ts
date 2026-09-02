@@ -759,6 +759,7 @@ export interface RunRequest {
  *
  * - `"static"`             — a caller-supplied long-lived token.
  * - `"oauth_stored"`       — OAuth tokens stored server-side after consent.
+ * - `"client_credentials"` — server-to-server OAuth client credentials.
  * - `"identity_assertion"` — per-call signed identity assertions.
  * - `"federated_exchange"` — federated token exchange.
  * - `"person_authorized"`  — per-action human-in-the-loop approval.
@@ -766,6 +767,7 @@ export interface RunRequest {
 export type ConnectorAuthMode =
   | "static"
   | "oauth_stored"
+  | "client_credentials"
   | "identity_assertion"
   | "federated_exchange"
   | "person_authorized";
@@ -891,7 +893,33 @@ export interface ConnectorUpdateParams {
 
 export type ConnectorListParams = CursorParams;
 
+export interface ConnectorApp {
+  /** Provider-specific application slug accepted by `authorize({ app })`. */
+  slug: string;
+  name: string;
+  icon_url?: string | null;
+  description?: string | null;
+  auth_type?: string | null;
+}
+
+export interface ConnectorAppListParams {
+  /** Provider catalogue search text. */
+  q?: string;
+  /** Maximum applications returned (1–50, server default 20). */
+  limit?: number;
+}
+
 export interface ConnectorAuthorizeParams {
+  /**
+   * Provider application slug to connect. Required for Pipedream connectors;
+   * discover valid values with `connectors.listApps()`.
+   */
+  app?: string;
+  /**
+   * Let the user grant a supported subset of the application's configured
+   * OAuth scopes. Pipedream defaults this to `false`.
+   */
+  allow_progressive_scopes?: boolean;
   /**
    * The end customer this grant is being made for, asserted by the caller.
    * Its `user_id` resolves a `customer` member recorded as the connection's
