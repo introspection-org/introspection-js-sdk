@@ -37,6 +37,11 @@ const EGRESS_KEEP_ALIVE_TIMEOUT_MS = 10 * 60 * 1000;
 export interface ProxyFetchOptions {
   egressProxyUrl?: string;
   egressProxyHosts?: string;
+  /**
+   * Development relay identity. When set, retain the public relay authority
+   * and carry the provider authority for restoration by local Envoy.
+   */
+  relayTarget?: string;
   forwardProxyUrl?: string;
   /**
    * Emit an `introspection-proxy-call` OTel span per proxied request
@@ -67,6 +72,10 @@ function resolveEgressHosts(options: ProxyFetchOptions): Set<string> {
       .map((h) => h.trim().toLowerCase())
       .filter(Boolean),
   );
+}
+
+function resolveRelayTarget(options: ProxyFetchOptions): string | undefined {
+  return options.relayTarget ?? process.env.INTROSPECTION_RELAY_TARGET;
 }
 
 export function resolveForwardProxyUrl(): string | undefined {
@@ -141,6 +150,7 @@ export function createProxyFetchWithBase(
   const base = baseFetch;
   const egressUrl = resolveEgressUrl(options);
   const egressHosts = resolveEgressHosts(options);
+  const relayTarget = resolveRelayTarget(options);
   const egressIsPlainHttp =
     !!egressUrl && new URL(egressUrl).protocol === "http:";
 
@@ -189,6 +199,15 @@ export function createProxyFetchWithBase(
 
     if (useEgress && egressIsPlainHttp) {
       target = downgradeToHttp(target);
+    }
+
+    if (useEgress && relayTarget && egressUrl) {
+      const relayUrl = new URL(url.pathname + url.search, egressUrl);
+      target = relayUrl;
+      const headers = new Headers(opts.headers as HeadersInit | undefined);
+      headers.set("x-introspection-egress-host", url.host);
+      headers.set("x-introspection-relay-target", relayTarget);
+      opts.headers = headers;
     }
 
     const execute = () =>

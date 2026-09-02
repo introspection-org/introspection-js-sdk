@@ -35,6 +35,7 @@ const ORIGINAL_ENV = {
   no_proxy: process.env.no_proxy,
   INTROSPECTION_EGRESS_URL: process.env.INTROSPECTION_EGRESS_URL,
   INTROSPECTION_ENDPOINT_HOSTS: process.env.INTROSPECTION_ENDPOINT_HOSTS,
+  INTROSPECTION_RELAY_TARGET: process.env.INTROSPECTION_RELAY_TARGET,
 };
 
 function restoreEnv(): void {
@@ -171,6 +172,47 @@ describe("introspection-proxy-call spans", () => {
 
     expect(connections).toBe(1);
   }, 10_000);
+
+  it("preserves the relay authority and carries the provider host in development", async () => {
+    clearProxyEnv();
+    let received:
+      | {
+          host?: string;
+          providerHost?: string;
+          relayTarget?: string;
+          url?: string;
+        }
+      | undefined;
+    server = createServer((req, res) => {
+      received = {
+        host: req.headers.host,
+        providerHost: req.headers["x-introspection-egress-host"] as
+          string | undefined,
+        relayTarget: req.headers["x-introspection-relay-target"] as
+          string | undefined,
+        url: req.url,
+      };
+      res.end("ok");
+    });
+    await new Promise<void>((resolve) => server?.listen(0, resolve));
+    const port = (server.address() as AddressInfo).port;
+    process.env.INTROSPECTION_EGRESS_URL = `http://127.0.0.1:${port}`;
+    process.env.INTROSPECTION_ENDPOINT_HOSTS = "api.anthropic.com";
+    process.env.INTROSPECTION_RELAY_TARGET = "brightsparc";
+
+    const response = await createProxyFetch({ tracing: false })(
+      "https://api.anthropic.com/v1/messages?beta=true",
+      { method: "POST", body: "{}" },
+    );
+
+    expect(response.status).toBe(200);
+    expect(received).toEqual({
+      host: `127.0.0.1:${port}`,
+      providerHost: "api.anthropic.com",
+      relayTarget: "brightsparc",
+      url: "/v1/messages?beta=true",
+    });
+  });
 
   it("injects the proxy span context into the upstream request", async () => {
     clearProxyEnv();
