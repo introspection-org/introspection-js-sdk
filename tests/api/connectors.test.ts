@@ -140,6 +140,30 @@ describe("ConnectorsApi", () => {
     });
   });
 
+  it("listApps() searches the connector application catalogue", async () => {
+    const applications = [
+      {
+        slug: "google_sheets",
+        name: "Google Sheets",
+        icon_url: "https://assets.pipedream.net/google-sheets.png",
+        auth_type: "oauth",
+      },
+    ];
+    const http = mockHttp({ requestResult: { data: applications } });
+
+    const result = await new ConnectorsApi(http).listApps(CONNECTOR_ID, {
+      q: "sheets",
+      limit: 5,
+    });
+
+    expect(http.request).toHaveBeenCalledWith({
+      method: "GET",
+      path: `/v1/connectors/${CONNECTOR_ID}/apps`,
+      query: { q: "sheets", limit: 5 },
+    });
+    expect(result).toEqual(applications);
+  });
+
   it("authorize() POSTs to the oauth route with connector_id merged in", async () => {
     const http = mockHttp({
       requestResult: {
@@ -193,6 +217,34 @@ describe("ConnectorsApi", () => {
         runtime: "support-agent",
         // Only the asserted field rides along.
         identity: { user_id: "u_demo" },
+      },
+    });
+  });
+
+  it("authorize() carries Pipedream application options", async () => {
+    const http = mockHttp({
+      requestResult: {
+        authorize_url:
+          "https://pipedream.com/_static/connect.html?token=ctok_x",
+        expires_in: 600,
+        expires_at: "2026-08-08T20:10:00Z",
+      },
+    });
+
+    await new ConnectorsApi(http).authorize(CONNECTOR_ID, {
+      runtime: "sheets-agent",
+      app: "google_sheets",
+      allow_progressive_scopes: false,
+    });
+
+    expect(http.request).toHaveBeenCalledWith({
+      method: "POST",
+      path: "/v1/oauth/connections/authorize",
+      body: {
+        connector_id: CONNECTOR_ID,
+        runtime: "sheets-agent",
+        app: "google_sheets",
+        allow_progressive_scopes: false,
       },
     });
   });

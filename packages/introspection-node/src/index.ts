@@ -143,6 +143,8 @@ export type {
   Recipe,
   RecipeListParams,
   Connector,
+  ConnectorApp,
+  ConnectorAppListParams,
   ConnectorAuthMode,
   ConnectorStatus,
   ConnectorPersonServerMode,

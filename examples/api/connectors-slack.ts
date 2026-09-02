@@ -11,7 +11,7 @@
  *   SLACK_CLIENT_ID=<your Slack app client id>
  *   SLACK_CLIENT_SECRET=<your Slack app client secret>
  *   INTROSPECTION_RUNTIME=<runtime group slug or ID>
- *   pnpm api-connectors
+ *   pnpm api-connectors-slack
  *
  * Optional env:
  *   INTROSPECTION_BASE_API_URL  - CP API host (default https://api.introspection.dev)

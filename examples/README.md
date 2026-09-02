@@ -20,6 +20,8 @@ Full runnable apps (their own package + README), not single scripts:
 
 ```bash
 pnpm api-runtimes                 # Runner walkthrough: resolve by slug, tasks + file ops
+pnpm api-connectors-slack         # Create a Slack connector and authorize a workspace
+pnpm api-connectors-pipedream     # Create a Pipedream connector and authorize one app
 ```
 
 ## Egress Proxy

@@ -4,6 +4,8 @@ import type {
   ConnectionTokenParams,
   ConnectionTokenResult,
   Connector,
+  ConnectorApp,
+  ConnectorAppListParams,
   ConnectorAuthorizeParams,
   ConnectorAuthorizeResponse,
   ConnectorCreateParams,
@@ -166,6 +168,22 @@ export class ConnectorsApi {
   }
 
   /**
+   * Search the provider's application catalogue. Pipedream connectors use
+   * the returned slug when minting an application-specific Connect Link.
+   */
+  async listApps(
+    connectorId: Uuid,
+    params: ConnectorAppListParams = {},
+  ): Promise<ConnectorApp[]> {
+    const response = await this.http.request<{ data: ConnectorApp[] }>({
+      method: "GET",
+      path: `/v1/connectors/${encodeURIComponent(connectorId)}/apps`,
+      query: params as Record<string, unknown>,
+    });
+    return response.data;
+  }
+
+  /**
    * Mint a consent URL for a connector — the link a Business hands its
    * customer to connect (e.g. install the Slack app into a workspace).
    *
@@ -174,6 +192,10 @@ export class ConnectorsApi {
    * `expires_in` when handing the link to someone else to open later. A
    * chat-provider connector (`connector.requires_runtime === true`) 422s
    * unless `runtime` names the agent that replies.
+   *
+   * Pipedream connectors additionally require `app`, selected from
+   * {@link listApps}. `allow_progressive_scopes` is optional and defaults to
+   * false, matching Pipedream's Connect API.
    *
    * Passing `params.identity` mints a `customer` member for the asserted
    * end user, so it can raise a {@link ConflictError} (409) when the org has
