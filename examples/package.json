@@ -30,7 +30,7 @@
     "@supabase/supabase-js": "^2.112.4",
     "@types/node": "^22.20.1",
     "mcporter": "^0.13.7",
-    "tsx": "^4.23.12",
+    "tsx": "^4.23.13",
     "typescript": "^5.9.3",
     "typesense": "^3.0.6"
   },
