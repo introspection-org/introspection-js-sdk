@@ -38,7 +38,7 @@
     "clean": "rm -rf dist"
   },
   "devDependencies": {
-    "@earendil-works/pi-agent-core": "^0.84.3",
+    "@earendil-works/pi-agent-core": "^0.84.4",
     "@opentelemetry/api-logs": "^0.222.0",
     "@opentelemetry/context-async-hooks": "^2.11.0",
     "@opentelemetry/core": "^2.11.0",
