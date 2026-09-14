@@ -16,14 +16,14 @@
     "@introspection-sdk/introspection-node": "workspace:*",
     "jose": "^5.9.6",
     "next": "^16.3.4",
-    "react": "^19.2.8",
+    "react": "^19.3.0",
     "react-dom": "^19.3.0",
     "@supabase/supabase-js": "^2.116.0",
     "server-only": "^0.0.1"
   },
   "devDependencies": {
     "@types/node": "^22.20.2",
-    "@types/react": "^19.2.18",
+    "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "eslint": "^9.39.5",
     "eslint-config-next": "^16.3.4",
