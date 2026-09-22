@@ -987,6 +987,8 @@ export interface Connection {
   provider_app?: string | null;
   /** The provider's own id for the connected account — an opaque routing id, not a secret. */
   provider_account_id?: string | null;
+  /** Non-secret provider label captured on connection or re-consent. */
+  metadata?: { name?: string };
   scopes_granted: string[];
   status: ConnectionStatus;
   token_expires_at?: IsoDate | null;
