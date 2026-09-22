@@ -979,6 +979,14 @@ export interface Connection {
   /** Runtime group answering this connection's channels. */
   runtime_group_id?: Uuid | null;
   subject_type: ConnectionSubjectType;
+  /**
+   * App slug within a provider that fronts many apps from one host, as
+   * `GET /v1/connectors/{id}/apps` returns it. `null` for a provider with a
+   * dedicated host. Derived from the grant, never supplied on create.
+   */
+  provider_app?: string | null;
+  /** The provider's own id for the connected account — an opaque routing id, not a secret. */
+  provider_account_id?: string | null;
   scopes_granted: string[];
   status: ConnectionStatus;
   token_expires_at?: IsoDate | null;
