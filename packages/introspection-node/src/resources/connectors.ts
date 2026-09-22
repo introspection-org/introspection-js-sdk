@@ -5,6 +5,9 @@ import type {
   ConnectionTokenResult,
   Connector,
   ConnectorApp,
+  ConnectorAccountListParams,
+  ConnectorAccountDisconnectParams,
+  ConnectorAccountListResponse,
   ConnectorAppListParams,
   ConnectorAuthorizeParams,
   ConnectorAuthorizeResponse,
@@ -134,6 +137,31 @@ export class ConnectorsApi {
     );
   }
 
+  /** List the authenticated customer's connected provider accounts. */
+  listAccounts(
+    connectorId: Uuid,
+    params: ConnectorAccountListParams = {},
+  ): Promise<ConnectorAccountListResponse> {
+    return this.http.request<ConnectorAccountListResponse>({
+      method: "GET",
+      path: `/v1/connectors/${encodeURIComponent(connectorId)}/accounts`,
+      query: { ...params },
+    });
+  }
+
+  /** Revoke this customer's app access for the specified Runtime. */
+  disconnectAccount(
+    connectorId: Uuid,
+    params: ConnectorAccountDisconnectParams,
+  ): Promise<void> {
+    return this.http.request<void>({
+      method: "POST",
+      path: `/v1/connectors/${encodeURIComponent(connectorId)}/accounts/disconnect`,
+      body: params,
+      expect: "empty",
+    });
+  }
+
   /** Create a connector. Idempotent on `slug` — a repeat POST returns the live row. */
   create(params: ConnectorCreateParams): Promise<Connector> {
     return this.http.request<Connector>({
@@ -191,7 +219,9 @@ export class ConnectorsApi {
    * calls give two different URLs, and each is spent on first use. Raise
    * `expires_in` when handing the link to someone else to open later. A
    * chat-provider connector (`connector.requires_runtime === true`) 422s
-   * unless `runtime` names the agent that replies.
+   * unless `runtime` names the agent that replies. Pipedream requires both
+   * `runtime` and `app`; machine callers must also assert `identity.user_id`
+   * from their authenticated customer session, never untrusted form input.
    *
    * Pipedream connectors additionally require `app`, selected from
    * {@link listApps}. `allow_progressive_scopes` is optional and defaults to

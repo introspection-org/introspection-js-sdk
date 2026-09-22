@@ -909,6 +909,29 @@ export interface ConnectorAppListParams {
   limit?: number;
 }
 
+export interface ConnectorAccount {
+  id: string;
+  app: string;
+  name: string;
+}
+
+export interface ConnectorAccountListParams {
+  /** Limit status to accounts granted to this Runtime. */
+  runtime?: string;
+  /** Required for machine callers. Derive from the authenticated customer, not form input. */
+  identity_user_id?: string;
+}
+
+export interface ConnectorAccountDisconnectParams extends ConnectorAccountListParams {
+  app: string;
+  runtime: string;
+}
+
+export interface ConnectorAccountListResponse {
+  accounts: ConnectorAccount[];
+  external_user_id: string;
+}
+
 export interface ConnectorAuthorizeParams {
   /**
    * Provider application slug to connect. Required for Pipedream connectors;
@@ -925,13 +948,16 @@ export interface ConnectorAuthorizeParams {
    * Its `user_id` resolves a `customer` member recorded as the connection's
    * `created_by_member_id`, so a partner can associate the connection with
    * their own caller rather than the agent member that made the API call.
-   * Omit to attribute the grant to the authenticated principal.
+   * For Pipedream, a machine caller must supply identity.user_id; the
+   * resolved customer owns the connection as well as its audit attribution.
+   * Human callers connect for themselves and cannot override that identity.
+   * Omit to attribute other providers' grants to the authenticated principal.
    */
   identity?: RunIdentityInput;
   /**
    * Runtime selector (slug or runtime group id). Required by the server
    * (422) when the connector's provider is a chat provider — check
-   * `connector.requires_runtime`.
+   * `connector.requires_runtime`. Pipedream also requires a runtime.
    */
   runtime?: string;
   /** Who the consent is for (default `"app"`). */
