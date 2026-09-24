@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.24.0](https://github.com/introspection-org/introspection-js-sdk/compare/v0.23.0...v0.24.0) (2026-09-24)
+
+
+### Features
+
+* add repository commits ([#391](https://github.com/introspection-org/introspection-js-sdk/issues/391)) ([3abaa52](https://github.com/introspection-org/introspection-js-sdk/commit/3abaa522b402aec226bde0a9ceab96f6c067799d))
+* add repository contents ([#390](https://github.com/introspection-org/introspection-js-sdk/issues/390)) ([a888c5a](https://github.com/introspection-org/introspection-js-sdk/commit/a888c5a5d37ee7923d03e83ac65e7fdcad9f07be))
+* **types:** expose the app and account a connection was granted for ([#388](https://github.com/introspection-org/introspection-js-sdk/issues/388)) ([b0cfed8](https://github.com/introspection-org/introspection-js-sdk/commit/b0cfed8ce5ef08f13d33433d2d3bb587a14eda91))
+
+
+### Bug Fixes
+
+* **pi:** upgrade Pi to 0.87.1 ([#392](https://github.com/introspection-org/introspection-js-sdk/issues/392)) ([9add172](https://github.com/introspection-org/introspection-js-sdk/commit/9add1722d28104eb3efe2d8ad0f366899da2c7c7))
+
 ## [0.23.0](https://github.com/introspection-org/introspection-js-sdk/compare/v0.22.0...v0.23.0) (2026-09-02)
 
 
