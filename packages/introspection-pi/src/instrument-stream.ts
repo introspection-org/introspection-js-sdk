@@ -20,7 +20,6 @@ import {
   type AssistantMessageEvent,
   type AssistantMessageEventStream,
   type Api,
-  type Context,
   type Model,
 } from "@earendil-works/pi-ai";
 import type { StreamFn } from "@earendil-works/pi-agent-core";
@@ -38,6 +37,12 @@ import {
 } from "./attributes.js";
 import { classifyErrorType, classifyThrownErrorType } from "./error-type.js";
 import { genAiMetrics, type GenAiMetrics } from "./metrics.js";
+
+/**
+ * The context argument of the installed Pi's {@link StreamFn}: `Context` on
+ * Pi < 0.86, `TranscriptContext` (prompt and tools as system messages) after.
+ */
+export type StreamContext = Parameters<StreamFn>[1];
 
 export interface InstrumentStreamOptions {
   /** Tracer to start the chat span on. */
@@ -60,9 +65,9 @@ export interface InstrumentStreamOptions {
    * Caller-specific attributes (e.g. tenant labels, correlation IDs) layered
    * on top of the GenAI semconv attributes for each chat span.
    */
-  extraAttributes?: (model: Model<Api>, context: Context) => Attributes;
+  extraAttributes?: (model: Model<Api>, context: StreamContext) => Attributes;
   /** Override the default span name builder (default: `chat {model.id}`). */
-  spanName?: (model: Model<Api>, context: Context) => string;
+  spanName?: (model: Model<Api>, context: StreamContext) => string;
   /**
    * Returns the compaction summaries known for the session, read at span
    * time so summaries created mid-session are picked up. Source them
@@ -155,7 +160,7 @@ export function instrumentStream(
 interface RunUpstreamArgs {
   streamFn: StreamFn;
   model: Model<Api>;
-  context: Context;
+  context: StreamContext;
   options: Parameters<StreamFn>[2];
   spanContext: OtelContext;
   span: Span;

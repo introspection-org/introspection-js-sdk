@@ -7,9 +7,10 @@
  */
 
 import type { Attributes } from "@opentelemetry/api";
+import * as piAi from "@earendil-works/pi-ai";
 import type {
   AssistantMessage,
-  Context,
+  Message,
   Model,
   SimpleStreamOptions,
   Tool,
@@ -55,10 +56,45 @@ interface ChatRequestAttributeOptions extends ConvertOptions {
   >;
 }
 
+/**
+ * The request context a stream function receives. Pi < 0.86 passes a
+ * `Context` carrying `systemPrompt` / `tools`; Pi >= 0.86 passes a
+ * `TranscriptContext` whose `role: "system"` messages carry both.
+ */
+export interface ChatRequestContext {
+  messages: readonly Message[];
+  systemPrompt?: string;
+  tools?: readonly Tool[];
+}
+
+// Namespace access, not named imports: the transcript helpers only exist in
+// Pi >= 0.86, and a named import would fail to link against an older peer.
+const transcriptHelpers: Partial<
+  Pick<typeof piAi, "getCurrentSystemPrompt" | "getCurrentTools">
+> = piAi;
+
+function requestSystemPrompt(context: ChatRequestContext): string | undefined {
+  if (context.systemPrompt) return context.systemPrompt;
+  if (!context.messages.some((message) => message.role === "system")) {
+    return undefined;
+  }
+  return transcriptHelpers.getCurrentSystemPrompt?.(context.messages);
+}
+
+function requestTools(
+  context: ChatRequestContext,
+): readonly Tool[] | undefined {
+  if (context.tools) return context.tools;
+  if (!context.messages.some((message) => message.role === "system")) {
+    return undefined;
+  }
+  return transcriptHelpers.getCurrentTools?.(context.messages);
+}
+
 /** Attributes set on a chat span at request time, before the model has streamed. */
 export function chatRequestAttributes(
   model: Model<string>,
-  context: Context,
+  context: ChatRequestContext,
   meta: AgentMeta,
   options?: ChatRequestAttributeOptions,
 ): Attributes {
@@ -73,13 +109,14 @@ export function chatRequestAttributes(
     ...serverAttributes(model.baseUrl),
   };
 
-  if (context.systemPrompt) {
+  const systemPrompt = requestSystemPrompt(context);
+  if (systemPrompt) {
     attributes[GenAi.SYSTEM_INSTRUCTIONS] = JSON.stringify(
-      systemPromptToInstructions(context.systemPrompt),
+      systemPromptToInstructions(systemPrompt),
     );
   }
 
-  const toolDefinitions = serializeToolDefinitions(context.tools);
+  const toolDefinitions = serializeToolDefinitions(requestTools(context));
   if (toolDefinitions) {
     attributes[GenAi.TOOL_DEFINITIONS] = toolDefinitions;
   }

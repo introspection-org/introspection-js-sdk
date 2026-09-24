@@ -121,6 +121,9 @@ function messageToSemconv(
     }
     case "toolResult":
       return toolResultToSemconv(message);
+    case "system":
+      // Carried by `gen_ai.system_instructions`, replayed to the current prompt.
+      return null;
   }
 }
 
@@ -477,19 +480,19 @@ function partToAssistantBlock(
   return null;
 }
 
-function parseToolArguments(value: unknown): Record<string, unknown> {
+function parseToolArguments(value: unknown): ToolCall["arguments"] {
   if (typeof value === "string") {
     try {
       const parsed: unknown = JSON.parse(value);
       return typeof parsed === "object" && parsed !== null
-        ? (parsed as Record<string, unknown>)
+        ? (parsed as ToolCall["arguments"])
         : {};
     } catch {
       return {};
     }
   }
   if (typeof value === "object" && value !== null) {
-    return value as Record<string, unknown>;
+    return value as ToolCall["arguments"];
   }
   return {};
 }

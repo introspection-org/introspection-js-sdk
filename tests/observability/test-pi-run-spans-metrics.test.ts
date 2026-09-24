@@ -12,6 +12,7 @@ import {
 } from "@opentelemetry/sdk-trace-base";
 import {
   createAssistantMessageEventStream,
+  normalizeContext,
   type AssistantMessage,
   type Model,
 } from "@earendil-works/pi-ai";
@@ -302,9 +303,12 @@ describe("metrics", () => {
       meter,
     });
     await (
-      await wrapped(MODEL, {
-        messages: [{ role: "user", content: "hi", timestamp: 0 }],
-      })
+      await wrapped(
+        MODEL,
+        normalizeContext({
+          messages: [{ role: "user", content: "hi", timestamp: 0 }],
+        }),
+      )
     ).result();
     await provider.forceFlush();
 
@@ -356,9 +360,12 @@ describe("metrics", () => {
       meter,
     });
     await (
-      await wrapped(MODEL, {
-        messages: [{ role: "user", content: "hi", timestamp: 0 }],
-      })
+      await wrapped(
+        MODEL,
+        normalizeContext({
+          messages: [{ role: "user", content: "hi", timestamp: 0 }],
+        }),
+      )
     ).result();
     await provider.forceFlush();
 
@@ -427,9 +434,12 @@ describe("chat span semconv upgrades", () => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const wrapped = instrumentStream(upstream as any, { tracer, meta: META });
     await (
-      await wrapped(MODEL, {
-        messages: [{ role: "user", content: "hi", timestamp: 0 }],
-      })
+      await wrapped(
+        MODEL,
+        normalizeContext({
+          messages: [{ role: "user", content: "hi", timestamp: 0 }],
+        }),
+      )
     ).result();
     await provider.forceFlush();
 
@@ -457,9 +467,12 @@ describe("chat span semconv upgrades", () => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const wrapped = instrumentStream(upstream as any, { tracer, meta: META });
     await (
-      await wrapped(MODEL, {
-        messages: [{ role: "user", content: "hi", timestamp: 0 }],
-      })
+      await wrapped(
+        MODEL,
+        normalizeContext({
+          messages: [{ role: "user", content: "hi", timestamp: 0 }],
+        }),
+      )
     ).result();
     await provider.forceFlush();
 
