@@ -19,6 +19,7 @@ import {
 } from "@opentelemetry/sdk-trace-base";
 import {
   createAssistantMessageEventStream,
+  normalizeContext,
   type AssistantMessage,
   type Model,
 } from "@earendil-works/pi-ai";
@@ -116,24 +117,33 @@ describe("Pi Subagents — distinct AgentMeta per instrumented agent", () => {
     });
 
     // Orchestrator: phase 1
-    const orchStream1 = await wrappedOrch(MODEL, {
-      systemPrompt: "Dispatch tasks.",
-      messages: [{ role: "user", content: "List tasks.", timestamp: 0 }],
-    });
+    const orchStream1 = await wrappedOrch(
+      MODEL,
+      normalizeContext({
+        systemPrompt: "Dispatch tasks.",
+        messages: [{ role: "user", content: "List tasks.", timestamp: 0 }],
+      }),
+    );
     await orchStream1.result();
 
     // Researcher: processes a task
-    const researcherStream = await wrappedResearcher(MODEL, {
-      systemPrompt: "Research primes.",
-      messages: [{ role: "user", content: "Explain primes.", timestamp: 0 }],
-    });
+    const researcherStream = await wrappedResearcher(
+      MODEL,
+      normalizeContext({
+        systemPrompt: "Research primes.",
+        messages: [{ role: "user", content: "Explain primes.", timestamp: 0 }],
+      }),
+    );
     await researcherStream.result();
 
     // Orchestrator: phase 3 — same wrappedOrch, same AgentMeta → same conversation ID
-    const orchStream2 = await wrappedOrch(MODEL, {
-      systemPrompt: "Synthesise.",
-      messages: [{ role: "user", content: "Summarise.", timestamp: 0 }],
-    });
+    const orchStream2 = await wrappedOrch(
+      MODEL,
+      normalizeContext({
+        systemPrompt: "Synthesise.",
+        messages: [{ role: "user", content: "Summarise.", timestamp: 0 }],
+      }),
+    );
     await orchStream2.result();
 
     await provider.forceFlush();
@@ -192,18 +202,24 @@ describe("Pi Subagents — distinct AgentMeta per instrumented agent", () => {
     // Run both in parallel — AsyncLocalStorage keeps spans isolated
     await Promise.all([
       (
-        await primesStream(MODEL, {
-          messages: [
-            { role: "user", content: "Explain primes.", timestamp: 0 },
-          ],
-        })
+        await primesStream(
+          MODEL,
+          normalizeContext({
+            messages: [
+              { role: "user", content: "Explain primes.", timestamp: 0 },
+            ],
+          }),
+        )
       ).result(),
       (
-        await fibStream(MODEL, {
-          messages: [
-            { role: "user", content: "Explain Fibonacci.", timestamp: 0 },
-          ],
-        })
+        await fibStream(
+          MODEL,
+          normalizeContext({
+            messages: [
+              { role: "user", content: "Explain Fibonacci.", timestamp: 0 },
+            ],
+          }),
+        )
       ).result(),
     ]);
 
@@ -257,10 +273,13 @@ describe("IntrospectionPiInstrumentor lifecycle", () => {
     instrumentor.instrument(agent, { ...META, conversationId: "conv-2" });
 
     await (agent as unknown as { streamFunction: typeof streamFn })
-      .streamFunction(MODEL, {
-        systemPrompt: "go",
-        messages: [{ role: "user", content: "hi", timestamp: 0 }],
-      })
+      .streamFunction(
+        MODEL,
+        normalizeContext({
+          systemPrompt: "go",
+          messages: [{ role: "user", content: "hi", timestamp: 0 }],
+        }),
+      )
       .result();
 
     const chats = exporter
@@ -282,10 +301,13 @@ describe("IntrospectionPiInstrumentor lifecycle", () => {
     instrumentor.stop();
 
     await (agent as unknown as { streamFunction: typeof streamFn })
-      .streamFunction(MODEL, {
-        systemPrompt: "go",
-        messages: [{ role: "user", content: "hi", timestamp: 0 }],
-      })
+      .streamFunction(
+        MODEL,
+        normalizeContext({
+          systemPrompt: "go",
+          messages: [{ role: "user", content: "hi", timestamp: 0 }],
+        }),
+      )
       .result();
 
     // A stopped instrumentor's agents used to keep emitting forever, onto a

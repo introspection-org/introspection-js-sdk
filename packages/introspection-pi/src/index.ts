@@ -33,6 +33,7 @@
 export {
   instrumentStream,
   type InstrumentStreamOptions,
+  type StreamContext,
 } from "./instrument-stream.js";
 export {
   instrumentAgent,
@@ -65,6 +66,7 @@ export {
   invokeAgentAttributes,
   serverAttributes,
   type AgentMeta,
+  type ChatRequestContext,
 } from "./attributes.js";
 
 // Metric instruments — exposed for callers that record their own measurements

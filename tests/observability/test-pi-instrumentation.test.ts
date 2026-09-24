@@ -20,6 +20,7 @@ import {
 import { AsyncLocalStorageContextManager } from "@opentelemetry/context-async-hooks";
 import {
   createAssistantMessageEventStream,
+  normalizeContext,
   type AssistantMessage,
   type Model,
 } from "@earendil-works/pi-ai";
@@ -118,10 +119,10 @@ describe("instrumentStream", () => {
     const wrapped = instrumentStream(upstream, { tracer, meta: META });
     const stream = await wrapped(
       MODEL,
-      {
+      normalizeContext({
         systemPrompt: "Be concise.",
         messages: [{ role: "user", content: "Inspect", timestamp: 0 }],
-      },
+      }),
       {
         temperature: 0.2,
         maxTokens: 1024,
@@ -183,9 +184,12 @@ describe("instrumentStream", () => {
       }),
     });
     await (
-      await wrapped(MODEL, {
-        messages: [{ role: "user", content: "hi", timestamp: 0 }],
-      })
+      await wrapped(
+        MODEL,
+        normalizeContext({
+          messages: [{ role: "user", content: "hi", timestamp: 0 }],
+        }),
+      )
     ).result();
     await provider.forceFlush();
 
@@ -223,9 +227,12 @@ describe("instrumentStream", () => {
         getParentContext: () => parentContext,
       });
       await (
-        await wrapped(MODEL, {
-          messages: [{ role: "user", content: "hi", timestamp: 0 }],
-        })
+        await wrapped(
+          MODEL,
+          normalizeContext({
+            messages: [{ role: "user", content: "hi", timestamp: 0 }],
+          }),
+        )
       ).result();
       parent.end();
     });
@@ -252,9 +259,12 @@ describe("instrumentStream", () => {
     };
 
     const wrapped = instrumentStream(upstream, { tracer, meta: META });
-    const stream = await wrapped(MODEL, {
-      messages: [{ role: "user", content: "hi", timestamp: 0 }],
-    });
+    const stream = await wrapped(
+      MODEL,
+      normalizeContext({
+        messages: [{ role: "user", content: "hi", timestamp: 0 }],
+      }),
+    );
     await stream.result();
     await provider.forceFlush();
 
@@ -285,9 +295,12 @@ describe("instrumentStream", () => {
 
     const wrapped = instrumentStream(upstream, { tracer, meta: META });
     await (
-      await wrapped(MODEL, {
-        messages: [{ role: "user", content: "hi", timestamp: 0 }],
-      })
+      await wrapped(
+        MODEL,
+        normalizeContext({
+          messages: [{ role: "user", content: "hi", timestamp: 0 }],
+        }),
+      )
     ).result();
     await provider.forceFlush();
 
@@ -320,9 +333,12 @@ describe("instrumentStream", () => {
 
     const wrapped = instrumentStream(upstream, { tracer, meta: META });
     await (
-      await wrapped(MODEL, {
-        messages: [{ role: "user", content: "hi", timestamp: 0 }],
-      })
+      await wrapped(
+        MODEL,
+        normalizeContext({
+          messages: [{ role: "user", content: "hi", timestamp: 0 }],
+        }),
+      )
     ).result();
     await provider.forceFlush();
 
@@ -362,9 +378,12 @@ describe("instrumentStream", () => {
       abortTerminationReason: () => "awaiting_user",
     });
     await (
-      await wrapped(MODEL, {
-        messages: [{ role: "user", content: "hi", timestamp: 0 }],
-      })
+      await wrapped(
+        MODEL,
+        normalizeContext({
+          messages: [{ role: "user", content: "hi", timestamp: 0 }],
+        }),
+      )
     ).result();
     await provider.forceFlush();
 
@@ -399,9 +418,12 @@ describe("instrumentStream", () => {
       abortTerminationReason: () => null,
     });
     await (
-      await wrapped(MODEL, {
-        messages: [{ role: "user", content: "hi", timestamp: 0 }],
-      })
+      await wrapped(
+        MODEL,
+        normalizeContext({
+          messages: [{ role: "user", content: "hi", timestamp: 0 }],
+        }),
+      )
     ).result();
     await provider.forceFlush();
 
@@ -440,10 +462,10 @@ describe("instrumentStream", () => {
     const wrapped = instrumentStream(upstream, { tracer, meta: META });
     const stream = await wrapped(
       MODEL,
-      {
+      normalizeContext({
         systemPrompt: "Be concise.",
         messages: [{ role: "user", content: "Inspect", timestamp: 0 }],
-      },
+      }),
       {},
     );
 

@@ -8,6 +8,7 @@
  */
 
 import { describe, expect, it } from "vitest";
+import { normalizeContext } from "@earendil-works/pi-ai";
 import type {
   AssistantMessage,
   Context,
@@ -182,6 +183,40 @@ describe("chatRequestAttributes", () => {
       name: "shell",
       description: "Run a shell command",
     });
+  });
+
+  it("reads the prompt and tools from a transcript context's system messages", () => {
+    const shell: Tool = {
+      name: "shell",
+      description: "Run a shell command",
+      parameters: { type: "object", properties: {} } as Tool["parameters"],
+    };
+    const context = normalizeContext({
+      systemPrompt: "Be concise.",
+      tools: [shell],
+      messages: [
+        { role: "user", content: "Inspect the repo", timestamp: 1 },
+        {
+          role: "system",
+          content: "Also be kind.",
+          toolsAdded: [{ ...shell, name: "read" }],
+          timestamp: 2,
+        },
+      ],
+    });
+    const attrs = chatRequestAttributes(MODEL, context, META);
+
+    expect(JSON.parse(String(attrs["gen_ai.system_instructions"]))).toEqual([
+      { type: "text", content: "Be concise.\n\nAlso be kind." },
+    ]);
+    const toolDefs = JSON.parse(String(attrs["gen_ai.tool.definitions"]));
+    expect(toolDefs.map((tool: { name: string }) => tool.name)).toEqual([
+      "shell",
+      "read",
+    ]);
+    expect(JSON.parse(String(attrs["gen_ai.input.messages"]))).toEqual([
+      { role: "user", parts: [{ type: "text", content: "Inspect the repo" }] },
+    ]);
   });
 
   it("omits gen_ai.system_instructions when no system prompt is set", () => {
