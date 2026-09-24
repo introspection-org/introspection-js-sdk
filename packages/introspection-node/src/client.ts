@@ -39,6 +39,10 @@ import {
   type AnnotationsApi,
   type ProjectLabelsApi,
 } from "./resources/annotations.js";
+import {
+  attachRepositories,
+  type RepositoriesApi,
+} from "./resources/repositories.js";
 import { DEV_TARGET_HEADER, resolveDevTarget } from "./dev-target.js";
 
 /**
@@ -92,6 +96,12 @@ export class IntrospectionClient {
    * single-use consent URL a Business hands its customer.
    */
   readonly connectors: ConnectorsApi;
+
+  /**
+   * Reads on `/v1/repositories` (CP) plus `repositories.contents`, which
+   * lists directories and reads files through the Data Plane.
+   */
+  readonly repositories: RepositoriesApi;
 
   /** Read folded span annotations and append one annotation mutation. */
   readonly annotations: AnnotationsApi;
@@ -160,6 +170,7 @@ export class IntrospectionClient {
     this.experiments = attachExperiments(this, this.cpHttp);
     this.recipes = attachRecipes(this.cpHttp);
     this.connectors = attachConnectors(this.cpHttp);
+    this.repositories = attachRepositories(this.cpHttp, this.dpHttp);
     this.annotations = attachAnnotations(this.cpHttp, this.dpHttp);
     this.projectLabels = attachProjectLabels(this.dpHttp);
     this.events = new EventsApi(this.dpHttp);

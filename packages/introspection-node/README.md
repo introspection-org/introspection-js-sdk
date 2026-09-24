@@ -1,7 +1,8 @@
 # @introspection-sdk/introspection-node
 
 Node.js platform SDK for [Introspection](https://introspection.dev) — open runtimes,
-drive tasks, and manage experiments, recipes, files, conversations, and shares.
+drive tasks, and manage experiments, recipes, repositories, files, conversations,
+and shares.
 
 ## Install
 
@@ -53,6 +54,33 @@ explicit, or `{ mode: "drain", drain_within_seconds: 60 }` for graceful
 teardown.
 Interrupted runs resume through
 `runner.tasks.runs.resume(taskId, { resume: entries })`.
+
+### Repositories
+
+`client.repositories` looks up a project's linked repositories on the Control
+Plane and reads their contents through the Data Plane (`repositories:read`).
+
+```typescript
+const [repo] = await client.repositories.list({
+  project: "demo",
+  slug: "acme/agent",
+});
+
+// Every entry of a directory; pages are followed automatically.
+for await (const entry of client.repositories.contents(repo.id, {
+  path: "src",
+  ref: "main",
+})) {
+  console.log(entry.type, entry.path);
+}
+
+// One path: a directory page or a file, discriminated on `type`.
+const readme = await client.repositories.contents.get(repo.id, "README.md");
+if (readme.type === "file") console.log(readme.encoding, readme.content);
+```
+
+Enumerating a path that is a file throws a `ValidationError`; read it with
+`contents.get()` instead.
 
 ### Annotations
 
