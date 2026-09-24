@@ -7,7 +7,8 @@
 
 Package: `@introspection-sdk/introspection-node`
 - Root export `@introspection-sdk/introspection-node` → REST control-plane
-  (`IntrospectionClient`: runtimes / experiments / recipes / connectors / Runner).
+  (`IntrospectionClient`: runtimes / experiments / recipes / repositories / connectors /
+  Runner).
   No OTel.
 - Subpath `@introspection-sdk/introspection-node/otel` → the **traces** surface:
   `init()`, `setupTracing()`, `IntrospectionSpanProcessor`, `IntrospectionLogs`,

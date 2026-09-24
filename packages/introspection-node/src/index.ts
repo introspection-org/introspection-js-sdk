@@ -89,6 +89,11 @@ export {
   attachConnectors,
 } from "./resources/connectors.js";
 export {
+  RepositoriesApi,
+  attachRepositories,
+} from "./resources/repositories.js";
+export type { RepositoryContentsApi } from "./resources/repositories.js";
+export {
   AnnotationsApi,
   ProjectLabelsApi,
   attachAnnotations,
@@ -142,6 +147,17 @@ export type {
   ExperimentArm,
   Recipe,
   RecipeListParams,
+  Repository,
+  RepositoryProvider,
+  RepositoryListParams,
+  RepositoryGetParams,
+  RepositoryEntry,
+  RepositoryEntryType,
+  RepositoryDirectory,
+  RepositoryFile,
+  RepositoryContent,
+  RepositoryContentsParams,
+  RepositoryContentGetParams,
   Connector,
   ConnectorApp,
   ConnectorAppListParams,

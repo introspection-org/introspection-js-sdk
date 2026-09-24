@@ -534,6 +534,96 @@ export interface RecipeListParams extends CursorParams {
   name?: string;
 }
 
+export type RepositoryProvider = "github" | "hosted";
+
+/** A Git repository linked to a project — the source a recipe pins. */
+export interface Repository {
+  id: Uuid;
+  project_id: Uuid;
+  /** GitHub App installation reaching a `github` repository; null when hosted. */
+  integration_id: Uuid | null;
+  /** Credential-free Git transport URL. */
+  url: string | null;
+  name: string | null;
+  /** `owner/repo` for GitHub, the hosted slug otherwise. */
+  slug: string | null;
+  provider: RepositoryProvider;
+  default_branch: string;
+  provisioning_status: string;
+  seed_template: string | null;
+  created_at: IsoDate;
+  pushed_at: IsoDate | null;
+  head_commit_sha: string | null;
+  is_recipe_source: boolean;
+}
+
+export interface RepositoryListParams {
+  /** Project id or slug. */
+  project: string;
+  /** Only the repository with this slug (`owner/repo` or the hosted slug). */
+  slug?: string;
+}
+
+export interface RepositoryGetParams {
+  /** Project id or slug. */
+  project: string;
+}
+
+export type RepositoryEntryType = "file" | "dir" | "symlink" | "submodule";
+
+/** One entry of a repository directory listing. */
+export interface RepositoryEntry {
+  name: string;
+  path: string;
+  type: RepositoryEntryType;
+  size: number;
+  sha: string;
+}
+
+/** One page of a directory listing, pinned to `commit_sha`. */
+export interface RepositoryDirectory {
+  type: "dir";
+  path: string;
+  commit_sha: string;
+  records: RepositoryEntry[];
+  count: number;
+  /** Opaque cursor for the next page; null once exhausted. */
+  next: string | null;
+}
+
+/** A file's contents at `commit_sha`. */
+export interface RepositoryFile {
+  type: "file";
+  name: string;
+  path: string;
+  size: number;
+  sha: string;
+  commit_sha: string;
+  encoding: "utf-8" | "base64";
+  content: string;
+  /** True when the server returned only a prefix of the file. */
+  truncated: boolean;
+}
+
+export type RepositoryContent = RepositoryDirectory | RepositoryFile;
+
+export interface RepositoryContentsParams {
+  /** Directory path; empty or omitted for the repository root. */
+  path?: string;
+  /** Branch, tag, or commit; the default branch when omitted. */
+  ref?: string;
+  /** Page size. */
+  limit?: number;
+}
+
+export interface RepositoryContentGetParams {
+  ref?: string;
+  /** Page size when `path` is a directory. */
+  limit?: number;
+  /** Cursor from a previous directory page's `next`. */
+  cursor?: string;
+}
+
 export type ExperimentStatus = "draft" | "running" | "ended" | "cancelled";
 
 export type ExperimentGoalDirection = "maximize" | "minimize";
