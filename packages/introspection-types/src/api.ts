@@ -624,6 +624,58 @@ export interface RepositoryContentGetParams {
   cursor?: string;
 }
 
+/** The author or committer of a commit. */
+export interface RepositoryCommitPerson {
+  name: string;
+  email: string | null;
+  date: IsoDate | null;
+}
+
+/** One commit of a repository's history. */
+export interface RepositoryCommit {
+  sha: string;
+  parents: string[];
+  message: string;
+  author: RepositoryCommitPerson;
+  committer: RepositoryCommitPerson;
+}
+
+export type RepositoryCommitFileStatus =
+  "added" | "removed" | "modified" | "renamed";
+
+/** One file a commit changed. */
+export interface RepositoryCommitFile {
+  filename: string;
+  status: RepositoryCommitFileStatus;
+  additions: number;
+  deletions: number;
+  changes: number;
+}
+
+/** A commit with the files it changed and its diff. */
+export interface RepositoryCommitDetail extends RepositoryCommit {
+  files: RepositoryCommitFile[];
+  /** The whole commit as a unified git diff. */
+  patch: string;
+}
+
+/** One page of a repository's commit history. */
+export interface RepositoryCommitPage {
+  records: RepositoryCommit[];
+  count: number;
+  /** Opaque cursor for the next page; null once exhausted. */
+  next: string | null;
+}
+
+export interface RepositoryCommitsParams {
+  /** Branch, tag, or commit to walk back from; the default branch when omitted. */
+  sha?: string;
+  /** Only commits touching this path. */
+  path?: string;
+  /** Page size, at most 100. */
+  limit?: number;
+}
+
 export type ExperimentStatus = "draft" | "running" | "ended" | "cancelled";
 
 export type ExperimentGoalDirection = "maximize" | "minimize";

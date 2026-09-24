@@ -4,6 +4,8 @@ import {
   IntrospectionClient,
   ValidationError,
   type Repository,
+  type RepositoryCommit,
+  type RepositoryCommitDetail,
   type RepositoryDirectory,
   type RepositoryFile,
 } from "@introspection-sdk/introspection-node";
@@ -79,6 +81,35 @@ function client(responses: unknown[]) {
     fetchImpl.mock.calls.map((call) => new URL(String(call[0])));
   return { c, urls };
 }
+
+function commit(sha: string): RepositoryCommit {
+  const person = {
+    name: "Ada",
+    email: "ada@example.com",
+    date: "2026-09-01T00:00:00Z",
+  };
+  return {
+    sha,
+    parents: [`parent-${sha}`],
+    message: `commit ${sha}`,
+    author: person,
+    committer: person,
+  };
+}
+
+const COMMIT_DETAIL: RepositoryCommitDetail = {
+  ...commit("abc123"),
+  files: [
+    {
+      filename: "src/a.ts",
+      status: "modified",
+      additions: 2,
+      deletions: 1,
+      changes: 3,
+    },
+  ],
+  patch: "diff --git a/src/a.ts b/src/a.ts\n",
+};
 
 describe("RepositoriesApi", () => {
   it("list() reads the bare array from the control plane", async () => {
@@ -188,6 +219,56 @@ describe("RepositoriesApi", () => {
     );
     expect(await fetchPath("/nested/deep/")).toBe(
       `/v1/repositories/${REPO_ID}/contents/nested/deep`,
+    );
+  });
+
+  it("commits() follows the cursor across pages on the data plane", async () => {
+    const { c, urls } = client([
+      { records: [commit("c1"), commit("c2")], count: 2, next: "cursor-2" },
+      { records: [commit("c3")], count: 1, next: null },
+    ]);
+
+    const shas: string[] = [];
+    for await (const entry of c.repositories.commits(REPO_ID, {
+      sha: "main",
+      path: "src",
+      limit: 2,
+    })) {
+      shas.push(entry.sha);
+    }
+
+    expect(shas).toEqual(["c1", "c2", "c3"]);
+    const [first, second] = urls();
+    expect(first!.origin).toBe(DP);
+    expect(first!.pathname).toBe(`/v1/repositories/${REPO_ID}/commits`);
+    expect(first!.searchParams.get("sha")).toBe("main");
+    expect(first!.searchParams.get("path")).toBe("src");
+    expect(first!.searchParams.get("limit")).toBe("2");
+    expect(first!.searchParams.has("cursor")).toBe(false);
+    expect(second!.searchParams.get("cursor")).toBe("cursor-2");
+    expect(second!.searchParams.get("sha")).toBe("main");
+  });
+
+  it("commits() awaits the first page from the default branch", async () => {
+    const { c, urls } = client([
+      { records: [commit("c1")], count: 1, next: null },
+    ]);
+
+    const page = await c.repositories.commits(REPO_ID);
+
+    expect(page.records[0]!.sha).toBe("c1");
+    expect(urls()[0]!.searchParams.has("sha")).toBe(false);
+  });
+
+  it("commit() reads one commit with its files and patch", async () => {
+    const { c, urls } = client([COMMIT_DETAIL]);
+
+    await expect(c.repositories.commit(REPO_ID, "abc123")).resolves.toEqual(
+      COMMIT_DETAIL,
+    );
+    expect(urls()[0]!.origin).toBe(DP);
+    expect(urls()[0]!.pathname).toBe(
+      `/v1/repositories/${REPO_ID}/commits/abc123`,
     );
   });
 });

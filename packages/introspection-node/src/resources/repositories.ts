@@ -1,6 +1,10 @@
 import {
   ValidationError,
   type Repository,
+  type RepositoryCommit,
+  type RepositoryCommitDetail,
+  type RepositoryCommitPage,
+  type RepositoryCommitsParams,
   type RepositoryContent,
   type RepositoryContentGetParams,
   type RepositoryContentsParams,
@@ -46,8 +50,8 @@ export interface RepositoryContentsApi {
 }
 
 /**
- * Repositories linked to a project. Lookup is on the CP; `contents` reads
- * files and directories through the DP.
+ * Repositories linked to a project. Lookup is on the CP; `contents`,
+ * `commits` and `commit` read through the DP.
  *
  * `GET /v1/repositories` answers a bare array rather than the cursor
  * envelope, so {@link RepositoriesApi.list} returns an array.
@@ -104,6 +108,35 @@ export class RepositoriesApi {
       method: "GET",
       path: "/v1/repositories",
       query: { ...params },
+    });
+  }
+
+  /**
+   * Stream the commit history from `params.sha` (the default branch when
+   * omitted), following the server's cursor across pages. `await` it for
+   * the first page.
+   */
+  commits(
+    repositoryId: Uuid,
+    params: RepositoryCommitsParams = {},
+  ): Paginator<RepositoryCommit, RepositoryCommitPage> {
+    return new Paginator<RepositoryCommit, RepositoryCommitPage>({
+      fetch: (cursor) =>
+        this.dpHttp.request<RepositoryCommitPage>({
+          method: "GET",
+          path: `/v1/repositories/${encodeURIComponent(repositoryId)}/commits`,
+          query: { ...params, cursor },
+        }),
+      items: (page) => page.records,
+      next: (page) => page.next || undefined,
+    });
+  }
+
+  /** One commit with the files it changed and its unified diff. */
+  commit(repositoryId: Uuid, sha: string): Promise<RepositoryCommitDetail> {
+    return this.dpHttp.request<RepositoryCommitDetail>({
+      method: "GET",
+      path: `/v1/repositories/${encodeURIComponent(repositoryId)}/commits/${encodeURIComponent(sha)}`,
     });
   }
 
