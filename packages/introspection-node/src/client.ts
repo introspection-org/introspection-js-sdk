@@ -98,8 +98,9 @@ export class IntrospectionClient {
   readonly connectors: ConnectorsApi;
 
   /**
-   * Reads on `/v1/repositories` (CP) plus `repositories.contents`, which
-   * lists directories and reads files through the Data Plane.
+   * Reads on `/v1/repositories` (CP) plus `repositories.contents` and
+   * `repositories.commits`, which read files, directories and history
+   * through the Data Plane.
    */
   readonly repositories: RepositoriesApi;
 

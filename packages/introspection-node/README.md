@@ -82,6 +82,25 @@ if (readme.type === "file") console.log(readme.encoding, readme.content);
 Enumerating a path that is a file throws a `ValidationError`; read it with
 `contents.get()` instead.
 
+History reads the same way: `commits()` pages back from a branch, tag or sha
+(the default branch when omitted), and `commit()` returns one commit with its
+changed files and unified diff.
+
+```typescript
+for await (const commit of client.repositories.commits(repo.id, {
+  sha: "main",
+  path: "src",
+})) {
+  console.log(commit.sha, commit.message);
+}
+
+const detail = await client.repositories.commit(repo.id, "abc123");
+console.log(
+  detail.files.map((file) => file.filename),
+  detail.patch,
+);
+```
+
 ### Annotations
 
 Annotations capture what a domain expert found good or bad on an OTel span. They
