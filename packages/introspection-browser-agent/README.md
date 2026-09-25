@@ -2,23 +2,31 @@
 
 Drive any Chromium over raw CDP with text-first, guarded actions and pluggable
 models. It works against the platform's browser sidecar, a local Chrome, or a
-hosted provider's `cdp_ws_url` (Kernel, Browserbase). Its only runtime
-dependencies are `@opentelemetry/api` and `@introspection-sdk/types`.
+hosted provider's `cdp_ws_url` (Kernel, Browserbase). Its runtime
+dependencies are `@opentelemetry/api`, `@introspection-sdk/types` and, for Jev,
+TypeSafe's own `@typesafe-ai/sdk`.
 
 - **`browser.v1` page script.** Injected into every tab, it turns the page into
   an element table with opaque `el_…` handles. Actions only land on an element
   a previous `observe` returned, after checking that it is still there,
-  enabled, and not covered. A navigation invalidates every handle.
-- **Drivers.** `JevDriver` (TypeSafe's decision model: operation and target in
-  one request, about 120 ms), `ClaudeDriver`, `OpenAICompatibleDriver`, and
+  enabled, not covered, and still means what it did: an element whose row,
+  form or state changed since it was observed is refused. A navigation
+  invalidates every handle. After each input the page is given time to render
+  it, and an autocomplete field until its suggestions stop changing.
+  `observe({ scope: "viewport" })` returns only what is on screen, which is
+  what a decision model should see.
+- **Drivers.** `JevDriver` (TypeSafe's decision model through
+  `@typesafe-ai/sdk`: operation and target in one request, about 200 ms, on the
+  viewport, with each answer validated before it acts), `ClaudeDriver`,
+  `OpenAICompatibleDriver`, and
   `GatedDriver`, which re-decides only the steps the fast driver is unsure of.
   `JevDriver` follows the loop of
   [`browser-use/jev-ultrafast`](https://github.com/browser-use/jev-ultrafast),
   Browser Use and TypeSafe's Python reference agent. That repository is our
   behavioural reference, not a dependency.
-- **`session.run`.** A driver ladder that escalates on `blocked`, repeated invalid
-  actions, or a spent step budget, and verifies `done` with your `success`
-  check.
+- **`session.run`.** A driver ladder that escalates on `blocked`, repeated
+  invalid actions, three actions in a row that change nothing on the page, or
+  a spent step budget, and verifies `done` with your `success` check.
 - **`createBrowserTool`.** One `browser` tool with a `command` discriminator
   (`observe`, `act`, `press`, `scroll`, `navigate`, `tabs`, `screenshot`,
   `run`), with the schema narrowed to the commands you allow.

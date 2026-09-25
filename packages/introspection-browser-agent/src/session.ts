@@ -131,12 +131,30 @@ export class BrowserSession {
       cursor?: number;
       limit?: number;
       screenshot?: boolean;
+      /**
+       * `page` (default) lists every control, visible first, with the page's
+       * text; `viewport` lists only what is on screen with the text a person
+       * sees there, which is far smaller for a decision model.
+       */
+      scope?: "page" | "viewport";
     } = {},
   ): Promise<Observation> {
     const tab = this.tab(opts.tab_id);
-    const result = await this.call(tab, "observe", [
-      { cursor: opts.cursor ?? 0, limit: opts.limit },
-    ]);
+    const args = [
+      { cursor: opts.cursor ?? 0, limit: opts.limit, scope: opts.scope },
+    ];
+    // A page mid-navigation destroys the context an evaluation runs in, so a
+    // read can fail for a moment without anything being wrong; retry it.
+    let result: unknown;
+    for (let attempt = 0; ; attempt++) {
+      try {
+        result = await this.call(tab, "observe", args);
+        break;
+      } catch (err) {
+        if (err instanceof BrowserError || attempt >= 9) throw err;
+        await new Promise((r) => setTimeout(r, 50));
+      }
+    }
     const observation = {
       ...(result as object),
       tab_id: tab.targetId,
@@ -158,6 +176,8 @@ export class BrowserSession {
     element: string;
     action: ElementAction;
     text?: string;
+    /** For `select`: the option's value, which picks one of several equal labels. */
+    value?: string;
     files?: string[];
     tab_id?: string;
   }): Promise<{ ok: true; value?: string }> {
@@ -169,6 +189,7 @@ export class BrowserSession {
           y: number;
         };
         await this.click(tab, at.x, at.y);
+        await this.pageSettle(tab);
         await this.settle(tab);
         return { ok: true };
       }
@@ -177,6 +198,24 @@ export class BrowserSession {
           throw new BrowserError("invalid_argument", "type needs text");
         }
         await this.call(tab, "prepareType", [opts.element]);
+        // A real select-all, which rich editors honour where a scripted
+        // selection alone leaves them appending.
+        const selectAll = {
+          key: "a",
+          code: "KeyA",
+          windowsVirtualKeyCode: 65,
+          modifiers: process.platform === "darwin" ? 4 : 2,
+        };
+        await this.cdp.send(
+          "Input.dispatchKeyEvent",
+          { ...selectAll, type: "rawKeyDown", commands: ["selectAll"] },
+          tab.sessionId,
+        );
+        await this.cdp.send(
+          "Input.dispatchKeyEvent",
+          { ...selectAll, type: "keyUp" },
+          tab.sessionId,
+        );
         await this.cdp.send(
           "Input.insertText",
           { text: opts.text },
@@ -185,19 +224,21 @@ export class BrowserSession {
         const done = (await this.call(tab, "commitType", [opts.element])) as {
           value?: string;
         };
+        await this.pageSettle(tab, opts.element);
         await this.settle(tab);
         return { ok: true, value: done.value };
       }
       case "select": {
-        if (typeof opts.text !== "string") {
+        if (typeof opts.text !== "string" && typeof opts.value !== "string") {
           throw new BrowserError(
             "invalid_argument",
-            "select needs text: the option label",
+            "select needs text (the option label) or value",
           );
         }
         const done = (await this.call(tab, "select", [
           opts.element,
-          opts.text,
+          opts.text ?? null,
+          opts.value ?? null,
         ])) as {
           value?: string;
         };
@@ -282,6 +323,7 @@ export class BrowserSession {
         tab.sessionId,
       );
     }
+    await this.pageSettle(tab);
     await this.settle(tab);
     return { ok: true, pressed: chords.length };
   }
@@ -317,6 +359,7 @@ export class BrowserSession {
       );
     }
     await this.click(tab, x, y);
+    await this.pageSettle(tab);
     await this.settle(tab);
     return { ok: true };
   }
@@ -468,6 +511,11 @@ export class BrowserSession {
     this.tabs.set(targetId, tab);
     await this.cdp.send("Page.enable", {}, sessionId);
     await this.cdp.send("Runtime.enable", {}, sessionId);
+    // Keeps frames and menus rendering in a tab that is not in front, as the
+    // agent's tab often is not in someone's own Chrome.
+    await this.cdp
+      .send("Emulation.setFocusEmulationEnabled", { enabled: true }, sessionId)
+      .catch(() => undefined);
     await this.cdp.send(
       "Page.addScriptToEvaluateOnNewDocument",
       { source: PAGE_SCRIPT },
@@ -542,6 +590,15 @@ export class BrowserSession {
       { ...base, type: "mouseReleased" },
       tab.sessionId,
     );
+  }
+
+  /**
+   * Lets the page render what an input just did — two frames, or an
+   * autocomplete's suggestions — before anyone observes it. A navigation
+   * started by the input destroys the context it runs in, which is fine.
+   */
+  private async pageSettle(tab: Tab, element?: string): Promise<void> {
+    await this.call(tab, "settle", [element ?? null]).catch(() => undefined);
   }
 
   /**

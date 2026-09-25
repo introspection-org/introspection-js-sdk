@@ -20,6 +20,7 @@ import {
   setupPolly,
 } from "../polly-setup";
 import { piTracing } from "../observability/pi-fixtures";
+import { fakeJev } from "./jev-fake";
 
 const tracing = piTracing();
 afterEach(() => tracing.exporter.reset());
@@ -125,9 +126,9 @@ describe("driver spans", () => {
       new Response("slow down", {
         status: 429,
       })) as unknown as typeof globalThis.fetch;
-    await expect(new JevDriver({ fetch }).decide(input)).rejects.toThrow(
-      /HTTP 429/,
-    );
+    await expect(
+      new JevDriver({ fetch, retryDelayMs: 1 }).decide(input),
+    ).rejects.toThrow(/HTTP 429/);
     const [span] = await spans();
     expect(span!.attributes["error.type"]).toBe("429");
     expect(span!.status.code).toBe(2);
@@ -211,18 +212,7 @@ describe("driver spans", () => {
   });
 
   it("emits nothing when telemetry is off", async () => {
-    const fetch = (async () =>
-      new Response(
-        JSON.stringify({
-          answers: {
-            operation: {
-              choice: "SCROLL_DOWN",
-              confidence: 1,
-              probabilities: { SCROLL_DOWN: 1 },
-            },
-          },
-        }),
-      )) as unknown as typeof globalThis.fetch;
+    const { fetch } = fakeJev({ operation: "WAIT" });
     await new JevDriver({ fetch, telemetry: false }).decide(input);
     expect(await spans()).toHaveLength(0);
   });

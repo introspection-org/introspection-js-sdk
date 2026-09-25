@@ -43,6 +43,8 @@ export interface Decision {
   text?: string;
   url?: string;
   direction?: "up" | "down";
+  /** For `select`: the option's value, when the driver knows it. */
+  value?: string;
   /** Key chords for `press`, e.g. `["ArrowLeft", "Space"]`. */
   keys?: string[];
   /** A `click` on a point of the screenshot instead of an element. */
@@ -58,6 +60,8 @@ export interface StepRecord extends Decision {
   driver: string;
   error?: string;
   escalated?: string;
+  /** Whether the page looked different afterwards; unset until it is observed. */
+  page_changed?: boolean;
 }
 
 export interface StepInput {
@@ -76,6 +80,8 @@ export interface Driver {
   readonly name: string;
   /** Wants `observation.screenshot`. */
   readonly vision?: boolean;
+  /** The observation it decides on: `page` (default) or the smaller `viewport`. */
+  readonly observation?: "page" | "viewport";
   decide(input: StepInput): Promise<Decision>;
   /** Fills a `type` chosen by another driver (Jev picks the field, this writes). */
   writeText?(field: ElementRow, input: StepInput): Promise<string>;
@@ -90,6 +96,7 @@ export function historyText(history: StepRecord[]): string {
         `${i + 1}. ${h.op}${h.element ? ` [${h.element}]` : ""}` +
         `${h.x !== undefined ? ` at (${h.x}, ${h.y})` : ""}${h.keys ? ` ${h.keys.join(" ")}` : ""}` +
         `${h.text ? ` "${h.text}"` : ""}` +
+        `${h.page_changed === false ? " (no visible change)" : ""}` +
         `${h.url ? ` ${h.url}` : ""}${h.error ? ` -> ERROR ${h.error}` : ""}`,
     )
     .join("\n");

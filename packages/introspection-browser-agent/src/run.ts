@@ -34,8 +34,9 @@ export interface RunResult {
 
 /**
  * The driver ladder: start on the cheapest driver, move up on `blocked`, on
- * two invalid actions in a row, or when a rung spends its step budget. Each
- * rung resumes from the same page and history rather than restarting.
+ * two invalid actions in a row, on three actions in a row that change nothing
+ * on the page, or when a rung spends its step budget. Each rung resumes from
+ * the same page and history rather than restarting.
  */
 export async function runDriverLadder(
   session: BrowserSession,
@@ -50,6 +51,8 @@ export async function runDriverLadder(
   let failures = 0;
   let escalations = 0;
   let url = "";
+  // The fingerprint the last action was decided on, to tell whether it did anything.
+  let decidedOn: string | undefined;
 
   const finish = (
     status: RunStatus,
@@ -77,8 +80,25 @@ export async function runDriverLadder(
     const driver = options.drivers[rung]!;
     const observation = await session.observe({
       screenshot: Boolean(driver.vision),
+      scope: driver.observation,
     });
     url = observation.url;
+
+    const last = steps.at(-1);
+    if (last && decidedOn !== undefined && last.page_changed === undefined) {
+      last.page_changed = observation.fingerprint !== decidedOn;
+      const recent = steps.slice(-3);
+      if (
+        recent.length === 3 &&
+        recent.every((s) => s.page_changed === false && s.op !== "wait")
+      ) {
+        if (escalate()) continue;
+        return finish("blocked", {
+          reason: "three actions in a row changed nothing on the page",
+        });
+      }
+    }
+    decidedOn = undefined;
 
     let decision: Decision & { escalated?: string };
     try {
@@ -113,6 +133,7 @@ export async function runDriverLadder(
     } else {
       try {
         await perform(session, decision);
+        decidedOn = observation.fingerprint;
         failures = 0;
       } catch (err) {
         if (!(err instanceof BrowserError)) throw err;
@@ -148,7 +169,12 @@ async function perform(session: BrowserSession, d: Decision): Promise<void> {
     case "select":
       if (!d.element)
         throw new BrowserError("invalid_argument", `${d.op} needs an element`);
-      await session.act({ element: d.element, action: d.op, text: d.text });
+      await session.act({
+        element: d.element,
+        action: d.op,
+        text: d.text,
+        value: d.value,
+      });
       return;
     case "press":
       if (!d.keys?.length)

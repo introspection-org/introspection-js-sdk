@@ -31,7 +31,8 @@ export const PAGE_SCRIPT = String.raw`(() => {
   };
 
   const ROLES = ["button", "link", "checkbox", "radio", "switch", "tab", "menuitem",
-    "option", "combobox", "textbox", "searchbox", "spinbutton", "slider"];
+    "menuitemradio", "menuitemcheckbox", "option", "gridcell", "combobox", "textbox",
+    "searchbox", "spinbutton", "slider"];
   const SELECTOR = "a[href],button,input:not([type=hidden]),textarea,select,summary," +
     "[contenteditable=true],[contenteditable=''],[tabindex]:not([tabindex='-1'])," +
     ROLES.map((r) => "[role=" + r + "]").join(",");
@@ -61,18 +62,48 @@ export const PAGE_SCRIPT = String.raw`(() => {
     }
     return e.isContentEditable ? "textbox" : "generic";
   };
-  const name = (e) => clean(
-    e.getAttribute("aria-label") ||
-    (e.getAttribute("aria-labelledby") || "").split(/\s+/)
-      .map((i) => (document.getElementById(i) || {}).innerText || "").join(" ") ||
-    [...(e.labels || [])].map((l) => l.innerText).join(" ") ||
-    (e.tagName === "INPUT" || e.tagName === "SELECT" ? "" : e.innerText) ||
-    (["submit", "button", "reset"].includes(e.type) ? e.value : "") ||
-    e.getAttribute("title") || e.getAttribute("placeholder") || e.getAttribute("alt") || "");
+  // The accessible name as a screen reader would read it: labelledby followed
+  // recursively (cycles cut), aria-hidden descendants skipped.
+  const textOf = (e, seen) => [...e.childNodes].map((n) =>
+    n.nodeType === 3 ? n.textContent
+      : n.nodeType === 1 && n.getAttribute("aria-hidden") !== "true" ? nameOf(n, seen) : "").join(" ");
+  const nameOf = (e, seen) => {
+    if (!e || seen.has(e)) return "";
+    seen.add(e);
+    const referenced = (e.getAttribute("aria-labelledby") || "").split(/\s+/).filter(Boolean)
+      .map((i) => nameOf(document.getElementById(i), seen)).filter(Boolean).join(" ");
+    return referenced || e.getAttribute("aria-label") ||
+      [...(e.labels || [])].map((l) => nameOf(l, seen)).filter(Boolean).join(" ") ||
+      (["submit", "button", "reset"].includes(e.type) ? e.value : "") ||
+      e.getAttribute("alt") ||
+      (e.tagName === "INPUT" || e.tagName === "SELECT" || e.tagName === "TEXTAREA" ? "" : textOf(e, seen)) ||
+      e.getAttribute("title") || e.getAttribute("placeholder") || "";
+  };
+  const name = (e) => clean(nameOf(e, new Set()));
+
+  // What an element means, not where it is: re-read before every action so a
+  // handle whose node now plays another part (a re-rendered row, a reused
+  // button) is refused rather than acted on.
+  const guards = new Map();
+  const EDITABLE = ["textbox", "searchbox", "combobox", "spinbutton", "password"];
+  const guardOf = (e) => {
+    // A field is judged on itself: suggestions appearing around it while the
+    // agent types are expected. Anything else also on its row, form or
+    // dialog, never the whole body, which changes constantly.
+    const scope = EDITABLE.includes(role(e)) ? null
+      : e.closest("form,dialog,[role=dialog],article,li,tr,[role=row]") ||
+        (e.parentElement !== document.body ? e.parentElement : null);
+    return JSON.stringify([role(e), name(e), e.value === undefined ? null : e.value,
+      e.checked === undefined ? null : e.checked, e.selectedIndex === undefined ? null : e.selectedIndex,
+      e.getAttribute("aria-expanded"), e.getAttribute("aria-checked"), e.getAttribute("aria-selected"),
+      e.getAttribute("href"), clean(scope ? scope.innerText : "", 2000)]);
+  };
+  const enabledOptions = (e) => [...e.options].filter((o) => !o.disabled && !o.closest("optgroup[disabled]"));
 
   const describe = (e) => {
     const r = role(e);
     const row = { element: handleOf(e), role: r, name: name(e) };
+    guards.set(row.element, guardOf(e));
     if (r === "password") {
       row.value = e.value ? "(set)" : "";
       row.actions = ["type"];
@@ -80,7 +111,9 @@ export const PAGE_SCRIPT = String.raw`(() => {
       row.actions = ["upload"];
     } else if (r === "select") {
       row.value = clean((e.selectedOptions && e.selectedOptions[0] || {}).text || "");
-      row.options = [...e.options].slice(0, 50).map((o) => clean(o.text));
+      const options = enabledOptions(e).slice(0, 50);
+      row.options = options.map((o) => clean(o.text));
+      row.option_values = options.map((o) => o.value);
       row.actions = ["select"];
     } else if (["textbox", "searchbox", "combobox", "spinbutton"].includes(r)) {
       row.value = clean(e.value !== undefined ? e.value : e.innerText, 200);
@@ -99,7 +132,37 @@ export const PAGE_SCRIPT = String.raw`(() => {
   const lookup = (handle) => {
     const e = nodes.get(handle);
     if (!e || !e.isConnected) return { error: "stale", message: "element " + handle + " is no longer on the page; observe again" };
+    const guard = guards.get(handle);
+    if (guard !== undefined && guard !== guardOf(e)) {
+      return { error: "stale", message: "element " + handle + " changed since it was observed; observe again" };
+    }
     return { e };
+  };
+  // A cheap content hash, so a client can tell whether an action changed the page.
+  const hash = (s) => {
+    let h = 5381;
+    for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0;
+    return (h >>> 0).toString(36);
+  };
+  // Text a person can see right now, top to bottom, not the whole document.
+  const viewportText = (limit) => {
+    const words = [];
+    let length = 0;
+    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+    const range = document.createRange();
+    let node;
+    while ((node = walker.nextNode()) && length < limit) {
+      const value = node.textContent.replace(/\s+/g, " ").trim();
+      const parent = node.parentElement;
+      if (!value || !parent || parent.closest("script,style,noscript,template") || !rendered(parent)) continue;
+      range.selectNodeContents(node);
+      const r = range.getBoundingClientRect();
+      if (r.width > 0 && r.height > 0 && r.bottom > 0 && r.top < innerHeight && r.right > 0 && r.left < innerWidth) {
+        words.push(value);
+        length += value.length + 1;
+      }
+    }
+    return words.join("\n").slice(0, limit);
   };
 
   const v1 = {
@@ -109,21 +172,28 @@ export const PAGE_SCRIPT = String.raw`(() => {
       const o = opts || {};
       const limit = Math.max(1, Math.min(o.limit || 150, 500));
       const cursor = Math.max(0, o.cursor || 0);
-      for (const [h, e] of nodes) if (!e.isConnected) nodes.delete(h);
-      const all = [...document.querySelectorAll(SELECTOR)].filter(rendered);
+      const viewport = o.scope === "viewport";
+      for (const [h, e] of nodes) if (!e.isConnected) { nodes.delete(h); guards.delete(h); }
+      const all = [...document.querySelectorAll(SELECTOR)].filter(rendered)
+        // A grid cell that holds a button is reached through the button.
+        .filter((e) => role(e) !== "gridcell" || !e.querySelector("button,[role=button]"));
       const visible = all.filter(inViewport);
-      const offscreen = all.filter((e) => !inViewport(e));
-      const ordered = visible.concat(offscreen);
+      const ordered = viewport ? visible : visible.concat(all.filter((e) => !inViewport(e)));
       const page = ordered.slice(cursor, cursor + limit).map(describe);
-      const text = (document.body ? document.body.innerText : "").replace(/\n{2,}/g, "\n").slice(0, 4000);
+      const text = !document.body ? ""
+        : viewport ? viewportText(6000)
+        : document.body.innerText.replace(/\n{2,}/g, "\n").slice(0, 4000);
+      const scroll = { y: Math.round(scrollY), height: document.documentElement.scrollHeight, viewport: innerHeight };
       return {
         version: "browser.v1",
         url: location.href,
         title: document.title,
         text,
-        scroll: { y: Math.round(scrollY), height: document.documentElement.scrollHeight, viewport: innerHeight },
+        scroll,
         elements: page,
         next_cursor: cursor + limit < ordered.length ? cursor + limit : null,
+        fingerprint: hash(JSON.stringify([location.href, text, scroll.y,
+          page.map((r) => [r.role, r.name, r.value, r.checked, r.expanded, r.disabled])])),
       };
     },
 
@@ -164,23 +234,28 @@ export const PAGE_SCRIPT = String.raw`(() => {
       return { ok: true };
     },
 
+    // Unguarded: the value it just typed is the change. The guard is re-read
+    // so the edit does not read as the element changing meaning.
     commitType(handle) {
-      const found = lookup(handle);
-      if (found.error) return found;
-      found.e.dispatchEvent(new Event("change", { bubbles: true }));
-      return { ok: true, value: clean(found.e.value !== undefined ? found.e.value : found.e.innerText, 200) };
+      const e = nodes.get(handle);
+      if (!e || !e.isConnected) return { error: "stale", message: "element " + handle + " is no longer on the page; observe again" };
+      e.dispatchEvent(new Event("change", { bubbles: true }));
+      guards.set(handle, guardOf(e));
+      return { ok: true, value: clean(e.value !== undefined ? e.value : e.innerText, 200) };
     },
 
-    select(handle, label) {
+    // By value when given, which tells apart two options with one label.
+    select(handle, label, value) {
       const found = lookup(handle);
       if (found.error) return found;
       const e = found.e;
       if (e.tagName !== "SELECT") return { error: "unsupported", message: handle + " is not a select" };
-      const option = [...e.options].find((o) => clean(o.text) === label);
-      if (!option) return { error: "no_option", message: JSON.stringify(label) + " is not an option of " + handle };
+      const option = enabledOptions(e).find((o) => value != null ? o.value === value : clean(o.text) === label);
+      if (!option) return { error: "no_option", message: JSON.stringify(value != null ? value : label) + " is not an enabled option of " + handle };
       e.value = option.value;
       e.dispatchEvent(new Event("input", { bubbles: true }));
       e.dispatchEvent(new Event("change", { bubbles: true }));
+      guards.set(handle, guardOf(e));
       return { ok: true, value: clean(option.text) };
     },
 
@@ -189,6 +264,44 @@ export const PAGE_SCRIPT = String.raw`(() => {
     node(handle) {
       const found = lookup(handle);
       return found.error ? null : found.e;
+    },
+
+    // Resolves once the page has rendered the input: two frames; for an
+    // autocomplete field, until its suggestions are showing and have stopped
+    // changing for 150ms, since many arrive over the network (at most 1s).
+    settle(handle) {
+      const e = handle ? nodes.get(handle) : null;
+      const autocomplete = !!e && (e.getAttribute("role") === "combobox" ||
+        (e.getAttribute("aria-autocomplete") || "none") !== "none" || !!e.list);
+      const ids = ((e && (e.getAttribute("aria-controls") || e.getAttribute("aria-owns"))) || "").split(/\s+/).filter(Boolean);
+      const roots = () => ids.length ? ids.map((i) => document.getElementById(i)).filter(Boolean) : [document.body];
+      const shown = () => roots().some((root) =>
+        [...root.querySelectorAll("[role=option]")].some((o) => rendered(o) && inViewport(o)));
+      return new Promise((resolve) => {
+        let done = false;
+        let frames = 0;
+        let quietTimer = null;
+        const observer = autocomplete ? new MutationObserver(() => quiet()) : null;
+        const finish = () => {
+          if (done) return;
+          done = true;
+          if (observer) observer.disconnect();
+          resolve({ ok: true });
+        };
+        const quiet = () => {
+          clearTimeout(quietTimer);
+          if (shown()) quietTimer = setTimeout(finish, 150);
+        };
+        setTimeout(finish, autocomplete ? 1000 : 50);
+        if (observer) for (const root of roots()) observer.observe(root, { childList: true, subtree: true, characterData: true });
+        const ready = () => {
+          if (done) return;
+          if (++frames < 2) return requestAnimationFrame(ready);
+          if (!autocomplete) return finish();
+          quiet();
+        };
+        requestAnimationFrame(ready);
+      });
     },
 
     scroll(direction) {

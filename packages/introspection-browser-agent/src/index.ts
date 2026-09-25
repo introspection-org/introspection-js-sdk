@@ -31,7 +31,12 @@ export type {
   AnthropicClientLike,
   ClaudeDriverOptions,
 } from "./drivers/claude.js";
-export { JEV_OPERATION, JevDriver, summarizeHead } from "./drivers/jev.js";
+export {
+  JEV_OPERATION,
+  JevDriver,
+  summarizeHead,
+  validateAnswer,
+} from "./drivers/jev.js";
 export type { JevDriverOptions } from "./drivers/jev.js";
 export { OpenAICompatibleDriver } from "./drivers/openai-compatible.js";
 export type { OpenAICompatibleDriverOptions } from "./drivers/openai-compatible.js";
