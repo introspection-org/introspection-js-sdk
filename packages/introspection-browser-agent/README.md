@@ -12,6 +12,10 @@ dependencies.
 - **Drivers.** `JevDriver` (TypeSafe's decision model: operation and target in
   one request, about 120 ms), `ClaudeDriver`, `OpenAICompatibleDriver`, and
   `GatedDriver`, which re-decides only the steps the fast driver is unsure of.
+  `JevDriver` follows the loop of
+  [`browser-use/jev-ultrafast`](https://github.com/browser-use/jev-ultrafast),
+  Browser Use and TypeSafe's Python reference agent. That repository is our
+  behavioural reference, not a dependency.
 - **`run`.** A driver ladder that escalates on `blocked`, repeated invalid
   actions, or a spent step budget, and verifies `done` with your `success`
   check.
