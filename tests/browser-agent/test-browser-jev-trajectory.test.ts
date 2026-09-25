@@ -115,11 +115,18 @@ describe("JevDriver on a real Wikipedia trajectory (recorded)", () => {
     },
   );
 
-  it("documents the autocomplete re-render that made a handle stale", () => {
-    const stale = TRAJECTORY.steps.findIndex((s) => s.error);
-    expect(TRAJECTORY.steps[stale]!.error).toMatch(/^stale/);
-    // The loop recovered on the next observation of the same document.
-    expect(TRAJECTORY.steps[stale + 1]!.decision.op).toBe("click");
+  it("reaches the article in three decisions, each on the viewport alone", () => {
+    // Type, pick the suggestion once it has settled, done: no stale handle
+    // and no retry, which the settle wait and the semantic guard bought.
+    expect(TRAJECTORY.steps.map((s) => s.decision.op)).toEqual([
+      "type",
+      "click",
+      "done",
+    ]);
+    expect(TRAJECTORY.steps.every((s) => !s.error)).toBe(true);
+    for (const s of TRAJECTORY.steps) {
+      expect(s.observation.elements.some((e) => e.offscreen)).toBe(false);
+    }
     expect(TRAJECTORY.steps.at(-1)!.observation.url).toBe(
       "https://en.wikipedia.org/wiki/Chromium",
     );

@@ -12,6 +12,7 @@ import {
   type Driver,
 } from "@introspection-sdk/browser-agent";
 import { findChrome, launchChrome, type LaunchedChrome } from "./chrome";
+import { fakeJev } from "./jev-fake";
 
 const chrome = findChrome();
 
@@ -204,24 +205,6 @@ describe("JevDriver press operations", () => {
     elements: [],
     next_cursor: null,
   };
-  const scripted = (choice: string) => {
-    const bodies: { questions: { operation: { criteria: object } } }[] = [];
-    const fetch = (async (_url: string, init: { body: string }) => {
-      bodies.push(JSON.parse(init.body));
-      return new Response(
-        JSON.stringify({
-          answers: {
-            operation: {
-              choice,
-              confidence: 0.9,
-              probabilities: { [choice]: 0.9 },
-            },
-          },
-        }),
-      );
-    }) as unknown as typeof globalThis.fetch;
-    return { bodies, fetch };
-  };
   const input = {
     goal: "submit",
     observation,
@@ -231,13 +214,13 @@ describe("JevDriver press operations", () => {
   };
 
   it("offers PRESS_ENTER and PRESS_ESCAPE unless turned off", async () => {
-    const off = scripted("SCROLL_DOWN");
+    const off = fakeJev({ operation: "WAIT" });
     await new JevDriver({ fetch: off.fetch, press: false }).decide(input);
     expect(
       Object.keys(off.bodies[0]!.questions.operation.criteria),
     ).not.toContain("PRESS_ENTER");
 
-    const on = scripted("PRESS_ENTER");
+    const on = fakeJev({ operation: "PRESS_ENTER" });
     const d = await new JevDriver({ fetch: on.fetch }).decide(input);
     expect(Object.keys(on.bodies[0]!.questions.operation.criteria)).toEqual(
       expect.arrayContaining(["PRESS_ENTER", "PRESS_ESCAPE"]),

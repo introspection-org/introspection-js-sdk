@@ -8,6 +8,8 @@ export interface ElementRow {
   checked?: boolean;
   expanded?: boolean;
   options?: string[];
+  /** The `value` of each entry in `options`, which tells apart equal labels. */
+  option_values?: string[];
   actions: ElementAction[];
   disabled?: boolean;
   /** Present and true when the element is outside the viewport. */
@@ -26,6 +28,8 @@ export interface Observation {
   scroll: { y: number; height: number; viewport: number };
   elements: ElementRow[];
   next_cursor: number | null;
+  /** Changes whenever the visible content, elements or scroll position do. */
+  fingerprint?: string;
   /** Base64 JPEG of the viewport, only when requested. */
   screenshot?: string;
   /** The screenshot's pixel size; `clickAt` takes coordinates in it. */
