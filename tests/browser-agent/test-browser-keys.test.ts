@@ -231,17 +231,15 @@ describe("JevDriver press operations", () => {
     step: 0,
   };
 
-  it("offers PRESS_ENTER and PRESS_ESCAPE only when enabled", async () => {
+  it("offers PRESS_ENTER and PRESS_ESCAPE unless turned off", async () => {
     const off = scripted("SCROLL_DOWN");
-    await new JevDriver({ fetch: off.fetch }).decide(input);
+    await new JevDriver({ fetch: off.fetch, press: false }).decide(input);
     expect(
       Object.keys(off.bodies[0]!.questions.operation.criteria),
     ).not.toContain("PRESS_ENTER");
 
     const on = scripted("PRESS_ENTER");
-    const d = await new JevDriver({ fetch: on.fetch, press: true }).decide(
-      input,
-    );
+    const d = await new JevDriver({ fetch: on.fetch }).decide(input);
     expect(Object.keys(on.bodies[0]!.questions.operation.criteria)).toEqual(
       expect.arrayContaining(["PRESS_ENTER", "PRESS_ESCAPE"]),
     );
