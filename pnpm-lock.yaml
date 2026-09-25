@@ -462,6 +462,9 @@ importers:
         specifier: workspace:*
         version: link:../packages/introspection-pi
     devDependencies:
+      '@anthropic-ai/sdk':
+        specifier: ^0.124.0
+        version: 0.124.0(zod@4.6.5)
       '@earendil-works/pi-agent-core':
         specifier: ^0.87.1
         version: 0.87.1(@modelcontextprotocol/sdk@1.30.0(@cfworker/json-schema@4.1.1)(zod@4.6.5))(ws@8.21.3)(zod@4.6.5)

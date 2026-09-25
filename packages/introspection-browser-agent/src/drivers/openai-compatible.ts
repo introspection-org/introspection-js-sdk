@@ -47,7 +47,8 @@ export class OpenAICompatibleDriver implements Driver {
             role: "system",
             content:
               `${SYSTEM_PROMPT}\nRespond with a JSON object {"op": one of ${DECISION_OPS.join("|")}, ` +
-              `"element"?: string, "text"?: string, "url"?: string, "direction"?: "up"|"down", "reason": string}.`,
+              `"element"?: string, "text"?: string, "url"?: string, "direction"?: "up"|"down", ` +
+              `"keys"?: string[], "reason": string}.`,
           },
           {
             role: "user",
