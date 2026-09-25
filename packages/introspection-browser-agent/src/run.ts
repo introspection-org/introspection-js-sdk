@@ -37,7 +37,7 @@ export interface RunResult {
  * two invalid actions in a row, or when a rung spends its step budget. Each
  * rung resumes from the same page and history rather than restarting.
  */
-export async function run(
+export async function runDriverLadder(
   session: BrowserSession,
   options: RunOptions,
 ): Promise<RunResult> {

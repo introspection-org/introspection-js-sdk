@@ -2,8 +2,8 @@
 
 Drive any Chromium over raw CDP with text-first, guarded actions and pluggable
 models. It works against the platform's browser sidecar, a local Chrome, or a
-hosted provider's `cdp_ws_url` (Kernel, Browserbase), and it has no runtime
-dependencies.
+hosted provider's `cdp_ws_url` (Kernel, Browserbase). Its only runtime
+dependencies are `@opentelemetry/api` and `@introspection-sdk/types`.
 
 - **`browser.v1` page script.** Injected into every tab, it turns the page into
   an element table with opaque `el_…` handles. Actions only land on an element
@@ -16,7 +16,7 @@ dependencies.
   [`browser-use/jev-ultrafast`](https://github.com/browser-use/jev-ultrafast),
   Browser Use and TypeSafe's Python reference agent. That repository is our
   behavioural reference, not a dependency.
-- **`run`.** A driver ladder that escalates on `blocked`, repeated invalid
+- **`session.run`.** A driver ladder that escalates on `blocked`, repeated invalid
   actions, or a spent step budget, and verifies `done` with your `success`
   check.
 - **`createBrowserTool`.** One `browser` tool with a `command` discriminator
@@ -76,7 +76,7 @@ console.log(results.map((r) => r.name));
 
 ## Hand a goal to the fast driver, with Claude as the fallback
 
-`run` observes, asks a driver for one step, acts, and repeats. Jev decides the
+`session.run` observes, asks a driver for one step, acts, and repeats. Jev decides the
 routine steps in about a tenth of a second each; Claude takes over the steps
 Jev is unsure of, and writes the text Jev asks to type. `success` checks the
 page itself, so a run is never judged by the driver's own `done`:
@@ -88,7 +88,6 @@ import {
   ClaudeDriver,
   GatedDriver,
   JevDriver,
-  run,
 } from "@introspection-sdk/browser-agent";
 
 const session = await BrowserSession.connect("http://127.0.0.1:9222", {
@@ -102,7 +101,7 @@ const jev = new JevDriver({
   textDriver: claude,
 });
 
-const result = await run(session, {
+const result = await session.run({
   goal: "Search Wikipedia for Chromium and open its article",
   drivers: [new GatedDriver(jev, claude)],
   success: (page) =>
@@ -124,6 +123,33 @@ Enter and Escape.
 package does not depend on it. It defaults to `claude-opus-5` at `effort: low`
 with server-side refusal fallbacks on (`refusalFallbacks: false` turns them
 off).
+
+## Telemetry
+
+Every model call a driver makes is an OpenTelemetry GenAI client span, the
+same shape `@introspection-sdk/introspection-pi` gives a Pi chat call, so
+browser steps are counted and billed like any other model usage:
+
+| Driver                   | Span                                            | Usage recorded                                                              |
+| ------------------------ | ----------------------------------------------- | --------------------------------------------------------------------------- |
+| `JevDriver`              | `generate_content {model}`, provider `typesafe` | input and output tokens, and the Jev version that answered                  |
+| `ClaudeDriver`           | `chat {model}`, provider `anthropic`            | input tokens (cache reads and writes included), output tokens, cache counts |
+| `OpenAICompatibleDriver` | `chat {model}`, provider `openai` or `provider` | input tokens (cached included once), output tokens, cached count            |
+
+Spans go to the global tracer provider, so an app that has set one up (the
+Introspection runtime does) exports them with no further wiring, and they nest
+under whatever span is active, such as the Pi tool call. `telemetry.tracer`
+chooses another tracer; `telemetry.attributes` adds host attributes to every
+span, which is how the runtime marks a managed call
+(`{ "introspection.byok": false }`); `telemetry: false` turns a driver's spans
+off, for a client that is already instrumented.
+
+```ts
+new JevDriver({
+  baseUrl,
+  telemetry: { attributes: () => ({ "introspection.byok": !managed }) },
+});
+```
 
 ## Non-JavaScript clients
 

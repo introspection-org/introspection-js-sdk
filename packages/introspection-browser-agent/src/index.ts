@@ -6,7 +6,8 @@ export type { BrowserSessionOptions } from "./session.js";
 export { MAX_PRESS_KEYS, NAMED_KEYS, parseChord } from "./keys.js";
 export type { KeyChord, KeyDefinition } from "./keys.js";
 export { renderTable } from "./table.js";
-export { run } from "./run.js";
+export { traceModelCall } from "./telemetry.js";
+export type { DriverTelemetry, ModelCall, ModelUsage } from "./telemetry.js";
 export type { RunOptions, RunResult, RunStatus } from "./run.js";
 export { BROWSER_COMMANDS, createBrowserTool } from "./tool.js";
 export type {
@@ -30,7 +31,7 @@ export type {
   AnthropicClientLike,
   ClaudeDriverOptions,
 } from "./drivers/claude.js";
-export { JevDriver, summarizeHead } from "./drivers/jev.js";
+export { JEV_OPERATION, JevDriver, summarizeHead } from "./drivers/jev.js";
 export type { JevDriverOptions } from "./drivers/jev.js";
 export { OpenAICompatibleDriver } from "./drivers/openai-compatible.js";
 export type { OpenAICompatibleDriverOptions } from "./drivers/openai-compatible.js";

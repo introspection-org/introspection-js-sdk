@@ -8,7 +8,6 @@ import {
   JevDriver,
   createBrowserTool,
   parseChord,
-  run,
   type Decision,
   type Driver,
 } from "@introspection-sdk/browser-agent";
@@ -178,7 +177,7 @@ describe.skipIf(!chrome)("press and clickAt against Chromium", () => {
         return script[input.step]!;
       },
     };
-    const result = await run(session, {
+    const result = await session.run({
       goal: "hit the target",
       drivers: [vision],
       success: (o) => o.text.includes("hit 410,310"),

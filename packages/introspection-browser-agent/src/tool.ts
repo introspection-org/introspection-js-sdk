@@ -1,4 +1,4 @@
-import { run, type RunResult } from "./run.js";
+import type { RunResult } from "./run.js";
 import type { BrowserSession } from "./session.js";
 import { MAX_PRESS_KEYS } from "./keys.js";
 import { BrowserError } from "./types.js";
@@ -251,7 +251,7 @@ export function createBrowserTool(options: BrowserToolOptions): BrowserTool {
         case "screenshot":
           return s.screenshot({ tab_id: input.tab_id });
         case "run": {
-          const result: RunResult = await run(s, {
+          const result: RunResult = await s.run({
             goal: input.goal!,
             drivers:
               typeof options.drivers === "function"

@@ -9,7 +9,6 @@ import {
   historyText,
   renderTable,
   reviewReason,
-  run,
   type Decision,
   type Driver,
   type Observation,
@@ -286,7 +285,7 @@ describe.skipIf(!chrome)("run and the browser tool against Chromium", () => {
 
   it("completes a goal and verifies success from the page", async () => {
     const seen: string[] = [];
-    const result = await run(session, {
+    const result = await session.run({
       goal: "Design stays in Lisbon",
       drivers: [searchPolicy()],
       success: (o) => o.text.includes("searched Lisbon / Design"),
@@ -301,7 +300,7 @@ describe.skipIf(!chrome)("run and the browser tool against Chromium", () => {
   });
 
   it("does not accept done until the success check passes", async () => {
-    const result = await run(session, {
+    const result = await session.run({
       goal: "g",
       drivers: [always("liar", { op: "done", text: "trust me" })],
       success: () => false,
@@ -316,7 +315,7 @@ describe.skipIf(!chrome)("run and the browser tool against Chromium", () => {
   });
 
   it("escalates to the next rung on blocked, and reports blocked at the top", async () => {
-    const escalated = await run(session, {
+    const escalated = await session.run({
       goal: "g",
       drivers: [
         always("cheap", { op: "blocked", reason: "custom widget" }),
@@ -329,7 +328,7 @@ describe.skipIf(!chrome)("run and the browser tool against Chromium", () => {
       op: "blocked",
     });
 
-    const stuck = await run(session, {
+    const stuck = await session.run({
       goal: "g",
       drivers: [always("only", { op: "blocked", reason: "no way" })],
     });
@@ -338,14 +337,14 @@ describe.skipIf(!chrome)("run and the browser tool against Chromium", () => {
 
   it("escalates after repeated invalid actions and fails when nothing is left", async () => {
     const bad = always("bad", { op: "click", element: "el_forged_9" });
-    const escalated = await run(session, {
+    const escalated = await session.run({
       goal: "g",
       drivers: [bad, searchPolicy()],
     });
     expect(escalated.status).toBe("done");
     expect(escalated.steps.filter((s) => s.driver === "bad")).toHaveLength(2);
 
-    const failed = await run(session, { goal: "g", drivers: [bad] });
+    const failed = await session.run({ goal: "g", drivers: [bad] });
     expect(failed.status).toBe("failed");
     expect(failed.reason).toMatch(/^stale:/);
   });
@@ -362,7 +361,7 @@ describe.skipIf(!chrome)("run and the browser tool against Chromium", () => {
       { op: "done", text: "fin" },
     ];
     let i = 0;
-    const result = await run(session, {
+    const result = await session.run({
       goal: "g",
       drivers: [{ name: "script", decide: async () => script[i++]! }],
       stepsPerRung: 99,
@@ -383,7 +382,7 @@ describe.skipIf(!chrome)("run and the browser tool against Chromium", () => {
   });
 
   it("records driver exceptions as blocked and honours abort", async () => {
-    const thrown = await run(session, {
+    const thrown = await session.run({
       goal: "g",
       drivers: [
         {
@@ -403,7 +402,7 @@ describe.skipIf(!chrome)("run and the browser tool against Chromium", () => {
     ctl.abort();
     expect(
       (
-        await run(session, {
+        await session.run({
           goal: "g",
           drivers: [searchPolicy()],
           signal: ctl.signal,

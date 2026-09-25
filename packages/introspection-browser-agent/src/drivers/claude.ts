@@ -1,3 +1,4 @@
+import { traceModelCall, type DriverTelemetry } from "../telemetry.js";
 import type { ElementRow } from "../types.js";
 import {
   DECISION_OPS,
@@ -25,6 +26,8 @@ export interface AnthropicClientLike {
 }
 
 interface AnthropicMessage {
+  id?: string;
+  model?: string;
   content: Array<
     | { type: "text"; text: string }
     | { type: "tool_use"; name: string; input: unknown }
@@ -32,7 +35,12 @@ interface AnthropicMessage {
   >;
   stop_reason: string | null;
   stop_details?: { category?: string | null } | null;
-  usage?: unknown;
+  usage?: {
+    input_tokens?: number;
+    output_tokens?: number;
+    cache_read_input_tokens?: number | null;
+    cache_creation_input_tokens?: number | null;
+  };
 }
 
 export interface ClaudeDriverOptions {
@@ -45,6 +53,11 @@ export interface ClaudeDriverOptions {
   vision?: boolean;
   /** Server-side refusal fallbacks (`fallbacks: "default"`). Default true. */
   refusalFallbacks?: boolean;
+  /**
+   * Each request is a `chat` span with its usage. `false` disables it, for a
+   * client that is already instrumented.
+   */
+  telemetry?: DriverTelemetry | false;
 }
 
 const TOOL = {
@@ -196,13 +209,33 @@ export class ClaudeDriver implements Driver {
   }
 
   private create(params: Record<string, unknown>): Promise<AnthropicMessage> {
-    if (this.options.refusalFallbacks === false) {
-      return this.options.client.messages.create(params);
-    }
-    return this.options.client.beta.messages.create({
-      ...params,
-      betas: ["server-side-fallback-2026-07-01"],
-      fallbacks: "default",
+    const call = {
+      operation: "chat",
+      provider: "anthropic",
+      model: this.model,
+    };
+    return traceModelCall(this.options.telemetry, call, async () => {
+      const response =
+        this.options.refusalFallbacks === false
+          ? await this.options.client.messages.create(params)
+          : await this.options.client.beta.messages.create({
+              ...params,
+              betas: ["server-side-fallback-2026-07-01"],
+              fallbacks: "default",
+            });
+      const usage = response.usage;
+      return {
+        value: response,
+        usage: {
+          inputTokens: usage?.input_tokens,
+          outputTokens: usage?.output_tokens,
+          cacheReadInputTokens: usage?.cache_read_input_tokens ?? undefined,
+          cacheCreationInputTokens:
+            usage?.cache_creation_input_tokens ?? undefined,
+          responseModel: response.model,
+          responseId: response.id,
+        },
+      };
     });
   }
 }

@@ -11,11 +11,7 @@ import { spawn } from "node:child_process";
 import { mkdtempSync, existsSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import {
-  BrowserSession,
-  JevDriver,
-  run,
-} from "@introspection-sdk/browser-agent";
+import { BrowserSession, JevDriver } from "@introspection-sdk/browser-agent";
 
 const out = process.argv[2];
 const profile = mkdtempSync(join(tmpdir(), "cap-"));
@@ -58,7 +54,7 @@ try {
   });
   await session.navigate({ url: "https://en.wikipedia.org/wiki/Main_Page" });
   let history = [];
-  const result = await run(session, {
+  const result = await session.run({
     goal,
     drivers: [
       new JevDriver({
