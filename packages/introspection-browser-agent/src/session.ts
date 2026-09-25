@@ -1,6 +1,7 @@
 import { CdpConnection, type CdpConnectOptions, type CdpEvent } from "./cdp.js";
 import { MAX_PRESS_KEYS, parseChord } from "./keys.js";
 import { PAGE_SCRIPT, PAGE_SCRIPT_VERSION } from "./page-script.js";
+import { runDriverLadder, type RunOptions, type RunResult } from "./run.js";
 import {
   BrowserError,
   type BrowserErrorCode,
@@ -417,6 +418,16 @@ export class BrowserSession {
       height: Math.round(view.h * scale),
       scale,
     };
+  }
+
+  /**
+   * Hands a goal to a driver ladder: observe, ask the current driver for one
+   * step, act, repeat. Starts on the cheapest driver and escalates on
+   * `blocked`, repeated invalid actions or a spent step budget; a `done` is
+   * checked against `success` when one is given.
+   */
+  run(options: RunOptions): Promise<RunResult> {
+    return runDriverLadder(this, options);
   }
 
   /** Detaches from the browser; the browser itself keeps running. */

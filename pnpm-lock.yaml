@@ -209,6 +209,13 @@ importers:
         version: 5.9.3
 
   packages/introspection-browser-agent:
+    dependencies:
+      '@introspection-sdk/types':
+        specifier: workspace:*
+        version: link:../introspection-types
+      '@opentelemetry/api':
+        specifier: ^1.9.1
+        version: 1.9.1
     devDependencies:
       '@repo/eslint-config':
         specifier: workspace:*

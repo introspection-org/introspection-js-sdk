@@ -1,3 +1,4 @@
+import { traceModelCall, type DriverTelemetry } from "../telemetry.js";
 import type { ElementRow } from "../types.js";
 import type {
   Decision,
@@ -26,6 +27,8 @@ export interface JevDriverOptions {
   slots?: Record<string, string>;
   /** Offer Jev `PRESS_ENTER` and `PRESS_ESCAPE`. Default true. */
   press?: boolean;
+  /** Each request is a `generate_content` span with its usage; `false` disables. */
+  telemetry?: DriverTelemetry | false;
   fetch?: typeof fetch;
 }
 
@@ -76,6 +79,18 @@ const OPERATIONS: Record<
   DONE: { label: "Every requirement is visibly satisfied.", op: "done" },
   BLOCKED: { label: "No supported operation can progress.", op: "blocked" },
 };
+
+/**
+ * Jev scores a decision rather than holding a conversation, so its spans are
+ * not `chat`; the platform's billing feed counts this operation separately.
+ */
+export const JEV_OPERATION = "generate_content";
+
+interface JevResponse {
+  model?: string;
+  answers?: Record<string, Answer>;
+  usage?: { input_tokens?: number; output_tokens?: number };
+}
 
 interface Answer {
   choice: string;
@@ -168,35 +183,53 @@ export class JevDriver implements Driver {
       /\/$/,
       "",
     );
-    const res = await doFetch(`${base}/v1/systemone`, {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        ...(this.options.apiKey
-          ? { authorization: `Bearer ${this.options.apiKey}` }
-          : {}),
-      },
-      body: JSON.stringify({
-        model: this.model,
-        state: {
-          page: {
-            url: observation.url,
-            title: observation.title,
-            text: observation.text,
-          },
-          elements: observation.elements,
-          recent_actions: history
-            .slice(-10)
-            .map(({ op, element, text }) => ({ op, element, text })),
-        },
-        questions,
-      }),
-    });
-    if (!res.ok) throw new Error(`TypeSafe returned HTTP ${res.status}`);
-    const body = (await res.json()) as {
-      answers?: Record<string, Answer>;
-      usage?: unknown;
+    const url = `${base}/v1/systemone`;
+    const call = {
+      operation: JEV_OPERATION,
+      provider: "typesafe",
+      model: this.model,
+      url,
     };
+    const body = await traceModelCall(
+      this.options.telemetry,
+      call,
+      async () => {
+        const res = await doFetch(url, {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            ...(this.options.apiKey
+              ? { authorization: `Bearer ${this.options.apiKey}` }
+              : {}),
+          },
+          body: JSON.stringify({
+            model: this.model,
+            state: {
+              page: {
+                url: observation.url,
+                title: observation.title,
+                text: observation.text,
+              },
+              elements: observation.elements,
+              recent_actions: history
+                .slice(-10)
+                .map(({ op, element, text }) => ({ op, element, text })),
+            },
+            questions,
+          }),
+        });
+        if (!res.ok) throw new Error(`TypeSafe returned HTTP ${res.status}`);
+        const body = (await res.json()) as JevResponse;
+        return {
+          value: body,
+          usage: {
+            inputTokens: body.usage?.input_tokens,
+            outputTokens: body.usage?.output_tokens,
+            responseModel: body.model,
+          },
+        };
+      },
+    );
     const latencyMs = Date.now() - started;
     const opAnswer = body.answers?.operation;
     if (!opAnswer || !(opAnswer.choice in operations))

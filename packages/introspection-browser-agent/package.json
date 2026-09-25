@@ -26,6 +26,10 @@
     "prepare": "rm -rf dist && tsc && node scripts/emit-page-script.mjs",
     "clean": "rm -rf dist"
   },
+  "dependencies": {
+    "@introspection-sdk/types": "workspace:*",
+    "@opentelemetry/api": "^1.9.1"
+  },
   "devDependencies": {
     "@repo/eslint-config": "workspace:*",
     "@repo/typescript-config": "workspace:*",
