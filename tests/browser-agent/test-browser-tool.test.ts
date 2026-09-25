@@ -474,6 +474,29 @@ describe.skipIf(!chrome)("run and the browser tool against Chromium", () => {
     ).rejects.toMatchObject({ code: "invalid_argument" });
   });
 
+  it("builds the run driver stack per call, passing inputs through", async () => {
+    let seen: Record<string, string> | undefined;
+    const tool = createBrowserTool({
+      session,
+      drivers: (input) => {
+        seen = input.inputs;
+        return [searchPolicy()];
+      },
+    });
+    expect(tool.commands).toContain("run");
+    expect(
+      await tool.call({
+        command: "run",
+        goal: "g",
+        inputs: { Destination: "Lisbon" },
+      }),
+    ).toMatchObject({ status: "done" });
+    expect(seen).toEqual({ Destination: "Lisbon" });
+    expect(createBrowserTool({ session, drivers: [] }).commands).not.toContain(
+      "run",
+    );
+  });
+
   it("narrows the schema to allowed and supported commands", async () => {
     const readOnly = createBrowserTool({
       session,

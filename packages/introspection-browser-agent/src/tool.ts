@@ -33,14 +33,19 @@ export interface BrowserToolInput {
   url?: string;
   goal?: string;
   max_steps?: number;
+  /** Known field values for `run`, by field-name substring (e.g. `{ "Destination": "Lisbon" }`). */
+  inputs?: Record<string, string>;
 }
 
 export interface BrowserToolOptions {
   session: BrowserSession;
   /** Allowlist; defaults to every command the options can serve. */
   commands?: readonly BrowserCommand[];
-  /** Enables `run`. */
-  drivers?: Driver[];
+  /**
+   * Enables `run`. A function builds the stack per call, so `inputs` can
+   * reach a driver (for example as `JevDriver` slots).
+   */
+  drivers?: Driver[] | ((input: BrowserToolInput) => Driver[]);
   /** Enables `upload`: maps a file handle to a path the browser can read. */
   resolveFile?: (file: string) => Promise<string>;
   /** Tool-layer policy on `navigate`; the egress allowlist is the boundary. */
@@ -83,6 +88,11 @@ const ARGS: Record<BrowserCommand, Record<string, unknown>> = {
   run: {
     goal: { type: "string" },
     max_steps: { type: "integer", minimum: 1, maximum: 60 },
+    inputs: {
+      type: "object",
+      additionalProperties: { type: "string" },
+      description: "Known field values, by field name",
+    },
   },
 };
 
@@ -107,7 +117,10 @@ export interface BrowserTool {
 
 export function createBrowserTool(options: BrowserToolOptions): BrowserTool {
   const supported = BROWSER_COMMANDS.filter(
-    (c) => c !== "run" || options.drivers?.length,
+    (c) =>
+      c !== "run" ||
+      typeof options.drivers === "function" ||
+      (options.drivers?.length ?? 0) > 0,
   );
   const commands = options.commands ?? supported;
   for (const c of commands) {
@@ -192,7 +205,10 @@ export function createBrowserTool(options: BrowserToolOptions): BrowserTool {
         case "run": {
           const result: RunResult = await run(s, {
             goal: input.goal!,
-            drivers: options.drivers!,
+            drivers:
+              typeof options.drivers === "function"
+                ? options.drivers(input)
+                : options.drivers!,
             maxSteps: input.max_steps,
           });
           return result;
