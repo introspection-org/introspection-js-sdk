@@ -24,7 +24,7 @@ export interface JevDriverOptions {
   textDriver?: Pick<Driver, "writeText">;
   /** Field-name substring → value, for flows whose inputs are known up front. */
   slots?: Record<string, string>;
-  /** Offer Jev `PRESS_ENTER` and `PRESS_ESCAPE`. Default false. */
+  /** Offer Jev `PRESS_ENTER` and `PRESS_ESCAPE`. Default true. */
   press?: boolean;
   fetch?: typeof fetch;
 }
@@ -142,7 +142,9 @@ export class JevDriver implements Driver {
     const operations = Object.fromEntries(
       Object.entries(OPERATIONS)
         .filter(([key, spec]) => !spec.action || heads[key])
-        .filter(([, spec]) => this.options.press || spec.op !== "press")
+        .filter(
+          ([, spec]) => this.options.press !== false || spec.op !== "press",
+        )
         .map(([key, spec]) => [key, spec.label]),
     );
     const questions: Record<string, unknown> = {

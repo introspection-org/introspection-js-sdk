@@ -117,7 +117,7 @@ into any field whose name contains "search".
 
 Put `new ClaudeDriver({ client, vision: true })` last in the ladder. That rung
 sees a screenshot at every step and can answer with a key press or a click at
-a point in the screenshot. `new JevDriver({ press: true })` also lets Jev choose
+a point in the screenshot. `JevDriver` can also choose
 Enter and Escape.
 
 `ClaudeDriver` takes an `@anthropic-ai/sdk` client you construct, so the
