@@ -60,7 +60,8 @@ export async function launchChrome(binary: string): Promise<LaunchedChrome> {
       "--window-size=800,600",
       "about:blank",
     ],
-    { stdio: "ignore" },
+    // Its own process group, so close() reaches the helper processes too.
+    { stdio: "ignore", detached: true },
   );
   const portFile = join(profile, "DevToolsActivePort");
   const deadline = Date.now() + 15_000;
@@ -76,10 +77,16 @@ export async function launchChrome(binary: string): Promise<LaunchedChrome> {
   return {
     endpoint: `http://127.0.0.1:${port}`,
     async close() {
-      child.kill("SIGKILL");
-      await new Promise((r) => child.once("exit", r));
-      // Chrome's helper processes can still be writing the profile after the
-      // browser exits.
+      const exited =
+        child.exitCode !== null || child.signalCode !== null
+          ? Promise.resolve()
+          : new Promise((r) => child.once("exit", r));
+      try {
+        process.kill(-child.pid!, "SIGKILL");
+      } catch {
+        // The group is already gone.
+      }
+      await exited;
       rmSync(profile, {
         recursive: true,
         force: true,
