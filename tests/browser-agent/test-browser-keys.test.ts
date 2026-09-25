@@ -114,8 +114,10 @@ describe.skipIf(!chrome)("press and clickAt against Chromium", () => {
     await expect(session.clickAt({ x: 10, y: 10 })).rejects.toThrow(
       /screenshot/,
     );
+    // The viewport, not the window: headful-mode Chrome takes its UI out of it.
+    const viewport = (await session.observe()).scroll.viewport;
     const shot = await session.screenshot();
-    expect(shot).toMatchObject({ width: 800, height: 600, scale: 1 });
+    expect(shot).toMatchObject({ width: 800, height: viewport, scale: 1 });
     await session.clickAt({ x: 420, y: 320 });
     expect(await text("hit 420,320")).toBe(true);
     await expect(session.clickAt({ x: 900, y: 10 })).rejects.toThrow(/outside/);
@@ -132,7 +134,10 @@ describe.skipIf(!chrome)("press and clickAt against Chromium", () => {
     });
     try {
       const o = await small.observe({ screenshot: true });
-      expect(o.screenshot_size).toEqual({ width: 400, height: 300 });
+      expect(o.screenshot_size).toEqual({
+        width: 400,
+        height: Math.round(o.scroll.viewport / 2),
+      });
       await small.clickAt({ x: 210, y: 160 });
       expect((await small.observe()).text).toContain("hit 420,320");
     } finally {
