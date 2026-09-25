@@ -78,7 +78,14 @@ export async function launchChrome(binary: string): Promise<LaunchedChrome> {
     async close() {
       child.kill("SIGKILL");
       await new Promise((r) => child.once("exit", r));
-      rmSync(profile, { recursive: true, force: true });
+      // Chrome's helper processes can still be writing the profile after the
+      // browser exits.
+      rmSync(profile, {
+        recursive: true,
+        force: true,
+        maxRetries: 10,
+        retryDelay: 100,
+      });
     },
   };
 }
