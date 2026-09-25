@@ -15,6 +15,7 @@
     "test:cov:check": "vitest run --coverage --coverage.reporter=text --coverage.reporter=json-summary"
   },
   "dependencies": {
+    "@introspection-sdk/browser-agent": "workspace:*",
     "@introspection-sdk/introspection-node": "workspace:*",
     "@introspection-sdk/introspection-pi": "workspace:*"
   },

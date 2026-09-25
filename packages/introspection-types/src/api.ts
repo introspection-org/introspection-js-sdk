@@ -456,6 +456,55 @@ export interface ShareListParams extends CursorParams {
   granted_to_me?: boolean;
 }
 
+// --- browsers ---
+
+export type BrowserStatus = "pending" | "ready" | "closed" | "failed";
+
+/**
+ * A standalone browser session (`/v1/browsers`). Field names match Kernel's
+ * browser resource where the two overlap, so `@onkernel/sdk` pointed at the
+ * data plane can create, read and delete one.
+ */
+export interface Browser {
+  id: Uuid;
+  /** Kernel-compatible alias of `id`. */
+  session_id: Uuid;
+  org_id: Uuid;
+  project_id: Uuid;
+  created_at: IsoDate;
+  updated_at: IsoDate;
+  status: BrowserStatus;
+  /** Raw CDP WebSocket on the browser edge; present once `status` is `ready`. */
+  cdp_ws_url?: string | null;
+  browser_live_view_url?: string | null;
+  headless: boolean;
+  timeout_seconds: number;
+  allowed_domains: string[];
+  /** Browser profile the session was created with, by slug. */
+  profile?: string | null;
+  task_id?: Uuid | null;
+}
+
+export interface BrowserCreateParams {
+  allowed_domains?: string[];
+  /** Load this browser profile's sealed state at start. */
+  profile?: string;
+  /** Write the session's state back to `profile` on delete. */
+  persist_profile?: boolean;
+  timeout_seconds?: number;
+  viewport?: { width: number; height: number };
+  headless?: boolean;
+}
+
+export interface BrowserUpdateParams {
+  timeout_seconds?: number;
+}
+
+export interface BrowserListParams extends CursorParams {
+  status?: BrowserStatus;
+  task_id?: Uuid;
+}
+
 // --- runtimes / experiments / runner ---
 
 /**

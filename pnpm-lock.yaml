@@ -208,6 +208,24 @@ importers:
         specifier: 5.9.3
         version: 5.9.3
 
+  packages/introspection-browser-agent:
+    devDependencies:
+      '@repo/eslint-config':
+        specifier: workspace:*
+        version: link:../eslint-config
+      '@repo/typescript-config':
+        specifier: workspace:*
+        version: link:../typescript-config
+      '@types/node':
+        specifier: ^22.20.3
+        version: 22.20.3
+      eslint:
+        specifier: ^9.39.5
+        version: 9.39.5(jiti@2.7.0)
+      typescript:
+        specifier: 5.9.3
+        version: 5.9.3
+
   packages/introspection-coding-agent:
     dependencies:
       '@introspection-sdk/types':
@@ -434,6 +452,9 @@ importers:
 
   tests:
     dependencies:
+      '@introspection-sdk/browser-agent':
+        specifier: workspace:*
+        version: link:../packages/introspection-browser-agent
       '@introspection-sdk/introspection-node':
         specifier: workspace:*
         version: link:../packages/introspection-node

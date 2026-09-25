@@ -251,6 +251,10 @@ export const pollyEndpoints = {
     /** Anthropic Node SDK appends `/v1/messages` itself. */
     node: "https://api.anthropic.com",
   },
+  typesafe: {
+    /** The browser-agent Jev driver appends `/v1/systemone` itself. */
+    base: "https://api.typesafe.ai",
+  },
 } as const;
 
 /**
