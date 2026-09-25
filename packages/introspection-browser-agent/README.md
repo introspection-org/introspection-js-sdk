@@ -23,23 +23,58 @@ dependencies.
   (`observe`, `act`, `scroll`, `navigate`, `tabs`, `screenshot`, `run`), with
   the schema narrowed to the commands you allow.
 
-## Drive a browser
+## Start a browser
+
+Any Chromium serving CDP works. Locally, start Chrome with its own profile
+directory; Chrome 136 and later refuse remote debugging on your everyday
+profile:
+
+```sh
+"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" \
+  --remote-debugging-port=9222 --user-data-dir="$HOME/.introspection/browser/default"
+```
+
+Inside an Introspection task, the platform's browser is at
+`INTROSPECTION_TASK_BROWSER_CDP_URL`.
+
+## Drive it yourself
+
+Search DuckDuckGo and read the results. Every action goes to an element a
+previous `observe` returned, by its `el_…` handle:
 
 ```ts
 import { BrowserSession } from "@introspection-sdk/browser-agent";
 
 const session = await BrowserSession.connect("http://127.0.0.1:9222", {
-  allowedDomains: ["app.example.com"],
-  // For the browser edge: headers: { Authorization: `Bearer ${token}` },
+  allowedDomains: ["duckduckgo.com", "*.duckduckgo.com"],
 });
-await session.navigate({ url: "https://app.example.com/search" });
+await session.navigate({ url: "https://duckduckgo.com/" });
 
-const page = await session.observe();
-const box = page.elements.find((e) => e.name === "Destination")!;
-await session.act({ element: box.element, action: "type", text: "Lisbon" });
+let page = await session.observe();
+const box = page.elements.find(
+  (e) => e.role === "searchbox" || e.role === "combobox",
+)!;
+await session.act({
+  element: box.element,
+  action: "type",
+  text: "chrome devtools protocol",
+});
+const search = page.elements.find(
+  (e) => e.role === "button" && /search/i.test(e.name),
+)!;
+await session.act({ element: search.element, action: "click" });
+
+page = await session.observe();
+const results = page.elements.filter((e) => e.role === "link").slice(0, 5);
+console.log(results.map((r) => r.name));
 ```
 
 ## Hand a goal to the fast driver, with Claude as the fallback
+
+`run` observes, asks a driver for one step, acts, and repeats. Jev decides the
+routine steps in about a tenth of a second each; Claude takes over the steps
+Jev is unsure of, and writes the text Jev asks to type. `success` checks the
+page itself, so a run is never judged by the driver's own `done`:
 
 ```ts
 import Anthropic from "@anthropic-ai/sdk";
@@ -51,6 +86,11 @@ import {
   run,
 } from "@introspection-sdk/browser-agent";
 
+const session = await BrowserSession.connect("http://127.0.0.1:9222", {
+  allowedDomains: ["en.wikipedia.org"],
+});
+await session.navigate({ url: "https://en.wikipedia.org/wiki/Main_Page" });
+
 const claude = new ClaudeDriver({ client: new Anthropic() });
 const jev = new JevDriver({
   apiKey: process.env.TYPESAFE_API_KEY,
@@ -58,11 +98,17 @@ const jev = new JevDriver({
 });
 
 const result = await run(session, {
-  goal: "Find Design stays in Lisbon with free cancellation",
+  goal: "Search Wikipedia for Chromium and open its article",
   drivers: [new GatedDriver(jev, claude)],
-  success: (page) => page.text.includes("in Lisbon"),
+  success: (page) =>
+    page.url.startsWith("https://en.wikipedia.org/wiki/Chromium"),
 });
+console.log(result.status, result.steps.length, `${result.elapsedMs} ms`);
 ```
+
+Values the task already knows can skip the text model entirely:
+`new JevDriver({ apiKey, slots: { search: "Chromium" } })` types `Chromium`
+into any field whose name contains "search".
 
 `ClaudeDriver` takes an `@anthropic-ai/sdk` client you construct, so the
 package does not depend on it. It defaults to `claude-opus-5` at `effort: low`
