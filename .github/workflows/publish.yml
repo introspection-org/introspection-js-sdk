@@ -99,6 +99,10 @@ jobs:
               echo "Skipping private package: $pkg"
               continue
             fi
+            if [ "$(jq -r .name "$pkg")" = "@introspection-sdk/browser-agent" ]; then
+              echo "Skipping $pkg: released on its own (publish-browser-agent.yml)"
+              continue
+            fi
             jq --arg v "$VERSION" '.version = $v' "$pkg" > tmp.json && mv tmp.json "$pkg"
             echo "Stamped $(jq -r .name "$pkg") → ${VERSION}"
 
@@ -126,7 +130,7 @@ jobs:
         run: pnpm build
 
       - name: Publish to npm
-        run: pnpm -r publish --access public --provenance --no-git-checks
+        run: pnpm -r --filter '!@introspection-sdk/browser-agent' publish --access public --provenance --no-git-checks
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
