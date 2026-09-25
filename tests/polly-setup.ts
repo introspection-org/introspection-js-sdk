@@ -251,6 +251,10 @@ export const pollyEndpoints = {
     /** Anthropic Node SDK appends `/v1/messages` itself. */
     node: "https://api.anthropic.com",
   },
+  openai: {
+    /** Chat Completions base; the OpenAI-compatible driver appends `/chat/completions`. */
+    v1: "https://api.openai.com/v1",
+  },
   typesafe: {
     /** The browser-agent Jev driver appends `/v1/systemone` itself. */
     base: "https://api.typesafe.ai",
