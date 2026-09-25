@@ -136,11 +136,24 @@ export async function run(
 async function perform(session: BrowserSession, d: Decision): Promise<void> {
   switch (d.op) {
     case "click":
+      if (d.element === undefined && d.x !== undefined && d.y !== undefined) {
+        await session.clickAt({ x: d.x, y: d.y });
+        return;
+      }
+      if (!d.element)
+        throw new BrowserError("invalid_argument", "click needs an element");
+      await session.act({ element: d.element, action: "click" });
+      return;
     case "type":
     case "select":
       if (!d.element)
         throw new BrowserError("invalid_argument", `${d.op} needs an element`);
       await session.act({ element: d.element, action: d.op, text: d.text });
+      return;
+    case "press":
+      if (!d.keys?.length)
+        throw new BrowserError("invalid_argument", "press needs keys");
+      await session.press({ keys: d.keys });
       return;
     case "scroll":
       await session.scroll({ direction: d.direction ?? "down" });

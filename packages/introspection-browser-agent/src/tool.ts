@@ -1,5 +1,6 @@
 import { run, type RunResult } from "./run.js";
 import type { BrowserSession } from "./session.js";
+import { MAX_PRESS_KEYS } from "./keys.js";
 import { BrowserError } from "./types.js";
 import type { Driver } from "./drivers/types.js";
 
@@ -11,6 +12,7 @@ import type { Driver } from "./drivers/types.js";
 export const BROWSER_COMMANDS = [
   "observe",
   "act",
+  "press",
   "scroll",
   "navigate",
   "tabs",
@@ -30,6 +32,11 @@ export interface BrowserToolInput {
   /** A host file handle for `upload`; resolved by `resolveFile`. */
   file?: string;
   direction?: "up" | "down";
+  /** Key chords for `press`. */
+  keys?: string[];
+  /** A point of the latest screenshot, for `act` `click` without an element. */
+  x?: number;
+  y?: number;
   url?: string;
   goal?: string;
   max_steps?: number;
@@ -73,6 +80,24 @@ const ARGS: Record<BrowserCommand, Record<string, unknown>> = {
       description: "Text to type, or the option label to select",
     },
     file: { type: "string", description: "File handle to upload" },
+    x: {
+      type: "integer",
+      minimum: 0,
+      description:
+        "click only, instead of element: pixel of the latest screenshot",
+    },
+    y: { type: "integer", minimum: 0 },
+    tab_id: { type: "string" },
+  },
+  press: {
+    keys: {
+      type: "array",
+      items: { type: "string" },
+      minItems: 1,
+      maxItems: MAX_PRESS_KEYS,
+      description:
+        'Key chords pressed in order on the focused element: "Enter", "Escape", "Tab", "ArrowLeft", "Space", "a", "Control+a"',
+    },
     tab_id: { type: "string" },
   },
   scroll: {
@@ -98,7 +123,8 @@ const ARGS: Record<BrowserCommand, Record<string, unknown>> = {
 
 const REQUIRED: Record<BrowserCommand, string[]> = {
   observe: [],
-  act: ["element", "action"],
+  act: ["action"],
+  press: ["keys"],
   scroll: ["direction"],
   navigate: ["url"],
   tabs: [],
@@ -140,6 +166,9 @@ export function createBrowserTool(options: BrowserToolOptions): BrowserTool {
     description:
       "Drive the browser. observe returns the page as an element table with el_… handles; " +
       "act clicks, types into, selects or uploads to a handle observe returned. " +
+      (commands.includes("press")
+        ? "press sends keys to the focused element. "
+        : "") +
       (commands.includes("run")
         ? "run hands a whole goal to the fast driver stack. "
         : "") +
@@ -183,13 +212,32 @@ export function createBrowserTool(options: BrowserToolOptions): BrowserTool {
               tab_id: input.tab_id,
             });
           }
+          if (input.element === undefined) {
+            if (
+              input.action === "click" &&
+              input.x !== undefined &&
+              input.y !== undefined
+            ) {
+              return s.clickAt({
+                x: input.x,
+                y: input.y,
+                tab_id: input.tab_id,
+              });
+            }
+            throw new BrowserError(
+              "invalid_argument",
+              "act needs element, or x and y for a click",
+            );
+          }
           return s.act({
-            element: input.element!,
+            element: input.element,
             action: input.action!,
             text: input.text,
             tab_id: input.tab_id,
           });
         }
+        case "press":
+          return s.press({ keys: input.keys!, tab_id: input.tab_id });
         case "scroll":
           return s.scroll({
             direction: input.direction!,

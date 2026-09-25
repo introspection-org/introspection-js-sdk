@@ -26,8 +26,10 @@ export interface Observation {
   scroll: { y: number; height: number; viewport: number };
   elements: ElementRow[];
   next_cursor: number | null;
-  /** Base64 JPEG, only when requested. */
+  /** Base64 JPEG of the viewport, only when requested. */
   screenshot?: string;
+  /** The screenshot's pixel size; `clickAt` takes coordinates in it. */
+  screenshot_size?: { width: number; height: number };
 }
 
 export interface TabInfo {
@@ -40,6 +42,10 @@ export interface TabInfo {
 export interface Screenshot {
   mime_type: "image/jpeg";
   data: string;
+  width: number;
+  height: number;
+  /** Screenshot pixels per CSS pixel. */
+  scale: number;
 }
 
 /**

@@ -72,6 +72,22 @@ const TOOL = {
         enum: ["up", "down"],
         description: "For scroll.",
       },
+      keys: {
+        type: "array",
+        items: { type: "string" },
+        description:
+          'For press: key chords in order, e.g. ["ArrowLeft", "Space"] or ["Control+a"].',
+      },
+      x: {
+        type: "integer",
+        description:
+          "For click without an element: horizontal pixel in the screenshot.",
+      },
+      y: {
+        type: "integer",
+        description:
+          "For click without an element: vertical pixel in the screenshot.",
+      },
       reason: { type: "string", description: "One short sentence." },
     },
   },
@@ -90,6 +106,7 @@ export class ClaudeDriver implements Driver {
 
   async decide(input: StepInput): Promise<Decision> {
     const content: Record<string, unknown>[] = [];
+    const size = input.observation.screenshot_size;
     if (this.vision && input.observation.screenshot) {
       content.push({
         type: "image",
@@ -102,7 +119,13 @@ export class ClaudeDriver implements Driver {
     }
     content.push({
       type: "text",
-      text: `GOAL: ${input.goal}\n\nRECENT ACTIONS:\n${historyText(input.history)}\n\n${input.table}`,
+      text:
+        `GOAL: ${input.goal}\n\nRECENT ACTIONS:\n${historyText(input.history)}\n\n` +
+        (this.vision && size
+          ? `SCREENSHOT: ${size.width}x${size.height} pixels. Prefer element handles; ` +
+            `click at x,y only for what the table does not list.\n\n`
+          : "") +
+        input.table,
     });
     const started = Date.now();
     const response = await this.create({

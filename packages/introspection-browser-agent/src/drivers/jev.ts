@@ -24,6 +24,8 @@ export interface JevDriverOptions {
   textDriver?: Pick<Driver, "writeText">;
   /** Field-name substring → value, for flows whose inputs are known up front. */
   slots?: Record<string, string>;
+  /** Offer Jev `PRESS_ENTER` and `PRESS_ESCAPE`. Default false. */
+  press?: boolean;
   fetch?: typeof fetch;
 }
 
@@ -39,7 +41,7 @@ Do not choose a field that already contains the requested value. Choose only an 
 
 const OPERATIONS: Record<
   string,
-  { label: string; op: DecisionOp; action?: string }
+  { label: string; op: DecisionOp; action?: string; keys?: string[] }
 > = {
   CLICK: {
     label: "Click an element, button, link, menu option or suggestion.",
@@ -56,6 +58,16 @@ const OPERATIONS: Record<
     label: "Select an observed dropdown option.",
     op: "select",
     action: "select",
+  },
+  PRESS_ENTER: {
+    label: "Press Enter in the focused field, e.g. to submit a filled search.",
+    op: "press",
+    keys: ["Enter"],
+  },
+  PRESS_ESCAPE: {
+    label: "Press Escape to dismiss an open dialog, menu or popup.",
+    op: "press",
+    keys: ["Escape"],
   },
   SCROLL_DOWN: {
     label: "Scroll down to reveal more of the page.",
@@ -130,6 +142,7 @@ export class JevDriver implements Driver {
     const operations = Object.fromEntries(
       Object.entries(OPERATIONS)
         .filter(([key, spec]) => !spec.action || heads[key])
+        .filter(([, spec]) => this.options.press || spec.op !== "press")
         .map(([key, spec]) => [key, spec.label]),
     );
     const questions: Record<string, unknown> = {
@@ -194,6 +207,7 @@ export class JevDriver implements Driver {
       return {
         op: spec.op,
         ...(spec.op === "scroll" ? { direction: "down" as const } : {}),
+        ...(spec.keys ? { keys: spec.keys } : {}),
         reason: `jev ${key} at ${opAnswer.confidence}`,
         ...meta,
       };
