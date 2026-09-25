@@ -18,6 +18,9 @@
       "@introspection-sdk/introspection-node": [
         "packages/introspection-node/src/index.ts"
       ],
+      "@introspection-sdk/browser-agent": [
+        "packages/introspection-browser-agent/src/index.ts"
+      ],
       "@introspection-sdk/introspection-pi": [
         "packages/introspection-pi/src/index.ts"
       ],

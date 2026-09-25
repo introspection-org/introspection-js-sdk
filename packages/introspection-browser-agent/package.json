@@ -1,0 +1,36 @@
+{
+  "name": "@introspection-sdk/browser-agent",
+  "version": "0.1.0",
+  "license": "Apache-2.0",
+  "description": "Drive any CDP browser with guarded, text-first actions and pluggable models (Jev, Claude, OpenAI-compatible)",
+  "engines": {
+    "node": ">=22"
+  },
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./browser.v1.js": "./dist/browser.v1.js"
+  },
+  "files": [
+    "dist/"
+  ],
+  "scripts": {
+    "lint": "eslint . --max-warnings 0",
+    "check-types": "tsc --noEmit",
+    "build": "rm -rf dist && tsc && node scripts/emit-page-script.mjs",
+    "prepare": "rm -rf dist && tsc && node scripts/emit-page-script.mjs",
+    "clean": "rm -rf dist"
+  },
+  "devDependencies": {
+    "@repo/eslint-config": "workspace:*",
+    "@repo/typescript-config": "workspace:*",
+    "@types/node": "^22.20.3",
+    "eslint": "^9.39.5",
+    "typescript": "5.9.3"
+  }
+}
