@@ -20,8 +20,13 @@ dependencies.
   actions, or a spent step budget, and verifies `done` with your `success`
   check.
 - **`createBrowserTool`.** One `browser` tool with a `command` discriminator
-  (`observe`, `act`, `scroll`, `navigate`, `tabs`, `screenshot`, `run`), with
-  the schema narrowed to the commands you allow.
+  (`observe`, `act`, `press`, `scroll`, `navigate`, `tabs`, `screenshot`,
+  `run`), with the schema narrowed to the commands you allow.
+- **Keys and a vision fallback.** `press` sends key chords (`Enter`,
+  `Escape`, arrows, `Shift+Tab`, `Control+a`) to the focused element.
+  `clickAt` clicks a point of the tab's latest screenshot, for what the element
+  table cannot name. It skips the handle checks, so it only works on a
+  screenshot taken since the last navigation.
 
 ## Start a browser
 
@@ -109,6 +114,11 @@ console.log(result.status, result.steps.length, `${result.elapsedMs} ms`);
 Values the task already knows can skip the text model entirely:
 `new JevDriver({ apiKey, slots: { search: "Chromium" } })` types `Chromium`
 into any field whose name contains "search".
+
+Put `new ClaudeDriver({ client, vision: true })` last in the ladder. That rung
+sees a screenshot at every step and can answer with a key press or a click at
+a point in the screenshot. `new JevDriver({ press: true })` also lets Jev choose
+Enter and Escape.
 
 `ClaudeDriver` takes an `@anthropic-ai/sdk` client you construct, so the
 package does not depend on it. It defaults to `claude-opus-5` at `effort: low`

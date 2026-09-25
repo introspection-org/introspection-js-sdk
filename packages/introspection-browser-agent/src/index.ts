@@ -3,6 +3,8 @@ export type { CdpConnectOptions, CdpEvent } from "./cdp.js";
 export { PAGE_SCRIPT, PAGE_SCRIPT_VERSION } from "./page-script.js";
 export { BrowserSession, hostAllowed } from "./session.js";
 export type { BrowserSessionOptions } from "./session.js";
+export { MAX_PRESS_KEYS, NAMED_KEYS, parseChord } from "./keys.js";
+export type { KeyChord, KeyDefinition } from "./keys.js";
 export { renderTable } from "./table.js";
 export { run } from "./run.js";
 export type { RunOptions, RunResult, RunStatus } from "./run.js";

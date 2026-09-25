@@ -1,4 +1,5 @@
 import { CdpConnection, type CdpConnectOptions, type CdpEvent } from "./cdp.js";
+import { MAX_PRESS_KEYS, parseChord } from "./keys.js";
 import { PAGE_SCRIPT, PAGE_SCRIPT_VERSION } from "./page-script.js";
 import {
   BrowserError,
@@ -19,6 +20,8 @@ export interface BrowserSessionOptions extends CdpConnectOptions {
   allowedDomains?: string[];
   /** Upper bound on waiting for a page to settle after an action. */
   settleMs?: number;
+  /** Screenshots are downscaled to at most this many pixels wide. Default 1280. */
+  screenshotMaxWidth?: number;
 }
 
 interface Tab {
@@ -26,6 +29,12 @@ interface Tab {
   sessionId: string;
   url: string;
   title: string;
+  /**
+   * Screenshot pixels per CSS pixel of this tab's latest screenshot; unset
+   * until one is taken and again after a navigation, so `clickAt` only
+   * lands on coordinates read off the page as it is.
+   */
+  screenshotScale?: number;
 }
 
 type ScriptResult = {
@@ -134,9 +143,12 @@ export class BrowserSession {
     tab.url = observation.url;
     tab.title = observation.title;
     if (opts.screenshot) {
-      observation.screenshot = (
-        await this.screenshot({ tab_id: tab.targetId })
-      ).data;
+      const shot = await this.screenshot({ tab_id: tab.targetId });
+      observation.screenshot = shot.data;
+      observation.screenshot_size = {
+        width: shot.width,
+        height: shot.height,
+      };
     }
     return observation;
   }
@@ -226,6 +238,88 @@ export class BrowserSession {
     }
   }
 
+  /**
+   * Presses keys on whatever has focus, in order: `"Enter"`, `"ArrowLeft"`,
+   * `"Space"`, `"a"`, `"Shift+Tab"`, `"Control+a"`. For keyboard-driven
+   * pages (menus, editors, games); text belongs in `act` `type`.
+   */
+  async press(opts: {
+    keys: string[];
+    tab_id?: string;
+  }): Promise<{ ok: true; pressed: number }> {
+    if (opts.keys.length === 0 || opts.keys.length > MAX_PRESS_KEYS) {
+      throw new BrowserError(
+        "invalid_argument",
+        `press takes 1 to ${MAX_PRESS_KEYS} keys`,
+      );
+    }
+    const chords = opts.keys.map(parseChord);
+    const tab = this.tab(opts.tab_id);
+    for (const { key, modifiers } of chords) {
+      const event = {
+        key: key.key,
+        code: key.code,
+        windowsVirtualKeyCode: key.keyCode,
+        nativeVirtualKeyCode: key.keyCode,
+        modifiers,
+      };
+      await this.cdp.send(
+        "Input.dispatchKeyEvent",
+        key.text !== undefined
+          ? {
+              ...event,
+              type: "keyDown",
+              text: key.text,
+              unmodifiedText: key.text,
+            }
+          : { ...event, type: "rawKeyDown" },
+        tab.sessionId,
+      );
+      await this.cdp.send(
+        "Input.dispatchKeyEvent",
+        { ...event, type: "keyUp" },
+        tab.sessionId,
+      );
+    }
+    await this.settle(tab);
+    return { ok: true, pressed: chords.length };
+  }
+
+  /**
+   * Clicks a point of the tab's latest screenshot, in that screenshot's
+   * pixels. The vision fallback for what the element table cannot name; it
+   * skips the handle checks `act` makes, so it needs a screenshot taken since
+   * the last navigation.
+   */
+  async clickAt(opts: {
+    x: number;
+    y: number;
+    tab_id?: string;
+  }): Promise<{ ok: true }> {
+    const tab = this.tab(opts.tab_id);
+    if (!tab.screenshotScale) {
+      throw new BrowserError(
+        "invalid_argument",
+        "clickAt needs a screenshot of the current page first",
+      );
+    }
+    const x = opts.x / tab.screenshotScale;
+    const y = opts.y / tab.screenshotScale;
+    const view = (await this.evaluate(
+      tab,
+      "({ w: innerWidth, h: innerHeight })",
+    )) as { w: number; h: number };
+    if (!(x >= 0 && y >= 0 && x < view.w && y < view.h)) {
+      throw new BrowserError(
+        "invalid_argument",
+        `(${opts.x}, ${opts.y}) is outside the screenshot`,
+      );
+    }
+    await this.click(tab, x, y);
+    await this.settle(tab);
+    return { ok: true };
+  }
+
   async navigate(opts: { url: string; tab_id?: string }): Promise<TabInfo> {
     if (!hostAllowed(opts.url, this.options.allowedDomains)) {
       throw new BrowserError(
@@ -284,14 +378,45 @@ export class BrowserSession {
     return out;
   }
 
+  /**
+   * The visible viewport as a JPEG in CSS pixels, downscaled to at most
+   * `screenshotMaxWidth` wide, whatever the device pixel ratio.
+   */
   async screenshot(opts: { tab_id?: string } = {}): Promise<Screenshot> {
     const tab = this.tab(opts.tab_id);
+    const view = (await this.evaluate(
+      tab,
+      "({ x: scrollX, y: scrollY, w: innerWidth, h: innerHeight, dpr: devicePixelRatio })",
+    )) as { x: number; y: number; w: number; h: number; dpr: number };
+    const scale = Math.min(
+      1,
+      (this.options.screenshotMaxWidth ?? 1280) / view.w,
+    );
+    // The clip is in page coordinates, and its scale multiplies the device
+    // pixel ratio, so dividing by it yields CSS-sized output.
     const { data } = await this.cdp.send<{ data: string }>(
       "Page.captureScreenshot",
-      { format: "jpeg", quality: 60 },
+      {
+        format: "jpeg",
+        quality: 60,
+        clip: {
+          x: view.x,
+          y: view.y,
+          width: view.w,
+          height: view.h,
+          scale: scale / (view.dpr || 1),
+        },
+      },
       tab.sessionId,
     );
-    return { mime_type: "image/jpeg", data };
+    tab.screenshotScale = scale;
+    return {
+      mime_type: "image/jpeg",
+      data,
+      width: Math.round(view.w * scale),
+      height: Math.round(view.h * scale),
+      scale,
+    };
   }
 
   /** Detaches from the browser; the browser itself keeps running. */
@@ -467,6 +592,7 @@ export class BrowserSession {
         const frame = p.frame as unknown as { parentId?: string; url: string };
         if (tab && !frame.parentId) {
           tab.url = frame.url;
+          tab.screenshotScale = undefined;
           out = {
             type: "page.navigated",
             tab_id: tab.targetId,
