@@ -166,11 +166,13 @@ new JevDriver({
 ## Performance and cost
 
 On the same three Wikipedia decisions, Jev answers in about a tenth of a
-second but reads more input than an LLM driver: 7,078, 7,142 and 3,939 input
+second and reads more input than an LLM driver: 7,078, 7,142 and 3,939 input
 tokens, against an estimated 2,200, 2,200 and 1,200 for Claude, because each
 request carries every candidate as JSON and answers a target for every
-operation at once. Choose Jev for latency, and let `GatedDriver` and
-`session.run`'s escalation bound how often a frontier model is paid for. The
+operation at once. It is still the cheapest rung: at $0.042 per million input
+tokens with free output, the run costs under a tenth of a cent, against a few
+cents for Claude. `GatedDriver` and `session.run`'s escalation bound how often
+a frontier model is paid for. The
 per-driver table, with prices, is in the platform's
 [browser agents design notes](https://github.com/introspection-org/introspection-cloud/blob/main/docs/design/browser-agents-jev-ultrafast.md#performance-and-cost-by-driver).
 
