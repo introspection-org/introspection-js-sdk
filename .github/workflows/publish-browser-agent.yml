@@ -1,0 +1,63 @@
+name: Publish browser-agent to npm
+
+# @introspection-sdk/browser-agent releases on its own cadence: release-please
+# owns its version (packages/introspection-browser-agent in
+# release-please-config.json) and tags browser-agent-vX.Y.Z when its release PR
+# merges. publish.yml skips it.
+
+run-name: "Publish ${{ github.ref_name }}"
+
+on:
+  push:
+    tags:
+      - "browser-agent-v*"
+  workflow_dispatch:
+
+concurrency:
+  group: release-publish-browser-agent
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  publish:
+    name: Publish @introspection-sdk/browser-agent
+    runs-on: ubuntu-latest
+    environment: publish
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: "pnpm"
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Check the tag matches package.json
+        if: github.event_name == 'push'
+        run: |
+          VERSION="$(jq -r .version packages/introspection-browser-agent/package.json)"
+          if [ "browser-agent-v${VERSION}" != "${GITHUB_REF_NAME}" ]; then
+            echo "::error::tag ${GITHUB_REF_NAME} does not match package.json ${VERSION}"
+            exit 1
+          fi
+
+      - name: Build packages
+        run: pnpm build
+
+      - name: Run tests
+        run: pnpm test:replay
+
+      - name: Publish to npm
+        run: pnpm --filter @introspection-sdk/browser-agent publish --access public --provenance --no-git-checks
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

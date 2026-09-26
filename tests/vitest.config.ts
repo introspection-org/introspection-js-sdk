@@ -28,6 +28,10 @@ export default defineConfig({
         repoRoot,
         "packages/introspection-node/src/index.ts",
       ),
+      "@introspection-sdk/browser-agent": resolve(
+        repoRoot,
+        "packages/introspection-browser-agent/src/index.ts",
+      ),
       "@introspection-sdk/introspection-pi": resolve(
         repoRoot,
         "packages/introspection-pi/src/index.ts",
@@ -98,6 +102,7 @@ export default defineConfig({
         "packages/introspection-browser/src/**/*.ts",
         "packages/introspection-types/src/**/*.ts",
         "packages/introspection-http/src/**/*.ts",
+        "packages/introspection-browser-agent/src/**/*.ts",
       ],
       exclude: [
         "**/*.test.ts",

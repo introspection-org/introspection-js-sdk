@@ -1,0 +1,184 @@
+# @introspection-sdk/browser-agent
+
+Drive any Chromium over raw CDP with text-first, guarded actions and pluggable
+models. It works against the platform's browser sidecar, a local Chrome, or a
+hosted provider's `cdp_ws_url` (Kernel, Browserbase). Its runtime
+dependencies are `@opentelemetry/api`, `@introspection-sdk/types` and, for Jev,
+TypeSafe's own `@typesafe-ai/sdk`.
+
+- **`browser.v1` page script.** Injected into every tab, it turns the page into
+  an element table with opaque `el_…` handles. Actions only land on an element
+  a previous `observe` returned, after checking that it is still there,
+  enabled, not covered, and still means what it did: an element whose row,
+  form or state changed since it was observed is refused. A navigation
+  invalidates every handle. After each input the page is given time to render
+  it, and an autocomplete field until its suggestions stop changing.
+  `observe({ scope: "viewport" })` returns only what is on screen, which is
+  what a decision model should see.
+- **Drivers.** `JevDriver` (TypeSafe's decision model through
+  `@typesafe-ai/sdk`: operation and target in one request, about 200 ms, on the
+  viewport, with each answer validated before it acts), `ClaudeDriver`,
+  `OpenAICompatibleDriver`, and
+  `GatedDriver`, which re-decides only the steps the fast driver is unsure of.
+  `JevDriver` follows the loop of
+  [`browser-use/jev-ultrafast`](https://github.com/browser-use/jev-ultrafast),
+  Browser Use and TypeSafe's Python reference agent. That repository is our
+  behavioural reference, not a dependency.
+- **`session.run`.** A driver ladder that escalates on `blocked`, repeated
+  invalid actions, three actions in a row that change nothing on the page, or
+  a spent step budget, and verifies `done` with your `success` check.
+- **`createBrowserTool`.** One `browser` tool with a `command` discriminator
+  (`observe`, `act`, `press`, `scroll`, `navigate`, `tabs`, `screenshot`,
+  `run`), with the schema narrowed to the commands you allow.
+- **Keys and a vision fallback.** `press` sends key chords (`Enter`,
+  `Escape`, arrows, `Shift+Tab`, `Control+a`) to the focused element.
+  `clickAt` clicks a point of the tab's latest screenshot, for what the element
+  table cannot name. It skips the handle checks, so it only works on a
+  screenshot taken since the last navigation.
+
+## Start a browser
+
+Any Chromium serving CDP works. Locally, start Chrome with its own profile
+directory; Chrome 136 and later refuse remote debugging on your everyday
+profile:
+
+```sh
+"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" \
+  --remote-debugging-port=9222 --user-data-dir="$HOME/.introspection/browser/default"
+```
+
+Inside an Introspection task, the platform's browser is at
+`INTROSPECTION_TASK_BROWSER_CDP_URL`.
+
+## Drive it yourself
+
+Search DuckDuckGo and read the results. Every action goes to an element a
+previous `observe` returned, by its `el_…` handle:
+
+```ts
+import { BrowserSession } from "@introspection-sdk/browser-agent";
+
+const session = await BrowserSession.connect("http://127.0.0.1:9222", {
+  allowedDomains: ["duckduckgo.com", "*.duckduckgo.com"],
+});
+await session.navigate({ url: "https://duckduckgo.com/" });
+
+let page = await session.observe();
+const box = page.elements.find(
+  (e) => e.role === "searchbox" || e.role === "combobox",
+)!;
+await session.act({
+  element: box.element,
+  action: "type",
+  text: "chrome devtools protocol",
+});
+const search = page.elements.find(
+  (e) => e.role === "button" && /search/i.test(e.name),
+)!;
+await session.act({ element: search.element, action: "click" });
+
+page = await session.observe();
+const results = page.elements.filter((e) => e.role === "link").slice(0, 5);
+console.log(results.map((r) => r.name));
+```
+
+## Hand a goal to the fast driver, with Claude as the fallback
+
+`session.run` observes, asks a driver for one step, acts, and repeats. Jev decides the
+routine steps in about a tenth of a second each; Claude takes over the steps
+Jev is unsure of, and writes the text Jev asks to type. `success` checks the
+page itself, so a run is never judged by the driver's own `done`:
+
+```ts
+import Anthropic from "@anthropic-ai/sdk";
+import {
+  BrowserSession,
+  ClaudeDriver,
+  GatedDriver,
+  JevDriver,
+} from "@introspection-sdk/browser-agent";
+
+const session = await BrowserSession.connect("http://127.0.0.1:9222", {
+  allowedDomains: ["en.wikipedia.org"],
+});
+await session.navigate({ url: "https://en.wikipedia.org/wiki/Main_Page" });
+
+const claude = new ClaudeDriver({ client: new Anthropic() });
+const jev = new JevDriver({
+  apiKey: process.env.TYPESAFE_API_KEY,
+  textDriver: claude,
+});
+
+const result = await session.run({
+  goal: "Search Wikipedia for Chromium and open its article",
+  drivers: [new GatedDriver(jev, claude)],
+  success: (page) =>
+    page.url.startsWith("https://en.wikipedia.org/wiki/Chromium"),
+});
+console.log(result.status, result.steps.length, `${result.elapsedMs} ms`);
+```
+
+Values the task already knows can skip the text model entirely:
+`new JevDriver({ apiKey, slots: { search: "Chromium" } })` types `Chromium`
+into any field whose name contains "search".
+
+Put `new ClaudeDriver({ client, vision: true })` last in the ladder. That rung
+sees a screenshot at every step and can answer with a key press or a click at
+a point in the screenshot. `JevDriver` can also choose
+Enter and Escape.
+
+`ClaudeDriver` takes an `@anthropic-ai/sdk` client you construct, so the
+package does not depend on it. It defaults to `claude-opus-5` at `effort: low`
+with server-side refusal fallbacks on (`refusalFallbacks: false` turns them
+off).
+
+## Telemetry
+
+Every model call a driver makes is an OpenTelemetry GenAI client span, the
+same shape `@introspection-sdk/introspection-pi` gives a Pi chat call, so
+browser steps are counted and billed like any other model usage:
+
+| Driver                   | Span                                            | Usage recorded                                                              |
+| ------------------------ | ----------------------------------------------- | --------------------------------------------------------------------------- |
+| `JevDriver`              | `generate_content {model}`, provider `typesafe` | input and output tokens, and the Jev version that answered                  |
+| `ClaudeDriver`           | `chat {model}`, provider `anthropic`            | input tokens (cache reads and writes included), output tokens, cache counts |
+| `OpenAICompatibleDriver` | `chat {model}`, provider `openai` or `provider` | input tokens (cached included once), output tokens, cached count            |
+
+Spans go to the global tracer provider, so an app that has set one up (the
+Introspection runtime does) exports them with no further wiring, and they nest
+under whatever span is active, such as the Pi tool call. `telemetry.tracer`
+chooses another tracer; `telemetry.attributes` adds host attributes to every
+span, which is how the runtime marks a managed call
+(`{ "introspection.byok": false }`); `telemetry: false` turns a driver's spans
+off, for a client that is already instrumented.
+
+A call whose provider reported no input or output token count is marked
+`introspection.usage.missing: true` (`USAGE_MISSING`), so usage that billing
+would read as zero can be found rather than silently lost.
+
+```ts
+new JevDriver({
+  baseUrl,
+  telemetry: { attributes: () => ({ "introspection.byok": !managed }) },
+});
+```
+
+## Performance and cost
+
+On the same three Wikipedia decisions, Jev answers in about a tenth of a
+second and reads more input than an LLM driver: 7,078, 7,142 and 3,939 input
+tokens, against an estimated 2,200, 2,200 and 1,200 for Claude, because each
+request carries every candidate as JSON and answers a target for every
+operation at once. It is still the cheapest rung: at $0.042 per million input
+tokens with free output, the run costs under a tenth of a cent, against a few
+cents for Claude. `GatedDriver` and `session.run`'s escalation bound how often
+a frontier model is paid for. The
+per-driver table, with prices, is in the platform's
+[browser agents design notes](https://github.com/introspection-org/introspection-cloud/blob/main/docs/design/browser-agents-jev-ultrafast.md#performance-and-cost-by-driver).
+
+## Non-JavaScript clients
+
+The page script is published as `dist/browser.v1.js`, with its SHA-256 in
+`dist/browser.v1.js.sha256`, so other clients (the `introspection` CLI) can
+embed exactly this build and call `window.__introspection.browser.v1` over
+CDP.

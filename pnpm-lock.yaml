@@ -208,6 +208,34 @@ importers:
         specifier: 5.9.3
         version: 5.9.3
 
+  packages/introspection-browser-agent:
+    dependencies:
+      '@introspection-sdk/types':
+        specifier: workspace:*
+        version: link:../introspection-types
+      '@opentelemetry/api':
+        specifier: ^1.9.1
+        version: 1.9.1
+      '@typesafe-ai/sdk':
+        specifier: ^0.6.0
+        version: 0.6.0
+    devDependencies:
+      '@repo/eslint-config':
+        specifier: workspace:*
+        version: link:../eslint-config
+      '@repo/typescript-config':
+        specifier: workspace:*
+        version: link:../typescript-config
+      '@types/node':
+        specifier: ^22.20.3
+        version: 22.20.3
+      eslint:
+        specifier: ^9.39.5
+        version: 9.39.5(jiti@2.7.0)
+      typescript:
+        specifier: 5.9.3
+        version: 5.9.3
+
   packages/introspection-coding-agent:
     dependencies:
       '@introspection-sdk/types':
@@ -434,6 +462,9 @@ importers:
 
   tests:
     dependencies:
+      '@introspection-sdk/browser-agent':
+        specifier: workspace:*
+        version: link:../packages/introspection-browser-agent
       '@introspection-sdk/introspection-node':
         specifier: workspace:*
         version: link:../packages/introspection-node
@@ -441,6 +472,9 @@ importers:
         specifier: workspace:*
         version: link:../packages/introspection-pi
     devDependencies:
+      '@anthropic-ai/sdk':
+        specifier: ^0.124.0
+        version: 0.124.0(zod@4.6.5)
       '@earendil-works/pi-agent-core':
         specifier: ^0.87.1
         version: 0.87.1(@modelcontextprotocol/sdk@1.30.0(@cfworker/json-schema@4.1.1)(zod@4.6.5))(ws@8.21.3)(zod@4.6.5)
@@ -1706,6 +1740,10 @@ packages:
 
   '@types/set-cookie-parser@2.4.10':
     resolution: {integrity: sha512-GGmQVGpQWUe5qglJozEjZV/5dyxbOOZ0LHe/lqyWssB88Y4svNfst0uqBVscdDeIKl5Jy5+aPSvy7mI9tYRguw==}
+
+  '@typesafe-ai/sdk@0.6.0':
+    resolution: {integrity: sha512-IddX+Q0XM+VagOUZFeP7wZjaO4SHMdvnh2zEBdrZZnXedWI3BNK1lKhMx3ayrkFWvVLbVcUHJy6AVZlY+e6Jaw==}
+    engines: {node: '>=20'}
 
   '@typescript-eslint/eslint-plugin@8.70.0':
     resolution: {integrity: sha512-/v8HZt6RlyIZxB3ntehELOcUcfxKPVGWXnQdJuHRmzrqgF8nQypcC/oxGW+Ot4VGKDq81XugPKxx0n5PBtf9PA==}
@@ -5547,6 +5585,8 @@ snapshots:
   '@types/set-cookie-parser@2.4.10':
     dependencies:
       '@types/node': 22.20.3
+
+  '@typesafe-ai/sdk@0.6.0': {}
 
   '@typescript-eslint/eslint-plugin@8.70.0(@typescript-eslint/parser@8.70.0(eslint@9.39.5(jiti@2.7.0))(typescript@5.9.3))(eslint@9.39.5(jiti@2.7.0))(typescript@5.9.3)':
     dependencies:
