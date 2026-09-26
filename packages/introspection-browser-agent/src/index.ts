@@ -6,7 +6,7 @@ export type { BrowserSessionOptions } from "./session.js";
 export { MAX_PRESS_KEYS, NAMED_KEYS, parseChord } from "./keys.js";
 export type { KeyChord, KeyDefinition } from "./keys.js";
 export { renderTable } from "./table.js";
-export { traceModelCall } from "./telemetry.js";
+export { traceModelCall, USAGE_MISSING } from "./telemetry.js";
 export type { DriverTelemetry, ModelCall, ModelUsage } from "./telemetry.js";
 export type { RunOptions, RunResult, RunStatus } from "./run.js";
 export { BROWSER_COMMANDS, createBrowserTool } from "./tool.js";

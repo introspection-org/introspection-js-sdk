@@ -11,13 +11,14 @@
 // A driver whose recording is absent is skipped in replay.
 import { readFileSync } from "node:fs";
 import Anthropic from "@anthropic-ai/sdk";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import type { Polly } from "@pollyjs/core";
 import {
   ClaudeDriver,
   DECISION_OPS,
   JevDriver,
   OpenAICompatibleDriver,
+  USAGE_MISSING,
   renderTable,
   type Decision,
   type Driver,
@@ -29,6 +30,7 @@ import {
   pollyEndpoints,
   setupPolly,
 } from "../polly-setup";
+import { piTracing } from "../observability/pi-fixtures";
 
 interface Trajectory {
   goal: string;
@@ -47,6 +49,28 @@ const TRAJECTORY = JSON.parse(
     "utf8",
   ),
 ) as Trajectory;
+
+const tracing = piTracing();
+afterEach(() => tracing.exporter.reset());
+afterAll(async () => {
+  await tracing.provider.shutdown();
+});
+
+/**
+ * Usage detection: the decision just made left exactly one GenAI span with the
+ * token counts the provider reported, which is what billing reads. A provider
+ * that changes its usage shape fails here on the next re-record.
+ */
+async function expectCounted(operation: string) {
+  await tracing.provider.forceFlush();
+  const spans = tracing.spansFor(operation);
+  expect(spans).toHaveLength(1);
+  const attributes = spans[0]!.attributes;
+  expect(attributes[USAGE_MISSING]).toBeUndefined();
+  expect(attributes["gen_ai.usage.input_tokens"]).toBeGreaterThan(0);
+  expect(attributes["gen_ai.usage.output_tokens"]).toBeGreaterThan(0);
+  expect(attributes["gen_ai.response.model"]).toBeTruthy();
+}
 
 // Pinned: the model is part of the recorded request body.
 const OPENAI_MODEL = "gpt-5-mini";
@@ -112,6 +136,7 @@ describe("JevDriver on a real Wikipedia trajectory (recorded)", () => {
         text: d.text,
         keys: d.keys,
       }).toEqual(step.decision);
+      await expectCounted("generate_content");
     },
   );
 
@@ -174,6 +199,7 @@ describe.each([
       (e) => e.element === d.element,
     );
     expect(row?.role).toMatch(/searchbox|combobox/);
+    await expectCounted("chat");
   });
 
   it.each(TRAJECTORY.steps.slice(1, -1).map((_, i) => [i + 1] as const))(
@@ -183,6 +209,7 @@ describe.each([
       const d = await decide(c.driver(), i);
       expectSound(d, TRAJECTORY.steps[i]!.observation);
       expect(["click", "press"]).toContain(d.op);
+      await expectCounted("chat");
     },
   );
 
@@ -190,5 +217,6 @@ describe.each([
     if (!polly.active()) return;
     const d = await decide(c.driver(), last);
     expect(d.op).toBe("done");
+    await expectCounted("chat");
   });
 });
