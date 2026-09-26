@@ -15,7 +15,10 @@ export interface FakeJev {
   }[];
 }
 
-export function fakeJev(choices: Record<string, string> = {}): FakeJev {
+export function fakeJev(
+  choices: Record<string, string> = {},
+  usage: object | null = { input_tokens: 10, output_tokens: 2 },
+): FakeJev {
   const bodies: FakeJev["bodies"] = [];
   const fetch = (async (_url: string, init: { body: string }) => {
     const body = JSON.parse(init.body) as FakeJev["bodies"][number];
@@ -40,7 +43,7 @@ export function fakeJev(choices: Record<string, string> = {}): FakeJev {
       JSON.stringify({
         model: "jev-test",
         answers,
-        usage: { input_tokens: 10, output_tokens: 2 },
+        ...(usage ? { usage } : {}),
       }),
       { headers: { "content-type": "application/json" } },
     );

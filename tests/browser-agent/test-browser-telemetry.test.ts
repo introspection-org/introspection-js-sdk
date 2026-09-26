@@ -10,6 +10,7 @@ import {
   JEV_OPERATION,
   JevDriver,
   OpenAICompatibleDriver,
+  USAGE_MISSING,
   type AnthropicClientLike,
   type Observation,
   type StepInput,
@@ -117,6 +118,7 @@ describe("JevDriver spans (recorded)", () => {
     expect(span!.attributes["gen_ai.response.model"]).toMatch(/^jev-/);
     expect(span!.attributes["gen_ai.usage.input_tokens"]).toBeGreaterThan(0);
     expect(span!.attributes["gen_ai.usage.output_tokens"]).toBeGreaterThan(0);
+    expect(span!.attributes[USAGE_MISSING]).toBeUndefined();
   });
 });
 
@@ -209,6 +211,21 @@ describe("driver spans", () => {
       "gen_ai.usage.cache_read.input_tokens": 40,
       "server.address": "openrouter.ai",
     });
+  });
+
+  it("flags a call whose provider reported no usage", async () => {
+    const withUsage = fakeJev({ operation: "WAIT" });
+    await new JevDriver({ fetch: withUsage.fetch }).decide(input);
+    const partial = fakeJev({ operation: "WAIT" }, { input_tokens: 10 });
+    await new JevDriver({ fetch: partial.fetch }).decide(input);
+    const none = fakeJev({ operation: "WAIT" }, null);
+    await new JevDriver({ fetch: none.fetch }).decide(input);
+
+    const [counted, halfCounted, uncounted] = await spans();
+    expect(counted!.attributes[USAGE_MISSING]).toBeUndefined();
+    expect(halfCounted!.attributes[USAGE_MISSING]).toBe(true);
+    expect(uncounted!.attributes[USAGE_MISSING]).toBe(true);
+    expect(uncounted!.attributes["gen_ai.usage.input_tokens"]).toBeUndefined();
   });
 
   it("emits nothing when telemetry is off", async () => {

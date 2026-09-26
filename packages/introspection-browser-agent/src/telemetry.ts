@@ -46,6 +46,12 @@ export interface ModelUsage {
 
 const TRACER_NAME = "@introspection-sdk/browser-agent";
 
+/**
+ * Set on a successful call whose provider reported no input or output token
+ * count, so usage that billing would read as zero can be found and alerted on.
+ */
+export const USAGE_MISSING = "introspection.usage.missing";
+
 function serverAttributes(url: string | undefined): Attributes {
   if (!url) return {};
   try {
@@ -119,6 +125,8 @@ export async function traceModelCall<T>(
   try {
     const { value, usage } = await run();
     if (usage) span.setAttributes(usageAttributes(usage));
+    if (usage?.inputTokens === undefined || usage.outputTokens === undefined)
+      span.setAttribute(USAGE_MISSING, true);
     return value;
   } catch (error) {
     span.setAttribute("error.type", errorType(error));
