@@ -6,7 +6,19 @@
       "release-type": "simple",
       "changelog-path": "CHANGELOG.md",
       "bump-minor-pre-major": true,
+      "bump-patch-for-minor-pre-major": false,
+      "include-component-in-tag": false,
+      "exclude-paths": ["packages/introspection-browser-agent"]
+    },
+    "packages/introspection-browser-agent": {
+      "release-type": "node",
+      "package-name": "@introspection-sdk/browser-agent",
+      "component": "browser-agent",
+      "include-component-in-tag": true,
+      "changelog-path": "CHANGELOG.md",
+      "bump-minor-pre-major": true,
       "bump-patch-for-minor-pre-major": false
     }
-  }
+  },
+  "separate-pull-requests": true
 }

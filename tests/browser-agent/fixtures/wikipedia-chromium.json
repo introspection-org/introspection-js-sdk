@@ -1,0 +1,974 @@
+{
+  "goal": "Search Wikipedia for Chromium and open its article",
+  "slots": {
+    "search": "Chromium"
+  },
+  "captured": "2026-09-25",
+  "status": "done",
+  "steps": [
+    {
+      "observation": {
+        "version": "browser.v1",
+        "url": "https://en.wikipedia.org/wiki/Main_Page",
+        "title": "Wikipedia, the free encyclopedia",
+        "text": "Jump to content\nSearch\nDonate\nCreate account\nLog in\nMain Page\nTalk\nRead\nView source\nView history\nAppearance\nhide\nWelcome to\nWikipedia\n,\nthe\nfree\nencyclopedia that\nanyone can edit\n.\n267,685\nactive editors\n7,244,470\narticles in\nEnglish\nFrom today's featured article\nThe derailed train on the tracks\nThere was a disruption of train services\non the\nEast–West Line\n(EWL) of Singapore's\nMass Rapid Transit\n(MRT) system on 25\nSeptember 2024. An\naxle box\non a\nKawasaki C151\ntrain dislodged, derailing the train\n(pictured)\nand damaging the track and equipment between\nClementi\nand\nDover\nstations. More than 2\nmillion commuters were affected, and shuttle train services and bus-bridging services were provided during restoration works. Full services resumed on 1\nOctober. This was the worst breakdown in the MRT network's history. The\nLand Transport Authority\nconcluded that the failure began with degraded grease in an\naxle bearing\n, which led to overheating and fire damage to the\nchevron springs\n. The\nTransport Safety Investigation Bureau\nfound that fixing a \"\nNull ID\n\" error could have identified the affected train and prevented the incident. The rail operator,\nSMRT\n, was subsequently fined\nS$\n2.4\nmillion (US$1.8\nmillion) and the C151 trains were withdrawn from service by September\n2025.\n(\nFull\narticle...\n)\nIn the news\nTilcayo\nAn attack on a police complex\nin\nKohat\n, Pakistan, leaves at least 31 people dead.\nThe\ntilcayo\n(pictured)\n, a new species of tiger cat, is formally identified.\nFormer leader of Kosovo\nHashim Thaçi\nis sentenced to 25 years in prison for\nwar crimes during his leadership\nof the\nKosovo Liberation Army\n.\nAt\nthe Primetime Emmy Awards\n,\nWidow's Bay\nwins\nOutstanding Comedy Series\n, and\nThe Pitt\nwins\nOutstanding Drama Series\n.\nOngoing\n:\nIran war\n(\nLebanon war\n)\nRusso-Ukrainian war\ntimeline\nRecent deaths\n:\nJun Gato\nJeffery Lee\nDolores Sibonga\nAracy Amaral\nBonnie Greer\nPeter Max\nMore current events\nNominate an article",
+        "scroll": {
+          "y": 0,
+          "height": 4153,
+          "viewport": 761
+        },
+        "elements": [
+          {
+            "element": "el_p1_1",
+            "role": "link",
+            "name": "Wikipedia The Free Encyclopedia",
+            "actions": ["click"]
+          },
+          {
+            "element": "el_p1_2",
+            "role": "searchbox",
+            "name": "Search Wikipedia",
+            "value": "",
+            "actions": ["type", "click"]
+          },
+          {
+            "element": "el_p1_3",
+            "role": "button",
+            "name": "Search",
+            "actions": ["click"]
+          },
+          {
+            "element": "el_p1_4",
+            "role": "link",
+            "name": "Donate",
+            "actions": ["click"]
+          },
+          {
+            "element": "el_p1_5",
+            "role": "link",
+            "name": "Create account",
+            "actions": ["click"]
+          },
+          {
+            "element": "el_p1_6",
+            "role": "link",
+            "name": "Log in",
+            "actions": ["click"]
+          },
+          {
+            "element": "el_p1_7",
+            "role": "link",
+            "name": "Main Page",
+            "actions": ["click"]
+          },
+          {
+            "element": "el_p1_8",
+            "role": "link",
+            "name": "Talk",
+            "actions": ["click"]
+          },
+          {
+            "element": "el_p1_9",
+            "role": "link",
+            "name": "Read",
+            "actions": ["click"]
+          },
+          {
+            "element": "el_p1_10",
+            "role": "link",
+            "name": "View source",
+            "actions": ["click"]
+          },
+          {
+            "element": "el_p1_11",
+            "role": "link",
+            "name": "View history",
+            "actions": ["click"]
+          },
+          {
+            "element": "el_p1_12",
+            "role": "button",
+            "name": "Hide Appearance",
+            "actions": ["click"]
+          },
+          {
+            "element": "el_p1_13",
+            "role": "link",
+            "name": "Wikipedia",
+            "actions": ["click"]
+          },
+          {
+            "element": "el_p1_14",
+            "role": "link",
+            "name": "free",
+            "actions": ["click"]
+          },
+          {
+            "element": "el_p1_15",
+            "role": "link",
+            "name": "anyone can edit",
+            "actions": ["click"]
+          },
+          {
+            "element": "el_p1_16",
+            "role": "link",
+            "name": "267,685",
+            "actions": ["click"]
+          },
+          {
+            "element": "el_p1_17",
+            "role": "link",
+            "name": "7,244,470",
+            "actions": ["click"]
+          },
+          {
+            "element": "el_p1_18",
+            "role": "link",
+            "name": "English",
+            "actions": ["click"]
+          },
+          {
+            "element": "el_p1_19",
+            "role": "link",
+            "name": "The derailed train on the tracks",
+            "actions": ["click"]
+          },
+          {
+            "element": "el_p1_20",
+            "role": "link",
+            "name": "There was a disruption of train services",
+            "actions": ["click"]
+          },
+          {
+            "element": "el_p1_21",
+            "role": "link",
+            "name": "East–West Line",
+            "actions": ["click"]
+          },
+          {
+            "element": "el_p1_22",
+            "role": "link",
+            "name": "Mass Rapid Transit",
+            "actions": ["click"]
+          },
+          {
+            "element": "el_p1_23",
+            "role": "link",
+            "name": "axle box",
+            "actions": ["click"]
+          },
+          {
+            "element": "el_p1_24",
+            "role": "link",
+            "name": "Kawasaki C151",
+            "actions": ["click"]
+          },
+          {
+            "element": "el_p1_25",
+            "role": "link",
+            "name": "Clementi",
+            "actions": ["click"]
+          },
+          {
+            "element": "el_p1_26",
+            "role": "link",
+            "name": "Dover",
+            "actions": ["click"]
+          },
+          {
+            "element": "el_p1_27",
+            "role": "link",
+            "name": "Land Transport Authority",
+            "actions": ["click"]
+          },
+          {
+            "element": "el_p1_28",
+            "role": "link",
+            "name": "axle bearing",
+            "actions": ["click"]
+          },
+          {
+            "element": "el_p1_29",
+            "role": "link",
+            "name": "chevron springs",
+            "actions": ["click"]
+          },
+          {
+            "element": "el_p1_30",
+            "role": "link",
+            "name": "Transport Safety Investigation Bureau",
+            "actions": ["click"]
+          },
+          {
+            "element": "el_p1_31",
+            "role": "link",
+            "name": "Null ID",
+            "actions": ["click"]
+          },
+          {
+            "element": "el_p1_32",
+            "role": "link",
+            "name": "SMRT",
+            "actions": ["click"]
+          },
+          {
+            "element": "el_p1_33",
+            "role": "link",
+            "name": "S$",
+            "actions": ["click"]
+          },
+          {
+            "element": "el_p1_34",
+            "role": "link",
+            "name": "Full article...",
+            "actions": ["click"]
+          },
+          {
+            "element": "el_p1_35",
+            "role": "link",
+            "name": "A small cat with dappled fur and a long tail",
+            "actions": ["click"]
+          },
+          {
+            "element": "el_p1_36",
+            "role": "link",
+            "name": "An attack on a police complex",
+            "actions": ["click"]
+          },
+          {
+            "element": "el_p1_37",
+            "role": "link",
+            "name": "Kohat",
+            "actions": ["click"]
+          },
+          {
+            "element": "el_p1_38",
+            "role": "link",
+            "name": "tilcayo",
+            "actions": ["click"]
+          },
+          {
+            "element": "el_p1_39",
+            "role": "link",
+            "name": "Hashim Thaçi",
+            "actions": ["click"]
+          },
+          {
+            "element": "el_p1_40",
+            "role": "link",
+            "name": "war crimes during his leadership",
+            "actions": ["click"]
+          },
+          {
+            "element": "el_p1_41",
+            "role": "link",
+            "name": "Kosovo Liberation Army",
+            "actions": ["click"]
+          },
+          {
+            "element": "el_p1_42",
+            "role": "link",
+            "name": "the Primetime Emmy Awards",
+            "actions": ["click"]
+          },
+          {
+            "element": "el_p1_43",
+            "role": "link",
+            "name": "Widow's Bay",
+            "actions": ["click"]
+          },
+          {
+            "element": "el_p1_44",
+            "role": "link",
+            "name": "Outstanding Comedy Series",
+            "actions": ["click"]
+          },
+          {
+            "element": "el_p1_45",
+            "role": "link",
+            "name": "The Pitt",
+            "actions": ["click"]
+          },
+          {
+            "element": "el_p1_46",
+            "role": "link",
+            "name": "Outstanding Drama Series",
+            "actions": ["click"]
+          },
+          {
+            "element": "el_p1_47",
+            "role": "link",
+            "name": "Iran war",
+            "actions": ["click"]
+          },
+          {
+            "element": "el_p1_48",
+            "role": "link",
+            "name": "Lebanon war",
+            "actions": ["click"]
+          },
+          {
+            "element": "el_p1_49",
+            "role": "link",
+            "name": "Russo-Ukrainian war",
+            "actions": ["click"]
+          },
+          {
+            "element": "el_p1_50",
+            "role": "link",
+            "name": "timeline",
+            "actions": ["click"]
+          },
+          {
+            "element": "el_p1_51",
+            "role": "link",
+            "name": "Recent deaths",
+            "actions": ["click"]
+          },
+          {
+            "element": "el_p1_52",
+            "role": "link",
+            "name": "Jun Gato",
+            "actions": ["click"]
+          },
+          {
+            "element": "el_p1_53",
+            "role": "link",
+            "name": "Jeffery Lee",
+            "actions": ["click"]
+          },
+          {
+            "element": "el_p1_54",
+            "role": "link",
+            "name": "Dolores Sibonga",
+            "actions": ["click"]
+          },
+          {
+            "element": "el_p1_55",
+            "role": "link",
+            "name": "Aracy Amaral",
+            "actions": ["click"]
+          },
+          {
+            "element": "el_p1_56",
+            "role": "link",
+            "name": "Bonnie Greer",
+            "actions": ["click"]
+          },
+          {
+            "element": "el_p1_57",
+            "role": "link",
+            "name": "Peter Max",
+            "actions": ["click"]
+          },
+          {
+            "element": "el_p1_58",
+            "role": "link",
+            "name": "More current events",
+            "actions": ["click"]
+          },
+          {
+            "element": "el_p1_59",
+            "role": "link",
+            "name": "Nominate an article",
+            "actions": ["click"]
+          }
+        ],
+        "next_cursor": null,
+        "fingerprint": "1mj6kyp",
+        "tab_id": "CA97A9BB1C19CFF262DB0D00A747589A"
+      },
+      "history": [],
+      "decision": {
+        "op": "type",
+        "element": "el_p1_2",
+        "text": "Chromium"
+      }
+    },
+    {
+      "observation": {
+        "version": "browser.v1",
+        "url": "https://en.wikipedia.org/wiki/Main_Page",
+        "title": "Wikipedia, the free encyclopedia",
+        "text": "Jump to content\nSearch\nDonate\nCreate account\nLog in\nMain Page\nTalk\nRead\nView source\nView history\nAppearance\nhide\nText\nSmall\nStandard\nLarge\nWidth\nStandard\nWide\nColor\nAutomatic\nLight\nDark\nWelcome to\nWikipedia\n,\nthe\nfree\nencyclopedia that\nanyone can edit\n.\n267,685\nactive editors\n7,244,470\narticles in\nEnglish\nFrom today's featured article\nThe derailed train on the tracks\nThere was a disruption of train services\non the\nEast–West Line\n(EWL) of Singapore's\nMass Rapid Transit\n(MRT) system on 25\nSeptember 2024. An\naxle box\non a\nKawasaki C151\ntrain dislodged, derailing the train\n(pictured)\nand damaging the track and equipment between\nClementi\nand\nDover\nstations. More than 2\nmillion commuters were affected, and shuttle train services and bus-bridging services were provided during restoration works. Full services resumed on 1\nOctober. This was the worst breakdown in the MRT network's history. The\nLand Transport Authority\nconcluded that the failure began with degraded grease in an\naxle bearing\n, which led to overheating and fire damage to the\nchevron springs\n. The\nTransport Safety Investigation Bureau\nfound that fixing a \"\nNull ID\n\" error could have identified the affected train and prevented the incident. The rail operator,\nSMRT\n, was subsequently fined\nS$\n2.4\nmillion (US$1.8\nmillion) and the C151 trains were withdrawn from service by September\n2025.\n(\nFull\narticle...\n)\nIn the news\nTilcayo\nAn attack on a police complex\nin\nKohat\n, Pakistan, leaves at least 31 people dead.\nThe\ntilcayo\n(pictured)\n, a new species of tiger cat, is formally identified.\nFormer leader of Kosovo\nHashim Thaçi\nis sentenced to 25 years in prison for\nwar crimes during his leadership\nof the\nKosovo Liberation Army\n.\nAt\nthe Primetime Emmy Awards\n,\nWidow's Bay\nwins\nOutstanding Comedy Series\n, and\nThe Pitt\nwins\nOutstanding Drama Series\n.\nOngoing\n:\nIran war\n(\nLebanon war\n)\nRusso-Ukrainian war\ntimeline\nRecent deaths\n:\nJun Gato\nJeffery Lee\nDolores Sibonga\nAracy Amaral\nBonnie Greer\nPeter Max\nMore current events\nNominate an article",
+        "scroll": {
+          "y": 0,
+          "height": 3847,
+          "viewport": 761
+        },
+        "elements": [
+          {
+            "element": "el_p1_1",
+            "role": "link",
+            "name": "Wikipedia The Free Encyclopedia",
+            "actions": ["click"]
+          },
+          {
+            "element": "el_p1_60",
+            "role": "combobox",
+            "name": "Search Wikipedia",
+            "value": "Chromium",
+            "actions": ["type", "click"]
+          },
+          {
+            "element": "el_p1_61",
+            "role": "button",
+            "name": "Search",
+            "actions": ["click"]
+          },
+          {
+            "element": "el_p1_4",
+            "role": "link",
+            "name": "Donate",
+            "actions": ["click"]
+          },
+          {
+            "element": "el_p1_5",
+            "role": "link",
+            "name": "Create account",
+            "actions": ["click"]
+          },
+          {
+            "element": "el_p1_6",
+            "role": "link",
+            "name": "Log in",
+            "actions": ["click"]
+          },
+          {
+            "element": "el_p1_7",
+            "role": "link",
+            "name": "Main Page",
+            "actions": ["click"]
+          },
+          {
+            "element": "el_p1_8",
+            "role": "link",
+            "name": "Talk",
+            "actions": ["click"]
+          },
+          {
+            "element": "el_p1_9",
+            "role": "link",
+            "name": "Read",
+            "actions": ["click"]
+          },
+          {
+            "element": "el_p1_10",
+            "role": "link",
+            "name": "View source",
+            "actions": ["click"]
+          },
+          {
+            "element": "el_p1_11",
+            "role": "link",
+            "name": "View history",
+            "actions": ["click"]
+          },
+          {
+            "element": "el_p1_12",
+            "role": "button",
+            "name": "Hide Appearance",
+            "actions": ["click"]
+          },
+          {
+            "element": "el_p1_13",
+            "role": "link",
+            "name": "Wikipedia",
+            "actions": ["click"]
+          },
+          {
+            "element": "el_p1_14",
+            "role": "link",
+            "name": "free",
+            "actions": ["click"]
+          },
+          {
+            "element": "el_p1_15",
+            "role": "link",
+            "name": "anyone can edit",
+            "actions": ["click"]
+          },
+          {
+            "element": "el_p1_16",
+            "role": "link",
+            "name": "267,685",
+            "actions": ["click"]
+          },
+          {
+            "element": "el_p1_17",
+            "role": "link",
+            "name": "7,244,470",
+            "actions": ["click"]
+          },
+          {
+            "element": "el_p1_18",
+            "role": "link",
+            "name": "English",
+            "actions": ["click"]
+          },
+          {
+            "element": "el_p1_19",
+            "role": "link",
+            "name": "The derailed train on the tracks",
+            "actions": ["click"]
+          },
+          {
+            "element": "el_p1_20",
+            "role": "link",
+            "name": "There was a disruption of train services",
+            "actions": ["click"]
+          },
+          {
+            "element": "el_p1_21",
+            "role": "link",
+            "name": "East–West Line",
+            "actions": ["click"]
+          },
+          {
+            "element": "el_p1_22",
+            "role": "link",
+            "name": "Mass Rapid Transit",
+            "actions": ["click"]
+          },
+          {
+            "element": "el_p1_23",
+            "role": "link",
+            "name": "axle box",
+            "actions": ["click"]
+          },
+          {
+            "element": "el_p1_24",
+            "role": "link",
+            "name": "Kawasaki C151",
+            "actions": ["click"]
+          },
+          {
+            "element": "el_p1_25",
+            "role": "link",
+            "name": "Clementi",
+            "actions": ["click"]
+          },
+          {
+            "element": "el_p1_26",
+            "role": "link",
+            "name": "Dover",
+            "actions": ["click"]
+          },
+          {
+            "element": "el_p1_27",
+            "role": "link",
+            "name": "Land Transport Authority",
+            "actions": ["click"]
+          },
+          {
+            "element": "el_p1_28",
+            "role": "link",
+            "name": "axle bearing",
+            "actions": ["click"]
+          },
+          {
+            "element": "el_p1_29",
+            "role": "link",
+            "name": "chevron springs",
+            "actions": ["click"]
+          },
+          {
+            "element": "el_p1_30",
+            "role": "link",
+            "name": "Transport Safety Investigation Bureau",
+            "actions": ["click"]
+          },
+          {
+            "element": "el_p1_31",
+            "role": "link",
+            "name": "Null ID",
+            "actions": ["click"]
+          },
+          {
+            "element": "el_p1_32",
+            "role": "link",
+            "name": "SMRT",
+            "actions": ["click"]
+          },
+          {
+            "element": "el_p1_33",
+            "role": "link",
+            "name": "S$",
+            "actions": ["click"]
+          },
+          {
+            "element": "el_p1_34",
+            "role": "link",
+            "name": "Full article...",
+            "actions": ["click"]
+          },
+          {
+            "element": "el_p1_35",
+            "role": "link",
+            "name": "A small cat with dappled fur and a long tail",
+            "actions": ["click"]
+          },
+          {
+            "element": "el_p1_36",
+            "role": "link",
+            "name": "An attack on a police complex",
+            "actions": ["click"]
+          },
+          {
+            "element": "el_p1_37",
+            "role": "link",
+            "name": "Kohat",
+            "actions": ["click"]
+          },
+          {
+            "element": "el_p1_38",
+            "role": "link",
+            "name": "tilcayo",
+            "actions": ["click"]
+          },
+          {
+            "element": "el_p1_39",
+            "role": "link",
+            "name": "Hashim Thaçi",
+            "actions": ["click"]
+          },
+          {
+            "element": "el_p1_40",
+            "role": "link",
+            "name": "war crimes during his leadership",
+            "actions": ["click"]
+          },
+          {
+            "element": "el_p1_41",
+            "role": "link",
+            "name": "Kosovo Liberation Army",
+            "actions": ["click"]
+          },
+          {
+            "element": "el_p1_42",
+            "role": "link",
+            "name": "the Primetime Emmy Awards",
+            "actions": ["click"]
+          },
+          {
+            "element": "el_p1_43",
+            "role": "link",
+            "name": "Widow's Bay",
+            "actions": ["click"]
+          },
+          {
+            "element": "el_p1_44",
+            "role": "link",
+            "name": "Outstanding Comedy Series",
+            "actions": ["click"]
+          },
+          {
+            "element": "el_p1_45",
+            "role": "link",
+            "name": "The Pitt",
+            "actions": ["click"]
+          },
+          {
+            "element": "el_p1_46",
+            "role": "link",
+            "name": "Outstanding Drama Series",
+            "actions": ["click"]
+          },
+          {
+            "element": "el_p1_47",
+            "role": "link",
+            "name": "Iran war",
+            "actions": ["click"]
+          },
+          {
+            "element": "el_p1_48",
+            "role": "link",
+            "name": "Lebanon war",
+            "actions": ["click"]
+          },
+          {
+            "element": "el_p1_49",
+            "role": "link",
+            "name": "Russo-Ukrainian war",
+            "actions": ["click"]
+          },
+          {
+            "element": "el_p1_50",
+            "role": "link",
+            "name": "timeline",
+            "actions": ["click"]
+          },
+          {
+            "element": "el_p1_51",
+            "role": "link",
+            "name": "Recent deaths",
+            "actions": ["click"]
+          },
+          {
+            "element": "el_p1_52",
+            "role": "link",
+            "name": "Jun Gato",
+            "actions": ["click"]
+          },
+          {
+            "element": "el_p1_53",
+            "role": "link",
+            "name": "Jeffery Lee",
+            "actions": ["click"]
+          },
+          {
+            "element": "el_p1_54",
+            "role": "link",
+            "name": "Dolores Sibonga",
+            "actions": ["click"]
+          },
+          {
+            "element": "el_p1_55",
+            "role": "link",
+            "name": "Aracy Amaral",
+            "actions": ["click"]
+          },
+          {
+            "element": "el_p1_56",
+            "role": "link",
+            "name": "Bonnie Greer",
+            "actions": ["click"]
+          },
+          {
+            "element": "el_p1_57",
+            "role": "link",
+            "name": "Peter Max",
+            "actions": ["click"]
+          },
+          {
+            "element": "el_p1_58",
+            "role": "link",
+            "name": "More current events",
+            "actions": ["click"]
+          },
+          {
+            "element": "el_p1_59",
+            "role": "link",
+            "name": "Nominate an article",
+            "actions": ["click"]
+          }
+        ],
+        "next_cursor": null,
+        "fingerprint": "1119u4h",
+        "tab_id": "CA97A9BB1C19CFF262DB0D00A747589A"
+      },
+      "history": [
+        {
+          "op": "type",
+          "element": "el_p1_2",
+          "text": "Chromium"
+        }
+      ],
+      "decision": {
+        "op": "click",
+        "element": "el_p1_61"
+      }
+    },
+    {
+      "observation": {
+        "version": "browser.v1",
+        "url": "https://en.wikipedia.org/wiki/Chromium",
+        "title": "Chromium - Wikipedia",
+        "text": "Jump to content\nMain menu\nmove to sidebar\nhide\nNavigation\nMain page\nContents\nCurrent events\nRandom article\nAbout Wikipedia\nContact us\nContribute\nHelp\nLearn to edit\nCommunity portal\nRecent changes\nUpload file\nSpecial pages\nSearch\nSearch\nDonate\nCreate account\nLog in\nDonate\nCreate account\nLog in\nContents",
+        "scroll": {
+          "y": 0,
+          "height": 7085,
+          "viewport": 761
+        },
+        "elements": [
+          {
+            "element": "el_p2_1",
+            "role": "link",
+            "name": "Jump to content",
+            "actions": ["click"]
+          },
+          {
+            "element": "el_p2_2",
+            "role": "button",
+            "name": "Main menu",
+            "actions": ["click"]
+          },
+          {
+            "element": "el_p2_3",
+            "role": "button",
+            "name": "Move Main menu to sidebar",
+            "actions": ["click"]
+          },
+          {
+            "element": "el_p2_4",
+            "role": "button",
+            "name": "Hide Main menu",
+            "actions": ["click"]
+          },
+          {
+            "element": "el_p2_5",
+            "role": "link",
+            "name": "Main page",
+            "actions": ["click"]
+          },
+          {
+            "element": "el_p2_6",
+            "role": "link",
+            "name": "Contents",
+            "actions": ["click"]
+          },
+          {
+            "element": "el_p2_7",
+            "role": "link",
+            "name": "Current events",
+            "actions": ["click"]
+          },
+          {
+            "element": "el_p2_8",
+            "role": "link",
+            "name": "Random article",
+            "actions": ["click"]
+          },
+          {
+            "element": "el_p2_9",
+            "role": "link",
+            "name": "About Wikipedia",
+            "actions": ["click"]
+          },
+          {
+            "element": "el_p2_10",
+            "role": "link",
+            "name": "Contact us",
+            "actions": ["click"]
+          },
+          {
+            "element": "el_p2_11",
+            "role": "link",
+            "name": "Help",
+            "actions": ["click"]
+          },
+          {
+            "element": "el_p2_12",
+            "role": "link",
+            "name": "Learn to edit",
+            "actions": ["click"]
+          },
+          {
+            "element": "el_p2_13",
+            "role": "link",
+            "name": "Community portal",
+            "actions": ["click"]
+          },
+          {
+            "element": "el_p2_14",
+            "role": "link",
+            "name": "Recent changes",
+            "actions": ["click"]
+          },
+          {
+            "element": "el_p2_15",
+            "role": "link",
+            "name": "Upload file",
+            "actions": ["click"]
+          },
+          {
+            "element": "el_p2_16",
+            "role": "link",
+            "name": "Special pages",
+            "actions": ["click"]
+          },
+          {
+            "element": "el_p2_17",
+            "role": "link",
+            "name": "Wikipedia The Free Encyclopedia",
+            "actions": ["click"]
+          },
+          {
+            "element": "el_p2_18",
+            "role": "link",
+            "name": "Search",
+            "actions": ["click"]
+          },
+          {
+            "element": "el_p2_19",
+            "role": "searchbox",
+            "name": "Search Wikipedia",
+            "value": "",
+            "actions": ["type", "click"]
+          },
+          {
+            "element": "el_p2_20",
+            "role": "button",
+            "name": "Search",
+            "actions": ["click"]
+          },
+          {
+            "element": "el_p2_21",
+            "role": "button",
+            "name": "Appearance",
+            "actions": ["click"]
+          },
+          {
+            "element": "el_p2_22",
+            "role": "link",
+            "name": "Donate",
+            "actions": ["click"]
+          },
+          {
+            "element": "el_p2_23",
+            "role": "link",
+            "name": "Create account",
+            "actions": ["click"]
+          },
+          {
+            "element": "el_p2_24",
+            "role": "link",
+            "name": "Log in",
+            "actions": ["click"]
+          },
+          {
+            "element": "el_p2_25",
+            "role": "button",
+            "name": "Personal tools",
+            "actions": ["click"]
+          },
+          {
+            "element": "el_p2_26",
+            "role": "link",
+            "name": "Donate",
+            "actions": ["click"]
+          },
+          {
+            "element": "el_p2_27",
+            "role": "link",
+            "name": "Create account",
+            "actions": ["click"]
+          },
+          {
+            "element": "el_p2_28",
+            "role": "link",
+            "name": "Log in",
+            "actions": ["click"]
+          }
+        ],
+        "next_cursor": null,
+        "fingerprint": "1j4jx87",
+        "tab_id": "CA97A9BB1C19CFF262DB0D00A747589A"
+      },
+      "history": [
+        {
+          "op": "type",
+          "element": "el_p1_2",
+          "text": "Chromium"
+        },
+        {
+          "op": "click",
+          "element": "el_p1_61"
+        }
+      ],
+      "decision": {
+        "op": "done"
+      }
+    }
+  ]
+}

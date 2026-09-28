@@ -7,6 +7,7 @@ import {
   type Uuid,
 } from "@introspection-sdk/types";
 import {
+  BrowsersApi,
   ConversationsApi,
   EventsApi,
   FilesApi,
@@ -51,6 +52,7 @@ export class Runner {
   readonly events: EventsApi;
   readonly metrics: MetricsApi;
   readonly shares: SharesApi;
+  readonly browsers: BrowsersApi;
 
   constructor(
     private readonly client: IntrospectionClient,
@@ -65,6 +67,7 @@ export class Runner {
     this.events = new EventsApi(this.guardedHttp());
     this.metrics = new MetricsApi(this.guardedHttp());
     this.shares = new SharesApi(this.guardedHttp());
+    this.browsers = new BrowsersApi(this.guardedHttp());
   }
 
   // --- public accessors ---

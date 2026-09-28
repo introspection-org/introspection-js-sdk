@@ -37,6 +37,7 @@ export type {
 // Runner-bound REST namespaces (runner.tasks, runner.files,
 // runner.conversations) + HTTP.
 export {
+  BrowsersApi,
   ConversationItemsApi,
   ConversationsApi,
   EventsApi,
