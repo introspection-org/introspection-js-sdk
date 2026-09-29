@@ -948,7 +948,7 @@ export interface Connector {
   project_id: Uuid;
   created_at: IsoDate;
   updated_at: IsoDate;
-  /** Stable per-org identifier; create is idempotent on it. */
+  /** Stable per-project identifier; create upserts on it. */
   slug: string;
   name: string;
   /** Provider slug, e.g. `"slack"`, `"gmail"`, `"stripe"`. */
@@ -998,6 +998,10 @@ export interface ConnectorCreateParams {
   client_secret?: string;
   /** Write-only — never present on any response. */
   signing_secret?: string;
+  /**
+   * Provider settings. A `pipedream` connector requires
+   * `provider_workspace_id` (its Connect project id, `proj_...`).
+   */
   metadata?: Record<string, unknown>;
   /**
    * OAuth discovery: when set and the endpoints are omitted, the server

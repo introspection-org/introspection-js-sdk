@@ -134,7 +134,10 @@ export class ConnectorsApi {
     );
   }
 
-  /** Create a connector. Idempotent on `slug` — a repeat POST returns the live row. */
+  /**
+   * Create a connector. Upserts on `slug`: a repeat POST replaces the live
+   * row's configuration and keeps its provider, auth mode and stored secrets.
+   */
   create(params: ConnectorCreateParams): Promise<Connector> {
     return this.http.request<Connector>({
       method: "POST",

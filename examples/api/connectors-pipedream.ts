@@ -1,6 +1,7 @@
 /**
  * Create (or reuse) a Pipedream connector, then connect one downstream
- * application to a runtime. Connector creation is idempotent on its slug.
+ * application to a runtime. Re-creating a connector with the same slug updates
+ * it in place.
  *
  * Required env:
  *   INTROSPECTION_RUNTIME=<runtime group slug or ID>
@@ -46,7 +47,7 @@ async function main() {
       auth_mode: "client_credentials",
       client_id: clientId,
       client_secret: clientSecret,
-      metadata: { pipedream_project_id: projectId },
+      metadata: { provider_workspace_id: projectId },
     });
     connectorId = connector.id;
     console.log(`connector -> ${connector.slug} (${connector.id})`);
