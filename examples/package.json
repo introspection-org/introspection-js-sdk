@@ -11,6 +11,7 @@
     "pi-subagents": "node --import tsx otel/pi/subagents.ts",
     "api-connectors-slack": "node --import tsx api/connectors-slack.ts",
     "api-connectors-pipedream": "node --import tsx api/connectors-pipedream.ts",
+    "api-connectors-custom-app": "node --import tsx api/connectors-custom-app.ts",
     "api-runtimes": "node --import tsx api/runtimes.ts",
     "proxy-supabase-global": "node --import tsx proxy/supabase-global.ts",
     "proxy-supabase-manual": "node --import tsx proxy/supabase-manual.ts",

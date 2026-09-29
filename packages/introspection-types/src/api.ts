@@ -1046,6 +1046,10 @@ export interface ConnectorApp {
   icon_url?: string | null;
   description?: string | null;
   auth_type?: string | null;
+  /** The listing's MCP server URL, where it has one. */
+  mcp_url?: string | null;
+  /** The vendor's documentation for this server, where the registry knows it. */
+  docs_url?: string | null;
 }
 
 export interface ConnectorAppListParams {
@@ -1053,6 +1057,65 @@ export interface ConnectorAppListParams {
   q?: string;
   /** Maximum applications returned (1–50, server default 20). */
   limit?: number;
+}
+
+/** Search of the open MCP registry — the catalogue a custom connector picks from. */
+export interface ConnectorCustomAppSearchParams {
+  /** Search text (2–100 characters). */
+  q: string;
+  /** Maximum applications returned (1–50, server default 20). */
+  limit?: number;
+}
+
+/** How the platform identified itself to a custom OAuth provider. */
+export type ConnectorClientRegistration =
+  "client_id_metadata_document" | "dynamic";
+
+/**
+ * What OAuth discovery learned about a provider's authorization server,
+ * plus the client identity it registered (if any).
+ */
+export interface ConnectorOAuthDiscoveryResponse {
+  issuer: string;
+  authorization_endpoint: string;
+  token_endpoint: string;
+  registration_endpoint?: string | null;
+  token_endpoint_auth_methods_supported: string[];
+  code_challenge_methods_supported: string[];
+  scopes_supported: string[];
+  client_id_metadata_document_supported: boolean;
+  /**
+   * RFC 9728 resource identifier when discovery started at an MCP server;
+   * sent as the RFC 8707 `resource` parameter.
+   */
+  resource?: string | null;
+  /** The callback this deployment sends; register it exactly on a hand-made client. */
+  redirect_uri: string;
+  /** Set when discovery registered (or identified) a client — pass it to `create`. */
+  client_id?: string | null;
+  /** Set when dynamic registration issued one — pass it to `create`. Never logged. */
+  client_secret?: string | null;
+  /** How `client_id` was obtained; unset when the provider offers no automatic registration. */
+  client_registration?: ConnectorClientRegistration | null;
+}
+
+/**
+ * The MCP endpoint binding a connect completes into. On a successful grant
+ * the control plane writes the endpoint in the same transaction as the
+ * connection, so the runtime is never authorized-but-unbound. Requires
+ * `runtime` alongside it on `authorize`.
+ */
+export interface ConnectorAuthorizeBinding {
+  /** Runtime environment the endpoint serves. */
+  environment: Environment;
+  /** The Recipe MCP server id this connector backs (`package.json#pi.mcp.servers[].id`). */
+  mcp_server_id: string;
+  /** Streamable-HTTP MCP resource URL (https). */
+  url: string;
+  /** Display label; defaults to `mcp_server_id`. */
+  name?: string;
+  /** Extra non-Authorization headers injected alongside the connection token. */
+  headers?: Record<string, string>;
 }
 
 export interface ConnectorAuthorizeParams {
@@ -1080,6 +1143,10 @@ export interface ConnectorAuthorizeParams {
    * `connector.requires_runtime`.
    */
   runtime?: string;
+  /**
+   * MCP endpoint binding written with the grant. Requires `runtime`.
+   */
+  binding?: ConnectorAuthorizeBinding;
   /** Who the consent is for (default `"app"`). */
   subject?: ConnectionBrokerSubjectType;
   /** Where the browser lands after consent. */

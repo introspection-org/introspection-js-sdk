@@ -313,7 +313,11 @@ const SURFACES = [
     where: "GET /v1/conversations/{id}/export query parameters",
     sdk: () => interfaceMembers(CONVERSATIONS, "ConversationExportParams"),
     server: (spec) =>
-      queryParameters(spec, "/v1/conversations/{conversation_id}/export", "get"),
+      queryParameters(
+        spec,
+        "/v1/conversations/{conversation_id}/export",
+        "get",
+      ),
     missingIsFatal: true,
     extraMeans: "sent as a query parameter the API does not accept",
     missingMeans: "accepted by the API but not exposed here",
@@ -421,6 +425,25 @@ const SURFACES = [
     exempt: ["connector_id"],
     extraMeans: "declared here but not accepted by the API",
     missingMeans: "accepted by the API but unavailable to callers of this SDK",
+  },
+  {
+    name: "ConnectorAuthorizeBinding",
+    where: "POST /v1/oauth/connections/authorize body.binding",
+    plane: "cp",
+    sdk: () => interfaceMembers(TYPES, "ConnectorAuthorizeBinding"),
+    server: (spec) => schemaProperties(spec, "ConnectBindingRequest"),
+    extraMeans: "declared here but not accepted by the API",
+    missingMeans: "accepted by the API but unavailable to callers of this SDK",
+  },
+  {
+    name: "ConnectorCustomAppSearchParams",
+    where: "GET /v1/connectors/custom/apps query parameters",
+    plane: "cp",
+    sdk: () => interfaceMembers(TYPES, "ConnectorCustomAppSearchParams"),
+    server: (spec) =>
+      queryParameters(spec, "/v1/connectors/custom/apps", "get"),
+    extraMeans: "sent as a query parameter the API does not accept",
+    missingMeans: "accepted by the API but not exposed here",
   },
   // --- metrics -------------------------------------------------------------
   {
