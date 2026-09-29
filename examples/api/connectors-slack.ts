@@ -35,8 +35,9 @@ async function main() {
   const client = new IntrospectionClient();
   // 1) Create the connector. This is the org-level definition of the
   //    provider: your Slack app's credentials plus the scopes it asks for.
-  //    Create is idempotent on `slug`, so re-running this is safe — it
-  //    returns the existing row rather than a duplicate. `client_secret` is
+  //    Create upserts on `slug`, so re-running this is safe — it updates
+  //    the existing row in place (keeping its provider, auth mode and stored
+  //    secrets) rather than creating a duplicate. `client_secret` is
   //    write-only: it goes up here and is absent from every response.
   //
   //    This example assumes the Slack app already exists. Registering a new

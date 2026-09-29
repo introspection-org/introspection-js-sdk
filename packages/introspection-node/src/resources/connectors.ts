@@ -9,7 +9,9 @@ import type {
   ConnectorAuthorizeParams,
   ConnectorAuthorizeResponse,
   ConnectorCreateParams,
+  ConnectorCustomAppSearchParams,
   ConnectorListParams,
+  ConnectorOAuthDiscoveryResponse,
   ConnectorUpdateParams,
   CursorParams,
   Paginated,
@@ -134,7 +136,10 @@ export class ConnectorsApi {
     );
   }
 
-  /** Create a connector. Idempotent on `slug` — a repeat POST returns the live row. */
+  /**
+   * Create a connector. Upserts on `slug`: a repeat POST replaces the live
+   * row's configuration and keeps its provider, auth mode and stored secrets.
+   */
   create(params: ConnectorCreateParams): Promise<Connector> {
     return this.http.request<Connector>({
       method: "POST",
@@ -184,6 +189,40 @@ export class ConnectorsApi {
   }
 
   /**
+   * Search the open MCP registry — the catalogue a custom connector picks
+   * from. Needs no connector: read it before creating one, then pass the
+   * listing's `mcp_url` to {@link discoverOAuth} or `create({ issuer })`.
+   */
+  async searchCustomApps(
+    params: ConnectorCustomAppSearchParams,
+  ): Promise<ConnectorApp[]> {
+    const response = await this.http.request<{ data: ConnectorApp[] }>({
+      method: "GET",
+      path: "/v1/connectors/custom/apps",
+      query: params as unknown as Record<string, unknown>,
+    });
+    return response.data;
+  }
+
+  /**
+   * Resolve a provider's OAuth metadata before creating a custom connector.
+   * `issuer` may be the authorization server or the MCP server it protects.
+   *
+   * This may REGISTER an OAuth client with the provider (dynamic
+   * registration) and return its `client_id` / `client_secret` — pass those
+   * to {@link create} so a second client is not registered. (`create` with
+   * only `issuer` also discovers and registers on its own.) Raises a
+   * {@link ValidationError} (400) when discovery fails.
+   */
+  discoverOAuth(issuer: string): Promise<ConnectorOAuthDiscoveryResponse> {
+    return this.http.request<ConnectorOAuthDiscoveryResponse>({
+      method: "POST",
+      path: "/v1/connectors/discover-oauth",
+      body: { issuer },
+    });
+  }
+
+  /**
    * Mint a consent URL for a connector — the link a Business hands its
    * customer to connect (e.g. install the Slack app into a workspace).
    *
@@ -196,6 +235,9 @@ export class ConnectorsApi {
    * Pipedream connectors additionally require `app`, selected from
    * {@link listApps}. `allow_progressive_scopes` is optional and defaults to
    * false, matching Pipedream's Connect API.
+   *
+   * `binding` (with `runtime`) writes the runtime's MCP endpoint in the same
+   * transaction as the grant, so the runtime is never authorized-but-unbound.
    *
    * Passing `params.identity` mints a `customer` member for the asserted
    * end user, so it can raise a {@link ConflictError} (409) when the org has

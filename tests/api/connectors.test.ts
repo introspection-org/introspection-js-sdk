@@ -164,6 +164,96 @@ describe("ConnectorsApi", () => {
     expect(result).toEqual(applications);
   });
 
+  it("searchCustomApps() searches the open MCP registry without a connector", async () => {
+    const applications = [
+      {
+        slug: "linear",
+        name: "Linear",
+        mcp_url: "https://mcp.linear.app/mcp",
+        docs_url: "https://linear.app/docs/mcp",
+      },
+    ];
+    const http = mockHttp({ requestResult: { data: applications } });
+
+    const result = await new ConnectorsApi(http).searchCustomApps({
+      q: "linear",
+      limit: 5,
+    });
+
+    expect(http.request).toHaveBeenCalledWith({
+      method: "GET",
+      path: "/v1/connectors/custom/apps",
+      query: { q: "linear", limit: 5 },
+    });
+    expect(result).toEqual(applications);
+    expect(result[0].mcp_url).toBe("https://mcp.linear.app/mcp");
+  });
+
+  it("discoverOAuth() POSTs the issuer and returns the registered client", async () => {
+    const discovered = {
+      issuer: "https://mcp.linear.app",
+      authorization_endpoint: "https://mcp.linear.app/authorize",
+      token_endpoint: "https://mcp.linear.app/token",
+      registration_endpoint: "https://mcp.linear.app/register",
+      token_endpoint_auth_methods_supported: ["client_secret_post"],
+      code_challenge_methods_supported: ["S256"],
+      scopes_supported: ["read", "write"],
+      client_id_metadata_document_supported: false,
+      resource: "https://mcp.linear.app/mcp",
+      redirect_uri: "https://api.introspection.dev/v1/oauth/callback",
+      client_id: "dyn-client",
+      client_secret: "dyn-secret",
+      client_registration: "dynamic" as const,
+    };
+    const http = mockHttp({ requestResult: discovered });
+
+    const result = await new ConnectorsApi(http).discoverOAuth(
+      "https://mcp.linear.app/mcp",
+    );
+
+    expect(http.request).toHaveBeenCalledWith({
+      method: "POST",
+      path: "/v1/connectors/discover-oauth",
+      body: { issuer: "https://mcp.linear.app/mcp" },
+    });
+    expect(result.client_registration).toBe("dynamic");
+    expect(result.client_id).toBe("dyn-client");
+    expect(result.scopes_supported).toEqual(["read", "write"]);
+  });
+
+  it("authorize() carries an MCP endpoint binding alongside the runtime", async () => {
+    const http = mockHttp({
+      requestResult: {
+        authorize_url: "https://mcp.linear.app/authorize?state=abc",
+        expires_in: 600,
+        expires_at: "2026-08-08T20:10:00Z",
+      },
+    });
+
+    await new ConnectorsApi(http).authorize(CONNECTOR_ID, {
+      runtime: "triage-agent",
+      binding: {
+        environment: "production",
+        mcp_server_id: "linear",
+        url: "https://mcp.linear.app/mcp",
+      },
+    });
+
+    expect(http.request).toHaveBeenCalledWith({
+      method: "POST",
+      path: "/v1/oauth/connections/authorize",
+      body: {
+        connector_id: CONNECTOR_ID,
+        runtime: "triage-agent",
+        binding: {
+          environment: "production",
+          mcp_server_id: "linear",
+          url: "https://mcp.linear.app/mcp",
+        },
+      },
+    });
+  });
+
   it("authorize() POSTs to the oauth route with connector_id merged in", async () => {
     const http = mockHttp({
       requestResult: {
