@@ -1,6 +1,7 @@
 // Mocked fetch: Introspection REST wire contract only, no LLM call to record.
 import { describe, expect, it, vi } from "vitest";
 import {
+  ConflictError,
   IntrospectionClient,
   ValidationError,
   type Repository,
@@ -8,6 +9,7 @@ import {
   type RepositoryCommitDetail,
   type RepositoryDirectory,
   type RepositoryFile,
+  type RepositoryMerge,
 } from "@introspection-sdk/introspection-node";
 
 const CP = "https://cp.test";
@@ -270,5 +272,72 @@ describe("RepositoriesApi", () => {
     expect(urls()[0]!.pathname).toBe(
       `/v1/repositories/${REPO_ID}/commits/abc123`,
     );
+  });
+
+  describe("merge()", () => {
+    const MERGE: RepositoryMerge = {
+      sha: "m".repeat(40),
+      base: "main",
+      head: "feature",
+      head_sha: "h".repeat(40),
+      parents: ["b".repeat(40), "h".repeat(40)],
+    };
+
+    function mergeClient(response: Response) {
+      const fetchImpl = vi.fn(
+        async (_input: RequestInfo | URL, _init?: RequestInit) => response,
+      );
+      const c = new IntrospectionClient({
+        token: "t",
+        advanced: {
+          baseApiUrl: CP,
+          dpUrl: DP,
+          fetch: fetchImpl as unknown as typeof fetch,
+        },
+      });
+      return { c, fetchImpl };
+    }
+
+    it("posts base, head and message to the data plane", async () => {
+      const { c, fetchImpl } = mergeClient(
+        Response.json(MERGE, { status: 201 }),
+      );
+
+      await expect(
+        c.repositories.merge(REPO_ID, {
+          base: "main",
+          head: "feature",
+          commit_message: "Ship it",
+        }),
+      ).resolves.toEqual(MERGE);
+      const [input, init] = fetchImpl.mock.calls[0]!;
+      const url = new URL(String(input));
+      expect(url.origin).toBe(DP);
+      expect(url.pathname).toBe(`/v1/repositories/${REPO_ID}/merges`);
+      expect(init!.method).toBe("POST");
+      expect(JSON.parse(String(init!.body))).toEqual({
+        base: "main",
+        head: "feature",
+        commit_message: "Ship it",
+      });
+    });
+
+    it("resolves to null when base already contains head", async () => {
+      const { c } = mergeClient(new Response(null, { status: 204 }));
+
+      await expect(
+        c.repositories.merge(REPO_ID, { base: "main", head: "feature" }),
+      ).resolves.toBeNull();
+    });
+
+    it("throws a ConflictError on a merge conflict", async () => {
+      const { c } = mergeClient(
+        Response.json({ detail: "Merge conflict" }, { status: 409 }),
+      );
+
+      await expect(
+        c.repositories.merge(REPO_ID, { base: "main", head: "feature" }),
+      ).rejects.toBeInstanceOf(ConflictError);
+    });
   });
 });

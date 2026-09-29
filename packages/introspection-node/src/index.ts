@@ -165,6 +165,8 @@ export type {
   RepositoryCommitDetail,
   RepositoryCommitPage,
   RepositoryCommitsParams,
+  RepositoryMerge,
+  RepositoryMergeParams,
   Connector,
   ConnectorApp,
   ConnectorAppListParams,

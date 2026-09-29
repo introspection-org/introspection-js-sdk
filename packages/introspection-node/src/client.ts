@@ -100,7 +100,7 @@ export class IntrospectionClient {
   /**
    * Reads on `/v1/repositories` (CP) plus `repositories.contents` and
    * `repositories.commits`, which read files, directories and history
-   * through the Data Plane.
+   * through the Data Plane, and `repositories.merge`, which merges branches.
    */
   readonly repositories: RepositoriesApi;
 

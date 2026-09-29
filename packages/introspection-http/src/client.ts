@@ -200,7 +200,7 @@ export class BaseHttpClient {
             signal: opts.signal,
           }),
         );
-        if (expect === "empty") return undefined as T;
+        if (expect === "empty" || res.status === 204) return undefined as T;
         if (expect === "bytes")
           return new Uint8Array(await res.arrayBuffer()) as T;
         if (expect === "stream") return res.body as T;

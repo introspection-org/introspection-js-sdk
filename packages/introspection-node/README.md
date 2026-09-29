@@ -101,6 +101,19 @@ console.log(
 );
 ```
 
+`merge()` merges a branch or commit sha into a branch, like GitHub's merges API
+(`repositories:write`). It resolves to the merge commit, or `null` when `base`
+already contains `head`; a conflict throws a `ConflictError` and changes
+nothing.
+
+```typescript
+const merge = await client.repositories.merge(repo.id, {
+  base: "main",
+  head: "feature",
+});
+console.log(merge?.sha ?? "already up to date");
+```
+
 ### Annotations
 
 Annotations capture what a domain expert found good or bad on an OTel span. They

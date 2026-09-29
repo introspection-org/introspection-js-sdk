@@ -676,6 +676,26 @@ export interface RepositoryCommitsParams {
   limit?: number;
 }
 
+/** Body of `repositories.merge()`, mirroring GitHub's merges API. */
+export interface RepositoryMergeParams {
+  /** Branch to merge into. */
+  base: string;
+  /** Branch name or full 40-character commit sha to merge. */
+  head: string;
+  /** Defaults server-side to `"Merge {head} into {base}"`. */
+  commit_message?: string;
+}
+
+/** The merge commit a `repositories.merge()` created. */
+export interface RepositoryMerge {
+  sha: string;
+  base: string;
+  head: string;
+  /** The sha `head` resolved to. */
+  head_sha: string;
+  parents: string[];
+}
+
 export type ExperimentStatus = "draft" | "running" | "ended" | "cancelled";
 
 export type ExperimentGoalDirection = "maximize" | "minimize";
