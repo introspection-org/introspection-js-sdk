@@ -12,6 +12,8 @@ import {
   type RepositoryEntry,
   type RepositoryGetParams,
   type RepositoryListParams,
+  type RepositoryMerge,
+  type RepositoryMergeParams,
   type Uuid,
 } from "@introspection-sdk/types";
 import type { HttpClient } from "../http.js";
@@ -138,6 +140,25 @@ export class RepositoriesApi {
       method: "GET",
       path: `/v1/repositories/${encodeURIComponent(repositoryId)}/commits/${encodeURIComponent(sha)}`,
     });
+  }
+
+  /**
+   * `POST /v1/repositories/{id}/merges` — merge `head` into `base`, like
+   * GitHub's merges API. Resolves to the merge commit, or `null` when `base`
+   * already contains `head`. A conflict throws a `ConflictError`; a `504`
+   * means it is still running, and sending the same request again attaches
+   * to it.
+   */
+  async merge(
+    repositoryId: Uuid,
+    params: RepositoryMergeParams,
+  ): Promise<RepositoryMerge | null> {
+    const merge = await this.dpHttp.request<RepositoryMerge | undefined>({
+      method: "POST",
+      path: `/v1/repositories/${encodeURIComponent(repositoryId)}/merges`,
+      body: params,
+    });
+    return merge ?? null;
   }
 
   get(repositoryId: Uuid, params: RepositoryGetParams): Promise<Repository> {
