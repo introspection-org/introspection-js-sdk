@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.25.0](https://github.com/introspection-org/introspection-js-sdk/compare/v0.24.0...v0.25.0) (2026-09-29)
+
+
+### Features
+
+* add repository merges ([#406](https://github.com/introspection-org/introspection-js-sdk/issues/406)) ([b1489ce](https://github.com/introspection-org/introspection-js-sdk/commit/b1489cef35308a4ffc41a9187b6eae8d4e6a5a28))
+* **connectors:** add custom app search, OAuth discovery and authorize binding ([#405](https://github.com/introspection-org/introspection-js-sdk/issues/405)) ([919aae4](https://github.com/introspection-org/introspection-js-sdk/commit/919aae4d950781e769d12b91f83b4921d0360253))
+
 ## [0.24.0](https://github.com/introspection-org/introspection-js-sdk/compare/v0.23.0...v0.24.0) (2026-09-24)
 
 
