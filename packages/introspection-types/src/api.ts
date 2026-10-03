@@ -408,6 +408,14 @@ export interface FileCreateTextParams {
   name: string;
   content: string;
   mime_type?: string;
+  /** Arbitrary JSON metadata stored on the file. */
+  metadata?: Record<string, unknown>;
+  /**
+   * Grouping tags, same rules as {@link FileUpdateParams.tags}. Stamped only
+   * when this request creates the file; a new version keeps the file's
+   * existing tags (a different set is rejected) — change them with `update`.
+   */
+  tags?: string[];
 }
 
 // --- resource shares (/v1/shares) ---
