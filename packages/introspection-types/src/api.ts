@@ -383,6 +383,20 @@ export interface FileListParams extends ListParams {
   member_id?: Uuid;
   /** Filter by one tag. ANDed with the ownership predicate, so it only narrows. */
   tag?: string;
+  /**
+   * Filter: files whose `metadata` holds each of these pairs, matched exactly
+   * against the string value. Sent as one repeated `metadata=key:value` param
+   * per entry; entries are ANDed, at most 16.
+   *
+   * ```ts
+   * client.files.list({ metadata: { source: "crm", tenant: "acme" } });
+   * ```
+   *
+   * Keys are `[A-Za-z0-9_-]` with no `.`; values may contain colons. Narrows
+   * only, like `tag`. A server that predates this filter ignores it and
+   * returns the unfiltered list.
+   */
+  metadata?: Record<string, string>;
 }
 
 export interface FileUpdateParams {

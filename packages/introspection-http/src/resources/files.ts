@@ -8,6 +8,7 @@ import type {
   Paginated,
 } from "@introspection-sdk/types";
 import { Paginator, cursorPaginate } from "../pagination.js";
+import { encodeMetadataFilter } from "./metadata-filter.js";
 import type { ResourceHttpClient } from "./types.js";
 
 interface FileUploadOptions {
@@ -86,7 +87,10 @@ export class FilesClient {
         this.http.request<Paginated<FileResource>>({
           method: "GET",
           path: "/v1/files",
-          query: { ...params, next } as Record<string, unknown>,
+          query: { ...encodeMetadataFilter(params), next } as Record<
+            string,
+            unknown
+          >,
         }),
       params?.next,
     );
