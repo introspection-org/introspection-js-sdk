@@ -262,6 +262,78 @@ describe("FilesApi tags", () => {
   });
 });
 
+describe("FilesApi create with tags and metadata", () => {
+  it("createText() sends tags and metadata in the JSON body", async () => {
+    const http = mockHttp({ requestResult: FILE_FIXTURE });
+    await new FilesApi(http).createText({
+      name: "notes.md",
+      content: "# Hello",
+      metadata: { source: "import" },
+      tags: ["customer:acme", "q3"],
+    });
+
+    expect(http.request).toHaveBeenCalledWith({
+      method: "POST",
+      path: "/v1/files",
+      body: {
+        name: "notes.md",
+        content: "# Hello",
+        metadata: { source: "import" },
+        tags: ["customer:acme", "q3"],
+      },
+    });
+  });
+
+  it("upload() appends one tags field per tag and metadata as JSON", async () => {
+    const http = mockHttp({ requestResult: FILE_FIXTURE });
+    await new FilesApi(http).upload({
+      file: new Blob(["hi"]),
+      name: "hi.txt",
+      metadata: { source: "import" },
+      tags: ["customer:acme", "q3"],
+    });
+
+    const fd = (http.request as ReturnType<typeof vi.fn>).mock.calls[0][0]
+      .body as FormData;
+    expect(fd.getAll("tags")).toEqual(["customer:acme", "q3"]);
+    expect(JSON.parse(fd.get("metadata") as string)).toEqual({
+      source: "import",
+    });
+  });
+
+  it("upload() with a Uint8Array body also sends tags", async () => {
+    const http = mockHttp({ requestResult: FILE_FIXTURE });
+    await new FilesApi(http).upload({
+      file: new Uint8Array([1, 2, 3]),
+      name: "binary.bin",
+      tags: ["raw"],
+    });
+
+    const fd = (http.request as ReturnType<typeof vi.fn>).mock.calls[0][0]
+      .body as FormData;
+    expect(fd.getAll("tags")).toEqual(["raw"]);
+  });
+
+  it("upload() sends neither field when unset", async () => {
+    const http = mockHttp({ requestResult: FILE_FIXTURE });
+    await new FilesApi(http).upload({ file: new Blob(["hi"]), name: "hi.txt" });
+
+    const fd = (http.request as ReturnType<typeof vi.fn>).mock.calls[0][0]
+      .body as FormData;
+    expect(fd.has("tags")).toBe(false);
+    expect(fd.has("metadata")).toBe(false);
+  });
+
+  it("createText() sends neither field when unset", async () => {
+    const http = mockHttp({ requestResult: FILE_FIXTURE });
+    await new FilesApi(http).createText({ name: "a.txt", content: "a" });
+
+    const body = (http.request as ReturnType<typeof vi.fn>).mock.calls[0][0]
+      .body as Record<string, unknown>;
+    expect(Object.keys(body).sort()).toEqual(["content", "name"]);
+  });
+});
+
 describe("FileVersionsApi", () => {
   it("list() calls GET /v1/files/:id/versions", async () => {
     const http = mockHttp({

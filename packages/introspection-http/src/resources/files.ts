@@ -10,14 +10,25 @@ import type {
 import { Paginator, cursorPaginate } from "../pagination.js";
 import type { ResourceHttpClient } from "./types.js";
 
+interface FileUploadOptions {
+  file_type?: FileType;
+  /** Arbitrary JSON metadata, sent as a JSON-encoded `metadata` form field. */
+  metadata?: Record<string, unknown>;
+  /**
+   * Grouping tags, sent as one `tags` form field per tag. Stamped only when
+   * the request creates the file; a new version keeps the file's existing
+   * tags (a different set is rejected) — change them with `update`.
+   */
+  tags?: string[];
+}
+
 export type FileUploadBody =
-  | { file: Blob; name?: string; file_type?: FileType }
-  | {
+  | ({ file: Blob; name?: string } & FileUploadOptions)
+  | ({
       file: Uint8Array;
       name: string;
-      file_type?: FileType;
       contentType?: string;
-    };
+    } & FileUploadOptions);
 
 export class FileVersionsClient {
   constructor(private readonly http: ResourceHttpClient) {}
@@ -158,6 +169,9 @@ function toFormData(body: FileUploadBody): FormData {
   }
   if (body.name) fd.append("name", body.name);
   if (body.file_type) fd.append("file_type", body.file_type);
+  if (body.metadata !== undefined)
+    fd.append("metadata", JSON.stringify(body.metadata));
+  for (const tag of body.tags ?? []) fd.append("tags", tag);
   return fd;
 }
 
