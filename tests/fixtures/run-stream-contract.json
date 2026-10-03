@@ -1,0 +1,211 @@
+[
+  {
+    "name": "complete",
+    "streams": [
+      "id: 1\nevent: ag_ui\ndata: {\"type\":\"TEXT_MESSAGE_CONTENT\",\"messageId\":\"m\",\"delta\":\"answer\"}\n\nid: c-1\nevent: ag_ui\ndata: {\"type\":\"RUN_FINISHED\",\"threadId\":\"t\",\"runId\":\"run-1\"}\n\n"
+    ],
+    "statuses": [],
+    "cursors": ["0"],
+    "deltas": ["answer"]
+  },
+  {
+    "name": "nonterminal_close",
+    "streams": [
+      "id: 1\nevent: ag_ui\ndata: {\"type\":\"TEXT_MESSAGE_CONTENT\",\"messageId\":\"m\",\"delta\":\"before\"}\n\nid: 999\nevent: ag_ui\ndata: {\"type\":\"RUN_FINISHED\",\"threadId\":\"t\",\"runId\":\"run-1\",\"result\":{\"reason\":\"stream_close\"}}\n\n",
+      "id: 2\nevent: ag_ui\ndata: {\"type\":\"TEXT_MESSAGE_CONTENT\",\"messageId\":\"m\",\"delta\":\"after\"}\n\nid: c-1\nevent: ag_ui\ndata: {\"type\":\"RUN_FINISHED\",\"threadId\":\"t\",\"runId\":\"run-1\"}\n\n"
+    ],
+    "statuses": ["running"],
+    "cursors": ["0", "1"],
+    "deltas": ["before", "after"]
+  },
+  {
+    "name": "bare_eof",
+    "streams": [
+      "id: 1\nevent: ag_ui\ndata: {\"type\":\"TEXT_MESSAGE_CONTENT\",\"messageId\":\"m\",\"delta\":\"before\"}\n\n",
+      "id: 2\nevent: ag_ui\ndata: {\"type\":\"TEXT_MESSAGE_CONTENT\",\"messageId\":\"m\",\"delta\":\"after\"}\n\nid: c-1\nevent: ag_ui\ndata: {\"type\":\"RUN_FINISHED\",\"threadId\":\"t\",\"runId\":\"run-1\"}\n\n"
+    ],
+    "statuses": ["running"],
+    "cursors": ["0", "1"],
+    "deltas": ["before", "after"]
+  },
+  {
+    "name": "duplicate_tail",
+    "streams": [
+      "id: 1\nevent: ag_ui\ndata: {\"type\":\"TEXT_MESSAGE_CONTENT\",\"messageId\":\"m\",\"delta\":\"a\"}\n\n",
+      "id: 1\nevent: ag_ui\ndata: {\"type\":\"TEXT_MESSAGE_CONTENT\",\"messageId\":\"m\",\"delta\":\"a\"}\n\nid: 2\nevent: ag_ui\ndata: {\"type\":\"TEXT_MESSAGE_CONTENT\",\"messageId\":\"m\",\"delta\":\"b\"}\n\nid: c-1\nevent: ag_ui\ndata: {\"type\":\"RUN_FINISHED\",\"threadId\":\"t\",\"runId\":\"run-1\"}\n\n"
+    ],
+    "statuses": ["pending"],
+    "cursors": ["0", "1"],
+    "deltas": ["a", "b"]
+  },
+  {
+    "name": "control_only_budget",
+    "streams": [
+      "id: 888\nevent: ag_ui\ndata: {\"type\":\"RUN_STARTED\",\"threadId\":\"t\",\"runId\":\"run-1\"}\n\nid: 777\nevent: heartbeat\ndata: {}\n\nid: 999\nevent: ag_ui\ndata: {\"type\":\"RUN_FINISHED\",\"threadId\":\"t\",\"runId\":\"run-1\",\"result\":{\"reason\":\"stream_close\"}}\n\n",
+      "id: 888\nevent: ag_ui\ndata: {\"type\":\"RUN_STARTED\",\"threadId\":\"t\",\"runId\":\"run-1\"}\n\nid: 777\nevent: heartbeat\ndata: {}\n\nid: 999\nevent: ag_ui\ndata: {\"type\":\"RUN_FINISHED\",\"threadId\":\"t\",\"runId\":\"run-1\",\"result\":{\"reason\":\"stream_close\"}}\n\n",
+      "id: 888\nevent: ag_ui\ndata: {\"type\":\"RUN_STARTED\",\"threadId\":\"t\",\"runId\":\"run-1\"}\n\nid: 777\nevent: heartbeat\ndata: {}\n\nid: 999\nevent: ag_ui\ndata: {\"type\":\"RUN_FINISHED\",\"threadId\":\"t\",\"runId\":\"run-1\",\"result\":{\"reason\":\"stream_close\"}}\n\n"
+    ],
+    "statuses": ["running", "running", "running"],
+    "cursors": ["0", "0", "0"],
+    "deltas": [],
+    "error": "stream_incomplete"
+  },
+  {
+    "name": "settled_without_terminal",
+    "streams": [""],
+    "statuses": ["idle"],
+    "cursors": ["0"],
+    "deltas": [],
+    "error": "stream_incomplete"
+  },
+  {
+    "name": "failed_status",
+    "streams": [
+      "id: 999\nevent: ag_ui\ndata: {\"type\":\"RUN_FINISHED\",\"threadId\":\"t\",\"runId\":\"run-1\",\"result\":{\"reason\":\"stream_close\"}}\n\n"
+    ],
+    "statuses": ["failed"],
+    "cursors": ["0"],
+    "deltas": [],
+    "error": "run_failed"
+  },
+  {
+    "name": "cancelled_status",
+    "streams": [
+      "id: 999\nevent: ag_ui\ndata: {\"type\":\"RUN_FINISHED\",\"threadId\":\"t\",\"runId\":\"run-1\",\"result\":{\"reason\":\"stream_close\"}}\n\n"
+    ],
+    "statuses": ["cancelled"],
+    "cursors": ["0"],
+    "deltas": [],
+    "error": "run_failed"
+  },
+  {
+    "name": "unknown_status_budget",
+    "streams": ["", "", ""],
+    "statuses": ["future", "future", "future"],
+    "cursors": ["0", "0", "0"],
+    "deltas": [],
+    "error": "stream_incomplete"
+  },
+  {
+    "name": "gap",
+    "streams": [
+      "id: 1\nevent: ag_ui\ndata: {\"type\":\"TEXT_MESSAGE_CONTENT\",\"messageId\":\"m\",\"delta\":\"before\"}\n\nid: c-2\nevent: ag_ui\ndata: {\"type\":\"CUSTOM\",\"name\":\"resume_gap\",\"value\":{\"since\":1,\"buffered_from\":3}}\n\nid: 3\nevent: ag_ui\ndata: {\"type\":\"TEXT_MESSAGE_CONTENT\",\"messageId\":\"m\",\"delta\":\"after\"}\n\nid: c-1\nevent: ag_ui\ndata: {\"type\":\"RUN_FINISHED\",\"threadId\":\"t\",\"runId\":\"run-1\"}\n\n"
+    ],
+    "statuses": [],
+    "cursors": ["0"],
+    "deltas": ["before", "after"],
+    "text_error": "stream_incomplete"
+  },
+  {
+    "name": "run_error",
+    "streams": [
+      "id: 1\nevent: ag_ui\ndata: {\"type\":\"TEXT_MESSAGE_CONTENT\",\"messageId\":\"m\",\"delta\":\"before\"}\n\nid: c-2\nevent: ag_ui\ndata: {\"type\":\"RUN_ERROR\",\"message\":\"Provider failed\",\"code\":\"provider_error\"}\n\nid: 2\nevent: ag_ui\ndata: {\"type\":\"TEXT_MESSAGE_CONTENT\",\"messageId\":\"m\",\"delta\":\"ignored\"}\n\n"
+    ],
+    "statuses": [],
+    "cursors": ["0"],
+    "deltas": ["before"],
+    "text_error": "run_failed"
+  },
+  {
+    "name": "text_chunk",
+    "streams": [
+      "id: 1\nevent: ag_ui\ndata: {\"type\":\"TEXT_MESSAGE_CHUNK\",\"messageId\":\"m\",\"role\":\"assistant\",\"delta\":\"chunk\"}\n\nid: c-1\nevent: ag_ui\ndata: {\"type\":\"RUN_FINISHED\",\"threadId\":\"t\",\"runId\":\"run-1\"}\n\n"
+    ],
+    "statuses": [],
+    "cursors": ["0"],
+    "deltas": ["chunk"]
+  },
+  {
+    "name": "terminal_stops_reading",
+    "streams": [
+      "id: 1\nevent: ag_ui\ndata: {\"type\":\"TEXT_MESSAGE_CONTENT\",\"messageId\":\"m\",\"delta\":\"a\"}\n\nid: c-1\nevent: ag_ui\ndata: {\"type\":\"RUN_FINISHED\",\"threadId\":\"t\",\"runId\":\"run-1\"}\n\nid: 2\nevent: ag_ui\ndata: {\"type\":\"TEXT_MESSAGE_CONTENT\",\"messageId\":\"m\",\"delta\":\"ignored\"}\n\n"
+    ],
+    "statuses": [],
+    "cursors": ["0"],
+    "deltas": ["a"]
+  },
+  {
+    "name": "gap_without_retained_frames",
+    "streams": [
+      "id: c-0\nevent: ag_ui\ndata: {\"type\":\"CUSTOM\",\"name\":\"resume_gap\",\"value\":{\"since\":0,\"buffered_from\":null}}\n\nid: c-1\nevent: ag_ui\ndata: {\"type\":\"RUN_FINISHED\",\"threadId\":\"t\",\"runId\":\"run-1\"}\n\n"
+    ],
+    "statuses": [],
+    "cursors": ["0"],
+    "deltas": [],
+    "text_error": "stream_incomplete"
+  },
+  {
+    "name": "healthy_past_timeout_then_eof",
+    "streams": [
+      "id: 1\nevent: ag_ui\ndata: {\"type\":\"TEXT_MESSAGE_CONTENT\",\"messageId\":\"m\",\"delta\":\"Hello\"}\n\n",
+      "id: 2\nevent: ag_ui\ndata: {\"type\":\"TEXT_MESSAGE_CONTENT\",\"messageId\":\"m\",\"delta\":\" \"}\n\n",
+      "id: 3\nevent: ag_ui\ndata: {\"type\":\"TEXT_MESSAGE_CONTENT\",\"messageId\":\"m\",\"delta\":\"world\"}\n\nevent: ag_ui\ndata: {\"type\":\"RUN_FINISHED\",\"threadId\":\"t\",\"runId\":\"run-1\"}\n\n"
+    ],
+    "stream_delays_ms": [0, 1500, 0],
+    "timeout_ms": 1000,
+    "statuses": ["running", "running"],
+    "cursors": ["0", "1", "2"],
+    "deltas": ["Hello", " ", "world"]
+  },
+  {
+    "name": "healthy_past_timeout_then_stream_close",
+    "streams": [
+      "id: 1\nevent: ag_ui\ndata: {\"type\":\"TEXT_MESSAGE_CONTENT\",\"messageId\":\"m\",\"delta\":\"Hello\"}\n\n",
+      "id: 2\nevent: ag_ui\ndata: {\"type\":\"TEXT_MESSAGE_CONTENT\",\"messageId\":\"m\",\"delta\":\" \"}\n\nid: 0\nevent: ag_ui\ndata: {\"type\":\"RUN_FINISHED\",\"threadId\":\"t\",\"runId\":\"run-1\",\"result\":{\"reason\":\"stream_close\"}}\n\n",
+      "id: 3\nevent: ag_ui\ndata: {\"type\":\"TEXT_MESSAGE_CONTENT\",\"messageId\":\"m\",\"delta\":\"world\"}\n\nevent: ag_ui\ndata: {\"type\":\"RUN_FINISHED\",\"threadId\":\"t\",\"runId\":\"run-1\"}\n\n"
+    ],
+    "stream_delays_ms": [0, 1500, 0],
+    "timeout_ms": 1000,
+    "statuses": ["running", "running"],
+    "cursors": ["0", "1", "2"],
+    "deltas": ["Hello", " ", "world"]
+  },
+  {
+    "name": "duplicate_and_lifecycle_do_not_renew_timeout",
+    "streams": [
+      "id: 1\nevent: ag_ui\ndata: {\"type\":\"TEXT_MESSAGE_CONTENT\",\"messageId\":\"m\",\"delta\":\"Hello\"}\n\n",
+      "id: 1\nevent: ag_ui\ndata: {\"type\":\"TEXT_MESSAGE_CONTENT\",\"messageId\":\"m\",\"delta\":\"Hello\"}\n\nid: 2\nevent: ag_ui\ndata: {\"type\":\"RUN_STARTED\",\"threadId\":\"t\",\"runId\":\"run-1\"}\n\n"
+    ],
+    "stream_delays_ms": [0, 1500],
+    "timeout_ms": 1000,
+    "statuses": ["running", "running"],
+    "cursors": ["0", "1"],
+    "deltas": ["Hello"],
+    "error": "stream_incomplete"
+  },
+  {
+    "name": "transcript_only_stream_close",
+    "streams": [
+      "id: 0\nevent: ag_ui\ndata: {\"type\":\"RUN_FINISHED\",\"threadId\":\"t\",\"runId\":\"run-1\",\"result\":{\"reason\":\"stream_close\"}}\n\n"
+    ],
+    "statuses": ["idle"],
+    "cursors": ["0"],
+    "deltas": [],
+    "error": "stream_incomplete",
+    "text_error": "stream_incomplete"
+  },
+  {
+    "name": "snapshot_recovers_evicted_output",
+    "streams": [
+      "id: 1\nevent: ag_ui\ndata: {\"type\":\"TEXT_MESSAGE_CONTENT\",\"messageId\":\"m\",\"delta\":\"before\"}\n\n",
+      "id: 5\nevent: ag_ui\ndata: {\"type\":\"MESSAGES_SNAPSHOT\",\"messages\":[{\"id\":\"m\",\"role\":\"assistant\",\"content\":\"before middle\"},{\"id\":\"r\",\"role\":\"tool\",\"toolCallId\":\"call\",\"content\":\"ignored\"}]}\n\nid: 6\nevent: ag_ui\ndata: {\"type\":\"TEXT_MESSAGE_CONTENT\",\"messageId\":\"m2\",\"delta\":\" after\"}\n\nid: c-1\nevent: ag_ui\ndata: {\"type\":\"RUN_FINISHED\",\"threadId\":\"t\",\"runId\":\"run-1\"}\n\n"
+    ],
+    "statuses": ["running"],
+    "cursors": ["0", "1"],
+    "deltas": ["before", " after"],
+    "text": "before middle after"
+  },
+  {
+    "name": "history_unavailable",
+    "streams": [
+      "id: 1\nevent: ag_ui\ndata: {\"type\":\"TEXT_MESSAGE_CONTENT\",\"messageId\":\"m\",\"delta\":\"before\"}\n\n",
+      "{\"error\":\"stream_history_unavailable\"}"
+    ],
+    "attach_statuses": [200, 410],
+    "statuses": ["running"],
+    "cursors": ["0", "1"],
+    "deltas": ["before"],
+    "error": "stream_incomplete",
+    "text_error": "stream_incomplete"
+  }
+]

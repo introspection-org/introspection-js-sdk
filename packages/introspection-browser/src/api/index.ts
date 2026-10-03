@@ -129,5 +129,7 @@ export {
   InsufficientScopeError,
   NotFoundError,
   NetworkError,
+  StreamIncompleteError,
+  RunFailedError,
   RunnerExpiredError,
 } from "@introspection-sdk/types";

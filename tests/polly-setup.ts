@@ -247,6 +247,7 @@ export function installTestOTelGlobals(): () => void {
  *   const client = new Anthropic({ baseURL: pollyEndpoints.anthropic.node });
  */
 export const pollyEndpoints = {
+  runStream: "https://run-stream-contract.test",
   anthropic: {
     /** Anthropic Node SDK appends `/v1/messages` itself. */
     node: "https://api.anthropic.com",

@@ -132,7 +132,7 @@ describe("stream (transparent resume)", () => {
     ]);
     expect(await deltas(http, FAST)).toEqual(["a", "b"]);
     expect(http.streamCalls).toBe(1);
-    expect(http.lastEventIds).toEqual([null]); // no resume header on first attach
+    expect(http.lastEventIds).toEqual(["0"]); // replay output produced before the first attach
   });
 
   it("mid-turn drop → re-attaches with Last-Event-ID, gap-free", async () => {
@@ -143,7 +143,7 @@ describe("stream (transparent resume)", () => {
     expect(await deltas(http, FAST)).toEqual(["a", "b", "c"]);
     expect(http.streamCalls).toBe(2);
     // Reconnect resumes from the last content-frame id the client saw.
-    expect(http.lastEventIds).toEqual([null, "2"]);
+    expect(http.lastEventIds).toEqual(["0", "2"]);
   });
 
   it("resume cursor tracks numeric content ids, not control `c-` ids", async () => {
@@ -157,7 +157,7 @@ describe("stream (transparent resume)", () => {
       clean(content("6", "b"), FINISH),
     ]);
     expect(await deltas(http, FAST)).toEqual(["a", "b"]);
-    expect(http.lastEventIds).toEqual([null, "5"]); // "c-9" is not a cursor
+    expect(http.lastEventIds).toEqual(["0", "5"]); // "c-9" is not a cursor
   });
 
   it("429 readiness → backs off and attaches, never surfaced to caller", async () => {

@@ -313,6 +313,7 @@ describe("RunHandle / TaskRunsClient", () => {
         messageId: "msg-1",
         delta: "world",
       })}\n\n`,
+      `event: ag_ui\ndata: ${JSON.stringify({ type: EventType.RUN_FINISHED, threadId: "t", runId: "run-1" })}\n\n`,
     ].join("");
     const stream = new ReadableStream({
       start(controller) {
@@ -327,6 +328,8 @@ describe("RunHandle / TaskRunsClient", () => {
     expect(await handle.text()).toBe("Hello world");
     expect(http.stream).toHaveBeenCalledWith({
       path: "/v1/tasks/task-1/runs/run-1/stream",
+      headers: { "Last-Event-ID": "0" },
+      signal: undefined,
     });
   });
 

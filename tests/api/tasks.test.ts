@@ -358,6 +358,7 @@ describe("RunHandle", () => {
         messageId: "msg-1",
         delta: "world",
       })}\n\n`,
+      `event: ag_ui\ndata: ${JSON.stringify({ type: EventType.RUN_FINISHED, threadId: "t", runId: "run-1" })}\n\n`,
     ].join("");
     const stream = new ReadableStream({
       start(controller) {

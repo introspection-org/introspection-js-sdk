@@ -34,6 +34,22 @@ export class IntrospectionAPIError extends Error {
   }
 }
 
+/** Output was lost or the stream ended without a confirmed outcome. */
+export class StreamIncompleteError extends IntrospectionAPIError {
+  constructor(message: string) {
+    super({ message, status: 0, code: "stream_incomplete" });
+    this.name = "StreamIncompleteError";
+  }
+}
+
+/** The run failed or was cancelled. */
+export class RunFailedError extends IntrospectionAPIError {
+  constructor(message: string, code?: string) {
+    super({ message, status: 0, code: code ?? "run_failed" });
+    this.name = "RunFailedError";
+  }
+}
+
 /** 401 — auth missing / invalid. */
 export class AuthenticationError extends IntrospectionAPIError {
   constructor(opts: ConstructorParameters<typeof IntrospectionAPIError>[0]) {

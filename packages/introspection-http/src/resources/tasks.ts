@@ -1,3 +1,7 @@
+import {
+  RunFailedError,
+  StreamIncompleteError,
+} from "@introspection-sdk/types";
 import type {
   Paginated,
   Task,
@@ -50,6 +54,23 @@ export class RunHandle {
   async text(): Promise<string> {
     let out = "";
     for await (const ev of this.stream()) {
+      if (ev.type === EventType.RUN_ERROR)
+        throw new RunFailedError(ev.message, ev.code);
+      if (ev.type === EventType.CUSTOM && ev.name === "resume_gap")
+        throw new StreamIncompleteError(
+          "The replay buffer lost output; read the conversation transcript",
+        );
+      // A snapshot carries the whole run so far, so it replaces what was read.
+      if (ev.type === EventType.MESSAGES_SNAPSHOT) {
+        out = ev.messages
+          .map((m) =>
+            m.role === "assistant" && typeof m.content === "string"
+              ? m.content
+              : "",
+          )
+          .join("");
+        continue;
+      }
       if (
         ev.type === EventType.TEXT_MESSAGE_CONTENT ||
         ev.type === EventType.TEXT_MESSAGE_CHUNK
@@ -101,15 +122,9 @@ export class TaskRunsClient {
     });
   }
 
-  /**
-   * Stream a run's AG-UI events. The stream resumes **transparently** across a
-   * mid-turn disconnect (gateway idle-timeout, load-balancer recycle, network
-   * blip): it re-attaches with the SSE-standard `Last-Event-ID` so the server
-   * replays the missed frames, yielding a single gap-free `AGUIEvent` sequence
-   * (INT-252). The iterator
-   * completes when the turn finishes and throws only once recovery is
-   * exhausted — there is no consumer-visible change from a plain stream.
-   * `opts` tunes the recovery bounds.
+  /** Stream a run with bounded reconnects and replay from its first content frame.
+   * Output past the replay buffer arrives as a `MESSAGES_SNAPSHOT`. Only a settling
+   * event confirms completion; a nonterminal EOF checks this run's status.
    */
   stream(
     taskId: string,
