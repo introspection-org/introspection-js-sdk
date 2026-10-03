@@ -60,6 +60,17 @@ export class RunHandle {
         throw new StreamIncompleteError(
           "The replay buffer lost output; read the conversation transcript",
         );
+      // A snapshot carries the whole run so far, so it replaces what was read.
+      if (ev.type === EventType.MESSAGES_SNAPSHOT) {
+        out = ev.messages
+          .map((m) =>
+            m.role === "assistant" && typeof m.content === "string"
+              ? m.content
+              : "",
+          )
+          .join("");
+        continue;
+      }
       if (
         ev.type === EventType.TEXT_MESSAGE_CONTENT ||
         ev.type === EventType.TEXT_MESSAGE_CHUNK
@@ -112,7 +123,7 @@ export class TaskRunsClient {
   }
 
   /** Stream a run with bounded reconnects and replay from its first content frame.
-   * `resume_gap` remains visible when replay is incomplete. Only a settling
+   * Output past the replay buffer arrives as a `MESSAGES_SNAPSHOT`. Only a settling
    * event confirms completion; a nonterminal EOF checks this run's status.
    */
   stream(

@@ -24,6 +24,8 @@ interface Scenario {
   error?: string;
   text_error?: string;
   statusCode?: number;
+  attach_statuses?: number[];
+  text?: string;
   stream_delays_ms?: number[];
   timeout_ms?: number;
 }
@@ -54,7 +56,7 @@ beforeAll(() => {
       await delay(scenario.stream_delays_ms?.[index] ?? 0);
       cursors.push(String(request.headers["last-event-id"] ?? "missing"));
       response
-        .status(scenario.statusCode ?? 200)
+        .status(scenario.attach_statuses?.[index] ?? scenario.statusCode ?? 200)
         .setHeader("content-type", "text/event-stream")
         .send(body);
     });
@@ -78,7 +80,7 @@ function setup(value: Scenario): TaskRunsApi {
 describe("shared run stream contract", () => {
   it("pins the shared fixture hash", () => {
     expect(createHash("sha256").update(fixtureBytes).digest("hex")).toBe(
-      "f1dfd4501a3466442e1201210fc5c7a17150b03787405f22def762aaf511ea78",
+      "b25a2d3d463ce20ccc6e95abeccf549ef053db059c1c79a4b602f014362fc7fb",
     );
   });
   it("does not retry malformed events", async () => {
@@ -146,17 +148,18 @@ describe("shared run stream contract", () => {
     ).toBe(false);
   });
 
-  it.each(scenarios.filter((s) => s.text_error || s.name === "text_chunk"))(
-    "text: $name",
-    async (value) => {
-      const handle = new RunHandle(null, run, setup(value));
-      if (value.text_error)
-        await expect(handle.text()).rejects.toBeInstanceOf(
-          value.text_error === "run_failed"
-            ? RunFailedError
-            : StreamIncompleteError,
-        );
-      else expect(await handle.text()).toBe("chunk");
-    },
-  );
+  it.each(
+    scenarios.filter(
+      (s) => s.text_error || s.text !== undefined || s.name === "text_chunk",
+    ),
+  )("text: $name", async (value) => {
+    const handle = new RunHandle(null, run, setup(value));
+    if (value.text_error)
+      await expect(handle.text()).rejects.toBeInstanceOf(
+        value.text_error === "run_failed"
+          ? RunFailedError
+          : StreamIncompleteError,
+      );
+    else expect(await handle.text()).toBe(value.text ?? "chunk");
+  });
 });

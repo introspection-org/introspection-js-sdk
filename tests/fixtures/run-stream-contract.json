@@ -183,5 +183,29 @@
     "deltas": [],
     "error": "stream_incomplete",
     "text_error": "stream_incomplete"
+  },
+  {
+    "name": "snapshot_recovers_evicted_output",
+    "streams": [
+      "id: 1\nevent: ag_ui\ndata: {\"type\":\"TEXT_MESSAGE_CONTENT\",\"messageId\":\"m\",\"delta\":\"before\"}\n\n",
+      "id: 5\nevent: ag_ui\ndata: {\"type\":\"MESSAGES_SNAPSHOT\",\"messages\":[{\"id\":\"m\",\"role\":\"assistant\",\"content\":\"before middle\"},{\"id\":\"r\",\"role\":\"tool\",\"toolCallId\":\"call\",\"content\":\"ignored\"}]}\n\nid: 6\nevent: ag_ui\ndata: {\"type\":\"TEXT_MESSAGE_CONTENT\",\"messageId\":\"m2\",\"delta\":\" after\"}\n\nid: c-1\nevent: ag_ui\ndata: {\"type\":\"RUN_FINISHED\",\"threadId\":\"t\",\"runId\":\"run-1\"}\n\n"
+    ],
+    "statuses": ["running"],
+    "cursors": ["0", "1"],
+    "deltas": ["before", " after"],
+    "text": "before middle after"
+  },
+  {
+    "name": "history_unavailable",
+    "streams": [
+      "id: 1\nevent: ag_ui\ndata: {\"type\":\"TEXT_MESSAGE_CONTENT\",\"messageId\":\"m\",\"delta\":\"before\"}\n\n",
+      "{\"error\":\"stream_history_unavailable\"}"
+    ],
+    "attach_statuses": [200, 410],
+    "statuses": ["running"],
+    "cursors": ["0", "1"],
+    "deltas": ["before"],
+    "error": "stream_incomplete",
+    "text_error": "stream_incomplete"
   }
 ]

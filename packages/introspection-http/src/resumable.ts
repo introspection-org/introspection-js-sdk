@@ -11,7 +11,8 @@ import { parseStreamFrames } from "./agui-stream.js";
 import type { ResourceHttpClient } from "./resources/types.js";
 
 /** Resume with content cursors; only a settling event confirms completion.
- * Replay gaps remain visible to consumers, and text() rejects incomplete output.
+ * A reconnect behind the replay buffer yields a `MESSAGES_SNAPSHOT` of the run
+ * so far; a `410` (history gone) and a legacy `resume_gap` end it incomplete.
  */
 
 export interface StreamOptions {
@@ -105,6 +106,12 @@ export async function* streamResumable(
       });
     } catch (err) {
       if (opts.signal?.aborted) throw opts.signal.reason ?? err;
+      // 410: the runtime holds neither the frames after this cursor nor a
+      // snapshot covering them, so no reconnect can complete the stream.
+      if (err instanceof IntrospectionAPIError && err.status === 410)
+        throw new StreamIncompleteError(
+          "The stream history is no longer available; read the conversation transcript",
+        );
       if (
         err instanceof IntrospectionAPIError &&
         err.status >= 400 &&
