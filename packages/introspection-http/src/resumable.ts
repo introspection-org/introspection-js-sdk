@@ -30,9 +30,8 @@ export interface StreamOptions {
    * Emit an opt-in AG-UI `CUSTOM` event (`name: "introspection.reconnect"`)
    * into the stream on each reconnect / readiness wait, so consumers can show a
    * "reconnecting…" affordance or record telemetry. Default `false` — the
-   * stream is otherwise fully transparent. The marker rides the same `CUSTOM`
-   * channel the DP uses for `resume_gap`, so it is expressible identically
-   * in every language Introspection supports.
+   * stream is otherwise fully transparent. A `CUSTOM` event is expressible
+   * identically in every language Introspection supports.
    */
   emitReconnectEvents?: boolean;
   /** Abort the stream (and any in-flight reconnect). */

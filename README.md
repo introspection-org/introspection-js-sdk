@@ -191,9 +191,16 @@ Each new content cursor renews both the timeout window and the reconnect budget.
 Lifecycle events, heartbeats and duplicate content renew neither. The timeout is
 checked when recovery is needed; it does not interrupt an open connection.
 
-A raw stream exposes `CUSTOM resume_gap` when the server cannot replay every
-frame. The text helper raises an incomplete-output error instead of returning
-partial text; it also raises on run failure or cancellation. If the status read
+Every reconnect resumes from the last content cursor (`Last-Event-ID`). When
+that cursor is older than the server's replay buffer, the stream continues with
+one AG-UI `MESSAGES_SNAPSHOT` holding the run's messages so far; its id becomes
+the new cursor, and the text helper takes its assistant text in place of what it
+had read. When the server holds neither the frames nor a snapshot, it answers
+`410` and the stream ends with an incomplete-output error. Runtime images that
+predate the snapshot send `CUSTOM resume_gap` instead; raw streams pass it
+through. The text helper raises an incomplete-output error instead of returning
+partial text, including on `resume_gap`; it also raises on run failure or
+cancellation. If the status read
 says the run settled but the stream never confirmed completion, it raises an
 incomplete-output error. Recover final output from the conversation transcript
 when needed; the SDK does not automatically hydrate it or require an additional
