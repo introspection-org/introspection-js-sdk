@@ -133,5 +133,55 @@
     "cursors": ["0"],
     "deltas": [],
     "text_error": "stream_incomplete"
+  },
+  {
+    "name": "healthy_past_timeout_then_eof",
+    "streams": [
+      "id: 1\nevent: ag_ui\ndata: {\"type\":\"TEXT_MESSAGE_CONTENT\",\"messageId\":\"m\",\"delta\":\"Hello\"}\n\n",
+      "id: 2\nevent: ag_ui\ndata: {\"type\":\"TEXT_MESSAGE_CONTENT\",\"messageId\":\"m\",\"delta\":\" \"}\n\n",
+      "id: 3\nevent: ag_ui\ndata: {\"type\":\"TEXT_MESSAGE_CONTENT\",\"messageId\":\"m\",\"delta\":\"world\"}\n\nevent: ag_ui\ndata: {\"type\":\"RUN_FINISHED\",\"threadId\":\"t\",\"runId\":\"run-1\"}\n\n"
+    ],
+    "stream_delays_ms": [0, 1500, 0],
+    "timeout_ms": 1000,
+    "statuses": ["running", "running"],
+    "cursors": ["0", "1", "2"],
+    "deltas": ["Hello", " ", "world"]
+  },
+  {
+    "name": "healthy_past_timeout_then_stream_close",
+    "streams": [
+      "id: 1\nevent: ag_ui\ndata: {\"type\":\"TEXT_MESSAGE_CONTENT\",\"messageId\":\"m\",\"delta\":\"Hello\"}\n\n",
+      "id: 2\nevent: ag_ui\ndata: {\"type\":\"TEXT_MESSAGE_CONTENT\",\"messageId\":\"m\",\"delta\":\" \"}\n\nid: 0\nevent: ag_ui\ndata: {\"type\":\"RUN_FINISHED\",\"threadId\":\"t\",\"runId\":\"run-1\",\"result\":{\"reason\":\"stream_close\"}}\n\n",
+      "id: 3\nevent: ag_ui\ndata: {\"type\":\"TEXT_MESSAGE_CONTENT\",\"messageId\":\"m\",\"delta\":\"world\"}\n\nevent: ag_ui\ndata: {\"type\":\"RUN_FINISHED\",\"threadId\":\"t\",\"runId\":\"run-1\"}\n\n"
+    ],
+    "stream_delays_ms": [0, 1500, 0],
+    "timeout_ms": 1000,
+    "statuses": ["running", "running"],
+    "cursors": ["0", "1", "2"],
+    "deltas": ["Hello", " ", "world"]
+  },
+  {
+    "name": "duplicate_and_lifecycle_do_not_renew_timeout",
+    "streams": [
+      "id: 1\nevent: ag_ui\ndata: {\"type\":\"TEXT_MESSAGE_CONTENT\",\"messageId\":\"m\",\"delta\":\"Hello\"}\n\n",
+      "id: 1\nevent: ag_ui\ndata: {\"type\":\"TEXT_MESSAGE_CONTENT\",\"messageId\":\"m\",\"delta\":\"Hello\"}\n\nid: 2\nevent: ag_ui\ndata: {\"type\":\"RUN_STARTED\",\"threadId\":\"t\",\"runId\":\"run-1\"}\n\n"
+    ],
+    "stream_delays_ms": [0, 1500],
+    "timeout_ms": 1000,
+    "statuses": ["running", "running"],
+    "cursors": ["0", "1"],
+    "deltas": ["Hello"],
+    "error": "stream_incomplete"
+  },
+  {
+    "name": "transcript_only_stream_close",
+    "streams": [
+      "id: 0\nevent: ag_ui\ndata: {\"type\":\"RUN_FINISHED\",\"threadId\":\"t\",\"runId\":\"run-1\",\"result\":{\"reason\":\"stream_close\"}}\n\n"
+    ],
+    "statuses": ["idle"],
+    "cursors": ["0"],
+    "deltas": [],
+    "error": "stream_incomplete",
+    "text_error": "stream_incomplete"
   }
 ]

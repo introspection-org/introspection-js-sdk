@@ -1,5 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
+import { setTimeout as delay } from "node:timers/promises";
 import { Polly } from "@pollyjs/core";
 import FetchAdapter from "@pollyjs/adapter-fetch";
 import {
@@ -22,13 +24,13 @@ interface Scenario {
   error?: string;
   text_error?: string;
   statusCode?: number;
+  stream_delays_ms?: number[];
+  timeout_ms?: number;
 }
-const scenarios: Scenario[] = JSON.parse(
-  readFileSync(
-    new URL("../fixtures/run-stream-contract.json", import.meta.url),
-    "utf8",
-  ),
+const fixtureBytes = readFileSync(
+  new URL("../fixtures/run-stream-contract.json", import.meta.url),
 );
+const scenarios: Scenario[] = JSON.parse(fixtureBytes.toString("utf8"));
 const base = pollyEndpoints.runStream;
 const taskId = "55555555-5555-5555-5555-555555555555";
 const path = `/v1/tasks/${taskId}/runs/run-1`;
@@ -44,15 +46,18 @@ beforeAll(() => {
     adapters: ["fetch"],
     mode: "passthrough",
   });
-  polly.server.get(base + path + "/stream").intercept((request, response) => {
-    const body =
-      scenario.streams[Math.min(cursors.length, scenario.streams.length - 1)];
-    cursors.push(String(request.headers["last-event-id"] ?? "missing"));
-    response
-      .status(scenario.statusCode ?? 200)
-      .setHeader("content-type", "text/event-stream")
-      .send(body);
-  });
+  polly.server
+    .get(base + path + "/stream")
+    .intercept(async (request, response) => {
+      const index = Math.min(cursors.length, scenario.streams.length - 1);
+      const body = scenario.streams[index];
+      await delay(scenario.stream_delays_ms?.[index] ?? 0);
+      cursors.push(String(request.headers["last-event-id"] ?? "missing"));
+      response
+        .status(scenario.statusCode ?? 200)
+        .setHeader("content-type", "text/event-stream")
+        .send(body);
+    });
   polly.server.get(base + path).intercept((_request, response) => {
     response.status(200).json({ ...run, status: scenario.statuses[reads++] });
   });
@@ -71,6 +76,11 @@ function setup(value: Scenario): TaskRunsApi {
 }
 
 describe("shared run stream contract", () => {
+  it("pins the shared fixture hash", () => {
+    expect(createHash("sha256").update(fixtureBytes).digest("hex")).toBe(
+      "f1dfd4501a3466442e1201210fc5c7a17150b03787405f22def762aaf511ea78",
+    );
+  });
   it("does not retry malformed events", async () => {
     const api = setup({
       name: "malformed",
@@ -111,6 +121,7 @@ describe("shared run stream contract", () => {
       for await (const event of api.stream(taskId, "run-1", {
         maxReconnects: 2,
         backoffMs: 1,
+        timeoutMs: value.timeout_ms,
       }))
         events.push(event);
     } catch (error) {

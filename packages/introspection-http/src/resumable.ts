@@ -23,7 +23,7 @@ export interface StreamOptions {
   maxReconnects?: number;
   /** Base (ms) for the capped-exponential reconnect/readiness backoff. Default `500`. */
   backoffMs?: number;
-  /** Wall-clock deadline (ms) after which no further recovery is attempted. Default `300000` (5 min). */
+  /** Recovery window (ms), renewed by each new content cursor; checked before retrying. Default `300000` (5 min). */
   timeoutMs?: number;
   /**
    * Emit an opt-in AG-UI `CUSTOM` event (`name: "introspection.reconnect"`)
@@ -72,10 +72,12 @@ export async function* streamResumable(
   runId: string,
   opts: StreamOptions = {},
 ): AsyncIterable<AGUIEvent> {
-  const path = `/v1/tasks/${encodeURIComponent(taskId)}/runs/${encodeURIComponent(runId)}/stream`;
+  const runPath = `/v1/tasks/${encodeURIComponent(taskId)}/runs/${encodeURIComponent(runId)}`;
+  const path = `${runPath}/stream`;
   const maxReconnects = opts.maxReconnects ?? 5;
   const baseMs = opts.backoffMs ?? 500;
-  const deadline = Date.now() + (opts.timeoutMs ?? 300000);
+  const timeoutMs = opts.timeoutMs ?? 300000;
+  let deadline = Date.now() + timeoutMs;
   // The last *content*-frame id, replayed via `Last-Event-ID` on reconnect.
   // Control frames (RUN_* lifecycle, heartbeats) carry a non-numeric `c-…` id
   // that is not a valid resume cursor, so only numeric ids advance it.
@@ -155,6 +157,7 @@ export async function* streamResumable(
         if (!control && frame.id && /^[0-9]+$/.test(frame.id)) {
           if (BigInt(frame.id) <= BigInt(lastEventId)) continue;
           lastEventId = frame.id;
+          deadline = Date.now() + timeoutMs;
           progressed = true;
         }
         if (
@@ -180,7 +183,7 @@ export async function* streamResumable(
       try {
         state = await http.request<TaskRun>({
           method: "GET",
-          path: path.slice(0, -7),
+          path: runPath,
           signal: opts.signal,
         });
       } catch (err) {
