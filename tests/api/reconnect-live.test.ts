@@ -106,7 +106,7 @@ describe("resilient stream — real connection drop (integration)", () => {
       expect(reconnects[0].value).toMatchObject({ reason: "severed" });
 
       // The reconnect actually re-attached with the last content-frame id.
-      expect(srv.lastEventIds).toEqual([null, "2"]);
+      expect(srv.lastEventIds).toEqual(["0", "2"]);
     } finally {
       await srv.close();
     }

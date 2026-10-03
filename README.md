@@ -184,3 +184,25 @@ export INTROSPECTION_LOG_LEVEL="debug"           # optional
 ## License
 
 Apache-2.0
+
+## Stream recovery
+
+Run streams request replay from cursor `0`, including output produced before the
+first connection. Only a settling `RUN_FINISHED` or `RUN_ERROR` confirms completion;
+`RUN_FINISHED` with `result.reason = "stream_close"` is suppressed. A nonterminal
+EOF checks the specific run's status and reconnects within the recovery budget.
+Lifecycle events and duplicate content do not reset that budget.
+
+A raw stream exposes `CUSTOM resume_gap` when the server cannot replay every
+frame. The text helper raises an incomplete-output error instead of returning
+partial text; it also raises on run failure or cancellation. If the status read
+says the run settled but the stream never confirmed completion, it raises an
+incomplete-output error. Recover final output from the conversation transcript
+when needed; the SDK does not automatically hydrate it or require an additional
+`conversations:read` scope just to stream. Recovery timeouts bound retries, not
+how long a healthy stream may remain open.
+
+The shared `run-stream-contract.json` fixtures pin these behaviors across Swift,
+JavaScript, Rust and Python. Keep the copies in those repositories in sync.
+
+JavaScript exports `StreamIncompleteError` and `RunFailedError` from the Node SDK and browser API entry point.

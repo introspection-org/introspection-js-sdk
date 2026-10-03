@@ -297,6 +297,8 @@ export {
   RateLimitError,
   SandboxUnavailableError,
   NetworkError,
+  StreamIncompleteError,
+  RunFailedError,
   apiErrorFromResponse,
 } from "@introspection-sdk/types";
 
