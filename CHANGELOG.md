@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.26.0](https://github.com/introspection-org/introspection-js-sdk/compare/v0.25.0...v0.26.0) (2026-10-03)
+
+
+### Features
+
+* **files:** accept tags and metadata on file create ([#408](https://github.com/introspection-org/introspection-js-sdk/issues/408)) ([3d357c4](https://github.com/introspection-org/introspection-js-sdk/commit/3d357c400506299bae341970226892b8ccc84061))
+* **files:** filter file lists by metadata ([#411](https://github.com/introspection-org/introspection-js-sdk/issues/411)) ([3593f22](https://github.com/introspection-org/introspection-js-sdk/commit/3593f22104f49a520339cb4d068a8982c79e0fb9))
+
+
+### Bug Fixes
+
+* **streaming:** reject incomplete output and resume nonterminal closes ([#410](https://github.com/introspection-org/introspection-js-sdk/issues/410)) ([1a83d78](https://github.com/introspection-org/introspection-js-sdk/commit/1a83d78448f46246cedb1083999b0fbc8a4d0774))
+
 ## [0.25.0](https://github.com/introspection-org/introspection-js-sdk/compare/v0.24.0...v0.25.0) (2026-09-29)
 
 
