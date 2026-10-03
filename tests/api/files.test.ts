@@ -240,6 +240,63 @@ describe("FilesApi tags", () => {
     });
   });
 
+  it("list() flattens metadata into repeated key:value params", async () => {
+    const http = mockHttp({
+      requestResult: { records: [FILE_FIXTURE], count: 1, total_count: 1 },
+    });
+    await new FilesApi(http).list({
+      metadata: { source: "crm", ref: "a:b" },
+      tag: "customer:acme",
+    });
+
+    expect(http.request).toHaveBeenCalledWith({
+      method: "GET",
+      path: "/v1/files",
+      query: {
+        tag: "customer:acme",
+        metadata: ["source:crm", "ref:a:b"],
+        next: undefined,
+      },
+    });
+  });
+
+  it("list() keeps the metadata filter on every page", async () => {
+    const page = (next: string | null) => ({
+      records: [FILE_FIXTURE],
+      count: 1,
+      total_count: 2,
+      next,
+    });
+    const http = {
+      request: vi
+        .fn()
+        .mockResolvedValueOnce(page("cur2"))
+        .mockResolvedValueOnce(page(null)),
+    } as unknown as HttpClient;
+    for await (const _ of new FilesApi(http).list({
+      metadata: { source: "crm" },
+    }));
+
+    const queries = (http.request as ReturnType<typeof vi.fn>).mock.calls.map(
+      (call) => call[0].query,
+    );
+    expect(queries).toEqual([
+      { metadata: ["source:crm"], next: undefined },
+      { metadata: ["source:crm"], next: "cur2" },
+    ]);
+  });
+
+  it("list() treats an empty metadata map as no filter", async () => {
+    const http = mockHttp({
+      requestResult: { records: [FILE_FIXTURE], count: 1, total_count: 1 },
+    });
+    await new FilesApi(http).list({ metadata: {} });
+
+    const query = (http.request as ReturnType<typeof vi.fn>).mock.calls[0][0]
+      .query;
+    expect(query).not.toHaveProperty("metadata");
+  });
+
   it("update() replaces the tag list wholesale, including clearing it", async () => {
     const http = mockHttp({ requestResult: FILE_FIXTURE });
     await new FilesApi(http).update("file-1", { tags: [] });
