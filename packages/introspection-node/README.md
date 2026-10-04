@@ -68,8 +68,9 @@ const runner = await client.runtimes("customer-agent").run({
 
 ### Members
 
-`client.members` is CRUD on the Control Plane's `/v1/members`. A member's
-`tags` are access-bearing (it can read and write any file or task whose tags
+`client.members` lists, reads, creates and updates members on the Control
+Plane's `/v1/members`; removing one is an org-admin action left to the CLI. A
+member's `tags` are access-bearing (it can read and write any file or task whose tags
 intersect them) and writable only with `members:manage`. Its `metadata` is a
 map of string labels that grants nothing; keys are `[A-Za-z0-9_-]+`, values are
 non-empty strings, at most 64 entries.

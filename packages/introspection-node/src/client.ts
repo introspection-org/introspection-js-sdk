@@ -99,8 +99,9 @@ export class IntrospectionClient {
   readonly connectors: ConnectorsApi;
 
   /**
-   * CRUD on `/v1/members`, including each member's access-bearing `tags`
-   * and its `metadata` labels, which grant nothing.
+   * List, read, create and update on `/v1/members`, including each
+   * member's access-bearing `tags` and its `metadata` labels, which grant
+   * nothing.
    */
   readonly members: MembersApi;
 

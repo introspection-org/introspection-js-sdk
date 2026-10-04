@@ -138,17 +138,6 @@ describe("MembersApi", () => {
       body: { tags: [] },
     });
   });
-
-  it("delete() expects an empty body", async () => {
-    const http = mockHttp();
-    await new MembersApi(http).delete(MEMBER_ID);
-
-    expect(http.request).toHaveBeenCalledWith({
-      method: "DELETE",
-      path: `/v1/members/${MEMBER_ID}`,
-      expect: "empty",
-    });
-  });
 });
 
 describe("client.members", () => {

@@ -11,7 +11,8 @@ import type { HttpClient } from "../http.js";
 import { Paginator, cursorPaginate } from "../pagination.js";
 
 /**
- * CRUD on `/v1/members` (Control Plane).
+ * List, read, create and update on `/v1/members` (Control Plane).
+ * Removing a member is an org-admin action left to the CLI.
  *
  * `tags` are access-bearing and writable only with `members:manage`;
  * `metadata` is a `key: value` label map that grants nothing. Both are
@@ -67,15 +68,6 @@ export class MembersApi {
       method: "PATCH",
       path: `/v1/members/${encodeURIComponent(memberId)}`,
       body: params,
-    });
-  }
-
-  /** Soft-delete a member; the server revokes its sessions. */
-  delete(memberId: Uuid): Promise<void> {
-    return this.http.request<void>({
-      method: "DELETE",
-      path: `/v1/members/${encodeURIComponent(memberId)}`,
-      expect: "empty",
     });
   }
 }
