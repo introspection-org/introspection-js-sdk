@@ -1,8 +1,8 @@
 # @introspection-sdk/introspection-node
 
 Node.js platform SDK for [Introspection](https://introspection.dev) — open runtimes,
-drive tasks, and manage experiments, recipes, repositories, files, conversations,
-and shares.
+drive tasks, and manage experiments, recipes, repositories, members, files,
+conversations, and shares.
 
 ## Install
 
@@ -54,6 +54,46 @@ explicit, or `{ mode: "drain", drain_within_seconds: 60 }` for graceful
 teardown.
 Interrupted runs resume through
 `runner.tasks.runs.resume(taskId, { resume: entries })`.
+
+`identity.metadata` sets `key: value` labels on the `customer` member the
+identity names. It grants nothing, so unlike `identity.tags` (which seed a new
+member only) it merges into an existing member too: asserted keys overwrite
+keys of the same name and the rest are kept. Absent or `{}` changes nothing.
+
+```typescript
+const runner = await client.runtimes("customer-agent").run({
+  identity: { user_id: "u_42", metadata: { plan: "enterprise" } },
+});
+```
+
+### Members
+
+`client.members` is CRUD on the Control Plane's `/v1/members`. A member's
+`tags` are access-bearing (it can read and write any file or task whose tags
+intersect them) and writable only with `members:manage`. Its `metadata` is a
+map of string labels that grants nothing; keys are `[A-Za-z0-9_-]+`, values are
+non-empty strings, at most 64 entries.
+
+```typescript
+const ada = await client.members.create({
+  email: "ada@example.com",
+  name: "Ada Lovelace",
+  metadata: { plan: "enterprise" },
+});
+
+// `tag` and `metadata` narrow the list; metadata pairs are ANDed (at most 16).
+for await (const member of client.members.list({
+  member_type: "customer",
+  metadata: { plan: "enterprise", region: "eu" },
+})) {
+  console.log(member.id, member.metadata);
+}
+
+// PATCH replaces `tags` and `metadata` wholesale; `{}` clears metadata.
+await client.members.update(ada.id, { metadata: { plan: "team" } });
+```
+
+Seeding `tags` on create needs `members:manage` as well as `members:write`.
 
 ### Repositories
 
