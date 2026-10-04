@@ -26,6 +26,22 @@ export type {
   OAuthToken,
 } from "./auth.js";
 
+// Native email-code sign-in (a `native` Application's end users).
+export {
+  AuthClient,
+  EMAIL_CODE_GRANT_TYPE,
+  InMemorySessionStorage,
+} from "./auth-client.js";
+export type {
+  AuthChangeEvent,
+  AuthClientOptions,
+  AuthSession,
+  AuthStateListener,
+  SessionStorage,
+} from "./auth-client.js";
+export { DataPlaneClient } from "./data-plane.js";
+export type { DataPlaneClientOptions } from "./data-plane.js";
+
 // Configuration / event types shared with the OTel surface.
 export type {
   AdvancedOptions,
@@ -64,7 +80,7 @@ export type {
   StreamOptions,
 } from "@introspection-sdk/http";
 export { HttpClient } from "./http.js";
-export type { ResolvedApiConfig } from "./http.js";
+export type { BearerCredentials, ResolvedApiConfig } from "./http.js";
 export { EventType } from "@introspection-sdk/types";
 
 // Runner + CP resources.

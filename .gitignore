@@ -39,3 +39,6 @@ yarn-error.log*
 # Misc
 .DS_Store
 *.pem
+
+# Session kept by examples/api/native-email-code.ts
+.introspection-session.json

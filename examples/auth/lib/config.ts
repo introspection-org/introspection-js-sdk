@@ -30,8 +30,9 @@ export function serviceAccountCreds(): BrokerCreds {
 }
 
 /**
- * The `federated` Application's `client_id` — the per-customer app whose
- * brokered IdP (Okta / Supabase / Auth0) the token-exchange grant trusts.
+ * The `jwks` (or brokered `spa`) Application's `client_id` — the per-customer
+ * app whose attached IdP (Okta / Supabase / Auth0) the token-exchange grant
+ * trusts.
  * Public (it identifies the app, not a secret), but the broker reads it
  * server-side so the token-exchange call stays off the browser.
  */

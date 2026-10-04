@@ -84,6 +84,26 @@ See [Tasks and streaming](https://docs.introspection.dev/sdk/javascript/tasks-an
 interrupts, and cancellation, and [Browser applications](https://docs.introspection.dev/sdk/javascript/browser-applications)
 for running tasks from a browser through a backend token broker.
 
+## Sign in a native app's users
+
+A mobile or desktop app with its own sign-in screens registers a `native`
+Application and signs its users in with emailed codes. Each session belongs to
+a `customer` member, is refreshed for you, and calls the Data Plane:
+
+```typescript
+import { AuthClient } from "@introspection-sdk/introspection-node";
+
+const auth = new AuthClient({ clientId: "intro_app_…", project: "my-project" });
+await auth.signInWithOtp({ email });
+await auth.verifyOtp({ email, token: code }); // 6 digits, or 6 letters and digits for a new user
+
+const dp = await auth.dataPlane();
+const run = await dp.tasks.start({ prompt: "Hello", runtime_id: runtimeId });
+```
+
+See the [Node package README](./packages/introspection-node/README.md#native-email-code-sign-in)
+for refresh, storage and sign-out, and [`examples/api/native-email-code.ts`](./examples/api/native-email-code.ts).
+
 ## Record feedback
 
 The `/otel` entrypoint emits `track` / `feedback` / `identify` and attaches
@@ -189,29 +209,41 @@ export INTROSPECTION_LOG_LEVEL="debug"           # optional
 
 ## Stream recovery
 
-Run streams request replay from cursor `0`, including output produced before the
-first connection. Only a settling `RUN_FINISHED` or `RUN_ERROR` confirms completion;
-`RUN_FINISHED` with `result.reason = "stream_close"` is suppressed. A nonterminal
-EOF checks the specific run's status and reconnects within the recovery budget.
-Each new content cursor renews both the timeout window and the reconnect budget.
-Lifecycle events, heartbeats and duplicate content renew neither. The timeout is
-checked when recovery is needed; it does not interrupt an open connection.
+`run.stream()` attaches from cursor `0`, so it includes output produced before
+the first connection. Only a settling `RUN_FINISHED` or `RUN_ERROR` confirms
+completion and ends the stream; a `RUN_FINISHED` with
+`result.reason = "stream_close"` marks the end of one attach and is not
+forwarded. A severed connection reconnects. A connection that closes cleanly
+without a settling event first reads that run's status
+(`GET /v1/tasks/{task_id}/runs/{run_id}`): `failed` or `cancelled` throws
+`RunFailedError`; `idle`, `completed` or `awaiting_user` means the run settled
+without a complete stream and throws `StreamIncompleteError`; anything else,
+including a status read that fails, reconnects.
 
-Every reconnect resumes from the last content cursor (`Last-Event-ID`). When
-that cursor is older than the server's replay buffer, the stream continues with
-one AG-UI `MESSAGES_SNAPSHOT` holding the run's messages so far; its id becomes
-the new cursor, and the text helper takes its assistant text in place of what it
-had read. When the server holds neither the frames nor a snapshot, it answers
-`410` and the stream ends with an incomplete-output error. Runtime images that
-predate the snapshot send `CUSTOM resume_gap` instead; raw streams pass it
-through. The text helper raises an incomplete-output error instead of returning
-partial text, including on `resume_gap`; it also raises on run failure or
-cancellation. If the status read
-says the run settled but the stream never confirmed completion, it raises an
-incomplete-output error. Recover final output from the conversation transcript
-when needed; the SDK does not automatically hydrate it or require an additional
-`conversations:read` scope just to stream. A long stream can therefore
-reconnect after its original timeout as long as content has continued to advance.
+Every reconnect resumes from the last content cursor (`Last-Event-ID`). Only a
+new content cursor renews the recovery timeout (`timeoutMs`, default 5 minutes)
+and resets the reconnect budget (`maxReconnects`, default 5 reconnects without
+progress); lifecycle events, heartbeats and replayed content renew neither. The
+timeout is checked before each retry, never during an open connection, so a long
+stream keeps recovering past its original window as long as content advances. A
+`429` means the run is not attachable yet: the stream waits (honouring
+`Retry-After`) within the timeout without spending the reconnect budget.
+`emitReconnectEvents: true` adds a `CUSTOM` `introspection.reconnect` event for
+each reconnect or wait.
+
+When the cursor is older than the server's replay buffer, the stream continues
+with one AG-UI `MESSAGES_SNAPSHOT` holding the run's messages so far; its id
+becomes the new cursor. When the server holds neither the frames nor a
+snapshot, it answers `410` and the stream throws `StreamIncompleteError`.
+Runtime images that predate the snapshot send `CUSTOM resume_gap` instead; raw
+streams pass it through.
+
+`run.text()` collects the assistant text: a `MESSAGES_SNAPSHOT` replaces what it
+had read, `RUN_ERROR` throws `RunFailedError`, `resume_gap` throws
+`StreamIncompleteError`, and every error the stream throws propagates, so it
+never returns partial text. Recover final output from the conversation
+transcript when needed; the SDK does not hydrate it automatically or require
+the `conversations:read` scope just to stream.
 
 Use a concrete run ID when consuming one turn. `runs/current` is a moving alias: a
 reconnect or status read may resolve to the next turn if another run has started.

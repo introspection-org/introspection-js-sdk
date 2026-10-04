@@ -56,8 +56,10 @@ async function postTokenForm(
 }
 
 /**
- * CP `POST /v1/oauth/token` response. No refresh token is issued for the
- * machine grants — re-mint when it expires.
+ * CP `POST /v1/oauth/token` response. The machine and token-exchange grants
+ * issue no refresh token — re-mint when it expires; the `authorization_code`
+ * and native `email_code` grants add `refresh_token` and the session fields
+ * the `refresh_token` grant is keyed on.
  */
 export interface OAuthToken {
   /** Project-scoped RS256 access token (`Authorization: Bearer …`). */
@@ -75,6 +77,14 @@ export interface OAuthToken {
    * browser client as `dpUrl` so the SPA connects without separate DP config.
    */
   dp_url: string | null;
+  /** Rotating refresh token, for the grants that issue one. */
+  refresh_token?: string | null;
+  /** The platform session the refresh token belongs to. */
+  session_id?: string | null;
+  org_id?: string | null;
+  project_id?: string | null;
+  /** The member the token was minted for. */
+  member_id?: string | null;
 }
 
 export interface ServiceAccountTokenParams {

@@ -30,6 +30,7 @@
 import { BrowserHttpClient, stripTrailingSlash, toApiError } from "./http.js";
 import { resolveBrowserFetch } from "./fetch.js";
 import {
+  AutomationsClient,
   ConversationsClient,
   FilesClient,
   SharesClient,
@@ -42,6 +43,7 @@ type CookieClients = {
   files: FilesClient;
   conversations: ConversationsClient;
   shares: SharesClient;
+  automations: AutomationsClient;
 };
 
 export interface IntrospectionApiClientOptions {
@@ -111,6 +113,7 @@ export class IntrospectionApiClient {
       files: new FilesClient(http),
       conversations: new ConversationsClient(http),
       shares: new SharesClient(http),
+      automations: new AutomationsClient(http),
     };
   }
 
@@ -132,6 +135,11 @@ export class IntrospectionApiClient {
   /** `/v1/shares` read-sharing grants bound to the session cookie. */
   get shares(): SharesClient {
     return this.cookieClients.shares;
+  }
+
+  /** `/v1/automations` operations bound to the DP session cookie. */
+  get automations(): AutomationsClient {
+    return this.cookieClients.automations;
   }
 
   /**
