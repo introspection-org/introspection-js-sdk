@@ -89,6 +89,7 @@ export {
   attachConnectors,
 } from "./resources/connectors.js";
 export { MembersApi, attachMembers } from "./resources/members.js";
+export { AutomationsApi, attachAutomations } from "./resources/automations.js";
 export {
   RepositoriesApi,
   attachRepositories,
@@ -214,6 +215,18 @@ export type {
   MemberListParams,
   MemberCreateParams,
   MemberUpdateParams,
+  Automation,
+  AutomationKind,
+  AutomationTriggerType,
+  AutomationConditionType,
+  AutomationExecutionStatus,
+  AutomationSkipReason,
+  AutomationCondition,
+  AutomationMetadata,
+  AutomationCreateParams,
+  AutomationUpdateParams,
+  AutomationListParams,
+  AutomationTriggerResponse,
   RunRequest,
   RunCaller,
   RunCallerLibrary,
@@ -260,6 +273,10 @@ export type {
   ClusteringRunEvent,
   FeedbackEvent,
   JudgementEvent,
+  AutomationTriggeredPayload,
+  AutomationSkippedPayload,
+  AutomationTriggeredEvent,
+  AutomationSkippedEvent,
   Event,
   UnknownEvent,
   EventForName,

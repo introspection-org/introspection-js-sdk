@@ -35,6 +35,10 @@ import {
 } from "./resources/connectors.js";
 import { attachMembers, type MembersApi } from "./resources/members.js";
 import {
+  attachAutomations,
+  type AutomationsApi,
+} from "./resources/automations.js";
+import {
   attachAnnotations,
   attachProjectLabels,
   type AnnotationsApi,
@@ -104,6 +108,12 @@ export class IntrospectionClient {
    * nothing.
    */
   readonly members: MembersApi;
+
+  /**
+   * CRUD on `/v1/automations` (Data Plane) plus `automations.trigger(id)`.
+   * Administrator-only on the server today.
+   */
+  readonly automations: AutomationsApi;
 
   /**
    * Reads on `/v1/repositories` (CP) plus `repositories.contents` and
@@ -180,6 +190,7 @@ export class IntrospectionClient {
     this.recipes = attachRecipes(this.cpHttp);
     this.connectors = attachConnectors(this.cpHttp);
     this.members = attachMembers(this.cpHttp);
+    this.automations = attachAutomations(this.dpHttp);
     this.repositories = attachRepositories(this.cpHttp, this.dpHttp);
     this.annotations = attachAnnotations(this.cpHttp, this.dpHttp);
     this.projectLabels = attachProjectLabels(this.dpHttp);

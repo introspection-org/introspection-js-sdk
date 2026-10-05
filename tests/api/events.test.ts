@@ -50,6 +50,12 @@ function narrowEvent(ev: Event): string | null | undefined {
   if (ev.event_name === "introspection.pattern.assignment") {
     return ev.payload.pattern_id;
   }
+  if (ev.event_name === "introspection.automation.triggered") {
+    return ev.payload.automation_name;
+  }
+  if (ev.event_name === "introspection.automation.skipped") {
+    return ev.payload.reason;
+  }
   return ev.payload.run_id; // narrowed to ClusteringRunEvent
 }
 
@@ -340,6 +346,114 @@ function feedbackIpc(
   });
   return bytesBody(arrow.tableToIPC(table, "stream"));
 }
+
+describe("EventsApi.list — automation families", () => {
+  const AUTOMATION_ID = "0199a1b2-0000-7000-8000-000000000001";
+  const TASK_ID = "0199a1b2-0000-7000-8000-0000000000ee";
+
+  it("returns AutomationTriggeredEvent rows and sends automation_id / task_id", async () => {
+    const http = mockHttp({
+      requestResult: {
+        records: [
+          {
+            ...ENVELOPE,
+            id: "ev-at-1",
+            event_name: "introspection.automation.triggered",
+            runtime_group_id: "rg-1",
+            payload: {
+              automation_id: AUTOMATION_ID,
+              automation_name: "Weekly digest",
+              prompt: "Summarize my week",
+              trigger_type: "cron",
+              slot: "2026-10-05T09:00:00Z",
+              task_id: TASK_ID,
+              posted: true,
+              member_id: "member-1",
+              runtime_group_id: "rg-1",
+              triggered_by_member_id: null,
+            },
+          },
+        ],
+        count: 1,
+        next: null,
+      },
+    });
+    const page = await new EventsApi(http).list({
+      event_name: IntrospectionEventNames.AUTOMATION_TRIGGERED,
+      automation_id: AUTOMATION_ID,
+      task_id: TASK_ID,
+    });
+    const ev = page.records[0];
+
+    expect(http.request).toHaveBeenCalledWith({
+      method: "GET",
+      path: "/v1/events",
+      query: {
+        event_name: "introspection.automation.triggered",
+        automation_id: AUTOMATION_ID,
+        task_id: TASK_ID,
+      },
+      signal: undefined,
+    });
+    expect(ev.payload.automation_id).toBe(AUTOMATION_ID);
+    expect(ev.payload.trigger_type).toBe("cron");
+    expect(ev.payload.slot).toBe("2026-10-05T09:00:00Z");
+    expect(ev.payload.task_id).toBe(TASK_ID);
+    expect(ev.payload.posted).toBe(true);
+    expect(ev.payload.member_id).toBe("member-1");
+    expect(ev.payload.triggered_by_member_id).toBeNull();
+    expect(isKnownEvent(ev)).toBe(true);
+    expect(narrowEvent(ev)).toBe("Weekly digest");
+  });
+
+  it("returns AutomationSkippedEvent rows with known and unknown skip reasons", async () => {
+    const http = mockHttp({
+      requestResult: {
+        records: [
+          {
+            ...ENVELOPE,
+            id: "ev-as-1",
+            event_name: "introspection.automation.skipped",
+            payload: {
+              automation_id: AUTOMATION_ID,
+              trigger_type: "manual",
+              slot: "2026-10-10T09:00:00Z",
+              task_id: TASK_ID,
+              reason: "target_busy",
+            },
+          },
+          {
+            ...ENVELOPE,
+            id: "ev-as-2",
+            event_name: "introspection.automation.skipped",
+            payload: {
+              automation_id: AUTOMATION_ID,
+              trigger_type: "cron",
+              slot: null,
+              task_id: null,
+              reason: "a_reason_from_the_future",
+            },
+          },
+        ],
+        count: 2,
+        next: null,
+      },
+    });
+    const page = await new EventsApi(http).list({
+      event_name: IntrospectionEventNames.AUTOMATION_SKIPPED,
+      automation_id: AUTOMATION_ID,
+    });
+
+    const [busy, future] = page.records;
+    expect(busy.event_name).toBe("introspection.automation.skipped");
+    expect(busy.payload.reason).toBe("target_busy");
+    expect(busy.payload.task_id).toBe(TASK_ID);
+    expect(future.payload.reason).toBe("a_reason_from_the_future");
+    expect(future.payload.task_id).toBeNull();
+    expect(isKnownEvent(busy)).toBe(true);
+    expect(narrowEvent(busy)).toBe("target_busy");
+  });
+});
 
 describe("EventsApi.list — Arrow with a struct payload column", () => {
   it("decodes the payload struct into plain nested objects matching the JSON shape", async () => {

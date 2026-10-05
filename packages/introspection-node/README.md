@@ -1,8 +1,8 @@
 # @introspection-sdk/introspection-node
 
 Node.js platform SDK for [Introspection](https://introspection.dev) — open runtimes,
-drive tasks, and manage experiments, recipes, repositories, members, files,
-conversations, and shares.
+drive tasks, and manage experiments, recipes, repositories, members,
+automations, files, conversations, and shares.
 
 ## Install
 
@@ -95,6 +95,58 @@ await client.members.update(ada.id, { metadata: { plan: "team" } });
 ```
 
 Seeding `tags` on create needs `members:manage` as well as `members:write`.
+
+### Automations
+
+`client.automations` lists, reads, creates, updates and deletes the project's
+automations on the Data Plane's `/v1/automations`, and `trigger(id)` runs one
+now. An automation is a scheduled prompt (`kind: null`) or platform work
+(`observation_synthesis`, `observation_clustering`, `project_check_in`). A
+`cron` automation fires on `cron_schedule`, or on `metadata.cron_schedules` in
+`metadata.timezone`; a one-off reminder is a `manual` automation with a future
+`next_trigger_at`. Set `task_id` to post each firing into an existing task
+instead of creating one.
+
+The server serves these routes to administrators only today (a 403 otherwise).
+introspection-cloud#3137, not yet released, opens them to members for their own
+automations that post into one of their tasks; until it ships, the `task_id`
+list filter is ignored by the server.
+
+```typescript
+const reminder = await client.automations.create({
+  name: "Friday check-in",
+  trigger_type: "manual",
+  prompt: "How did the week go?",
+  runtime_group_id: runtimeGroupId,
+  task_id: taskId,
+  next_trigger_at: "2026-10-09T09:00:00Z",
+});
+
+// PATCH sends only the fields you set; `metadata` replaces wholesale.
+await client.automations.update(reminder.id, { enabled: false });
+
+for await (const automation of client.automations.list({ task_id: taskId })) {
+  console.log(automation.id, automation.next_trigger_at, automation.can_manage);
+}
+
+const { status, task_id } = await client.automations.trigger(reminder.id);
+```
+
+Each task-run trigger is recorded as an `introspection.automation.triggered`
+event, and a scheduled slot that ran nothing as
+`introspection.automation.skipped` (with a `reason` such as
+`conditions_not_met` or `target_busy`; readable only with project-wide
+telemetry access). Read them with `client.events.list`, filtered by
+`automation_id` or `task_id`:
+
+```typescript
+const page = await client.events.list({
+  event_name: "introspection.automation.triggered",
+  automation_id: reminder.id,
+});
+for (const ev of page.records)
+  console.log(ev.payload.task_id, ev.payload.posted);
+```
 
 ### Repositories
 

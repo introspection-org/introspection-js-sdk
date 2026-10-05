@@ -279,6 +279,76 @@ const SURFACES = [
     extraMeans: "sent as a query parameter the API does not accept",
     missingMeans: "accepted by the API but not exposed here",
   },
+  {
+    name: "AutomationTriggeredPayload",
+    where: "introspection.automation.triggered payload",
+    sdk: () => interfaceMembers(TYPES, "AutomationTriggeredPayload"),
+    server: (spec) => schemaProperties(spec, "AutomationTriggered"),
+    extraMeans:
+      "declared here but not returned by the API (the SDK describes a response that no longer exists)",
+    missingMeans: "returned by the API but not surfaced by this SDK",
+  },
+  {
+    name: "AutomationSkippedPayload",
+    where: "introspection.automation.skipped payload",
+    sdk: () => interfaceMembers(TYPES, "AutomationSkippedPayload"),
+    server: (spec) => schemaProperties(spec, "AutomationSkipped"),
+    extraMeans:
+      "declared here but not returned by the API (the SDK describes a response that no longer exists)",
+    missingMeans: "returned by the API but not surfaced by this SDK",
+  },
+  // --- automations ---------------------------------------------------------
+  {
+    name: "Automation",
+    where: "the automation read model",
+    sdk: () => interfaceMembers(TYPES, "Automation"),
+    server: (spec) => schemaProperties(spec, "Automation"),
+    // Always null, and dropped by introspection-cloud#3154; this goes stale
+    // (and fails) once the reference drops it too.
+    exempt: ["agent_member_id"],
+    extraMeans:
+      "declared here but not returned by the API (the SDK describes a response that no longer exists)",
+    missingMeans: "returned by the API but not surfaced by this SDK",
+  },
+  {
+    name: "AutomationCreateParams",
+    where: "POST /v1/automations body",
+    sdk: () => interfaceMembers(TYPES, "AutomationCreateParams"),
+    server: (spec) => schemaProperties(spec, "AutomationCreate"),
+    extraMeans:
+      "declared here but not accepted by the API (rejected with a 422 — the create body forbids undeclared fields)",
+    missingMeans: "accepted by the API but unavailable to callers of this SDK",
+  },
+  {
+    name: "AutomationUpdateParams",
+    where: "PATCH /v1/automations/{id} body",
+    sdk: () => interfaceMembers(TYPES, "AutomationUpdateParams"),
+    server: (spec) => schemaProperties(spec, "AutomationUpdate"),
+    extraMeans:
+      "declared here but not accepted by the API (rejected with a 422 — the update body forbids undeclared fields)",
+    missingMeans: "accepted by the API but unavailable to callers of this SDK",
+  },
+  {
+    name: "AutomationTriggerResponse",
+    where: "POST /v1/automations/{id}/trigger response",
+    sdk: () => interfaceMembers(TYPES, "AutomationTriggerResponse"),
+    server: (spec) => schemaProperties(spec, "AutomationTriggerResponse"),
+    extraMeans:
+      "declared here but not returned by the API (the SDK describes a response that no longer exists)",
+    missingMeans: "returned by the API but not surfaced by this SDK",
+  },
+  {
+    name: "AutomationListParams",
+    where: "GET /v1/automations query parameters",
+    sdk: () => interfaceMembers(TYPES, "AutomationListParams"),
+    server: (spec) => queryParameters(spec, "/v1/automations", "get"),
+    // Sent before the reference publishes it (introspection-cloud#3137);
+    // drop the allowance once it does.
+    allowedExtra: ["task_id"],
+    missingIsFatal: true,
+    extraMeans: "sent as a query parameter the API does not accept",
+    missingMeans: "accepted by the API but not exposed here",
+  },
   // --- conversations -------------------------------------------------------
   // There is deliberately no `Conversation` read-model surface: the published
   // reference declares no properties for that schema, so the comparison would
