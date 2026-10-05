@@ -214,8 +214,8 @@ importers:
         specifier: workspace:*
         version: link:../introspection-types
       '@letta-ai/trajectory':
-        specifier: ^0.3.0
-        version: 0.3.0
+        specifier: ^0.4.3
+        version: 0.4.3
       '@opentelemetry/api':
         specifier: ^1.9.1
         version: 1.9.1
@@ -1137,8 +1137,8 @@ packages:
   '@jridgewell/trace-mapping@0.3.31':
     resolution: {integrity: sha512-zzNR+SdQSDJzc8joaeP8QQoCQr8NuYx2dIIytl1QeBEZHJ9uW6hebsrYgbz8hJwUQao3TWCMtmfV8Nu1twOLAw==}
 
-  '@letta-ai/trajectory@0.3.0':
-    resolution: {integrity: sha512-7omHLu28WcbQWcfz+KF92OuomPM59jv5ATAEqpvYWXjAqJwkcHUxWQSHXXImz90bGBfmc3FeUtmTKjb/DwSSgQ==}
+  '@letta-ai/trajectory@0.4.3':
+    resolution: {integrity: sha512-jTk2mOF23usegEAQag/NsgkRNjyRu/bGt9dG03VsSm7IA4R9GWn3cs8amc5Oibydt5vrUmPqlyJ60yOzBzBpzw==}
     engines: {node: '>=20'}
 
   '@modelcontextprotocol/client@2.1.0':
@@ -5121,7 +5121,7 @@ snapshots:
       '@jridgewell/resolve-uri': 3.1.2
       '@jridgewell/sourcemap-codec': 1.6.0
 
-  '@letta-ai/trajectory@0.3.0': {}
+  '@letta-ai/trajectory@0.4.3': {}
 
   '@modelcontextprotocol/client@2.1.0':
     dependencies:
