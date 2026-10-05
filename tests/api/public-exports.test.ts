@@ -81,6 +81,8 @@ describe("public export barrels", () => {
       "setupTracing",
       "IntrospectionSpanProcessor",
       "IntrospectionLogs",
+      "logEvent",
+      "track",
       "conversation",
       "withAgent",
     ] as const) {

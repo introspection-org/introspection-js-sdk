@@ -347,13 +347,14 @@ await logs.shutdown();
 
 ### Methods
 
-| Method                      | Description                    |
-| --------------------------- | ------------------------------ |
-| `track(event, properties?)` | Track any user action          |
-| `feedback(type, options?)`  | Track feedback on AI responses |
-| `identify(userId, traits?)` | Associate a user with traits   |
-| `flush()`                   | Flush pending events           |
-| `shutdown()`                | Shutdown and flush             |
+| Method                                  | Description                                        |
+| --------------------------------------- | -------------------------------------------------- |
+| `logEvent(name, attributes?, options?)` | Log an app event under any custom name (see below) |
+| `track(event, properties?)`             | Track any user action (an alias of `logEvent`)     |
+| `feedback(type, options?)`              | Track feedback on AI responses                     |
+| `identify(userId, traits?)`             | Associate a user with traits                       |
+| `flush()`                               | Flush pending events                               |
+| `shutdown()`                            | Shutdown and flush                                 |
 
 ### Context helpers (OTel baggage)
 
@@ -364,6 +365,103 @@ await logs.shutdown();
 | `withAgent(name, id?, callback)`               | Set agent context            |
 | `withAnonymousId(id, callback)`                | Set anonymous ID             |
 | `withBaggage(values, callback)`                | Set arbitrary baggage values |
+
+## Logging custom events
+
+`logEvent(name, attributes?, options?)` records an app event under a name you
+choose — `ark.feed.entry`, `checkout.completed` — so the platform stores it and
+you can query it back by name. `track()` is a thin alias of it. Attributes are
+stored under `properties.*`.
+
+```typescript
+import { IntrospectionLogs } from "@introspection-sdk/introspection-node/otel";
+
+const logs = new IntrospectionLogs({ serviceName: "ark" }); // INTROSPECTION_TOKEN
+
+logs.logEvent(
+  "ark.feed.entry",
+  { entry_id: entry.id, source: "rss", score: 0.92 },
+  {
+    eventId: `feed-entry:${entry.id}`, // stable id: consumers dedupe on it
+    timestamp: entry.publishedAt, // Date or epoch ms; default now
+    identity: { userId: entry.ownerId }, // overrides the scoped identity
+    severity: "INFO", // DEBUG | INFO | WARN | ERROR
+  },
+);
+
+await logs.shutdown(); // flushes
+```
+
+After `init()`, the same call is available as a module-level function:
+
+```typescript
+import * as introspection from "@introspection-sdk/introspection-node/otel";
+
+await introspection.init({ serviceName: "ark" });
+introspection.logEvent("ark.feed.entry", { entry_id: "e_1" });
+```
+
+- **Names.** Use your own namespace. Names starting with `introspection.`
+  (platform events) or `gen_ai.` (OpenTelemetry GenAI conventions) are
+  reserved and `logEvent` throws on them. `track()` delegates to `logEvent`,
+  so it rejects them too.
+- **Idempotency.** Without `eventId` each call gets a fresh id. When delivery
+  can repeat (retries, replayed jobs, an agent re-running a step), pass an id
+  derived from the thing being recorded: re-sending the same `eventId` is how
+  consumers recognise and drop the duplicate.
+- **Identity and context.** User / anonymous id and `gen_ai.conversation.id` /
+  agent come from the active baggage (`withUserId`, `withConversation`,
+  `withAgent`); `options.identity` overrides per field.
+
+### From a recipe or agent sandbox
+
+A Runtime sandbox is started with `INTROSPECTION_TOKEN` and
+`INTROSPECTION_BASE_OTEL_URL` in its environment, so a recipe tool or
+agent step needs no configuration — construct the logger and flush before the
+step returns:
+
+```typescript
+import { IntrospectionLogs } from "@introspection-sdk/introspection-node/otel";
+
+const events = new IntrospectionLogs({ serviceName: "ark-recipe" });
+
+export async function recordFeedEntries(entries: FeedEntry[]) {
+  for (const entry of entries) {
+    events.logEvent(
+      "ark.feed.entry",
+      { entry_id: entry.id, title: entry.title, url: entry.url },
+      { eventId: `ark.feed.entry:${entry.id}` },
+    );
+  }
+  await events.flush(); // the sandbox may be torn down after the step
+}
+```
+
+### Reading custom events back
+
+Custom events are served by `/v1/events` under the `introspection.track`
+family, whose `payload` carries the original `name` and the `properties`:
+
+```typescript
+import { IntrospectionClient } from "@introspection-sdk/introspection-node";
+
+const client = new IntrospectionClient();
+
+type TrackPayload = { name: string; properties?: Record<string, unknown> };
+
+for await (const ev of client.events.list({
+  event_name: "introspection.track",
+  lookback: "24h",
+})) {
+  const payload = ev.payload as TrackPayload;
+  if (payload.name !== "ark.feed.entry") continue;
+  console.log(ev.timestamp, payload.properties?.entry_id);
+}
+```
+
+Filtering by `name` server-side is not available yet — it arrives with a
+pending platform change. Until then, filter on `payload.name` client-side as
+above.
 
 ## OpenTelemetry span processor
 

@@ -16,6 +16,7 @@
  *
  * // Track events
  * client.track("Button Clicked", { buttonId: "submit" });
+ * client.logEvent("checkout.completed", { orderId: "o_1" });
  *
  * // Track feedback
  * client.feedback("thumbs_up", { comments: "Very helpful response" });
@@ -35,6 +36,8 @@ export type {
   IntrospectionClientOptions,
   FeedbackOptions,
   UserTraits,
+  LogEventOptions,
+  LogEventSeverity,
 } from "./types.js";
 
 // Version

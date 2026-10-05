@@ -104,7 +104,13 @@ await analytics.withConversation(conversationId, undefined, async () => {
 await analytics.shutdown();
 ```
 
-In a browser, `@introspection-sdk/introspection-browser` records the same three
+To record an app event under your own name (`ark.feed.entry`), use
+`logEvent(name, attributes?, { eventId? })`; `track` is an alias of it. See
+[Logging custom events](packages/introspection-node/README.md#logging-custom-events)
+for idempotency, reserved names, use from a recipe sandbox, and reading events
+back.
+
+In a browser, `@introspection-sdk/introspection-browser` records the same
 signals. Give it a browser-safe telemetry token, never a project API key.
 
 See [Product signals and tracing](https://docs.introspection.dev/sdk/javascript/product-signals).

@@ -154,6 +154,46 @@ export interface IdentityContext {
   anonymousId: string | undefined;
 }
 
+/** Severity of a record emitted by `logEvent`. */
+export type LogEventSeverity = "DEBUG" | "INFO" | "WARN" | "ERROR";
+
+/**
+ * Options for `logEvent`.
+ */
+export interface LogEventOptions {
+  /**
+   * Caller-supplied event id (auto-generated if omitted). Consumers dedupe on
+   * it: re-sending an event with the same id — after a retry, a crash, or a
+   * replayed job — is how a reader recognises the copy, so derive it from
+   * something stable (e.g. `feed-entry:${entry.id}`) when delivery may repeat.
+   */
+  eventId?: string;
+  /** When the event happened, as a `Date` or epoch milliseconds. Default: now. */
+  timestamp?: Date | number;
+  /**
+   * Identity known at the call site. Each field set here replaces the one
+   * scoped on the context; an omitted field still falls back to it.
+   */
+  identity?: Partial<IdentityContext>;
+  /** Log severity. Default: `"INFO"`. */
+  severity?: LogEventSeverity;
+}
+
+/**
+ * Event-name prefixes owned by the platform (`introspection.*`) and by the
+ * OpenTelemetry GenAI semantic conventions (`gen_ai.*`). A custom event under
+ * either would be read as that family rather than as an app event.
+ */
+export const RESERVED_EVENT_NAME_PREFIXES = [
+  "introspection.",
+  "gen_ai.",
+] as const;
+
+/** The reserved prefix `name` falls under, if any. */
+export function reservedEventNamePrefix(name: string): string | undefined {
+  return RESERVED_EVENT_NAME_PREFIXES.find((prefix) => name.startsWith(prefix));
+}
+
 /**
  * Generate a unique event ID.
  */

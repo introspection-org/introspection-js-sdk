@@ -38,6 +38,7 @@ export type { IntrospectionSpanProcessorOptions } from "./span-processor.js";
 export {
   init,
   shutdown,
+  logEvent,
   track,
   feedback,
   identify,
@@ -53,6 +54,8 @@ export {
   _resetForTests,
 } from "./init.js";
 export type { InitOptions } from "./init.js";
+export type { LogEventOptions, LogEventSeverity } from "../types.js";
+export { RESERVED_EVENT_NAME_PREFIXES } from "@introspection-sdk/types";
 
 // Low-level OTel registration helper (also used by `init`).
 export { registerOTelGlobals } from "./setup.js";

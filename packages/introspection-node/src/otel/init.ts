@@ -11,7 +11,7 @@
  * // An installed Pi agent is wired into the shared provider automatically.
  * ```
  *
- * It also exposes the `track` / `feedback` / `identify` analytics surface and a
+ * It also exposes the `logEvent` / `track` / `feedback` / `identify` analytics surface and a
  * `conversation()` scope, proxied to a global {@link IntrospectionLogs}.
  */
 
@@ -27,7 +27,12 @@ import type {
 import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
 import { ATTR_SERVICE_NAME } from "@opentelemetry/semantic-conventions";
 
-import type { AdvancedOptions, FeedbackOptions, UserTraits } from "../types.js";
+import type {
+  AdvancedOptions,
+  FeedbackOptions,
+  LogEventOptions,
+  UserTraits,
+} from "../types.js";
 import { DEFAULT_SERVICE_NAME, logger } from "../utils.js";
 import {
   discoverIntegrations,
@@ -257,7 +262,7 @@ async function initOnce(options: InitOptions): Promise<TracerProvider> {
 export function getClient(): IntrospectionLogs {
   if (!state.logs) {
     throw new Error(
-      "introspection.init() must be called before using track / feedback / identify.",
+      "introspection.init() must be called before using logEvent / track / feedback / identify.",
     );
   }
   return state.logs;
@@ -269,6 +274,18 @@ export function getTracerProvider(): TracerProvider {
     throw new Error("introspection.init() must be called first.");
   }
   return state.provider;
+}
+
+/**
+ * Log an app event under any custom name. Requires {@link init} first.
+ * See {@link IntrospectionLogs.logEvent}.
+ */
+export function logEvent(
+  name: string,
+  attributes?: Record<string, unknown>,
+  options?: LogEventOptions,
+): void {
+  getClient().logEvent(name, attributes, options);
 }
 
 /** Track an analytics event. Requires {@link init} first. */

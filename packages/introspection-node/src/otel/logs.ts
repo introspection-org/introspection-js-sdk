@@ -1,8 +1,8 @@
 /**
  * IntrospectionLogs — OTel logs exporter for Introspection.
  *
- * Owns its own `LoggerProvider` and OTLP log exporter. Provides `track`,
- * `feedback`, `identify`, and async-context helpers (`withBaggage`,
+ * Owns its own `LoggerProvider` and OTLP log exporter. Provides `logEvent`,
+ * `track`, `feedback`, `identify`, and async-context helpers (`withBaggage`,
  * `withAgent`, `withConversation`, etc.) that propagate identity and
  * gen_ai context through OpenTelemetry baggage.
  *
@@ -52,8 +52,11 @@ import {
 import { VERSION } from "../version.js";
 import {
   generateEventId,
+  reservedEventNamePrefix,
   toAttributeValue,
   type FeedbackOptions,
+  type LogEventOptions,
+  type LogEventSeverity,
   type UserTraits,
   type GenAiContext,
   type IdentityContext,
@@ -62,6 +65,13 @@ import {
 /**
  * Configuration for {@link IntrospectionLogs}.
  */
+const SEVERITY_NUMBERS: Record<LogEventSeverity, SeverityNumber> = {
+  DEBUG: SeverityNumber.DEBUG,
+  INFO: SeverityNumber.INFO,
+  WARN: SeverityNumber.WARN,
+  ERROR: SeverityNumber.ERROR,
+};
+
 export interface IntrospectionLogsOptions {
   /** Authentication token (env: INTROSPECTION_TOKEN). */
   token?: string;
@@ -280,23 +290,65 @@ export class IntrospectionLogs {
     return attributes;
   }
 
+  /**
+   * Log an app event under any custom name, e.g. `"ark.feed.entry"`.
+   *
+   * `attributes` land under `properties.*`, which is where the platform's
+   * `introspection.track` read projection finds them; read the events back
+   * with `client.events.list({ event_name: "introspection.track" })`.
+   * Identity and gen_ai context are taken from the active baggage unless
+   * `options.identity` overrides them.
+   *
+   * Pass a stable `options.eventId` when delivery may repeat: consumers
+   * dedupe on it, so re-sending the same id is safe.
+   *
+   * @throws Error when `name` is empty or falls under a reserved namespace
+   *   (`introspection.*`, `gen_ai.*`).
+   */
+  logEvent(
+    name: string,
+    attributes?: Record<string, unknown>,
+    options: LogEventOptions = {},
+  ): void {
+    if (!name) {
+      throw new Error("logEvent: event name must be a non-empty string.");
+    }
+    const reserved = reservedEventNamePrefix(name);
+    if (reserved) {
+      throw new Error(
+        `logEvent: event name "${name}" is in the reserved "${reserved}*" namespace, which belongs to the platform and OpenTelemetry. Use your own prefix, e.g. "myapp.${name.slice(reserved.length)}".`,
+      );
+    }
+    const contextIdentity = this.getIdentityFromContext();
+    const severity = options.severity ?? "INFO";
+    this.otelLogger.emit({
+      timestamp: options.timestamp ?? this.getTimestamp(),
+      context: context.active(),
+      severityNumber: SEVERITY_NUMBERS[severity],
+      severityText: severity,
+      attributes: this.buildAttributes(name, {
+        properties: attributes,
+        eventId: options.eventId,
+        identity: {
+          userId: options.identity?.userId ?? contextIdentity.userId,
+          anonymousId:
+            options.identity?.anonymousId ?? contextIdentity.anonymousId,
+        },
+      }),
+    });
+    sdkLogger.debug(`Logged event: ${name}`);
+  }
+
+  /**
+   * Track an analytics event. A thin alias of {@link logEvent} kept for the
+   * Segment-style call shape.
+   */
   track(
     eventName: string,
     properties?: Record<string, unknown>,
     options?: { eventId?: string },
   ): void {
-    const attributes = this.buildAttributes(eventName, {
-      properties,
-      eventId: options?.eventId,
-    });
-    this.otelLogger.emit({
-      timestamp: this.getTimestamp(),
-      context: context.active(),
-      severityNumber: SeverityNumber.INFO,
-      severityText: "INFO",
-      attributes,
-    });
-    sdkLogger.debug(`Tracked: ${eventName}`);
+    this.logEvent(eventName, properties, { eventId: options?.eventId });
   }
 
   feedback(name: string, options: FeedbackOptions = {}): void {
