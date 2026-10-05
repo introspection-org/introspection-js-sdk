@@ -214,8 +214,8 @@ importers:
         specifier: workspace:*
         version: link:../introspection-types
       '@letta-ai/trajectory':
-        specifier: ^0.3.0
-        version: 0.3.0
+        specifier: ^0.4.3
+        version: 0.4.3
       '@opentelemetry/api':
         specifier: ^1.9.1
         version: 1.9.1
@@ -1129,8 +1129,8 @@ packages:
   '@jridgewell/trace-mapping@0.3.31':
     resolution: {integrity: sha512-zzNR+SdQSDJzc8joaeP8QQoCQr8NuYx2dIIytl1QeBEZHJ9uW6hebsrYgbz8hJwUQao3TWCMtmfV8Nu1twOLAw==}
 
-  '@letta-ai/trajectory@0.3.0':
-    resolution: {integrity: sha512-7omHLu28WcbQWcfz+KF92OuomPM59jv5ATAEqpvYWXjAqJwkcHUxWQSHXXImz90bGBfmc3FeUtmTKjb/DwSSgQ==}
+  '@letta-ai/trajectory@0.4.3':
+    resolution: {integrity: sha512-jTk2mOF23usegEAQag/NsgkRNjyRu/bGt9dG03VsSm7IA4R9GWn3cs8amc5Oibydt5vrUmPqlyJ60yOzBzBpzw==}
     engines: {node: '>=20'}
 
   '@modelcontextprotocol/client@2.1.0':
@@ -3909,6 +3909,10 @@ packages:
     resolution: {integrity: sha512-UXWMKhLOwVKb728IUtQPXxfYU+usdybtUrK/8uGE8CQMvrhOpwvzDBwj0QhSL7MQc7vIsISBG8VQ8+IDQxpfQA==}
     engines: {node: '>=0.10.0'}
 
+  source-map-js@1.2.2:
+    resolution: {integrity: sha512-KGj/8Y43x35aZVDtt+J4mK1hoLGHULMYfSkODJNQjNDC3oW1PqPoxMwo0pLUsWM/UEGzON/NxeHywEfNXNP3Vw==}
+    engines: {node: '>=0.10.0'}
+
   stable-hash@0.0.5:
     resolution: {integrity: sha512-+L3ccpzibovGXFK+Ap/f8LOS0ahMrHTf3xu7mMLSpEGU0EO9ucaysSylKo9eRDFNhWve/y275iPmIZ4z39a9iA==}
 
@@ -5025,7 +5029,7 @@ snapshots:
       '@jridgewell/resolve-uri': 3.1.2
       '@jridgewell/sourcemap-codec': 1.6.0
 
-  '@letta-ai/trajectory@0.3.0': {}
+  '@letta-ai/trajectory@0.4.3': {}
 
   '@modelcontextprotocol/client@2.1.0':
     dependencies:
@@ -7676,7 +7680,7 @@ snapshots:
     dependencies:
       nanoid: 3.3.19
       picocolors: 1.1.1
-      source-map-js: 1.2.1
+      source-map-js: 1.2.2
 
   prelude-ls@1.2.1: {}
 
@@ -8080,6 +8084,8 @@ snapshots:
   slugify@1.6.9: {}
 
   source-map-js@1.2.1: {}
+
+  source-map-js@1.2.2: {}
 
   stable-hash@0.0.5: {}
 
