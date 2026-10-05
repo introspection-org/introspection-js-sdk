@@ -29,7 +29,7 @@
     "@opentelemetry/exporter-trace-otlp-proto": "^0.222.0",
     "@opentelemetry/resources": "^2.11.0",
     "@supabase/supabase-js": "^2.117.1",
-    "@types/node": "^22.20.4",
+    "@types/node": "^22.20.5",
     "mcporter": "^0.14.1",
     "tsx": "^4.23.15",
     "typescript": "^5.9.3",
