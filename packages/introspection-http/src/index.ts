@@ -28,6 +28,7 @@ export {
   type Transport,
 } from "./client.js";
 export type { ResourceHttpClient } from "./resources/types.js";
+export { encodeMetadataFilter } from "./resources/metadata-filter.js";
 export {
   RunHandle,
   TaskRunsApi,

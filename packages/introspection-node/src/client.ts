@@ -33,6 +33,7 @@ import {
   attachConnectors,
   type ConnectorsApi,
 } from "./resources/connectors.js";
+import { attachMembers, type MembersApi } from "./resources/members.js";
 import {
   attachAnnotations,
   attachProjectLabels,
@@ -96,6 +97,13 @@ export class IntrospectionClient {
    * single-use consent URL a Business hands its customer.
    */
   readonly connectors: ConnectorsApi;
+
+  /**
+   * List, read, create and update on `/v1/members`, including each
+   * member's access-bearing `tags` and its `metadata` labels, which grant
+   * nothing.
+   */
+  readonly members: MembersApi;
 
   /**
    * Reads on `/v1/repositories` (CP) plus `repositories.contents` and
@@ -171,6 +179,7 @@ export class IntrospectionClient {
     this.experiments = attachExperiments(this, this.cpHttp);
     this.recipes = attachRecipes(this.cpHttp);
     this.connectors = attachConnectors(this.cpHttp);
+    this.members = attachMembers(this.cpHttp);
     this.repositories = attachRepositories(this.cpHttp, this.dpHttp);
     this.annotations = attachAnnotations(this.cpHttp, this.dpHttp);
     this.projectLabels = attachProjectLabels(this.dpHttp);

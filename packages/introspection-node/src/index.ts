@@ -88,6 +88,7 @@ export {
   ConnectionsApi,
   attachConnectors,
 } from "./resources/connectors.js";
+export { MembersApi, attachMembers } from "./resources/members.js";
 export {
   RepositoriesApi,
   attachRepositories,
@@ -208,6 +209,11 @@ export type {
   RunnerContext,
   RunnerRecipeSummary,
   RunnerIdentity,
+  Member,
+  MemberType,
+  MemberListParams,
+  MemberCreateParams,
+  MemberUpdateParams,
   RunRequest,
   RunCaller,
   RunCallerLibrary,

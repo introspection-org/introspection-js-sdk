@@ -805,12 +805,134 @@ export interface ExperimentListParams extends CursorParams {
   status?: ExperimentStatus;
 }
 
+/** What kind of principal a member row is. */
+export type MemberType = "business" | "agent" | "customer";
+
+/**
+ * An org member (`/v1/members`, Control Plane): an operator (`business`),
+ * a built-in or application agent (`agent`), or a federated end user
+ * (`customer`, minted from an asserted {@link RunIdentityInput}).
+ */
+export interface Member {
+  id: Uuid;
+  org_id: Uuid;
+  email?: string | null;
+  name?: string | null;
+  /** The IdP subject, or a `customer`'s tier-prefixed key (`user:abc`). */
+  external_user_id?: string | null;
+  image_url?: string | null;
+  /** `owner`, `admin` or `member`; a built-in agent's role is its name. */
+  role: string;
+  member_type: MemberType;
+  is_deactivated: boolean;
+  /**
+   * Access-bearing tags: this member can read and write any file or task
+   * whose tags intersect these. Writable only with `members:manage`.
+   */
+  tags: string[];
+  /**
+   * Customer-defined `key: value` labels. Grants nothing: unlike `tags`,
+   * metadata is on no authorization path. Absent from servers that predate
+   * it.
+   */
+  metadata?: Record<string, string>;
+  application_idp_id?: Uuid | null;
+  connector_id?: Uuid | null;
+  integration_id?: Uuid | null;
+  /** Whether this is a fixed agent that may back an external credential. */
+  is_external_credential_agent?: boolean;
+  created_at: IsoDate;
+  updated_at: IsoDate;
+  deleted_at?: IsoDate | null;
+}
+
+export interface MemberListParams extends CursorParams {
+  /** Project context, for deployment-authenticated callers. */
+  project?: Uuid;
+  member_type?: MemberType;
+  /** `customer` members a connector's verified delivery minted. */
+  connector_id?: Uuid;
+  /** `customer` members a brokered IdP federated in. */
+  application_idp_id?: Uuid;
+  /**
+   * Filter by one tag, e.g. `customer:acme`. Tags are access-bearing, so
+   * this answers "who can reach the rows tagged `customer:acme`".
+   */
+  tag?: string;
+  /**
+   * Filter: members whose `metadata` holds each of these pairs, matched
+   * exactly against the string value. Sent as one repeated
+   * `metadata=key:value` param per entry; entries are ANDed, at most 16.
+   *
+   * ```ts
+   * client.members.list({ metadata: { plan: "enterprise" } });
+   * ```
+   *
+   * Keys are `[A-Za-z0-9_-]` with no `.`; values may contain colons and
+   * must not be empty. A malformed pair is a 422. Narrows only, like `tag`.
+   */
+  metadata?: Record<string, string>;
+  /** Resolve these member ids. Unions with `external_user_id`. */
+  id?: Uuid[];
+  /** Resolve these tier-prefixed keys (`user:abc`). Unions with `id`. */
+  external_user_id?: string[];
+}
+
+/**
+ * `POST /v1/members` — invite an operator by email. Requires an admin
+ * credential with `members:write`, a full (first and last) `name`, and an
+ * `email` not already a member elsewhere.
+ */
+export interface MemberCreateParams {
+  email: string;
+  name: string;
+  /** `member` (default), `admin` or `owner`, bounded by the caller's role. */
+  role?: string;
+  /**
+   * Seed the member's access-bearing tags. Setting any needs
+   * `members:manage` as well (a 403 otherwise), the same gate as
+   * {@link MemberUpdateParams.tags}.
+   */
+  tags?: string[];
+  /**
+   * Seed the member's metadata. Keys are `[A-Za-z0-9_-]+` (at most 128
+   * characters, no `.`); values are non-empty strings of at most 1024
+   * characters; at most 64 entries. Out of bounds is a 422.
+   */
+  metadata?: Record<string, string>;
+}
+
+/** `PATCH /v1/members/{id}` — needs `members:manage`. */
+export interface MemberUpdateParams {
+  name?: string;
+  image_url?: string;
+  role?: string;
+  /**
+   * Replaces the tag list wholesale. Omit to leave tags untouched; pass
+   * `[]` to clear them. Adding a tag grants this member every file and
+   * task carrying it.
+   */
+  tags?: string[];
+  /**
+   * Replaces the metadata map wholesale (it is not merged). Omit, or pass
+   * `null`, to leave it untouched; pass `{}` to clear it. Same bounds as
+   * {@link MemberCreateParams.metadata}.
+   */
+  metadata?: Record<string, string> | null;
+}
+
 export interface RunnerIdentity {
   user_id: string | null;
   anonymous_id: string | null;
   conversation_id: string | null;
   /** Member tags asserted on the request; see {@link RunIdentityInput.tags}. */
   tags?: string[] | null;
+  /**
+   * Member metadata asserted on the request; see
+   * {@link RunIdentityInput.metadata}. Echoed by the `/run` response only:
+   * it is not carried on the session, so a refreshed session reports none.
+   */
+  metadata?: Record<string, string> | null;
 }
 
 export interface RunnerRecipeSummary {
@@ -882,6 +1004,16 @@ export interface RunIdentityInput {
    * exact-match validation as every other tag write.
    */
   tags?: string[];
+  /**
+   * Metadata to set on the `customer` member this identity names. Grants
+   * nothing, so unlike `tags` it applies to an existing member too: the
+   * keys are merged in, overwriting keys of the same name (including ones
+   * an admin set) and keeping the rest. Absent or `{}` changes nothing; to
+   * remove a key, use {@link MemberUpdateParams.metadata}. Same bounds as
+   * {@link MemberCreateParams.metadata}. Not carried on the session's
+   * claims.
+   */
+  metadata?: Record<string, string>;
 }
 
 /**
