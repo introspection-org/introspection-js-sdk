@@ -33,7 +33,7 @@
     "mcporter": "^0.14.1",
     "tsx": "^4.23.15",
     "typescript": "^5.9.3",
-    "typesense": "^3.0.6"
+    "typesense": "^3.1.0"
   },
   "optionalDependencies": {
     "@earendil-works/pi-agent-core": "^0.99.2",
