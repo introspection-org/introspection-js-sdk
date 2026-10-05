@@ -153,8 +153,8 @@ importers:
         specifier: ^5.2.0
         version: 5.2.0(eslint@9.39.5(jiti@2.7.0))
       eslint-plugin-turbo:
-        specifier: ^2.11.4
-        version: 2.11.4(eslint@9.39.5(jiti@2.7.0))(turbo@2.11.4)
+        specifier: ^2.11.6
+        version: 2.11.6(eslint@9.39.5(jiti@2.7.0))(turbo@2.11.4)
       globals:
         specifier: ^16.5.0
         version: 16.5.0
@@ -2488,8 +2488,8 @@ packages:
     peerDependencies:
       eslint: ^3 || ^4 || ^5 || ^6 || ^7 || ^8 || ^9.7
 
-  eslint-plugin-turbo@2.11.4:
-    resolution: {integrity: sha512-1Aq8JjnnzatTpQbK0a4iI1teaJuwH+dBGSp8ok3aHT8HbCn0EGUbQfIVPcUHRm1RXPINEUuyQaj2HvgG5oXcXA==}
+  eslint-plugin-turbo@2.11.6:
+    resolution: {integrity: sha512-i9ZguxBGMrgiTMzFx2qWufS6imHLyI1UG9A+T2CzsCPtUdU+Mvs+8bCoSNMKum6WXmITL9vDvIrUmO4dVx6rOA==}
     peerDependencies:
       eslint: '>6.6.0'
       turbo: '>2.0.0'
@@ -3907,6 +3907,10 @@ packages:
 
   source-map-js@1.2.1:
     resolution: {integrity: sha512-UXWMKhLOwVKb728IUtQPXxfYU+usdybtUrK/8uGE8CQMvrhOpwvzDBwj0QhSL7MQc7vIsISBG8VQ8+IDQxpfQA==}
+    engines: {node: '>=0.10.0'}
+
+  source-map-js@1.2.2:
+    resolution: {integrity: sha512-KGj/8Y43x35aZVDtt+J4mK1hoLGHULMYfSkODJNQjNDC3oW1PqPoxMwo0pLUsWM/UEGzON/NxeHywEfNXNP3Vw==}
     engines: {node: '>=0.10.0'}
 
   stable-hash@0.0.5:
@@ -6485,7 +6489,7 @@ snapshots:
       string.prototype.matchall: 4.0.12
       string.prototype.repeat: 1.0.0
 
-  eslint-plugin-turbo@2.11.4(eslint@9.39.5(jiti@2.7.0))(turbo@2.11.4):
+  eslint-plugin-turbo@2.11.6(eslint@9.39.5(jiti@2.7.0))(turbo@2.11.4):
     dependencies:
       dotenv: 16.0.3
       eslint: 9.39.5(jiti@2.7.0)
@@ -7676,7 +7680,7 @@ snapshots:
     dependencies:
       nanoid: 3.3.19
       picocolors: 1.1.1
-      source-map-js: 1.2.1
+      source-map-js: 1.2.2
 
   prelude-ls@1.2.1: {}
 
@@ -8080,6 +8084,8 @@ snapshots:
   slugify@1.6.9: {}
 
   source-map-js@1.2.1: {}
+
+  source-map-js@1.2.2: {}
 
   stable-hash@0.0.5: {}
 
