@@ -6,8 +6,14 @@ export type {
   IntrospectionClientOptions,
   FeedbackOptions,
   UserTraits,
+  LogEventOptions,
+  LogEventSeverity,
 } from "@introspection-sdk/types";
 
 export type { GenAiContext, IdentityContext } from "@introspection-sdk/types";
 
-export { generateEventId, toAttributeValue } from "@introspection-sdk/types";
+export {
+  generateEventId,
+  reservedEventNamePrefix,
+  toAttributeValue,
+} from "@introspection-sdk/types";

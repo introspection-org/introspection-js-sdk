@@ -21,13 +21,23 @@ import { ATTR_SERVICE_NAME } from "@opentelemetry/semantic-conventions";
 import { VERSION } from "./version.js";
 import {
   generateEventId,
+  reservedEventNamePrefix,
   toAttributeValue,
   type IntrospectionClientOptions,
   type FeedbackOptions,
+  type LogEventOptions,
+  type LogEventSeverity,
   type UserTraits,
   type GenAiContext,
   type IdentityContext,
 } from "./types.js";
+
+const SEVERITY_NUMBERS: Record<LogEventSeverity, SeverityNumber> = {
+  DEBUG: SeverityNumber.DEBUG,
+  INFO: SeverityNumber.INFO,
+  WARN: SeverityNumber.WARN,
+  ERROR: SeverityNumber.ERROR,
+};
 
 const ANONYMOUS_ID_KEY = "introspection_anonymous_id";
 const USER_ID_KEY = "introspection_user_id";
@@ -101,6 +111,9 @@ class Logger {
  *
  * // Track a custom event
  * client.track("Button Clicked", { buttonId: "submit" });
+ *
+ * // Log an app event under your own namespace
+ * client.logEvent("checkout.completed", { orderId: "o_1" });
  * ```
  */
 /**
@@ -354,6 +367,8 @@ export class IntrospectionClient {
       conversationId?: string;
       previousResponseId?: string;
       eventId?: string;
+      /** Identity known at the call site, overriding the context. */
+      identity?: IdentityContext;
     } = {},
   ): LogAttributes {
     const { properties, traits, conversationId, previousResponseId, eventId } =
@@ -382,7 +397,7 @@ export class IntrospectionClient {
     }
 
     // Identity
-    const identity = this.getIdentityFromContext();
+    const identity = options.identity ?? this.getIdentityFromContext();
     if (identity.userId) {
       attributes["identity.user.id"] = identity.userId;
     }
@@ -434,7 +449,61 @@ export class IntrospectionClient {
   }
 
   /**
-   * Track a custom event.
+   * Log an app event under any custom name, e.g. `"ark.feed.entry"`.
+   *
+   * `attributes` land under `properties.*`, which is where the platform's
+   * `introspection.track` read projection finds them. Identity comes from
+   * baggage, then the client instance, unless `options.identity` overrides it.
+   *
+   * Pass a stable `options.eventId` when delivery may repeat: consumers
+   * dedupe on it, so re-sending the same id is safe.
+   *
+   * @throws Error when `name` is empty or falls under a reserved namespace
+   *   (`introspection.*`, `gen_ai.*`).
+   *
+   * @example
+   * ```ts
+   * client.logEvent("checkout.completed", { orderId: "o_1", total: 42 });
+   * ```
+   */
+  logEvent(
+    name: string,
+    attributes?: Record<string, unknown>,
+    options: LogEventOptions = {},
+  ): void {
+    if (!name) {
+      throw new Error("logEvent: event name must be a non-empty string.");
+    }
+    const reserved = reservedEventNamePrefix(name);
+    if (reserved) {
+      throw new Error(
+        `logEvent: event name "${name}" is in the reserved "${reserved}*" namespace, which belongs to the platform and OpenTelemetry. Use your own prefix, e.g. "myapp.${name.slice(reserved.length)}".`,
+      );
+    }
+    const contextIdentity = this.getIdentityFromContext();
+    const severity = options.severity ?? "INFO";
+
+    this.otelLogger.emit({
+      timestamp: options.timestamp ?? this.getTimestamp(),
+      context: context.active(),
+      severityNumber: SEVERITY_NUMBERS[severity],
+      severityText: severity,
+      attributes: this.buildAttributes(name, {
+        properties: attributes,
+        eventId: options.eventId,
+        identity: {
+          userId: options.identity?.userId ?? contextIdentity.userId,
+          anonymousId:
+            options.identity?.anonymousId ?? contextIdentity.anonymousId,
+        },
+      }),
+    });
+
+    this.logger.log(`Logged event: ${name}`);
+  }
+
+  /**
+   * Track a custom event. A thin alias of {@link logEvent}.
    *
    * @param eventName - The event name (e.g., `"Button Clicked"`).
    * @param properties - Optional properties to attach to the event.
@@ -450,20 +519,7 @@ export class IntrospectionClient {
     properties?: Record<string, unknown>,
     options?: { eventId?: string },
   ): void {
-    const attributes = this.buildAttributes(eventName, {
-      properties,
-      eventId: options?.eventId,
-    });
-
-    this.otelLogger.emit({
-      timestamp: this.getTimestamp(),
-      context: context.active(),
-      severityNumber: SeverityNumber.INFO,
-      severityText: "INFO",
-      attributes,
-    });
-
-    this.logger.log(`Tracked: ${eventName}`);
+    this.logEvent(eventName, properties, { eventId: options?.eventId });
   }
 
   /**

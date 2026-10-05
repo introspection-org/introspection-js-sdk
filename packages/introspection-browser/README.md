@@ -23,6 +23,14 @@ client.identify("user_123", { email: "user@example.com" });
 // Track events
 client.track("Button Clicked", { buttonId: "submit" });
 
+// Log an app event under your own namespace (`track` is an alias of this).
+// Names under `introspection.` / `gen_ai.` are reserved and throw.
+client.logEvent(
+  "checkout.completed",
+  { orderId: "o_1", total: 42 },
+  { eventId: "checkout:o_1" }, // stable id: consumers dedupe on it
+);
+
 // Track feedback
 client.feedback("thumbs_up", { comments: "Very helpful response" });
 client.feedback("thumbs_down", {
