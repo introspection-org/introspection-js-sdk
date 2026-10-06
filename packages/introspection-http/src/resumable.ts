@@ -10,9 +10,45 @@ import { backoffMs, sleep } from "./backoff.js";
 import { parseStreamFrames } from "./agui-stream.js";
 import type { ResourceHttpClient } from "./resources/types.js";
 
-/** Resume with content cursors; only a settling event confirms completion.
- * A reconnect behind the replay buffer yields a `MESSAGES_SNAPSHOT` of the run
- * so far; a `410` (history gone) and a legacy `resume_gap` end it incomplete.
+/**
+ * Stream recovery for a run's SSE stream.
+ *
+ * The stream attaches from cursor `0`, so it includes output produced before
+ * the first connection. Only a settling `RUN_FINISHED` or `RUN_ERROR` confirms
+ * completion and ends it; a `RUN_FINISHED` with `result.reason =
+ * "stream_close"` marks the end of one attach and is not forwarded. A severed
+ * connection reconnects. A connection that closes cleanly without a settling
+ * event first reads the run's status (`GET /v1/tasks/{task_id}/runs/{run_id}`):
+ * `failed` or `cancelled` throws `RunFailedError`; `idle`, `completed` or
+ * `awaiting_user` means the run settled without a complete stream and throws
+ * `StreamIncompleteError`; anything else, including a failed status read,
+ * reconnects.
+ *
+ * Every reconnect resumes from the last content cursor (`Last-Event-ID`). Only
+ * a new content cursor renews {@link StreamOptions.timeoutMs} and resets
+ * {@link StreamOptions.maxReconnects}; lifecycle events, heartbeats and
+ * replayed content renew neither. The timeout is checked before each retry,
+ * never during an open connection, so a long stream keeps recovering past its
+ * original window as long as content advances. A `429` means the run is not
+ * attachable yet: the stream waits (honouring `Retry-After`) within the timeout
+ * without spending the reconnect budget.
+ *
+ * When the cursor is older than the server's replay buffer, the stream
+ * continues with one AG-UI `MESSAGES_SNAPSHOT` holding the run's messages so
+ * far; its id becomes the new cursor. When the server holds neither the frames
+ * nor a snapshot it answers `410` and the stream throws
+ * `StreamIncompleteError`. Runtime images that predate the snapshot send
+ * `CUSTOM resume_gap` instead; raw streams pass it through.
+ *
+ * Use a concrete run id when consuming one turn: `runs/current` is a moving
+ * alias, so a reconnect or status read may resolve to the next turn. The
+ * in-process fake sandbox (`mock://`) replies through the conversation
+ * transcript, not SSE, so its attach-only `stream_close` cannot satisfy
+ * `RunHandle.text()`.
+ *
+ * The shared `run-stream-contract.json` fixtures pin this behaviour across the
+ * Swift, JavaScript, Rust and Python SDKs; each suite pins the fixture SHA-256,
+ * so an intentional contract change updates all four copies together.
  */
 
 export interface StreamOptions {
