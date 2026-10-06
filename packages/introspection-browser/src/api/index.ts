@@ -47,6 +47,7 @@ export {
   type StartTaskParams,
 } from "./tasks.js";
 export {
+  AutomationsClient,
   ConversationItemsClient,
   ConversationsClient,
   FileVersionsClient,
@@ -122,6 +123,11 @@ export type {
   ShareResourceType,
   ShareCreateParams,
   ShareListParams,
+  Automation,
+  AutomationCreateParams,
+  AutomationListParams,
+  AutomationTriggerResponse,
+  AutomationUpdateParams,
 } from "@introspection-sdk/types";
 export {
   IntrospectionAPIError,

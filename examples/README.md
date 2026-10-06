@@ -14,12 +14,14 @@ Full runnable apps (their own package + README), not single scripts:
 - [`auth`](./auth) — B2B2C auth modes (JWKS federation, hosted-login SPA,
   service account) and a partner MCP server authenticated by per-application
   identity-assertion signing keys. `cd auth` and see its README to set up and
-  run.
+  run. A `native` application's email-code sign-in is the
+  `api-native-email-code` script below.
 
 ## REST API
 
 ```bash
 pnpm api-runtimes                 # Runner walkthrough: resolve by slug, tasks + file ops
+pnpm api-native-email-code <email> # Native email-code sign-in, then a task as that user
 pnpm api-connectors-slack         # Create a Slack connector and authorize a workspace
 pnpm api-connectors-pipedream     # Create a Pipedream connector and authorize one app
 pnpm api-connectors-custom-app    # Registry search + OAuth discovery for a custom MCP app (Linear)

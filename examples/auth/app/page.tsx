@@ -71,6 +71,12 @@ export default function Home() {
           your own IdP — the partner IdP&apos;s own JWT is verified against its
           published JWKS; the IdP never knows Introspection exists.
         </p>
+        <p className="field-help">
+          A mobile or desktop app with its own sign-in screens uses a{" "}
+          <code>native</code> application instead: email codes, exchanged in the
+          app with <code>AuthClient</code> (see{" "}
+          <code>examples/api/native-email-code.ts</code>).
+        </p>
       </div>
     </main>
   );

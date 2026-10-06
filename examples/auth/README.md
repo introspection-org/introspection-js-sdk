@@ -24,6 +24,28 @@ runtime, **with no API key in the browser**.
 | `/service-account` | `service_account`  | No end users (server / CI)                             | caller-asserted via `metadata.identity`            |
 | `/api/mcp`         | partner MCP server | the integration partner's MCP                          | the verified assertion `sub` (per-user scratchpad) |
 
+Application types are mutually exclusive: each offers one way in, and an app
+that needs two registers two applications. That is why this sample asks for a
+separate `service_account` application even in the `/jwks` and `/spa` modes —
+its broker resolves runtimes on the Control Plane with it.
+
+| Type              | Sign-in it offers                                        | Grants                                       | Secret |
+| ----------------- | -------------------------------------------------------- | -------------------------------------------- | ------ |
+| `service_account` | Server credentials                                       | `client_credentials`                         | Yes    |
+| `jwks`            | Your own IdP's JWT, exchanged by RFC 8693 token exchange | none (gated on its attached issuers)         | No     |
+| `spa`             | Introspection-hosted login, optionally brokered          | `authorization_code` + PKCE, `refresh_token` | No     |
+| `native`          | Email codes on Introspection accounts (mobile, desktop)  | `email_code`, `device_code`, `refresh_token` | No     |
+
+The grants are derived from the type; you never send them. The `device_code`
+grant is in the `native` list but is not yet reachable with an application's
+`client_id`. Types other than `service_account` need a Max or Enterprise plan.
+A `native` app has
+no route here, because its sign-in runs in the app rather than in a browser
+broker: see [`examples/api/native-email-code.ts`](../api/native-email-code.ts)
+and `AuthClient` in `@introspection-sdk/introspection-node`. Its token is a
+Data Plane credential for a `customer` member, so it runs tasks by
+`runtime_id` and does not call Control Plane routes.
+
 The headline for partners: in `/jwks` mode the same app **also plays the
 partner MCP server** (`app/api/mcp`). Every MCP request carries a
 platform-minted **identity assertion** (a short-lived ES256 JWT signed with the
@@ -68,11 +90,17 @@ introspection applications create --type spa --name "Hosted SPA" \
 
 ```bash
 introspection applications create --type service-account --name "CI runner"
-# → client_id → INTROSPECTION_SERVICE_ACCOUNT_CLIENT_ID
-# mint its secret in the dashboard (shown once) → INTROSPECTION_SERVICE_ACCOUNT_CLIENT_SECRET
+# → client_id → INTROSPECTION_SERVICE_ACCOUNT_CLIENT_ID (note the printed `id`)
+introspection applications secrets create --app <service_account_app_id>
+# → secret, shown once → INTROSPECTION_SERVICE_ACCOUNT_CLIENT_SECRET
 ```
 
-**JWKS** (bring-your-own-IdP) **+ partner MCP endpoint**:
+Applications carry no secret themselves; a `service_account` holds one or more
+client secrets, minted separately so they can be rotated.
+
+**JWKS** (bring-your-own-IdP) **+ partner MCP endpoint**. `--issuer` attaches
+the IdP to the new application; a `jwks` app verifies the IdP's own JWT against
+`{issuer}/.well-known/jwks.json` and has no redirect URIs:
 
 ```bash
 introspection applications create --type jwks --name "Partner JWKS" \

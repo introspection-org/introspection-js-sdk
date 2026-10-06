@@ -93,12 +93,13 @@ export interface ReadWindowParams {
  * The execution shape of a task.
  *
  * `agent` boots the runtime-agent image and runs an interactive LLM agent;
- * `process` runs a one-shot baked script and reports through the same
- * completion path. This replaced the retired `TaskMode`: there are no task
- * modes any more — every agent task is a conversation, and the recipe agent is
- * selected by `agent_name`.
+ * `eval` is the same shape run as an evaluation trial, governed separately at
+ * admission; `process` runs a one-shot baked script and reports through the
+ * same completion path, and is internal-only. This replaced the retired
+ * `TaskMode`: there are no task modes any more — every agent task is a
+ * conversation, and the recipe agent is selected by `agent_name`.
  */
-export type TaskKind = "agent" | "process";
+export type TaskKind = "agent" | "eval" | "process";
 
 export type TaskStatus =
   | "pending"
@@ -193,6 +194,12 @@ export interface TaskCreateParams {
   prompt?: string;
   /** Recipe agent to run; omit for the recipe default (`agents/agent.yaml`). */
   agent_name?: string;
+  /**
+   * Runtime to bind the task to. Needed by a caller whose token names no
+   * runtime (an API key, a signed-in member's session); ignored for a runner,
+   * whose token already does. Validated against the token's project.
+   */
+  runtime_id?: Uuid;
   /**
    * Workspace repositories to clone into the sandbox's `workspace/repos/`
    * before the first turn. No count limit — the server refuses a statically
