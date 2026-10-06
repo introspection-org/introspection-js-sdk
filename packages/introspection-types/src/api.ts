@@ -2188,3 +2188,162 @@ export interface MetricQueryResponse {
   data: MetricResultRow[];
   meta: MetricQueryMeta;
 }
+
+// --- issues (`/v1/issues`, Data Plane) ---
+
+/** Issue status. Open-ended: a value this SDK version predates arrives raw. */
+export type IssueStatus =
+  "open" | "waiting" | "closed" | "cancelled" | (string & Record<never, never>);
+
+/** Issue priority. Open-ended. */
+export type IssuePriority =
+  "low" | "medium" | "high" | "urgent" | (string & Record<never, never>);
+
+/** `owner` list filter: project-owned issues, or the caller's own private ones. */
+export type IssueOwner = "project" | "me";
+
+/** A scalar metadata value on an issue. */
+export type IssueMetadataValue = string | number | boolean | null;
+
+/** A file cited as evidence on an issue. */
+export interface IssueFile {
+  file_id: Uuid;
+  name?: string | null;
+  checksum?: string | null;
+  source_event_ids?: Uuid[];
+}
+
+/** An `http`/`https` link cited on an issue (no credentials in the URL). */
+export interface IssueLink {
+  url: string;
+  title?: string | null;
+}
+
+/** A telemetry event cited on an issue. */
+export interface IssueEventReference {
+  event_id: Uuid;
+}
+
+/** A span cited on an issue, as 32- and 16-hex-digit ids. */
+export interface IssueSpanReference {
+  trace_id: string;
+  span_id: string;
+}
+
+/** One open human request, projected onto its issue. */
+export interface IssueOpenRequest {
+  id: Uuid;
+  question: string;
+  assignee_id: Uuid;
+  created_at: IsoDate;
+}
+
+/** A project pursuit with a living brief and a fixed worker task. */
+export interface Issue {
+  id: Uuid;
+  org_id: Uuid;
+  project_id: Uuid;
+  created_at: IsoDate;
+  updated_at: IsoDate;
+  title: string;
+  description: string;
+  priority: IssuePriority;
+  tags: string[];
+  metadata: Record<string, IssueMetadataValue>;
+  files: IssueFile[];
+  links: IssueLink[];
+  events: IssueEventReference[];
+  spans: IssueSpanReference[];
+  /** Project-scoped display id. */
+  display_index?: number | null;
+  status: IssueStatus;
+  /** Pass back as `expected_revision` when editing the brief. */
+  revision: number;
+  /** The fixed worker task. */
+  task_id?: Uuid | null;
+  task_status?: TaskStatus | null;
+  /** Owning member of a private issue; `null` for a project-owned issue. */
+  member_id?: Uuid | null;
+  /** When the issue last entered `closed` or `cancelled`. */
+  closed_at?: IsoDate | null;
+  /** Open human requests, oldest first. */
+  open_requests: IssueOpenRequest[];
+}
+
+/** `POST /v1/issues` body. */
+export interface IssueCreateParams {
+  title: string;
+  description: string;
+  /** Fixed worker task used by the issue chat and Slack replies. */
+  task_id: Uuid;
+  /** Defaults to `medium`. */
+  priority?: IssuePriority;
+  tags?: string[];
+  metadata?: Record<string, IssueMetadataValue>;
+  files?: IssueFile[];
+  links?: IssueLink[];
+  events?: IssueEventReference[];
+  spans?: IssueSpanReference[];
+}
+
+/**
+ * `PATCH /v1/issues/{id}` brief edit at `expected_revision`. Only the fields
+ * set are sent; `tags`, `metadata` and the evidence lists replace wholesale.
+ */
+export interface IssueUpdateParams {
+  expected_revision: number;
+  title?: string;
+  description?: string;
+  priority?: IssuePriority;
+  status?: IssueStatus;
+  tags?: string[];
+  metadata?: Record<string, IssueMetadataValue>;
+  files?: IssueFile[];
+  links?: IssueLink[];
+  events?: IssueEventReference[];
+  spans?: IssueSpanReference[];
+}
+
+/**
+ * Create or change one human request on an issue. `expected_revision: 0`
+ * creates it (with `question` and `assignee_id`); closing it needs a
+ * `resolution`.
+ */
+export interface IssueRequestChange {
+  id: Uuid;
+  expected_revision: number;
+  question?: string;
+  assignee_id?: Uuid;
+  status?: "open" | "resolved" | "cancelled";
+  resolution?: string;
+}
+
+/** `PATCH /v1/issues/{id}` request change, the alternative to a brief edit. */
+export interface IssueRequestParams {
+  request: IssueRequestChange;
+}
+
+/** `GET /v1/issues` filters. Repeatable filters are ORed; `metadata` is ANDed. */
+export interface IssueListParams extends ListParams {
+  status?: IssueStatus[];
+  owner?: IssueOwner[];
+  /** `true`: has an open request assigned to the caller; `false`: has none. */
+  assigned_to_me?: boolean;
+  has_open_requests?: boolean;
+  task_status?: TaskStatus[];
+  /** Exclude these worker-task statuses; an issue without a live task is kept. */
+  exclude_task_status?: TaskStatus[];
+  display_index?: number;
+  /** A `key:value` tag, such as `customer:acme`. */
+  tag?: string;
+  /** Exact metadata matches, sent as repeated `key:value` (at most 16). */
+  metadata?: Record<string, string>;
+  /** Case-insensitive substring of the title. */
+  search?: string;
+}
+
+/** Per-call options for an issue write. */
+export interface IssueWriteOptions {
+  /** Sent as `Idempotency-Key`, so a retried write applies once. */
+  idempotencyKey?: string;
+}

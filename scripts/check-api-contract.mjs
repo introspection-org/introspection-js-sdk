@@ -349,6 +349,43 @@ const SURFACES = [
     extraMeans: "sent as a query parameter the API does not accept",
     missingMeans: "accepted by the API but not exposed here",
   },
+  // --- issues --------------------------------------------------------------
+  {
+    name: "Issue",
+    where: "the issue read model",
+    sdk: () => interfaceMembers(TYPES, "Issue"),
+    server: (spec) => schemaProperties(spec, "Issue"),
+    extraMeans:
+      "declared here but not returned by the API (the SDK describes a response that no longer exists)",
+    missingMeans: "returned by the API but not surfaced by this SDK",
+  },
+  {
+    name: "IssueCreateParams",
+    where: "POST /v1/issues body",
+    sdk: () => interfaceMembers(TYPES, "IssueCreateParams"),
+    server: (spec) => schemaProperties(spec, "IssueCreate"),
+    extraMeans:
+      "declared here but not accepted by the API (rejected with a 422 — the create body forbids undeclared fields)",
+    missingMeans: "accepted by the API but unavailable to callers of this SDK",
+  },
+  {
+    name: "IssueUpdateParams",
+    where: "PATCH /v1/issues/{id} brief-edit body",
+    sdk: () => interfaceMembers(TYPES, "IssueUpdateParams"),
+    server: (spec) => schemaProperties(spec, "IssueUpdate"),
+    extraMeans:
+      "declared here but not accepted by the API (rejected with a 422 — the update body forbids undeclared fields)",
+    missingMeans: "accepted by the API but unavailable to callers of this SDK",
+  },
+  {
+    name: "IssueListParams",
+    where: "GET /v1/issues query parameters",
+    sdk: () => interfaceMembers(TYPES, "IssueListParams"),
+    server: (spec) => queryParameters(spec, "/v1/issues", "get"),
+    missingIsFatal: true,
+    extraMeans: "sent as a query parameter the API does not accept",
+    missingMeans: "accepted by the API but not exposed here",
+  },
   // --- conversations -------------------------------------------------------
   // There is deliberately no `Conversation` read-model surface: the published
   // reference declares no properties for that schema, so the comparison would

@@ -2,7 +2,7 @@
 
 Node.js platform SDK for [Introspection](https://introspection.dev) — open runtimes,
 drive tasks, and manage experiments, recipes, repositories, members,
-automations, files, conversations, and shares.
+automations, issues, files, conversations, and shares.
 
 ## Install
 
@@ -65,6 +65,32 @@ const runner = await client.runtimes("customer-agent").run({
   identity: { user_id: "u_42", metadata: { plan: "enterprise" } },
 });
 ```
+
+### Data Plane resources: client and runner
+
+`IntrospectionClient` and `Runner` expose the same Data Plane namespaces, and
+both implement the exported `DataPlaneResources` interface: `tasks` (with
+`tasks.runs`), `files`, `conversations`, `events`, `metrics`, `shares`,
+`automations` and `issues`. Code written against `DataPlaneResources` runs
+against either.
+
+```typescript
+import type { DataPlaneResources } from "@introspection-sdk/introspection-node";
+
+async function openIssues(dp: DataPlaneResources) {
+  return (await dp.issues.list({ status: ["open"] })).records;
+}
+
+await openIssues(client); // the client's own token, on its Data Plane
+await openIssues(runner); // the runner's token, on the runner's Data Plane
+```
+
+The difference is the credential. A runner sends its session token, scoped to
+the runtime and identity it was opened for; the client sends its own token,
+so the server decides per call what that credential may do. A runner a member
+opens for themself carries `automations:read` and `automations:write`, so
+`runner.automations` manages that member's automations (a platform change in
+progress; until it ships those routes refuse a runner with a 403).
 
 ### Members
 
@@ -146,6 +172,53 @@ const page = await client.events.list({
 });
 for (const ev of page.records)
   console.log(ev.payload.task_id, ev.payload.posted);
+```
+
+### Issues
+
+`issues` lists, reads, creates, updates and deletes the project's issues on
+the Data Plane's `/v1/issues`: pursuits with a living brief and a fixed worker
+task. Reads need `issues:read`, writes `issues:write` and deletes
+`issues:delete`. Every write takes an optional `idempotencyKey`, sent as
+`Idempotency-Key`, so a retried write applies once.
+
+```typescript
+const issue = await runner.issues.create(
+  {
+    title: "Checkout fails for EU cards",
+    description: "Card payments from EU issuers return 502.",
+    task_id: taskId,
+    priority: "high",
+    tags: ["customer:acme"],
+  },
+  { idempotencyKey: "checkout-eu-502" },
+);
+
+// Edit the brief at the revision you read; only the fields you set are sent.
+await runner.issues.update(issue.id, {
+  expected_revision: issue.revision,
+  status: "closed",
+});
+
+// Or open, answer or close one human request on it.
+await runner.issues.update(issue.id, {
+  request: {
+    id: requestId,
+    expected_revision: 0,
+    question: "Approve the refund?",
+    assignee_id: memberId,
+  },
+});
+
+// Filters ride every page: status, owner, assigned_to_me, has_open_requests,
+// task_status, exclude_task_status, display_index, tag, metadata, search.
+for await (const open of runner.issues.list({
+  status: ["open", "waiting"],
+  owner: ["me"],
+  metadata: { region: "eu" },
+})) {
+  console.log(open.display_index, open.title, open.open_requests.length);
+}
 ```
 
 ### Repositories

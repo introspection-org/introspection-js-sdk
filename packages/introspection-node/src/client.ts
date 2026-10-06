@@ -13,7 +13,14 @@
  */
 
 import type { AdvancedOptions } from "@introspection-sdk/types";
-import { EventsApi } from "@introspection-sdk/http";
+import {
+  ConversationsApi,
+  EventsApi,
+  FilesApi,
+  MetricsApi,
+  SharesApi,
+  TasksApi,
+} from "@introspection-sdk/http";
 import { logger as sdkLogger, USER_AGENT } from "./utils.js";
 import type { IntrospectionClientOptions } from "./types.js";
 import { serviceAccountToken, type ServiceAccountTokenParams } from "./auth.js";
@@ -48,6 +55,8 @@ import {
   attachRepositories,
   type RepositoriesApi,
 } from "./resources/repositories.js";
+import { IssuesApi } from "./resources/issues.js";
+import type { DataPlaneResources } from "./data-plane.js";
 import { DEV_TARGET_HEADER, resolveDevTarget } from "./dev-target.js";
 
 /**
@@ -70,7 +79,7 @@ import { DEV_TARGET_HEADER, resolveDevTarget } from "./dev-target.js";
  * await client.shutdown();
  * ```
  */
-export class IntrospectionClient {
+export class IntrospectionClient implements DataPlaneResources {
   /** @internal — HTTP client pointed at the CP API with the customer key. */
   readonly cpHttp: HttpClient;
   /** @internal — HTTP client pointed at the project Data Plane. */
@@ -130,6 +139,28 @@ export class IntrospectionClient {
 
   /** Read immutable annotation activity and other typed platform events. */
   readonly events: EventsApi;
+
+  // The Data Plane namespaces below match a Runner's (`DataPlaneResources`)
+  // but send this client's own token, so the server may refuse a call the
+  // runner's credential would be allowed.
+
+  /** `/v1/tasks` (Data Plane), with `tasks.runs`. */
+  readonly tasks: TasksApi;
+
+  /** `/v1/files` (Data Plane). */
+  readonly files: FilesApi;
+
+  /** Read-only `/v1/conversations` (Data Plane). */
+  readonly conversations: ConversationsApi;
+
+  /** Bounded aggregations on `POST /v1/metrics` (Data Plane). */
+  readonly metrics: MetricsApi;
+
+  /** `/v1/shares` read-sharing grants (Data Plane). */
+  readonly shares: SharesApi;
+
+  /** CRUD on `/v1/issues` (Data Plane). */
+  readonly issues: IssuesApi;
 
   constructor(options: IntrospectionClientOptions = {}) {
     const token = options.token || process.env.INTROSPECTION_TOKEN || "";
@@ -195,6 +226,12 @@ export class IntrospectionClient {
     this.annotations = attachAnnotations(this.cpHttp, this.dpHttp);
     this.projectLabels = attachProjectLabels(this.dpHttp);
     this.events = new EventsApi(this.dpHttp);
+    this.tasks = new TasksApi(this.dpHttp);
+    this.files = new FilesApi(this.dpHttp);
+    this.conversations = new ConversationsApi(this.dpHttp);
+    this.metrics = new MetricsApi(this.dpHttp);
+    this.shares = new SharesApi(this.dpHttp);
+    this.issues = new IssuesApi(this.dpHttp);
 
     sdkLogger.info(`IntrospectionClient initialized: api=${baseApiUrl}`);
   }
