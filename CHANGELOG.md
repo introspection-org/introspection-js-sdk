@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.26.0](https://github.com/introspection-org/introspection-js-sdk/compare/v0.25.0...v0.26.0) (2026-10-06)
+
+
+### Features
+
+* **automations:** add automations resource ([#414](https://github.com/introspection-org/introspection-js-sdk/issues/414)) ([6a79121](https://github.com/introspection-org/introspection-js-sdk/commit/6a791213d3053cf8450f32f80054fce3919c27cc))
+* **data-plane:** share one Data Plane interface across client and runner; add connections ([#429](https://github.com/introspection-org/introspection-js-sdk/issues/429)) ([3af4864](https://github.com/introspection-org/introspection-js-sdk/commit/3af48642cba026fd95ac5cd2eb859b414c46ebab))
+* **files:** accept tags and metadata on file create ([#408](https://github.com/introspection-org/introspection-js-sdk/issues/408)) ([3d357c4](https://github.com/introspection-org/introspection-js-sdk/commit/3d357c400506299bae341970226892b8ccc84061))
+* **files:** filter file lists by metadata ([#411](https://github.com/introspection-org/introspection-js-sdk/issues/411)) ([3593f22](https://github.com/introspection-org/introspection-js-sdk/commit/3593f22104f49a520339cb4d068a8982c79e0fb9))
+* **members:** add members list/get/create/update with tags and metadata ([#413](https://github.com/introspection-org/introspection-js-sdk/issues/413)) ([0f1ee1e](https://github.com/introspection-org/introspection-js-sdk/commit/0f1ee1e2a82847e4db1f7834fc0f6f93ea5031cd))
+* native email-code sign-in, renewing credentials and automations on every Data Plane client ([#412](https://github.com/introspection-org/introspection-js-sdk/issues/412)) ([1910d4e](https://github.com/introspection-org/introspection-js-sdk/commit/1910d4ee30d63b60fcf9d7f18fc86633d481a743))
+* **otel:** add logEvent for custom events; track delegates to it ([#428](https://github.com/introspection-org/introspection-js-sdk/issues/428)) ([0f9919f](https://github.com/introspection-org/introspection-js-sdk/commit/0f9919fa764629b1885295ca4ccc819890ed68ad))
+
+
+### Bug Fixes
+
+* **streaming:** reject incomplete output and resume nonterminal closes ([#410](https://github.com/introspection-org/introspection-js-sdk/issues/410)) ([1a83d78](https://github.com/introspection-org/introspection-js-sdk/commit/1a83d78448f46246cedb1083999b0fbc8a4d0774))
+
 ## [0.25.0](https://github.com/introspection-org/introspection-js-sdk/compare/v0.24.0...v0.25.0) (2026-09-29)
 
 
