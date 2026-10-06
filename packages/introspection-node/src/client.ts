@@ -58,7 +58,6 @@ import {
   attachRepositories,
   type RepositoriesApi,
 } from "./resources/repositories.js";
-import { IssuesApi } from "./resources/issues.js";
 import { AppConnectionsApi } from "./resources/app-connections.js";
 import type { DataPlaneResources } from "./data-plane.js";
 import { DEV_TARGET_HEADER, resolveDevTarget } from "./dev-target.js";
@@ -163,9 +162,6 @@ export class IntrospectionClient implements DataPlaneResources {
   /** `/v1/shares` read-sharing grants (Data Plane). */
   readonly shares: SharesApi;
 
-  /** CRUD on `/v1/issues` (Data Plane). */
-  readonly issues: IssuesApi;
-
   /**
    * CRUD on `/v1/connections` (Data Plane), the apps members connected for
    * themselves. `create` takes the `runtime` explicitly, since the client
@@ -242,7 +238,6 @@ export class IntrospectionClient implements DataPlaneResources {
     this.conversations = new ConversationsApi(this.dpHttp);
     this.metrics = new MetricsApi(this.dpHttp);
     this.shares = new SharesApi(this.dpHttp);
-    this.issues = new IssuesApi(this.dpHttp);
     this.connections = new AppConnectionsApi(this.dpHttp);
 
     sdkLogger.info(`IntrospectionClient initialized: api=${baseApiUrl}`);

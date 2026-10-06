@@ -10,7 +10,6 @@ import {
 import type { AppConnectionCreateParams } from "@introspection-sdk/types";
 import { HttpClient, type BearerCredentials } from "./http.js";
 import { AppConnectionsApi } from "./resources/app-connections.js";
-import { IssuesApi } from "./resources/issues.js";
 import { USER_AGENT } from "./utils.js";
 
 /**
@@ -30,7 +29,6 @@ export interface DataPlaneResources {
   readonly metrics: MetricsApi;
   readonly shares: SharesApi;
   readonly automations: AutomationsApi;
-  readonly issues: IssuesApi;
   /** Apps members connected for themselves (`/v1/connections`). */
   readonly connections: AppConnectionsApi;
 }
@@ -73,8 +71,6 @@ export class DataPlaneClient implements DataPlaneResources {
   readonly metrics: MetricsApi;
   /** `/v1/automations`; needs `automations:read` / `automations:write`. */
   readonly automations: AutomationsApi;
-  /** CRUD on `/v1/issues`. */
-  readonly issues: IssuesApi;
   /**
    * CRUD on `/v1/connections`, the apps members connected for themselves.
    * `create` takes the `runtime` explicitly, since this client has no
@@ -104,7 +100,6 @@ export class DataPlaneClient implements DataPlaneResources {
     this.events = new EventsApi(this.http);
     this.metrics = new MetricsApi(this.http);
     this.automations = new AutomationsApi(this.http);
-    this.issues = new IssuesApi(this.http);
     this.connections = new AppConnectionsApi(this.http);
   }
 }

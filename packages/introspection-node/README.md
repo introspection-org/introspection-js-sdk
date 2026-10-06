@@ -2,7 +2,7 @@
 
 Node.js platform SDK for [Introspection](https://introspection.dev) — open runtimes,
 drive tasks, and manage experiments, recipes, repositories, members,
-automations, issues, app connections, files, conversations, and shares.
+automations, app connections, files, conversations, and shares.
 
 ## Install
 
@@ -71,19 +71,19 @@ const runner = await client.runtimes("customer-agent").run({
 `IntrospectionClient` and `Runner` expose the same Data Plane namespaces, and
 both implement the exported `DataPlaneResources` interface: `tasks` (with
 `tasks.runs`), `files`, `conversations`, `events`, `metrics`, `shares`,
-`automations`, `issues` and `connections`. So does the `DataPlaneClient` that
+`automations` and `connections`. So does the `DataPlaneClient` that
 `AuthClient.dataPlane()` returns. Code written against `DataPlaneResources`
 runs against any of them.
 
 ```typescript
 import type { DataPlaneResources } from "@introspection-sdk/introspection-node";
 
-async function openIssues(dp: DataPlaneResources) {
-  return (await dp.issues.list({ status: ["open"] })).records;
+async function connectedApps(dp: DataPlaneResources) {
+  return (await dp.connections.list()).records.map((c) => c.app);
 }
 
-await openIssues(client); // the client's own token, on its Data Plane
-await openIssues(runner); // the runner's token, on the runner's Data Plane
+await connectedApps(client); // the client's own token, on its Data Plane
+await connectedApps(runner); // the runner's token, on the runner's Data Plane
 ```
 
 The difference is the credential. A runner sends its session token, scoped to
@@ -194,53 +194,6 @@ for (const ev of page.records)
   console.log(ev.payload.task_id, ev.payload.posted);
 ```
 
-### Issues
-
-`issues` lists, reads, creates, updates and deletes the project's issues on
-the Data Plane's `/v1/issues`: pursuits with a living brief and a fixed worker
-task. Reads need `issues:read`, writes `issues:write` and deletes
-`issues:delete`. Every write takes an optional `idempotencyKey`, sent as
-`Idempotency-Key`, so a retried write applies once.
-
-```typescript
-const issue = await runner.issues.create(
-  {
-    title: "Checkout fails for EU cards",
-    description: "Card payments from EU issuers return 502.",
-    task_id: taskId,
-    priority: "high",
-    tags: ["customer:acme"],
-  },
-  { idempotencyKey: "checkout-eu-502" },
-);
-
-// Edit the brief at the revision you read; only the fields you set are sent.
-await runner.issues.update(issue.id, {
-  expected_revision: issue.revision,
-  status: "closed",
-});
-
-// Or open, answer or close one human request on it.
-await runner.issues.update(issue.id, {
-  request: {
-    id: requestId,
-    expected_revision: 0,
-    question: "Approve the refund?",
-    assignee_id: memberId,
-  },
-});
-
-// Filters ride every page: status, owner, assigned_to_me, has_open_requests,
-// task_status, exclude_task_status, display_index, tag, metadata, search.
-for await (const open of runner.issues.list({
-  status: ["open", "waiting"],
-  owner: ["me"],
-  metadata: { region: "eu" },
-})) {
-  console.log(open.display_index, open.title, open.open_requests.length);
-}
-```
-
 ### Connections
 
 `connections` lists, reads, creates and deletes the apps members connected for
@@ -309,8 +262,8 @@ console.log(await run.text());
   Plane routes on `IntrospectionClient` (runtimes, connectors, members) reject
   it. Pass the runtime as `runtime_id` when creating a task. `auth.dataPlane()`
   returns a `DataPlaneClient`, which implements `DataPlaneResources`: `tasks`,
-  `files`, `conversations`, `shares`, `events`, `metrics`, `automations`,
-  `issues` and `connections` (where `create` takes the `runtime`).
+  `files`, `conversations`, `shares`, `events`, `metrics`, `automations` and
+  `connections` (where `create` takes the `runtime`).
 - **Sign-out** clears the local session, then revokes it with
   `POST /v1/oauth/revoke`; the local session is gone even if revocation fails.
 

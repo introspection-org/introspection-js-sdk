@@ -106,7 +106,6 @@ export {
 } from "./resources/connectors.js";
 export { MembersApi, attachMembers } from "./resources/members.js";
 export { AutomationsApi, attachAutomations } from "./resources/automations.js";
-export { IssuesApi } from "./resources/issues.js";
 export { AppConnectionsApi } from "./resources/app-connections.js";
 export type { DataPlaneResources } from "./data-plane.js";
 export {
@@ -219,22 +218,6 @@ export type {
   AppConnectionListParams,
   AppConnectionCreateParams,
   ConnectPage,
-  Issue,
-  IssueStatus,
-  IssuePriority,
-  IssueOwner,
-  IssueMetadataValue,
-  IssueFile,
-  IssueLink,
-  IssueEventReference,
-  IssueSpanReference,
-  IssueOpenRequest,
-  IssueCreateParams,
-  IssueUpdateParams,
-  IssueRequestChange,
-  IssueRequestParams,
-  IssueListParams,
-  IssueWriteOptions,
   AnnotationTarget,
   AnnotationState,
   AnnotationListParams,
