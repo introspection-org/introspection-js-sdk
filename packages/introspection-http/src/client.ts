@@ -58,17 +58,20 @@ const DEFAULT_RETRY_BASE_MS = 500;
  * {@link BaseHttpClient}.
  */
 export interface Transport {
-  /** Auth headers merged ahead of `additionalHeaders` on every request. */
-  authHeaders(): Record<string, string>;
+  /**
+   * Auth headers merged ahead of `additionalHeaders` on every request. May be
+   * async, for a credential that renews itself before it expires.
+   */
+  authHeaders(): Record<string, string> | Promise<Record<string, string>>;
   /** `RequestInit.credentials` to attach (e.g. `"include"` for cookies). */
   credentials?: RequestCredentials;
   /**
-   * Invoked when a request comes back `401`. Return `true` if the
-   * credential was refreshed and the request should be retried once;
-   * `false` to surface the original error. Omit for transports (like the
-   * bearer-token Node client) that don't refresh in-band.
+   * Invoked when a request comes back `401`, with the auth headers that
+   * request carried. Return `true` if the credential was refreshed and the
+   * request should be retried once; `false` to surface the original error.
+   * Omit for transports (like a static bearer token) that can't refresh.
    */
-  onUnauthorized?(): Promise<boolean>;
+  onUnauthorized?(rejected: Record<string, string>): Promise<boolean>;
 }
 
 export interface BaseHttpConfig {
@@ -107,9 +110,11 @@ export class BaseHttpClient {
     }
   }
 
-  private headers(extra?: Record<string, string>): Record<string, string> {
+  private async headers(
+    extra?: Record<string, string>,
+  ): Promise<Record<string, string>> {
     return {
-      ...this.cfg.transport.authHeaders(),
+      ...(await this.cfg.transport.authHeaders()),
       ...(this.cfg.additionalHeaders ?? {}),
       ...(extra ?? {}),
     };
@@ -138,12 +143,24 @@ export class BaseHttpClient {
    * supplies an `onUnauthorized` handler, then map any non-ok response to
    * a typed {@link IntrospectionAPIError}.
    */
-  private async send(doFetch: () => Promise<Response>): Promise<Response> {
-    let res = await this.attempt(doFetch);
+  private async send(
+    buildHeaders: () => Promise<Record<string, string>>,
+    doFetch: (headers: Record<string, string>) => Promise<Response>,
+  ): Promise<Response> {
+    // Rebuilt per attempt rather than hoisted: `onUnauthorized` exists
+    // precisely to change what `authHeaders()` returns, so a retry reusing the
+    // headers that just failed would replay the stale credential — a rotated
+    // bearer token, or a session-lane selector naming a cookie the client no
+    // longer holds.
+    const headers = await buildHeaders();
+    let res = await this.attempt(() => doFetch(headers));
     const { onUnauthorized } = this.cfg.transport;
     if (res.status === 401 && onUnauthorized) {
-      const refreshed = await onUnauthorized();
-      if (refreshed) res = await this.attempt(doFetch);
+      const refreshed = await onUnauthorized(headers);
+      if (refreshed) {
+        const retried = await buildHeaders();
+        res = await this.attempt(() => doFetch(retried));
+      }
     }
     if (!res.ok) throw await toApiError(res);
     return res;
@@ -167,13 +184,8 @@ export class BaseHttpClient {
     } else if (opts.body !== undefined) {
       body = JSON.stringify(opts.body);
     }
-    // Rebuilt per attempt rather than hoisted: `onUnauthorized` exists
-    // precisely to change what `authHeaders()` returns, so a retry reusing the
-    // headers that just failed would replay the stale credential — a rotated
-    // bearer token, or a session-lane selector naming a cookie the client no
-    // longer holds.
-    const buildHeaders = (): Record<string, string> => {
-      const headers = this.headers(opts.headers);
+    const buildHeaders = async (): Promise<Record<string, string>> => {
+      const headers = await this.headers(opts.headers);
       if (!isMultipart && opts.body !== undefined) {
         headers["Content-Type"] = headers["Content-Type"] ?? "application/json";
       }
@@ -191,10 +203,10 @@ export class BaseHttpClient {
     const baseMs = this.cfg.retryBaseMs ?? DEFAULT_RETRY_BASE_MS;
     for (let attempt = 0; ; attempt++) {
       try {
-        const res = await this.send(() =>
+        const res = await this.send(buildHeaders, (headers) =>
           this.fetchImpl(url, {
             method: opts.method,
-            headers: buildHeaders(),
+            headers,
             body,
             credentials: this.cfg.transport.credentials,
             signal: opts.signal,
@@ -231,16 +243,19 @@ export class BaseHttpClient {
     signal?: AbortSignal;
   }): Promise<Response> {
     const url = joinUrl(this.cfg.apiUrl, opts.path) + buildQuery(opts.query);
-    return this.send(() =>
-      this.fetchImpl(url, {
-        method: "GET",
-        headers: this.headers({
+    return this.send(
+      () =>
+        this.headers({
           Accept: "text/event-stream",
           ...(opts.headers ?? {}),
         }),
-        credentials: this.cfg.transport.credentials,
-        signal: opts.signal,
-      }),
+      (headers) =>
+        this.fetchImpl(url, {
+          method: "GET",
+          headers,
+          credentials: this.cfg.transport.credentials,
+          signal: opts.signal,
+        }),
     );
   }
 }

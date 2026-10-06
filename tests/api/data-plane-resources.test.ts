@@ -1,6 +1,7 @@
 /**
- * The Data Plane surface `IntrospectionClient` and `Runner` share
- * (`DataPlaneResources`): each namespace driven through both, plus the
+ * The Data Plane surface `IntrospectionClient`, `Runner` and
+ * `DataPlaneClient` share (`DataPlaneResources`): each namespace driven
+ * through all three, plus the
  * issue, connection and runner-automation specifics.
  *
  * A fake `fetch` stands in for the Data Plane, so no network boundary is
@@ -9,6 +10,7 @@
 import { describe, expect, expectTypeOf, it } from "vitest";
 import {
   AppConnectionsApi,
+  DataPlaneClient,
   IntrospectionClient,
   IssuesApi,
   Runner,
@@ -23,6 +25,7 @@ import { RunnerExpiredError } from "@introspection-sdk/types";
 
 const CLIENT_DP = "https://dp-client.example.com";
 const RUNNER_DP = "https://dp-runner.example.com";
+const MEMBER_DP = "https://dp-member.example.com";
 const RUNTIME_ID = "0199a1b2-0000-7000-8000-000000000011";
 const RUNTIME_GROUP_ID = "0199a1b2-0000-7000-8000-0000000000dd";
 const AUTOMATION_ID = "0199a1b2-0000-7000-8000-000000000001";
@@ -72,6 +75,14 @@ function openClient(fetch: typeof globalThis.fetch): IntrospectionClient {
       dpUrl: CLIENT_DP,
       fetch,
     },
+  });
+}
+
+function openDataPlaneClient(fetch: typeof globalThis.fetch): DataPlaneClient {
+  return new DataPlaneClient({
+    dpUrl: MEMBER_DP,
+    token: "native-token",
+    fetch,
   });
 }
 
@@ -186,22 +197,25 @@ const NAMESPACES: NamespaceCall[] = [
 ];
 
 describe("DataPlaneResources", () => {
-  it("is implemented by both the client and the runner", () => {
+  it("is implemented by the client, the runner and DataPlaneClient", () => {
     expectTypeOf<IntrospectionClient>().toMatchTypeOf<DataPlaneResources>();
     expectTypeOf<Runner>().toMatchTypeOf<DataPlaneResources>();
+    expectTypeOf<DataPlaneClient>().toMatchTypeOf<DataPlaneResources>();
   });
 
   it.each(NAMESPACES)(
-    "%s reaches the same route from the client and the runner",
+    "%s reaches the same route from the client, the runner and DataPlaneClient",
     async (_name, call, method, path) => {
       const { sent, fetch } = fakeDataPlane();
 
       await call(openClient(fetch));
       await call(openRunner(fetch));
+      await call(openDataPlaneClient(fetch));
 
       expect(sent.map((s) => [s.method, s.url, s.auth])).toEqual([
         [method, `${CLIENT_DP}${path}`, "Bearer member-token"],
         [method, `${RUNNER_DP}${path}`, "Bearer runner-jwt"],
+        [method, `${MEMBER_DP}${path}`, "Bearer native-token"],
       ]);
     },
   );
@@ -306,6 +320,23 @@ describe("connections", () => {
       body: { app: "gmail", runtime: "support-agent" },
     });
     expectTypeOf(client.connections.create)
+      .parameter(0)
+      .toEqualTypeOf<{ app: string; runtime: string }>();
+  });
+
+  it("DataPlaneClient create() takes the runtime explicitly", async () => {
+    const { sent, fetch } = fakeDataPlane(() => json(PAGE));
+    const dp = openDataPlaneClient(fetch);
+
+    await dp.connections.create({ app: "gmail", runtime: "support-agent" });
+
+    expect(sent[0]).toMatchObject({
+      method: "POST",
+      url: `${MEMBER_DP}/v1/connections`,
+      auth: "Bearer native-token",
+      body: { app: "gmail", runtime: "support-agent" },
+    });
+    expectTypeOf(dp.connections.create)
       .parameter(0)
       .toEqualTypeOf<{ app: string; runtime: string }>();
   });

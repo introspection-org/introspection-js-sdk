@@ -71,8 +71,9 @@ const runner = await client.runtimes("customer-agent").run({
 `IntrospectionClient` and `Runner` expose the same Data Plane namespaces, and
 both implement the exported `DataPlaneResources` interface: `tasks` (with
 `tasks.runs`), `files`, `conversations`, `events`, `metrics`, `shares`,
-`automations`, `issues` and `connections`. Code written against
-`DataPlaneResources` runs against either.
+`automations`, `issues` and `connections`. So does the `DataPlaneClient` that
+`AuthClient.dataPlane()` returns. Code written against `DataPlaneResources`
+runs against any of them.
 
 ```typescript
 import type { DataPlaneResources } from "@introspection-sdk/introspection-node";
@@ -124,9 +125,11 @@ Seeding `tags` on create needs `members:manage` as well as `members:write`.
 
 ### Automations
 
-`client.automations` lists, reads, creates, updates and deletes the project's
-automations on the Data Plane's `/v1/automations`, and `trigger(id)` runs one
-now. An automation is a scheduled prompt (`kind: null`) or platform work
+`client.automations` (and `dataPlaneClient.automations`) lists, reads,
+creates, updates and deletes the project's automations on the Data Plane's
+`/v1/automations`, and `trigger(id)` runs one now. Reading needs
+`automations:read` and writing `automations:write`; each record's `can_manage`
+says whether the caller may change it. An automation is a scheduled prompt (`kind: null`) or platform work
 (`observation_synthesis`, `observation_clustering`, `project_check_in`). A
 `cron` automation fires on `cron_schedule`, or on `metadata.cron_schedules` in
 `metadata.timezone`; a one-off reminder is a `manual` automation with a future
@@ -148,6 +151,19 @@ const reminder = await client.automations.create({
   next_trigger_at: "2026-10-09T09:00:00Z",
 });
 
+// Recurring: one or more cron schedules in a timezone.
+await client.automations.create({
+  name: "Weekday digest",
+  trigger_type: "cron",
+  cron_schedule: "0 9 * * 1-5",
+  metadata: {
+    cron_schedules: ["0 9 * * 1-5"],
+    timezone: "America/Los_Angeles",
+  },
+  prompt: "Summarize yesterday's conversations.",
+  runtime_group_id: runtimeGroupId,
+});
+
 // PATCH sends only the fields you set; `metadata` replaces wholesale.
 await client.automations.update(reminder.id, { enabled: false });
 
@@ -157,6 +173,10 @@ for await (const automation of client.automations.list({ task_id: taskId })) {
 
 const { status, task_id } = await client.automations.trigger(reminder.id);
 ```
+
+A firing clears a manual automation's slot; re-arm it with
+`update(id, { next_trigger_at })`. A `cron` automation derives its own slot and
+rejects one set by the client.
 
 Each task-run trigger is recorded as an `introspection.automation.triggered`
 event, and a scheduled slot that ran nothing as
@@ -246,6 +266,57 @@ await client.connections.list({ member_id: memberId });
 
 await runner.connections.delete(connectionId);
 ```
+
+### Native email-code sign-in
+
+`AuthClient` signs in the end users of a `native` Application with emailed
+one-time codes, shaped like the Supabase Auth client. The session belongs to a
+`customer` member of the Application's organization, is scoped to one project,
+and carries the Application's `allowed_scopes`.
+
+```typescript
+import { AuthClient } from "@introspection-sdk/introspection-node";
+
+const auth = new AuthClient({
+  clientId: "intro_app_…", // a `native` Application
+  project: "my-project",
+  storage: sessionStore, // getItem / setItem / removeItem, sync or async
+});
+
+await auth.signInWithOtp({ email });
+await auth.verifyOtp({ email, token: code });
+
+const dp = await auth.dataPlane();
+const run = await dp.tasks.start({ prompt: "Hello", runtime_id: runtimeId });
+console.log(await run.text());
+```
+
+- **Codes are opaque.** A returning user's code is 6 digits; a new user's first
+  code is 6 characters of A–Z and 0–9. Do not restrict the input to digits.
+  A wrong, expired or reused code throws `ValidationError` with
+  `code === "invalid_grant"`; requesting codes too often throws
+  `RateLimitError` with `retryAfter`.
+- **Refresh.** `getSession()` renews the session within `leewaySeconds`
+  (default 60) of expiry, and every request made through `auth.dataPlane()`
+  renews it once after a `401`; concurrent renewals share one refresh. A
+  refresh the server rejects signs the user out and throws
+  `AuthenticationError`; a network failure keeps the session.
+- **Superseded responses.** A sign-in that resolves after a sign-out or a newer
+  sign-in rejects with an `AbortError` instead of overwriting the newer state.
+- **Events.** `onAuthStateChange((event, session) => …)` reports
+  `INITIAL_SESSION`, `SIGNED_IN`, `TOKEN_REFRESHED` and `SIGNED_OUT`.
+- **Data Plane only.** The token is a Data Plane credential, so the Control
+  Plane routes on `IntrospectionClient` (runtimes, connectors, members) reject
+  it. Pass the runtime as `runtime_id` when creating a task. `auth.dataPlane()`
+  returns a `DataPlaneClient`, which implements `DataPlaneResources`: `tasks`,
+  `files`, `conversations`, `shares`, `events`, `metrics`, `automations`,
+  `issues` and `connections` (where `create` takes the `runtime`).
+- **Sign-out** clears the local session, then revokes it with
+  `POST /v1/oauth/revoke`; the local session is gone even if revocation fails.
+
+See [`examples/api/native-email-code.ts`](../../examples/api/native-email-code.ts).
+Federated sign-in through your own IdP (a `jwks` Application) keeps its session
+in that IdP's SDK; exchange its token with `tokenExchange()` instead.
 
 ### Repositories
 

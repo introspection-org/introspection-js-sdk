@@ -50,7 +50,14 @@ export class RunHandle {
     return this.runs.cancel(this.run.task_id, this.run.id, options);
   }
 
-  /** Convenience: collect assistant text deltas from the AG-UI stream. */
+  /**
+   * Collect the run's assistant text from the AG-UI stream. A
+   * `MESSAGES_SNAPSHOT` replaces what was read, `RUN_ERROR` throws
+   * `RunFailedError`, `resume_gap` throws `StreamIncompleteError`, and every
+   * error the stream throws propagates, so it never returns partial text.
+   * Recover final output from the conversation transcript when needed; this
+   * does not hydrate it or require `conversations:read`.
+   */
   async text(): Promise<string> {
     let out = "";
     for await (const ev of this.stream()) {

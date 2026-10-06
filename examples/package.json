@@ -13,6 +13,7 @@
     "api-connectors-pipedream": "node --import tsx api/connectors-pipedream.ts",
     "api-connectors-custom-app": "node --import tsx api/connectors-custom-app.ts",
     "api-runtimes": "node --import tsx api/runtimes.ts",
+    "api-native-email-code": "node --import tsx api/native-email-code.ts",
     "proxy-supabase-global": "node --import tsx proxy/supabase-global.ts",
     "proxy-supabase-manual": "node --import tsx proxy/supabase-manual.ts",
     "proxy-typesense": "node --import tsx proxy/typesense.ts",

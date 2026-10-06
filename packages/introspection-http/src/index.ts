@@ -66,6 +66,7 @@ export {
 } from "./resources/reads.js";
 export type { ListReadParams } from "./resources/reads.js";
 export { SharesApi, SharesClient } from "./resources/shares.js";
+export { AutomationsApi, AutomationsClient } from "./resources/automations.js";
 export {
   RuntimeHandle,
   RuntimesApi,

@@ -91,6 +91,14 @@ export async function toApiError(
       if (typeof obj.message === "string" && message === `HTTP ${res.status}`) {
         message = obj.message;
       }
+      // The OAuth endpoints answer in the RFC 6749 §5.2 shape instead.
+      if (typeof obj.error === "string" && code === null) code = obj.error;
+      if (
+        typeof obj.error_description === "string" &&
+        message === `HTTP ${res.status}`
+      ) {
+        message = obj.error_description;
+      }
     }
   } else {
     body = await res.text().catch(() => undefined);
