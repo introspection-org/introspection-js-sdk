@@ -1434,6 +1434,56 @@ export interface ConnectionAuthorizationPending {
 export type ConnectionTokenResult =
   ConnectionToken | ConnectionAuthorizationPending;
 
+// --- app connections (`/v1/connections`, Data Plane) ---
+
+/**
+ * One app a member connected for themself. Distinct from {@link Connection},
+ * which is a Control Plane connection nested under a connector.
+ */
+export interface AppConnection {
+  id: Uuid;
+  /** The member who connected the app. */
+  member_id: Uuid;
+  /** Provider application slug, such as `gmail`. */
+  app: string;
+  /** The provider's label for the connected account, when it has one. */
+  account_name?: string | null;
+  healthy: boolean;
+  created_at: IsoDate;
+}
+
+/**
+ * `GET /v1/connections` filters. A caller who is not an administrator always
+ * gets only their own connections.
+ */
+export interface AppConnectionListParams extends CursorParams {
+  /** Only this member's connections (administrators). */
+  member_id?: Uuid;
+  /** Only connections to this app slug. */
+  app?: string;
+}
+
+/** `POST /v1/connections` body: connect one app for yourself. */
+export interface AppConnectionCreateParams {
+  /** Provider application slug, such as `gmail`. */
+  app: string;
+  /**
+   * Runtime slug or group id whose sessions use the connection. A runner
+   * fills in its own runtime group when this is omitted; the client needs it.
+   */
+  runtime?: string;
+}
+
+/**
+ * A connect page for one app. The URL is single-use and ends on a page saying
+ * the app is connected, so it must never be cached.
+ */
+export interface ConnectPage {
+  authorize_url: string;
+  expires_in: number;
+  expires_at?: IsoDate | null;
+}
+
 // --- automations ---
 
 /**

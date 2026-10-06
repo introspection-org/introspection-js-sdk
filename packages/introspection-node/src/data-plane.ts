@@ -7,8 +7,31 @@ import {
   SharesApi,
   TasksApi,
 } from "@introspection-sdk/http";
+import type { AppConnectionCreateParams } from "@introspection-sdk/types";
 import { HttpClient, type BearerCredentials } from "./http.js";
+import { AppConnectionsApi } from "./resources/app-connections.js";
 import { USER_AGENT } from "./utils.js";
+
+/**
+ * Every Data Plane namespace this SDK supports. `IntrospectionClient`,
+ * `Runner` and `DataPlaneClient` all implement it, so code written against
+ * one runs against the others; what differs is the credential each sends,
+ * and so what the server lets it do.
+ *
+ * The Swift, Python and Rust SDKs expose the same set.
+ */
+export interface DataPlaneResources {
+  /** `/v1/tasks`, with `tasks.runs` for runs. */
+  readonly tasks: TasksApi;
+  readonly files: FilesApi;
+  readonly conversations: ConversationsApi;
+  readonly events: EventsApi;
+  readonly metrics: MetricsApi;
+  readonly shares: SharesApi;
+  readonly automations: AutomationsApi;
+  /** Apps members connected for themselves (`/v1/connections`). */
+  readonly connections: AppConnectionsApi;
+}
 
 export interface DataPlaneClientOptions {
   /** Data Plane REST base URL (the `dp_url` a token response carries). */
@@ -36,7 +59,7 @@ export interface DataPlaneClientOptions {
  * console.log(await run.text());
  * ```
  */
-export class DataPlaneClient {
+export class DataPlaneClient implements DataPlaneResources {
   /** @internal */
   readonly http: HttpClient;
 
@@ -48,6 +71,12 @@ export class DataPlaneClient {
   readonly metrics: MetricsApi;
   /** `/v1/automations`; needs `automations:read` / `automations:write`. */
   readonly automations: AutomationsApi;
+  /**
+   * CRUD on `/v1/connections`, the apps members connected for themselves.
+   * `create` takes the `runtime` explicitly, since this client has no
+   * runtime context.
+   */
+  readonly connections: AppConnectionsApi<Required<AppConnectionCreateParams>>;
 
   constructor(options: DataPlaneClientOptions) {
     if (!options.dpUrl) throw new Error("DataPlaneClient requires a dpUrl");
@@ -71,5 +100,6 @@ export class DataPlaneClient {
     this.events = new EventsApi(this.http);
     this.metrics = new MetricsApi(this.http);
     this.automations = new AutomationsApi(this.http);
+    this.connections = new AppConnectionsApi(this.http);
   }
 }

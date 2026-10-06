@@ -2,7 +2,7 @@
 
 Node.js platform SDK for [Introspection](https://introspection.dev) — open runtimes,
 drive tasks, and manage experiments, recipes, repositories, members,
-automations, files, conversations, and shares.
+automations, app connections, files, conversations, and shares.
 
 ## Install
 
@@ -65,6 +65,33 @@ const runner = await client.runtimes("customer-agent").run({
   identity: { user_id: "u_42", metadata: { plan: "enterprise" } },
 });
 ```
+
+### Data Plane resources: client and runner
+
+`IntrospectionClient` and `Runner` expose the same Data Plane namespaces, and
+both implement the exported `DataPlaneResources` interface: `tasks` (with
+`tasks.runs`), `files`, `conversations`, `events`, `metrics`, `shares`,
+`automations` and `connections`. So does the `DataPlaneClient` that
+`AuthClient.dataPlane()` returns. Code written against `DataPlaneResources`
+runs against any of them.
+
+```typescript
+import type { DataPlaneResources } from "@introspection-sdk/introspection-node";
+
+async function connectedApps(dp: DataPlaneResources) {
+  return (await dp.connections.list()).records.map((c) => c.app);
+}
+
+await connectedApps(client); // the client's own token, on its Data Plane
+await connectedApps(runner); // the runner's token, on the runner's Data Plane
+```
+
+The difference is the credential. A runner sends its session token, scoped to
+the runtime and identity it was opened for; the client sends its own token,
+so the server decides per call what that credential may do. A runner a member
+opens for themself carries `automations:read` and `automations:write`, so
+`runner.automations` manages that member's automations (a platform change in
+progress; until it ships those routes refuse a runner with a 403).
 
 ### Members
 
@@ -167,6 +194,32 @@ for (const ev of page.records)
   console.log(ev.payload.task_id, ev.payload.posted);
 ```
 
+### Connections
+
+`connections` lists, reads, creates and deletes the apps members connected for
+themselves, on the Data Plane's `/v1/connections`. A caller who is not an
+administrator always sees and manages only their own. Reads need
+`connections:read`, `create` needs `connections:write` and `delete` needs
+`connections:delete`. These are a different resource from the Control Plane's
+`client.connectors.connections`, which are nested under a connector.
+
+`create` returns a single-use connect page; send the member to its
+`authorize_url`, and the connection exists once they finish there. On a runner,
+`runtime` defaults to the runner's runtime group. On the client, pass it.
+
+```typescript
+const { authorize_url } = await runner.connections.create({ app: "gmail" });
+
+for await (const connection of runner.connections.list({ app: "gmail" })) {
+  console.log(connection.id, connection.account_name, connection.healthy);
+}
+
+// Administrators can list another member's connections.
+await client.connections.list({ member_id: memberId });
+
+await runner.connections.delete(connectionId);
+```
+
 ### Native email-code sign-in
 
 `AuthClient` signs in the end users of a `native` Application with emailed
@@ -208,8 +261,9 @@ console.log(await run.text());
 - **Data Plane only.** The token is a Data Plane credential, so the Control
   Plane routes on `IntrospectionClient` (runtimes, connectors, members) reject
   it. Pass the runtime as `runtime_id` when creating a task. `auth.dataPlane()`
-  returns a `DataPlaneClient` with `tasks`, `files`, `conversations`, `shares`,
-  `events`, `metrics` and `automations`.
+  returns a `DataPlaneClient`, which implements `DataPlaneResources`: `tasks`,
+  `files`, `conversations`, `shares`, `events`, `metrics`, `automations` and
+  `connections` (where `create` takes the `runtime`).
 - **Sign-out** clears the local session, then revokes it with
   `POST /v1/oauth/revoke`; the local session is gone even if revocation fails.
 
