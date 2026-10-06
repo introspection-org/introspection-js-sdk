@@ -2,7 +2,7 @@
 
 Node.js platform SDK for [Introspection](https://introspection.dev) — open runtimes,
 drive tasks, and manage experiments, recipes, repositories, members,
-automations, issues, files, conversations, and shares.
+automations, issues, app connections, files, conversations, and shares.
 
 ## Install
 
@@ -71,8 +71,8 @@ const runner = await client.runtimes("customer-agent").run({
 `IntrospectionClient` and `Runner` expose the same Data Plane namespaces, and
 both implement the exported `DataPlaneResources` interface: `tasks` (with
 `tasks.runs`), `files`, `conversations`, `events`, `metrics`, `shares`,
-`automations` and `issues`. Code written against `DataPlaneResources` runs
-against either.
+`automations`, `issues` and `connections`. Code written against
+`DataPlaneResources` runs against either.
 
 ```typescript
 import type { DataPlaneResources } from "@introspection-sdk/introspection-node";
@@ -219,6 +219,32 @@ for await (const open of runner.issues.list({
 })) {
   console.log(open.display_index, open.title, open.open_requests.length);
 }
+```
+
+### Connections
+
+`connections` lists, reads, creates and deletes the apps members connected for
+themselves, on the Data Plane's `/v1/connections`. A caller who is not an
+administrator always sees and manages only their own. Reads need
+`connections:read`, `create` needs `connections:write` and `delete` needs
+`connections:delete`. These are a different resource from the Control Plane's
+`client.connectors.connections`, which are nested under a connector.
+
+`create` returns a single-use connect page; send the member to its
+`authorize_url`, and the connection exists once they finish there. On a runner,
+`runtime` defaults to the runner's runtime group. On the client, pass it.
+
+```typescript
+const { authorize_url } = await runner.connections.create({ app: "gmail" });
+
+for await (const connection of runner.connections.list({ app: "gmail" })) {
+  console.log(connection.id, connection.account_name, connection.healthy);
+}
+
+// Administrators can list another member's connections.
+await client.connections.list({ member_id: memberId });
+
+await runner.connections.delete(connectionId);
 ```
 
 ### Repositories

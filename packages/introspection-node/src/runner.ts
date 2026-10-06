@@ -17,6 +17,7 @@ import {
 import { HttpClient } from "./http.js";
 import { AutomationsApi } from "./resources/automations.js";
 import { IssuesApi } from "./resources/issues.js";
+import { AppConnectionsApi } from "./resources/app-connections.js";
 import type { DataPlaneResources } from "./data-plane.js";
 import type { IntrospectionClient } from "./client.js";
 
@@ -33,8 +34,9 @@ export type RunnerSource =
  * Live handle to a Data Plane sandbox. Holds the bearer JWT, the DP
  * endpoint URL, and the runtime/experiment context, and exposes the
  * runner-bound Data Plane namespaces ({@link DataPlaneResources}: `tasks`,
- * `files`, `conversations`, `events`, `metrics`, `shares`, `automations`
- * and `issues`), which send the runner's bearer.
+ * `files`, `conversations`, `events`, `metrics`, `shares`, `automations`,
+ * `issues` and `connections`), which send the runner's bearer and use its
+ * runtime context.
  *
  * A runner a member opens for themself carries `automations:read` and
  * `automations:write`, so `runner.automations` acts as that member.
@@ -61,6 +63,11 @@ export class Runner implements DataPlaneResources {
   readonly automations: AutomationsApi;
   /** CRUD on `/v1/issues`, on the runner's token. */
   readonly issues: IssuesApi;
+  /**
+   * CRUD on `/v1/connections`. `create` defaults `runtime` to this runner's
+   * runtime group.
+   */
+  readonly connections: AppConnectionsApi;
 
   constructor(
     private readonly client: IntrospectionClient,
@@ -77,6 +84,10 @@ export class Runner implements DataPlaneResources {
     this.shares = new SharesApi(this.guardedHttp());
     this.automations = new AutomationsApi(this.guardedHttp());
     this.issues = new IssuesApi(this.guardedHttp());
+    this.connections = new AppConnectionsApi(
+      this.guardedHttp(),
+      () => this.spec.runtime_context?.runtime_group_id,
+    );
   }
 
   // --- public accessors ---

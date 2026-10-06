@@ -6,6 +6,7 @@ import type {
   SharesApi,
   TasksApi,
 } from "@introspection-sdk/http";
+import type { AppConnectionsApi } from "./resources/app-connections.js";
 import type { AutomationsApi } from "./resources/automations.js";
 import type { IssuesApi } from "./resources/issues.js";
 
@@ -27,4 +28,6 @@ export interface DataPlaneResources {
   readonly shares: SharesApi;
   readonly automations: AutomationsApi;
   readonly issues: IssuesApi;
+  /** Apps members connected for themselves (`/v1/connections`). */
+  readonly connections: AppConnectionsApi;
 }

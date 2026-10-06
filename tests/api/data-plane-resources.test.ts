@@ -1,18 +1,21 @@
 /**
  * The Data Plane surface `IntrospectionClient` and `Runner` share
  * (`DataPlaneResources`): each namespace driven through both, plus the
- * issue and runner-automation specifics.
+ * issue, connection and runner-automation specifics.
  *
  * A fake `fetch` stands in for the Data Plane, so no network boundary is
  * crossed (AGENTS.md §6 case 1).
  */
 import { describe, expect, expectTypeOf, it } from "vitest";
 import {
+  AppConnectionsApi,
   IntrospectionClient,
   IssuesApi,
   Runner,
 } from "@introspection-sdk/introspection-node";
 import type {
+  AppConnection,
+  ConnectPage,
   DataPlaneResources,
   Issue,
 } from "@introspection-sdk/introspection-node";
@@ -25,6 +28,8 @@ const RUNTIME_GROUP_ID = "0199a1b2-0000-7000-8000-0000000000dd";
 const AUTOMATION_ID = "0199a1b2-0000-7000-8000-000000000001";
 const ISSUE_ID = "0199a1b2-0000-7000-8000-000000000002";
 const TASK_ID = "0199a1b2-0000-7000-8000-0000000000ee";
+const CONNECTION_ID = "0199a1b2-0000-7000-8000-000000000004";
+const MEMBER_ID = "0199a1b2-0000-7000-8000-0000000000cc";
 
 interface Sent {
   method: string;
@@ -70,7 +75,10 @@ function openClient(fetch: typeof globalThis.fetch): IntrospectionClient {
   });
 }
 
-function openRunner(fetch: typeof globalThis.fetch): Runner {
+function openRunner(
+  fetch: typeof globalThis.fetch,
+  runtimeGroupId: string | null = RUNTIME_GROUP_ID,
+): Runner {
   return new Runner(openClient(fetch), { kind: "runtime", id: RUNTIME_ID }, {
     session_id: "sess-1",
     deployment: { endpoint: RUNNER_DP, slug: "gcp01", region: "us-east-1" },
@@ -78,7 +86,7 @@ function openRunner(fetch: typeof globalThis.fetch): Runner {
     expires_at: "2099-01-01T00:00:00Z",
     runtime_context: {
       runtime_id: RUNTIME_ID,
-      runtime_group_id: RUNTIME_GROUP_ID,
+      runtime_group_id: runtimeGroupId,
       experiment_id: null,
       recipe_id: "0199a1b2-0000-7000-8000-0000000000ff",
       recipe: {
@@ -169,6 +177,12 @@ const NAMESPACES: NamespaceCall[] = [
     `/v1/automations/${AUTOMATION_ID}`,
   ],
   ["issues", (dp) => dp.issues.get(ISSUE_ID), "GET", `/v1/issues/${ISSUE_ID}`],
+  [
+    "connections",
+    (dp) => dp.connections.get(CONNECTION_ID),
+    "GET",
+    `/v1/connections/${CONNECTION_ID}`,
+  ],
 ];
 
 describe("DataPlaneResources", () => {
@@ -191,6 +205,135 @@ describe("DataPlaneResources", () => {
       ]);
     },
   );
+});
+
+describe("connections", () => {
+  const CONNECTION: AppConnection = {
+    id: CONNECTION_ID,
+    member_id: MEMBER_ID,
+    app: "gmail",
+    account_name: "Work inbox",
+    healthy: true,
+    created_at: "2026-10-06T10:00:00Z",
+  };
+  const PAGE: ConnectPage = {
+    authorize_url: "https://connect.example.com/c/abc",
+    expires_in: 600,
+    expires_at: "2026-10-06T10:10:00Z",
+  };
+
+  it("list() filters by member and app and pages with the filters", async () => {
+    const pages = [
+      { records: [CONNECTION], count: 1, next: "cursor-2" },
+      { records: [], count: 0, next: null },
+    ];
+    const { sent, fetch } = fakeDataPlane(() => json(pages.shift()));
+    const connections = openRunner(fetch).connections;
+
+    expect(connections).toBeInstanceOf(AppConnectionsApi);
+    const seen: AppConnection[] = [];
+    for await (const connection of connections.list({
+      member_id: MEMBER_ID,
+      app: "gmail",
+      limit: 5,
+    })) {
+      seen.push(connection);
+    }
+
+    expect(seen).toEqual([CONNECTION]);
+    expect(sent.map((s) => [s.method, s.url, s.auth])).toEqual([
+      [
+        "GET",
+        `${RUNNER_DP}/v1/connections?member_id=${MEMBER_ID}&app=gmail&limit=5`,
+        "Bearer runner-jwt",
+      ],
+      [
+        "GET",
+        `${RUNNER_DP}/v1/connections?member_id=${MEMBER_ID}&app=gmail&limit=5&next=cursor-2`,
+        "Bearer runner-jwt",
+      ],
+    ]);
+  });
+
+  it("list() with no filters reads the caller's own", async () => {
+    const { sent, fetch } = fakeDataPlane(() =>
+      json({ records: [CONNECTION], count: 1, next: null }),
+    );
+
+    const page = await openClient(fetch).connections.list();
+
+    expect(page.records).toEqual([CONNECTION]);
+    expect(sent[0].url).toBe(`${CLIENT_DP}/v1/connections`);
+  });
+
+  it("runner create() sends the app with the runner's runtime group", async () => {
+    const { sent, fetch } = fakeDataPlane(() => json(PAGE, 201));
+
+    const result = await openRunner(fetch).connections.create({ app: "gmail" });
+
+    expect(result).toEqual(PAGE);
+    expect(sent).toEqual([
+      {
+        method: "POST",
+        url: `${RUNNER_DP}/v1/connections`,
+        auth: "Bearer runner-jwt",
+        idempotencyKey: null,
+        body: { app: "gmail", runtime: RUNTIME_GROUP_ID },
+      },
+    ]);
+  });
+
+  it("runner create() lets an explicit runtime win", async () => {
+    const { sent, fetch } = fakeDataPlane(() => json(PAGE));
+
+    await openRunner(fetch).connections.create({
+      app: "gmail",
+      runtime: "support-agent",
+    });
+
+    expect(sent[0].body).toEqual({ app: "gmail", runtime: "support-agent" });
+  });
+
+  it("client create() takes the runtime explicitly", async () => {
+    const { sent, fetch } = fakeDataPlane(() => json(PAGE));
+    const client = openClient(fetch);
+
+    await client.connections.create({ app: "gmail", runtime: "support-agent" });
+
+    expect(sent[0]).toMatchObject({
+      method: "POST",
+      url: `${CLIENT_DP}/v1/connections`,
+      body: { app: "gmail", runtime: "support-agent" },
+    });
+    expectTypeOf(client.connections.create)
+      .parameter(0)
+      .toEqualTypeOf<{ app: string; runtime: string }>();
+  });
+
+  it("create() without a runtime from either source fails before a request", async () => {
+    const { sent, fetch } = fakeDataPlane();
+
+    await expect(
+      openRunner(fetch, null).connections.create({ app: "gmail" }),
+    ).rejects.toThrow(/runtime_group_id/);
+    expect(sent).toEqual([]);
+  });
+
+  it("get() and delete() address one connection by id", async () => {
+    const { sent, fetch } = fakeDataPlane((call) =>
+      call.method === "DELETE"
+        ? new Response(null, { status: 204 })
+        : json(CONNECTION),
+    );
+    const connections = openClient(fetch).connections;
+
+    expect(await connections.get(CONNECTION_ID)).toEqual(CONNECTION);
+    await expect(connections.delete(CONNECTION_ID)).resolves.toBeUndefined();
+    expect(sent.map((s) => [s.method, s.url])).toEqual([
+      ["GET", `${CLIENT_DP}/v1/connections/${CONNECTION_ID}`],
+      ["DELETE", `${CLIENT_DP}/v1/connections/${CONNECTION_ID}`],
+    ]);
+  });
 });
 
 describe("issues", () => {
@@ -337,6 +480,9 @@ describe("runner-bound namespaces after close()", () => {
       RunnerExpiredError,
     );
     await expect(runner.automations.get(AUTOMATION_ID)).rejects.toBeInstanceOf(
+      RunnerExpiredError,
+    );
+    await expect(runner.connections.list()).rejects.toBeInstanceOf(
       RunnerExpiredError,
     );
     expect(sent).toEqual([]);

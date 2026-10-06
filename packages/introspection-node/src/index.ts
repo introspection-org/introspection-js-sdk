@@ -91,6 +91,7 @@ export {
 export { MembersApi, attachMembers } from "./resources/members.js";
 export { AutomationsApi, attachAutomations } from "./resources/automations.js";
 export { IssuesApi } from "./resources/issues.js";
+export { AppConnectionsApi } from "./resources/app-connections.js";
 export type { DataPlaneResources } from "./data-plane.js";
 export {
   RepositoriesApi,
@@ -198,6 +199,10 @@ export type {
   ConnectionToken,
   ConnectionAuthorizationPending,
   ConnectionTokenResult,
+  AppConnection,
+  AppConnectionListParams,
+  AppConnectionCreateParams,
+  ConnectPage,
   Issue,
   IssueStatus,
   IssuePriority,

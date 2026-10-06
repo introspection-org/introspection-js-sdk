@@ -12,7 +12,10 @@
  * `@introspection-sdk/introspection-node/otel`.
  */
 
-import type { AdvancedOptions } from "@introspection-sdk/types";
+import type {
+  AdvancedOptions,
+  AppConnectionCreateParams,
+} from "@introspection-sdk/types";
 import {
   ConversationsApi,
   EventsApi,
@@ -56,6 +59,7 @@ import {
   type RepositoriesApi,
 } from "./resources/repositories.js";
 import { IssuesApi } from "./resources/issues.js";
+import { AppConnectionsApi } from "./resources/app-connections.js";
 import type { DataPlaneResources } from "./data-plane.js";
 import { DEV_TARGET_HEADER, resolveDevTarget } from "./dev-target.js";
 
@@ -162,6 +166,13 @@ export class IntrospectionClient implements DataPlaneResources {
   /** CRUD on `/v1/issues` (Data Plane). */
   readonly issues: IssuesApi;
 
+  /**
+   * CRUD on `/v1/connections` (Data Plane), the apps members connected for
+   * themselves. `create` takes the `runtime` explicitly, since the client
+   * has no runtime context.
+   */
+  readonly connections: AppConnectionsApi<Required<AppConnectionCreateParams>>;
+
   constructor(options: IntrospectionClientOptions = {}) {
     const token = options.token || process.env.INTROSPECTION_TOKEN || "";
     const advanced = options.advanced || {};
@@ -232,6 +243,7 @@ export class IntrospectionClient implements DataPlaneResources {
     this.metrics = new MetricsApi(this.dpHttp);
     this.shares = new SharesApi(this.dpHttp);
     this.issues = new IssuesApi(this.dpHttp);
+    this.connections = new AppConnectionsApi(this.dpHttp);
 
     sdkLogger.info(`IntrospectionClient initialized: api=${baseApiUrl}`);
   }
