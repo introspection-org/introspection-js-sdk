@@ -1,0 +1,14 @@
+{
+  "name": "introspection-example-aauth-travel",
+  "version": "0.1.0",
+  "private": true,
+  "description": "The provider side of the Flight Sector demo: a booking API behind a person_authorized connector, and Acme's own Person Server deciding each booking under Acme's travel policy.",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "start": "node server.mjs",
+    "test": "node --test test/*.test.mjs"
+  }
+}
