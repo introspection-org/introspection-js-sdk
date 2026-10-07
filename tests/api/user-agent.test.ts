@@ -13,7 +13,14 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
+import { readFileSync } from "node:fs";
 import { IntrospectionClient } from "@introspection-sdk/introspection-node";
+
+// The version release-please bumps; `src/version.ts` is one of its extra-files.
+const RELEASE = readFileSync(
+  new URL("../../version.txt", import.meta.url),
+  "utf8",
+).trim();
 
 const RUNTIME_ID = "11111111-1111-1111-1111-111111111111";
 
@@ -53,7 +60,7 @@ afterEach(() => {
 });
 
 describe("REST User-Agent", () => {
-  it("names the SDK and its release on every hop, Data Plane included", async () => {
+  it("names this library and its release on every hop, Data Plane included", async () => {
     const client = new IntrospectionClient({
       token: "test-token",
       advanced: { baseApiUrl: baseUrl },
@@ -63,7 +70,7 @@ describe("REST User-Agent", () => {
 
     expect(agents.length).toBeGreaterThan(1);
     for (const agent of agents) {
-      expect(agent).toMatch(/^introspection-sdk\/\d+\.\d+\.\d+/);
+      expect(agent).toBe(`introspection-js-sdk/${RELEASE}`);
     }
   });
 

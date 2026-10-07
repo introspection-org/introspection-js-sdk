@@ -41,7 +41,7 @@ describe("IntrospectionClient construction", () => {
     expect(client.advancedOptions).toEqual({
       additionalHeaders: {
         "User-Agent": expect.stringMatching(
-          /^introspection-sdk\/\d+\.\d+\.\d+/,
+          /^introspection-js-sdk\/\d+\.\d+\.\d+/,
         ),
       },
     });

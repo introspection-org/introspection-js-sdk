@@ -238,7 +238,11 @@ beforeAll(async () => {
     }
     if (path === `/v1/runtimes/${RUNTIME.id}` && method === "GET")
       return json(res, 200, RUNTIME);
-    if (path === `/v1/runtimes/${RUNTIME.id}/run` && method === "POST")
+    if (
+      (path === `/v1/runtimes/${RUNTIME.id}/run` ||
+        path === `/v1/runtimes/${RUNTIME.slug}/run`) &&
+      method === "POST"
+    )
       return json(res, 200, runnerSpec(baseUrl, ++runGeneration));
 
     // --- Control-plane: experiments ---
@@ -432,7 +436,7 @@ describe("IntrospectionClient (REST control-plane, real server)", () => {
       ).rejects.toBeInstanceOf(NotFoundError);
     });
 
-    it("handle resolves a runtime slug lazily then runs", async () => {
+    it("handle posts a runtime slug straight to /run, with no list", async () => {
       requests = [];
       const client = makeClient();
       const runner = await client.runtimes("customer-agent").run({
@@ -441,14 +445,11 @@ describe("IntrospectionClient (REST control-plane, real server)", () => {
         agent_name: "specialist",
         scope: "tasks:read tasks:write",
       });
-      // First request resolves the runtime, second opens the runner.
-      expect(
-        requests.some(
-          (r) =>
-            r.path === "/v1/runtimes" &&
-            r.query.get("runtime") === "customer-agent",
-        ),
-      ).toBe(true);
+      // `GET /v1/runtimes` refuses a customer credential, so the slug goes
+      // straight to `/run`, which resolves it in the caller's project.
+      expect(requests.map((r) => `${r.method} ${r.path}`)).toEqual([
+        "POST /v1/runtimes/customer-agent/run",
+      ]);
       const runReq = requests.find((r) => r.path.endsWith("/run"));
       expect(
         (runReq?.body as { identity?: { user_id?: string } })?.identity
@@ -461,7 +462,39 @@ describe("IntrospectionClient (REST control-plane, real server)", () => {
       });
       expect(runner.context.runtime_group_id).toBe(RUNTIME.runtime_group_id);
       expect(runner.context.agent_name).toBe("agent");
-      expect(runner.session_id).toBe("sess-1");
+
+      requests = [];
+      await runner.refresh();
+      expect(requests.map((r) => `${r.method} ${r.path}`)).toEqual([
+        "POST /v1/runtimes/customer-agent/run",
+      ]);
+      expect(requests[0]?.body).toMatchObject({ agent_name: "specialist" });
+    });
+
+    it("handle resolves a runtime group id, then posts by runtime id", async () => {
+      requests = [];
+      const client = makeClient();
+      const runner = await client.runtimes(RUNTIME.runtime_group_id).run();
+      expect(requests.map((r) => `${r.method} ${r.path}`)).toEqual([
+        "GET /v1/runtimes",
+        `POST /v1/runtimes/${RUNTIME.id}/run`,
+      ]);
+      expect(requests[0]?.query.get("runtime")).toBe(RUNTIME.runtime_group_id);
+
+      requests = [];
+      await runner.refresh();
+      expect(requests.map((r) => `${r.method} ${r.path}`)).toEqual([
+        `POST /v1/runtimes/${RUNTIME.id}/run`,
+      ]);
+    });
+
+    it("runById posts a known runtime id directly", async () => {
+      requests = [];
+      const client = makeClient();
+      await client.runtimes.runById(RUNTIME.id);
+      expect(requests.map((r) => `${r.method} ${r.path}`)).toEqual([
+        `POST /v1/runtimes/${RUNTIME.id}/run`,
+      ]);
     });
   });
 
@@ -518,7 +551,7 @@ describe("IntrospectionClient (REST control-plane, real server)", () => {
       ).rejects.toBeInstanceOf(ValidationError);
     });
 
-    it("fromServiceAccount mints then resolves a runtime slug", async () => {
+    it("fromServiceAccount mints then opens a runtime slug", async () => {
       requests = [];
       const client = await IntrospectionClient.fromServiceAccount({
         clientId: "intro_app_test",
@@ -534,7 +567,7 @@ describe("IntrospectionClient (REST control-plane, real server)", () => {
 
       // The minted token is the bearer on the subsequent CP calls.
       const runtimeCall = requests.find((r) =>
-        r.path.endsWith(`/runtimes/${RUNTIME.id}/run`),
+        r.path.endsWith(`/runtimes/${RUNTIME.slug}/run`),
       );
       expect(runtimeCall?.auth).toBe("Bearer minted-sa-token");
       await runner.close();

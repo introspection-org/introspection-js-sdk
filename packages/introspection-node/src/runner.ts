@@ -26,7 +26,7 @@ import type { IntrospectionClient } from "./client.js";
  * not auto-scheduled).
  */
 export type RunnerSource =
-  | { kind: "runtime"; id: Uuid; options?: RunRequest }
+  | { kind: "runtime"; id: Uuid | string; options?: RunRequest }
   | { kind: "experiment"; id: Uuid; options?: RunRequest };
 
 /**

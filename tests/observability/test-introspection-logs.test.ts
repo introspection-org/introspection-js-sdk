@@ -105,7 +105,9 @@ describe("instrumentation scope and resource", () => {
 describe("exporter headers", () => {
   it("identifies the SDK and release, like Python and Rust do", () => {
     const headers = exporterHeaders("intro_test");
-    expect(headers["User-Agent"]).toMatch(/^introspection-sdk\/\d+\.\d+\.\d+/);
+    expect(headers["User-Agent"]).toMatch(
+      /^introspection-js-sdk\/\d+\.\d+\.\d+/,
+    );
     expect(headers["Authorization"]).toBe("Bearer intro_test");
   });
 
@@ -120,7 +122,7 @@ describe("exporter headers", () => {
     // wants `Bearer ` with nothing after it on the wire.
     const headers = exporterHeaders(undefined);
     expect(headers["Authorization"]).toBeUndefined();
-    expect(headers["User-Agent"]).toMatch(/^introspection-sdk\//);
+    expect(headers["User-Agent"]).toMatch(/^introspection-js-sdk\//);
   });
 });
 
