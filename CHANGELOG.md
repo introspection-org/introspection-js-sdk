@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.28.0](https://github.com/introspection-org/introspection-js-sdk/compare/v0.27.0...v0.28.0) (2026-10-07)
+
+
+### Features
+
+* **browser:** name the session lane with ?lane= instead of a header ([#432](https://github.com/introspection-org/introspection-js-sdk/issues/432)) ([d8cbd14](https://github.com/introspection-org/introspection-js-sdk/commit/d8cbd1437e3e064b0ed64ae202779f34ee2ede67))
+
 ## [0.27.0](https://github.com/introspection-org/introspection-js-sdk/compare/v0.26.0...v0.27.0) (2026-10-07)
 
 
