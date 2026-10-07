@@ -70,5 +70,5 @@ and list the booking host in the auth service's `MISSION_GATE_HOSTS`. A local
 - **Who approves.** Every over-policy booking goes to one approver
   (`ACME_APPROVER`). A real Person Server would find the traveller's manager.
 - **Email.** Dana's notice goes to the console; she decides on `/approvals`.
-- **Matching the request to the approval.** The gate lets one request through per
-  approval; it does not check that the request is the approved offer.
+- **Reading the request body.** The gate lets one request through per approval,
+  for the offer id the tool declares; it does not check the body books that offer.
