@@ -63,6 +63,12 @@ export interface Transport {
    * async, for a credential that renews itself before it expires.
    */
   authHeaders(): Record<string, string> | Promise<Record<string, string>>;
+  /**
+   * Query parameters merged into every request URL, rebuilt per attempt like
+   * {@link authHeaders}. For selectors a cookie transport must send without a
+   * custom header, which would cost a CORS preflight on every request.
+   */
+  authQuery?(): Record<string, string>;
   /** `RequestInit.credentials` to attach (e.g. `"include"` for cookies). */
   credentials?: RequestCredentials;
   /**
@@ -120,6 +126,17 @@ export class BaseHttpClient {
     };
   }
 
+  // Built per attempt: a 401 re-exchange can change what `authQuery()` names.
+  private url(path: string, query?: Record<string, unknown>): string {
+    return (
+      joinUrl(this.cfg.apiUrl, path) +
+      buildQuery({
+        ...(query ?? {}),
+        ...(this.cfg.transport.authQuery?.() ?? {}),
+      })
+    );
+  }
+
   private async attempt(doFetch: () => Promise<Response>): Promise<Response> {
     try {
       return await doFetch();
@@ -175,7 +192,6 @@ export class BaseHttpClient {
     expect?: "json" | "empty" | "bytes" | "stream";
     signal?: AbortSignal;
   }): Promise<T> {
-    const url = joinUrl(this.cfg.apiUrl, opts.path) + buildQuery(opts.query);
     let body: BodyInit | undefined;
     const isMultipart = opts.body instanceof FormData;
     if (isMultipart) {
@@ -204,7 +220,7 @@ export class BaseHttpClient {
     for (let attempt = 0; ; attempt++) {
       try {
         const res = await this.send(buildHeaders, (headers) =>
-          this.fetchImpl(url, {
+          this.fetchImpl(this.url(opts.path, opts.query), {
             method: opts.method,
             headers,
             body,
@@ -242,7 +258,6 @@ export class BaseHttpClient {
     headers?: Record<string, string>;
     signal?: AbortSignal;
   }): Promise<Response> {
-    const url = joinUrl(this.cfg.apiUrl, opts.path) + buildQuery(opts.query);
     return this.send(
       () =>
         this.headers({
@@ -250,7 +265,7 @@ export class BaseHttpClient {
           ...(opts.headers ?? {}),
         }),
       (headers) =>
-        this.fetchImpl(url, {
+        this.fetchImpl(this.url(opts.path, opts.query), {
           method: "GET",
           headers,
           credentials: this.cfg.transport.credentials,

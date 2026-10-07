@@ -113,8 +113,9 @@ the first.
 
 **You never pass the environment in.** Your backend picks the lane when it
 mints the token; the Data Plane reads it off the token's claim and returns it,
-and the client sends it back as `x-introspection-environment` so the right
-cookie is resolved:
+and the client sends it back as the `lane` query parameter so the right cookie
+is resolved. A query parameter, not a header, so requests stay CORS-simple and
+skip the preflight a custom header forces on every call:
 
 ```typescript
 const dev = new IntrospectionApiClient({
@@ -131,12 +132,12 @@ await Promise.all([dev.connect(), prod.connect()]);
 dev.environment; // "development" -> cookie intro_dp_development
 prod.environment; // "production"  -> cookie intro_dp_production
 
-await dev.tasks.list(); // x-introspection-environment: development
-await prod.tasks.list(); // x-introspection-environment: production
+await dev.tasks.list(); // GET /v1/tasks?lane=development
+await prod.tasks.list(); // GET /v1/tasks?lane=production
 ```
 
 `client.environment` is `undefined` until `connect()` resolves. The optional
-`environment` constructor option sends the header before that first exchange;
+`environment` constructor option sends the lane before that first exchange;
 if it disagrees with the token, `connect()` throws rather than silently
 preferring one — the token is the authority.
 
