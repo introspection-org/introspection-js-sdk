@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.27.0](https://github.com/introspection-org/introspection-js-sdk/compare/v0.26.0...v0.27.0) (2026-10-07)
+
+
+### Features
+
+* open a runner by Runtime slug without listing; library-specific User-Agent ([#430](https://github.com/introspection-org/introspection-js-sdk/issues/430)) ([ff7d742](https://github.com/introspection-org/introspection-js-sdk/commit/ff7d742abe26d6367062dd42ad307b71bd34fc1a))
+
 ## [0.26.0](https://github.com/introspection-org/introspection-js-sdk/compare/v0.25.0...v0.26.0) (2026-10-06)
 
 
