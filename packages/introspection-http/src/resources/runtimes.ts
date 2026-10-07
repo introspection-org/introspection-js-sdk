@@ -27,7 +27,8 @@ export interface RuntimeRunRequestBody {
 
 export interface RuntimeRunnerSource {
   kind: "runtime";
-  id: Uuid;
+  /** The Runtime id, or the slug `/run` resolves in the caller's project. */
+  id: Uuid | string;
   options?: RunRequest;
 }
 
@@ -102,8 +103,12 @@ export class RuntimesClient<TRunner> {
     });
   }
 
-  /** POST `/v1/runtimes/{id}/run` and wrap the result in a runner. */
-  async runById(id: Uuid, opts?: RunRequest): Promise<TRunner> {
+  /**
+   * POST `/v1/runtimes/{id}/run` and wrap the result in a runner. `id` may
+   * also be a Runtime slug, which the Control Plane resolves in the caller's
+   * project; the runner's `refresh()` posts the same path.
+   */
+  async runById(id: Uuid | string, opts?: RunRequest): Promise<TRunner> {
     const source: RuntimeRunnerSource = {
       kind: "runtime",
       id,
@@ -113,7 +118,7 @@ export class RuntimesClient<TRunner> {
     return this.createRunner(source, spec);
   }
 
-  openRunner(id: Uuid, opts?: RunRequest): Promise<RunnerSpec> {
+  openRunner(id: Uuid | string, opts?: RunRequest): Promise<RunnerSpec> {
     return this.http.request<RunnerSpec>({
       method: "POST",
       path: `/v1/runtimes/${encodeURIComponent(id)}/run`,
@@ -125,6 +130,12 @@ export class RuntimesClient<TRunner> {
 /**
  * Handle returned by `client.runtimes(runtime)`. Holds the stable runtime
  * selector — a group slug or ID — and resolves it on every run.
+ *
+ * A slug is posted straight to `/v1/runtimes/{slug}/run`, which resolves it
+ * in the caller's project, so opening a runner needs no list call: a
+ * `customer` credential is refused `GET /v1/runtimes` but may open its own
+ * runner. A UUID is a runtime group id, which `/run` does not take, so it is
+ * still resolved through the list first.
  *
  * The resolved row ID is deliberately not cached. A runtime group's versions
  * change underneath a long-lived handle: deploys add them, and yanking or
@@ -141,6 +152,7 @@ export class RuntimeHandle<TRunner> {
   ) {}
 
   async run(opts?: RunRequest): Promise<TRunner> {
+    if (!isUuid(this.runtime)) return this.api.runById(this.runtime, opts);
     const resolved = await this.api.resolve(this.runtime);
     return this.api.runById(resolved.id, opts);
   }

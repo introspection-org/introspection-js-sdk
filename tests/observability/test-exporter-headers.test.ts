@@ -70,14 +70,18 @@ describe("both OTLP exporters identify the SDK", () => {
   it("the traces exporter sends a User-Agent and the token", () => {
     new IntrospectionSpanProcessor({ token: "intro_test" });
     const headers = headersOf(traceExporterArgs);
-    expect(headers["User-Agent"]).toMatch(/^introspection-sdk\/\d+\.\d+\.\d+/);
+    expect(headers["User-Agent"]).toMatch(
+      /^introspection-js-sdk\/\d+\.\d+\.\d+/,
+    );
     expect(headers["Authorization"]).toBe("Bearer intro_test");
   });
 
   it("the logs exporter sends the same pair", () => {
     new IntrospectionLogs({ token: "intro_test" });
     const headers = headersOf(logExporterArgs);
-    expect(headers["User-Agent"]).toMatch(/^introspection-sdk\/\d+\.\d+\.\d+/);
+    expect(headers["User-Agent"]).toMatch(
+      /^introspection-js-sdk\/\d+\.\d+\.\d+/,
+    );
     expect(headers["Authorization"]).toBe("Bearer intro_test");
   });
 
@@ -95,10 +99,10 @@ describe("both OTLP exporters identify the SDK", () => {
     // The header form never survives to the wire, so the option is the only
     // one of the two that actually identifies this SDK to the collector.
     expect(userAgentOf(traceExporterArgs)).toMatch(
-      /^introspection-sdk\/\d+\.\d+\.\d+/,
+      /^introspection-js-sdk\/\d+\.\d+\.\d+/,
     );
     expect(userAgentOf(logExporterArgs)).toMatch(
-      /^introspection-sdk\/\d+\.\d+\.\d+/,
+      /^introspection-js-sdk\/\d+\.\d+\.\d+/,
     );
     expect(userAgentOf(traceExporterArgs)).toBe(userAgentOf(logExporterArgs));
   });

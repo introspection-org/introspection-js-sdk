@@ -27,10 +27,10 @@ async function main() {
 
   const runtime = process.env.INTROSPECTION_RUNTIME ?? "customer-agent";
 
-  // 1) Open a Runner against the runtime group slug or ID. The SDK resolves
-  //    it via `/v1/runtimes?runtime=…`, then calls
-  //    `/v1/runtimes/{id}/run` which mints a short-lived access token
-  //    and tells the runner which DP to talk to.
+  // 1) Open a Runner against the runtime slug. The SDK posts it straight to
+  //    `/v1/runtimes/{slug}/run`, which resolves it in the caller's project,
+  //    mints a short-lived access token and tells the runner which DP to
+  //    talk to. A runtime group ID is resolved via `/v1/runtimes` first.
   // `identity.tags` stamps the customer member this identity mints, when it
   // is new — the member then reaches every file and task carrying a matching
   // tag. Attenuated to this credential's own tags, so it can never widen what

@@ -6,7 +6,12 @@
       "release-type": "simple",
       "changelog-path": "CHANGELOG.md",
       "bump-minor-pre-major": true,
-      "bump-patch-for-minor-pre-major": false
+      "bump-patch-for-minor-pre-major": false,
+      "extra-files": [
+        "packages/introspection-node/src/version.ts",
+        "packages/introspection-browser/src/version.ts",
+        "packages/introspection-coding-agent/src/version.ts"
+      ]
     }
   }
 }

@@ -28,7 +28,7 @@ export const DEFAULT_SERVICE_NAME = "introspection-client";
  *
  * Caller headers are merged last so they can override either.
  */
-export const USER_AGENT = `introspection-sdk/${VERSION}`;
+export const USER_AGENT = `introspection-js-sdk/${VERSION}`;
 
 /**
  * The OTLP HTTP transport takes the client's user agent as a dedicated option
