@@ -1,0 +1,10 @@
+{
+  "repository": "https://github.com/introspection-org/recipe-travel-agent",
+  "commit": "7a2436bf85c90484c9933e9943ce5bc9e25fa231",
+  "files": [
+    "SYSTEM.md",
+    "package.json",
+    "agents/agent.yaml",
+    "extensions/booking.js"
+  ]
+}

@@ -1,74 +1,89 @@
-# aauth-travel
+# Flight Sector: an AAuth travel demo
 
-The provider side of the **Flight Sector** demo: an employee of Acme asks
-Flight Sector's travel agent, in a Slack DM, to book a Sydney trip. Each booking
-needs Acme's approval. Within Acme's policy that is immediate; a hotel over the
-city's nightly cap waits for the employee's manager, Dana.
+Flight Sector books work travel for other companies' employees. An employee messages Flight Sector's travel agent, and the agent books within **that employee's company policy**. A hotel over the company's cap goes to the traveller's manager, and once they approve, the conversation picks up by itself.
 
-This one process plays the two parties Introspection does not:
+None of this is decided by the model, and the agent never holds a credential. It runs on [AAuth](https://github.com/dickhardt/AAuth) at -11, three-party:
 
-| Path                                  | Party                | Does                                                                                 |
-| ------------------------------------- | -------------------- | ------------------------------------------------------------------------------------ |
-| `POST /v1/search`, `POST /v1/reserve` | the booking provider | sells flights and hotels; a reservation needs the booking connection's token         |
-| `POST /missions`                      | Acme's Person Server | receives each pending booking mission, applies Acme's caps, and records the decision |
-| `GET /approvals`                      | Dana's approval page | approve or decline what is over policy                                               |
+- the **Agent Provider** (the platform's control plane) mints an agent token for each session, binding the session's key;
+- the platform's **egress** signs each of the agent's requests (RFC 9421) and presents the agent token;
+- the **resource** (Flight Sector's booking provider) answers `401` with a resource token naming the exact quote;
+- egress takes the resource token to the traveller's **Person Server** (Acme's), which answers `200` with an auth token, `202` while it asks the manager, or `403`.
 
-The agent is the recipe `introspection-org/recipe-travel-agent`. How the platform
-joins them is `introspection-cloud` `docs/design/connectors-aauth-b2b2c.md` §12.2.
+This example is the **Flight Sector side and the Acme side** of the demo, and the explainer. The platform side (Agent Provider, egress signing, waiting on a `202`) lives in `introspection-cloud`; see `docs/design/connectors-aauth-b2b2c.md` §12.3.
 
-## How a booking flows
+- **Booking provider** (`/booking`) is a native three-party AAuth resource. Search is open and every offer carries a quote it signs. A reservation presenting an agent token gets `401 requirement=auth-token` and a resource token; one presenting an auth token for that exact quote is booked. Metadata at `/booking/.well-known/aauth-resource.json`.
+- **Acme's Person Server** (its own origin, `http://127.0.0.1:3400` locally) is Acme's system, not Flight Sector's. It verifies the agent's signature and agent token, checks the resource token belongs to that agent, and applies Acme's travel policy to the quote. Over policy, it emails the traveller's manager a link and a six-digit code (approval page at `/approve/{id}`) and answers `202` with a URL to poll.
+- **The walkthrough** (`/`) covers every step of the flow, beside the code behind it. Steps light up as these services see traffic. `WALKTHROUGH.md` is the same thing as a document.
 
-1. The agent's `book_item` calls `POST /v1/reserve`, declaring the booking's
-   mission in an `Introspection-Mission` header. The platform's mission gate
-   answers `428` and the token is not injected.
-2. The platform opens a mission and POSTs it here, to `/missions`, with a
-   single-use capability.
-3. Acme's Person Server looks the offer up and checks Acme's caps (SYD $300,
-   MEL $250 a night; flights are in policy). Within policy, it approves at once
-   by POSTing the decision to the platform's
-   `/v1/person-server/missions/{id}/decision`. Over policy, it tells Dana, and
-   decides when she does.
-4. The platform tells the agent in the DM. It retries `POST /v1/reserve`; the
-   gate lets that one request through with the connection's token, and the
-   booking lands.
+The agent itself is the public [travel-agent recipe](https://github.com/introspection-org/recipe-travel-agent). The walkthrough shows it from a vendored snapshot in `recipe/`.
 
-The platform holds no part of Acme's policy or org chart: swapping this Person
-Server for Acme's real one changes nothing on the platform.
+## The flow
+
+| Sam asks for                       | What happens                                                                                   |
+| ---------------------------------- | ---------------------------------------------------------------------------------------------- |
+| QF74 business, SFO to SYD ($7,800) | `200`: under Acme's $9,000 flight cap for Sydney, so Acme issues an auth token and it's booked |
+| QT Sydney at $420/night (cap $300) | `202`: Acme emails Dana, Sam's manager, a code. Dana approves on Acme's page, and it's booked  |
+| The Melbourne weekend, paid by Sam | `200`: Acme doesn't police what it doesn't pay for                                             |
+| The QT again, and Dana declines    | `403` on the pending URL                                                                       |
 
 ## Run it
 
 ```bash
-BOOKING_PROVIDER_TOKEN=demo-booking-token \
-INTROSPECTION_CONTROL_PLANE_URL=http://localhost:8000 \
-npm start            # http://localhost:3400
-npm test
+pnpm install
+pnpm --filter introspection-example-aauth-travel dev   # http://localhost:3400
 ```
 
-On the platform (with `CONNECTORS_ENABLED` and `PERSON_SERVER_ENABLED`), create
-the booking connector and its connection:
+On its own, the app serves the walkthrough, the booking provider and Acme's Person Server. Without `RESEND_API_KEY`, Dana's email, with its code, is printed to this app's console.
 
-```jsonc
-// POST /v1/connectors
-{
-  "name": "Booking",
-  "provider": "booking",
-  "auth_mode": "person_authorized",
-  "api_hosts": ["api.booking.example"],
-  "person_server_mode": "byo",
-  "person_server_url": "https://<this server>/missions"
-}
-// POST /v1/connectors/{id}/connections
-{ "subject_type": "app", "access_token": "demo-booking-token" }
+To exercise the whole AAuth flow without the platform, play the agent with the e2e script. It runs a test Agent Provider on `:3499` and books the table above, with an Ed25519 agent key as well as ES256.
+
+```bash
+pnpm dev > /tmp/aauth-travel.log 2>&1 &
+E2E_SERVER_LOG=/tmp/aauth-travel.log node scripts/e2e-aauth.mjs
 ```
 
-and list the booking host in the auth service's `MISSION_GATE_HOSTS`. A local
-`person_server_url` on plain http needs the control plane's
-`PERSON_SERVER_ALLOW_PRIVATE_URLS=true`.
+### Acme's origin
 
-## What this example leaves out
+An AAuth server identifier is scheme and host, with no path, so Acme's Person Server cannot live at `localhost:3400/acme`. Locally it is `http://127.0.0.1:3400`: the same process under a different host, which `next.config.ts` rewrites to `/acme/*`. `127.0.0.1` resolves everywhere, including in Node. `http://acme.localhost:3400` also works in a browser, but Node on Linux does not resolve `*.localhost` without an `/etc/hosts` entry, and every server here fetches Acme's metadata. Local runs bend two identifier rules (`http`, and a port), and the booking provider's issuer has a path; a deployment uses `https://` hosts of their own.
 
-- **Who approves.** Every over-policy booking goes to one approver
-  (`ACME_APPROVER`). A real Person Server would find the traveller's manager.
-- **Email.** Dana's notice goes to the console; she decides on `/approvals`.
-- **Reading the request body.** The gate lets one request through per approval,
-  for the offer id the tool declares; it does not check the body books that offer.
+### With the platform
+
+In `introspection-cloud`, `make dev-aauth-demo` turns the AAuth agent on in the local egress and points it at this app. Then create the booking connector:
+
+| Setting           | Value                                                                                         |
+| ----------------- | --------------------------------------------------------------------------------------------- |
+| Booking connector | `auth_mode: aauth`, `person_server_url: http://127.0.0.1:3400`, `api_hosts: [localhost:3400]` |
+| Booking provider  | `http://localhost:3400/booking` (no credential: egress signs, the provider verifies)          |
+| Agent Provider    | the control plane, `http://localhost:8000`, trusted here by default outside production        |
+
+Then message the agent as Sam (`U0SAM` in workspace `T0ACME`).
+
+## Settings
+
+Copy `.env.example` to `.env.local`.
+
+| Variable                                                   | Default                                       | What it is                                                   |
+| ---------------------------------------------------------- | --------------------------------------------- | ------------------------------------------------------------ |
+| `APP_URL`                                                  | `http://localhost:3400`                       | this app's origin                                            |
+| `BOOKING_ISSUER`                                           | `{APP_URL}/booking`                           | the booking provider's AAuth identifier                      |
+| `BOOKING_PERSON_SERVERS`                                   | `ACME_PERSON_SERVER_URL`                      | Person Servers whose people the provider serves              |
+| `BOOKING_AGENT_PROVIDERS`                                  | `http://localhost:8000,http://localhost:3499` | Agent Providers whose agent tokens the provider accepts      |
+| `ACME_PERSON_SERVER_URL`                                   | `http://127.0.0.1:3400`                       | Acme's Person Server identifier (scheme and host)            |
+| `ACME_TRUSTED_RESOURCES`                                   | `BOOKING_ISSUER`                              | resources whose resource tokens Acme accepts                 |
+| `TRUSTED_AGENT_PROVIDERS`                                  | `http://localhost:8000,http://localhost:3499` | Agent Providers Acme accepts (none in production unless set) |
+| `ACME_PS_SUBJECT_SECRET`                                   | random per process                            | derives each person's directed `sub` per audience            |
+| `ACME_PS_SIGNING_KEY`, `BOOKING_SIGNING_KEY`               | generated per process                         | PKCS#8 PEMs for stable keys                                  |
+| `RESEND_API_KEY`, `ACME_MAIL_FROM`                         | unset: print to console                       | how Acme emails Dana                                         |
+| `ACME_WORKSPACE_ID`, `ACME_SAM_USER_ID`, `ACME_DANA_EMAIL` | the emulator's seed                           | Sam and Dana on a real Slack workspace                       |
+
+## How the explainer works
+
+`flow/manifest.mjs` lists the steps. Each step names its sources:
+
+- `example`: a file here, cut to a `#region`;
+- `recipe`: a file from the recipe;
+- `contract`: the shape of a platform message on the wire, from `flow/contracts/`.
+
+The page reads the real files at request time, and `pnpm walkthrough` writes `WALKTHROUGH.md` from the same manifest, so the explanation can't drift from the code. Platform internals are never shown: platform steps appear only as their contracts.
+
+After changing the recipe, refresh the snapshot with `RECIPE_DIR=path/to/recipe-travel-agent pnpm sync-recipe`, then `pnpm walkthrough`.

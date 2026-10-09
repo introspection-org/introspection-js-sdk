@@ -1,0 +1,31 @@
+{
+  "POST": "https://ps.acme.example/ps/token",
+  "headers": {
+    "Content-Type": "application/json",
+    "Signature-Key": "sig=jwt;jwt=\"…(the same agent token)\"",
+    "Signature": "sig=:…(the same session key):"
+  },
+  "body": {
+    "resource_token": "eyJ…(from the provider's 401)",
+    "presented_token": "eyJ…(the agent token the provider saw)",
+    "login_hint": "slack:T0ACME/U0SAM"
+  },
+  "answers": {
+    "within_policy": {
+      "status": 200,
+      "body": { "auth_token": "eyJ…", "expires_in": 3600 }
+    },
+    "over_policy": {
+      "status": 202,
+      "headers": {
+        "Location": "https://ps.acme.example/ps/pending/0199…",
+        "Retry-After": "5"
+      }
+    },
+    "declined": {
+      "status": 403,
+      "body": { "type": "…/denied", "detail": "Dana Park declined" }
+    }
+  },
+  "note": "Egress makes this call as the agent: signed with the session key, presenting the agent token. login_hint is the session's person, which the platform knows from the Slack DM."
+}

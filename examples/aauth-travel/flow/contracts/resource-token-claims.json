@@ -1,0 +1,35 @@
+{
+  "status": 401,
+  "headers": {
+    "AAuth-Requirement": "requirement=auth-token; resource-token=\"eyJhbGciOiJFUzI1NiIsInR5cCI6ImFhLXJlc291cmNlK2p3dCJ9.…\""
+  },
+  "resource_token": {
+    "header": {
+      "alg": "ES256",
+      "typ": "aa-resource+jwt",
+      "kid": "flightsector-booking-1"
+    },
+    "claims": {
+      "iss": "https://booking.flightsector.example",
+      "dwk": "aauth-resource.json",
+      "aud": "https://ps.acme.example",
+      "ps": "https://ps.acme.example",
+      "presented_jti": "…(the agent token's jti)",
+      "agent_jkt": "…(the session key's thumbprint)",
+      "scope": "booking.reserve",
+      "authorization_details": [
+        {
+          "type": "booking",
+          "offer_id": "ht:qt-sydney:2026-10-19:2026-10-23",
+          "quote": "eyJ…",
+          "purpose": "business",
+          "payer": "company"
+        }
+      ],
+      "jti": "…",
+      "iat": 1791158020,
+      "exp": 1791158320
+    }
+  },
+  "note": "Addressed to the Person Server the agent token names in ps. The quote is the provider's own signed facts, so Acme decides on what the provider says, not on what the agent says."
+}

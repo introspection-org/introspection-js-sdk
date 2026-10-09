@@ -1,0 +1,15 @@
+name: agent
+description: Flight Sector travel agent that books company travel for employees from a Slack DM
+ai:
+  model: anthropic/claude-sonnet-4-6
+  thinking_level: low
+tools:
+  - read
+  - search_offers
+  - book_item
+  - channels
+skills: []
+subagents: []
+system_instructions:
+  mode: append
+  content: ""

@@ -1,0 +1,17 @@
+{
+  "POST": "https://booking.flightsector.example/v1/reserve",
+  "headers": {
+    "Content-Type": "application/json",
+    "Content-Digest": "sha-256=:…:",
+    "Signature-Input": "sig=(\"@method\" \"@authority\" \"@path\" \"signature-key\" \"content-type\" \"content-digest\");created=1791158020",
+    "Signature": "sig=:…(the session key):",
+    "Signature-Key": "sig=jwt;jwt=\"eyJhbGciOiJFUzI1NiIsInR5cCI6ImFhLWFnZW50K2p3dCJ9.…(agent token)\""
+  },
+  "body": {
+    "offer_id": "ht:qt-sydney:2026-10-19:2026-10-23",
+    "quote": "eyJhbGciOiJFUzI1NiIsImtpZCI6ImZsaWdodHNlY3Rvci1ib29raW5nLTEifQ.…",
+    "purpose": "business",
+    "payer": "company"
+  },
+  "note": "The agent's book_item sent only the body. Egress signed it with the session key and presented the best token it holds for this resource: an auth token, else the agent token."
+}
