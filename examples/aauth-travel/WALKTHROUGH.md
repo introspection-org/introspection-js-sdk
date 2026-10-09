@@ -4,7 +4,7 @@
 
 Sam works at Acme, one of Flight Sector's customers, and asks Flight Sector's travel agent for a week in Sydney. The agent holds no credential. The platform is its Agent Provider: it mints an agent token for the session and signs every request the agent makes with the session's key. The trip is an AAuth mission: Acme's Person Server, which speaks for Sam, has Sam's manager approve it once, budget and all. The booking provider is a native AAuth resource. Flight Sector's own rails, Cedar policies shipped in the recipe, run in the platform first. Then each booking is AAuth's three-party flow: the resource names it in a proposal only Acme can read, and Acme issues an auth token within the trip's budget, asks the manager again, or refuses.
 
-Recipe code is from [recipe-travel-agent@9774dc5](https://github.com/introspection-org/recipe-travel-agent/tree/9774dc53eb4c4b349d19c4386672c4617431a1bb). Platform steps show the contract on the wire, not the code.
+Recipe code is from [recipe-travel-agent@037922b](https://github.com/introspection-org/recipe-travel-agent/tree/037922bbf85cfaba2a3b0e29ca13994a68a71f6b). Platform steps show the contract on the wire, not the code.
 
 ## 1. Sam asks for a trip
 
