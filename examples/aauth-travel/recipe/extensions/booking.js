@@ -55,7 +55,7 @@ export function registerBookingTools(pi) {
     label: "Report the trip booked",
     description: "Tell the traveller's company the trip is booked. The traveller accepts it, which ends the mission.",
     parameters: Type.Object({
-      s256: Type.String({ description: "The mission's s256, from propose_trip" }),
+      s256: Type.String({ description: "The mission's s256, from propose_trip or its approval" }),
       summary: Type.String({ description: "Markdown: what was booked, and the total" }),
     }),
     async execute(_toolCallId, params, signal) {

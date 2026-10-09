@@ -6,7 +6,9 @@ ai:
 tools:
   - read
   - search_offers
+  - propose_trip
   - book_item
+  - complete_trip
   - channels
 skills: []
 subagents: []
