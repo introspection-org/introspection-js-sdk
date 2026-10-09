@@ -45,16 +45,16 @@ To exercise the whole flow without the platform, play the agent with the e2e scr
 
 ```bash
 TRUSTED_AGENT_PROVIDERS=https://cp.introspection.localhost,https://e2e-agents.localhost \
-  NODE_EXTRA_CA_CERTS=~/.portless/ca.pem pnpm dev > /tmp/aauth-travel.log 2>&1 &
+  pnpm dev > /tmp/aauth-travel.log 2>&1 &
 portless alias e2e-agents 3499 --force
 E2E_SERVER_LOG=/tmp/aauth-travel.log NODE_EXTRA_CA_CERTS=~/.portless/ca.pem node scripts/e2e-aauth.mjs
 ```
 
-`NODE_EXTRA_CA_CERTS` lets Node trust portless's CA, since every server here fetches the others' metadata.
+Every server here fetches the others' metadata, so Node must trust portless's CA: `pnpm dev` points `NODE_EXTRA_CA_CERTS` at `~/.portless/ca.pem` unless it is already set.
 
 ### With the platform
 
-In `introspection-cloud`, `make dev-aauth-demo` turns the AAuth agent and the policy gate on in the local egress and points them at this app. The control plane is the Agent Provider at `https://cp.introspection.localhost` (`portless alias cp.introspection 8000`). Then create the booking connector:
+In `introspection-cloud`, `make dev-aauth-demo` turns the AAuth agent and the policy gate on in the local egress and points them at this app. The control plane is the Agent Provider at `https://cp.introspection.localhost` (`portless alias cp.introspection 8000`). Portless listens on loopback only, so the containers reach this app on `:3400` directly, still signing for its https hosts. Then create the booking connector:
 
 | Setting           | Value                                                                                                                                                                                                                                                        |
 | ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
