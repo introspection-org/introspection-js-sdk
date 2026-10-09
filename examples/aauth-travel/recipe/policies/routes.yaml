@@ -1,0 +1,22 @@
+# How each connector's requests become Cedar requests. Keyed by connector slug;
+# a request to a connector host that no route names is refused.
+booking:
+  - method: POST
+    path: /v1/search
+    action: booking.search
+    resource:
+      type: Search
+  - method: POST
+    path: /v1/reserve
+    action: booking.reserve
+    resource:
+      type: Booking
+      attrs:
+        offer_id: /offer_id
+        purpose: /purpose
+        payer: /payer
+      # Read from the quote the provider signed; it books only a quote it
+      # signed, so the agent cannot alter these.
+      claims:
+        from: /quote
+        attrs: [kind, cabin, block_minutes, total_cents]

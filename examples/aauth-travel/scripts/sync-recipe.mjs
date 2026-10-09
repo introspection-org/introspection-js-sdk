@@ -16,6 +16,9 @@ const FILES = [
   "package.json",
   "agents/agent.yaml",
   "extensions/booking.js",
+  "policies/schema.cedarschema",
+  "policies/travel.cedar",
+  "policies/routes.yaml",
 ];
 
 rmSync(target, { recursive: true, force: true });

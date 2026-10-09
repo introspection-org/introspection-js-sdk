@@ -1,10 +1,13 @@
 {
   "repository": "https://github.com/introspection-org/recipe-travel-agent",
-  "commit": "7a2436bf85c90484c9933e9943ce5bc9e25fa231",
+  "commit": "856b5dcc25d7724807041747bafb549dd3c76f84",
   "files": [
     "SYSTEM.md",
     "package.json",
     "agents/agent.yaml",
-    "extensions/booking.js"
+    "extensions/booking.js",
+    "policies/schema.cedarschema",
+    "policies/travel.cedar",
+    "policies/routes.yaml"
   ]
 }

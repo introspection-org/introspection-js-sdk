@@ -50,13 +50,31 @@ An AAuth server identifier is scheme and host, with no path, so Acme's Person Se
 
 In `introspection-cloud`, `make dev-aauth-demo` turns the AAuth agent on in the local egress and points it at this app. Then create the booking connector:
 
-| Setting           | Value                                                                                         |
-| ----------------- | --------------------------------------------------------------------------------------------- |
-| Booking connector | `auth_mode: aauth`, `person_server_url: http://127.0.0.1:3400`, `api_hosts: [localhost:3400]` |
-| Booking provider  | `http://localhost:3400/booking` (no credential: egress signs, the provider verifies)          |
-| Agent Provider    | the control plane, `http://localhost:8000`, trusted here by default outside production        |
+| Setting           | Value                                                                                                                                                                                                                                  |
+| ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Booking connector | slug `booking`, `auth_mode: aauth`, `person_server_url: http://127.0.0.1:3400`, `api_hosts: [api.booking.example]`, `metadata: {"aauth_resource": "http://localhost:3400/booking", "aauth_upstream": "http://localhost:3400/booking"}` |
+| Booking provider  | `http://localhost:3400/booking` (no credential: egress signs, the provider verifies)                                                                                                                                                   |
+| Agent Provider    | the control plane, `http://localhost:8000`, trusted here by default outside production                                                                                                                                                 |
 
-Then message the agent as Sam (`U0SAM` in workspace `T0ACME`).
+The recipe's `policies/` (Flight Sector's rails) run in the egress before anything is signed. They read two things an org owner sets:
+
+- each traveller's level and company, as member `policy_attributes`:
+
+  ```bash
+  curl -X PATCH "$CP/v1/members/$SAM_MEMBER_ID" -H "Authorization: Bearer $OWNER_TOKEN" \
+    -d '{"policy_attributes": {"level": 5, "company": {"__entity": {"type": "Company", "id": "acme"}}}}'
+  ```
+
+- each company's threshold, as the booking connector's `policy_entities`:
+
+  ```bash
+  curl -X PATCH "$CP/v1/connectors/$BOOKING_CONNECTOR_ID" -H "Authorization: Bearer $OWNER_TOKEN" \
+    -d '{"policy_entities": [
+          {"uid": {"type": "Company", "id": "acme"},   "attrs": {"business_min_level": 5}, "parents": []},
+          {"uid": {"type": "Company", "id": "globex"}, "attrs": {"business_min_level": 7}, "parents": []}]}'
+  ```
+
+`make dev-aauth-demo` turns the gate on (`POLICY_GATE_ENABLED`). Then message the agent as Sam (`U0SAM` in workspace `T0ACME`).
 
 ## Settings
 

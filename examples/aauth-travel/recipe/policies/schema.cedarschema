@@ -1,0 +1,37 @@
+// What the platform's egress policy gate gives these policies
+// (introspection-cloud docs/design/connectors-aauth-b2b2c.md §19).
+//
+// The principal is the person the session acts for: their attributes are set
+// by an org owner on the member, and their company is an entity the booking
+// connector supplies. The resource is the request, mapped by routes.yaml.
+//
+// Validate locally with the Cedar CLI:
+//   cargo install cedar-policy-cli --locked
+//   cat policies/*.cedar > /tmp/policyset.cedar
+//   cedar validate --schema policies/schema.cedarschema --policies /tmp/policyset.cedar
+
+entity Company {
+  // The least seniority that may fly business class on the company's account.
+  business_min_level: Long,
+};
+
+entity Person {
+  level?: Long,
+  company?: Company,
+};
+
+entity Search;
+
+entity Booking {
+  offer_id: String,
+  purpose: String,
+  payer: String,
+  // From the provider-signed quote.
+  kind?: String,
+  cabin?: String,
+  block_minutes?: Long,
+  total_cents?: Long,
+};
+
+action "booking.search" appliesTo { principal: [Person], resource: [Search], context: {} };
+action "booking.reserve" appliesTo { principal: [Person], resource: [Booking], context: {} };

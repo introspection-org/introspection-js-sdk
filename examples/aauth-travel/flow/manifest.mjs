@@ -27,7 +27,7 @@
 export const flow = {
   title: "Flight Sector: company travel over AAuth",
   intro:
-    "Sam works at Acme, one of Flight Sector's customers, and asks Flight Sector's travel agent for a week in Sydney. The agent holds no credential. The platform is its Agent Provider: it mints an agent token for the session and signs every request the agent makes with the session's key. The booking provider is a native AAuth resource, and Acme runs the Person Server that speaks for Sam. This is AAuth's three-party flow: the resource names what it wants in a resource token, the agent takes it to Sam's Person Server, and Acme either issues an auth token, asks Sam's manager, or refuses.",
+    "Sam works at Acme, one of Flight Sector's customers, and asks Flight Sector's travel agent for a week in Sydney. The agent holds no credential. The platform is its Agent Provider: it mints an agent token for the session and signs every request the agent makes with the session's key. The booking provider is a native AAuth resource, and Acme runs the Person Server that speaks for Sam. Flight Sector's own rails, Cedar policies shipped in the recipe, run in the platform first. Then it is AAuth's three-party flow: the resource names what it wants in a resource token, the agent takes it to Sam's Person Server, and Acme either issues an auth token, asks Sam's manager, or refuses.",
   steps: [
     {
       id: "ask",
@@ -76,6 +76,29 @@ export const flow = {
         },
       ],
       lights: { type: "booking.searched" },
+    },
+    {
+      id: "rails",
+      title: "Flight Sector's rails check the booking first",
+      actor: "Platform egress (policy gate)",
+      body: "Before anything is signed, the platform runs the recipe's Cedar policies against the request. They are Flight Sector's rules for every customer: never first class, personal legs paid by the traveller, and business class only for travellers at or above their company's seniority threshold on a leg of six hours or more. One rule answers per person: Sam is level 5 and Acme's threshold is 5, so QF74 in business goes on; a level-5 traveller at Globex, whose threshold is 7, gets 403 with the rule's reason, and Globex is never asked. A permit decides nothing: the company's Person Server still does.",
+      sources: [
+        {
+          kind: "recipe",
+          path: "policies/travel.cedar",
+          label: "recipe: the rules",
+        },
+        {
+          kind: "recipe",
+          path: "policies/routes.yaml",
+          label: "recipe: how a request becomes a Cedar request",
+        },
+        {
+          kind: "contract",
+          path: "policy-denied.json",
+          label: "what the gate sees, and the refusal",
+        },
+      ],
     },
     {
       id: "reserve",

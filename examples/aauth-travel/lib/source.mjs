@@ -12,6 +12,8 @@ const LANGUAGES = {
   json: "json",
   yaml: "yaml",
   md: "markdown",
+  cedar: "text",
+  cedarschema: "text",
 };
 
 /** @param {string} root @param {import("../flow/manifest.mjs").Source} source */
