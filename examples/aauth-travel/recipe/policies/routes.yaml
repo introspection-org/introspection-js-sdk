@@ -9,6 +9,8 @@ booking:
   - method: POST
     path: /v1/reserve
     action: booking.reserve
+    # The session's approved mission, as context.mission.
+    context: [mission]
     resource:
       type: Booking
       attrs:

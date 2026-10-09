@@ -27,7 +27,7 @@
 export const flow = {
   title: "Flight Sector: company travel over AAuth",
   intro:
-    "Sam works at Acme, one of Flight Sector's customers, and asks Flight Sector's travel agent for a week in Sydney. The agent holds no credential. The platform is its Agent Provider: it mints an agent token for the session and signs every request the agent makes with the session's key. The booking provider is a native AAuth resource, and Acme runs the Person Server that speaks for Sam. Flight Sector's own rails, Cedar policies shipped in the recipe, run in the platform first. Then it is AAuth's three-party flow: the resource names what it wants in a resource token, the agent takes it to Sam's Person Server, and Acme either issues an auth token, asks Sam's manager, or refuses.",
+    "Sam works at Acme, one of Flight Sector's customers, and asks Flight Sector's travel agent for a week in Sydney. The agent holds no credential. The platform is its Agent Provider: it mints an agent token for the session and signs every request the agent makes with the session's key. The trip is an AAuth mission: Acme's Person Server, which speaks for Sam, has Sam's manager approve it once, budget and all. The booking provider is a native AAuth resource. Flight Sector's own rails, Cedar policies shipped in the recipe, run in the platform first. Then each booking is AAuth's three-party flow: the resource names it in a proposal only Acme can read, and Acme issues an auth token within the trip's budget, asks the manager again, or refuses.",
   steps: [
     {
       id: "ask",
@@ -39,7 +39,7 @@ export const flow = {
         {
           kind: "recipe",
           path: "extensions/booking.js",
-          label: "recipe: search_offers and book_item",
+          label: "recipe: the trip and booking tools",
         },
       ],
     },
@@ -47,7 +47,7 @@ export const flow = {
       id: "agent-token",
       title: "The platform mints an agent token for the session",
       actor: "Agent Provider (control plane)",
-      body: "When the session starts, the control plane, acting as Agent Provider, signs an aa-agent+jwt: the agent's identity, the session's public key in cnf.jwk, and in ps the Person Server that speaks for this person, which the connector names. Its keys are published at /.well-known/aauth-agent.json, so any resource can verify it. The private session key stays in the egress proxy, never in the sandbox.",
+      body: "When the session starts, the control plane, acting as Agent Provider, signs an aa-agent+jwt: the agent's identity, the session's Ed25519 public key in cnf.jwk, and in ps the Person Server that speaks for this person, which the connector names. Its keys are published at /.well-known/aauth-agent.json, so any resource can verify it. The private session key stays in the egress proxy, never in the sandbox.",
       sources: [
         {
           kind: "contract",
@@ -55,6 +55,53 @@ export const flow = {
           label: "the agent token",
         },
       ],
+    },
+    {
+      id: "mission",
+      title: "The agent proposes the trip, and Acme asks Dana once",
+      actor: "Agent → egress → Acme's Person Server",
+      body: "Before booking anything, propose_trip posts the trip to person-server.aauth, a name only the egress answers. Egress adds the booking provider and Sam, signs as the agent, and posts it to Acme's mission endpoint. Acme reads the budget from the description and emails Sam's manager, Dana, a link and a six-digit code, answering 202 while she decides.",
+      sources: [
+        {
+          kind: "contract",
+          path: "mission-proposal.json",
+          label: "the proposal, and what comes back",
+        },
+        {
+          kind: "example",
+          path: "lib/acme/person-server.ts",
+          region: "missions",
+          label: "Acme: missions",
+        },
+        {
+          kind: "example",
+          path: "lib/acme/mail.ts",
+          region: "email",
+          label: "Acme: the email",
+        },
+      ],
+      lights: { type: "acme.approval_requested" },
+    },
+    {
+      id: "mission-approved",
+      title: "Dana approves the trip with the code",
+      actor: "Approver → Acme's Person Server",
+      body: "Dana opens Acme's page from the email, reads the trip and its budget, and enters the code, which proves the person approving reads Dana's inbox. Acme mints the mission: its bytes, their SHA-256 as s256, and a person token for the booking provider carrying mission_s256. Egress keeps the mission and the person token; the agent gets only the s256.",
+      sources: [
+        {
+          kind: "example",
+          path: "lib/acme/person-server.ts",
+          region: "decide",
+          label: "Acme: check the code",
+        },
+        {
+          kind: "example",
+          path: "lib/acme/person-server.ts",
+          region: "person-token",
+          label: "Acme: person tokens under the mission",
+        },
+      ],
+      lights: { type: "acme.mission_approved" },
     },
     {
       id: "search",
@@ -81,7 +128,7 @@ export const flow = {
       id: "rails",
       title: "Flight Sector's rails check the booking first",
       actor: "Platform egress (policy gate)",
-      body: "Before anything is signed, the platform runs the recipe's Cedar policies against the request. They are Flight Sector's rules for every customer: never first class, personal legs paid by the traveller, and business class only for travellers at or above their company's seniority threshold on a leg of six hours or more. One rule answers per person: Sam is level 5 and Acme's threshold is 5, so QF74 in business goes on; a level-5 traveller at Globex, whose threshold is 7, gets 403 with the rule's reason, and Globex is never asked. A permit decides nothing: the company's Person Server still does.",
+      body: "Before anything is signed, the platform runs the recipe's Cedar policies against the request, with the session's approved mission as context. They are Flight Sector's rules for every customer: no booking outside an approved trip, never first class, personal legs paid by the traveller, and business class only for travellers at or above their company's seniority threshold on a leg of six hours or more. A forbid answers 403 with the rule's reason, and Acme is never asked. A permit decides nothing: Acme still does.",
       sources: [
         {
           kind: "recipe",
@@ -102,9 +149,9 @@ export const flow = {
     },
     {
       id: "reserve",
-      title: "book_item goes out signed, presenting the agent token",
+      title: "book_item goes out signed, presenting the person token",
       actor: "Egress → booking provider",
-      body: "The agent's book_item is a plain POST. The egress proxy signs it with RFC 9421 HTTP Message Signatures, covering the method, authority, path and content-digest, and puts the agent token in Signature-Key. The provider verifies the signature, verifies the agent token against the Agent Provider's published keys, and checks the token's cnf key is the key that signed.",
+      body: "The agent's book_item is a plain POST. The egress proxy signs it with RFC 9421 HTTP Message Signatures, covering the method, authority, path and content-digest, and puts the mission's person token in Signature-Key. The provider verifies the signature, verifies the token against Acme's published keys, and checks the token's cnf key is the key that signed.",
       sources: [
         {
           kind: "contract",
@@ -127,20 +174,26 @@ export const flow = {
     },
     {
       id: "challenge",
-      title: "401: the provider asks for an auth token, and says for what",
+      title: "401: the provider asks for an auth token, for one proposal",
       actor: "Booking provider → egress",
-      body: "An agent token says who the agent is, not what it may do. So the provider answers 401 with AAuth-Requirement: requirement=auth-token and a resource token: the provider, the agent's key thumbprint, the agent token it saw, the scope booking.reserve, and the exact quote, purpose and payer. Its audience is the Person Server the agent token named.",
+      body: "A person token says who the agent acts for and under which mission, not what it may buy. So the provider publishes the booking as an R3 proposal (the quote, purpose and payer) and answers 401 with AAuth-Requirement: requirement=auth-token and a resource token naming the proposal by its hash, and carrying the mission's s256 across. Only Acme, signing as itself, can read the proposal.",
       sources: [
         {
           kind: "example",
           path: "lib/booking.ts",
-          region: "challenge",
-          label: "the resource token",
+          region: "propose",
+          label: "the proposal and resource token",
         },
         {
           kind: "contract",
           path: "resource-token-claims.json",
           label: "its claims",
+        },
+        {
+          kind: "example",
+          path: "lib/booking.ts",
+          region: "serve-r3",
+          label: "the proposal, to Acme alone",
         },
       ],
       lights: { type: "booking.challenged" },
@@ -149,7 +202,7 @@ export const flow = {
       id: "exchange",
       title: "Egress takes the resource token to Acme",
       actor: "Egress → Acme's Person Server",
-      body: "The egress proxy holds the request and calls Acme's token endpoint directly, signed with the same key: the resource token, the agent token it presented, and a login hint naming Sam. Acme checks the signature, that the agent token comes from an Agent Provider it trusts, that the resource token comes from a resource it trusts and is addressed to Acme, and that both tokens name the same agent key.",
+      body: "The egress proxy holds the request and calls Acme's token endpoint, signed with the same key: the resource token and the person token it presented. Acme checks the signature and the agent token, that the resource token is addressed to Acme and names the same agent key and mission, then reads the proposal and weighs its quote against what is left of the trip's budget.",
       sources: [
         {
           kind: "contract",
@@ -166,23 +219,17 @@ export const flow = {
           kind: "example",
           path: "lib/acme/person-server.ts",
           region: "auth-token",
-          label: "Acme: verify the request, apply policy",
+          label: "Acme: verify the request, weigh the budget",
         },
       ],
-      lights: { type: "acme.policy_checked" },
     },
     {
       id: "booked",
-      title: "Within policy: 200, an auth token, and the flight is booked",
+      title:
+        "Within the budget: 200, and the flight is booked with no one asked",
       actor: "Acme → egress → provider",
-      body: "The fare is under Acme's flight cap for Sydney, so Acme answers 200 with an aa-auth+jwt: Sam under a pseudonym only this provider sees, bound to the agent's key, carrying the provider's authorization details unchanged. Egress caches it and replays the held request presenting it. The provider books only the quote the token names, so the token cannot buy anything else.",
+      body: "QF74 in economy, $1,650 of the trip's $3,000. Acme answers 200 with an aa-auth+jwt: Sam under a pseudonym only this provider sees, bound to the agent's key, naming the proposal by r3_s256. Egress caches it and replays the held request presenting it. The provider books only what the proposal names, so the token cannot buy anything else.",
       sources: [
-        {
-          kind: "example",
-          path: "lib/acme/person-server.ts",
-          region: "policy",
-          label: "Acme's policy",
-        },
         {
           kind: "contract",
           path: "auth-token-claims.json",
@@ -193,21 +240,15 @@ export const flow = {
     },
     {
       id: "escalate",
-      title: "The QT is over the Sydney cap: 202, and Acme emails Dana",
+      title: "The QT is over what is left: 202, and Acme emails Dana",
       actor: "Acme → egress → Agent",
-      body: "$420 a night against a $300 cap. Acme doesn't refuse: it looks up Sam's manager in its own directory, emails Dana a link and a six-digit code, and answers 202 with a Location to poll. Egress can't hold a chat open for a person, so it answers the agent 428 approval-pending and hands the pending URL to the platform. The agent tells Sam it's waiting on Dana.",
+      body: "Four nights at $420 is $1,680, and $1,350 is left. Acme doesn't refuse: it emails Dana again and answers 202 with a Location to poll. Egress can't hold a chat open for a person, so it answers the agent 428 approval-pending and hands the pending URL to the platform. The agent tells Sam it's waiting on Dana.",
       sources: [
         {
           kind: "example",
           path: "lib/acme/person-server.ts",
           region: "ask",
-          label: "Acme: find the manager, email a code",
-        },
-        {
-          kind: "example",
-          path: "lib/acme/mail.ts",
-          region: "email",
-          label: "Acme: the email",
+          label: "Acme: find the approver, email a code",
         },
         {
           kind: "contract",
@@ -218,25 +259,10 @@ export const flow = {
       lights: { type: "acme.approval_requested" },
     },
     {
-      id: "approve",
-      title: "Dana approves with the code",
-      actor: "Approver → Acme's Person Server",
-      body: "Dana opens Acme's page from the email, sees the signed quote and why it needs approval, and enters the code. The code proves the person approving reads Dana's inbox. Acme issues the auth token for exactly this quote. Had Dana declined, the pending URL would answer 403 and the agent would offer something within policy.",
-      sources: [
-        {
-          kind: "example",
-          path: "lib/acme/person-server.ts",
-          region: "decide",
-          label: "Acme: check the code, issue the token",
-        },
-      ],
-      lights: { type: "acme.decided", where: { status: "approved" } },
-    },
-    {
       id: "resume",
-      title: "The chat picks up, and the QT is booked",
+      title: "Dana approves, the chat picks up, and the QT is booked",
       actor: "Platform → Agent → provider",
-      body: "The data plane has been polling the pending URL, signed with the session key; only the agent that asked may read it. The poll returns the auth token, egress caches it, and the platform posts a turn into Sam's conversation. The agent books the QT again, egress presents the token, and the provider books exactly the quote Dana approved.",
+      body: "The data plane has been polling the pending URL, signed with the session key; only the agent that asked may read it. Once Dana enters the code, the poll returns the auth token, egress caches it, and the platform posts a turn into Sam's conversation. The agent books the QT again, egress presents the token, and the provider books exactly the proposal Dana approved. Had Dana declined, the pending URL would answer 403 and the agent would offer something within budget.",
       sources: [
         {
           kind: "example",
@@ -254,6 +280,21 @@ export const flow = {
         type: "booking.reserved",
         where: { kind: "hotel", payer: "company" },
       },
+    },
+    {
+      id: "complete",
+      title: "The trip is booked, and the mission ends",
+      actor: "Agent → Acme → Sam",
+      body: "complete_trip proposes the mission complete, with a summary of what was booked. Sam accepts it, and Acme ends the mission: a person token or auth token under it is refused from then on, so nothing more can be booked against this trip.",
+      sources: [
+        {
+          kind: "example",
+          path: "lib/acme/person-server.ts",
+          region: "missions",
+          label: "Acme: missions",
+        },
+      ],
+      lights: { type: "acme.mission_completed" },
     },
   ],
 };

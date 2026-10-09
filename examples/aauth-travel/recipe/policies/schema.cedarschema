@@ -33,5 +33,8 @@ entity Booking {
   total_cents?: Long,
 };
 
+// The session's AAuth mission, when it has one: what the person approved.
+type Mission = { s256: String, resources: Set<String> };
+
 action "booking.search" appliesTo { principal: [Person], resource: [Search], context: {} };
-action "booking.reserve" appliesTo { principal: [Person], resource: [Booking], context: {} };
+action "booking.reserve" appliesTo { principal: [Person], resource: [Booking], context: { mission?: Mission } };

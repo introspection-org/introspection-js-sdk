@@ -7,15 +7,17 @@
   },
   "body": {
     "resource_token": "eyJ…(from the provider's 401)",
-    "presented_token": "eyJ…(the agent token the provider saw)",
-    "login_hint": "slack:T0ACME/U0SAM"
+    "presented_token": "eyJ…(the person token the provider saw)"
   },
   "answers": {
-    "within_policy": {
+    "within_the_trip_budget": {
       "status": 200,
-      "body": { "auth_token": "eyJ…", "expires_in": 3600 }
+      "body": {
+        "auth_token": "eyJ…",
+        "expires_in": 3600
+      }
     },
-    "over_policy": {
+    "over_what_is_left": {
       "status": 202,
       "headers": {
         "Location": "https://ps.acme.example/ps/pending/0199…",
@@ -24,8 +26,18 @@
     },
     "declined": {
       "status": 403,
-      "body": { "type": "…/denied", "detail": "Dana Park declined" }
+      "body": {
+        "type": "…/denied",
+        "detail": "Dana Park declined"
+      }
+    },
+    "no_mission": {
+      "status": 403,
+      "body": {
+        "error": "access_denied",
+        "error_description": "Acme books travel only under an approved trip"
+      }
     }
   },
-  "note": "Egress makes this call as the agent: signed with the session key, presenting the agent token. login_hint is the session's person, which the platform knows from the Slack DM."
+  "note": "Egress makes this call as the agent: signed with the session key, presenting the agent token. Acme fetches the proposal at r3_uri, checks it against r3_s256, and weighs the quote against what is left of the mission's budget."
 }

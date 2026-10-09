@@ -3,15 +3,15 @@
   "headers": {
     "Content-Type": "application/json",
     "Content-Digest": "sha-256=:…:",
-    "Signature-Input": "sig=(\"@method\" \"@authority\" \"@path\" \"signature-key\" \"content-type\" \"content-digest\");created=1791158020",
+    "Signature-Input": "sig=(\"@method\" \"@authority\" \"@path\" \"signature-key\" \"content-digest\" \"content-type\");created=1791158020",
     "Signature": "sig=:…(the session key):",
-    "Signature-Key": "sig=jwt;jwt=\"eyJhbGciOiJFUzI1NiIsInR5cCI6ImFhLWFnZW50K2p3dCJ9.…(agent token)\""
+    "Signature-Key": "sig=jwt;jwt=\"eyJhbGciOiJFZDI1NTE5IiwidHlwIjoiYWEtcGVyc29uK2p3dCJ9.…(person token, mission_s256 inside)\""
   },
   "body": {
     "offer_id": "ht:qt-sydney:2026-10-19:2026-10-23",
-    "quote": "eyJhbGciOiJFUzI1NiIsImtpZCI6ImZsaWdodHNlY3Rvci1ib29raW5nLTEifQ.…",
+    "quote": "eyJhbGciOiJFZDI1NTE5Iiwia2lkIjoiZmxpZ2h0c2VjdG9yLWJvb2tpbmctMSJ9.…",
     "purpose": "business",
     "payer": "company"
   },
-  "note": "The agent's book_item sent only the body. Egress signed it with the session key and presented the best token it holds for this resource: an auth token, else the agent token."
+  "note": "The agent's book_item sent only the body. Egress signed it with the session key and presented the best token it holds for this resource: an auth token for this booking, else the mission's person token, else the agent token."
 }

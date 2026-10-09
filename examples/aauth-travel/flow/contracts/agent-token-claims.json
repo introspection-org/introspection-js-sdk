@@ -1,6 +1,6 @@
 {
   "header": {
-    "alg": "ES256",
+    "alg": "Ed25519",
     "typ": "aa-agent+jwt",
     "kid": "agent-provider-1"
   },
@@ -9,7 +9,12 @@
     "dwk": "aauth-agent.json",
     "sub": "aauth:intro_app_flightsector@app.introspection.example",
     "cnf": {
-      "jwk": { "kty": "EC", "crv": "P-256", "x": "…", "y": "…", "alg": "ES256" }
+      "jwk": {
+        "kty": "OKP",
+        "crv": "Ed25519",
+        "x": "…",
+        "alg": "Ed25519"
+      }
     },
     "ps": "https://ps.acme.example",
     "introspection_session": "0199…",

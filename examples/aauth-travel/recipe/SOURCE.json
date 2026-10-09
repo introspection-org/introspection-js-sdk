@@ -1,6 +1,6 @@
 {
   "repository": "https://github.com/introspection-org/recipe-travel-agent",
-  "commit": "856b5dcc25d7724807041747bafb549dd3c76f84",
+  "commit": "9774dc53eb4c4b349d19c4386672c4617431a1bb",
   "files": [
     "SYSTEM.md",
     "package.json",

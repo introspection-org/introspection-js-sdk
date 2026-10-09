@@ -8,6 +8,11 @@ permit (principal, action == Action::"booking.search", resource);
 @id("reserve")
 permit (principal, action == Action::"booking.reserve", resource);
 
+@id("missionless-booking")
+@reason("propose the trip first: a booking needs the traveller's approved mission")
+forbid (principal, action == Action::"booking.reserve", resource)
+unless { context has mission };
+
 @id("no-first-class")
 @reason("first class is never booked")
 forbid (principal, action == Action::"booking.reserve", resource)

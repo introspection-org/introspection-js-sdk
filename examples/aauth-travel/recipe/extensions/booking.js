@@ -1,18 +1,19 @@
 // Flight Sector booking tools: plain HTTPS calls through the platform's egress.
-// The booking connector is `aauth`: egress signs each request with the
-// session's key, presents the agent token, and exchanges the provider's
-// resource token at the traveller's Person Server for an auth token. Nothing
-// here holds a credential or knows about AAuth; a booking awaiting the
-// traveller's company comes back as 428, and the runtime reports it
-// (introspection-cloud connectors-aauth-b2b2c.md §12.3).
+// A trip is an AAuth mission: the agent proposes it to the traveller's Person
+// Server, which the egress reaches at person-server.aauth, and the traveller's
+// company approves it once. Bookings then go to the `aauth` booking connector;
+// egress signs them and gets each auth token under the mission. Nothing here
+// holds a credential; anything awaiting a person comes back as 428, and the
+// runtime reports it (introspection-cloud connectors-aauth-b2b2c.md §12.3).
 import { Type } from "typebox";
 
 const BOOKING_API_URL = (process.env.BOOKING_API_URL ?? "https://api.booking.example").replace(/\/$/, "");
+const PERSON_SERVER_URL = "https://person-server.aauth";
 const REQUEST_TIMEOUT_MS = 20_000;
 
-async function call(path, body, signal) {
+async function call(path, body, signal, base = BOOKING_API_URL) {
   const timeout = AbortSignal.timeout(REQUEST_TIMEOUT_MS);
-  const response = await fetch(`${BOOKING_API_URL}${path}`, {
+  const response = await fetch(`${base}${path}`, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify(body),
@@ -31,6 +32,39 @@ function result(res) {
 }
 
 export function registerBookingTools(pi) {
+  pi.registerTool({
+    name: "propose_trip",
+    label: "Propose the trip",
+    description:
+      "Propose the whole trip to the traveller's company before booking anything. Its manager approves it once, budget and all; bookings within it then need no one. Returns the approved mission and its `s256`.",
+    promptSnippet: "Propose the trip, with its budget, before booking anything.",
+    promptGuidelines: [
+      "Describe the trip in Markdown: who travels, where, when, what will be booked, and the budget as \"up to $N\".",
+      "Propose once per trip, before the first booking.",
+    ],
+    parameters: Type.Object({
+      description: Type.String({ description: "Markdown: the trip, ending with its budget, e.g. 'up to $3,000'" }),
+    }),
+    async execute(_toolCallId, params, signal) {
+      return result(await call("/mission", { description: params.description }, signal, PERSON_SERVER_URL));
+    },
+  });
+
+  pi.registerTool({
+    name: "complete_trip",
+    label: "Report the trip booked",
+    description: "Tell the traveller's company the trip is booked. The traveller accepts it, which ends the mission.",
+    parameters: Type.Object({
+      s256: Type.String({ description: "The mission's s256, from propose_trip" }),
+      summary: Type.String({ description: "Markdown: what was booked, and the total" }),
+    }),
+    async execute(_toolCallId, params, signal) {
+      return result(
+        await call(`/mission/${params.s256}`, { action: "completion", summary: params.summary }, signal, PERSON_SERVER_URL),
+      );
+    },
+  });
+
   pi.registerTool({
     name: "search_offers",
     label: "Search travel",
@@ -56,7 +90,7 @@ export function registerBookingTools(pi) {
     name: "book_item",
     label: "Book travel",
     description:
-      "Reserve one offer. The traveller's company approves each booking: within its policy that is immediate, otherwise it goes to their manager.",
+      "Reserve one offer under the approved trip. Within its budget that is immediate; over what is left, it goes to the traveller's manager.",
     promptSnippet: "Reserve one signed offer the traveller has confirmed.",
     promptGuidelines: [
       "Set purpose to business only for legs that serve the work trip; anything else is personal with payer traveler.",
