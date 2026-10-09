@@ -19,6 +19,8 @@ export async function POST(
         "invalid_request",
         "a code and a verdict of approve or decline are required",
       );
-    return Response.json(await decide(id, body.code, verdict));
+    const budget =
+      body.budget == null ? undefined : Math.round(Number(body.budget) * 100);
+    return Response.json(await decide(id, body.code, verdict, budget));
   });
 }

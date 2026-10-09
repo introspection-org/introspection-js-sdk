@@ -8,11 +8,17 @@ export function ApprovalForm({
   decisionUrl,
   sentTo,
   initialStatus,
+  budget,
 }: {
   decisionUrl: string;
   sentTo: string;
   initialStatus: string;
+  /** Set when approving a trip: Dana sets its budget, starting from the agent's suggestion. */
+  budget?: { suggested_cents: number | null };
 }) {
+  const [dollars, setDollars] = useState(
+    budget?.suggested_cents ? String(budget.suggested_cents / 100) : "",
+  );
   const [digits, setDigits] = useState<string[]>(Array(DIGITS).fill(""));
   const [status, setStatus] = useState(initialStatus);
   const [error, setError] = useState("");
@@ -47,7 +53,11 @@ export function ApprovalForm({
     const response = await fetch(decisionUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ code, verdict }),
+      body: JSON.stringify({
+        code,
+        verdict,
+        ...(budget ? { budget: Number(dollars) } : {}),
+      }),
     });
     const body = await response.json().catch(() => ({}));
     setBusy(false);
@@ -64,6 +74,18 @@ export function ApprovalForm({
 
   return (
     <form onSubmit={(event) => event.preventDefault()}>
+      {budget && (
+        <label className="acme-budget">
+          Trip budget, in dollars
+          <input
+            value={dollars}
+            inputMode="numeric"
+            onChange={(event) =>
+              setDollars(event.target.value.replace(/[^\d]/g, ""))
+            }
+          />
+        </label>
+      )}
       <p>Enter the six-digit code we emailed to {sentTo}.</p>
       <div className="acme-code">
         {digits.map((digit, index) => (
@@ -106,7 +128,9 @@ export function ApprovalForm({
         <button
           type="button"
           className="approve"
-          disabled={busy || code.length < DIGITS}
+          disabled={
+            busy || code.length < DIGITS || (budget && !Number(dollars))
+          }
           onClick={() => submit("approve")}
         >
           Approve

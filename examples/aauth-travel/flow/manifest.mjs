@@ -60,7 +60,7 @@ export const flow = {
       id: "mission",
       title: "The agent proposes the trip, and Acme asks Dana once",
       actor: "Agent → egress → Acme's Person Server",
-      body: "Before booking anything, propose_trip posts the trip to person-server.aauth, a name only the egress answers. Egress adds the booking provider and Sam, signs as the agent, and posts it to Acme's mission endpoint. Acme reads the budget from the description and emails Sam's manager, Dana, a link and a six-digit code, answering 202 while she decides.",
+      body: "Before booking anything, propose_trip posts the trip to person-server.aauth, a name only the egress answers. Egress adds the booking provider and Sam, signs as the agent, and posts it to Acme's mission endpoint. Acme emails Sam's manager, Dana, a link and a six-digit code, answering 202 while she decides. The budget is Acme's to set: the agent’s “up to $N” is only a suggestion.",
       sources: [
         {
           kind: "contract",
@@ -86,7 +86,7 @@ export const flow = {
       id: "mission-approved",
       title: "Dana approves the trip with the code",
       actor: "Approver → Acme's Person Server",
-      body: "Dana opens Acme's page from the email, reads the trip and its budget, and enters the code, which proves the person approving reads Dana's inbox. Acme mints the mission: its bytes, their SHA-256 as s256, and a person token for the booking provider carrying mission_s256. Egress keeps the mission and the person token; the agent gets only the s256.",
+      body: "Dana opens Acme's page from the email, reads the trip, sets its budget (starting from the agent's suggestion), and enters the code, which proves the person approving reads Dana's inbox. Acme mints the mission: its bytes, their SHA-256 as s256, and a person token for the booking provider carrying mission_s256. Egress keeps the mission and the person token; the agent gets only the s256.",
       sources: [
         {
           kind: "example",

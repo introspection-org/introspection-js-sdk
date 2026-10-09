@@ -43,6 +43,7 @@ export default async function ApprovePage({
         decisionUrl={`${onAcme ? "" : "/acme"}/ps/approvals/${id}`}
         sentTo={approval.sentTo}
         initialStatus={approval.status}
+        budget={approval.budget}
       />
     </div>
   );

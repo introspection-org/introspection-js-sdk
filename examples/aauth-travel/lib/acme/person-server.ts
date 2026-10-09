@@ -104,8 +104,12 @@ interface Pending {
   person: Person;
   item: string;
   reasons: string[];
+  /** Set when approving also sets a trip's budget: the agent's figure, if it named one. */
+  budget?: { suggested_cents: number | null };
   /** What approval grants: the response the agent's next poll gets. */
-  onApprove: () => Promise<Record<string, unknown>>;
+  onApprove: (decision: {
+    budget_cents?: number;
+  }) => Promise<Record<string, unknown>>;
   status: "pending" | "approved" | "denied" | "expired";
   result?: Record<string, unknown>;
   codeHash: string;
@@ -248,7 +252,7 @@ function missionOf(agent: Agent, s: unknown): Mission {
   return mission;
 }
 
-/** The trip's budget, as the agent states it in the description: "up to $6,000". */
+/** The agent's suggested budget, if the description names one: "up to $6,000". Dana sets the real one. */
 function budgetOf(description: string): number | null {
   const match = /up to \$([\d,]+)/i.exec(description);
   return match ? Number(match[1].replace(/,/g, "")) * 100 : null;
@@ -264,13 +268,9 @@ export async function proposeMission(request: Request): Promise<Response> {
   const params = readBody(body);
   const person = personFor(agent, params.login_hint);
   const description = String(params.description ?? "");
-  const budget = budgetOf(description);
-  if (!description || budget === null)
-    throw new AAuthError(
-      400,
-      "invalid_request",
-      'describe the trip, with its budget: "up to $N"',
-    );
+  if (!description)
+    throw new AAuthError(400, "invalid_request", "describe the trip");
+  const suggested = budgetOf(description);
   const resources = (Array.isArray(params.resources) ? params.resources : [])
     .map(String)
     .filter((r) => RESOURCES.includes(r));
@@ -279,8 +279,14 @@ export async function proposeMission(request: Request): Promise<Response> {
     person,
     approver: managerOf(person),
     item: description,
-    reasons: [`A trip for ${person.name}, up to ${dollars(budget)}`],
-    onApprove: async () => {
+    reasons: [
+      `A trip for ${person.name}: you set its budget`,
+      suggested === null
+        ? "The agent suggested no budget"
+        : `The agent suggested up to ${dollars(suggested)}`,
+    ],
+    budget: { suggested_cents: suggested },
+    onApprove: async ({ budget_cents: budget = 0 }) => {
       const approved_at = new Date().toISOString();
       const expires_at = now() + MISSION_TTL_SECONDS;
       const bytes = JSON.stringify({
@@ -637,6 +643,7 @@ export async function decide(
   id: string,
   code: string,
   verdict: "approve" | "decline",
+  budgetCents?: number,
 ) {
   const pending = state.pending.get(id);
   if (!pending) throw new AAuthError(404, "not_found", "no such request");
@@ -650,10 +657,16 @@ export async function decide(
     !timingSafeEqual(hash(code), Buffer.from(pending.codeHash, "hex"))
   )
     throw new AAuthError(401, "invalid_code", "that code isn't right");
+  if (
+    verdict === "approve" &&
+    pending.budget &&
+    !(Number.isInteger(budgetCents) && budgetCents! > 0)
+  )
+    throw new AAuthError(400, "invalid_request", "set the trip's budget");
   if (verdict === "decline") {
     pending.status = "denied";
   } else {
-    pending.result = await pending.onApprove();
+    pending.result = await pending.onApprove({ budget_cents: budgetCents });
     pending.status = "approved";
   }
   record("acme.decided", `${pending.approver.name} ${pending.status}`, {
@@ -677,5 +690,6 @@ export function approvalSummary(id: string) {
     sentTo: `${user.slice(0, 1)}•••@${domain}`,
     item: pending.item,
     reasons: pending.reasons,
+    budget: pending.budget,
   };
 }

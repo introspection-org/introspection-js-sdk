@@ -36,14 +36,14 @@ export function registerBookingTools(pi) {
     name: "propose_trip",
     label: "Propose the trip",
     description:
-      "Propose the whole trip to the traveller's company before booking anything. Its manager approves it once, budget and all; bookings within it then need no one. Returns the approved mission and its `s256`.",
+      "Propose the whole trip to the traveller's company before booking anything. Its manager approves it once and sets its budget; bookings within it then need no one. Returns the approved mission (its `budget_cents` is the budget the manager set) and its `s256`.",
     promptSnippet: "Propose the trip, with its budget, before booking anything.",
     promptGuidelines: [
-      "Describe the trip in Markdown: who travels, where, when, what will be booked, and the budget as \"up to $N\".",
+      "Describe the trip in Markdown: who travels, where, when, what will be booked, and a suggested budget as \"up to $N\". The manager sets the actual budget.",
       "Propose once per trip, before the first booking.",
     ],
     parameters: Type.Object({
-      description: Type.String({ description: "Markdown: the trip, ending with its budget, e.g. 'up to $3,000'" }),
+      description: Type.String({ description: "Markdown: the trip, ending with a suggested budget, e.g. 'up to $3,000'" }),
     }),
     async execute(_toolCallId, params, signal) {
       return result(await call("/mission", { description: params.description }, signal, PERSON_SERVER_URL));

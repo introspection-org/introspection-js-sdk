@@ -153,3 +153,16 @@
   font-size: 1.1rem;
   font-weight: 600;
 }
+
+.acme-budget {
+  display: grid;
+  gap: 0.4rem;
+  margin-bottom: 1rem;
+  font-weight: 600;
+}
+
+.acme-budget input {
+  font: inherit;
+  padding: 0.5rem 0.6rem;
+  max-width: 12rem;
+}

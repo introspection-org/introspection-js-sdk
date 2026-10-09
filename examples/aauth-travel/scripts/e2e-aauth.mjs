@@ -105,7 +105,7 @@ async function newAgent() {
 }
 
 /** Run `act` while approving the email it causes; the approver's code is in the server log. */
-async function approving(act, verdict = "approve") {
+async function approving(act, verdict = "approve", budget) {
   check(LOG, "set E2E_SERVER_LOG to the dev server's log file");
   const offset = readFileSync(LOG, "utf8").length;
   const pending = act();
@@ -123,7 +123,7 @@ async function approving(act, verdict = "approve") {
   const decided = await fetch(`${PS}/ps/approvals/${id}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ code, verdict }),
+    body: JSON.stringify({ code, verdict, ...(budget ? { budget } : {}) }),
   });
   check(decided.ok, `decision answered ${decided.status}`);
   return pending;
@@ -183,30 +183,36 @@ function reserve(agent, missionS256, chosen) {
 const agent = await newAgent();
 let mission;
 
-await scenario("Dana approves Sam's trip once, as a mission", async () => {
-  const response = await approving(() =>
-    missionCall(agent, `${PS}/ps/mission`, {
-      description: TRIP,
-      resources: [BOOKING],
-      login_hint: SAM,
-    }),
-  );
-  check(response.ok, `mission answered ${response.status}`);
-  mission = await response.json();
-  const bytes = Buffer.from(mission.mission, "base64url");
-  check(
-    createHash("sha256").update(bytes).digest("base64url") === mission.s256,
-    "s256 is the blob's hash",
-  );
-  check(
-    JSON.parse(bytes).budget_cents === 300000,
-    "the blob carries the $3,000 budget",
-  );
-  check(
-    mission.person_tokens?.[BOOKING],
-    "a person token for the booking provider came with it",
-  );
-});
+await scenario(
+  "Dana approves Sam's trip once, and sets its budget",
+  async () => {
+    const response = await approving(
+      () =>
+        missionCall(agent, `${PS}/ps/mission`, {
+          description: TRIP,
+          resources: [BOOKING],
+          login_hint: SAM,
+        }),
+      "approve",
+      3000,
+    );
+    check(response.ok, `mission answered ${response.status}`);
+    mission = await response.json();
+    const bytes = Buffer.from(mission.mission, "base64url");
+    check(
+      createHash("sha256").update(bytes).digest("base64url") === mission.s256,
+      "s256 is the blob's hash",
+    );
+    check(
+      JSON.parse(bytes).budget_cents === 300000,
+      "the blob carries the $3,000 Dana set",
+    );
+    check(
+      mission.person_tokens?.[BOOKING],
+      "a person token for the booking provider came with it",
+    );
+  },
+);
 
 await scenario(
   "within the trip's budget, the flight books with no one asked",

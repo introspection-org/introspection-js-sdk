@@ -4,7 +4,7 @@
 
 Sam works at Acme, one of Flight Sector's customers, and asks Flight Sector's travel agent for a week in Sydney. The agent holds no credential. The platform is its Agent Provider: it mints an agent token for the session and signs every request the agent makes with the session's key. The trip is an AAuth mission: Acme's Person Server, which speaks for Sam, has Sam's manager approve it once, budget and all. The booking provider is a native AAuth resource. Flight Sector's own rails, Cedar policies shipped in the recipe, run in the platform first. Then each booking is AAuth's three-party flow: the resource names it in a proposal only Acme can read, and Acme issues an auth token within the trip's budget, asks the manager again, or refuses.
 
-Recipe code is from [recipe-travel-agent@037922b](https://github.com/introspection-org/recipe-travel-agent/tree/037922bbf85cfaba2a3b0e29ca13994a68a71f6b). Platform steps show the contract on the wire, not the code.
+Recipe code is from [recipe-travel-agent@820136c](https://github.com/introspection-org/recipe-travel-agent/tree/820136c856b019b6a931418ddee2a9cf26f7e1fc). Platform steps show the contract on the wire, not the code.
 
 ## 1. Sam asks for a trip
 
@@ -20,7 +20,7 @@ You are Flight Sector's travel agent. Employees of Flight Sector's customer comp
 ## A trip is a mission
 
 1. Confirm the trip: origin, destination, dates, which legs are for work, and a budget.
-2. Use `search_offers` to price it, then propose the whole trip with `propose_trip`: who travels, where, when, what you will book, and the budget as "up to $N". The employee's manager approves it once.
+2. Use `search_offers` to price it, then propose the whole trip with `propose_trip`: who travels, where, when, what you will book, and a suggested budget as "up to $N". The employee's manager approves it once and sets the budget; the approved mission's `budget_cents` is what you have to spend.
 3. Once approved, book one item at a time with `book_item`, passing the offer's `offer_id` and `quote` unchanged, with its purpose and who pays.
 4. When everything is booked, report it with `complete_trip`; the employee accepts it.
 
@@ -81,17 +81,17 @@ export function registerBookingTools(pi) {
     name: "propose_trip",
     label: "Propose the trip",
     description:
-      "Propose the whole trip to the traveller's company before booking anything. Its manager approves it once, budget and all; bookings within it then need no one. Returns the approved mission and its `s256`.",
+      "Propose the whole trip to the traveller's company before booking anything. Its manager approves it once and sets its budget; bookings within it then need no one. Returns the approved mission (its `budget_cents` is the budget the manager set) and its `s256`.",
     promptSnippet:
       "Propose the trip, with its budget, before booking anything.",
     promptGuidelines: [
-      'Describe the trip in Markdown: who travels, where, when, what will be booked, and the budget as "up to $N".',
+      'Describe the trip in Markdown: who travels, where, when, what will be booked, and a suggested budget as "up to $N". The manager sets the actual budget.',
       "Propose once per trip, before the first booking.",
     ],
     parameters: Type.Object({
       description: Type.String({
         description:
-          "Markdown: the trip, ending with its budget, e.g. 'up to $3,000'",
+          "Markdown: the trip, ending with a suggested budget, e.g. 'up to $3,000'",
       }),
     }),
     async execute(_toolCallId, params, signal) {
@@ -233,7 +233,7 @@ When the session starts, the control plane, acting as Agent Provider, signs an a
 
 _Agent → egress → Acme's Person Server_
 
-Before booking anything, propose_trip posts the trip to person-server.aauth, a name only the egress answers. Egress adds the booking provider and Sam, signs as the agent, and posts it to Acme's mission endpoint. Acme reads the budget from the description and emails Sam's manager, Dana, a link and a six-digit code, answering 202 while she decides.
+Before booking anything, propose_trip posts the trip to person-server.aauth, a name only the egress answers. Egress adds the booking provider and Sam, signs as the agent, and posts it to Acme's mission endpoint. Acme emails Sam's manager, Dana, a link and a six-digit code, answering 202 while she decides. The budget is Acme's to set: the agent’s “up to $N” is only a suggestion.
 
 **the proposal, and what comes back** · `platform contract: mission-proposal.json`
 
@@ -313,7 +313,7 @@ function missionOf(agent: Agent, s: unknown): Mission {
   return mission;
 }
 
-/** The trip's budget, as the agent states it in the description: "up to $6,000". */
+/** The agent's suggested budget, if the description names one: "up to $6,000". Dana sets the real one. */
 function budgetOf(description: string): number | null {
   const match = /up to \$([\d,]+)/i.exec(description);
   return match ? Number(match[1].replace(/,/g, "")) * 100 : null;
@@ -329,13 +329,9 @@ export async function proposeMission(request: Request): Promise<Response> {
   const params = readBody(body);
   const person = personFor(agent, params.login_hint);
   const description = String(params.description ?? "");
-  const budget = budgetOf(description);
-  if (!description || budget === null)
-    throw new AAuthError(
-      400,
-      "invalid_request",
-      'describe the trip, with its budget: "up to $N"',
-    );
+  if (!description)
+    throw new AAuthError(400, "invalid_request", "describe the trip");
+  const suggested = budgetOf(description);
   const resources = (Array.isArray(params.resources) ? params.resources : [])
     .map(String)
     .filter((r) => RESOURCES.includes(r));
@@ -344,8 +340,14 @@ export async function proposeMission(request: Request): Promise<Response> {
     person,
     approver: managerOf(person),
     item: description,
-    reasons: [`A trip for ${person.name}, up to ${dollars(budget)}`],
-    onApprove: async () => {
+    reasons: [
+      `A trip for ${person.name}: you set its budget`,
+      suggested === null
+        ? "The agent suggested no budget"
+        : `The agent suggested up to ${dollars(suggested)}`,
+    ],
+    budget: { suggested_cents: suggested },
+    onApprove: async ({ budget_cents: budget = 0 }) => {
       const approved_at = new Date().toISOString();
       const expires_at = now() + MISSION_TTL_SECONDS;
       const bytes = JSON.stringify({
@@ -471,7 +473,7 @@ export async function sendApprovalEmail(email: ApprovalEmail): Promise<void> {
 
 _Approver → Acme's Person Server_
 
-Dana opens Acme's page from the email, reads the trip and its budget, and enters the code, which proves the person approving reads Dana's inbox. Acme mints the mission: its bytes, their SHA-256 as s256, and a person token for the booking provider carrying mission_s256. Egress keeps the mission and the person token; the agent gets only the s256.
+Dana opens Acme's page from the email, reads the trip, sets its budget (starting from the agent's suggestion), and enters the code, which proves the person approving reads Dana's inbox. Acme mints the mission: its bytes, their SHA-256 as s256, and a person token for the booking provider carrying mission_s256. Egress keeps the mission and the person token; the agent gets only the s256.
 
 **Acme: check the code** · `examples/aauth-travel/lib/acme/person-server.ts`
 
@@ -481,6 +483,7 @@ export async function decide(
   id: string,
   code: string,
   verdict: "approve" | "decline",
+  budgetCents?: number,
 ) {
   const pending = state.pending.get(id);
   if (!pending) throw new AAuthError(404, "not_found", "no such request");
@@ -494,10 +497,16 @@ export async function decide(
     !timingSafeEqual(hash(code), Buffer.from(pending.codeHash, "hex"))
   )
     throw new AAuthError(401, "invalid_code", "that code isn't right");
+  if (
+    verdict === "approve" &&
+    pending.budget &&
+    !(Number.isInteger(budgetCents) && budgetCents! > 0)
+  )
+    throw new AAuthError(400, "invalid_request", "set the trip's budget");
   if (verdict === "decline") {
     pending.status = "denied";
   } else {
-    pending.result = await pending.onApprove();
+    pending.result = await pending.onApprove({ budget_cents: budgetCents });
     pending.status = "approved";
   }
   record("acme.decided", `${pending.approver.name} ${pending.status}`, {
@@ -1453,7 +1462,7 @@ function missionOf(agent: Agent, s: unknown): Mission {
   return mission;
 }
 
-/** The trip's budget, as the agent states it in the description: "up to $6,000". */
+/** The agent's suggested budget, if the description names one: "up to $6,000". Dana sets the real one. */
 function budgetOf(description: string): number | null {
   const match = /up to \$([\d,]+)/i.exec(description);
   return match ? Number(match[1].replace(/,/g, "")) * 100 : null;
@@ -1469,13 +1478,9 @@ export async function proposeMission(request: Request): Promise<Response> {
   const params = readBody(body);
   const person = personFor(agent, params.login_hint);
   const description = String(params.description ?? "");
-  const budget = budgetOf(description);
-  if (!description || budget === null)
-    throw new AAuthError(
-      400,
-      "invalid_request",
-      'describe the trip, with its budget: "up to $N"',
-    );
+  if (!description)
+    throw new AAuthError(400, "invalid_request", "describe the trip");
+  const suggested = budgetOf(description);
   const resources = (Array.isArray(params.resources) ? params.resources : [])
     .map(String)
     .filter((r) => RESOURCES.includes(r));
@@ -1484,8 +1489,14 @@ export async function proposeMission(request: Request): Promise<Response> {
     person,
     approver: managerOf(person),
     item: description,
-    reasons: [`A trip for ${person.name}, up to ${dollars(budget)}`],
-    onApprove: async () => {
+    reasons: [
+      `A trip for ${person.name}: you set its budget`,
+      suggested === null
+        ? "The agent suggested no budget"
+        : `The agent suggested up to ${dollars(suggested)}`,
+    ],
+    budget: { suggested_cents: suggested },
+    onApprove: async ({ budget_cents: budget = 0 }) => {
       const approved_at = new Date().toISOString();
       const expires_at = now() + MISSION_TTL_SECONDS;
       const bytes = JSON.stringify({
