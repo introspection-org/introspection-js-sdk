@@ -1,6 +1,6 @@
 /**
- * Flight Sector's world for the demo: two customer companies with their own
- * travel policy, their employees, and the inventory the booking provider sells.
+ * Flight Sector's world for the demo: two customer companies' employees, and
+ * the inventory the booking provider sells.
  * Slack ids match the platform's local Slack emulator seed; on a real
  * workspace, set ACME_WORKSPACE_ID and ACME_SAM_USER_ID to the presenter's, and
  * ACME_DANA_EMAIL to the inbox Dana's approvals should reach.
@@ -10,25 +10,11 @@ const ACME = process.env.ACME_WORKSPACE_ID || "T0ACME";
 const SAM = `slack:${ACME}/${process.env.ACME_SAM_USER_ID || "U0SAM"}`;
 const DANA = `slack:${ACME}/${process.env.ACME_DANA_USER_ID || "U0DANA"}`;
 
-export interface Zone {
-  hotel_nightly_cap_cents: number;
-  flight_cap_cents: number;
-}
-
-export interface Company {
-  name: string;
-  workspace_id: string;
-  cabin_business_min_level: number;
-  cabin_business_min_minutes: number;
-  zones: Record<string, Zone>;
-}
-
 export interface Person {
   external_user_id: string;
   company: string;
   name: string;
   email: string;
-  seniority_level: number;
   manager?: string;
 }
 
@@ -51,38 +37,12 @@ export interface Hotel {
   nightly_cents: number;
 }
 
-export const companies: Record<string, Company> = {
-  acme: {
-    name: "Acme",
-    workspace_id: ACME,
-    cabin_business_min_level: 5,
-    cabin_business_min_minutes: 360,
-    zones: {
-      SYD: { hotel_nightly_cap_cents: 30000, flight_cap_cents: 900000 },
-      MEL: { hotel_nightly_cap_cents: 27500, flight_cap_cents: 900000 },
-      SFO: { hotel_nightly_cap_cents: 35000, flight_cap_cents: 900000 },
-    },
-  },
-  globex: {
-    name: "Globex",
-    workspace_id: "T0GLOBEX",
-    cabin_business_min_level: 7,
-    cabin_business_min_minutes: 360,
-    zones: {
-      SYD: { hotel_nightly_cap_cents: 25000, flight_cap_cents: 400000 },
-      MEL: { hotel_nightly_cap_cents: 25000, flight_cap_cents: 400000 },
-      SFO: { hotel_nightly_cap_cents: 30000, flight_cap_cents: 400000 },
-    },
-  },
-};
-
 export const people: Person[] = [
   {
     external_user_id: SAM,
     company: "acme",
     name: "Sam Rivera",
     email: "sam@acme.example",
-    seniority_level: 5,
     manager: DANA,
   },
   {
@@ -90,14 +50,12 @@ export const people: Person[] = [
     company: "acme",
     name: "Dana Park",
     email: process.env.ACME_DANA_EMAIL || "dana@acme.example",
-    seniority_level: 7,
   },
   {
     external_user_id: "slack:T0GLOBEX/U0LEE",
     company: "globex",
     name: "Lee Chen",
     email: "lee@globex.example",
-    seniority_level: 5,
     manager: "slack:T0GLOBEX/U0AVA",
   },
   {
@@ -105,7 +63,6 @@ export const people: Person[] = [
     company: "globex",
     name: "Ava Moss",
     email: "ava@globex.example",
-    seniority_level: 8,
   },
 ];
 

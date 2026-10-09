@@ -1,56 +1,56 @@
 /**
  * Flight Sector's booking provider, a native AAuth resource. Every offer
- * carries a quote this provider signs, so whoever decides reads trip facts the
- * agent cannot alter. Policy is not this provider's job: it asks for an auth
- * token from the person's own Person Server, naming exactly the quote to be
- * booked, and books when one arrives.
+ * carries a quote this provider signs. Policy is not this provider's job: a
+ * reservation needs a person token from the traveller's Person Server, then an
+ * auth token from it for exactly this booking, which the provider describes in
+ * a per-call R3 proposal only that Person Server may read.
  */
 import "server-only";
 
 import { randomUUID } from "node:crypto";
 
+import {
+  MemoryR3Store,
+  type VerifiedToken,
+  buildRequirementHeader,
+  createResourceToken,
+  publishProposal,
+  serveR3Document,
+  verifyProposalParameters,
+} from "@aauth/resource";
 import { type JWTPayload, createLocalJWKSet, jwtVerify } from "jose";
 
 import {
   AAuthError,
-  TYP,
-  TokenError,
-  assertBound,
   now,
-  requirement,
   signatureError,
+  verifyPresented,
   verifySignature,
-  verifyToken,
 } from "./aauth";
 import { record } from "./events";
 import { HttpError } from "./http";
-import { BOOKING_ISSUER, PERSON_SERVER_URL } from "./origins";
+import { AGENT_PROVIDERS, BOOKING_ISSUER, PERSON_SERVER_URL } from "./origins";
 import { bookingSigner } from "./signing";
 import { flights, hotels } from "./world";
 
 const QUOTE_TTL_SECONDS = 30 * 60;
-const RESOURCE_TOKEN_TTL_SECONDS = 5 * 60;
 const DAY_MS = 24 * 60 * 60 * 1000;
 const ISSUER = BOOKING_ISSUER;
 const SCOPE = "booking.reserve";
-const RESERVE_URL = new URL(`${ISSUER}/v1/reserve`);
-const closedList = (raw: string) =>
-  raw
-    .split(",")
-    .map((url) => url.trim().replace(/\/+$/, ""))
-    .filter(Boolean);
-// Person Servers whose people this provider serves, and the agent providers
-// whose agents it talks to. Fetching an issuer's keys is egress, so both lists
-// are closed.
-const PERSON_SERVERS = closedList(
-  process.env.BOOKING_PERSON_SERVERS || PERSON_SERVER_URL,
-);
-const AGENT_PROVIDERS = closedList(
-  process.env.BOOKING_AGENT_PROVIDERS ||
-    (process.env.NODE_ENV === "production"
-      ? ""
-      : "http://localhost:8000,http://localhost:3499"),
-);
+const RESERVE_URL = `${ISSUER}/v1/reserve`;
+/** The R3 vocabulary this provider describes bookings in. */
+const VOCABULARY = `${ISSUER}/r3/vocabulary`;
+const OPERATION = { action: "reserve" };
+// Person Servers whose people this provider serves. Fetching an issuer's keys
+// is egress, so the list is closed.
+const PERSON_SERVERS = (process.env.BOOKING_PERSON_SERVERS || PERSON_SERVER_URL)
+  .split(",")
+  .map((url) => url.trim().replace(/\/+$/, ""))
+  .filter(Boolean);
+
+const r3 = ((
+  globalThis as unknown as { __flightSectorR3?: MemoryR3Store }
+).__flightSectorR3 ??= new MemoryR3Store());
 
 // #region metadata
 /** `/.well-known/aauth-resource.json`: how an agent plans its first call. */
@@ -63,6 +63,7 @@ export function resourceMetadata() {
     description:
       "Flights and hotels for company travel. Search is open; a reservation needs an auth token from the traveller's Person Server.",
     scope_descriptions: { [SCOPE]: "Reserve the quoted flight or hotel" },
+    r3_vocabularies: [VOCABULARY],
     additional_signature_components: ["content-type", "content-digest"],
   };
 }
@@ -80,6 +81,7 @@ export interface Reservation {
   payer: string;
   ps: string;
   sub: string;
+  mission_s256?: string;
   auth_token_jti: string;
   reserved_at: string;
 }
@@ -184,9 +186,8 @@ export async function search(body: Record<string, unknown>) {
   throw new HttpError(400, "kind must be flight or hotel");
 }
 
-/** RFC 9396 authorization details: what a grant at this provider covers. */
-interface BookingDetail {
-  type: "booking";
+/** What a reservation asks for: exactly the parameters an approval binds. */
+interface Booking extends Record<string, string> {
   offer_id: string;
   quote: string;
   purpose: string;
@@ -195,7 +196,7 @@ interface BookingDetail {
 
 /** The reservation asked for, with the quote checked against this provider's own key. */
 async function readReservation(body: string): Promise<{
-  detail: BookingDetail;
+  booking: Booking;
   offer: JWTPayload;
 }> {
   let request: Record<string, unknown>;
@@ -225,8 +226,7 @@ async function readReservation(body: string): Promise<{
   if (!["company", "traveler"].includes(String(request.payer)))
     throw new AAuthError(400, "invalid_request", "payer: company|traveler");
   return {
-    detail: {
-      type: "booking",
+    booking: {
       offer_id: String(request.offer_id),
       quote: String(request.quote),
       purpose: String(request.purpose),
@@ -236,146 +236,175 @@ async function readReservation(body: string): Promise<{
   };
 }
 
-const signatureRequired = () =>
-  new Response(null, {
-    status: 401,
-    headers: { "AAuth-Requirement": requirement("auth-token") },
-  });
-
-// #region reserve
-/**
- * A reservation books only on an auth token from the traveller's Person Server
- * that grants `booking.reserve` for exactly this quote, purpose and payer. An
- * agent's first call presents its agent token, and gets a resource token to
- * take to the Person Server its agent token names.
- */
-export async function reserve(request: Request): Promise<Response> {
-  const body = await request.text();
-  if (!request.headers.get("signature-key")) return signatureRequired();
-  const signed = await verifySignature(request, body, {
-    authority: RESERVE_URL.host,
-    path: RESERVE_URL.pathname,
-  });
-  if (signed.keyType !== "jwt" || !signed.jwt)
-    throw signatureError("unsupported_scheme", "sign with sig=jwt");
-  const typ = signed.jwt.typ;
-  if (typ !== TYP.agent && typ !== TYP.auth)
-    throw signatureError("invalid_jwt", "present an agent or auth token");
-
-  const token = await verifyToken(
-    signed.jwt.raw,
-    typ === TYP.agent
-      ? { typ, dwk: "aauth-agent.json", issuers: AGENT_PROVIDERS }
-      : { typ, dwk: "aauth-person.json", issuers: PERSON_SERVERS },
-  ).catch((err: Error) => {
-    const expired = err instanceof TokenError && err.reason === "expired";
-    throw signatureError(expired ? "expired_jwt" : "invalid_jwt", err.message);
-  });
-  await assertBound(token, signed);
-  if (typ === TYP.auth && token.aud !== ISSUER)
-    throw signatureError("invalid_jwt", "aud is not this resource");
-
-  const { detail, offer } = await readReservation(body);
-  if (typ === TYP.auth && grants(token, detail)) {
-    const earlier = reservations.find((r) => r.auth_token_jti === token.jti);
-    return Response.json(earlier ?? book(token, detail, offer));
-  }
-  return challenge(token, typ, signed.thumbprint, detail);
-}
-
-function grants(token: JWTPayload, detail: BookingDetail): boolean {
-  const scopes = String(token.scope ?? "").split(" ");
-  const details = (token.authorization_details ?? []) as BookingDetail[];
-  return (
-    scopes.includes(SCOPE) &&
-    details.some(
-      (d) =>
-        d.type === "booking" &&
-        d.offer_id === detail.offer_id &&
-        d.quote === detail.quote &&
-        d.purpose === detail.purpose &&
-        d.payer === detail.payer,
-    )
-  );
-}
-// #endregion
-
-// #region challenge
-/**
- * `401 requirement=auth-token` with a resource token: this provider, the
- * agent's key, the scope, and the quote. Its audience is the person's Person
- * Server: the agent token's `ps`, or the issuer of the auth token presented.
- */
-async function challenge(
-  token: JWTPayload,
-  typ: string,
-  agentJkt: string,
-  detail: BookingDetail,
-): Promise<Response> {
-  const ps = String(token.ps ?? (typ === TYP.auth ? token.iss : ""));
-  if (!PERSON_SERVERS.includes(ps))
-    throw new AAuthError(
-      403,
-      "invalid_request",
-      "this agent's Person Server is not one this provider serves",
-    );
-  const iat = now();
-  const resourceToken = await (
-    await bookingSigner()
-  ).sign(
-    {
-      iss: ISSUER,
-      dwk: "aauth-resource.json",
-      aud: ps,
-      ps,
-      presented_jti: token.jti,
-      agent_jkt: agentJkt,
-      scope: SCOPE,
-      authorization_details: [detail],
-      jti: randomUUID(),
-      iat,
-      exp: iat + RESOURCE_TOKEN_TTL_SECONDS,
-    },
-    TYP.resource,
-  );
-  record("booking.challenged", `asked ${ps} for an auth token`, {
-    offer_id: detail.offer_id,
-    ps,
-    presented: typ,
-  });
-  return Response.json(
-    {
-      error: "auth_token_required",
-      detail: `take the resource token to ${ps}`,
-    },
+const challenge = (
+  requirement: Parameters<typeof buildRequirementHeader>[0],
+  detail: string,
+) =>
+  Response.json(
+    { error: "unauthorized", detail },
     {
       status: 401,
       headers: {
-        "AAuth-Requirement": requirement("auth-token", {
-          "resource-token": resourceToken,
-        }),
+        "AAuth-Requirement": buildRequirementHeader(requirement),
         "Content-Type": "application/problem+json",
       },
     },
   );
+
+// #region reserve
+/**
+ * A reservation books on an auth token whose R3 proposal is exactly this
+ * booking. Before that the provider asks for what it lacks: a person token
+ * (who the agent acts for, and under which mission), then an auth token for
+ * this booking, described in a proposal only the person's Person Server reads.
+ */
+export async function reserve(request: Request): Promise<Response> {
+  const body = await request.text();
+  if (!request.headers.get("signature-key"))
+    return challenge({ requirement: "person-token" }, "sign the request");
+  const signed = await verifySignature(request, body, RESERVE_URL);
+  const token = await verifyPresented(signed, {
+    audience: ISSUER,
+    accept: ["agent", "person", "auth"],
+    issuers: {
+      agent: AGENT_PROVIDERS,
+      person: PERSON_SERVERS,
+      auth: PERSON_SERVERS,
+    },
+  });
+  if (token.type === "agent")
+    return challenge(
+      { requirement: "person-token" },
+      "present a person token from the traveller's Person Server",
+    );
+  const { booking, offer } = await readReservation(body);
+  if (token.type === "auth" && token.r3_s256) {
+    const approved = await verifyProposalParameters({
+      store: r3,
+      r3_s256: token.r3_s256,
+      presented: booking,
+      operation: OPERATION,
+    }).then(
+      () => true,
+      () => false,
+    );
+    if (approved) {
+      const earlier = reservations.find(
+        (r) => r.auth_token_jti === token.claims.jti,
+      );
+      return Response.json(earlier ?? book(token, booking, offer));
+    }
+  }
+  return propose(token, signed.thumbprint, booking, offer);
+}
+// #endregion
+
+// #region propose
+/**
+ * `401 requirement=auth-token` with a resource token for this one booking:
+ * its R3 proposal names the parameters, and only the Person Server may read it.
+ * `mission_s256` comes across from the presented token unchanged.
+ */
+async function propose(
+  token: VerifiedToken,
+  agentJkt: string,
+  booking: Booking,
+  offer: JWTPayload,
+): Promise<Response> {
+  const ps = token.type === "auth" ? token.ps : token.iss;
+  const proposal = await publishProposal({
+    vocabulary: VOCABULARY,
+    operation: OPERATION,
+    parameters: booking,
+    display: { summary: summarize(booking, offer) },
+    store: r3,
+    baseUri: `${ISSUER}/r3`,
+    authorized: [ps],
+  });
+  const signer = await bookingSigner();
+  const resourceToken = await createResourceToken(
+    {
+      resource: ISSUER,
+      audience: ps,
+      presentedToken: token as Parameters<
+        typeof createResourceToken
+      >[0]["presentedToken"],
+      agentJkt,
+      scope: SCOPE,
+      kid: signer.kid,
+      r3: { uri: proposal.r3_uri, s256: proposal.r3_s256 },
+    },
+    signer.signWithHeader,
+  );
+  record("booking.challenged", `asked ${ps} to approve ${booking.offer_id}`, {
+    offer_id: booking.offer_id,
+    ps,
+    mission: "mission_s256" in token ? token.mission_s256 : undefined,
+  });
+  return challenge(
+    { requirement: "auth-token", resourceToken },
+    `take the resource token to ${ps}`,
+  );
+}
+
+/** The proposal's one-line description, for whoever approves it. */
+function summarize(booking: Booking, offer: JWTPayload): string {
+  const dollars = `$${Math.round(Number(offer.total_cents) / 100).toLocaleString("en-US")}`;
+  const what =
+    offer.kind === "hotel"
+      ? `${offer.name}, ${offer.nights} nights`
+      : `${offer.flight}, ${offer.cabin}`;
+  return `Book ${what} for ${dollars}, ${booking.purpose}, paid by ${booking.payer}`;
+}
+// #endregion
+
+// #region serve-r3
+/** An R3 document, to the Person Server it was published for and no one else. */
+export async function serveProposal(
+  request: Request,
+  key: string,
+): Promise<Response> {
+  const id = /jwks_uri;(?:[^,]*;)?id="([^"]+)"/.exec(
+    request.headers.get("signature-key") ?? "",
+  )?.[1];
+  if (!id || !PERSON_SERVERS.includes(id))
+    throw signatureError(
+      "invalid_signature",
+      "only the person's Person Server reads a proposal",
+    );
+  const signed = await verifySignature(
+    request,
+    undefined,
+    `${ISSUER}/r3/${key}`,
+  );
+  const served = await serveR3Document({
+    store: r3,
+    key,
+    signer: signed.server,
+  });
+  return new Response(served.body, {
+    status: served.status,
+    headers: served.headers,
+  });
 }
 // #endregion
 
 function book(
-  token: JWTPayload,
-  detail: BookingDetail,
+  token: VerifiedToken,
+  booking: Booking,
   offer: JWTPayload,
 ): Reservation {
   const reservation: Reservation = {
     confirmation: `FS-${randomUUID().slice(0, 8).toUpperCase()}`,
-    offer_id: detail.offer_id,
+    offer_id: booking.offer_id,
     kind: String(offer.kind),
     total_cents: Number(offer.total_cents),
-    purpose: detail.purpose,
-    payer: detail.payer,
-    ps: String(token.iss),
-    sub: String(token.sub),
-    auth_token_jti: String(token.jti),
+    purpose: booking.purpose,
+    payer: booking.payer,
+    ps: token.type === "auth" ? token.ps : token.iss,
+    sub: token.sub,
+    mission_s256: "mission_s256" in token ? token.mission_s256 : undefined,
+    auth_token_jti: String(token.claims.jti),
     reserved_at: new Date().toISOString(),
   };
   reservations.push(reservation);

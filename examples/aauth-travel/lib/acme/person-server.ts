@@ -1,10 +1,9 @@
 /**
- * Acme's Person Server (AAuth -11, three-party): the service that speaks for
- * Acme's people when an agent wants to act for them. It exchanges a resource's
- * resource token for an auth token, under Acme's own travel policy: within the
- * city caps it issues one at once; over them it asks the traveller's manager,
- * by email with a six-digit code, and the agent polls a pending URL meanwhile.
- * In-memory and per process.
+ * Acme's Person Server (AAuth -11, three-party): it speaks for Acme's people
+ * when an agent wants to act for them. Acme's policy is short. A trip is a
+ * mission, and the traveller's manager approves it once, budget and all; each
+ * booking under it is then authorized at once while it stays within budget.
+ * Anything over goes back to the manager. Everything is in memory.
  */
 import "server-only";
 
@@ -17,6 +16,8 @@ import {
   timingSafeEqual,
 } from "node:crypto";
 
+import { fetch as signedFetch } from "@hellocoop/httpsig";
+import { verifyR3Hash, type R3Document } from "@aauth/resource";
 import {
   type JWK,
   type JWTPayload,
@@ -27,51 +28,38 @@ import {
 
 import {
   AAuthError,
-  TYP,
-  TokenError,
-  assertBound,
   now,
   problem,
-  publicJwk,
-  requirement,
+  s256,
   signatureError,
-  thumbprint,
+  verifyIssued,
+  verifyPresented,
   verifySignature,
-  verifyToken,
 } from "../aauth";
 import { record } from "../events";
-import { BOOKING_ISSUER, PERSON_SERVER_URL } from "../origins";
+import { AGENT_PROVIDERS, BOOKING_ISSUER, PERSON_SERVER_URL } from "../origins";
 import { personServerSigner } from "../signing";
-import { companies, flights, hotels, people, type Person } from "../world";
+import { people, type Person } from "../world";
 import { sendApprovalEmail } from "./mail";
 
 const PS = PERSON_SERVER_URL;
-const PS_HOST = new URL(PS).host;
+const DWK = "aauth-person.json";
 const TENANT = "acme";
 const TOKEN_TTL_SECONDS = 60 * 60;
+const MISSION_TTL_SECONDS = 14 * 24 * 60 * 60;
 const CODE_TTL_MS = 15 * 60 * 1000;
 const MAX_ATTEMPTS = 5;
 const RETRY_AFTER_SECONDS = 5;
-// Agent providers whose agents Acme lets act for its people: the platform's
-// control plane locally, and the e2e script's test provider outside production.
-const TRUSTED_AGENT_PROVIDERS = (
-  process.env.TRUSTED_AGENT_PROVIDERS ||
-  (process.env.NODE_ENV === "production"
-    ? ""
-    : "http://localhost:8000,http://localhost:3499")
-)
-  .split(",")
-  .map((url) => url.trim().replace(/\/+$/, ""))
-  .filter(Boolean);
-
-// Resources Acme lets its people book with; fetching their keys is egress, so the list is closed.
-const TRUSTED_RESOURCES = (process.env.ACME_TRUSTED_RESOURCES || BOOKING_ISSUER)
+// Resources Acme lets its people use. Fetching their keys is egress, so the list is closed.
+const RESOURCES = (process.env.ACME_TRUSTED_RESOURCES || BOOKING_ISSUER)
   .split(",")
   .map((url) => url.trim().replace(/\/+$/, ""))
   .filter(Boolean);
 
 export const ENDPOINTS = {
+  personToken: `${PS}/ps/person-token`,
   token: `${PS}/ps/token`,
+  mission: `${PS}/ps/mission`,
   pending: (id: string) => `${PS}/ps/pending/${id}`,
 };
 
@@ -80,44 +68,44 @@ export function personServerMetadata() {
     issuer: PS,
     name: "Acme Person Server",
     description:
-      "Speaks for Acme's people. Acme's travel policy decides; managers approve exceptions.",
+      "Speaks for Acme's people. A manager approves each trip as a mission; bookings within it need no one.",
     jwks_uri: `${PS}/.well-known/jwks.json`,
+    person_token_endpoint: ENDPOINTS.personToken,
     auth_token_endpoint: ENDPOINTS.token,
-    accept_signature_algs: ["Ed25519", "ES256"],
+    mission_endpoint: ENDPOINTS.mission,
   };
 }
 
 interface Agent {
   id: string;
-  raw: string;
   exp: number;
   jkt: string;
   jwk: JWK;
 }
 
-interface Issued {
-  aud: string;
-}
-
-interface Grant {
-  aud: string;
-  sub: string;
-  scope: string;
-  jwk: JWK;
-  authorization_details?: unknown;
-  /** No token issued under this grant may outlive it. */
-  notAfter: number;
+interface Mission {
+  s256: string;
+  /** The blob's bytes, as hashed and returned. */
+  bytes: string;
+  agent: string;
+  person: Person;
+  resources: string[];
+  budget_cents: number;
+  spent_cents: number;
+  expires_at: number;
+  terminated?: string;
+  log: { at: string; entry: string }[];
 }
 
 interface Pending {
   id: string;
-  agent: string;
   jkt: string;
-  person: Person;
   approver: Person;
+  person: Person;
   item: string;
   reasons: string[];
-  grant: Grant;
+  /** What approval grants: the response the agent's next poll gets. */
+  onApprove: () => Promise<Record<string, unknown>>;
   status: "pending" | "approved" | "denied" | "expired";
   result?: Record<string, unknown>;
   codeHash: string;
@@ -130,16 +118,14 @@ const state = ((
 ).__acmePersonServer ??= {
   secret: process.env.ACME_PS_SUBJECT_SECRET || randomBytes(32).toString("hex"),
   bindings: new Map(),
-  issued: new Map(),
+  missions: new Map(),
   pending: new Map(),
 }) as {
   secret: string;
   bindings: Map<string, string>;
-  issued: Map<string, Issued>;
+  missions: Map<string, Mission>;
   pending: Map<string, Pending>;
 };
-
-const pathOf = (url: string) => new URL(url).pathname;
 
 function readBody(body: string): Record<string, unknown> {
   try {
@@ -155,48 +141,37 @@ function readBody(body: string): Record<string, unknown> {
 // #region verify-agent
 /**
  * Every endpoint is called by an agent, signing with its own key and
- * presenting its agent token. The token must come from an agent provider Acme
- * trusts, verified against that provider's published keys, and bind the key
- * that signed the request.
+ * presenting its agent token, from an agent provider Acme trusts.
  */
 async function verifyAgent(
   request: Request,
   body: string | undefined,
-  endpoint: string,
+  url: string,
 ): Promise<Agent> {
-  const signed = await verifySignature(request, body, {
-    authority: PS_HOST,
-    path: pathOf(endpoint),
+  const signed = await verifySignature(request, body, url);
+  const token = await verifyPresented(signed, {
+    audience: PS,
+    accept: ["agent"],
+    issuers: { agent: AGENT_PROVIDERS },
   });
-  if (signed.keyType !== "jwt" || signed.jwt?.typ !== TYP.agent)
-    throw signatureError("invalid_jwt", "present an agent token (sig=jwt)");
-  const token = await verifyToken(signed.jwt.raw, {
-    typ: TYP.agent,
-    dwk: "aauth-agent.json",
-    issuers: TRUSTED_AGENT_PROVIDERS,
-  }).catch((err: Error) => {
-    const expired = err instanceof TokenError && err.reason === "expired";
-    throw signatureError(expired ? "expired_jwt" : "invalid_jwt", err.message);
-  });
-  await assertBound(token, signed);
-  const id = String(token.sub);
-  const domain = new URL(String(token.iss)).hostname;
-  if (!/^aauth:[A-Za-z0-9_.-]{1,255}@/.test(id) || !id.endsWith(`@${domain}`))
-    throw signatureError("invalid_jwt", `${id} is not an agent of ${domain}`);
+  if (token.type !== "agent")
+    throw signatureError("invalid_jwt", "present an agent token");
   if (token.ps !== undefined && token.ps !== PS)
-    throw new AAuthError(403, "invalid_request", "this agent's PS is another");
+    throw new AAuthError(
+      403,
+      "invalid_request",
+      "this agent's Person Server is another",
+    );
   return {
-    id,
-    raw: signed.jwt.raw,
-    exp: Number(token.exp),
+    id: token.sub,
+    exp: token.exp,
     jkt: signed.thumbprint,
-    jwk: publicJwk(signed.publicKey),
+    jwk: token.cnf.jwk,
   };
 }
 
 /**
- * Acme pre-authorizes the agent providers it trusts for its people, and binds
- * each agent key to the one employee its first request names in
+ * Acme binds each agent key to the one employee its first request names in
  * `login_hint`. That key can never act for anyone else.
  */
 function personFor(agent: Agent, loginHint?: unknown): Person {
@@ -229,53 +204,275 @@ const directed = (person: Person, audience: string) =>
     .update(`${person.external_user_id}\n${audience}`)
     .digest("base64url");
 
+async function issue(
+  typ: string,
+  claims: Record<string, unknown>,
+  notAfter: number,
+) {
+  const iat = now();
+  const exp = Math.min(iat + TOKEN_TTL_SECONDS, notAfter);
+  const signer = await personServerSigner();
+  const token = await signer.sign(
+    {
+      iss: PS,
+      dwk: DWK,
+      tenant: TENANT,
+      jti: randomUUID(),
+      iat,
+      exp,
+      ...claims,
+    },
+    typ,
+  );
+  return { token, expires_in: exp - iat };
+}
+
+const dollars = (cents: number) =>
+  `$${Math.round(cents / 100).toLocaleString("en-US")}`;
+
+// #region missions
+/** The live mission `s256` names, if it is this agent's; the same 404 otherwise (no probing). */
+function missionOf(agent: Agent, s: unknown): Mission {
+  const mission = typeof s === "string" ? state.missions.get(s) : undefined;
+  if (!mission || mission.agent !== agent.id)
+    throw new AAuthError(404, "mission_not_found", "no such mission");
+  if (!mission.terminated && now() >= mission.expires_at)
+    mission.terminated = "expired";
+  if (mission.terminated)
+    throw new AAuthError(
+      403,
+      "mission_terminated",
+      `mission ${mission.terminated}`,
+      {},
+    );
+  return mission;
+}
+
+/** The trip's budget, as the agent states it in the description: "up to $6,000". */
+function budgetOf(description: string): number | null {
+  const match = /up to \$([\d,]+)/i.exec(description);
+  return match ? Number(match[1].replace(/,/g, "")) * 100 : null;
+}
+
+/**
+ * `POST /ps/mission`: the agent proposes a trip. Acme's managers approve every
+ * trip once, with its budget, before anything is booked.
+ */
+export async function proposeMission(request: Request): Promise<Response> {
+  const body = await request.text();
+  const agent = await verifyAgent(request, body, ENDPOINTS.mission);
+  const params = readBody(body);
+  const person = personFor(agent, params.login_hint);
+  const description = String(params.description ?? "");
+  const budget = budgetOf(description);
+  if (!description || budget === null)
+    throw new AAuthError(
+      400,
+      "invalid_request",
+      'describe the trip, with its budget: "up to $N"',
+    );
+  const resources = (Array.isArray(params.resources) ? params.resources : [])
+    .map(String)
+    .filter((r) => RESOURCES.includes(r));
+  return ask({
+    agent,
+    person,
+    approver: managerOf(person),
+    item: description,
+    reasons: [`A trip for ${person.name}, up to ${dollars(budget)}`],
+    onApprove: async () => {
+      const approved_at = new Date().toISOString();
+      const expires_at = now() + MISSION_TTL_SECONDS;
+      const bytes = JSON.stringify({
+        agent: agent.id,
+        approved_at,
+        expires_at: new Date(expires_at * 1000).toISOString(),
+        description,
+        approved_resources: resources,
+        budget_cents: budget,
+      });
+      const mission: Mission = {
+        s256: s256(bytes),
+        bytes,
+        agent: agent.id,
+        person,
+        resources,
+        budget_cents: budget,
+        spent_cents: 0,
+        expires_at,
+        log: [],
+      };
+      state.missions.set(mission.s256, mission);
+      const person_tokens = Object.fromEntries(
+        await Promise.all(
+          resources.map(async (r) => [
+            r,
+            (await personToken(agent, person, r, mission)).person_token,
+          ]),
+        ),
+      );
+      record(
+        "acme.mission_approved",
+        `mission ${mission.s256.slice(0, 8)}: ${dollars(budget)}`,
+        { s256: mission.s256 },
+      );
+      return {
+        s256: mission.s256,
+        mission: Buffer.from(bytes).toString("base64url"),
+        person_tokens,
+      };
+    },
+  });
+}
+
+/** `POST /ps/mission/{s256}`: record a change, or propose the trip is done. */
+export async function missionAction(
+  request: Request,
+  s: string,
+): Promise<Response> {
+  const body = await request.text();
+  const agent = await verifyAgent(request, body, `${ENDPOINTS.mission}/${s}`);
+  const params = readBody(body);
+  const mission = missionOf(agent, s);
+  if (params.action === "update") {
+    const entry = String(params.description ?? "");
+    mission.log.push({ at: new Date().toISOString(), entry });
+    return Response.json({ s256: s256(entry) });
+  }
+  if (params.action === "completion") {
+    return ask({
+      agent,
+      person: mission.person,
+      approver: mission.person,
+      item: String(params.summary ?? ""),
+      reasons: ["The agent says the trip is booked"],
+      onApprove: async () => {
+        mission.terminated = "completed";
+        record(
+          "acme.mission_completed",
+          `mission ${mission.s256.slice(0, 8)} completed`,
+          { s256: mission.s256 },
+        );
+        return {};
+      },
+    });
+  }
+  throw new AAuthError(
+    400,
+    "invalid_request",
+    "action is update or completion",
+  );
+}
+// #endregion
+
+// #region person-token
+async function personToken(
+  agent: Agent,
+  person: Person,
+  resource: string,
+  mission?: Mission,
+) {
+  const { token, expires_in } = await issue(
+    "aa-person+jwt",
+    {
+      aud: resource,
+      sub: directed(person, resource),
+      cnf: { jwk: agent.jwk },
+      ...(mission ? { mission_s256: mission.s256 } : {}),
+    },
+    Math.min(agent.exp, mission?.expires_at ?? Infinity),
+  );
+  return { person_token: token, expires_in };
+}
+
+/** `POST /ps/person-token`: who the agent acts for, at one resource, under its mission. */
+export async function requestPersonToken(request: Request): Promise<Response> {
+  const body = await request.text();
+  const agent = await verifyAgent(request, body, ENDPOINTS.personToken);
+  const params = readBody(body);
+  const resource = String(params.resource ?? "");
+  if (!RESOURCES.includes(resource))
+    throw new AAuthError(400, "invalid_request", "not a resource Acme uses");
+  const person = personFor(agent, params.login_hint);
+  const mission =
+    params.mission_s256 === undefined
+      ? undefined
+      : missionOf(agent, params.mission_s256);
+  return Response.json(await personToken(agent, person, resource, mission));
+}
+// #endregion
+
 // #region auth-token
 /**
- * The agent brings the resource token it got from the booking provider, and
- * the agent token it presented there. Acme checks the two belong together and
- * name this agent's key, then applies its travel policy to the booking the
- * resource token describes.
+ * `POST /ps/token`: the resource token for one booking, and the person token
+ * the agent showed the resource. Acme reads the booking from the resource's
+ * proposal and checks it against the mission's budget.
  */
 export async function authToken(request: Request): Promise<Response> {
   const body = await request.text();
   const agent = await verifyAgent(request, body, ENDPOINTS.token);
   const params = readBody(body);
-  const rt = await verifyTokenRequest(agent, params);
-  const person = personFor(agent, params.login_hint);
-  const grant: Grant = {
-    aud: String(rt.iss),
-    sub: directed(person, String(rt.iss)),
-    scope: String(rt.scope ?? ""),
-    jwk: agent.jwk,
-    ...(rt.authorization_details
-      ? { authorization_details: rt.authorization_details }
-      : {}),
-    notAfter: agent.exp,
-  };
-  const reasons = overPolicy(person, rt.authorization_details);
-  record(
-    "acme.policy_checked",
-    reasons.length ? reasons.join("; ") : "within Acme's policy",
-    {
-      within: reasons.length === 0,
-    },
+  const rt = await verifyResourceToken(agent, params);
+  const mission = rt.mission_s256
+    ? missionOf(agent, rt.mission_s256)
+    : undefined;
+  if (!mission)
+    throw new AAuthError(
+      403,
+      "access_denied",
+      "Acme books travel only under an approved trip",
+    );
+  if (!mission.resources.includes(String(rt.iss)))
+    throw new AAuthError(
+      403,
+      "access_denied",
+      "this trip does not cover that resource",
+    );
+  const proposal = await readProposal(rt);
+  const total = Number(
+    decodeJwt(String(proposal.parameters?.quote)).total_cents,
   );
-  if (reasons.length === 0) return Response.json(await issueAuthToken(grant));
-  return askApprover({
+  const grant = async () => {
+    mission.spent_cents += total;
+    const { token, expires_in } = await issue(
+      "aa-auth+jwt",
+      {
+        aud: rt.iss,
+        ps: PS,
+        sub: rt.sub,
+        cnf: { jwk: agent.jwk },
+        scope: rt.scope,
+        mission_s256: mission.s256,
+        r3_uri: rt.r3_uri,
+        r3_s256: rt.r3_s256,
+      },
+      Math.min(agent.exp, mission.expires_at),
+    );
+    record(
+      "acme.auth_token_issued",
+      `${proposal.display?.summary}; ${dollars(mission.budget_cents - mission.spent_cents)} left`,
+      {
+        s256: mission.s256,
+      },
+    );
+    return { auth_token: token, expires_in };
+  };
+  const left = mission.budget_cents - mission.spent_cents;
+  if (total <= left) return Response.json(await grant());
+  return ask({
     agent,
-    person,
-    grant,
-    reasons,
-    item: describe(rt.authorization_details),
+    person: mission.person,
+    approver: managerOf(mission.person),
+    item: String(proposal.display?.summary ?? "a booking"),
+    reasons: [
+      `${dollars(total)} is over the ${dollars(left)} left of this trip's budget`,
+    ],
+    onApprove: grant,
   });
 }
 
-/**
- * -11 resource token verification. The resource token names this Person
- * Server and the agent's key, and the presented token is the agent token this
- * request was signed with.
- */
-async function verifyTokenRequest(
+/** The resource token names this Person Server and the agent's key, and binds the presented token. */
+async function verifyResourceToken(
   agent: Agent,
   params: Record<string, unknown>,
 ): Promise<JWTPayload> {
@@ -288,170 +485,91 @@ async function verifyTokenRequest(
     );
   const invalid = (detail: string) =>
     new AAuthError(400, "invalid_resource_token", detail);
-  let issuer: unknown;
-  try {
-    issuer = decodeJwt(resource_token).iss;
-  } catch {
-    throw invalid("not a JWT");
-  }
-  if (!TRUSTED_RESOURCES.includes(String(issuer)))
-    throw invalid(`${String(issuer)} is not a resource Acme books with`);
-  const rt = await verifyToken(resource_token, {
-    typ: TYP.resource,
+  const rt = await verifyIssued(resource_token, {
+    typ: "aa-resource+jwt",
     dwk: "aauth-resource.json",
-    issuers: TRUSTED_RESOURCES,
+    issuers: RESOURCES,
   }).catch((err: Error) => {
-    const expired = err instanceof TokenError && err.reason === "expired";
-    throw new AAuthError(
-      400,
-      expired ? "expired_resource_token" : "invalid_resource_token",
-      err.message,
-    );
+    throw invalid(err.message);
   });
-  if (rt.aud !== PS) throw invalid("aud is not this Person Server");
+  if (rt.aud !== PS || rt.ps !== PS)
+    throw invalid("not for this Person Server");
   if (rt.agent_jkt !== agent.jkt) throw invalid("agent_jkt is not the signer");
-  if (!(await presentedByAgent(agent, presented_token)))
-    throw new AAuthError(
-      400,
-      "invalid_presented_token",
-      "the presented token is not this agent's",
-    );
-  if (rt.presented_jti !== decodeJwt(presented_token).jti)
-    throw invalid("presented_jti does not match");
+  const signer = await personServerSigner();
+  const presented = await jwtVerify(
+    presented_token,
+    createLocalJWKSet(signer.jwks),
+    { issuer: PS },
+  )
+    .then((r) => r.payload)
+    .catch(() => {
+      throw new AAuthError(
+        400,
+        "invalid_presented_token",
+        "not a token this Person Server issued",
+      );
+    });
+  if (
+    presented.jti !== rt.presented_jti ||
+    presented.sub !== rt.sub ||
+    presented.mission_s256 !== rt.mission_s256
+  )
+    throw invalid("does not match the presented token");
   return rt;
 }
 
-/**
- * The token the agent showed the resource: its own agent token, or an auth
- * token Acme issued to this same key earlier (a step-up for another quote).
- */
-async function presentedByAgent(
-  agent: Agent,
-  presented: string,
-): Promise<boolean> {
-  if (presented === agent.raw) return true;
-  const { payload } = await jwtVerify(
-    presented,
-    createLocalJWKSet((await personServerSigner()).jwks),
-    { issuer: PS, typ: TYP.auth },
-  ).catch(() => ({ payload: undefined }));
-  const jwk = (payload?.cnf as { jwk?: JWK } | undefined)?.jwk;
-  return (
-    !!payload &&
-    state.issued.has(String(payload.jti)) &&
-    !!jwk &&
-    (await thumbprint(jwk)) === agent.jkt
-  );
-}
-// #endregion
-
-// #region policy
-/**
- * Acme's travel policy, applied to the provider-signed quote. A personal leg
- * Acme doesn't pay for is the traveller's business; a business booking over
- * the city's caps needs the traveller's manager.
- */
-function overPolicy(person: Person, details: unknown): string[] {
-  const booking = (Array.isArray(details) ? details : []).find(
-    (d) => d?.type === "booking",
-  );
-  if (!booking) return ["the booking is not described"];
-  if (booking.payer === "traveler") return [];
-  let offer: JWTPayload;
-  try {
-    offer = decodeJwt(String(booking.quote));
-  } catch {
-    return ["the quote is unreadable"];
-  }
-  const company = companies[person.company];
-  const zone = company?.zones[String(offer.city ?? offer.to ?? "")];
-  if (!zone)
-    return [`${company?.name ?? "the company"} has no policy for that city`];
-  const dollars = (cents: number) => `$${Math.round(cents / 100)}`;
-  const reasons: string[] = [];
-  if (
-    offer.nightly_cents &&
-    Number(offer.nightly_cents) > zone.hotel_nightly_cap_cents
-  )
-    reasons.push(
-      `${dollars(Number(offer.nightly_cents))}/night is over ${company.name}'s ${dollars(zone.hotel_nightly_cap_cents)} cap for ${String(offer.city)}`,
+/** The booking, from the proposal the resource published for this Person Server alone. */
+async function readProposal(rt: JWTPayload): Promise<R3Document> {
+  if (typeof rt.r3_uri !== "string" || typeof rt.r3_s256 !== "string")
+    throw new AAuthError(
+      400,
+      "invalid_resource_token",
+      "no proposal to approve",
     );
-  if (!offer.nightly_cents && Number(offer.total_cents) > zone.flight_cap_cents)
-    reasons.push(
-      `${dollars(Number(offer.total_cents))} is over ${company.name}'s ${dollars(zone.flight_cap_cents)} flight cap`,
-    );
-  return reasons;
-}
-// #endregion
-
-async function issueAuthToken(
-  grant: Grant,
-): Promise<{ auth_token: string; expires_in: number }> {
-  const iat = now();
-  const exp = Math.min(iat + TOKEN_TTL_SECONDS, grant.notAfter);
-  const jti = randomUUID();
-  const token = await (
-    await personServerSigner()
-  ).sign(
-    {
-      iss: PS,
-      dwk: "aauth-person.json",
-      aud: grant.aud,
-      ps: PS,
-      sub: grant.sub,
-      cnf: { jwk: grant.jwk },
-      scope: grant.scope,
-      tenant: TENANT,
-      ...(grant.authorization_details
-        ? { authorization_details: grant.authorization_details }
-        : {}),
-      jti,
-      iat,
-      exp,
-    },
-    TYP.auth,
-  );
-  state.issued.set(jti, { aud: grant.aud });
-  record("acme.auth_token_issued", `auth token for ${grant.aud}`, {
-    jti,
-    scope: grant.scope,
+  const signer = await personServerSigner();
+  const response = await signedFetch(rt.r3_uri, {
+    method: "GET",
+    signingKey: signer.privateJwk as JsonWebKey,
+    signatureKey: { type: "jwks_uri", id: PS, kid: signer.kid, dwk: DWK },
   });
-  return { auth_token: token, expires_in: exp - iat };
+  const bytes = await response.text();
+  if (!response.ok || !(await verifyR3Hash(bytes, rt.r3_s256)))
+    throw new AAuthError(
+      400,
+      "invalid_resource_token",
+      "the proposal does not match its hash",
+    );
+  return JSON.parse(bytes);
 }
-
-const hash = (code: string) => createHash("sha256").update(code).digest();
+// #endregion
 
 // #region ask
-/**
- * Over policy, a person decides. Who that is, and how to reach them, is Acme's
- * business: the traveller's manager from Acme's directory, by email, with a
- * six-digit code. The agent gets a pending URL to poll.
- */
-async function askApprover(ask: {
-  agent: Agent;
-  person: Person;
-  grant: Grant;
-  reasons: string[];
-  item: string;
-}): Promise<Response> {
-  const { person } = ask;
-  const approver = people.find((p) => p.external_user_id === person.manager);
-  if (!approver)
+function managerOf(person: Person): Person {
+  const manager = people.find((p) => p.external_user_id === person.manager);
+  if (!manager)
     throw new AAuthError(
       403,
       "user_unreachable",
       `${person.name} has no manager`,
     );
+  return manager;
+}
+
+const hash = (code: string) => createHash("sha256").update(code).digest();
+
+/** A person decides, by email with a six-digit code; the agent polls a pending URL meanwhile. */
+async function ask(
+  request: Omit<
+    Pending,
+    "id" | "jkt" | "status" | "codeHash" | "expiresAt" | "attempts"
+  > & { agent: Agent },
+): Promise<Response> {
+  const { agent, ...rest } = request;
   const code = String(randomInt(0, 1_000_000)).padStart(6, "0");
   const pending: Pending = {
+    ...rest,
     id: randomUUID(),
-    agent: ask.agent.id,
-    jkt: ask.agent.jkt,
-    person,
-    approver,
-    item: ask.item,
-    reasons: ask.reasons,
-    grant: ask.grant,
+    jkt: agent.jkt,
     status: "pending",
     codeHash: hash(code).toString("hex"),
     expiresAt: Date.now() + CODE_TTL_MS,
@@ -459,15 +577,15 @@ async function askApprover(ask: {
   };
   state.pending.set(pending.id, pending);
   await sendApprovalEmail({
-    to: approver.email,
-    approverName: approver.name,
-    travellerName: person.name,
+    to: pending.approver.email,
+    approverName: pending.approver.name,
+    travellerName: pending.person.name,
     item: pending.item,
     reasons: pending.reasons,
     link: `${PS}/approve/${pending.id}`,
     code,
   });
-  record("acme.approval_requested", `asked ${approver.name} by email`, {
+  record("acme.approval_requested", `asked ${pending.approver.name} by email`, {
     pending: pending.id,
   });
   return stillPending(pending);
@@ -483,7 +601,7 @@ const stillPending = (pending: Pending) =>
         Location: ENDPOINTS.pending(pending.id),
         "Retry-After": String(RETRY_AFTER_SECONDS),
         "Cache-Control": "no-store",
-        "AAuth-Requirement": requirement("approval"),
+        "AAuth-Requirement": "requirement=approval",
       },
     },
   );
@@ -527,14 +645,15 @@ export async function decide(
   if (pending.attempts >= MAX_ATTEMPTS || Date.now() > pending.expiresAt)
     throw new AAuthError(410, "invalid_code", "this code has expired");
   pending.attempts += 1;
-  const expected = Buffer.from(pending.codeHash, "hex");
-  if (!/^\d{6}$/.test(code) || !timingSafeEqual(hash(code), expected))
+  if (
+    !/^\d{6}$/.test(code) ||
+    !timingSafeEqual(hash(code), Buffer.from(pending.codeHash, "hex"))
+  )
     throw new AAuthError(401, "invalid_code", "that code isn't right");
-
   if (verdict === "decline") {
     pending.status = "denied";
   } else {
-    pending.result = await issueAuthToken(pending.grant);
+    pending.result = await pending.onApprove();
     pending.status = "approved";
   }
   record("acme.decided", `${pending.approver.name} ${pending.status}`, {
@@ -549,43 +668,14 @@ export async function decide(
 export function approvalSummary(id: string) {
   const pending = state.pending.get(id);
   if (!pending) return null;
+  const [user = "", domain = ""] = pending.approver.email.split("@");
   return {
     status: pending.status,
-    company: companies.acme.name,
+    company: "Acme",
     traveller: pending.person.name,
     approver: pending.approver.name,
-    sentTo: maskEmail(pending.approver.email),
+    sentTo: `${user.slice(0, 1)}•••@${domain}`,
     item: pending.item,
     reasons: pending.reasons,
   };
-}
-
-/** The booking a resource token's authorization details describe, from its quote. */
-function describe(details: unknown): string {
-  const booking = (Array.isArray(details) ? details : []).find(
-    (d) => d?.type === "booking",
-  );
-  if (!booking) return "an action at a resource";
-  let offer: JWTPayload;
-  try {
-    offer = decodeJwt(String(booking.quote));
-  } catch {
-    return String(booking.offer_id);
-  }
-  const dollars = (cents: unknown) =>
-    `$${Math.round(Number(cents) / 100).toLocaleString("en-US")}`;
-  const [kind, id] = String(offer.offer_id).split(":");
-  const title =
-    kind === "ht"
-      ? (hotels.find((h) => h.id === id)?.name ?? String(offer.offer_id))
-      : (flights.find((f) => f.id === id)?.flight ?? String(offer.offer_id));
-  const what = offer.nightly_cents
-    ? `${title} at ${dollars(offer.nightly_cents)}/night (${dollars(offer.total_cents)} total)`
-    : `${title}${offer.cabin ? `, ${offer.cabin}` : ""}, ${dollars(offer.total_cents)}`;
-  return `${what}, ${booking.purpose}, paid by ${booking.payer}`;
-}
-
-function maskEmail(email: string): string {
-  const [user = "", domain = ""] = email.split("@");
-  return `${user.slice(0, 1)}•••@${domain}`;
 }

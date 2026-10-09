@@ -8,7 +8,8 @@ export type FlowEventType =
   | "booking.searched"
   | "booking.challenged"
   | "booking.reserved"
-  | "acme.policy_checked"
+  | "acme.mission_approved"
+  | "acme.mission_completed"
   | "acme.approval_requested"
   | "acme.decided"
   | "acme.auth_token_issued";

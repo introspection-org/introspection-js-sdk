@@ -1,8 +1,8 @@
 /**
- * ES256 signing keys for what this app signs: booking quotes and resource
- * tokens (as the provider), and auth tokens (as Acme's Person Server). Set a PEM in the environment to keep keys stable across
- * restarts; otherwise each server process makes its own, which is fine for a
- * local demo.
+ * Ed25519 signing keys for what this app signs: booking quotes and resource
+ * tokens (as the provider), and person and auth tokens (as Acme's Person
+ * Server). Set a PEM in the environment to keep a key across restarts;
+ * otherwise each process makes its own, which is fine for a local demo.
  */
 import "server-only";
 
@@ -15,32 +15,41 @@ import {
   importPKCS8,
 } from "jose";
 
+/** RFC 9864's fully-specified identifier; the polymorphic `EdDSA` is not used. */
+export const ALG = "Ed25519";
+
 export interface Signer {
   kid: string;
   jwks: { keys: JWK[] };
   /** The private half as a JWK, for signing HTTP requests. */
   privateJwk: JWK;
   sign(claims: Record<string, unknown>, typ?: string): Promise<string>;
+  /** Sign with a header already built, as @aauth/resource hands it over. */
+  signWithHeader(
+    claims: Record<string, unknown>,
+    header: Record<string, unknown>,
+  ): Promise<string>;
 }
 
 async function load(kid: string, pem: string | undefined): Promise<Signer> {
-  let privateKey: CryptoKey;
-  if (pem) {
-    privateKey = await importPKCS8(pem, "ES256", { extractable: true });
-  } else {
-    privateKey = (await generateKeyPair("ES256", { extractable: true }))
-      .privateKey;
-  }
-  const privateJwk = { ...(await exportJWK(privateKey)), kid, alg: "ES256" };
+  const privateKey: CryptoKey = pem
+    ? await importPKCS8(pem, ALG, { extractable: true })
+    : (await generateKeyPair(ALG, { extractable: true })).privateKey;
+  const privateJwk = { ...(await exportJWK(privateKey)), kid, alg: ALG };
   const { d: _private, ...publicJwk } = privateJwk;
+  const signWithHeader = (
+    claims: Record<string, unknown>,
+    header: Record<string, unknown>,
+  ) =>
+    new SignJWT(claims)
+      .setProtectedHeader({ ...header, alg: ALG, kid } as { alg: string })
+      .sign(privateKey);
   return {
     kid,
     jwks: { keys: [{ ...publicJwk, use: "sig" }] },
     privateJwk,
-    sign: (claims, typ = "JWT") =>
-      new SignJWT(claims)
-        .setProtectedHeader({ alg: "ES256", typ, kid })
-        .sign(privateKey),
+    sign: (claims, typ = "JWT") => signWithHeader(claims, { typ }),
+    signWithHeader,
   };
 }
 

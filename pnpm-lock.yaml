@@ -85,6 +85,9 @@ importers:
 
   examples/aauth-travel:
     dependencies:
+      '@aauth/resource':
+        specifier: ^3.0.0
+        version: 3.0.0
       '@hellocoop/httpsig':
         specifier: ^2.6.0
         version: 2.6.0
@@ -107,6 +110,9 @@ importers:
         specifier: ^3.13.0
         version: 3.23.0
     devDependencies:
+      '@aauth/agent':
+        specifier: ^4.1.1
+        version: 4.1.1
       '@types/node':
         specifier: ^22.20.4
         version: 22.20.5
@@ -122,6 +128,9 @@ importers:
       eslint-config-next:
         specifier: ^16.3.6
         version: 16.3.8(@typescript-eslint/parser@8.71.0(eslint@9.39.5(jiti@2.7.0))(typescript@5.9.3))(eslint@9.39.5(jiti@2.7.0))(typescript@5.9.3)
+      portless:
+        specifier: ^0.15.7
+        version: 0.15.7
       typescript:
         specifier: ^5.7.2
         version: 5.9.3
@@ -555,6 +564,18 @@ importers:
         version: 4.1.11(@opentelemetry/api@1.9.1)(@types/node@22.20.5)(@vitest/coverage-v8@4.1.11)(vite@8.0.14(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.0))
 
 packages:
+
+  '@aauth/agent@4.1.1':
+    resolution: {integrity: sha512-+mArkGcgfRDiCgs68BvG4N9PhAg9Bb7IoQcAGWiKhnMXMqz9EAohbd4FV7DCpTW0qpX8/cvYJcyFh5fMnddqFg==}
+
+  '@aauth/interaction-code@0.1.1':
+    resolution: {integrity: sha512-vDsQC+8wpduPv1HPRMWV+qWEXey7rB+FGfct8E5ZWMUKuMhWUbAuK/GoDlqgSsu1PPn3V0ExF0yeLjfXrsGsxg==}
+
+  '@aauth/protocol@2.0.0':
+    resolution: {integrity: sha512-xoAJfZnwgEZ21wFZYI6tNEvmKhTgKv4+ETkxP8knZsMaVOz42MXV9lvyPOGXCnZy+qu1Z3XQxXEsD82blPTqrg==}
+
+  '@aauth/resource@3.0.0':
+    resolution: {integrity: sha512-M5AVghZJhoEgxi5/xVdTlGEvD8hXT+/0PJQ1wylRLqFqTiJdf1VEJZEFHAT8aGMFrxB/rKmMx+nVa7xOZhCepw==}
 
   '@ag-ui/core@0.0.59':
     resolution: {integrity: sha512-hDgy4ipTqXieT8YG8Mr917Y+FD/f11VK1GefZ5CwTDCuNqS/oTwjJ5l/DZkicThgS8hQW/Y7wPylPBMBJ8BkUg==}
@@ -3759,6 +3780,12 @@ packages:
     resolution: {integrity: sha512-wQ0b/W4Fr01qtpHlqSqspcj3EhBvimsdh0KlHhH8HRZnMsEa0ea2fTULOXOS9ccQr3om+GcGRk4e+isrZWV8qQ==}
     engines: {node: '>=16.20.0'}
 
+  portless@0.15.7:
+    resolution: {integrity: sha512-fffMnzfwU/0chJmOMmeAOjFouRsZUmdJagxdqE4DATLw83ssAnHX4BzvNqOI5vBgsuvWLX5ZLg63bzs7zdVFNw==}
+    engines: {node: '>=24'}
+    os: [darwin, linux, win32]
+    hasBin: true
+
   possible-typed-array-names@1.1.0:
     resolution: {integrity: sha512-/+5VFTchJDoVj3bhoqi6UeymcD00DAwb1nJwamzPvHEszJ4FpF6SNNbUbOS8yI56qHzdV8eK0qEfOSiodkTdxg==}
     engines: {node: '>= 0.4'}
@@ -4532,6 +4559,23 @@ packages:
     resolution: {integrity: sha512-bXE4cR/kVZhKZX/RjPEflHaKVhUVl85noU3v6b8apfQEc1x4A+zBxjZ4lN8LqGd6WZ3dl98pY4o717VFmoPp+A==}
 
 snapshots:
+
+  '@aauth/agent@4.1.1':
+    dependencies:
+      '@aauth/protocol': 2.0.0
+      '@hellocoop/httpsig': 2.6.0
+
+  '@aauth/interaction-code@0.1.1': {}
+
+  '@aauth/protocol@2.0.0':
+    dependencies:
+      '@hellocoop/httpsig': 2.6.0
+
+  '@aauth/resource@3.0.0':
+    dependencies:
+      '@aauth/interaction-code': 0.1.1
+      '@aauth/protocol': 2.0.0
+      jose: 6.2.12
 
   '@ag-ui/core@0.0.59':
     dependencies:
@@ -8055,6 +8099,8 @@ snapshots:
   pidtree@0.6.0: {}
 
   pkce-challenge@5.0.1: {}
+
+  portless@0.15.7: {}
 
   possible-typed-array-names@1.1.0: {}
 

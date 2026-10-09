@@ -1,11 +1,13 @@
 import type { NextConfig } from "next";
 
-import { APP_URL, PERSON_SERVER_URL } from "./lib/origins";
+import { BOOKING_ISSUER, PERSON_SERVER_URL } from "./lib/origins";
 
-// Acme's Person Server is its own origin (an AAuth server identifier has no
-// path); this one process answers for it by rewriting that host to /acme/*.
-const acmeHost = new URL(PERSON_SERVER_URL).hostname;
-const ownOrigin = acmeHost !== new URL(APP_URL).hostname;
+// Each AAuth server is its own host (an identifier has no path); this one
+// process answers for both by rewriting each host to its routes.
+const hosts = [
+  { host: new URL(BOOKING_ISSUER).hostname, prefix: "booking" },
+  { host: new URL(PERSON_SERVER_URL).hostname, prefix: "acme" },
+];
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
@@ -13,18 +15,14 @@ const nextConfig: NextConfig = {
   outputFileTracingIncludes: {
     "/": ["./flow/**/*", "./recipe/**/*", "./lib/**/*"],
   },
-  allowedDevOrigins: ownOrigin ? [acmeHost] : [],
+  allowedDevOrigins: hosts.map((h) => h.host),
   async rewrites() {
     return {
-      beforeFiles: ownOrigin
-        ? [
-            {
-              source: "/:path((?!acme/|_next/).*)",
-              has: [{ type: "host", value: acmeHost.replace(/\./g, "\\.") }],
-              destination: "/acme/:path",
-            },
-          ]
-        : [],
+      beforeFiles: hosts.map(({ host, prefix }) => ({
+        source: `/:path((?!${prefix}/|_next/).*)`,
+        has: [{ type: "host", value: host.replace(/\./g, "\\.") }],
+        destination: `/${prefix}/:path`,
+      })),
       afterFiles: [],
       fallback: [],
     };
