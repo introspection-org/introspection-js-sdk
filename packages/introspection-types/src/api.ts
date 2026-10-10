@@ -451,8 +451,8 @@ export type ShareResourceType = "file" | "conversation" | "issue";
  * A sharing grant for a file, conversation or issue (`/v1/shares`).
  *
  * A share admits its grantee; the caller's token scopes decide whether they
- * may read, write or delete the resource. Shares apply ambiently: a shared resource appears in the grantee's ordinary
- * list and get reads, with no `share_id` to carry.
+ * may read, write or delete the resource. Shares apply ambiently: a shared
+ * resource appears in the grantee's ordinary list and get reads.
  *
  * The grantee fields are ANDed: `granted_member_id` alone targets that member,
  * `granted_tag` alone targets everyone whose token carries the tag, both
