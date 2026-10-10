@@ -39,7 +39,12 @@ type Snapshot = {
   busy: boolean;
   chat: { from: "Sam" | "Agent"; text: string }[];
   error?: string;
-  mission?: { s256: string; budget_cents: number };
+  mission?: {
+    s256: string;
+    budget_cents: number;
+    spent_cents: number;
+    terminated?: string;
+  };
   exchanges: Exchange[];
   inbox: Email[];
 };
@@ -50,10 +55,10 @@ type Decide = (
 ) => void;
 
 const PARTY: Record<string, { name: string; mark: string; host: string }> = {
-  Rails: {
-    name: "Flight Sector's rails",
-    mark: "R",
-    host: "cedar · recipe/policies",
+  Tools: {
+    name: "the agent's tools",
+    mark: "T",
+    host: "travel-agent recipe, in its sandbox",
   },
   Acme: { name: "Acme", mark: "A", host: "ps.acme.localhost" },
   "Booking provider": {
@@ -300,8 +305,9 @@ export function AAuthDemo({ scenarios }: { scenarios: Scenario[] }) {
   const details = state.exchanges.filter((x) => x.turn === shownTurn);
   const send = () => {
     if (!prompt.trim()) return;
-    setPicked(null);
-    act({ action: "start", prompt });
+    if (!started) setPicked(null);
+    act({ action: started ? "send" : "start", prompt });
+    setPrompt("");
   };
   const decide: Decide = (email, verdict, budget) =>
     act({ action: "decide", email: email.index, verdict, budget });
@@ -313,7 +319,7 @@ export function AAuthDemo({ scenarios }: { scenarios: Scenario[] }) {
           <div className="brand">
             <AAuthLogo />
             <span className="step-label">
-              -11 · three-party, with a mission
+              -11 · three-party, with a mission · on Introspection
             </span>
           </div>
           <h1>Flight Sector&apos;s agent books Sam&apos;s trip for Acme</h1>
@@ -382,12 +388,14 @@ export function AAuthDemo({ scenarios }: { scenarios: Scenario[] }) {
               {state.error && <div className="error">{state.error}</div>}
               <div ref={chatEnd} />
             </div>
-            {!started && (
+            {!state.busy && (
               <div className="phone-composer">
                 <textarea
                   rows={2}
                   value={prompt}
-                  placeholder="Message Flight Sector"
+                  placeholder={
+                    started ? "Reply as Sam" : "Message Flight Sector as Sam"
+                  }
                   onChange={(e) => setPrompt(e.target.value)}
                   onKeyDown={(e) => {
                     if (e.key === "Enter" && !e.shiftKey) {
@@ -420,8 +428,8 @@ export function AAuthDemo({ scenarios }: { scenarios: Scenario[] }) {
             </h2>
             <p>
               {started
-                ? "Flight Sector's Cedar rails check every booking first. Acme's Person Server speaks for Sam: Dana approves the trip once, and anything over its budget."
-                : "Pick a sample or type your own: where, when, cabin, hotel and a budget. The agent proposes the trip to Acme, then books within it."}
+                ? "Flight Sector's travel-agent recipe runs on Introspection. Its egress signs every call, and runs Flight Sector's Cedar rails before Acme is asked. Acme's Person Server speaks for Sam: Dana approves the trip once, and anything over its budget."
+                : "Pick a sample or type your own: where, when, cabin, hotel and a budget. The travel-agent recipe proposes the trip to Acme, then books within it."}
             </p>
             {state.mission && (
               <div className="mission">
@@ -429,7 +437,12 @@ export function AAuthDemo({ scenarios }: { scenarios: Scenario[] }) {
                 $
                 {Math.round(state.mission.budget_cents / 100).toLocaleString(
                   "en-US",
+                )}{" "}
+                · spent $
+                {Math.round(state.mission.spent_cents / 100).toLocaleString(
+                  "en-US",
                 )}
+                {state.mission.terminated && ` · ${state.mission.terminated}`}
               </div>
             )}
           </div>
@@ -464,7 +477,8 @@ export function AAuthDemo({ scenarios }: { scenarios: Scenario[] }) {
           <div className="pane-body">
             {details.length === 0 && (
               <p className="muted">
-                Each request the agent makes appears here, signed.
+                Each request Introspection&apos;s egress sends for the agent
+                appears here, as it arrived, signed.
               </p>
             )}
             {details.map((x) => (

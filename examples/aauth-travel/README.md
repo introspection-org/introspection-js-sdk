@@ -30,14 +30,14 @@ Sam's trip is "Flights and a hotel for Sam, 19 to 23 October, up to $3,000."
 | A booking with no trip            | `403` from Acme, and from the recipe's `missionless-booking` rule before that                   |
 | "That's everything"               | the agent proposes the mission complete; Sam accepts, and nothing more books under it           |
 
-One booking, end to end. Every arrow from the agent is an HTTP request signed with the agent's key (RFC 9421); in the platform the egress signs it, and on the demo page the page's agent does.
+One booking, end to end. The agent is the travel-agent recipe running on Introspection; every arrow from it is a request Introspection's egress signs with the session's key (RFC 9421), after Flight Sector's rails allow it.
 
 ```mermaid
 sequenceDiagram
     autonumber
     participant Sam
-    participant Agent as Flight Sector's agent
-    participant Rails as Flight Sector's rails (Cedar)
+    participant Agent as Flight Sector's agent (on Introspection)
+    participant Rails as Flight Sector's rails (Cedar, in the egress)
     participant Booking as Booking provider
     participant Acme as Acme's Person Server
     participant Dana as Dana (Sam's manager)
@@ -97,11 +97,19 @@ pnpm --filter introspection-example-aauth-travel dev   # https://flightsector.lo
 
 Without `RESEND_API_KEY`, Dana's email, with its code, is printed to this app's console.
 
-### The demo page
+### The demo page, on Introspection
 
-`https://flightsector.localhost/demo` runs the whole flow on one page, without the platform. Type what Sam asks for (or pick one of the sample prompts) and Flight Sector's agent works through it: it proposes the trip to Acme, books the flight and the hotel, and reports the trip done. Three columns show the chat, what Flight Sector's rails, Acme and the booking provider see, and every request on the wire. Where Acme needs a person, Dana's or Sam's email appears in the middle column; approve or decline it there.
+`https://flightsector.localhost/demo` is the demo. Sam types a request (or picks a sample prompt), and the page starts a real task on the `travel-agent` runtime, the [travel-agent recipe](https://github.com/introspection-org/recipe-travel-agent), acting for Sam: it opens a runner with the identity `user_id: sam@acme.example`, which mints Sam's customer member, so Introspection's control plane issues the agent token and its egress signs every call the agent makes, after running Flight Sector's Cedar rails. Three panes show the chat from the task's AG-UI stream, what the agent's tools, Acme and the booking provider each saw, and every request as it arrived here, signed by the egress. When Acme needs Dana or Sam, the email appears on the page; once it's answered, the platform resumes the task by itself and the page follows the new run.
 
-Every booking first passes the recipe's own Cedar rails (`recipe/policies/`), evaluated in-process with [`@cedar-policy/cedar-wasm`](https://www.npmjs.com/package/@cedar-policy/cedar-wasm) the way the platform's egress evaluates them. The sample prompts cover a trip Dana approves over budget, first class refused by the rails, a personal trip on the company account refused by the rails, and a hotel Dana declines. The page's agent is signed by an Agent Provider this app runs at `https://agents.flightsector.localhost`, which `pnpm dev` aliases and the servers here trust. The agent reads Sam's prompt by keywords rather than with a model; the platform runs the real recipe.
+Run it against the local stack in `introspection-cloud`:
+
+```bash
+make dev-aauth-demo        # AAuth agent and policy gate on in the local egress
+make seed-applications seed-travel-agent
+make seed-aauth-demo       # booking connector, Sam, and this app's .env.local
+```
+
+`seed-aauth-demo` writes `INTROSPECTION_BASE_API_URL`, `INTROSPECTION_RUNTIME` and `DEMO_SAM_USER_ID` here, and `INTROSPECTION_TOKEN` when it can mint a project API key; otherwise add one by hand. Acme's Person Server knows Sam as `user:sam@acme.example`, the key the platform gives a runner identity.
 
 To exercise the whole flow without the platform, play the agent with the e2e script. It uses [`@aauth/agent`](https://www.npmjs.com/package/@aauth/agent) as the egress would, and runs a test Agent Provider at `https://e2e-agents.localhost`, which the dev server must trust:
 

@@ -1,21 +1,14 @@
 /**
- * Records the HTTP the demo page's run makes, so the page can show it on the
- * wire. The agent's calls carry their actor (the agent, Dana, Sam) in async
- * context; Acme reading a booking proposal is recorded as Acme. Key discovery
- * by the servers is left out: it is cached, and says nothing about the flow.
+ * Records what reaches the booking provider and Acme's Person Server while a
+ * demo run is on, so the page can show it on the wire: the agent's requests
+ * exactly as Introspection's egress signed them, Acme reading a booking
+ * proposal, and a person's decision. Key discovery is left out: it is cached,
+ * and says nothing about the flow.
  */
 import "server-only";
 
-import { AsyncLocalStorage } from "node:async_hooks";
-
-import {
-  BOOKING_ISSUER,
-  DEMO_AGENT_PROVIDER,
-  PERSON_SERVER_URL,
-} from "../origins";
-
-export type Actor = "Agent" | "Dana" | "Sam" | "Acme";
-export type Party = Actor | "Rails" | "Booking provider" | "Agent Provider";
+export type Party =
+  "Agent" | "Acme" | "Booking provider" | "Dana" | "Sam" | "Tools";
 
 export type Exchange = {
   id: number;
@@ -31,8 +24,6 @@ export type Exchange = {
   turn: number;
 };
 
-const actor = new AsyncLocalStorage<Actor>();
-
 type Wire = {
   recording: boolean;
   seq: number;
@@ -46,11 +37,6 @@ const wire = ((globalThis as unknown as { __demoWire?: Wire }).__demoWire ??= {
   exchanges: [],
 });
 
-/** Calls from here on belong under chat line `turn`. */
-export function setTurn(turn: number) {
-  wire.turn = turn;
-}
-
 export const exchanges = () => wire.exchanges;
 
 export function startRecording() {
@@ -63,31 +49,24 @@ export function stopRecording() {
   wire.exchanges = [];
 }
 
-/** Record a step that makes no HTTP call, such as the rails' evaluation. */
+/** Calls from here on belong under chat line `turn`. */
+export function setTurn(turn: number) {
+  wire.turn = turn;
+}
+
+/** Record something seen without an HTTP call here, such as one of the agent's tool calls. */
 export function note(entry: Omit<Exchange, "id" | "repeats" | "turn">) {
-  if (wire.recording)
-    wire.exchanges.push({
-      id: ++wire.seq,
-      repeats: 1,
-      turn: wire.turn,
-      ...entry,
-    });
+  if (!wire.recording) return undefined;
+  const exchange = { id: ++wire.seq, repeats: 1, turn: wire.turn, ...entry };
+  wire.exchanges.push(exchange);
+  return exchange;
 }
 
-/** Run `work` as `who`: every request it makes is recorded as theirs. */
-export function as<T>(who: Actor, work: () => Promise<T>): Promise<T> {
-  return actor.run(who, work);
-}
-
-const host = (url: string) => new URL(url).host;
-const PARTIES: Record<string, Party> = {
-  [host(BOOKING_ISSUER)]: "Booking provider",
-  [host(PERSON_SERVER_URL)]: "Acme",
-  [host(DEMO_AGENT_PROVIDER)]: "Agent Provider",
-};
+/** The header a person's decision from the demo page carries, naming who decided. */
+export const ACTOR_HEADER = "x-demo-actor";
 
 const JWT = /eyJ[\w-]+\.[\w-]+\.[\w-]+/g;
-const shorten = (text: string) =>
+export const shorten = (text: string) =>
   text.replace(JWT, (jwt) => `${jwt.slice(0, 12)}…${jwt.slice(-4)}`);
 const SHOWN_REQUEST = [
   "content-type",
@@ -109,7 +88,6 @@ function label(
   status: number,
   requirement: string | null,
 ) {
-  if (path.startsWith("/.well-known/")) return "Discover the Person Server";
   if (path === "/v1/search") return "Search offers";
   if (path === "/v1/reserve") {
     if (status === 401 && requirement?.includes("person-token"))
@@ -133,13 +111,13 @@ function headerLines(headers: Headers, shown: string[]) {
   return shown.flatMap((name) => {
     const value = headers.get(name);
     if (!value) return [];
-    const short =
-      name === "signature" ? `${value.slice(0, 24)}…` : shorten(value);
-    return [`${name}: ${short}`];
+    return [
+      `${name}: ${name === "signature" ? `${value.slice(0, 24)}…` : shorten(value)}`,
+    ];
   });
 }
 
-function body(text: string) {
+export function body(text: string) {
   if (!text) return [];
   try {
     return ["", shorten(JSON.stringify(JSON.parse(text), null, 2))];
@@ -148,27 +126,37 @@ function body(text: string) {
   }
 }
 
-async function record(
-  input: RequestInfo | URL,
-  init: RequestInit | undefined,
-  response: Response,
-) {
-  const request = new Request(input, init);
-  const url = new URL(request.url);
-  const to = PARTIES[url.host];
-  if (!to) return;
-  const who = actor.getStore();
-  const discovery =
-    url.pathname.startsWith("/.well-known/") ||
-    url.pathname.endsWith("jwks.json");
-  if (!who && (discovery || to !== "Booking provider")) return;
-  const from: Party = who ?? "Acme";
-  if (to === "Agent Provider") return;
+function sender(path: string, headers: Headers): Party {
+  if (path.startsWith("/r3/")) return "Acme";
+  const actor = headers.get(ACTOR_HEADER);
+  if (actor === "Dana" || actor === "Sam") return actor;
+  return "Agent";
+}
 
+/**
+ * Serve a request at `to` and record it. Wraps a route handler, so what is
+ * shown is what arrived: the egress's signature and token, not a copy.
+ */
+export async function recorded(
+  to: Party,
+  request: Request,
+  serve: () => Promise<Response>,
+): Promise<Response> {
+  if (!wire.recording) return serve();
+  const copy = request.clone();
+  const response = await serve();
+  const url = new URL(copy.url);
+  const path = url.pathname.replace(/^\/(booking|acme)(?=\/)/, "");
+  if (
+    path.startsWith("/.well-known/") ||
+    path.endsWith("jwks.json") ||
+    path === "/v1/audit"
+  )
+    return response;
   const requestText = [
-    `${request.method} ${url.origin}${url.pathname}`,
-    ...headerLines(request.headers, SHOWN_REQUEST),
-    ...body(typeof init?.body === "string" ? init.body : ""),
+    `${copy.method} https://${copy.headers.get("x-forwarded-host") ?? copy.headers.get("host") ?? url.host}${path}`,
+    ...headerLines(copy.headers, SHOWN_REQUEST),
+    ...body(await copy.text().catch(() => "")),
   ].join("\n");
   const responseText = [
     `HTTP/1.1 ${response.status} ${response.statusText}`,
@@ -180,12 +168,13 @@ async function record(
         .catch(() => ""),
     ),
   ].join("\n");
+  const from = sender(path, copy.headers);
   const entry = {
     from,
     to,
     label: label(
-      request.method,
-      url.pathname,
+      copy.method,
+      path,
       response.status,
       response.headers.get("aauth-requirement"),
     ),
@@ -202,26 +191,13 @@ async function record(
     last.status === 202
   ) {
     last.repeats += 1;
-    return;
+  } else {
+    wire.exchanges.push({
+      id: ++wire.seq,
+      repeats: 1,
+      turn: wire.turn,
+      ...entry,
+    });
   }
-  wire.exchanges.push({
-    id: ++wire.seq,
-    repeats: 1,
-    turn: wire.turn,
-    ...entry,
-  });
-}
-
-/** Wrap `fetch` once per process, so whatever calls it is seen. */
-export function installRecorder() {
-  const store = globalThis as unknown as { __demoFetchWrapped?: boolean };
-  if (store.__demoFetchWrapped) return;
-  store.__demoFetchWrapped = true;
-  const original = globalThis.fetch.bind(globalThis);
-  globalThis.fetch = async (input, init) => {
-    const response = await original(input, init);
-    if (wire.recording)
-      await record(input, init, response).catch(() => undefined);
-    return response;
-  };
+  return response;
 }

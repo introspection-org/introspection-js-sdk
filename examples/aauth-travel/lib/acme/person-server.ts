@@ -184,7 +184,9 @@ function personFor(agent: Agent, loginHint?: unknown): Person {
       ? people.find(
           (p) =>
             p.company === TENANT &&
-            (p.external_user_id === loginHint || p.email === loginHint),
+            (p.external_user_id === loginHint ||
+              p.email === loginHint ||
+              `user:${p.email}` === loginHint),
         )
       : undefined;
   if (loginHint !== undefined && !hinted)
@@ -676,6 +678,17 @@ export async function decide(
   return { status: pending.status };
 }
 // #endregion
+
+/** The trips Acme has approved, oldest first. */
+export function missions() {
+  return [...state.missions.values()].map((m) => ({
+    s256: m.s256,
+    person: m.person.name,
+    budget_cents: m.budget_cents,
+    spent_cents: m.spent_cents,
+    terminated: m.terminated,
+  }));
+}
 
 /** What the approval page shows. */
 export function approvalSummary(id: string) {

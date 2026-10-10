@@ -1,31 +1,37 @@
 /**
- * The demo page's run: Flight Sector's agent, scripted, doing over AAuth what
- * the platform's egress does for the recipe. Sam's prompt sets the plan; the
- * agent makes real calls to Acme and the booking provider, every booking passes
- * the recipe's Cedar rails first, and where Acme needs a person it waits until
- * that person decides on the page, as they would from Acme's email.
+ * The demo page's run, on Introspection. Sam's message starts a task on the
+ * travel-agent runtime (the recipe at github.com/introspection-org/recipe-travel-agent),
+ * acting for Sam: the runner identity mints Sam's customer member, and the
+ * platform's egress signs every call the agent makes as that member's agent.
+ * The page follows each run's AG-UI stream, including the run the platform
+ * starts by itself once Acme's pending decision comes back.
+ *
+ * Acme's emails are answered on the page, as Dana or Sam would from the email.
  */
 import "server-only";
 
-import { createAAuthFetch, pollDeferred } from "@aauth/agent";
+import { IntrospectionClient } from "@introspection-sdk/introspection-node";
 
 import { clearInbox, inbox } from "../acme/mail";
-import { approvalSummary } from "../acme/person-server";
-import { since } from "../events";
-import { BOOKING_ISSUER, PERSON_SERVER_URL } from "../origins";
-import { people } from "../world";
-import { type DemoAgent, newAgent } from "./agent-provider";
-import { checkReserve } from "./rails";
+import { approvalSummary, missions } from "../acme/person-server";
+import { PERSON_SERVER_URL } from "../origins";
 import {
-  as,
+  ACTOR_HEADER,
+  body,
   exchanges,
-  installRecorder,
+  type Exchange,
   note,
+  setTurn,
   startRecording,
   stopRecording,
 } from "./wire";
 
-const SAM = people.find((p) => p.name.startsWith("Sam"))!.external_user_id;
+/** Sam as the runner identity names them; Acme's Person Server knows `user:{email}`. */
+const SAM_USER_ID = process.env.DEMO_SAM_USER_ID || "sam@acme.example";
+const RUNTIME = process.env.INTROSPECTION_RUNTIME || "travel-agent";
+/** How long to keep watching a parked task for the platform to resume it. */
+const RESUME_WATCH_MS = 15 * 60 * 1000;
+const RESUME_POLL_MS = 2000;
 
 export const SCENARIOS = [
   {
@@ -40,7 +46,7 @@ export const SCENARIOS = [
     title: "First class: the rails refuse",
     prompt:
       "Fly me first class to Sydney for 19 to 23 October, with the Harbour Rocks. Up to $20,000.",
-    hint: "Approve the trip. Flight Sector's Cedar rails refuse first class before Acme is ever asked.",
+    hint: "Approve the trip. Flight Sector's Cedar rails in Introspection's egress refuse first class before Acme is asked.",
   },
   {
     id: "personal",
@@ -58,97 +64,73 @@ export const SCENARIOS = [
   },
 ] as const;
 
-type Plan = {
-  prompt: string;
-  cabin: "economy" | "premium_economy" | "business" | "first";
-  hotel?: "qt-sydney" | "harbour-rocks";
-  purpose: "business" | "personal";
-  payer: "company" | "traveller";
-};
-
-/** Sam's request, read the way the recipe's agent would read it, minus the model. */
-function planOf(prompt: string): Plan {
-  const p = prompt.toLowerCase();
-  const cabin = /\bfirst\b/.test(p)
-    ? "first"
-    : /business class|\bbusiness\b(?! trip)/.test(p)
-      ? "business"
-      : /premium/.test(p)
-        ? "premium_economy"
-        : "economy";
-  const hotel = /no hotel|without a hotel|flights? only/.test(p)
-    ? undefined
-    : /\bqt\b/.test(p)
-      ? "qt-sydney"
-      : /harbour|hotel/.test(p)
-        ? "harbour-rocks"
-        : undefined;
-  const purpose = /personal|holiday|vacation|weekend away/.test(p)
-    ? "personal"
-    : "business";
-  const payer = /my own card|i'll pay|myself|my card/.test(p)
-    ? "traveller"
-    : "company";
-  return { prompt, cabin, hotel, purpose, payer };
-}
-
 type Chat = { from: "Sam" | "Agent"; text: string };
+type Runner = Awaited<
+  ReturnType<ReturnType<IntrospectionClient["runtimes"]>["run"]>
+>;
+type Stream = AsyncIterable<{ type: string } & Record<string, unknown>>;
 type Run = {
-  plan?: Plan;
+  prompt?: string;
   busy: boolean;
   chat: Chat[];
   error?: string;
-  agent?: DemoAgent;
-  mission?: { s256: string; budget_cents: number };
-  booked: string[];
-  eventsFrom: number;
+  runner?: Runner;
+  taskId?: string;
+  /** Runs already followed, so a resumed run is streamed once. */
+  followed: Set<string>;
+  /** Bumped on every reset, so a stale follower stops writing. */
+  epoch: number;
   inboxFrom: number;
   decided: number[];
   /** The chat line each email arrived under. */
   emailTurns: Record<number, number>;
+  missionsFrom: number;
 };
 
-const fresh = (): Run => ({
+const fresh = (epoch = 0): Run => ({
   busy: false,
   chat: [],
-  booked: [],
-  eventsFrom: Number.MAX_SAFE_INTEGER,
-  inboxFrom: 0,
+  followed: new Set(),
+  epoch,
+  inboxFrom: inbox().length,
   decided: [],
   emailTurns: {},
+  missionsFrom: missions().length,
 });
 const store = globalThis as unknown as { __demoRun?: Run };
 const run = () => (store.__demoRun ??= fresh());
 
-const CABINS: Record<string, string> = {
-  economy: "economy",
-  premium_economy: "premium economy",
-  business: "business class",
-  first: "first class",
+const say = (from: Chat["from"], text: string) => {
+  const chat = run().chat;
+  chat.push({ from, text });
+  // What the agent does next is told in its next line, so the calls go under that one.
+  setTurn(chat.length);
 };
-
-const dollars = (cents: number) =>
-  `$${Math.round(cents / 100).toLocaleString("en-US")}`;
-const say = (from: Chat["from"], text: string) =>
-  run().chat.push({ from, text });
 
 export function snapshot() {
   const r = run();
   const sent = inbox();
+  const trip = missions().slice(r.missionsFrom).at(-1);
   return {
-    prompt: r.plan?.prompt,
+    prompt: r.prompt,
     busy: r.busy,
     chat: r.chat,
     error: r.error,
-    mission: r.mission,
+    taskId: r.taskId,
+    mission: trip && {
+      s256: trip.s256,
+      budget_cents: trip.budget_cents,
+      spent_cents: trip.spent_cents,
+      terminated: trip.terminated,
+    },
     exchanges: exchanges(),
-    events: r.eventsFrom === Number.MAX_SAFE_INTEGER ? [] : since(r.eventsFrom),
     inbox: sent.slice(r.inboxFrom).map((email, i) => {
+      const index = r.inboxFrom + i;
       const budget = approvalSummary(email.link.split("/").pop() ?? "")?.budget;
-      (r.emailTurns ??= {})[r.inboxFrom + i] ??= r.chat.length;
+      r.emailTurns[index] ??= r.chat.length;
       return {
-        index: r.inboxFrom + i,
-        turn: r.emailTurns[r.inboxFrom + i],
+        index,
+        turn: r.emailTurns[index],
         to: email.approverName,
         item: email.item,
         reasons: email.reasons,
@@ -161,273 +143,177 @@ export function snapshot() {
                   : budget.suggested_cents / 100,
             }
           : null,
-        decided: r.decided.includes(r.inboxFrom + i),
+        decided: r.decided.includes(index),
       };
     }),
   };
 }
 
 export function reset() {
-  store.__demoRun = fresh();
-  stopRecording();
+  const old = run();
+  void old.runner?.close().catch(() => undefined);
   clearInbox();
+  stopRecording();
+  store.__demoRun = fresh(old.epoch + 1);
 }
 
-async function offer(
-  kind: "flight" | "hotel",
-  pick: (o: Record<string, unknown>) => boolean,
-) {
-  const body =
-    kind === "hotel"
-      ? { kind, city: "SYD", check_in: "2026-10-19", check_out: "2026-10-23" }
-      : { kind, from: "SFO", to: "SYD", date: "2026-10-18" };
-  const response = await fetch(`${BOOKING_ISSUER}/v1/search`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
-  const { offers } = (await response.json()) as {
-    offers: Record<string, unknown>[];
-  };
-  return offers.find(pick) ?? offers[0];
-}
-
-type Reserved = {
-  status: number;
-  body: Record<string, unknown>;
-  refused?: string;
-};
-
-/** Reserve through the rails, then over AAuth: the order the platform's egress runs them in. */
-async function reserve(
-  r: Run,
-  chosen: Record<string, unknown>,
-  missionS256?: string,
-): Promise<Reserved> {
-  const body = {
-    offer_id: String(chosen.offer_id),
-    quote: String(chosen.quote),
-    purpose: r.plan!.purpose,
-    payer: r.plan!.payer,
-  };
-  const verdict = checkReserve(body, missionS256);
-  const reasons = verdict.denied.map(
-    (d) => `${d.id}: ${d.reason ?? "forbidden"}`,
-  );
-  note({
-    from: "Agent",
-    to: "Rails",
-    label:
-      verdict.decision === "allow"
-        ? "Cedar: booking.reserve → allow"
-        : `Cedar: deny (${verdict.denied.map((d) => d.id).join(", ")})`,
-    request: `cedar is_authorized  (recipe/policies/travel.cedar)\n\n${JSON.stringify(verdict.request, null, 2)}`,
-    response: `decision: ${verdict.decision}${reasons.length ? `\n\n${reasons.join("\n")}` : ""}`,
-    status: verdict.decision === "allow" ? 200 : 403,
-  });
-  if (verdict.decision === "deny") {
-    return {
-      status: 403,
-      body: {},
-      refused: verdict.denied.map((d) => d.reason).join("; "),
-    };
-  }
-  const fetchAs = createAAuthFetch({
-    getKeyMaterial: r.agent!.keyMaterial,
-    personServerUrl: PERSON_SERVER_URL,
-    loginHint: SAM,
-    ...(missionS256 ? { missionS256 } : {}),
-    maxPollDuration: 600,
-  });
+function toolStatus(result: string) {
   try {
-    const response = await fetchAs(`${BOOKING_ISSUER}/v1/reserve`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
-    const answer = (await response.json().catch(() => ({}))) as Record<
-      string,
-      unknown
-    >;
-    return { status: response.status, body: answer };
-  } catch (err) {
-    const error = err as { detail?: string; error?: string; message?: string };
-    return {
-      status: 403,
-      body: {},
-      refused: error.detail ?? error.error ?? error.message ?? "refused",
-    };
+    const parsed = JSON.parse(result) as { status?: number; error?: unknown };
+    if (typeof parsed.status === "number") return parsed.status;
+    if (parsed.error) return 400;
+  } catch {
+    // a plain-text result
   }
+  return /\b(403|forbid|denied|refused)\b/i.test(result) ? 403 : 200;
 }
 
-async function missionCall(agent: DemoAgent, url: string, body: unknown) {
-  const response = await agent.ps(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
-  if (response.status !== 202) return response;
-  const { response: done, error } = await pollDeferred({
-    signedFetch: agent.ps,
-    locationUrl: new URL(response.headers.get("location")!, url).toString(),
-    maxPollDuration: 600,
-  });
-  if (error || !done)
-    throw Object.assign(
-      new Error(error?.detail ?? error?.error ?? "no answer from Acme"),
-      { declined: true },
-    );
-  return done;
+/** Fold one run's AG-UI events into the chat and the agent's tool calls. */
+async function follow(r: Run, epoch: number, runId: string, stream: Stream) {
+  r.followed.add(runId);
+  const messages = new Map<string, Chat>();
+  const tools = new Map<
+    string,
+    { exchange?: Exchange; name: string; args: string }
+  >();
+  for await (const ev of stream) {
+    if (r.epoch !== epoch) return;
+    switch (ev.type) {
+      case "TEXT_MESSAGE_START": {
+        say("Agent", "");
+        messages.set(String(ev.messageId), r.chat.at(-1)!);
+        break;
+      }
+      case "TEXT_MESSAGE_CONTENT": {
+        const line = messages.get(String(ev.messageId));
+        if (line) line.text += String(ev.delta ?? "");
+        break;
+      }
+      case "TOOL_CALL_START": {
+        tools.set(String(ev.toolCallId), {
+          name: String(ev.toolCallName),
+          args: "",
+        });
+        break;
+      }
+      case "TOOL_CALL_ARGS": {
+        const tool = tools.get(String(ev.toolCallId));
+        if (tool) tool.args += String(ev.delta ?? "");
+        break;
+      }
+      case "TOOL_CALL_END": {
+        const tool = tools.get(String(ev.toolCallId));
+        if (tool)
+          tool.exchange = note({
+            from: "Agent",
+            to: "Tools",
+            label: tool.name,
+            request: [`${tool.name}(…)`, ...body(tool.args)].join("\n"),
+            response: "…",
+            status: 102,
+          });
+        break;
+      }
+      case "TOOL_CALL_RESULT": {
+        const tool = tools.get(String(ev.toolCallId));
+        const content = String(ev.content ?? "");
+        if (tool?.exchange) {
+          tool.exchange.response = body(content).join("\n").trim() || content;
+          tool.exchange.status = toolStatus(content);
+        }
+        break;
+      }
+      case "RUN_ERROR": {
+        r.error = String(ev.message ?? "the run failed");
+        break;
+      }
+    }
+  }
+  // Drop the empty line a message with no text leaves behind.
+  r.chat = r.chat.filter((line) => line.from === "Sam" || line.text.trim());
 }
-
-/** A step either moves on, or ends the run early (nothing left that can happen). */
-type Outcome = void | "stop";
-
-const STEPS: Record<string, (r: Run) => Promise<Outcome>> = {
-  async ask(r) {
-    say("Sam", r.plan!.prompt);
-    const { cabin, hotel, purpose, payer } = r.plan!;
-    const cabinName = CABINS[cabin];
-    const parts = [
-      `${/^[aeiou]/.test(cabinName) ? "an" : "a"} ${cabinName} flight`,
-      hotel
-        ? hotel === "qt-sydney"
-          ? "the QT Sydney"
-          : "the Harbour Rocks"
-        : undefined,
-    ].filter(Boolean);
-    say(
-      "Agent",
-      `I'll propose the trip to Acme so your manager can approve it once: ${parts.join(" and ")}, a ${purpose} trip paid by ${payer === "company" ? "Acme" : "you"}. Then I'll book within it.`,
-    );
-  },
-  async propose(r) {
-    say(
-      "Agent",
-      "I've proposed the trip to Acme. It has asked Dana to approve it and set the budget.",
-    );
-    let response: Response;
-    try {
-      response = await missionCall(
-        r.agent!,
-        `${PERSON_SERVER_URL}/ps/mission`,
-        {
-          description: `# Sam's trip to Sydney\n\n${r.plan!.prompt}`,
-          resources: [BOOKING_ISSUER],
-          login_hint: SAM,
-        },
-      );
-    } catch (err) {
-      if (!(err as { declined?: boolean }).declined) throw err;
-      say(
-        "Agent",
-        `Dana didn't approve the trip (${(err as Error).message}), so I haven't booked anything.`,
-      );
-      return "stop";
-    }
-    const body = (await response.json()) as { s256: string; mission: string };
-    const blob = JSON.parse(
-      Buffer.from(body.mission, "base64url").toString(),
-    ) as { budget_cents: number };
-    r.mission = { s256: body.s256, budget_cents: blob.budget_cents };
-    say(
-      "Agent",
-      `Dana approved the trip with a ${dollars(blob.budget_cents)} budget. I'll book within it.`,
-    );
-  },
-  async flight(r) {
-    const flight = await offer("flight", (o) => o.cabin === r.plan!.cabin);
-    const name = `${String(flight.flight)}, ${CABINS[String(flight.cabin)] ?? String(flight.cabin)}`;
-    const { status, body, refused } = await reserve(r, flight, r.mission!.s256);
-    if (status === 200) {
-      r.booked.push(name);
-      say(
-        "Agent",
-        `Booked ${name}, for ${dollars(Number(flight.total_cents ?? 0))}: ${String(body.confirmation)}.`,
-      );
-    } else {
-      say(
-        "Agent",
-        `I couldn't book ${name}: ${refused ?? `the provider answered ${status}`}.`,
-      );
-    }
-  },
-  async hotel(r) {
-    const chosen = await offer("hotel", (o) => o.property === r.plan!.hotel);
-    const name = String(chosen.name);
-    say(
-      "Agent",
-      `Booking ${name} for ${dollars(Number(chosen.total_cents ?? 0))}. If that's over what's left of the budget, Acme asks Dana.`,
-    );
-    const { status, body, refused } = await reserve(r, chosen, r.mission!.s256);
-    if (status === 200) {
-      r.booked.push(name);
-      say("Agent", `${name} is booked: ${String(body.confirmation)}.`);
-    } else {
-      say(
-        "Agent",
-        `I couldn't book ${name}: ${refused ?? `the provider answered ${status}`}.`,
-      );
-    }
-  },
-  async finish(r) {
-    const summary = r.booked.length
-      ? `Booked ${r.booked.join(" and ")}.`
-      : "Nothing could be booked.";
-    say(
-      "Agent",
-      `${summary} I've told Acme the trip is done; it's asking you to confirm.`,
-    );
-    try {
-      const done = await missionCall(
-        r.agent!,
-        `${PERSON_SERVER_URL}/ps/mission/${r.mission!.s256}`,
-        {
-          action: "completion",
-          summary,
-        },
-      );
-      if (!done.ok) throw new Error(`completion answered ${done.status}`);
-    } catch (err) {
-      if (!(err as { declined?: boolean }).declined) throw err;
-      say("Agent", "You didn't accept the trip as done, so it stays open.");
-      return "stop";
-    }
-    say("Agent", "You've accepted the trip as done. The mission is closed.");
-  },
-};
 
 /**
- * Sam sends a prompt: the agent works through it in the background while the
- * page polls, stopping only where Acme waits on a person to answer.
+ * After a run settles, a parked task (waiting on Acme) is resumed by the
+ * platform in a run of its own. Watch the task for that run and follow it.
  */
+async function watch(r: Run, epoch: number) {
+  const deadline = Date.now() + RESUME_WATCH_MS;
+  while (r.epoch === epoch && Date.now() < deadline) {
+    const waiting = inbox()
+      .slice(r.inboxFrom)
+      .some((_, i) => !r.decided.includes(r.inboxFrom + i));
+    const task = await r.runner!.tasks.get(r.taskId!);
+    const active = task.metadata?.active_run_id as string | undefined;
+    if (active && !r.followed.has(active)) {
+      await follow(
+        r,
+        epoch,
+        active,
+        r.runner!.tasks.runs.stream(r.taskId!, active) as Stream,
+      );
+      continue;
+    }
+    if (!waiting && !active) return;
+    await new Promise((resolve) => setTimeout(resolve, RESUME_POLL_MS));
+  }
+}
+
+async function drive(
+  r: Run,
+  epoch: number,
+  first: () => Promise<{ runId: string; stream: Stream }>,
+) {
+  r.busy = true;
+  r.error = undefined;
+  try {
+    const { runId, stream } = await first();
+    await follow(r, epoch, runId, stream);
+    await watch(r, epoch);
+  } catch (err) {
+    if (r.epoch === epoch)
+      r.error = err instanceof Error ? err.message : String(err);
+  } finally {
+    if (r.epoch === epoch) r.busy = false;
+  }
+}
+
+/** Sam's first message: open a runner as Sam and start the task. */
 export async function start(prompt: string) {
   if (run().busy) return;
   reset();
   const r = run();
-  r.plan = planOf(prompt.trim() || SCENARIOS[0].prompt);
-  r.busy = true;
-  installRecorder();
+  r.prompt = prompt.trim();
   startRecording();
-  r.eventsFrom = since(0).at(-1)?.seq ?? 0;
-  r.inboxFrom = inbox().length;
-  r.agent = await newAgent();
-  const order = [
-    "ask",
-    "propose",
-    "flight",
-    ...(r.plan.hotel ? ["hotel"] : []),
-    "finish",
-  ];
-  void as("Agent", async () => {
-    for (const id of order) if ((await STEPS[id](r)) === "stop") return;
-  })
-    .catch((err: Error) => {
-      r.error = err.message;
-    })
-    .finally(() => {
-      r.busy = false;
+  say("Sam", r.prompt);
+  if (!process.env.INTROSPECTION_TOKEN) {
+    r.error =
+      "Set INTROSPECTION_TOKEN to a project API key (and INTROSPECTION_BASE_API_URL for a local control plane).";
+    return;
+  }
+  const epoch = r.epoch;
+  void drive(r, epoch, async () => {
+    r.runner = await new IntrospectionClient()
+      .runtimes(RUNTIME)
+      .run({ identity: { user_id: SAM_USER_ID } });
+    const handle = await r.runner.tasks.start({ prompt: r.prompt! });
+    r.taskId = handle.run.task_id;
+    return { runId: handle.run.id, stream: handle.stream() as Stream };
+  });
+}
+
+/** Sam's next message, on the same task. */
+export async function send(prompt: string) {
+  const r = run();
+  if (r.busy || !r.runner || !r.taskId || !prompt.trim()) return;
+  say("Sam", prompt.trim());
+  const epoch = r.epoch;
+  void drive(r, epoch, async () => {
+    const handle = await r.runner!.tasks.runs.create(r.taskId!, {
+      prompt: { text: prompt.trim() },
     });
+    return { runId: handle.run.id, stream: handle.stream() as Stream };
+  });
 }
 
 /** A person answers Acme's email from the page: the same call Acme's approval page makes. */
@@ -441,17 +327,15 @@ export async function decide(
   if (!email || r.decided.includes(index)) return;
   const id = email.link.split("/").pop();
   const who = email.approverName.startsWith("Sam") ? "Sam" : "Dana";
-  const response = await as(who, () =>
-    fetch(`${PERSON_SERVER_URL}/ps/approvals/${id}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        code: email.code,
-        verdict,
-        ...(budgetDollars ? { budget: budgetDollars } : {}),
-      }),
+  const response = await fetch(`${PERSON_SERVER_URL}/ps/approvals/${id}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", [ACTOR_HEADER]: who },
+    body: JSON.stringify({
+      code: email.code,
+      verdict,
+      ...(budgetDollars ? { budget: budgetDollars } : {}),
     }),
-  );
+  });
   if (!response.ok) {
     r.error = `Acme refused the decision: ${response.status}`;
     return;
