@@ -292,3 +292,9 @@ pre.data,
 .company-actions button[value="approve"] {
   background: var(--company);
 }
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}

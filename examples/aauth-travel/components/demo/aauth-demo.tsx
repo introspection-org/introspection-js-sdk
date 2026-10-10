@@ -1,7 +1,16 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  Fragment,
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
+
+import { AAuthLogo } from "./aauth-logo";
 
 type Exchange = {
   id: number;
@@ -12,9 +21,11 @@ type Exchange = {
   response: string;
   status: number;
   repeats: number;
+  turn: number;
 };
 type Email = {
   index: number;
+  turn: number;
   to: string;
   item: string;
   reasons: string[];
@@ -22,7 +33,6 @@ type Email = {
   budget: { suggested: number | null } | null;
   decided: boolean;
 };
-type FlowEvent = { seq: number; type: string; summary: string };
 type Scenario = { id: string; title: string; prompt: string; hint: string };
 type Snapshot = {
   prompt?: string;
@@ -31,14 +41,90 @@ type Snapshot = {
   error?: string;
   mission?: { s256: string; budget_cents: number };
   exchanges: Exchange[];
-  events: FlowEvent[];
   inbox: Email[];
 };
+type Decide = (
+  email: Email,
+  verdict: "approve" | "decline",
+  budget?: number,
+) => void;
+
+const PARTY: Record<string, { name: string; mark: string; host: string }> = {
+  Rails: {
+    name: "Flight Sector's rails",
+    mark: "R",
+    host: "cedar · recipe/policies",
+  },
+  Acme: { name: "Acme", mark: "A", host: "ps.acme.localhost" },
+  "Booking provider": {
+    name: "the booking provider",
+    mark: "B",
+    host: "booking.flightsector.localhost",
+  },
+};
+
+const TOKEN =
+  /("(?:[^"\\]|\\.)*")(\s*:)?|\b(-?\d+(?:\.\d+)?)\b|^(GET|POST|PUT|PATCH|DELETE|HTTP\/1\.1)\b|^([A-Za-z-]+)(?=: )|^(cedar is_authorized|decision: \w+)/gm;
+
+/** The colouring the PAP site gives its exchanges: methods, headers, keys, strings, numbers. */
+function highlight(text: string): ReactNode {
+  const out: ReactNode[] = [];
+  let last = 0;
+  for (const m of text.matchAll(TOKEN)) {
+    const i = m.index ?? 0;
+    if (i > last) out.push(text.slice(last, i));
+    const [whole, str, colon, num, method, header, note] = m;
+    if (str) {
+      out.push(
+        <span key={i} className={colon ? "k" : "s"}>
+          {str}
+        </span>,
+      );
+      if (colon) out.push(colon);
+    } else if (num)
+      out.push(
+        <span key={i} className="n">
+          {num}
+        </span>,
+      );
+    else if (method)
+      out.push(
+        <span key={i} className="m">
+          {method}
+        </span>,
+      );
+    else if (header)
+      out.push(
+        <span key={i} className="h">
+          {header}
+        </span>,
+      );
+    else if (note)
+      out.push(
+        <span key={i} className="m">
+          {note}
+        </span>,
+      );
+    else out.push(whole);
+    last = i + whole.length;
+  }
+  out.push(text.slice(last));
+  return out.map((part, i) => <Fragment key={i}>{part}</Fragment>);
+}
 
 function tone(status: number) {
   if (status >= 200 && status < 300) return status === 202 ? "wait" : "ok";
   if (status === 401) return "ask";
   return "no";
+}
+
+function sees(parties: string[]) {
+  const names = parties.map((p) => PARTY[p]?.name ?? p);
+  const list =
+    names.length > 1
+      ? `${names.slice(0, -1).join(", ")} and ${names.at(-1)}`
+      : names[0];
+  return `What ${list} ${names.length > 1 || names[0].startsWith("the") ? "see" : "sees"}`;
 }
 
 function Inbox({
@@ -48,14 +134,14 @@ function Inbox({
 }: {
   email: Email;
   busy: boolean;
-  onDecide: (verdict: "approve" | "decline", budget?: number) => void;
+  onDecide: Decide;
 }) {
   const [budget, setBudget] = useState(email.budget?.suggested ?? 3000);
   return (
     <div className={`mail ${email.decided ? "mail-done" : ""}`}>
       <div className="mail-head">
         <span className="mail-to">{email.to}&apos;s inbox</span>
-        <span className="mail-from">from Acme Travel Approvals</span>
+        <span>from Acme Travel Approvals</span>
       </div>
       <div className="mail-item">{email.item.replace(/^#+\s*/gm, "")}</div>
       <ul>
@@ -81,7 +167,7 @@ function Inbox({
           <button
             disabled={busy}
             onClick={() =>
-              onDecide("approve", email.budget ? budget : undefined)
+              onDecide(email, "approve", email.budget ? budget : undefined)
             }
           >
             {email.to.startsWith("Sam") ? "Accept" : "Approve"}
@@ -89,7 +175,7 @@ function Inbox({
           <button
             className="secondary"
             disabled={busy}
-            onClick={() => onDecide("decline")}
+            onClick={() => onDecide(email, "decline")}
           >
             Decline
           </button>
@@ -99,11 +185,66 @@ function Inbox({
   );
 }
 
+function Moment(props: {
+  title: string;
+  calls: Exchange[];
+  emails: Email[];
+  busy: boolean;
+  shown: boolean;
+  onShow: () => void;
+  onDecide: Decide;
+}) {
+  const { title, calls, emails, busy, shown, onShow, onDecide } = props;
+  const parties = [...new Set(calls.map((x) => x.to))];
+  return (
+    <section className={`moment ${shown ? "moment-shown" : ""}`}>
+      <h3>{title}</h3>
+      {parties.length > 0 && (
+        <>
+          <div className="sees-head">
+            <span className="mark">{PARTY[parties[0]]?.mark ?? "?"}</span>
+            {sees(parties)}
+          </div>
+          <div className="sees-box">
+            {calls.map((x) => (
+              <div key={x.id} className="seen">
+                <span className="seen-who">{PARTY[x.to]?.name ?? x.to}</span>
+                <span>
+                  {x.label}
+                  {x.repeats > 1 && ` ×${x.repeats}`}
+                </span>
+                <span className={`pill ${tone(x.status)}`}>{x.status}</span>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+      {emails.map((email) => (
+        <Inbox
+          key={email.index}
+          email={email}
+          busy={busy}
+          onDecide={onDecide}
+        />
+      ))}
+      {calls.length > 0 && (
+        <button className="details-toggle" onClick={onShow}>
+          <span className="braces">{"{ }"}</span>{" "}
+          {shown ? "Showing request details →" : "Show request details"}
+        </button>
+      )}
+    </section>
+  );
+}
+
 export function AAuthDemo({ scenarios }: { scenarios: Scenario[] }) {
   const [state, setState] = useState<Snapshot | null>(null);
   const [prompt, setPrompt] = useState("");
   const [sending, setSending] = useState(false);
-  const wireEnd = useRef<HTMLDivElement>(null);
+  const [picked, setPicked] = useState<number | null>(null);
+  const chatEnd = useRef<HTMLDivElement>(null);
+  const seenEnd = useRef<HTMLDivElement>(null);
+  const detailsEnd = useRef<HTMLDivElement>(null);
 
   const refresh = useCallback(async () => {
     const response = await fetch("/api/demo/state", { cache: "no-store" });
@@ -116,10 +257,17 @@ export function AAuthDemo({ scenarios }: { scenarios: Scenario[] }) {
     return () => clearInterval(timer);
   }, [refresh]);
 
-  const exchangeCount = state?.exchanges.length ?? 0;
+  const chatCount = state?.chat.length ?? 0;
+  const callCount = state?.exchanges.length ?? 0;
+  const mailCount = state?.inbox.length ?? 0;
   useEffect(() => {
-    wireEnd.current?.scrollIntoView({ block: "nearest" });
-  }, [exchangeCount]);
+    chatEnd.current?.scrollIntoView({ block: "nearest" });
+  }, [chatCount]);
+  useEffect(() => {
+    seenEnd.current?.scrollIntoView({ block: "nearest" });
+    if (picked === null)
+      detailsEnd.current?.scrollIntoView({ block: "nearest" });
+  }, [callCount, mailCount, picked]);
 
   const act = async (body: Record<string, unknown>) => {
     setSending(true);
@@ -141,21 +289,34 @@ export function AAuthDemo({ scenarios }: { scenarios: Scenario[] }) {
   const hint = scenarios.find(
     (s) => s.prompt === (state.prompt ?? prompt),
   )?.hint;
-  const lastId = state.exchanges.at(-1)?.id;
-  const rails = state.exchanges.filter((x) => x.to === "Rails");
+  const turns = [
+    ...new Set([
+      ...state.exchanges.map((x) => x.turn),
+      ...state.inbox.map((e) => e.turn),
+    ]),
+  ].sort((a, b) => a - b);
+  const latestCallTurn = state.exchanges.at(-1)?.turn;
+  const shownTurn = picked ?? latestCallTurn;
+  const details = state.exchanges.filter((x) => x.turn === shownTurn);
+  const send = () => {
+    if (!prompt.trim()) return;
+    setPicked(null);
+    act({ action: "start", prompt });
+  };
+  const decide: Decide = (email, verdict, budget) =>
+    act({ action: "decide", email: email.index, verdict, budget });
 
   return (
     <div className="ademo">
       <header className="ademo-head">
         <div>
-          <div className="eyebrow">AAuth -11 · three-party, with a mission</div>
+          <div className="brand">
+            <AAuthLogo />
+            <span className="step-label">
+              -11 · three-party, with a mission
+            </span>
+          </div>
           <h1>Flight Sector&apos;s agent books Sam&apos;s trip for Acme</h1>
-          <p className="ademo-lede">
-            Flight Sector&apos;s Cedar rails check every booking first. Then
-            Acme&apos;s Person Server speaks for Sam: Dana, Sam&apos;s manager,
-            approves the trip once and anything over its budget. Every request
-            is signed by the agent&apos;s own key.
-          </p>
         </div>
         <div className="ademo-controls">
           <Link href="/" className="link">
@@ -164,7 +325,10 @@ export function AAuthDemo({ scenarios }: { scenarios: Scenario[] }) {
           {started && (
             <button
               className="secondary"
-              onClick={() => act({ action: "reset" })}
+              onClick={() => {
+                setPicked(null);
+                act({ action: "reset" });
+              }}
               disabled={sending}
             >
               Start over
@@ -173,138 +337,158 @@ export function AAuthDemo({ scenarios }: { scenarios: Scenario[] }) {
         </div>
       </header>
 
-      <section className="columns">
-        <div className="pane">
-          <h2>Sam and Flight Sector&apos;s agent</h2>
-          <div className="bubbles">
-            {!started && (
-              <div className="ideas">
-                <span className="muted">Try asking for…</span>
-                {scenarios.map((s) => (
-                  <button
-                    key={s.id}
-                    className={`idea ${s.prompt === prompt ? "idea-on" : ""}`}
-                    onClick={() => setPrompt(s.prompt)}
-                  >
-                    <span className="idea-title">{s.title}</span>
-                    {s.prompt}
-                  </button>
-                ))}
+      <div className="stage">
+        <div className="phone">
+          <div className="phone-screen">
+            <div className="phone-head">
+              <span className="avatar">F</span>
+              <div>
+                <strong>Flight Sector</strong>
+                <span>Acme&apos;s travel agent</span>
               </div>
-            )}
-            {state.chat.map((line, i) => (
-              <div
-                key={i}
-                className={`bubble ${line.from === "Sam" ? "sam" : "agent"}`}
-              >
-                {line.text}
-              </div>
-            ))}
-            {state.busy && !waitingOn && (
-              <div className="bubble agent working">…</div>
-            )}
-            {state.busy && waitingOn && (
-              <div className="waiting">
-                Waiting for {waitingOn.to} to answer Acme&apos;s email →
-              </div>
-            )}
-            {state.error && <div className="error">{state.error}</div>}
-          </div>
-          {!started && (
-            <div className="composer">
-              <textarea
-                rows={3}
-                value={prompt}
-                placeholder="Type what Sam asks for: where, when, cabin, hotel, budget…"
-                onChange={(e) => setPrompt(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && !e.shiftKey && prompt.trim()) {
-                    e.preventDefault();
-                    act({ action: "start", prompt });
-                  }
-                }}
-                aria-label="Sam's message"
-              />
-              <button
-                onClick={() => act({ action: "start", prompt })}
-                disabled={sending || !prompt.trim()}
-              >
-                Send as Sam
-              </button>
             </div>
-          )}
-          {hint && <p className="muted hint">{hint}</p>}
-        </div>
-
-        <div className="pane">
-          <h2>What the rails, Acme and the provider see</h2>
-          {state.mission && (
-            <div className="mission">
-              Mission <code>{state.mission.s256.slice(0, 10)}…</code> · budget $
-              {Math.round(state.mission.budget_cents / 100).toLocaleString(
-                "en-US",
+            <div className="phone-chat">
+              {!started && (
+                <div className="ideas">
+                  <span className="muted">Try asking for…</span>
+                  {scenarios.map((s) => (
+                    <button
+                      key={s.id}
+                      className={`idea ${s.prompt === prompt ? "idea-on" : ""}`}
+                      onClick={() => setPrompt(s.prompt)}
+                    >
+                      <span className="idea-title">{s.title}</span>
+                      {s.prompt}
+                    </button>
+                  ))}
+                </div>
               )}
+              {state.chat.map((line, i) => (
+                <div
+                  key={i}
+                  className={`bubble ${line.from === "Sam" ? "sam" : "agent"}`}
+                >
+                  {line.text}
+                </div>
+              ))}
+              {state.busy && !waitingOn && (
+                <div className="bubble agent working">…</div>
+              )}
+              {state.busy && waitingOn && (
+                <div className="waiting">
+                  Waiting for {waitingOn.to} to answer Acme&apos;s email →
+                </div>
+              )}
+              {state.error && <div className="error">{state.error}</div>}
+              <div ref={chatEnd} />
             </div>
-          )}
-          {state.inbox.map((email) => (
-            <Inbox
-              key={email.index}
-              email={email}
-              busy={sending}
-              onDecide={(verdict, budget) =>
-                act({ action: "decide", email: email.index, verdict, budget })
-              }
-            />
-          ))}
-          <ul className="events">
-            {state.events.length === 0 && rails.length === 0 && (
-              <li className="muted">Nothing yet.</li>
+            {!started && (
+              <div className="phone-composer">
+                <textarea
+                  rows={2}
+                  value={prompt}
+                  placeholder="Message Flight Sector"
+                  onChange={(e) => setPrompt(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && !e.shiftKey) {
+                      e.preventDefault();
+                      send();
+                    }
+                  }}
+                  aria-label="Sam's message"
+                />
+                <button
+                  onClick={send}
+                  disabled={sending || !prompt.trim()}
+                  aria-label="Send"
+                >
+                  ↑
+                </button>
+              </div>
             )}
-            {rails.map((x) => (
-              <li key={`rails-${x.id}`}>
-                <span
-                  className={`who rails ${x.status === 200 ? "" : "denied"}`}
-                >
-                  Rails
-                </span>
-                {x.label.replace(/^Cedar: /, "")}
-              </li>
-            ))}
-            {state.events.map((event) => (
-              <li key={event.seq}>
-                <span
-                  className={`who ${event.type.startsWith("acme") ? "acme" : "provider"}`}
-                >
-                  {event.type.startsWith("acme") ? "Acme" : "Provider"}
-                </span>
-                {event.summary}
-              </li>
-            ))}
-          </ul>
+          </div>
+          {hint && <p className="hint">{hint}</p>}
         </div>
 
-        <div className="pane wire">
-          <h2>On the wire</h2>
-          {state.exchanges.length === 0 && (
-            <p className="muted">Every request appears here, signed.</p>
-          )}
-          {state.exchanges.map((x) => (
-            <details key={x.id} open={x.id === lastId}>
-              <summary>
-                <span className={`badge ${tone(x.status)}`}>{x.status}</span>
-                <span className="wire-route">
-                  {x.from} → {x.to}
-                </span>
-                {x.label}
-                {x.repeats > 1 && ` ×${x.repeats}`}
-              </summary>
-              <pre>{x.request}</pre>
-              <pre className="response">{x.response}</pre>
-            </details>
-          ))}
-          <div ref={wireEnd} />
+        <div className="pane">
+          <div className="pane-head">
+            <div className="step-label">
+              {started ? (state.busy ? "In progress" : "Done") : "Ready"}
+            </div>
+            <h2>
+              {started ? "What each party sees" : "Type what Sam asks for"}
+            </h2>
+            <p>
+              {started
+                ? "Flight Sector's Cedar rails check every booking first. Acme's Person Server speaks for Sam: Dana approves the trip once, and anything over its budget."
+                : "Pick a sample or type your own: where, when, cabin, hotel and a budget. The agent proposes the trip to Acme, then books within it."}
+            </p>
+            {state.mission && (
+              <div className="mission">
+                Mission <code>{state.mission.s256.slice(0, 10)}…</code> · budget
+                $
+                {Math.round(state.mission.budget_cents / 100).toLocaleString(
+                  "en-US",
+                )}
+              </div>
+            )}
+          </div>
+          <div className="pane-body">
+            {turns.map((turn) => (
+              <Moment
+                key={turn}
+                title={state.chat[turn]?.text ?? "Working…"}
+                calls={state.exchanges.filter((x) => x.turn === turn)}
+                emails={state.inbox.filter((e) => e.turn === turn)}
+                busy={sending}
+                shown={turn === shownTurn}
+                onShow={() => setPicked(turn)}
+                onDecide={decide}
+              />
+            ))}
+            <div ref={seenEnd} />
+          </div>
         </div>
-      </section>
+
+        <div className="pane details">
+          <div className="pane-head">
+            <div className="step-label">
+              <span className="braces">{"{ }"}</span> Request details
+            </div>
+            {picked !== null && (
+              <button className="follow" onClick={() => setPicked(null)}>
+                Follow the latest
+              </button>
+            )}
+          </div>
+          <div className="pane-body">
+            {details.length === 0 && (
+              <p className="muted">
+                Each request the agent makes appears here, signed.
+              </p>
+            )}
+            {details.map((x) => (
+              <div key={x.id} className="exchange">
+                <div className="exchange-head">
+                  <span className="dir">
+                    {x.from} ↔ {PARTY[x.to]?.host ?? x.to}
+                  </span>
+                  <span className="kind">
+                    {x.label}
+                    {x.repeats > 1 && ` ×${x.repeats}`}
+                  </span>
+                </div>
+                <pre>
+                  {highlight(x.request)}
+                  {"\n\n"}
+                  {highlight(x.response)}
+                </pre>
+              </div>
+            ))}
+            <div ref={detailsEnd} />
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

@@ -104,6 +104,8 @@ type Run = {
   eventsFrom: number;
   inboxFrom: number;
   decided: number[];
+  /** The chat line each email arrived under. */
+  emailTurns: Record<number, number>;
 };
 
 const fresh = (): Run => ({
@@ -113,6 +115,7 @@ const fresh = (): Run => ({
   eventsFrom: Number.MAX_SAFE_INTEGER,
   inboxFrom: 0,
   decided: [],
+  emailTurns: {},
 });
 const store = globalThis as unknown as { __demoRun?: Run };
 const run = () => (store.__demoRun ??= fresh());
@@ -142,8 +145,10 @@ export function snapshot() {
     events: r.eventsFrom === Number.MAX_SAFE_INTEGER ? [] : since(r.eventsFrom),
     inbox: sent.slice(r.inboxFrom).map((email, i) => {
       const budget = approvalSummary(email.link.split("/").pop() ?? "")?.budget;
+      (r.emailTurns ??= {})[r.inboxFrom + i] ??= r.chat.length;
       return {
         index: r.inboxFrom + i,
+        turn: r.emailTurns[r.inboxFrom + i],
         to: email.approverName,
         item: email.item,
         reasons: email.reasons,

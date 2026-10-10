@@ -27,16 +27,29 @@ export type Exchange = {
   status: number;
   /** How many identical polls this row stands for. */
   repeats: number;
+  /** The chat line this call belongs under. */
+  turn: number;
 };
 
 const actor = new AsyncLocalStorage<Actor>();
 
-type Wire = { recording: boolean; seq: number; exchanges: Exchange[] };
+type Wire = {
+  recording: boolean;
+  seq: number;
+  turn: number;
+  exchanges: Exchange[];
+};
 const wire = ((globalThis as unknown as { __demoWire?: Wire }).__demoWire ??= {
   recording: false,
   seq: 0,
+  turn: 0,
   exchanges: [],
 });
+
+/** Calls from here on belong under chat line `turn`. */
+export function setTurn(turn: number) {
+  wire.turn = turn;
+}
 
 export const exchanges = () => wire.exchanges;
 
@@ -51,9 +64,14 @@ export function stopRecording() {
 }
 
 /** Record a step that makes no HTTP call, such as the rails' evaluation. */
-export function note(entry: Omit<Exchange, "id" | "repeats">) {
+export function note(entry: Omit<Exchange, "id" | "repeats" | "turn">) {
   if (wire.recording)
-    wire.exchanges.push({ id: ++wire.seq, repeats: 1, ...entry });
+    wire.exchanges.push({
+      id: ++wire.seq,
+      repeats: 1,
+      turn: wire.turn,
+      ...entry,
+    });
 }
 
 /** Run `work` as `who`: every request it makes is recorded as theirs. */
@@ -186,7 +204,12 @@ async function record(
     last.repeats += 1;
     return;
   }
-  wire.exchanges.push({ id: ++wire.seq, repeats: 1, ...entry });
+  wire.exchanges.push({
+    id: ++wire.seq,
+    repeats: 1,
+    turn: wire.turn,
+    ...entry,
+  });
 }
 
 /** Wrap `fetch` once per process, so whatever calls it is seen. */

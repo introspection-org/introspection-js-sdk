@@ -66,7 +66,11 @@ export function Demo() {
     <div className="demo">
       <header className="demo-head">
         <div>
-          <div className="eyebrow">Personal Agent Protocol 0.1</div>
+          <div className="eyebrow brand">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/poppy.png" alt="" width={28} height={28} />
+            Personal Agent Protocol 0.1
+          </div>
           <h1>Atlas rebooks a delayed flight with Flight Sector</h1>
         </div>
         <button

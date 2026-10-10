@@ -30,6 +30,62 @@ Sam's trip is "Flights and a hotel for Sam, 19 to 23 October, up to $3,000."
 | A booking with no trip            | `403` from Acme, and from the recipe's `missionless-booking` rule before that                   |
 | "That's everything"               | the agent proposes the mission complete; Sam accepts, and nothing more books under it           |
 
+One booking, end to end. Every arrow from the agent is an HTTP request signed with the agent's key (RFC 9421); in the platform the egress signs it, and on the demo page the page's agent does.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant Sam
+    participant Agent as Flight Sector's agent
+    participant Rails as Flight Sector's rails (Cedar)
+    participant Booking as Booking provider
+    participant Acme as Acme's Person Server
+    participant Dana as Dana (Sam's manager)
+
+    Sam->>Agent: Sydney, 19 to 23 Oct, economy and the QT, up to $3,000
+    Agent->>Acme: POST /ps/mission (the trip, login_hint Sam)
+    Acme-->>Agent: 202 + Location (pending)
+    Acme->>Dana: email with a six-digit code
+    Dana->>Acme: approve, budget $3,000
+    Agent->>Acme: GET /ps/pending/{id}
+    Acme-->>Agent: 200 mission (s256) + person token
+
+    Agent->>Rails: booking.reserve (cabin, payer, purpose, total from the signed quote)
+    alt a forbid matches (first class, personal on the company, no mission)
+        Rails-->>Agent: deny, with the rule's reason
+    else permitted
+        Rails-->>Agent: allow
+        Agent->>Booking: POST /v1/reserve with the person token
+        Booking-->>Agent: 401 requirement=auth-token + resource token (R3 proposal)
+        Agent->>Acme: POST /ps/token with the resource token, mission s256
+        Acme->>Booking: GET /r3/{id} (signed): what exactly is being booked
+        alt within what's left of the budget
+            Acme-->>Agent: 200 auth token
+        else over budget
+            Acme-->>Agent: 202 + Location
+            Acme->>Dana: email: approve this booking?
+            Dana->>Acme: approve or decline
+            Agent->>Acme: GET /ps/pending/{id}
+            Acme-->>Agent: 200 auth token, or 403 declined
+        end
+        Agent->>Booking: POST /v1/reserve with the auth token (same parameters)
+        Booking-->>Agent: 200 booked
+    end
+
+    Agent->>Acme: POST /ps/mission/{s256} completion
+    Acme->>Sam: email: is the trip done?
+    Sam->>Acme: accept
+    Acme-->>Agent: 200: mission completed, nothing more books under it
+```
+
+| Token          | What it says                                                                |
+| -------------- | --------------------------------------------------------------------------- |
+| agent token    | who the agent is: the Agent Provider binds the session's key                |
+| mission        | the trip the manager approved, and its budget, by hash (`mission_s256`)     |
+| person token   | the person the agent acts for, at one resource, under the mission           |
+| resource token | the booking provider's ask: one reservation's R3 proposal, readable by Acme |
+| auth token     | Acme's grant for exactly that reservation; the provider checks the retry    |
+
 ## Run it
 
 Every party is its own AAuth server, and an AAuth server identifier is `https://host` with no port or path. One Next.js process serves all of them under three hostnames, which [portless](https://github.com/vercel-labs/portless) gives trusted https names on `:443`; `next.config.ts` routes each host to its part of the app.
