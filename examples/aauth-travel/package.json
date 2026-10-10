@@ -1,0 +1,37 @@
+{
+  "name": "introspection-example-aauth-travel",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Flight Sector, an AAuth demo: a travel agent books company travel from a Slack DM over AAuth inside each customer's own policy, escalating to the manager when it must. Hosts Flight Sector's booking provider and Acme's Person Server, and walks through every step beside the code behind it.",
+  "scripts": {
+    "dev": "portless alias flightsector 3400 --force && portless alias booking.flightsector 3400 --force && portless alias ps.acme 3400 --force && NODE_EXTRA_CA_CERTS=${NODE_EXTRA_CA_CERTS:-$HOME/.portless/ca.pem} next dev --turbopack --port 3400",
+    "build": "next build",
+    "start": "next start --port 3400",
+    "lint": "eslint .",
+    "check-types": "tsc --noEmit",
+    "walkthrough": "node scripts/walkthrough.mjs && prettier --write WALKTHROUGH.md",
+    "sync-recipe": "node scripts/sync-recipe.mjs",
+    "clean": "rm -rf .next .turbo node_modules"
+  },
+  "dependencies": {
+    "@aauth/resource": "^3.0.0",
+    "@hellocoop/httpsig": "^2.6.0",
+    "@introspection-sdk/introspection-node": "workspace:*",
+    "jose": "^6.2.12",
+    "next": "^16.3.6",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
+    "server-only": "^0.0.1",
+    "shiki": "^3.13.0"
+  },
+  "devDependencies": {
+    "@aauth/agent": "^4.1.1",
+    "@types/node": "^22.20.4",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "eslint": "^9.39.5",
+    "eslint-config-next": "^16.3.6",
+    "portless": "^0.15.7",
+    "typescript": "^5.7.2"
+  }
+}

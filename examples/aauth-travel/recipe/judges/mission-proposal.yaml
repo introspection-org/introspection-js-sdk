@@ -1,0 +1,13 @@
+# Asked of Jev when the agent proposes a trip to the traveller's Person Server.
+name: mission-proposal
+type: mission
+description: Is the proposed trip the one the traveller asked for?
+attrs: [description]
+questions:
+  requested:
+    instructions: >
+      Is the proposed trip the one the traveller asked for: the same destination and
+      dates, with a budget no higher than any they named?
+    criteria:
+      "true": The trip they described, within any budget they named.
+      "false": Another place or dates, or a higher budget than they named.

@@ -1,0 +1,45 @@
+{
+  "name": "@introspection-recipes/travel-agent",
+  "version": "0.1.0",
+  "description": "A git-backed Pi recipe: Flight Sector's travel agent, booking company travel from a Slack DM, with each booking approved by the traveller's company (AAuth demo).",
+  "keywords": [
+    "pi-package",
+    "managed-agent",
+    "recipe",
+    "connectors",
+    "aauth"
+  ],
+  "type": "module",
+  "private": true,
+  "license": "Apache-2.0",
+  "scripts": {
+    "check": "npx -y -p @introspection-ai/cli@latest introspection check",
+    "check:json": "npx -y -p @introspection-ai/cli@latest introspection check --output json",
+    "prepare": "git config core.hooksPath .githooks || true"
+  },
+  "dependencies": {
+    "@introspection-ai/recipe-channel-slack": ">=0.4.0"
+  },
+  "pi": {
+    "extensions": [
+      "./extensions/*.js"
+    ],
+    "agents": [
+      "./agents/*.yaml"
+    ],
+    "channels": [
+      {
+        "provider": "slack",
+        "requireReply": true,
+        "commands": [
+          "reply",
+          "send",
+          "react"
+        ]
+      }
+    ]
+  },
+  "peerDependencies": {
+    "typebox": "1.3.8"
+  }
+}

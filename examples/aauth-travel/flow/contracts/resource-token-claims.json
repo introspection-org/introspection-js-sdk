@@ -1,0 +1,43 @@
+{
+  "status": 401,
+  "headers": {
+    "AAuth-Requirement": "requirement=auth-token; resource-token=\"eyJhbGciOiJFUzI1NiIsInR5cCI6ImFhLXJlc291cmNlK2p3dCJ9.…\""
+  },
+  "resource_token": {
+    "header": {
+      "alg": "Ed25519",
+      "typ": "aa-resource+jwt",
+      "kid": "flightsector-booking-1"
+    },
+    "claims": {
+      "iss": "https://booking.flightsector.example",
+      "dwk": "aauth-resource.json",
+      "aud": "https://ps.acme.example",
+      "presented_jti": "…(the person token's jti)",
+      "agent_jkt": "…(the session key's thumbprint)",
+      "mission_s256": "…(copied from the person token)",
+      "scope": "booking.reserve",
+      "r3_uri": "https://booking.flightsector.example/r3/…",
+      "r3_s256": "…(SHA-256 of the proposal document)",
+      "jti": "…",
+      "iat": 1791158020,
+      "exp": 1791158320
+    }
+  },
+  "note": "The resource token names the booking by the hash of a proposal only Acme can read. The quote inside is the provider's own signed facts, so Acme decides on what the provider says, not on what the agent says.",
+  "proposal": {
+    "served_to": "only the Person Server in aud, signing as itself",
+    "operation": {
+      "action": "reserve"
+    },
+    "parameters": {
+      "offer_id": "ht:qt-sydney:2026-10-19:2026-10-23",
+      "quote": "eyJ…",
+      "purpose": "business",
+      "payer": "company"
+    },
+    "display": {
+      "summary": "Book QT Sydney, 4 nights for $1,680, business, paid by company"
+    }
+  }
+}

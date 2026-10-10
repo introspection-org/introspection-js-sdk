@@ -1,0 +1,22 @@
+# Asked of Jev in the egress, against the traveller's own words, before Cedar
+# decides a booking (policies/routes.yaml). Each answer reaches Cedar as a
+# percentage in context.judgement.
+name: booking
+type: mission
+description: Is this booking what the traveller asked for, and is it personal?
+# Only what the provider signed: never the agent's claimed purpose or payer.
+attrs: [kind, name, city, flight, from, to, depart, check_in, check_out, nights, cabin, total_cents]
+questions:
+  requested:
+    instructions: >
+      Is the booking something the traveller asked for, or a natural part of that
+      trip? Judge by the destination and dates they gave: a flight there may leave
+      the day before and a flight home may arrive the day after.
+    criteria:
+      "true": The same destination and dates, in a cabin and price they would expect.
+      "false": Another place, other dates, or something they never asked for.
+  personal:
+    instructions: Did the traveller describe the part of the trip this booking is for as personal?
+    criteria:
+      "true": A holiday, a weekend away or visiting family.
+      "false": Work, or a part of the trip they did not call personal.

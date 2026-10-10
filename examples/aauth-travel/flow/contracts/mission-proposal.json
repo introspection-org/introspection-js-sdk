@@ -1,0 +1,53 @@
+{
+  "from_the_agent": {
+    "POST": "https://person-server.aauth/mission",
+    "body": {
+      "description": "# Sam's week in Sydney\n\nFlights and a hotel for Sam, 19 to 23 October, up to $3,000."
+    }
+  },
+  "egress_sends": {
+    "POST": "https://ps.acme.example/ps/mission",
+    "headers": {
+      "Signature-Key": "sig=jwt;jwt=\"…(the agent token)\"",
+      "Signature": "sig=:…(the session key):"
+    },
+    "body": {
+      "description": "# Sam's week in Sydney…",
+      "resources": ["https://booking.flightsector.example"],
+      "login_hint": "slack:T0ACME/U0SAM"
+    }
+  },
+  "answers": {
+    "while_dana_decides": {
+      "status": 202,
+      "headers": {
+        "Location": "https://ps.acme.example/ps/pending/0199…"
+      }
+    },
+    "approved": {
+      "status": 200,
+      "body": {
+        "s256": "…(SHA-256 of the mission bytes)",
+        "mission": "eyJ…(base64url mission bytes: description, approved_resources, budget_cents, expires_at)",
+        "person_tokens": {
+          "https://booking.flightsector.example": "eyJ…(aa-person+jwt with mission_s256)"
+        }
+      }
+    }
+  },
+  "to_the_agent": {
+    "status": 200,
+    "body": {
+      "s256": "…",
+      "mission": "eyJ…"
+    }
+  },
+  "completion": {
+    "POST": "https://person-server.aauth/mission/{s256}",
+    "body": {
+      "action": "completion",
+      "summary": "Booked QF74 and the QT."
+    }
+  },
+  "note": "person-server.aauth is a name only egress answers. It adds the connector's resource and the session's person, signs as the agent, keeps the mission and its person tokens, and hands the sandbox only the s256 and the mission."
+}

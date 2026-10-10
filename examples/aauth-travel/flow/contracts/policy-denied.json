@@ -1,0 +1,62 @@
+{
+  "evaluated_by": "the platform's egress, before the request is signed: the recipe's policies/travel.cedar, with the session's principal and the booking connector's entities",
+  "principal": {
+    "uid": {
+      "type": "Person",
+      "id": "…(the session's member)"
+    },
+    "attrs": {
+      "level": 5,
+      "company": {
+        "__entity": {
+          "type": "Company",
+          "id": "globex"
+        }
+      }
+    },
+    "set_by": "an org owner, PATCH /v1/members/{id} { policy_attributes }"
+  },
+  "entities": [
+    {
+      "uid": {
+        "type": "Company",
+        "id": "globex"
+      },
+      "attrs": {
+        "business_min_level": 7
+      },
+      "set_by": "the booking connector's policy_entities"
+    }
+  ],
+  "resource": {
+    "uid": {
+      "type": "Booking",
+      "id": "request"
+    },
+    "attrs": {
+      "offer_id": "fl:qf74:2026-10-17:business",
+      "purpose": "business",
+      "payer": "company",
+      "cabin": "business",
+      "block_minutes": 875
+    },
+    "from": "policies/routes.yaml: the body's offer_id, purpose and payer, and the signed quote's claims"
+  },
+  "context": {
+    "mission": {
+      "s256": "…",
+      "resources": ["https://booking.flightsector.example"]
+    },
+    "from": "routes.yaml asks for it (context: [mission]); egress reads the session's approved mission. Without one there is no context.mission, and missionless-booking forbids the booking."
+  },
+  "answer_to_the_agent": {
+    "status": 403,
+    "content-type": "application/problem+json",
+    "body": {
+      "type": "https://introspection.dev/problems/policy-denied",
+      "policy": "business-by-seniority",
+      "reason": "business class on the company's account needs the company's seniority, on a leg of six hours or more"
+    }
+  },
+  "on_allow": "nothing is answered: the request goes on to be signed, and the company's Person Server still decides"
+}
