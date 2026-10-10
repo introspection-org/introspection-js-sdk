@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.29.0](https://github.com/introspection-org/introspection-js-sdk/compare/v0.28.0...v0.29.0) (2026-10-10)
+
+
+### Features
+
+* **shares:** tag shares, share update, and ambient share reads ([#434](https://github.com/introspection-org/introspection-js-sdk/issues/434)) ([e470cd3](https://github.com/introspection-org/introspection-js-sdk/commit/e470cd36cc0d6c952dd86d21a0dfee388a1269ff))
+
 ## [0.28.0](https://github.com/introspection-org/introspection-js-sdk/compare/v0.27.0...v0.28.0) (2026-10-07)
 
 
