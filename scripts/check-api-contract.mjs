@@ -212,9 +212,8 @@ const SURFACES = [
     sdk: () => interfaceMembers(TYPES, "FileListParams"),
     server: (spec) => queryParameters(spec, "/v1/files", "get"),
     // `identity_key` is privileged-only and 403s for these credentials;
-    // `task_id` is a scoping param a runner already carries; `share_id` is
-    // ignored now that shares apply ambiently.
-    exempt: ["identity_key", "task_id", "share_id"],
+    // `task_id` is a scoping param a runner already carries.
+    exempt: ["identity_key", "task_id"],
     missingIsFatal: false,
     extraMeans: "sent as a query parameter the API does not accept",
     missingMeans: "accepted by the API but not exposed here",
@@ -368,13 +367,7 @@ const SURFACES = [
     sdk: () => interfaceMembers(CONVERSATIONS, "ConversationListParams"),
     server: (spec) => queryParameters(spec, "/v1/conversations", "get"),
     // Product-UI shaped filters this SDK does not surface.
-    exempt: [
-      "conversation_ids",
-      "owner_key",
-      "resolution",
-      "sentiment",
-      "share_id",
-    ],
+    exempt: ["conversation_ids", "owner_key", "resolution", "sentiment"],
     // Resolved client-side and never sent: the ergonomic window aliases, and
     // `format`, which selects Arrow via the Accept header.
     allowedExtra: ["order", "start", "end", "lookback", "format"],

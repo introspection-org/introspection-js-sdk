@@ -564,11 +564,6 @@ export interface ConversationListParams extends CursorParams, ReadWindowParams {
   recipe_git_commit_sha?: string;
   /** Restrict to several conversations. */
   conversation_ids?: string[];
-  /**
-   * @deprecated Ignored by the server: shares now apply automatically, so a
-   * shared conversation appears in ordinary reads. Kept for compatibility.
-   */
-  share_id?: string[];
   resolution?: ConversationResolution;
   sentiment?: ConversationSentiment;
   owner_key?: string;
@@ -625,11 +620,6 @@ export interface ConversationItemListParams {
   end_date?: string;
   /** Relative window in days (1-365), instead of `start_date`/`end_date`. */
   lookback_days?: number;
-  /**
-   * @deprecated Ignored by the server: shares now apply automatically, so a
-   * shared conversation appears in ordinary reads. Kept for compatibility.
-   */
-  share_id?: string;
 }
 
 /**
@@ -651,11 +641,6 @@ export interface ConversationExportParams {
   operation_name?: string;
   /** Partition lookback bound in days (1-365). */
   lookback_days?: number;
-  /**
-   * @deprecated Ignored by the server: shares now apply automatically, so a
-   * shared conversation appears in ordinary reads. Kept for compatibility.
-   */
-  share_id?: Uuid;
   /**
    * Lower bound on which records are assembled (ISO 8601).
    *
