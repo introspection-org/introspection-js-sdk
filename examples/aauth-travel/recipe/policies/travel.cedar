@@ -28,7 +28,31 @@ unless {
   resource has block_minutes && resource.block_minutes >= 360
 };
 
+@id("asked-for")
+@reason("Jev could not confirm this booking is what the traveller asked for")
+forbid (principal, action == Action::"booking.reserve", resource)
+unless {
+  context has judgement && context.judgement has requested &&
+  context.judgement.requested >= 60
+};
+
 @id("personal-is-the-travellers")
 @reason("a personal booking is paid by the traveller")
 forbid (principal, action == Action::"booking.reserve", resource)
-when { resource.purpose == "personal" && resource.payer == "company" };
+when {
+  resource.payer == "company" &&
+  (resource.purpose == "personal" ||
+   (context has judgement && context.judgement has personal &&
+    context.judgement.personal >= 70))
+};
+
+@id("propose")
+permit (principal, action == Action::"mission.propose", resource);
+
+@id("proposed-as-asked")
+@reason("the proposed trip is not the one the traveller asked for: propose their destination, dates and budget")
+forbid (principal, action == Action::"mission.propose", resource)
+unless {
+  context has judgement && context.judgement has requested &&
+  context.judgement.requested >= 60
+};

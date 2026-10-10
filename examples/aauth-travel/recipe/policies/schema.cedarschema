@@ -28,13 +28,33 @@ entity Booking {
   payer: String,
   // From the provider-signed quote.
   kind?: String,
+  name?: String,
+  city?: String,
+  flight?: String,
+  from?: String,
+  to?: String,
+  depart?: String,
+  check_in?: String,
+  check_out?: String,
+  nights?: Long,
   cabin?: String,
   block_minutes?: Long,
   total_cents?: Long,
 };
 
+// The trip the agent proposes, as its Person Server would see it.
+entity Mission {
+  description?: String,
+};
+
+// Jev's answers to a route's questions, each a percentage (routes.yaml `judge`).
+// A question Jev could not answer is absent.
+type BookingJudgement = { requested?: Long, personal?: Long };
+type MissionJudgement = { requested?: Long };
+
 // The session's AAuth mission, when it has one: what the person approved.
 type Mission = { s256: String, resources: Set<String> };
 
 action "booking.search" appliesTo { principal: [Person], resource: [Search], context: {} };
-action "booking.reserve" appliesTo { principal: [Person], resource: [Booking], context: { mission?: Mission } };
+action "booking.reserve" appliesTo { principal: [Person], resource: [Booking], context: { mission?: Mission, judgement?: BookingJudgement } };
+action "mission.propose" appliesTo { principal: [Person], resource: [Mission], context: { judgement?: MissionJudgement } };

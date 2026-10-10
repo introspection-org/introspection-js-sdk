@@ -74,6 +74,7 @@ const SHOWN_REQUEST = [
   "signature",
   "signature-key",
   "content-digest",
+  "x-introspection-judgement",
 ];
 const SHOWN_RESPONSE = [
   "aauth-requirement",
