@@ -577,6 +577,12 @@ describe("environment-scoped sessions", () => {
   // one is present the server cannot tell which a request means, so the
   // client names it.
 
+  const laneOf = (url: string) => new URL(url).searchParams.get("lane");
+  const sentEnvironmentHeader = (init: RequestInit) =>
+    Object.keys(init.headers as Record<string, string>).some(
+      (name) => name.toLowerCase() === "x-introspection-environment",
+    );
+
   function exchangeReturning(environment?: string) {
     return mockFetch({
       ok: true,
@@ -619,13 +625,13 @@ describe("environment-scoped sessions", () => {
     await client.tasks.get("task-1");
 
     const calls = fetchImpl.mock.calls as unknown as [string, RequestInit][];
-    const [, init] = calls[1]!;
-    expect(
-      (init.headers as Record<string, string>)["x-introspection-environment"],
-    ).toBe("staging");
+    const [url, init] = calls[1]!;
+    expect(laneOf(url)).toBe("staging");
+    // A custom header would cost a CORS preflight on every request.
+    expect(sentEnvironmentHeader(init)).toBe(false);
   });
 
-  it("sends no lane header before connect() resolves one", async () => {
+  it("sends no lane before connect() resolves one", async () => {
     const fetchImpl = mockFetch({
       ok: true,
       json: () => Promise.resolve(TASK_FIXTURE),
@@ -638,10 +644,8 @@ describe("environment-scoped sessions", () => {
 
     await client.tasks.get("task-1");
 
-    const [, init] = fetchImpl.mock.calls[0];
-    expect(
-      (init.headers as Record<string, string>)["x-introspection-environment"],
-    ).toBeUndefined();
+    const [url] = fetchImpl.mock.calls[0];
+    expect(laneOf(url)).toBeNull();
   });
 
   it("keeps two clients on separate lanes", async () => {
@@ -677,10 +681,8 @@ describe("environment-scoped sessions", () => {
 
     await client.tasks.get("task-1");
 
-    const [, init] = fetchImpl.mock.calls[0];
-    expect(
-      (init.headers as Record<string, string>)["x-introspection-environment"],
-    ).toBe("staging");
+    const [url] = fetchImpl.mock.calls[0];
+    expect(laneOf(url)).toBe("staging");
   });
 
   it("throws when the configured lane disagrees with the token", async () => {
@@ -744,12 +746,10 @@ describe("environment-scoped sessions", () => {
     await client.tasks.get("task-1");
 
     expect(client.environment).toBe("production");
-    const [, retryInit] = fetchImpl.mock.calls[3];
-    expect(
-      (retryInit.headers as Record<string, string>)[
-        "x-introspection-environment"
-      ],
-    ).toBe("production");
+    const [rejectedUrl] = fetchImpl.mock.calls[1];
+    const [retryUrl] = fetchImpl.mock.calls[3];
+    expect(laneOf(rejectedUrl)).toBe("development");
+    expect(laneOf(retryUrl)).toBe("production");
   });
 
   it("tolerates an exchange response without a lane", async () => {

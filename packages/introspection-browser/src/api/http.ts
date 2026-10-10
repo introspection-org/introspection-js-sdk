@@ -14,7 +14,9 @@
  * (`intro_dp_development` / `intro_dp_staging` / `intro_dp_production`), so an
  * app running several lanes holds a live session for each in one browser. When
  * more than one is present the DP cannot tell which a request means, so we name
- * it in {@link ENVIRONMENT_HEADER}.
+ * it in the {@link LANE_QUERY_PARAM} query parameter. A query parameter rather
+ * than a header because a custom header makes every cross-origin request pay a
+ * CORS preflight.
  */
 
 import {
@@ -31,11 +33,20 @@ import { resolveBrowserFetch } from "./fetch.js";
 export { stripTrailingSlash, toApiError };
 
 /**
- * Names which environment lane's session cookie the DP should resolve.
+ * Query parameter naming which environment lane's session cookie the DP should
+ * resolve.
  *
  * A selector, not a credential: the cookie it names is still validated
  * server-side, so naming a lane this browser holds no cookie for resolves to
  * nothing rather than granting anything.
+ */
+export const LANE_QUERY_PARAM = "lane";
+
+/**
+ * Header form of the lane selector, which the DP still accepts.
+ *
+ * @deprecated The client sends {@link LANE_QUERY_PARAM}; a custom header costs
+ * a CORS preflight on every request.
  */
 export const ENVIRONMENT_HEADER = "x-introspection-environment";
 
@@ -74,11 +85,12 @@ export class BrowserHttpClient extends BaseHttpClient {
       fetch: resolveBrowserFetch(cfg.fetch),
       additionalHeaders: cfg.additionalHeaders,
       transport: {
-        // Still no bearer token — the HttpOnly cookie is the credential. The
-        // only per-request contribution is which lane's cookie to resolve.
-        authHeaders: (): Record<string, string> => {
+        // No bearer token and no header — the HttpOnly cookie is the
+        // credential, and the lane selector rides the URL.
+        authHeaders: (): Record<string, string> => ({}),
+        authQuery: (): Record<string, string> => {
           const environment = cfg.environment?.();
-          return environment ? { [ENVIRONMENT_HEADER]: environment } : {};
+          return environment ? { [LANE_QUERY_PARAM]: environment } : {};
         },
         credentials: "include",
         onUnauthorized: cfg.onUnauthorized,
