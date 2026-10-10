@@ -124,6 +124,7 @@ export type {
   ShareResourceType,
   ShareCreateParams,
   ShareListParams,
+  ShareUpdateParams,
   Automation,
   AutomationCreateParams,
   AutomationListParams,

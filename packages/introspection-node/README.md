@@ -97,8 +97,10 @@ progress; until it ships those routes refuse a runner with a 403).
 
 `client.members` lists, reads, creates and updates members on the Control
 Plane's `/v1/members`; removing one is an org-admin action left to the CLI. A
-member's `tags` are access-bearing (it can read and write any file or task whose tags
-intersect them) and writable only with `members:manage`. Its `metadata` is a
+member's `tags` are access-bearing (it receives every share whose `granted_tag`
+it holds) and writable only with `members:manage`. A member can also still read
+and write any file or task whose tags intersect its own, but that implicit tag
+access is deprecated: share with a cohort through a tag share instead. Its `metadata` is a
 map of string labels that grants nothing; keys are `[A-Za-z0-9_-]+`, values are
 non-empty strings, at most 64 entries.
 
