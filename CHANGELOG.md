@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.30.0](https://github.com/introspection-org/introspection-js-sdk/compare/v0.29.0...v0.30.0) (2026-10-10)
+
+
+### ⚠ BREAKING CHANGES
+
+* **conversations:** `share_id` is no longer accepted on ConversationListParams, ConversationItemListParams or ConversationExportParams. The API already ignored it, so remove it from call sites; reads of shared resources need no parameter.
+
+### Code Refactoring
+
+* **conversations:** drop the share_id read parameter ([#437](https://github.com/introspection-org/introspection-js-sdk/issues/437)) ([664bb91](https://github.com/introspection-org/introspection-js-sdk/commit/664bb91cfe7099ea46892d3baf73197ee53d43f6))
+
 ## [0.29.0](https://github.com/introspection-org/introspection-js-sdk/compare/v0.28.0...v0.29.0) (2026-10-10)
 
 
