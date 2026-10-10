@@ -1,0 +1,366 @@
+.ademo {
+  --ok: #1a7f37;
+  --wait: #bf8700;
+  --ask: #1f6feb;
+  --no: #cf222e;
+  --code-bg: #f3f3ef;
+  --sam: #1f6feb;
+  --agent-bubble: #eef0f3;
+  padding: 20px 24px 40px;
+  display: grid;
+  gap: 16px;
+}
+
+@media (prefers-color-scheme: dark) {
+  .ademo {
+    --code-bg: #1b2027;
+    --agent-bubble: #222831;
+    --wait: #d29922;
+    --no: #ff7b72;
+  }
+}
+
+.ademo button,
+.ademo .link {
+  border: 0;
+  border-radius: 8px;
+  padding: 8px 14px;
+  background: var(--accent);
+  color: #fff;
+  font: inherit;
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.ademo .link {
+  background: transparent;
+  color: var(--accent);
+  padding: 8px 4px;
+}
+
+.ademo button.secondary {
+  background: transparent;
+  color: var(--ink);
+  border: 1px solid var(--line);
+}
+
+.ademo button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.ademo .muted {
+  color: var(--muted);
+}
+
+.ademo .error {
+  color: var(--no);
+}
+
+.ademo pre,
+.ademo code {
+  font: 12px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+.ademo-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 24px;
+  align-items: flex-start;
+}
+
+.ademo-head h1 {
+  margin: 4px 0 6px;
+  font-size: 26px;
+}
+
+.ademo-lede {
+  margin: 0;
+  max-width: 760px;
+  color: var(--muted);
+}
+
+.ademo-controls {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  white-space: nowrap;
+}
+
+.waiting {
+  color: var(--wait);
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.composer {
+  display: grid;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.composer textarea {
+  font: inherit;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--ink);
+  resize: vertical;
+}
+
+.composer > button {
+  justify-self: end;
+}
+
+.ideas {
+  display: grid;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.ademo button.idea {
+  justify-self: end;
+  max-width: 90%;
+  text-align: left;
+  background: color-mix(in srgb, var(--sam) 12%, transparent);
+  color: var(--ink);
+  border: 1px dashed color-mix(in srgb, var(--sam) 45%, transparent);
+  border-radius: 12px 12px 2px 12px;
+  padding: 8px 12px;
+  font-size: 13px;
+}
+
+.ademo button.idea-on {
+  border-style: solid;
+  border-color: var(--sam);
+}
+
+.idea-title {
+  display: block;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--muted);
+  margin-bottom: 2px;
+}
+
+.ademo .hint {
+  font-size: 13px;
+  margin: 12px 0 0;
+}
+
+/* the three columns */
+
+.columns {
+  display: grid;
+  grid-template-columns: minmax(260px, 1fr) minmax(280px, 1fr) minmax(320px, 1.25fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.ademo .pane {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 16px;
+  max-height: 640px;
+  overflow: auto;
+}
+
+.ademo .pane h2 {
+  position: sticky;
+  top: -16px;
+  z-index: 1;
+  background: var(--panel);
+  padding: 4px 0;
+  margin: 0 0 8px;
+  font-size: 14px;
+  color: var(--muted);
+}
+
+.bubbles {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.bubble {
+  max-width: 90%;
+  padding: 10px 12px;
+  border-radius: 12px;
+}
+
+.bubble.sam {
+  align-self: flex-end;
+  background: var(--sam);
+  color: #fff;
+}
+
+.bubble.agent {
+  align-self: flex-start;
+  background: var(--agent-bubble);
+}
+
+.mission {
+  font-size: 13px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--ok) 10%, transparent);
+  margin-bottom: 12px;
+}
+
+.mail {
+  border: 1px solid var(--wait);
+  border-radius: 10px;
+  padding: 12px;
+  margin-bottom: 12px;
+  display: grid;
+  gap: 6px;
+}
+
+.mail-done {
+  border-color: var(--line);
+  opacity: 0.7;
+}
+
+.mail-head {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.mail-to {
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.mail-item {
+  font-weight: 600;
+  white-space: pre-line;
+}
+
+.mail ul {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 13px;
+}
+
+.mail-code code {
+  font-size: 14px;
+  letter-spacing: 0.1em;
+}
+
+.mail-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.mail-actions input {
+  width: 80px;
+  margin-left: 4px;
+  font: inherit;
+  padding: 4px 6px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--panel);
+  color: var(--ink);
+}
+
+.mail-status {
+  color: var(--ok);
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.events {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  font-size: 13px;
+}
+
+.events li {
+  padding: 6px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.who {
+  display: inline-block;
+  min-width: 64px;
+  font-weight: 700;
+  font-size: 12px;
+}
+
+.who.acme {
+  color: var(--platform);
+}
+
+.who.rails {
+  color: var(--ok);
+}
+
+.who.rails.denied {
+  color: var(--no);
+}
+
+.who.provider {
+  color: var(--accent);
+}
+
+.wire details {
+  border-bottom: 1px solid var(--line);
+  padding: 8px 0;
+}
+
+.wire summary {
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.wire-route {
+  color: var(--muted);
+  margin-right: 6px;
+}
+
+.badge {
+  display: inline-block;
+  min-width: 34px;
+  margin-right: 6px;
+  font-weight: 700;
+  font-size: 12px;
+}
+
+.badge.ok {
+  color: var(--ok);
+}
+.badge.wait {
+  color: var(--wait);
+}
+.badge.ask {
+  color: var(--ask);
+}
+.badge.no {
+  color: var(--no);
+}
+
+.wire pre {
+  background: var(--code-bg);
+  border-radius: 8px;
+  padding: 10px;
+  margin: 8px 0 0;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.wire pre.response {
+  border-left: 3px solid var(--ok);
+}
+
+@media (max-width: 1100px) {
+  .columns {
+    grid-template-columns: 1fr;
+  }
+}

@@ -41,6 +41,12 @@ pnpm --filter introspection-example-aauth-travel dev   # https://flightsector.lo
 
 Without `RESEND_API_KEY`, Dana's email, with its code, is printed to this app's console.
 
+### The demo page
+
+`https://flightsector.localhost/demo` runs the whole flow on one page, without the platform. Type what Sam asks for (or pick one of the sample prompts) and Flight Sector's agent works through it: it proposes the trip to Acme, books the flight and the hotel, and reports the trip done. Three columns show the chat, what Flight Sector's rails, Acme and the booking provider see, and every request on the wire. Where Acme needs a person, Dana's or Sam's email appears in the middle column; approve or decline it there.
+
+Every booking first passes the recipe's own Cedar rails (`recipe/policies/`), evaluated in-process with [`@cedar-policy/cedar-wasm`](https://www.npmjs.com/package/@cedar-policy/cedar-wasm) the way the platform's egress evaluates them. The sample prompts cover a trip Dana approves over budget, first class refused by the rails, a personal trip on the company account refused by the rails, and a hotel Dana declines. The page's agent is signed by an Agent Provider this app runs at `https://agents.flightsector.localhost`, which `pnpm dev` aliases and the servers here trust. The agent reads Sam's prompt by keywords rather than with a model; the platform runs the real recipe.
+
 To exercise the whole flow without the platform, play the agent with the e2e script. It uses [`@aauth/agent`](https://www.npmjs.com/package/@aauth/agent) as the egress would, and runs a test Agent Provider at `https://e2e-agents.localhost`, which the dev server must trust:
 
 ```bash

@@ -85,9 +85,15 @@ importers:
 
   examples/aauth-travel:
     dependencies:
+      '@aauth/agent':
+        specifier: ^4.1.1
+        version: 4.1.1
       '@aauth/resource':
         specifier: ^3.0.0
         version: 3.0.0
+      '@cedar-policy/cedar-wasm':
+        specifier: ^4.13.0
+        version: 4.13.0
       '@hellocoop/httpsig':
         specifier: ^2.6.0
         version: 2.6.0
@@ -110,9 +116,6 @@ importers:
         specifier: ^3.13.0
         version: 3.23.0
     devDependencies:
-      '@aauth/agent':
-        specifier: ^4.1.1
-        version: 4.1.1
       '@types/node':
         specifier: ^22.20.4
         version: 22.20.5
@@ -788,6 +791,9 @@ packages:
   '@bcoe/v8-coverage@1.0.2':
     resolution: {integrity: sha512-6zABk/ECA/QYSCQ1NGiVwwbQerUCZ+TQbp64Q3AgmfNvurHH0j8TtXa1qbShXA6qqkpAj4V5W8pP6mLe1mcMqA==}
     engines: {node: '>=18'}
+
+  '@cedar-policy/cedar-wasm@4.13.0':
+    resolution: {integrity: sha512-1omEd/J0c7RjcfSUWiXZc6zk6XUs1IuY7Yk9TVysoKV/LpFWIk45RpjvRFVioPUR3RQmgA/DaqKhK3pucbBx1A==}
 
   '@cfworker/json-schema@4.1.1':
     resolution: {integrity: sha512-gAmrUZSGtKc3AiBL71iNWxDsyUC5uMaKKGdvzYsBoTW/xi42JQHl7eKV2OYzCUqvc+D2RCcf7EXY2iCyFIk6og==}
@@ -4917,6 +4923,8 @@ snapshots:
       '@babel/helper-validator-identifier': 7.29.7
 
   '@bcoe/v8-coverage@1.0.2': {}
+
+  '@cedar-policy/cedar-wasm@4.13.0': {}
 
   '@cfworker/json-schema@4.1.1':
     optional: true

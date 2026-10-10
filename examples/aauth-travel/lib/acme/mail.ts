@@ -20,8 +20,22 @@ export interface ApprovalEmail {
   code: string;
 }
 
+/** Every email Acme sent in this process, newest last: the demo page shows them as each person's inbox. */
+const sent = ((
+  globalThis as unknown as { __acmeInbox?: ApprovalEmail[] }
+).__acmeInbox ??= []);
+
+export function inbox(): ApprovalEmail[] {
+  return sent;
+}
+
+export function clearInbox(): void {
+  sent.length = 0;
+}
+
 // #region email
 export async function sendApprovalEmail(email: ApprovalEmail): Promise<void> {
+  sent.push(email);
   const subject = `Approve ${email.travellerName}'s booking: ${email.item}`;
   const text = [
     `Hi ${email.approverName},`,
