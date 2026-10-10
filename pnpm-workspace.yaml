@@ -3,4 +3,5 @@ packages:
   - "examples"
   - "examples/auth"
   - "examples/aauth-travel"
+  - "examples/pap-travel"
   - "tests"
