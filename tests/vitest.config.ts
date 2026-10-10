@@ -113,8 +113,8 @@ export default defineConfig({
       // and the dominant target; branch coverage is tracked but intentionally
       // lower (floor 76) since exhaustive branch coverage has steep
       // diminishing returns. Some individual files are still below 70% (e.g.
-      // http/src/resources/shares.ts, and the DOM-only half of
-      // introspection-browser/src/client.ts, which needs a browser harness).
+      // the DOM-only half of introspection-browser/src/client.ts, which needs
+      // a browser harness).
       // If a stricter "every file ≥ X" policy is wanted, tighten this block.
       //
       // Phase 1 baseline:  statements 62.86%  branches 48.65%  functions 64.65%  lines 64.24%

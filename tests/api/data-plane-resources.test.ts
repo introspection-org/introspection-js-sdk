@@ -19,6 +19,7 @@ import type {
   ConnectPage,
   DataPlaneResources,
 } from "@introspection-sdk/introspection-node";
+import type { ResourceShare } from "@introspection-sdk/types";
 import { RunnerExpiredError } from "@introspection-sdk/types";
 
 const CLIENT_DP = "https://dp-client.example.com";
@@ -141,6 +142,12 @@ const NAMESPACES: NamespaceCall[] = [
     "/v1/metrics",
   ],
   ["shares", (dp) => dp.shares.get("share-1"), "GET", "/v1/shares/share-1"],
+  [
+    "shares.update",
+    (dp) => dp.shares.update("share-1", { mode: "write" }),
+    "PATCH",
+    "/v1/shares/share-1",
+  ],
   [
     "automations",
     (dp) => dp.automations.get(AUTOMATION_ID),
@@ -322,6 +329,96 @@ describe("connections", () => {
     expect(sent.map((s) => [s.method, s.url])).toEqual([
       ["GET", `${CLIENT_DP}/v1/connections/${CONNECTION_ID}`],
       ["DELETE", `${CLIENT_DP}/v1/connections/${CONNECTION_ID}`],
+    ]);
+  });
+});
+
+describe("shares", () => {
+  const SHARE_ID = "0199a1b2-0000-7000-8000-000000000005";
+  const SHARE: ResourceShare = {
+    id: SHARE_ID,
+    org_id: "0199a1b2-0000-7000-8000-000000000006",
+    project_id: "0199a1b2-0000-7000-8000-000000000007",
+    created_at: "2026-10-06T10:00:00Z",
+    updated_at: "2026-10-06T10:00:00Z",
+    resource_type: "issue",
+    resource_id: "issue-1",
+    granted_member_id: null,
+    granted_tag: "team:acme",
+    mode: "write",
+    visible_from: null,
+    created_by_member_id: MEMBER_ID,
+    url: `${CLIENT_DP}/v1/issues/issue-1`,
+  };
+
+  it("create() sends a tag share with its mode", async () => {
+    const { sent, fetch } = fakeDataPlane(() => json(SHARE, 201));
+
+    const share = await openClient(fetch).shares.create({
+      resource_type: "issue",
+      resource_id: "issue-1",
+      granted_tag: "team:acme",
+      mode: "write",
+    });
+
+    expect(share).toEqual(SHARE);
+    expect(sent.map((s) => [s.method, s.url, s.body])).toEqual([
+      [
+        "POST",
+        `${CLIENT_DP}/v1/shares`,
+        {
+          resource_type: "issue",
+          resource_id: "issue-1",
+          granted_tag: "team:acme",
+          mode: "write",
+        },
+      ],
+    ]);
+  });
+
+  it("update() patches visible_from, and null clears it", async () => {
+    const { sent, fetch } = fakeDataPlane(() => json(SHARE));
+    const shares = openRunner(fetch).shares;
+
+    await shares.update(SHARE_ID, { visible_from: "2026-10-01T00:00:00Z" });
+    await shares.update(SHARE_ID, { visible_from: null });
+
+    expect(sent.map((s) => [s.method, s.url, s.body])).toEqual([
+      [
+        "PATCH",
+        `${RUNNER_DP}/v1/shares/${SHARE_ID}`,
+        { visible_from: "2026-10-01T00:00:00Z" },
+      ],
+      ["PATCH", `${RUNNER_DP}/v1/shares/${SHARE_ID}`, { visible_from: null }],
+    ]);
+  });
+
+  it("list() filters by granted tag and member", async () => {
+    const { sent, fetch } = fakeDataPlane(() =>
+      json({ records: [SHARE], count: 1, next: null }),
+    );
+
+    const page = await openClient(fetch).shares.list({
+      granted_tag: "team:acme",
+      granted_member_id: MEMBER_ID,
+      granted_to_me: true,
+    });
+
+    expect(page.records).toEqual([SHARE]);
+    expect(sent[0].url).toBe(
+      `${CLIENT_DP}/v1/shares?granted_tag=team%3Aacme&granted_member_id=${MEMBER_ID}&granted_to_me=true`,
+    );
+  });
+
+  it("delete() revokes the grant", async () => {
+    const { sent, fetch } = fakeDataPlane(
+      () => new Response(null, { status: 204 }),
+    );
+
+    await openDataPlaneClient(fetch).shares.delete(SHARE_ID);
+
+    expect(sent.map((s) => [s.method, s.url])).toEqual([
+      ["DELETE", `${MEMBER_DP}/v1/shares/${SHARE_ID}`],
     ]);
   });
 });

@@ -159,7 +159,7 @@ export class IntrospectionClient implements DataPlaneResources {
   /** Bounded aggregations on `POST /v1/metrics` (Data Plane). */
   readonly metrics: MetricsApi;
 
-  /** `/v1/shares` read-sharing grants (Data Plane). */
+  /** `/v1/shares` sharing grants (Data Plane). */
   readonly shares: SharesApi;
 
   /**

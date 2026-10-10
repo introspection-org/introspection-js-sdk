@@ -258,17 +258,19 @@ export interface TaskCreateParams {
    * with no whitespace or control characters; at most 64 tags. Duplicates
    * collapse.
    *
-   * Filter with {@link TaskListParams.tag}. Tags are also access-bearing: a
-   * caller whose member tags intersect a row's tags can read and write it, so
-   * a tag shared with a member cohort hands them the task. Shared writers may
-   * not replace the tags themselves; that remains owner/privileged-only.
+   * Filter with {@link TaskListParams.tag}. A caller whose member tags
+   * intersect a row's tags can still read and write it implicitly, but that
+   * implicit tag access is deprecated and being retired: to share with a
+   * cohort, create a tag share instead (`shares.create({ granted_tag })`).
+   * Shared writers may not replace the tags themselves; that remains
+   * owner/privileged-only.
    */
   tags?: string[];
   /**
    * Fork from a shared conversation: the `/v1/shares` grant id for the source
    * conversation. Its presence makes this create a fork — the new task is seeded
    * with that conversation's history, read via the share (the permissions
-   * boundary).
+   * boundary). A share carrying `visible_from` cannot be forked (409).
    */
   fork_share_id?: Uuid;
 }
@@ -417,10 +419,11 @@ export interface FileUpdateParams {
    * convention, not a grammar. Each tag is 1–128 characters with no
    * whitespace or control characters; at most 64 tags. Duplicates collapse.
    *
-   * Tags are access-bearing: a caller whose member tags intersect a file's
-   * tags can read and write it, so a tag shared with a member cohort hands
-   * them the file. Shared writers may not replace the tags themselves; that
-   * remains owner/privileged-only.
+   * A caller whose member tags intersect a file's tags can still read and
+   * write it implicitly, but that implicit tag access is deprecated and being
+   * retired: to share with a cohort, create a tag share instead
+   * (`shares.create({ granted_tag })`). Shared writers may not replace the
+   * tags themselves; that remains owner/privileged-only.
    */
   tags?: string[];
 }
@@ -442,9 +445,22 @@ export interface FileCreateTextParams {
 // --- resource shares (/v1/shares) ---
 
 /** Resource families a share grant can target (tasks are not shareable). */
-export type ShareResourceType = "file" | "conversation";
+export type ShareResourceType = "file" | "conversation" | "issue";
 
-/** A read-sharing grant for a file or conversation (`/v1/shares`). */
+/** What a share grant allows: read only, or read and write. */
+export type ShareMode = "read" | "write";
+
+/**
+ * A sharing grant for a file, conversation or issue (`/v1/shares`).
+ *
+ * Shares apply ambiently: a shared resource appears in the grantee's ordinary
+ * list and get reads, with no `share_id` to carry.
+ *
+ * The grantee fields are ANDed: `granted_member_id` alone targets that member,
+ * `granted_tag` alone targets everyone whose token carries the tag, both
+ * target that member only while they hold the tag, and neither makes the
+ * grant project-wide.
+ */
 export interface ResourceShare {
   id: Uuid;
   org_id: Uuid;
@@ -453,35 +469,77 @@ export interface ResourceShare {
   updated_at: IsoDate;
   resource_type: ShareResourceType;
   resource_id: string;
-  /** Member-targeted grant; `null` means a project-wide grant (everyone). */
+  /** Member the grant targets; `null` when it does not name one. */
   granted_member_id?: Uuid | null;
+  /** Tag the grantee must hold (e.g. `team:acme`); `null` when untagged. */
+  granted_tag?: string | null;
+  mode: ShareMode;
+  /**
+   * Conversation shares only: the grantee sees the conversation from this
+   * instant onward. `null` shares its whole history.
+   */
+  visible_from?: IsoDate | null;
   /** Grantor (always a member) — the revoke gate. */
   created_by_member_id: Uuid;
   /**
-   * Fully-qualified canonical GET URL for the shared resource, carrying the
-   * `?share_id` capability (e.g. `…/v1/files/{id}?share_id=…`). Always present on
-   * `/v1/shares` reads — follow it to read the resource under this grant.
+   * Fully-qualified canonical GET URL for the shared resource
+   * (`…/v1/files/{id}`, `…/v1/issues/{id}`, or
+   * `…/v1/conversations/{id}/items`). It carries no capability: the share
+   * applies to the grantee's ordinary reads.
    */
   url: string;
 }
 
 /**
- * Set `granted_member_id` to target one member, or omit it for a project-wide
- * grant. An end customer is a member, so there is no separate identity target.
+ * Leave both `granted_member_id` and `granted_tag` unset for a project-wide
+ * grant; see {@link ResourceShare} for how they combine. A tag share requires
+ * the grantor to own the resource and hold the tag (or be an admin); a
+ * duplicate live tag share is rejected with 409. An end customer is a member,
+ * so there is no separate identity target.
  */
 export interface ShareCreateParams {
   resource_type: ShareResourceType;
   resource_id: string;
-  /** Target one member; omit for a project-wide grant. */
+  /** Target one member. */
   granted_member_id?: Uuid;
+  /** Target everyone whose token carries this tag (e.g. `team:acme`). */
+  granted_tag?: string;
+  /** Defaults to `"read"`; a conversation share must be `"read"`. */
+  mode?: ShareMode;
+  /**
+   * Conversation shares only: expose the conversation from this instant
+   * onward (RFC 3339, not in the future).
+   */
+  visible_from?: IsoDate;
+}
+
+/**
+ * `PATCH /v1/shares/{id}` body. Send at least one field; the grantee cannot
+ * change. Only the grantor (or an admin) may update — anyone else gets 404.
+ */
+export interface ShareUpdateParams {
+  /** `"write"` is rejected on a conversation share (422). */
+  mode?: ShareMode;
+  /**
+   * Conversation shares only, not in the future (422 otherwise). `null`
+   * clears it and shares the whole history.
+   */
+  visible_from?: IsoDate | null;
 }
 
 export interface ShareListParams extends CursorParams {
   resource_type?: ShareResourceType;
   resource_id?: string;
+  /** Only shares targeting this member. */
+  granted_member_id?: Uuid;
+  /** Only shares targeting this tag. */
+  granted_tag?: string;
   /** Only shares the caller created. */
   created_by_me?: boolean;
-  /** Only shares targeting the caller. */
+  /**
+   * Only shares targeting the caller, including tag shares whose tag the
+   * caller holds.
+   */
   granted_to_me?: boolean;
 }
 
@@ -833,8 +891,10 @@ export interface Member {
   member_type: MemberType;
   is_deactivated: boolean;
   /**
-   * Access-bearing tags: this member can read and write any file or task
-   * whose tags intersect these. Writable only with `members:manage`.
+   * Access-bearing tags: this member receives every tag share
+   * (`granted_tag`) naming one of them. It can also still read and write any
+   * file or task whose tags intersect these, but that implicit access is
+   * deprecated in favour of tag shares. Writable only with `members:manage`.
    */
   tags: string[];
   /**

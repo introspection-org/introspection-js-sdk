@@ -58,7 +58,8 @@ export interface CreateTaskParams {
    * Fork from a shared conversation: the `/v1/shares` grant id for the source
    * conversation. Its presence makes this create a fork — the server seeds the
    * new task with that conversation's history, read via the share (the
-   * permissions boundary).
+   * permissions boundary). A share carrying `visible_from` cannot be forked
+   * (409).
    */
   fork_share_id?: string;
 }
