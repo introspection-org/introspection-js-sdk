@@ -447,13 +447,11 @@ export interface FileCreateTextParams {
 /** Resource families a share grant can target (tasks are not shareable). */
 export type ShareResourceType = "file" | "conversation" | "issue";
 
-/** What a share grant allows: read only, or read and write. */
-export type ShareMode = "read" | "write";
-
 /**
  * A sharing grant for a file, conversation or issue (`/v1/shares`).
  *
- * Shares apply ambiently: a shared resource appears in the grantee's ordinary
+ * A share admits its grantee; the caller's token scopes decide whether they
+ * may read, write or delete the resource. Shares apply ambiently: a shared resource appears in the grantee's ordinary
  * list and get reads, with no `share_id` to carry.
  *
  * The grantee fields are ANDed: `granted_member_id` alone targets that member,
@@ -473,7 +471,6 @@ export interface ResourceShare {
   granted_member_id?: Uuid | null;
   /** Tag the grantee must hold (e.g. `team:acme`); `null` when untagged. */
   granted_tag?: string | null;
-  mode: ShareMode;
   /**
    * Conversation shares only: the grantee sees the conversation from this
    * instant onward. `null` shares its whole history.
@@ -504,8 +501,6 @@ export interface ShareCreateParams {
   granted_member_id?: Uuid;
   /** Target everyone whose token carries this tag (e.g. `team:acme`). */
   granted_tag?: string;
-  /** Defaults to `"read"`; a conversation share must be `"read"`. */
-  mode?: ShareMode;
   /**
    * Conversation shares only: expose the conversation from this instant
    * onward (RFC 3339, not in the future).
@@ -514,17 +509,16 @@ export interface ShareCreateParams {
 }
 
 /**
- * `PATCH /v1/shares/{id}` body. Send at least one field; the grantee cannot
- * change. Only the grantor (or an admin) may update — anyone else gets 404.
+ * `PATCH /v1/shares/{id}` body. Only a conversation share's `visible_from`
+ * can change; the grantee cannot. Only the grantor (or an admin) may update —
+ * anyone else gets 404.
  */
 export interface ShareUpdateParams {
-  /** `"write"` is rejected on a conversation share (422). */
-  mode?: ShareMode;
   /**
-   * Conversation shares only, not in the future (422 otherwise). `null`
+   * Required. Not in the future, with a timezone (422 otherwise); `null`
    * clears it and shares the whole history.
    */
-  visible_from?: IsoDate | null;
+  visible_from: IsoDate | null;
 }
 
 export interface ShareListParams extends CursorParams {

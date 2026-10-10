@@ -144,7 +144,7 @@ const NAMESPACES: NamespaceCall[] = [
   ["shares", (dp) => dp.shares.get("share-1"), "GET", "/v1/shares/share-1"],
   [
     "shares.update",
-    (dp) => dp.shares.update("share-1", { mode: "write" }),
+    (dp) => dp.shares.update("share-1", { visible_from: null }),
     "PATCH",
     "/v1/shares/share-1",
   ],
@@ -345,20 +345,18 @@ describe("shares", () => {
     resource_id: "issue-1",
     granted_member_id: null,
     granted_tag: "team:acme",
-    mode: "write",
     visible_from: null,
     created_by_member_id: MEMBER_ID,
     url: `${CLIENT_DP}/v1/issues/issue-1`,
   };
 
-  it("create() sends a tag share with its mode", async () => {
+  it("create() sends a tag share", async () => {
     const { sent, fetch } = fakeDataPlane(() => json(SHARE, 201));
 
     const share = await openClient(fetch).shares.create({
       resource_type: "issue",
       resource_id: "issue-1",
       granted_tag: "team:acme",
-      mode: "write",
     });
 
     expect(share).toEqual(SHARE);
@@ -370,7 +368,30 @@ describe("shares", () => {
           resource_type: "issue",
           resource_id: "issue-1",
           granted_tag: "team:acme",
-          mode: "write",
+        },
+      ],
+    ]);
+  });
+
+  it("create() sends a member conversation share with visible_from", async () => {
+    const { sent, fetch } = fakeDataPlane(() => json(SHARE, 201));
+
+    await openClient(fetch).shares.create({
+      resource_type: "conversation",
+      resource_id: "conv-1",
+      granted_member_id: MEMBER_ID,
+      visible_from: "2026-10-01T00:00:00Z",
+    });
+
+    expect(sent.map((s) => [s.method, s.url, s.body])).toEqual([
+      [
+        "POST",
+        `${CLIENT_DP}/v1/shares`,
+        {
+          resource_type: "conversation",
+          resource_id: "conv-1",
+          granted_member_id: MEMBER_ID,
+          visible_from: "2026-10-01T00:00:00Z",
         },
       ],
     ]);

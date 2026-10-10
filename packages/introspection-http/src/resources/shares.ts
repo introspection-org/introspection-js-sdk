@@ -58,8 +58,8 @@ export class SharesClient {
   }
 
   /**
-   * Change a grant's `mode` or `visible_from`; the grantee cannot change.
-   * Only the grantor (or an admin) may update.
+   * Change a conversation grant's `visible_from` (`null` clears it); the
+   * grantee cannot change. Only the grantor (or an admin) may update.
    */
   update(shareId: string, body: ShareUpdateParams): Promise<ResourceShare> {
     return this.http.request<ResourceShare>({
