@@ -1,8 +1,8 @@
 # Asked of Jev when the agent proposes a trip to the traveller's Person Server.
 name: mission-proposal
-type: gate
+type: mission
 description: Is the proposed trip the one the traveller asked for?
-facts: [description]
+attrs: [description]
 questions:
   requested:
     instructions: >

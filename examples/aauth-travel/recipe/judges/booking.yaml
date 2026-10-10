@@ -2,10 +2,10 @@
 # decides a booking (policies/routes.yaml). Each answer reaches Cedar as a
 # percentage in context.judgement.
 name: booking
-type: gate
+type: mission
 description: Is this booking what the traveller asked for, and is it personal?
 # Only what the provider signed: never the agent's claimed purpose or payer.
-facts: [kind, name, city, flight, from, to, depart, check_in, check_out, nights, cabin, total_cents]
+attrs: [kind, name, city, flight, from, to, depart, check_in, check_out, nights, cabin, total_cents]
 questions:
   requested:
     instructions: >
