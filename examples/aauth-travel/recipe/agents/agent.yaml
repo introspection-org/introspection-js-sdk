@@ -6,10 +6,20 @@ ai:
 tools:
   - read
   - search_offers
+  - quote_flight
   - propose_trip
   - book_item
   - complete_trip
   - channels
+mcp:
+  mode: tools
+  servers:
+    browserbase:
+      include:
+        - start
+        - navigate
+        - extract
+        - end
 skills: []
 subagents: []
 system_instructions:

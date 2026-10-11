@@ -7,6 +7,11 @@ booking:
     resource:
       type: Search
   - method: POST
+    path: /v1/quote
+    action: booking.quote
+    resource:
+      type: Search
+  - method: POST
     path: /v1/reserve
     action: booking.reserve
     # The session's approved mission, as context.mission, and the answers of

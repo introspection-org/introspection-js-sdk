@@ -4,7 +4,7 @@
 
 Sam works at Acme, one of Flight Sector's customers, and asks Flight Sector's travel agent for a week in Sydney. The agent holds no credential. The platform is its Agent Provider: it mints an agent token for the session and signs every request the agent makes with the session's key. The trip is an AAuth mission: Acme's Person Server, which speaks for Sam, has Sam's manager approve it once, budget and all. The booking provider is a native AAuth resource. Flight Sector's own rails, Cedar policies shipped in the recipe, run in the platform first. Then each booking is AAuth's three-party flow: the resource names it in a proposal only Acme can read, and Acme issues an auth token within the trip's budget, asks the manager again, or refuses.
 
-Recipe code is from [recipe-travel-agent@820136c](https://github.com/introspection-org/recipe-travel-agent/tree/820136c856b019b6a931418ddee2a9cf26f7e1fc). Platform steps show the contract on the wire, not the code.
+Recipe code is from [recipe-travel-agent@f7841dd](https://github.com/introspection-org/recipe-travel-agent/tree/f7841dd97e442b94d12b6b5c5082e97121ba0cdf). Platform steps show the contract on the wire, not the code.
 
 ## 1. Sam asks for a trip
 
@@ -20,9 +20,15 @@ You are Flight Sector's travel agent. Employees of Flight Sector's customer comp
 ## A trip is a mission
 
 1. Confirm the trip: origin, destination, dates, which legs are for work, and a budget.
-2. Use `search_offers` to price it, then propose the whole trip with `propose_trip`: who travels, where, when, what you will book, and a suggested budget as "up to $N". The employee's manager approves it once and sets the budget; the approved mission's `budget_cents` is what you have to spend.
+2. Price it, then propose the whole trip with `propose_trip`: who travels, where, when, what you will book, and a suggested budget as "up to $N". The employee's manager approves it once and sets the budget; the approved mission's `budget_cents` is what you have to spend.
 3. Once approved, book one item at a time with `book_item`, passing the offer's `offer_id` and `quote` unchanged, with its purpose and who pays.
 4. When everything is booked, report it with `complete_trip`; the employee accepts it.
+
+## Finding flights and hotels
+
+- **Flights:** search the web with the browser. `start` a session, `navigate` to `https://www.google.com/travel/flights?q=Flights%20from%20SFO%20to%20SYD%20on%202026-10-18%20one%20way%20economy` (your route, date and cabin), `extract` the flights shown with their airline, times, duration, stops and price, then `end` the session. Pick what fits, then `quote_flight` it by airline (and flight number, if the search showed one) for a bookable offer. Quote and propose the booking provider's fare, not the price the search showed; say so when they differ.
+- **Hotels:** `search_offers` with `kind: hotel`.
+- If the browser fails, `search_offers` with `kind: flight` also returns bookable flights.
 
 ## Approval
 
@@ -30,7 +36,7 @@ You never hold a booking credential, and you never decide what is in policy.
 
 - **Booked.** Share the confirmation.
 - **Awaiting approval.** A result says it is awaiting approval from the employee's organisation. Tell the employee, then stop. You'll be told here when it is decided:
-  - if the trip was approved, start booking it;
+  - if the trip was approved, you are given its `s256` and budget: start booking it, and do not propose it again;
   - if a booking over what is left of the budget was approved, book the same offer again;
   - if declined, say so and offer an alternative, such as a cheaper hotel.
 - **Refused.** A result names a rule or a reason. Tell the employee and suggest what would fit.
@@ -113,7 +119,7 @@ export function registerBookingTools(pi) {
       "Tell the traveller's company the trip is booked. The traveller accepts it, which ends the mission.",
     parameters: Type.Object({
       s256: Type.String({
-        description: "The mission's s256, from propose_trip",
+        description: "The mission's s256, from propose_trip or its approval",
       }),
       summary: Type.String({
         description: "Markdown: what was booked, and the total",
@@ -159,6 +165,38 @@ export function registerBookingTools(pi) {
     }),
     async execute(_toolCallId, params, signal) {
       return result(await call("/v1/search", params, signal));
+    },
+  });
+
+  pi.registerTool({
+    name: "quote_flight",
+    label: "Quote a flight",
+    description:
+      "Get a bookable offer for a flight found in a browser search. The booking provider quotes its own fare, which can differ from the price the search showed; the offer carries a signed `quote` to pass unchanged to book_item.",
+    promptSnippet:
+      "Quote a flight found in a browser search, for a bookable offer.",
+    parameters: Type.Object({
+      from: Type.String({ description: "Origin IATA code, e.g. SFO" }),
+      to: Type.String({ description: "Destination IATA code, e.g. SYD" }),
+      date: Type.String({ description: "YYYY-MM-DD" }),
+      carrier: Type.Optional(
+        Type.String({
+          description: "Airline as the search showed it, e.g. Qantas",
+        }),
+      ),
+      flight: Type.Optional(
+        Type.String({
+          description: "Flight number, when the search showed one, e.g. QF74",
+        }),
+      ),
+      cabin: Type.Optional(
+        Type.String({
+          description: "economy, premium_economy, business or first",
+        }),
+      ),
+    }),
+    async execute(_toolCallId, params, signal) {
+      return result(await call("/v1/quote", params, signal));
     },
   });
 
@@ -436,6 +474,7 @@ export async function missionAction(
 
 ```ts
 export async function sendApprovalEmail(email: ApprovalEmail): Promise<void> {
+  sent.push(email);
   const subject = `Approve ${email.travellerName}'s booking: ${email.item}`;
   const text = [
     `Hi ${email.approverName},`,
@@ -610,6 +649,9 @@ Before anything is signed, the platform runs the recipe's Cedar policies against
 @id("search")
 permit (principal, action == Action::"booking.search", resource);
 
+@id("quote")
+permit (principal, action == Action::"booking.quote", resource);
+
 @id("reserve")
 permit (principal, action == Action::"booking.reserve", resource);
 
@@ -633,10 +675,34 @@ unless {
   resource has block_minutes && resource.block_minutes >= 360
 };
 
+@id("asked-for")
+@reason("Jev could not confirm this booking is what the traveller asked for")
+forbid (principal, action == Action::"booking.reserve", resource)
+unless {
+  context has judgement && context.judgement has requested &&
+  context.judgement.requested >= 60
+};
+
 @id("personal-is-the-travellers")
 @reason("a personal booking is paid by the traveller")
 forbid (principal, action == Action::"booking.reserve", resource)
-when { resource.purpose == "personal" && resource.payer == "company" };
+when {
+  resource.payer == "company" &&
+  (resource.purpose == "personal" ||
+   (context has judgement && context.judgement has personal &&
+    context.judgement.personal >= 70))
+};
+
+@id("propose")
+permit (principal, action == Action::"mission.propose", resource);
+
+@id("proposed-as-asked")
+@reason("the proposed trip is not the one the traveller asked for: propose their destination, dates and budget")
+forbid (principal, action == Action::"mission.propose", resource)
+unless {
+  context has judgement && context.judgement has requested &&
+  context.judgement.requested >= 60
+};
 ```
 
 **recipe: how a request becomes a Cedar request** · `recipe-travel-agent/policies/routes.yaml`
@@ -651,10 +717,17 @@ booking:
     resource:
       type: Search
   - method: POST
+    path: /v1/quote
+    action: booking.quote
+    resource:
+      type: Search
+  - method: POST
     path: /v1/reserve
     action: booking.reserve
-    # The session's approved mission, as context.mission.
-    context: [mission]
+    # The session's approved mission, as context.mission, and the answers of
+    # judges/booking.yaml, as context.judgement.
+    context: [mission, judgement]
+    judge: booking
     resource:
       type: Booking
       attrs:
@@ -665,7 +738,35 @@ booking:
       # signed, so the agent cannot alter these.
       claims:
         from: /quote
-        attrs: [kind, cabin, block_minutes, total_cents]
+        attrs:
+          [
+            kind,
+            name,
+            city,
+            flight,
+            from,
+            to,
+            depart,
+            check_in,
+            check_out,
+            nights,
+            cabin,
+            block_minutes,
+            total_cents,
+          ]
+
+# The trip the agent proposes to the traveller's Person Server, which the
+# egress answers itself: Jev checks it against what the traveller asked for.
+person-server:
+  - method: POST
+    path: /mission
+    action: mission.propose
+    context: [judgement]
+    judge: mission-proposal
+    resource:
+      type: Mission
+      attrs:
+        description: /description
 ```
 
 **what the gate sees, and the refusal** · `platform contract: policy-denied.json`
@@ -1106,7 +1207,9 @@ function personFor(agent: Agent, loginHint?: unknown): Person {
       ? people.find(
           (p) =>
             p.company === TENANT &&
-            (p.external_user_id === loginHint || p.email === loginHint),
+            (p.external_user_id === loginHint ||
+              p.email === loginHint ||
+              `user:${p.email}` === loginHint),
         )
       : undefined;
   if (loginHint !== undefined && !hinted)

@@ -126,10 +126,11 @@ Every server here fetches the others' metadata, so Node must trust portless's CA
 
 In `introspection-cloud`, `make dev-aauth-demo` turns the AAuth agent and the policy gate on in the local egress and points them at this app. The control plane is the Agent Provider at `https://cp.introspection.localhost` (`portless alias cp.introspection 8000`). Portless listens on loopback only, so the containers reach this app on `:3400` directly, still signing for its https hosts. Then create the booking connector:
 
-| Setting           | Value                                                                                                                                                                                                                                                        |
-| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Booking connector | slug `booking`, `auth_mode: aauth`, `person_server_url: https://ps.acme.localhost`, `api_hosts: [api.booking.example]`, `metadata: {"aauth_resource": "https://booking.flightsector.localhost", "aauth_upstream": "https://booking.flightsector.localhost"}` |
-| Booking provider  | `https://booking.flightsector.localhost` (no credential: egress signs, the provider verifies)                                                                                                                                                                |
+| Setting           | Value                                                                                                                                                                                                                                                                                                                                                                           |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Booking connector | slug `booking`, `auth_mode: aauth`, `person_server_url: https://ps.acme.localhost`, `api_hosts: [api.booking.example]`, `metadata: {"aauth_resource": "https://booking.flightsector.localhost", "aauth_upstream": "https://booking.flightsector.localhost"}`                                                                                                                    |
+| Booking provider  | `https://booking.flightsector.localhost` (no credential: egress signs, the provider verifies)                                                                                                                                                                                                                                                                                   |
+| Flight search     | an `mcp` endpoint with `mcp_server_id: browserbase`: this app's mock at `https://browserbase.flightsector.localhost/mcp` (any bearer; it answers like Browserbase's hosted MCP for the recorded SFO⇄SYD searches, and lists the booking provider's flights for other routes), or the real `https://mcp.browserbase.com/mcp` with `Authorization: Bearer ${BROWSERBASE_API_KEY}` |
 
 The recipe's `policies/` (Flight Sector's rails) run in the egress before anything is signed, with the session's approved mission as `context.mission`. The seniority rule reads two things an org owner sets:
 
@@ -155,18 +156,19 @@ Then message the agent as Sam (`U0SAM` in workspace `T0ACME`).
 
 Copy `.env.example` to `.env.local`.
 
-| Variable                                                   | Default                                  | What it is                                                  |
-| ---------------------------------------------------------- | ---------------------------------------- | ----------------------------------------------------------- |
-| `APP_URL`                                                  | `https://flightsector.localhost`         | the walkthrough's origin                                    |
-| `BOOKING_ISSUER`                                           | `https://booking.flightsector.localhost` | the booking provider's AAuth identifier                     |
-| `BOOKING_PERSON_SERVERS`                                   | `ACME_PERSON_SERVER_URL`                 | Person Servers whose people the provider serves             |
-| `ACME_PERSON_SERVER_URL`                                   | `https://ps.acme.localhost`              | Acme's Person Server identifier                             |
-| `ACME_TRUSTED_RESOURCES`                                   | `BOOKING_ISSUER`                         | resources whose resource tokens Acme accepts                |
-| `TRUSTED_AGENT_PROVIDERS`                                  | `https://cp.introspection.localhost`     | Agent Providers whose agents may act here (comma-separated) |
-| `ACME_PS_SUBJECT_SECRET`                                   | random per process                       | derives each person's directed `sub` per audience           |
-| `ACME_PS_SIGNING_KEY`, `BOOKING_SIGNING_KEY`               | generated per process                    | PKCS#8 Ed25519 PEMs for stable keys                         |
-| `RESEND_API_KEY`, `ACME_MAIL_FROM`                         | unset: print to console                  | how Acme emails Dana                                        |
-| `ACME_WORKSPACE_ID`, `ACME_SAM_USER_ID`, `ACME_DANA_EMAIL` | the emulator's seed                      | Sam and Dana on a real Slack workspace                      |
+| Variable                                                   | Default                                      | What it is                                                  |
+| ---------------------------------------------------------- | -------------------------------------------- | ----------------------------------------------------------- |
+| `APP_URL`                                                  | `https://flightsector.localhost`             | the walkthrough's origin                                    |
+| `BOOKING_ISSUER`                                           | `https://booking.flightsector.localhost`     | the booking provider's AAuth identifier                     |
+| `BROWSERBASE_MCP_URL`                                      | `https://browserbase.flightsector.localhost` | the mock Browserbase MCP's host                             |
+| `BOOKING_PERSON_SERVERS`                                   | `ACME_PERSON_SERVER_URL`                     | Person Servers whose people the provider serves             |
+| `ACME_PERSON_SERVER_URL`                                   | `https://ps.acme.localhost`                  | Acme's Person Server identifier                             |
+| `ACME_TRUSTED_RESOURCES`                                   | `BOOKING_ISSUER`                             | resources whose resource tokens Acme accepts                |
+| `TRUSTED_AGENT_PROVIDERS`                                  | `https://cp.introspection.localhost`         | Agent Providers whose agents may act here (comma-separated) |
+| `ACME_PS_SUBJECT_SECRET`                                   | random per process                           | derives each person's directed `sub` per audience           |
+| `ACME_PS_SIGNING_KEY`, `BOOKING_SIGNING_KEY`               | generated per process                        | PKCS#8 Ed25519 PEMs for stable keys                         |
+| `RESEND_API_KEY`, `ACME_MAIL_FROM`                         | unset: print to console                      | how Acme emails Dana                                        |
+| `ACME_WORKSPACE_ID`, `ACME_SAM_USER_ID`, `ACME_DANA_EMAIL` | the emulator's seed                          | Sam and Dana on a real Slack workspace                      |
 
 ## How the explainer works
 

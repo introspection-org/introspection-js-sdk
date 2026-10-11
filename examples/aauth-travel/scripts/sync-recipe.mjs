@@ -19,6 +19,8 @@ const FILES = [
   "policies/schema.cedarschema",
   "policies/travel.cedar",
   "policies/routes.yaml",
+  "judges/booking.yaml",
+  "judges/mission-proposal.yaml",
 ];
 
 rmSync(target, { recursive: true, force: true });

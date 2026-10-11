@@ -56,5 +56,6 @@ type MissionJudgement = { requested?: Long };
 type Mission = { s256: String, resources: Set<String> };
 
 action "booking.search" appliesTo { principal: [Person], resource: [Search], context: {} };
+action "booking.quote" appliesTo { principal: [Person], resource: [Search], context: {} };
 action "booking.reserve" appliesTo { principal: [Person], resource: [Booking], context: { mission?: Mission, judgement?: BookingJudgement } };
 action "mission.propose" appliesTo { principal: [Person], resource: [Mission], context: { judgement?: MissionJudgement } };

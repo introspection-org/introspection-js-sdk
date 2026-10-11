@@ -8,7 +8,13 @@
 import "server-only";
 
 export type Party =
-  "Agent" | "Acme" | "Booking provider" | "Dana" | "Sam" | "Tools";
+  | "Agent"
+  | "Acme"
+  | "Booking provider"
+  | "Browserbase"
+  | "Dana"
+  | "Sam"
+  | "Tools";
 
 export type Exchange = {
   id: number;
@@ -83,13 +89,27 @@ const SHOWN_RESPONSE = [
   "content-type",
 ];
 
+/** An MCP call by what it asks for: the tool, or the protocol step. */
+function mcpLabel(requestBody: string) {
+  try {
+    const { method, params } = JSON.parse(requestBody);
+    if (method === "tools/call") return `Browser: ${params?.name}`;
+    return `MCP ${method}`;
+  } catch {
+    return "MCP";
+  }
+}
+
 function label(
   method: string,
   path: string,
   status: number,
   requirement: string | null,
+  requestBody: string,
 ) {
+  if (path === "/mcp") return mcpLabel(requestBody);
   if (path === "/v1/search") return "Search offers";
+  if (path === "/v1/quote") return "Quote a flight";
   if (path === "/v1/reserve") {
     if (status === 401 && requirement?.includes("person-token"))
       return "Reserve → asks for a person token";
@@ -120,6 +140,9 @@ function headerLines(headers: Headers, shown: string[]) {
 
 export function body(text: string) {
   if (!text) return [];
+  // An MCP answer arrives as one server-sent event; show the message it carries.
+  const event = /^event: message\ndata: (.*)$/m.exec(text);
+  if (event) text = event[1];
   try {
     return ["", shorten(JSON.stringify(JSON.parse(text), null, 2))];
   } catch {
@@ -147,17 +170,18 @@ export async function recorded(
   const copy = request.clone();
   const response = await serve();
   const url = new URL(copy.url);
-  const path = url.pathname.replace(/^\/(booking|acme)(?=\/)/, "");
+  const path = url.pathname.replace(/^\/(booking|acme|browserbase)(?=\/)/, "");
   if (
     path.startsWith("/.well-known/") ||
     path.endsWith("jwks.json") ||
     path === "/v1/audit"
   )
     return response;
+  const requestBody = await copy.text().catch(() => "");
   const requestText = [
     `${copy.method} https://${copy.headers.get("x-forwarded-host") ?? copy.headers.get("host") ?? url.host}${path}`,
     ...headerLines(copy.headers, SHOWN_REQUEST),
-    ...body(await copy.text().catch(() => "")),
+    ...body(requestBody),
   ].join("\n");
   const responseText = [
     `HTTP/1.1 ${response.status} ${response.statusText}`,
@@ -178,6 +202,7 @@ export async function recorded(
       path,
       response.status,
       response.headers.get("aauth-requirement"),
+      requestBody,
     ),
     request: requestText,
     response: responseText,

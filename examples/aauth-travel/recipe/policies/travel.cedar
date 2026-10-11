@@ -5,6 +5,9 @@
 @id("search")
 permit (principal, action == Action::"booking.search", resource);
 
+@id("quote")
+permit (principal, action == Action::"booking.quote", resource);
+
 @id("reserve")
 permit (principal, action == Action::"booking.reserve", resource);
 

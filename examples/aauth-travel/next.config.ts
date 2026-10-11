@@ -1,12 +1,17 @@
 import type { NextConfig } from "next";
 
-import { BOOKING_ISSUER, PERSON_SERVER_URL } from "./lib/origins";
+import {
+  BOOKING_ISSUER,
+  BROWSERBASE_MCP_URL,
+  PERSON_SERVER_URL,
+} from "./lib/origins";
 
 // Each AAuth server is its own host (an identifier has no path); this one
 // process answers for both by rewriting each host to its routes.
 const hosts = [
   { host: new URL(BOOKING_ISSUER).hostname, prefix: "booking" },
   { host: new URL(PERSON_SERVER_URL).hostname, prefix: "acme" },
+  { host: new URL(BROWSERBASE_MCP_URL).hostname, prefix: "browserbase" },
 ];
 
 const nextConfig: NextConfig = {

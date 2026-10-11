@@ -66,6 +66,11 @@ const PARTY: Record<string, { name: string; mark: string; host: string }> = {
     mark: "B",
     host: "booking.flightsector.localhost",
   },
+  Browserbase: {
+    name: "Browserbase's MCP",
+    mark: "W",
+    host: "browserbase.flightsector.localhost (mock)",
+  },
 };
 
 const TOKEN =

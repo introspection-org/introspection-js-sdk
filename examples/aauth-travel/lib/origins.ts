@@ -16,6 +16,12 @@ export const BOOKING_ISSUER = trim(
   process.env.BOOKING_ISSUER ?? "https://booking.flightsector.localhost",
 );
 
+/** A stand-in for Browserbase's hosted MCP, for flight searches without an account. */
+export const BROWSERBASE_MCP_URL = trim(
+  process.env.BROWSERBASE_MCP_URL ??
+    "https://browserbase.flightsector.localhost",
+);
+
 /** Acme's Person Server. */
 export const PERSON_SERVER_URL = trim(
   process.env.ACME_PERSON_SERVER_URL ?? "https://ps.acme.localhost",

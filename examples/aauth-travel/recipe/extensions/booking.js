@@ -87,6 +87,25 @@ export function registerBookingTools(pi) {
   });
 
   pi.registerTool({
+    name: "quote_flight",
+    label: "Quote a flight",
+    description:
+      "Get a bookable offer for a flight found in a browser search. The booking provider quotes its own fare, which can differ from the price the search showed; the offer carries a signed `quote` to pass unchanged to book_item.",
+    promptSnippet: "Quote a flight found in a browser search, for a bookable offer.",
+    parameters: Type.Object({
+      from: Type.String({ description: "Origin IATA code, e.g. SFO" }),
+      to: Type.String({ description: "Destination IATA code, e.g. SYD" }),
+      date: Type.String({ description: "YYYY-MM-DD" }),
+      carrier: Type.Optional(Type.String({ description: "Airline as the search showed it, e.g. Qantas" })),
+      flight: Type.Optional(Type.String({ description: "Flight number, when the search showed one, e.g. QF74" })),
+      cabin: Type.Optional(Type.String({ description: "economy, premium_economy, business or first" })),
+    }),
+    async execute(_toolCallId, params, signal) {
+      return result(await call("/v1/quote", params, signal));
+    },
+  });
+
+  pi.registerTool({
     name: "book_item",
     label: "Book travel",
     description:
