@@ -6,6 +6,7 @@ import "server-only";
 
 export type FlowEventType =
   | "booking.searched"
+  | "booking.quoted"
   | "booking.challenged"
   | "booking.reserved"
   | "acme.mission_approved"

@@ -31,7 +31,7 @@ import { record } from "./events";
 import { HttpError } from "./http";
 import { AGENT_PROVIDERS, BOOKING_ISSUER, PERSON_SERVER_URL } from "./origins";
 import { bookingSigner } from "./signing";
-import { flights, hotels } from "./world";
+import { type Flight, flights, hotels } from "./world";
 
 const QUOTE_TTL_SECONDS = 30 * 60;
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -102,6 +102,71 @@ async function quote(offer: Record<string, unknown>) {
 }
 // #endregion
 
+function flightOffer(f: Flight, date: string, cabin: string) {
+  return quote({
+    offer_id: `fl:${f.id}:${date}:${cabin}`,
+    kind: "flight",
+    carrier: f.carrier,
+    flight: f.flight,
+    from: f.from,
+    to: f.to,
+    dest: f.to,
+    depart: `${date}T${f.depart_time}`,
+    block_minutes: f.block_minutes,
+    stops: f.stops,
+    cabin,
+    total_cents: f.fares_cents[cabin],
+    currency: "USD",
+  });
+}
+
+const CARRIERS: Record<string, string> = { qantas: "QF", united: "UA" };
+
+/**
+ * Quote a flight the agent found elsewhere, such as through a browser search:
+ * by flight number, or by carrier on the route. The fare is this provider's,
+ * never the price the agent saw.
+ */
+export async function quoteFlight(body: Record<string, unknown>) {
+  const { from, to, date } = body;
+  const cabin = typeof body.cabin === "string" ? body.cabin : "economy";
+  if (!from || !to || !isDate(date)) {
+    throw new HttpError(400, "a quote needs from, to and date (YYYY-MM-DD)");
+  }
+  const number = String(body.flight ?? "")
+    .toUpperCase()
+    .replace(/\s+/g, "");
+  const carrier = String(body.carrier ?? "").trim();
+  const code = CARRIERS[carrier.toLowerCase()] ?? carrier.toUpperCase();
+  const match = flights.find(
+    (f) =>
+      f.from === from &&
+      f.to === to &&
+      (number ? f.flight === number : f.carrier === code),
+  );
+  if (!match) {
+    throw new HttpError(
+      404,
+      `no ${carrier || number || "such"} flight ${from}→${to} is sold here`,
+    );
+  }
+  if (!(cabin in match.fares_cents)) {
+    throw new HttpError(404, `${match.flight} has no ${cabin} fare`);
+  }
+  const offer = await flightOffer(match, date, cabin);
+  record(
+    "booking.quoted",
+    `${match.flight} ${from}→${to} on ${date}, ${cabin}`,
+    {
+      kind: "flight",
+      flight: match.flight,
+      date,
+      cabin,
+    },
+  );
+  return { offer };
+}
+
 export async function search(body: Record<string, unknown>) {
   if (body.kind === "flight") {
     const { from, to, date, cabin } = body;
@@ -115,25 +180,9 @@ export async function search(body: Record<string, unknown>) {
       flights
         .filter((f) => f.from === from && f.to === to)
         .flatMap((f) =>
-          Object.entries(f.fares_cents)
-            .filter(([fareCabin]) => !cabin || fareCabin === cabin)
-            .map(([fareCabin, total]) =>
-              quote({
-                offer_id: `fl:${f.id}:${date}:${fareCabin}`,
-                kind: "flight",
-                carrier: f.carrier,
-                flight: f.flight,
-                from: f.from,
-                to: f.to,
-                dest: f.to,
-                depart: `${date}T${f.depart_time}`,
-                block_minutes: f.block_minutes,
-                stops: f.stops,
-                cabin: fareCabin,
-                total_cents: total,
-                currency: "USD",
-              }),
-            ),
+          Object.keys(f.fares_cents)
+            .filter((fareCabin) => !cabin || fareCabin === cabin)
+            .map((fareCabin) => flightOffer(f, date, fareCabin)),
         ),
     );
     record(
