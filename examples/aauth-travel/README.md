@@ -106,10 +106,10 @@ Run it against the local stack in `introspection-cloud`:
 ```bash
 make dev-aauth-demo        # AAuth agent and policy gate on in the local egress
 make seed-applications seed-travel-agent
-make seed-aauth-demo       # booking connector, Sam, and this app's .env.local
+make seed-aauth-demo       # booking connector, the browserbase MCP, Sam, and this app's .env.local
 ```
 
-`seed-aauth-demo` writes `INTROSPECTION_BASE_API_URL`, `INTROSPECTION_RUNTIME` and `DEMO_SAM_USER_ID` here, and `INTROSPECTION_TOKEN` when it can mint a project API key; otherwise add one by hand. Acme's Person Server knows Sam as `user:sam@acme.example`, the key the platform gives a runner identity.
+`seed-aauth-demo` binds the `browserbase` MCP (the mock here, or Browserbase's hosted MCP when `BROWSERBASE_API_KEY` is set), and writes `INTROSPECTION_BASE_API_URL`, `INTROSPECTION_RUNTIME` and `DEMO_SAM_USER_ID` here, and `INTROSPECTION_TOKEN` when it can mint a project API key; otherwise add one by hand. Acme's Person Server knows Sam as `user:sam@acme.example`, the key the platform gives a runner identity.
 
 To exercise the whole flow without the platform, play the agent with the e2e script. It uses [`@aauth/agent`](https://www.npmjs.com/package/@aauth/agent) as the egress would, and runs a test Agent Provider at `https://e2e-agents.localhost`, which the dev server must trust:
 
