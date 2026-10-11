@@ -1,7 +1,13 @@
 /**
  * Outbound HTTP proxy helpers for `fetch`-based clients.
  *
- * Two proxy modes, selected per-request:
+ * On a proxy-native runtime (`INTROSPECTION_EGRESS_PROXY_NATIVE=1`) every
+ * proxied request goes through `EnvHttpProxyAgent`: `HTTPS_PROXY` carries the
+ * session credential as userinfo, which undici sends as `Proxy-Authorization`
+ * on CONNECT, and the platform CA reaches the default trust store through
+ * `NODE_EXTRA_CA_CERTS`. The legacy egress dispatcher below is never used.
+ *
+ * Otherwise, two proxy modes, selected per-request:
  *
  *  - **Egress credential-injection proxy** (`INTROSPECTION_EGRESS_URL`):
  *    plain-HTTP reverse proxy that routes by `Host` header and injects upstream
@@ -35,6 +41,7 @@ import {
 const EGRESS_KEEP_ALIVE_TIMEOUT_MS = 10 * 60 * 1000;
 
 export interface ProxyFetchOptions {
+  /** Ignored, with `egressProxyHosts`, when `INTROSPECTION_EGRESS_PROXY_NATIVE=1`. */
   egressProxyUrl?: string;
   egressProxyHosts?: string;
   /**
@@ -60,6 +67,7 @@ export interface ProxyFetchOptions {
 }
 
 function resolveEgressUrl(options: ProxyFetchOptions): string | undefined {
+  if (process.env.INTROSPECTION_EGRESS_PROXY_NATIVE === "1") return undefined;
   return options.egressProxyUrl ?? process.env.INTROSPECTION_EGRESS_URL;
 }
 
@@ -155,8 +163,17 @@ export function createProxyFetchWithBase(
     !!egressUrl && new URL(egressUrl).protocol === "http:";
 
   const egress = egressUrl ? buildEgressDispatcher(egressUrl) : undefined;
+  // Without an egress dispatcher the forward agent carries the provider calls,
+  // so it takes over the egress keep-alive.
   const forward = resolveForwardProxyUrl()
-    ? new EnvHttpProxyAgent()
+    ? new EnvHttpProxyAgent(
+        egress
+          ? undefined
+          : {
+              keepAliveTimeout: EGRESS_KEEP_ALIVE_TIMEOUT_MS,
+              keepAliveMaxTimeout: EGRESS_KEEP_ALIVE_TIMEOUT_MS,
+            },
+      )
     : undefined;
 
   if (!egress && !forward) return base;
