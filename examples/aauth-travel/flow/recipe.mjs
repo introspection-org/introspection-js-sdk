@@ -3,5 +3,5 @@
 export const recipe = {
   repository: "https://github.com/introspection-org/recipe-travel-agent",
   raw: "https://raw.githubusercontent.com/introspection-org/recipe-travel-agent",
-  commit: "f7841dd97e442b94d12b6b5c5082e97121ba0cdf",
+  commit: "cf680b8004210df1b0be99208882940bdd1e780f",
 };
