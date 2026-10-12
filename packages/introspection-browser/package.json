@@ -2,6 +2,11 @@
   "name": "@introspection-sdk/introspection-browser",
   "version": "0.1.0",
   "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/introspection-org/introspection-js-sdk.git",
+    "directory": "packages/introspection-browser"
+  },
   "description": "Introspection observability SDK for the browser",
   "engines": {
     "node": ">=22"
