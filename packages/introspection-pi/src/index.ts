@@ -84,6 +84,16 @@ export {
   type ConvertOptions,
 } from "./convert.js";
 
+// Offline rendering — a Pi session file or event stream as the span list the
+// platform's conversation export returns (also the `pi-session-spans` bin).
+export {
+  parsePiFile,
+  piFileToSpans,
+  type PiFile,
+  type SessionSpan,
+  type SessionSpanList,
+} from "./session-spans.js";
+
 // Re-export the GenAI types so consumers don't need a second import.
 export type {
   AbortTerminationReason,
