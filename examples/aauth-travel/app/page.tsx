@@ -1,9 +1,8 @@
-import recipeSource from "@/recipe/SOURCE.json";
-
 import { highlight } from "@/components/code";
 import { EventFeed, LiveProvider, StepDot } from "@/components/live";
 import { Sources, type RenderedSource } from "@/components/sources";
 import { flow } from "@/flow/manifest.mjs";
+import { recipe as recipeSource } from "@/flow/recipe.mjs";
 import { readSource } from "@/lib/source.mjs";
 
 export const dynamic = "force-dynamic";
@@ -21,7 +20,7 @@ export default async function Page() {
       ...step,
       rendered: await Promise.all(
         step.sources.map(async (source): Promise<RenderedSource> => {
-          const { code, language, origin } = readSource(root, source);
+          const { code, language, origin } = await readSource(root, source);
           return {
             label: source.label ?? source.path,
             origin,

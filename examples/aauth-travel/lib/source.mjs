@@ -3,6 +3,8 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
+import { recipe } from "../flow/recipe.mjs";
+
 const REGION_MARKER = /^\s*(\/\/|#)\s*#(end)?region\b.*$/;
 const LANGUAGES = {
   ts: "ts",
@@ -16,13 +18,44 @@ const LANGUAGES = {
   cedarschema: "text",
 };
 
+const fetched = new Map();
+
+/**
+ * A recipe file at the pinned commit. The repository is private until it is
+ * published, so GITHUB_TOKEN is sent when set; without it, a link stands in.
+ * @param {string} path
+ */
+async function recipeFile(path) {
+  if (!fetched.has(path)) {
+    const token = process.env.GITHUB_TOKEN;
+    fetched.set(
+      path,
+      fetch(`${recipe.raw}/${recipe.commit}/${path}`, {
+        headers: token ? { authorization: `Bearer ${token}` } : {},
+      })
+        .then((response) => (response.ok ? response.text() : null))
+        .catch(() => null),
+    );
+  }
+  const text = await fetched.get(path);
+  return (
+    text ??
+    `# Not fetched: ${recipe.repository}/blob/${recipe.commit}/${path}\n# Set GITHUB_TOKEN to read the recipe here.`
+  );
+}
+
 /** @param {string} root @param {import("../flow/manifest.mjs").Source} source */
-export function readSource(root, source) {
-  const base =
-    source.kind === "example"
-      ? root
-      : join(root, source.kind === "recipe" ? "recipe" : "flow/contracts");
-  const text = readFileSync(join(base, source.path), "utf8");
+export async function readSource(root, source) {
+  const text =
+    source.kind === "recipe"
+      ? await recipeFile(source.path)
+      : readFileSync(
+          join(
+            source.kind === "example" ? root : join(root, "flow/contracts"),
+            source.path,
+          ),
+          "utf8",
+        );
   let lines = text.split("\n");
 
   if (source.kind === "example" && source.region) {

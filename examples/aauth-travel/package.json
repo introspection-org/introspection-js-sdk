@@ -10,7 +10,6 @@
     "lint": "eslint .",
     "check-types": "tsc --noEmit",
     "walkthrough": "node scripts/walkthrough.mjs && prettier --write WALKTHROUGH.md",
-    "sync-recipe": "node scripts/sync-recipe.mjs",
     "clean": "rm -rf .next .turbo node_modules"
   },
   "dependencies": {

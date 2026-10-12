@@ -4,7 +4,7 @@
 //
 // Source kinds:
 //   example  - a file in this example; `region` cuts a `#region name` block
-//   recipe   - the vendored public recipe (recipe/)
+//   recipe   - the recipe, read from GitHub at flow/recipe.mjs's commit
 //   contract - a platform wire shape (flow/contracts/), shown as data
 
 /** @typedef {{ kind: "example", path: string, region?: string, label?: string }} ExampleSource */

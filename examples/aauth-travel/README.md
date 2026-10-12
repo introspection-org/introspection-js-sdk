@@ -16,7 +16,7 @@ This example is the **Flight Sector side and the Acme side** of the demo, and th
 - **Acme's Person Server** (`https://ps.acme.localhost`) is Acme's system, not Flight Sector's. It has a mission endpoint, a person-token endpoint and a token endpoint. A trip's manager approves it by a six-digit emailed code (approval page at `/approve/{id}`); within the trip, Acme issues auth tokens until the budget runs out, and asks the manager again past it. It books nothing outside a mission.
 - **The walkthrough** (`https://flightsector.localhost`) covers every step of the flow, beside the code behind it. Steps light up as these services see traffic. `WALKTHROUGH.md` is the same thing as a document.
 
-The agent itself is the public [travel-agent recipe](https://github.com/introspection-org/recipe-travel-agent). The walkthrough shows it from a vendored snapshot in `recipe/`.
+The agent itself is the public [travel-agent recipe](https://github.com/introspection-org/recipe-travel-agent). The walkthrough reads it from GitHub at the commit pinned in `flow/recipe.mjs`; while that repository is private, set `GITHUB_TOKEN` for the page to show its code.
 
 ## The flow
 
@@ -175,9 +175,9 @@ Copy `.env.example` to `.env.local`.
 `flow/manifest.mjs` lists the steps. Each step names its sources:
 
 - `example`: a file here, cut to a `#region`;
-- `recipe`: a file from the recipe;
+- `recipe`: a file from the recipe, fetched from GitHub at the pinned commit;
 - `contract`: the shape of a platform message on the wire, from `flow/contracts/`.
 
 The page reads the real files at request time, and `pnpm walkthrough` writes `WALKTHROUGH.md` from the same manifest, so the explanation can't drift from the code. Platform internals are never shown: platform steps appear only as their contracts.
 
-After changing the recipe, refresh the snapshot with `RECIPE_DIR=path/to/recipe-travel-agent pnpm sync-recipe`, then `pnpm walkthrough`.
+After changing the recipe, move the commit in `flow/recipe.mjs`, then `pnpm walkthrough`.

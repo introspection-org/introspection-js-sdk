@@ -7,5 +7,3 @@ coverage
 CHANGELOG.md
 # pnpm owns this generated file's canonical formatting.
 pnpm-lock.yaml
-# Vendored from recipe-travel-agent; formatted there.
-examples/aauth-travel/recipe

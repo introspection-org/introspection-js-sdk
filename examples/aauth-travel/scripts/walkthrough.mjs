@@ -1,15 +1,13 @@
 // Writes WALKTHROUGH.md from the same manifest and sources the app renders,
 // for reading without running anything: `pnpm walkthrough`.
-import { readFileSync, writeFileSync } from "node:fs";
+import { writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 
 import { flow } from "../flow/manifest.mjs";
+import { recipe } from "../flow/recipe.mjs";
 import { readSource } from "../lib/source.mjs";
 
 const root = resolve(dirname(new URL(import.meta.url).pathname), "..");
-const recipe = JSON.parse(
-  readFileSync(join(root, "recipe/SOURCE.json"), "utf8"),
-);
 const fence = (language) => (language === "markdown" ? "md" : language);
 
 const out = [
@@ -23,7 +21,7 @@ const out = [
   "",
 ];
 
-flow.steps.forEach((step, index) => {
+for (const [index, step] of flow.steps.entries()) {
   out.push(
     `## ${index + 1}. ${step.title}`,
     "",
@@ -33,7 +31,7 @@ flow.steps.forEach((step, index) => {
     "",
   );
   for (const source of step.sources) {
-    const { code, language, origin } = readSource(root, source);
+    const { code, language, origin } = await readSource(root, source);
     out.push(
       `**${source.label ?? source.path}** · \`${origin}\``,
       "",
@@ -43,7 +41,7 @@ flow.steps.forEach((step, index) => {
       "",
     );
   }
-});
+}
 
 writeFileSync(join(root, "WALKTHROUGH.md"), out.join("\n"));
 console.log(`wrote WALKTHROUGH.md (${flow.steps.length} steps)`);
