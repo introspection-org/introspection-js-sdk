@@ -5,8 +5,11 @@
 
 import { describe, expect, it } from "vitest";
 
+import type { Message } from "@earendil-works/pi-ai";
+import { convertToLlm, SessionManager } from "@earendil-works/pi-coding-agent";
 import { foldSpans } from "@introspection-sdk/http";
 import {
+  messagesToInputMessages,
   parsePiFile,
   piFileToSpans,
 } from "@introspection-sdk/introspection-pi";
@@ -264,5 +267,37 @@ describe("pi-session-spans", () => {
     expect(
       last?.attributes.gen_ai?.input?.messages?.map((message) => message.role),
     ).toEqual(["user", "assistant"]);
+  });
+
+  // Pi's own session writer and context builder are the oracle here, so the
+  // rebuild in the renderer cannot drift from what Pi sends the model.
+  it("matches the context Pi itself builds after a compaction", () => {
+    const summary = "Earlier: tried to read a.";
+    const session = SessionManager.inMemory();
+    const append = (message: object) =>
+      session.appendMessage(message as Message);
+    for (const message of [user, call, result, answer]) append(message);
+    const keptId = append({
+      role: "user",
+      content: "Now list b",
+      timestamp: 5000,
+    });
+    append({ ...answer, timestamp: 6000 });
+    session.appendCompaction(summary, keptId, 1000);
+    append({ role: "user", content: "And c?", timestamp: 7000 });
+    // What Pi would send for the next model call.
+    const expected = messagesToInputMessages(
+      convertToLlm(session.buildSessionContext().messages),
+      { compactionSummaries: [summary] },
+    );
+    append({ ...answer, timestamp: 8000 });
+
+    const file = [session.getHeader(), ...session.getEntries()]
+      .map((entry) => JSON.stringify(entry))
+      .join("\n");
+    const last = piFileToSpans(parsePiFile(file), "conv-1").data.at(-1);
+
+    expect(expected[0]?.parts[0]?.type).toBe("compaction");
+    expect(last?.attributes.gen_ai?.input?.messages).toEqual(expected);
   });
 });
