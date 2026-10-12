@@ -80,8 +80,8 @@ importers:
         specifier: ^5.9.3
         version: 5.9.3
       typesense:
-        specifier: ^3.1.0
-        version: 3.1.0(@babel/runtime@7.29.7)
+        specifier: ^3.1.1
+        version: 3.1.1(@babel/runtime@7.29.7)
 
   examples/auth:
     dependencies:
@@ -4136,8 +4136,8 @@ packages:
     engines: {node: '>=14.17'}
     hasBin: true
 
-  typesense@3.1.0:
-    resolution: {integrity: sha512-G0Pc5QVxiVS0CStHxBzK9YXCmX71BowrEhjrAhXOxSsxCNSvtKNoX1hWqfWSGxsnLbXHFBBwkIK3Cnl361DOow==}
+  typesense@3.1.1:
+    resolution: {integrity: sha512-MbipLTJCebw/AakwFdo06P3/u1gQ0pWCiRjcL0I1bdLqHvtDr8bjP7N18Tfo/PTGIsj2aVr0QGkdv7lOjRBNNw==}
     peerDependencies:
       '@babel/runtime': ^7.23.2
 
@@ -8418,7 +8418,7 @@ snapshots:
 
   typescript@5.9.3: {}
 
-  typesense@3.1.0(@babel/runtime@7.29.7):
+  typesense@3.1.1(@babel/runtime@7.29.7):
     dependencies:
       '@babel/runtime': 7.29.7
       axios: 1.20.0
