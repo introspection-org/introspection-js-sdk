@@ -241,4 +241,28 @@ describe("pi-session-spans", () => {
       { role: "user", parts: [{ type: "text", content: "Now list b" }] },
     ]);
   });
+
+  it("reads a stream's compaction but cannot tell what it kept", () => {
+    const summary = "Earlier: tried to read a.";
+    const file = parsePiFile(
+      [
+        JSON.stringify({ type: "message_end", message: user }),
+        JSON.stringify({ type: "message_end", message: answer }),
+        JSON.stringify({ type: "compaction_end", aborted: true }),
+        JSON.stringify({
+          type: "compaction_end",
+          result: { summary, firstKeptEntryId: "e2", tokensBefore: 100 },
+        }),
+        JSON.stringify({ type: "message_end", message: answer }),
+      ].join("\n"),
+    );
+
+    expect(file.compactions).toEqual([{ summary, at: 2, timestamp: 0 }]);
+    // Stream messages carry no entry ids, so the kept tail is unknown and the
+    // call after the compaction is rendered with the history before it.
+    const last = piFileToSpans(file, "conv-1").data.at(-1);
+    expect(
+      last?.attributes.gen_ai?.input?.messages?.map((message) => message.role),
+    ).toEqual(["user", "assistant"]);
+  });
 });

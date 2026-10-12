@@ -35,7 +35,8 @@ export interface PiCompaction {
   at: number;
   /**
    * Index of the first message the compaction kept in model context. Absent
-   * when the file does not say, as in an event stream, which has no entry ids.
+   * for an event stream: its messages carry no entry ids, so the entry a
+   * compaction names cannot be found and later calls keep the full history.
    */
   firstKept?: number;
   /** The prompt and tool state Pi recorded at the compaction, if any. */
@@ -81,28 +82,30 @@ export function parsePiFile(content: string): PiFile {
       record.message !== null
     ) {
       messages.push(record.message as Message);
-    } else if (
-      record.type === "compaction" &&
-      typeof record.summary === "string"
-    ) {
-      const firstKept =
-        typeof record.firstKeptEntryId === "string"
-          ? messageIndex.get(record.firstKeptEntryId)
-          : undefined;
-      compactions.push({
-        summary: record.summary,
-        at: messages.length,
-        ...(firstKept !== undefined ? { firstKept } : {}),
-        ...(typeof record.systemMessage === "object" &&
-        record.systemMessage !== null
-          ? { systemMessage: record.systemMessage as Message }
-          : {}),
-        timestamp:
-          typeof record.timestamp === "string"
-            ? Date.parse(record.timestamp) || 0
-            : 0,
-      });
+      continue;
     }
+    // A session file holds the compaction entry; an event stream reports the
+    // same result on `compaction_end`.
+    const compaction =
+      record.type === "compaction_end" ? record.result : record;
+    if (typeof compaction !== "object" || compaction === null) continue;
+    const { type, summary, firstKeptEntryId, systemMessage, timestamp } =
+      compaction as Record<string, unknown>;
+    if (record.type !== "compaction_end" && type !== "compaction") continue;
+    if (typeof summary !== "string") continue;
+    const firstKept =
+      typeof firstKeptEntryId === "string"
+        ? messageIndex.get(firstKeptEntryId)
+        : undefined;
+    compactions.push({
+      summary,
+      at: messages.length,
+      ...(firstKept !== undefined ? { firstKept } : {}),
+      ...(typeof systemMessage === "object" && systemMessage !== null
+        ? { systemMessage: systemMessage as Message }
+        : {}),
+      timestamp: typeof timestamp === "string" ? Date.parse(timestamp) || 0 : 0,
+    });
   }
   return { messages, compactions };
 }

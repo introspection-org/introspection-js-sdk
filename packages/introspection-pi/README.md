@@ -172,6 +172,11 @@ pi-session-spans ~/.pi/agent/sessions/<session>.jsonl my-conversation > spans.js
 
 The same is available in code as `parsePiFile` and `piFileToSpans`.
 
+Prefer the session file for a run that may have compacted. It records which
+messages a compaction kept, so calls after it are rendered with the context
+the model saw. The event stream does not, and those calls keep the full
+history.
+
 ## Content scrubbing
 
 gen_ai spans carry full conversation content. Hosts that export one span
