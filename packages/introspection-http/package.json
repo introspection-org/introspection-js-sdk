@@ -2,6 +2,11 @@
   "name": "@introspection-sdk/http",
   "version": "0.1.0",
   "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/introspection-org/introspection-js-sdk.git",
+    "directory": "packages/introspection-http"
+  },
   "description": "Isomorphic HTTP transport, AG-UI stream parsing, error mapping, and cursor pagination shared by the Introspection browser and Node SDKs",
   "engines": {
     "node": ">=22"

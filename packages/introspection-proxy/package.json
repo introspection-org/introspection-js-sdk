@@ -2,6 +2,11 @@
   "name": "@introspection-sdk/introspection-proxy",
   "version": "0.1.0",
   "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/introspection-org/introspection-js-sdk.git",
+    "directory": "packages/introspection-proxy"
+  },
   "description": "Outbound HTTP proxy helpers for routing fetch-based clients through the Introspection egress proxy or a standard forward proxy",
   "engines": {
     "node": ">=22"
