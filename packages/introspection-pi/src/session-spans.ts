@@ -25,7 +25,12 @@ import {
 } from "./attributes.js";
 import { renderCompactionSummary } from "./convert.js";
 
-/** One `chat` span per model call and one `execute_tool` span per result. */
+/**
+ * One `chat` span per model call and one `execute_tool` span per result.
+ *
+ * Throws when `content` has no session header: any other JSON lines, such as
+ * a `pi --mode json` event stream, would otherwise render as an empty list.
+ */
 export function piSessionToSpans(
   content: string,
   conversationId: string,
@@ -64,6 +69,7 @@ export function piSessionToSpans(
   const messageIndex = new Map<string, number>();
   const compactionSummaries: string[] = [];
   const toolCalls = new Map<string, ToolCall>();
+  let isSession = false;
 
   for (const line of content.split("\n")) {
     let entry: Record<string, unknown>;
@@ -73,6 +79,7 @@ export function piSessionToSpans(
       continue;
     }
     if (typeof entry !== "object" || entry === null) continue;
+    isSession ||= entry.type === "session";
     if (typeof entry.id === "string") {
       messageIndex.set(entry.id, messages.length);
     }
@@ -139,6 +146,7 @@ export function piSessionToSpans(
     context = [...context, message];
   }
 
+  if (!isSession) throw new Error("not a Pi session file: no session header");
   return {
     object: "list",
     data: spans,

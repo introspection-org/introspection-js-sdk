@@ -137,6 +137,17 @@ describe("pi-session-spans", () => {
     expect(piSessionToSpans(file, "conv-1").data).toHaveLength(1);
   });
 
+  it("refuses a file without a session header, such as an event stream", () => {
+    const stream = [
+      JSON.stringify({ type: "message_end", message: user }),
+      JSON.stringify({ type: "message_end", message: answer }),
+    ].join("\n");
+
+    expect(() => piSessionToSpans(stream, "conv-1")).toThrow(
+      "not a Pi session file",
+    );
+  });
+
   it("never orders a span before the one it follows", () => {
     const list = piSessionToSpans(
       sessionFile([user, { ...answer, timestamp: 0 }, answer]),

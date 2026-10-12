@@ -17,6 +17,13 @@ if (!path) {
   // which truncates any span list over the pipe buffer.
   process.exitCode = 2;
 } else {
-  const spans = piSessionToSpans(readFileSync(path, "utf8"), conversationId);
-  process.stdout.write(`${JSON.stringify(spans)}\n`);
+  try {
+    const spans = piSessionToSpans(readFileSync(path, "utf8"), conversationId);
+    process.stdout.write(`${JSON.stringify(spans)}\n`);
+  } catch (error) {
+    // A caller keeps the output of a run that exits 0, so a file that cannot
+    // be rendered must not look like a conversation without model calls.
+    process.stderr.write(`pi-session-spans: ${(error as Error).message}\n`);
+    process.exitCode = 1;
+  }
 }
