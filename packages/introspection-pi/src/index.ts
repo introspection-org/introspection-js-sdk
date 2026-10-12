@@ -89,9 +89,8 @@ export {
 export {
   parsePiFile,
   piFileToSpans,
+  type PiCompaction,
   type PiFile,
-  type SessionSpan,
-  type SessionSpanList,
 } from "./session-spans.js";
 
 // Re-export the GenAI types so consumers don't need a second import.

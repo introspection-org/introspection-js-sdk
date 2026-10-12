@@ -48,6 +48,11 @@ const COMPACTION_SUMMARY_PREFIX = `The conversation history before this point wa
 const COMPACTION_SUMMARY_SUFFIX = `
 </summary>`;
 
+/** The user-message text Pi sends the model for a compaction summary. */
+export function renderCompactionSummary(summary: string): string {
+  return COMPACTION_SUMMARY_PREFIX + summary + COMPACTION_SUMMARY_SUFFIX;
+}
+
 /** Options for the pi-ai → semconv conversion. */
 export interface ConvertOptions {
   /**
@@ -376,10 +381,7 @@ export function inputMessagesToMessages(
         } else if (isCompactionPart(part)) {
           content.push({
             type: "text",
-            text:
-              COMPACTION_SUMMARY_PREFIX +
-              part.content +
-              COMPACTION_SUMMARY_SUFFIX,
+            text: renderCompactionSummary(part.content),
           });
         } else if (isImageBlobPart(part)) {
           content.push({

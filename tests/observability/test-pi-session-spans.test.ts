@@ -5,6 +5,7 @@
 
 import { describe, expect, it } from "vitest";
 
+import { foldSpans } from "@introspection-sdk/http";
 import {
   parsePiFile,
   piFileToSpans,
@@ -67,7 +68,15 @@ describe("pi-session-spans", () => {
       "conv-1",
     );
 
-    expect(list.object).toBe("list");
+    // The envelope of a complete, single-page conversation export.
+    expect({ ...list, data: undefined }).toEqual({
+      object: "list",
+      data: undefined,
+      first_id: "span-1",
+      last_id: "span-3",
+      has_more: false,
+      next: null,
+    });
     expect(list.data.map((span) => [span.name, span.start_time])).toEqual([
       ["chat claude-opus-5-5", "1970-01-01T00:00:02.000Z"],
       ["execute_tool read", "1970-01-01T00:00:03.000Z"],
@@ -75,35 +84,54 @@ describe("pi-session-spans", () => {
     ]);
 
     const [first, tool, second] = list.data;
-    const genAi = first.attributes.gen_ai as Record<string, any>;
-    expect(genAi.conversation).toEqual({ id: "conv-1" });
-    expect(genAi.provider).toEqual({ name: "anthropic" });
-    expect(genAi.response.model).toBe("claude-opus-5-5");
+    const genAi = first.attributes.gen_ai;
+    expect(genAi?.conversation).toEqual({ id: "conv-1" });
+    expect(genAi?.provider).toEqual({ name: "anthropic" });
+    expect(genAi?.response?.model).toBe("claude-opus-5-5");
     // Semconv input tokens include the cached ones.
-    expect(genAi.usage).toMatchObject({
+    expect(genAi?.usage).toMatchObject({
       input_tokens: 100,
       output_tokens: 10,
       cache_read: { input_tokens: 30 },
     });
-    expect(genAi.cost).toEqual({ usd: 0.01 });
-    expect(genAi.input.messages).toEqual([
+    expect(genAi?.cost).toEqual({ usd: 0.01 });
+    expect(genAi?.input?.messages).toEqual([
       { role: "user", parts: [{ type: "text", content: "Read the file" }] },
     ]);
     expect(
-      genAi.output.messages[0].parts.map((part: { type: string }) => part.type),
+      genAi?.output?.messages?.[0]?.parts.map((part) => part.type),
     ).toEqual(["reasoning", "text", "tool_call"]);
 
     expect(tool.status).toEqual({ code: "Error" });
-    expect((tool.attributes.gen_ai as Record<string, any>).tool.call.id).toBe(
-      "c1",
-    );
+    expect(tool.attributes.gen_ai?.tool?.call).toEqual({
+      id: "c1",
+      arguments: JSON.stringify({ path: "a" }),
+      result: JSON.stringify({
+        content: [{ type: "text", text: "no such file" }],
+      }),
+    });
 
-    const prompt = (second.attributes.gen_ai as Record<string, any>).input
-      .messages;
-    expect(prompt.map((message: { role: string }) => message.role)).toEqual([
+    const prompt = second.attributes.gen_ai?.input?.messages;
+    expect(prompt?.map((message) => message.role)).toEqual([
       "user",
       "assistant",
       "tool",
+    ]);
+  });
+
+  it("ends every span, so a finished tool call does not read as running", () => {
+    const list = piFileToSpans(
+      parsePiFile(sessionFile([user, call, result])),
+      "conv-1",
+    );
+
+    for (const span of list.data) {
+      expect(span.end_time).toBe(span.start_time);
+      expect(span.duration_ns).toBe(0);
+    }
+    // Un-ended, foldSpans reads the execute_tool span as still running.
+    expect(foldSpans([list.data[1]])).toEqual([
+      expect.objectContaining({ kind: "tool", callId: "c1", status: "error" }),
     ]);
   });
 
@@ -122,9 +150,9 @@ describe("pi-session-spans", () => {
     const list = piFileToSpans(parsePiFile(sessionFile([user])), "conv-1");
 
     expect(list.data).toHaveLength(1);
-    const genAi = list.data[0].attributes.gen_ai as Record<string, any>;
-    expect(genAi.input.messages).toHaveLength(1);
-    expect(genAi.output).toBeUndefined();
+    const genAi = list.data[0].attributes.gen_ai;
+    expect(genAi?.input?.messages).toHaveLength(1);
+    expect(genAi?.output).toBeUndefined();
   });
 
   it("never orders a span before the one it follows", () => {
@@ -146,9 +174,51 @@ describe("pi-session-spans", () => {
       ].join("\n"),
     );
 
-    expect(file.compactionSummaries).toEqual([summary]);
-    const genAi = piFileToSpans(file, "conv-1").data[0].attributes
-      .gen_ai as Record<string, any>;
-    expect(genAi.input.messages[0].parts[0].type).toBe("compaction");
+    expect(file.compactions.map((compaction) => compaction.summary)).toEqual([
+      summary,
+    ]);
+    const genAi = piFileToSpans(file, "conv-1").data[0].attributes.gen_ai;
+    expect(genAi?.input?.messages?.[0]?.parts[0]?.type).toBe("compaction");
+  });
+
+  it("renders the context a compaction left, not the history it replaced", () => {
+    const summary = "Earlier: tried to read a.";
+    const entry = (id: string, message: object) =>
+      JSON.stringify({ type: "message", id, message });
+    const kept = { role: "user", content: "Now list b", timestamp: 5000 };
+    const file = parsePiFile(
+      [
+        JSON.stringify({ type: "session", id: "s1" }),
+        entry("e1", user),
+        entry("e2", call),
+        entry("e3", result),
+        entry("e4", answer),
+        entry("e5", kept),
+        JSON.stringify({
+          type: "compaction",
+          id: "e6",
+          summary,
+          firstKeptEntryId: "e5",
+          timestamp: "1970-01-01T00:00:06.000Z",
+        }),
+        entry("e7", { ...answer, timestamp: 7000 }),
+      ].join("\n"),
+    );
+
+    expect(file.compactions).toEqual([
+      { summary, at: 5, firstKept: 4, timestamp: 6000 },
+    ]);
+    const spans = piFileToSpans(file, "conv-1").data;
+    const inputs = spans.map((span) => span.attributes.gen_ai?.input?.messages);
+    // Calls made before the compaction still show the history they saw.
+    expect(inputs[2]?.map((message) => message.role)).toEqual([
+      "user",
+      "assistant",
+      "tool",
+    ]);
+    expect(inputs.at(-1)).toEqual([
+      { role: "user", parts: [{ type: "compaction", content: summary }] },
+      { role: "user", parts: [{ type: "text", content: "Now list b" }] },
+    ]);
   });
 });
