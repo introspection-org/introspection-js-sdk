@@ -186,9 +186,16 @@ describe("pi-session-spans", () => {
     const entry = (id: string, message: object) =>
       JSON.stringify({ type: "message", id, message });
     const kept = { role: "user", content: "Now list b", timestamp: 5000 };
+    const system = (prompt: string) => ({
+      role: "system",
+      content: prompt,
+      tools: [],
+      timestamp: 500,
+    });
     const file = parsePiFile(
       [
         JSON.stringify({ type: "session", id: "s1" }),
+        entry("e0", system("Be brief.")),
         entry("e1", user),
         entry("e2", call),
         entry("e3", result),
@@ -199,6 +206,7 @@ describe("pi-session-spans", () => {
           id: "e6",
           summary,
           firstKeptEntryId: "e5",
+          systemMessage: system("Be brief."),
           timestamp: "1970-01-01T00:00:06.000Z",
         }),
         entry("e7", { ...answer, timestamp: 7000 }),
@@ -206,7 +214,13 @@ describe("pi-session-spans", () => {
     );
 
     expect(file.compactions).toEqual([
-      { summary, at: 5, firstKept: 4, timestamp: 6000 },
+      {
+        summary,
+        at: 6,
+        firstKept: 5,
+        systemMessage: system("Be brief."),
+        timestamp: 6000,
+      },
     ]);
     const spans = piFileToSpans(file, "conv-1").data;
     const inputs = spans.map((span) => span.attributes.gen_ai?.input?.messages);
@@ -216,6 +230,12 @@ describe("pi-session-spans", () => {
       "assistant",
       "tool",
     ]);
+    // The system prompt survives the compaction, as it does in a live run.
+    expect(
+      spans
+        .filter((span) => span.name?.startsWith("chat"))
+        .map((span) => span.attributes.gen_ai?.system_instructions),
+    ).toEqual(Array(3).fill([{ type: "text", content: "Be brief." }]));
     expect(inputs.at(-1)).toEqual([
       { role: "user", parts: [{ type: "compaction", content: summary }] },
       { role: "user", parts: [{ type: "text", content: "Now list b" }] },

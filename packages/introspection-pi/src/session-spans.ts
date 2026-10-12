@@ -38,6 +38,8 @@ export interface PiCompaction {
    * when the file does not say, as in an event stream, which has no entry ids.
    */
   firstKept?: number;
+  /** The prompt and tool state Pi recorded at the compaction, if any. */
+  systemMessage?: Message;
   timestamp: number;
 }
 
@@ -91,6 +93,10 @@ export function parsePiFile(content: string): PiFile {
         summary: record.summary,
         at: messages.length,
         ...(firstKept !== undefined ? { firstKept } : {}),
+        ...(typeof record.systemMessage === "object" &&
+        record.systemMessage !== null
+          ? { systemMessage: record.systemMessage as Message }
+          : {}),
         timestamp:
           typeof record.timestamp === "string"
             ? Date.parse(record.timestamp) || 0
@@ -155,14 +161,16 @@ export function piFileToSpans(
     });
   };
 
-  // What the model saw of the first `end` messages: after a compaction, its
-  // summary and the messages it kept, not the history it replaced.
+  // What the model saw of the first `end` messages. After a compaction that
+  // is what Pi rebuilds: the compaction's own system message, its summary,
+  // the messages it kept and those that followed, not the history it replaced.
   const context = (end: number): Message[] => {
     const compaction = file.compactions
       .filter(({ at, firstKept }) => firstKept !== undefined && at <= end)
       .at(-1);
     if (compaction?.firstKept === undefined) return file.messages.slice(0, end);
     return [
+      ...(compaction.systemMessage ? [compaction.systemMessage] : []),
       {
         role: "user",
         content: [
@@ -170,7 +178,10 @@ export function piFileToSpans(
         ],
         timestamp: compaction.timestamp,
       },
-      ...file.messages.slice(compaction.firstKept, end),
+      ...file.messages
+        .slice(compaction.firstKept, compaction.at)
+        .filter((message) => message.role !== "system"),
+      ...file.messages.slice(compaction.at, end),
     ];
   };
 
