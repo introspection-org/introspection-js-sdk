@@ -12,6 +12,9 @@
       "import": "./dist/index.js"
     }
   },
+  "bin": {
+    "pi-session-spans": "./dist/bin.js"
+  },
   "files": [
     "dist/"
   ],
