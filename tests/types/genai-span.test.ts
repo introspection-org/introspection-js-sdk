@@ -20,6 +20,7 @@ import {
   genAiConversationId,
   genAiInputMessages,
   genAiOutputMessages,
+  nestAttributes,
   type Conversation,
   type GenAiSpan,
   type GenAiSpanList,
@@ -314,5 +315,26 @@ describe("one shape, three message depths", () => {
     expect(page.has_more).toBe(true);
     expect(page.next).toBe("cursor-abc");
     expect(page.data[0].attributes.gen_ai?.operation?.name).toBe("chat");
+  });
+
+  it("nests flat OTel attributes the way a conversation read returns them", () => {
+    expect(
+      nestAttributes({
+        "gen_ai.usage.input_tokens": 3,
+        "gen_ai.conversation.id": "c1",
+        "gen_ai.input.messages": JSON.stringify([{ role: "user", parts: [] }]),
+        "gen_ai.tool.call.arguments": '{"path":"a"}',
+        "server.port": undefined,
+      }),
+    ).toEqual({
+      gen_ai: {
+        usage: { input_tokens: 3 },
+        conversation: { id: "c1" },
+        // Message attributes are stored as JSON and read back parsed.
+        input: { messages: [{ role: "user", parts: [] }] },
+        // Tool call arguments stay the raw JSON string.
+        tool: { call: { arguments: '{"path":"a"}' } },
+      },
+    });
   });
 });

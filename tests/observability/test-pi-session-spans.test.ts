@@ -1,6 +1,6 @@
 /**
- * Unit tests for rendering a Pi session file or event stream as the GenAI
- * span list the platform's conversation export returns.
+ * Unit tests for rendering a Pi session file as the GenAI span list the
+ * platform's conversation export returns.
  */
 
 import { describe, expect, it } from "vitest";
@@ -10,8 +10,7 @@ import { convertToLlm, SessionManager } from "@earendil-works/pi-coding-agent";
 import { foldSpans } from "@introspection-sdk/http";
 import {
   messagesToInputMessages,
-  parsePiFile,
-  piFileToSpans,
+  piSessionToSpans,
 } from "@introspection-sdk/introspection-pi";
 
 const usage = {
@@ -66,8 +65,8 @@ function sessionFile(messages: object[]): string {
 
 describe("pi-session-spans", () => {
   it("renders a session as chat and execute_tool spans", () => {
-    const list = piFileToSpans(
-      parsePiFile(sessionFile([user, call, result, answer])),
+    const list = piSessionToSpans(
+      sessionFile([user, call, result, answer]),
       "conv-1",
     );
 
@@ -114,19 +113,13 @@ describe("pi-session-spans", () => {
       }),
     });
 
-    const prompt = second.attributes.gen_ai?.input?.messages;
-    expect(prompt?.map((message) => message.role)).toEqual([
-      "user",
-      "assistant",
-      "tool",
-    ]);
+    expect(
+      second.attributes.gen_ai?.input?.messages?.map((message) => message.role),
+    ).toEqual(["user", "assistant", "tool"]);
   });
 
   it("ends every span, so a finished tool call does not read as running", () => {
-    const list = piFileToSpans(
-      parsePiFile(sessionFile([user, call, result])),
-      "conv-1",
-    );
+    const list = piSessionToSpans(sessionFile([user, call, result]), "conv-1");
 
     for (const span of list.data) {
       expect(span.end_time).toBe(span.start_time);
@@ -138,50 +131,20 @@ describe("pi-session-spans", () => {
     ]);
   });
 
-  it("reads the event stream and skips diagnostic lines", () => {
-    const stream = [
-      "npm warn something",
-      JSON.stringify({ type: "message_start", message: user }),
-      JSON.stringify({ type: "message_end", message: user }),
-      JSON.stringify({ type: "message_end", message: answer }),
-    ].join("\n");
+  it("skips lines that are not session entries", () => {
+    const file = ["not json", "5", sessionFile([user, answer]), ""].join("\n");
 
-    expect(parsePiFile(stream).messages).toEqual([user, answer]);
-  });
-
-  it("keeps messages no model call answered", () => {
-    const list = piFileToSpans(parsePiFile(sessionFile([user])), "conv-1");
-
-    expect(list.data).toHaveLength(1);
-    const genAi = list.data[0].attributes.gen_ai;
-    expect(genAi?.input?.messages).toHaveLength(1);
-    expect(genAi?.output).toBeUndefined();
+    expect(piSessionToSpans(file, "conv-1").data).toHaveLength(1);
   });
 
   it("never orders a span before the one it follows", () => {
-    const list = piFileToSpans(
-      parsePiFile(sessionFile([user, { ...answer, timestamp: 0 }, answer])),
+    const list = piSessionToSpans(
+      sessionFile([user, { ...answer, timestamp: 0 }, answer]),
       "conv-1",
     );
 
     const times = list.data.map((span) => Date.parse(span.start_time));
     expect(times[1]).toBeGreaterThan(times[0]);
-  });
-
-  it("marks a known compaction summary as a compaction part", () => {
-    const summary = "Earlier: read a.txt.";
-    const file = parsePiFile(
-      [
-        JSON.stringify({ type: "compaction", summary }),
-        sessionFile([{ ...user, content: summary }, answer]),
-      ].join("\n"),
-    );
-
-    expect(file.compactions.map((compaction) => compaction.summary)).toEqual([
-      summary,
-    ]);
-    const genAi = piFileToSpans(file, "conv-1").data[0].attributes.gen_ai;
-    expect(genAi?.input?.messages?.[0]?.parts[0]?.type).toBe("compaction");
   });
 
   it("renders the context a compaction left, not the history it replaced", () => {
@@ -195,7 +158,7 @@ describe("pi-session-spans", () => {
       tools: [],
       timestamp: 500,
     });
-    const file = parsePiFile(
+    const spans = piSessionToSpans(
       [
         JSON.stringify({ type: "session", id: "s1" }),
         entry("e0", system("Be brief.")),
@@ -214,18 +177,9 @@ describe("pi-session-spans", () => {
         }),
         entry("e7", { ...answer, timestamp: 7000 }),
       ].join("\n"),
-    );
+      "conv-1",
+    ).data;
 
-    expect(file.compactions).toEqual([
-      {
-        summary,
-        at: 6,
-        firstKept: 5,
-        systemMessage: system("Be brief."),
-        timestamp: 6000,
-      },
-    ]);
-    const spans = piFileToSpans(file, "conv-1").data;
     const inputs = spans.map((span) => span.attributes.gen_ai?.input?.messages);
     // Calls made before the compaction still show the history they saw.
     expect(inputs[2]?.map((message) => message.role)).toEqual([
@@ -243,30 +197,7 @@ describe("pi-session-spans", () => {
       { role: "user", parts: [{ type: "compaction", content: summary }] },
       { role: "user", parts: [{ type: "text", content: "Now list b" }] },
     ]);
-  });
-
-  it("reads a stream's compaction but cannot tell what it kept", () => {
-    const summary = "Earlier: tried to read a.";
-    const file = parsePiFile(
-      [
-        JSON.stringify({ type: "message_end", message: user }),
-        JSON.stringify({ type: "message_end", message: answer }),
-        JSON.stringify({ type: "compaction_end", aborted: true }),
-        JSON.stringify({
-          type: "compaction_end",
-          result: { summary, firstKeptEntryId: "e2", tokensBefore: 100 },
-        }),
-        JSON.stringify({ type: "message_end", message: answer }),
-      ].join("\n"),
-    );
-
-    expect(file.compactions).toEqual([{ summary, at: 2, timestamp: 0 }]);
-    // Stream messages carry no entry ids, so the kept tail is unknown and the
-    // call after the compaction is rendered with the history before it.
-    const last = piFileToSpans(file, "conv-1").data.at(-1);
-    expect(
-      last?.attributes.gen_ai?.input?.messages?.map((message) => message.role),
-    ).toEqual(["user", "assistant"]);
+    expect(spans.at(-1)?.attributes.gen_ai?.conversation?.compacted).toBe(true);
   });
 
   // Pi's own session writer and context builder are the oracle here, so the
@@ -295,7 +226,7 @@ describe("pi-session-spans", () => {
     const file = [session.getHeader(), ...session.getEntries()]
       .map((entry) => JSON.stringify(entry))
       .join("\n");
-    const last = piFileToSpans(parsePiFile(file), "conv-1").data.at(-1);
+    const last = piSessionToSpans(file, "conv-1").data.at(-1);
 
     expect(expected[0]?.parts[0]?.type).toBe("compaction");
     expect(last?.attributes.gen_ai?.input?.messages).toEqual(expected);

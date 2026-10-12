@@ -161,21 +161,16 @@ For each tool call (`execute_tool ${tool_name}` span):
 
 ## Rendering a Pi run offline
 
-A Pi run that was not instrumented leaves only Pi's own files. `pi-session-spans`
-renders a session file, or the event stream `pi --mode json` prints, as the
-GenAI span list the platform's conversation export returns, using the same
-attribute builders as the live instrumentation:
+A Pi run that was not instrumented leaves only Pi's session file.
+`pi-session-spans` renders that file as the GenAI span list the platform's
+conversation export returns, using the same attribute builders as the live
+instrumentation:
 
 ```bash
 pi-session-spans ~/.pi/agent/sessions/<session>.jsonl my-conversation > spans.json
 ```
 
-The same is available in code as `parsePiFile` and `piFileToSpans`.
-
-Prefer the session file for a run that may have compacted. It records which
-messages a compaction kept, so calls after it are rendered with the context
-the model saw. The event stream does not, and those calls keep the full
-history.
+The same is available in code as `piSessionToSpans`.
 
 ## Content scrubbing
 

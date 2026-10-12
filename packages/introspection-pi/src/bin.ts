@@ -1,14 +1,14 @@
 #!/usr/bin/env node
 /**
- * `pi-session-spans <file> [conversation-id]`: print a Pi session file, or a
- * `pi --mode json` event stream, as a GenAI span list on stdout.
+ * `pi-session-spans <file> [conversation-id]`: print a Pi session file as a
+ * GenAI span list on stdout.
  *
  * An eval adapter execs this inside a trial after a Pi run, so the trial's
  * trajectory is projected from the same spans the platform stores.
  */
 import { readFileSync } from "node:fs";
 
-import { parsePiFile, piFileToSpans } from "./session-spans.js";
+import { piSessionToSpans } from "./session-spans.js";
 
 const [path, conversationId = "pi-session"] = process.argv.slice(2);
 if (!path) {
@@ -17,9 +17,6 @@ if (!path) {
   // which truncates any span list over the pipe buffer.
   process.exitCode = 2;
 } else {
-  const spans = piFileToSpans(
-    parsePiFile(readFileSync(path, "utf8")),
-    conversationId,
-  );
+  const spans = piSessionToSpans(readFileSync(path, "utf8"), conversationId);
   process.stdout.write(`${JSON.stringify(spans)}\n`);
 }
