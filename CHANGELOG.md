@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.31.0](https://github.com/introspection-org/introspection-js-sdk/compare/v0.30.0...v0.31.0) (2026-10-12)
+
+
+### Features
+
+* **pi:** render a Pi session file as GenAI spans ([#443](https://github.com/introspection-org/introspection-js-sdk/issues/443)) ([2554025](https://github.com/introspection-org/introspection-js-sdk/commit/2554025544ef6c2a762b787644618bcf5e6b6ae6))
+
+
+### Bug Fixes
+
+* **pi:** hydrate tool-result images as images ([#439](https://github.com/introspection-org/introspection-js-sdk/issues/439)) ([9910ad8](https://github.com/introspection-org/introspection-js-sdk/commit/9910ad8c131648e6cfcc6e35da91447d5ab949d6))
+
 ## [0.30.0](https://github.com/introspection-org/introspection-js-sdk/compare/v0.29.0...v0.30.0) (2026-10-10)
 
 
