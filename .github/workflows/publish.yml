@@ -88,6 +88,11 @@ jobs:
           cache: "pnpm"
           registry-url: "https://registry.npmjs.org"
 
+      # npm trusted publishing (OIDC) needs npm 11.5.1 or later, and Node 22
+      # ships npm 10. pnpm publish hands each packed tarball to the npm on PATH.
+      - name: Upgrade npm for trusted publishing
+        run: npm install -g npm@11
+
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
@@ -125,10 +130,12 @@ jobs:
       - name: Build all packages
         run: pnpm build
 
+      # Authenticates with npm trusted publishing against the publisher each
+      # package configures for this repository, publish.yml and the publish
+      # environment. No NODE_AUTH_TOKEN: an _authToken in .npmrc takes
+      # precedence over OIDC and would bypass the trusted publisher.
       - name: Publish to npm
         run: pnpm -r publish --access public --provenance --no-git-checks
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
   # ── GitHub Release ─────────────────────────────────────────────────
   # Release Please creates the tag and GitHub Release when its release PR
