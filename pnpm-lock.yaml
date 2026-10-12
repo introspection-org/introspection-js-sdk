@@ -41,10 +41,10 @@ importers:
     optionalDependencies:
       '@earendil-works/pi-agent-core':
         specifier: ^0.99.2
-        version: 0.99.2(@aws-sdk/credential-provider-node@3.972.84)(@modelcontextprotocol/sdk@1.31.0(@cfworker/json-schema@4.1.1)(zod@4.6.5))(@smithy/signature-v4@5.7.4)(undici@8.11.2)(ws@8.22.0)(zod@4.6.5)
+        version: 0.99.2(@aws-sdk/credential-provider-node@3.972.84)(@modelcontextprotocol/sdk@1.32.1(@cfworker/json-schema@4.1.1)(zod@4.6.5))(@smithy/signature-v4@5.7.4)(undici@8.11.2)(ws@8.22.0)(zod@4.6.5)
       '@earendil-works/pi-ai':
         specifier: ^0.99.2
-        version: 0.99.2(@aws-sdk/credential-provider-node@3.972.84)(@modelcontextprotocol/sdk@1.31.0(@cfworker/json-schema@4.1.1)(zod@4.6.5))(@smithy/signature-v4@5.7.4)(undici@8.11.2)(ws@8.22.0)(zod@4.6.5)
+        version: 0.99.2(@aws-sdk/credential-provider-node@3.972.84)(@modelcontextprotocol/sdk@1.32.1(@cfworker/json-schema@4.1.1)(zod@4.6.5))(@smithy/signature-v4@5.7.4)(undici@8.11.2)(ws@8.22.0)(zod@4.6.5)
       '@opentelemetry/api':
         specifier: ^1.9.1
         version: 1.9.1
@@ -56,8 +56,8 @@ importers:
         version: 2.12.0(@opentelemetry/api@1.9.1)
     devDependencies:
       '@modelcontextprotocol/sdk':
-        specifier: ^1.31.0
-        version: 1.31.0(@cfworker/json-schema@4.1.1)(zod@4.6.5)
+        specifier: ^1.32.1
+        version: 1.32.1(@cfworker/json-schema@4.1.1)(zod@4.6.5)
       '@opentelemetry/exporter-trace-otlp-proto':
         specifier: ^0.223.0
         version: 0.223.0(@opentelemetry/api@1.9.1)
@@ -308,7 +308,7 @@ importers:
     devDependencies:
       '@earendil-works/pi-agent-core':
         specifier: ^0.99.2
-        version: 0.99.2(@aws-sdk/credential-provider-node@3.972.84)(@modelcontextprotocol/sdk@1.31.0(@cfworker/json-schema@4.1.1)(zod@4.6.5))(@smithy/signature-v4@5.7.4)(undici@8.11.2)(ws@8.22.0)(zod@4.6.5)
+        version: 0.99.2(@aws-sdk/credential-provider-node@3.972.84)(@modelcontextprotocol/sdk@1.32.1(@cfworker/json-schema@4.1.1)(zod@4.6.5))(@smithy/signature-v4@5.7.4)(undici@8.11.2)(ws@8.22.0)(zod@4.6.5)
       '@opentelemetry/api-logs':
         specifier: ^0.223.0
         version: 0.223.0
@@ -366,10 +366,10 @@ importers:
     devDependencies:
       '@earendil-works/pi-agent-core':
         specifier: ^0.99.2
-        version: 0.99.2(@aws-sdk/credential-provider-node@3.972.84)(@modelcontextprotocol/sdk@1.31.0(@cfworker/json-schema@4.1.1)(zod@4.6.5))(@smithy/signature-v4@5.7.4)(undici@8.11.2)(ws@8.22.0)(zod@4.6.5)
+        version: 0.99.2(@aws-sdk/credential-provider-node@3.972.84)(@modelcontextprotocol/sdk@1.32.1(@cfworker/json-schema@4.1.1)(zod@4.6.5))(@smithy/signature-v4@5.7.4)(undici@8.11.2)(ws@8.22.0)(zod@4.6.5)
       '@earendil-works/pi-ai':
         specifier: ^0.99.2
-        version: 0.99.2(@aws-sdk/credential-provider-node@3.972.84)(@modelcontextprotocol/sdk@1.31.0(@cfworker/json-schema@4.1.1)(zod@4.6.5))(@smithy/signature-v4@5.7.4)(undici@8.11.2)(ws@8.22.0)(zod@4.6.5)
+        version: 0.99.2(@aws-sdk/credential-provider-node@3.972.84)(@modelcontextprotocol/sdk@1.32.1(@cfworker/json-schema@4.1.1)(zod@4.6.5))(@smithy/signature-v4@5.7.4)(undici@8.11.2)(ws@8.22.0)(zod@4.6.5)
       '@repo/eslint-config':
         specifier: workspace:*
         version: link:../eslint-config
@@ -443,13 +443,13 @@ importers:
     devDependencies:
       '@earendil-works/pi-agent-core':
         specifier: ^0.99.2
-        version: 0.99.2(@aws-sdk/credential-provider-node@3.972.84)(@modelcontextprotocol/sdk@1.31.0(@cfworker/json-schema@4.1.1)(zod@4.6.5))(@smithy/signature-v4@5.7.4)(undici@8.11.2)(ws@8.22.0)(zod@4.6.5)
+        version: 0.99.2(@aws-sdk/credential-provider-node@3.972.84)(@modelcontextprotocol/sdk@1.32.1(@cfworker/json-schema@4.1.1)(zod@4.6.5))(@smithy/signature-v4@5.7.4)(undici@8.11.2)(ws@8.22.0)(zod@4.6.5)
       '@earendil-works/pi-ai':
         specifier: ^0.99.2
-        version: 0.99.2(@aws-sdk/credential-provider-node@3.972.84)(@modelcontextprotocol/sdk@1.31.0(@cfworker/json-schema@4.1.1)(zod@4.6.5))(@smithy/signature-v4@5.7.4)(undici@8.11.2)(ws@8.22.0)(zod@4.6.5)
+        version: 0.99.2(@aws-sdk/credential-provider-node@3.972.84)(@modelcontextprotocol/sdk@1.32.1(@cfworker/json-schema@4.1.1)(zod@4.6.5))(@smithy/signature-v4@5.7.4)(undici@8.11.2)(ws@8.22.0)(zod@4.6.5)
       '@earendil-works/pi-coding-agent':
         specifier: ^0.99.2
-        version: 0.99.2(@aws-sdk/credential-provider-node@3.972.84)(@modelcontextprotocol/sdk@1.31.0(@cfworker/json-schema@4.1.1)(zod@4.6.5))(@smithy/signature-v4@5.7.4)(ws@8.22.0)(zod@4.6.5)
+        version: 0.99.2(@aws-sdk/credential-provider-node@3.972.84)(@modelcontextprotocol/sdk@1.32.1(@cfworker/json-schema@4.1.1)(zod@4.6.5))(@smithy/signature-v4@5.7.4)(ws@8.22.0)(zod@4.6.5)
       '@opentelemetry/api':
         specifier: ^1.9.1
         version: 1.9.1
@@ -943,11 +943,11 @@ packages:
       '@modelcontextprotocol/sdk':
         optional: true
 
-  '@hono/node-server@2.1.3':
-    resolution: {integrity: sha512-TA//nWMqPhbfdfneACk6t5a9eqbS9lABEPyKn0/xZTah3H3U2XaVg85rJFl0/Fyit0I552YDHgXGVSf3GwqbUw==}
+  '@hono/node-server@2.1.4':
+    resolution: {integrity: sha512-2g1qeHl4BduwDn6L8nkAvDrPUWPMlkQ//a5NhP/zIyaXKMjZNRV+cG9Csu+BiJFf6+68pqzjf4Hi5sJGKHuS1g==}
     engines: {node: '>=20'}
     peerDependencies:
-      hono: ^4
+      hono: ^4 || ^5.0.0-0
 
   '@humanfs/core@0.19.2':
     resolution: {integrity: sha512-UhXNm+CFMWcbChXywFwkmhqjs3PRCmcSa/hfBgLIb7oQ5HNb1wS0icWsGtSAUNgefHeI+eBrA8I1fxmbHsGdvA==}
@@ -1145,8 +1145,8 @@ packages:
     resolution: {integrity: sha512-09BHFaNVBe5pB2AhzCfLj0cqmsKLERvZQ4FblzP90UMGLaXVqdZPByFjURwsUYCmxonUW2yAwgTTvle+8O2/8w==}
     engines: {node: '>=20'}
 
-  '@modelcontextprotocol/sdk@1.31.0':
-    resolution: {integrity: sha512-UvTMgnNlnIBO/22ob2RcVGDlcvOslQs8T59+FTGdA0L27a39fdGF/EDETNtDVK4DZGpwomlsYpRdA8UXcVL/pw==}
+  '@modelcontextprotocol/sdk@1.32.1':
+    resolution: {integrity: sha512-2DdE+SJDtzLEEWzY1ZjY7Q+VcPhcV1KisD3zI4u0XZyktsjHum1mwbMI+JaulUBi2OZk+KJAi2uPXzxichPkdw==}
     engines: {node: '>=18'}
     peerDependencies:
       '@cfworker/json-schema': ^4.1.1
@@ -2264,8 +2264,8 @@ packages:
     resolution: {integrity: sha512-FveZTNuGw04cxlAiWbzi6zTAL/lhehaWbTtgluJh4/E95DqMwTmha3KZN1aAWA8cFIhHzMZUvLevkw5Rqk+tSQ==}
     engines: {node: '>= 0.6'}
 
-  content-disposition@1.1.0:
-    resolution: {integrity: sha512-5jRCH9Z/+DRP7rkvY83B+yGIGX96OYdJmzngqnw2SBSxqCFPd0w2km3s5iawpGX8krnwSGmF0FW5Nhr0Hfai3g==}
+  content-disposition@2.0.1:
+    resolution: {integrity: sha512-e+H0ZXHSWYrENhQzw1LPuP4oF5MzVKmDU6d3hxlvaPEYLLg62MxtQNPRx4SYSuYJSBUgnQIG4HIN2tEtNv7Dog==}
     engines: {node: '>=18'}
 
   content-type@1.0.5:
@@ -2637,8 +2637,8 @@ packages:
     resolution: {integrity: sha512-KfYbmpRm0VbLjEvVa9yGwCi9GI34xvi7A/HXYWQO65CSD2u3MczUJSuwXKFIxlGsgBQizV9q5J9NHj4VG0n+pA==}
     engines: {node: '>=12.0.0'}
 
-  express-rate-limit@8.7.0:
-    resolution: {integrity: sha512-hOwV7WOxXfjRpAM1DSJWZDXx3GhplwD8IfwuwvogD8i1Qnkgosw/H45s4ZnFAUHDAhPjlY9hLBvJhKmGMyY26g==}
+  express-rate-limit@8.7.1:
+    resolution: {integrity: sha512-2FXbqkygil3mZiXzEtM0IjE/UBmBNot0J1GEVrJT4JbrvwOSoEtqtO+wHbiMQELWe1eNvHoYRg2dkjOid+6JkA==}
     engines: {node: '>= 16'}
     peerDependencies:
       express: '>= 4.11'
@@ -2647,8 +2647,8 @@ packages:
     resolution: {integrity: sha512-Bdcs4+3qlpVlx2NRn6fgX2Ue2/gGRaPeawebgclM0ERSCqDpA+owF1fdPwjJUTAJWMTuAaxjDf+hzb0/4eKvvw==}
     engines: {node: '>= 0.10.0'}
 
-  express@5.2.1:
-    resolution: {integrity: sha512-hIS4idWWai69NezIdRt2xFVofaF4j+6INOpJlVOLDO8zXGpUVEVzIYk12UUi2JzjEzWL3IOAxcTubgz9Po0yXw==}
+  express@5.3.0:
+    resolution: {integrity: sha512-qCqy1xSoaugxOD4IVHb1ZWdkvCF2W3aE2okKouWj8VwJ+ztskSiXoBnCSJqfKT+cVPJhuJqe9YLbY425+Zh00g==}
     engines: {node: '>= 18'}
 
   extend@3.0.2:
@@ -2976,8 +2976,8 @@ packages:
     resolution: {integrity: sha512-4gd7VpWNQNB4UKKCFFVcp1AVv+FMOgs9NKzjHKusc8jTMhd5eL1NqQqOpE0KzMds804/yHlglp3uxgluOqAPLw==}
     engines: {node: '>= 0.4'}
 
-  ip-address@10.7.3:
-    resolution: {integrity: sha512-A1kdq/tSb5QjvKvAMgIoEvDBIgL7qaqVP/jkvSwYYRZ9iEzvPpopxp2wQfu3SuZRHtpHNxMn8Fs0bS+gf5Xmwg==}
+  ip-address@10.7.4:
+    resolution: {integrity: sha512-DWBMKyeM25D70nrIiTkgQth59/G+naKOTep6huF9j+GmeK3DMD60Zvxg5d5qQnz+38AHgou6ean2LECX+lrKDg==}
     engines: {node: '>= 12'}
 
   ipaddr.js@1.9.1:
@@ -4739,10 +4739,10 @@ snapshots:
     dependencies:
       esbuild: 0.28.2
 
-  '@earendil-works/pi-agent-core@0.99.2(@aws-sdk/credential-provider-node@3.972.84)(@modelcontextprotocol/sdk@1.31.0(@cfworker/json-schema@4.1.1)(zod@4.6.5))(@smithy/signature-v4@5.7.4)(undici@8.10.2)(ws@8.22.0)(zod@4.6.5)':
+  '@earendil-works/pi-agent-core@0.99.2(@aws-sdk/credential-provider-node@3.972.84)(@modelcontextprotocol/sdk@1.32.1(@cfworker/json-schema@4.1.1)(zod@4.6.5))(@smithy/signature-v4@5.7.4)(undici@8.10.2)(ws@8.22.0)(zod@4.6.5)':
     dependencies:
       '@earendil-works/chord': 0.99.2
-      '@earendil-works/pi-ai': 0.99.2(@aws-sdk/credential-provider-node@3.972.84)(@modelcontextprotocol/sdk@1.31.0(@cfworker/json-schema@4.1.1)(zod@4.6.5))(@smithy/signature-v4@5.7.4)(undici@8.10.2)(ws@8.22.0)(zod@4.6.5)
+      '@earendil-works/pi-ai': 0.99.2(@aws-sdk/credential-provider-node@3.972.84)(@modelcontextprotocol/sdk@1.32.1(@cfworker/json-schema@4.1.1)(zod@4.6.5))(@smithy/signature-v4@5.7.4)(undici@8.10.2)(ws@8.22.0)(zod@4.6.5)
       '@earendil-works/pi-telemetry': 0.99.2
       diff: 8.0.4
       ignore: 7.0.8
@@ -4761,10 +4761,10 @@ snapshots:
       - ws
       - zod
 
-  '@earendil-works/pi-agent-core@0.99.2(@aws-sdk/credential-provider-node@3.972.84)(@modelcontextprotocol/sdk@1.31.0(@cfworker/json-schema@4.1.1)(zod@4.6.5))(@smithy/signature-v4@5.7.4)(undici@8.11.2)(ws@8.22.0)(zod@4.6.5)':
+  '@earendil-works/pi-agent-core@0.99.2(@aws-sdk/credential-provider-node@3.972.84)(@modelcontextprotocol/sdk@1.32.1(@cfworker/json-schema@4.1.1)(zod@4.6.5))(@smithy/signature-v4@5.7.4)(undici@8.11.2)(ws@8.22.0)(zod@4.6.5)':
     dependencies:
       '@earendil-works/chord': 0.99.2
-      '@earendil-works/pi-ai': 0.99.2(@aws-sdk/credential-provider-node@3.972.84)(@modelcontextprotocol/sdk@1.31.0(@cfworker/json-schema@4.1.1)(zod@4.6.5))(@smithy/signature-v4@5.7.4)(undici@8.11.2)(ws@8.22.0)(zod@4.6.5)
+      '@earendil-works/pi-ai': 0.99.2(@aws-sdk/credential-provider-node@3.972.84)(@modelcontextprotocol/sdk@1.32.1(@cfworker/json-schema@4.1.1)(zod@4.6.5))(@smithy/signature-v4@5.7.4)(undici@8.11.2)(ws@8.22.0)(zod@4.6.5)
       '@earendil-works/pi-telemetry': 0.99.2
       diff: 8.0.4
       ignore: 7.0.8
@@ -4783,12 +4783,12 @@ snapshots:
       - ws
       - zod
 
-  '@earendil-works/pi-ai@0.99.2(@aws-sdk/credential-provider-node@3.972.84)(@modelcontextprotocol/sdk@1.31.0(@cfworker/json-schema@4.1.1)(zod@4.6.5))(@smithy/signature-v4@5.7.4)(undici@8.10.2)(ws@8.22.0)(zod@4.6.5)':
+  '@earendil-works/pi-ai@0.99.2(@aws-sdk/credential-provider-node@3.972.84)(@modelcontextprotocol/sdk@1.32.1(@cfworker/json-schema@4.1.1)(zod@4.6.5))(@smithy/signature-v4@5.7.4)(undici@8.10.2)(ws@8.22.0)(zod@4.6.5)':
     dependencies:
       '@anthropic-ai/sdk': 0.124.0(zod@4.6.5)
       '@aws-sdk/client-bedrock-runtime': 3.1127.0
       '@earendil-works/pi-telemetry': 0.99.2
-      '@google/genai': 2.21.0(@modelcontextprotocol/sdk@1.31.0(@cfworker/json-schema@4.1.1)(zod@4.6.5))
+      '@google/genai': 2.21.0(@modelcontextprotocol/sdk@1.32.1(@cfworker/json-schema@4.1.1)(zod@4.6.5))
       '@smithy/node-http-handler': 4.12.1
       http-proxy-agent: 9.1.0
       https-proxy-agent: 9.1.0
@@ -4808,12 +4808,12 @@ snapshots:
       - ws
       - zod
 
-  '@earendil-works/pi-ai@0.99.2(@aws-sdk/credential-provider-node@3.972.84)(@modelcontextprotocol/sdk@1.31.0(@cfworker/json-schema@4.1.1)(zod@4.6.5))(@smithy/signature-v4@5.7.4)(undici@8.11.2)(ws@8.22.0)(zod@4.6.5)':
+  '@earendil-works/pi-ai@0.99.2(@aws-sdk/credential-provider-node@3.972.84)(@modelcontextprotocol/sdk@1.32.1(@cfworker/json-schema@4.1.1)(zod@4.6.5))(@smithy/signature-v4@5.7.4)(undici@8.11.2)(ws@8.22.0)(zod@4.6.5)':
     dependencies:
       '@anthropic-ai/sdk': 0.124.0(zod@4.6.5)
       '@aws-sdk/client-bedrock-runtime': 3.1127.0
       '@earendil-works/pi-telemetry': 0.99.2
-      '@google/genai': 2.21.0(@modelcontextprotocol/sdk@1.31.0(@cfworker/json-schema@4.1.1)(zod@4.6.5))
+      '@google/genai': 2.21.0(@modelcontextprotocol/sdk@1.32.1(@cfworker/json-schema@4.1.1)(zod@4.6.5))
       '@smithy/node-http-handler': 4.12.1
       http-proxy-agent: 9.1.0
       https-proxy-agent: 9.1.0
@@ -4837,11 +4837,11 @@ snapshots:
     dependencies:
       quickjs-wasi: 3.6.2
 
-  '@earendil-works/pi-coding-agent@0.99.2(@aws-sdk/credential-provider-node@3.972.84)(@modelcontextprotocol/sdk@1.31.0(@cfworker/json-schema@4.1.1)(zod@4.6.5))(@smithy/signature-v4@5.7.4)(ws@8.22.0)(zod@4.6.5)':
+  '@earendil-works/pi-coding-agent@0.99.2(@aws-sdk/credential-provider-node@3.972.84)(@modelcontextprotocol/sdk@1.32.1(@cfworker/json-schema@4.1.1)(zod@4.6.5))(@smithy/signature-v4@5.7.4)(ws@8.22.0)(zod@4.6.5)':
     dependencies:
       '@earendil-works/chord': 0.99.2
-      '@earendil-works/pi-agent-core': 0.99.2(@aws-sdk/credential-provider-node@3.972.84)(@modelcontextprotocol/sdk@1.31.0(@cfworker/json-schema@4.1.1)(zod@4.6.5))(@smithy/signature-v4@5.7.4)(undici@8.10.2)(ws@8.22.0)(zod@4.6.5)
-      '@earendil-works/pi-ai': 0.99.2(@aws-sdk/credential-provider-node@3.972.84)(@modelcontextprotocol/sdk@1.31.0(@cfworker/json-schema@4.1.1)(zod@4.6.5))(@smithy/signature-v4@5.7.4)(undici@8.10.2)(ws@8.22.0)(zod@4.6.5)
+      '@earendil-works/pi-agent-core': 0.99.2(@aws-sdk/credential-provider-node@3.972.84)(@modelcontextprotocol/sdk@1.32.1(@cfworker/json-schema@4.1.1)(zod@4.6.5))(@smithy/signature-v4@5.7.4)(undici@8.10.2)(ws@8.22.0)(zod@4.6.5)
+      '@earendil-works/pi-ai': 0.99.2(@aws-sdk/credential-provider-node@3.972.84)(@modelcontextprotocol/sdk@1.32.1(@cfworker/json-schema@4.1.1)(zod@4.6.5))(@smithy/signature-v4@5.7.4)(undici@8.10.2)(ws@8.22.0)(zod@4.6.5)
       '@earendil-works/pi-codemode': 0.99.2
       '@earendil-works/pi-mcp': 0.99.2
       '@earendil-works/pi-tui': 0.99.2
@@ -5034,20 +5034,20 @@ snapshots:
       '@eslint/core': 0.17.0
       levn: 0.4.1
 
-  '@google/genai@2.21.0(@modelcontextprotocol/sdk@1.31.0(@cfworker/json-schema@4.1.1)(zod@4.6.5))':
+  '@google/genai@2.21.0(@modelcontextprotocol/sdk@1.32.1(@cfworker/json-schema@4.1.1)(zod@4.6.5))':
     dependencies:
       google-auth-library: 10.9.1
       p-retry: 4.6.2
       protobufjs: 7.6.6
       ws: 8.22.0
     optionalDependencies:
-      '@modelcontextprotocol/sdk': 1.31.0(@cfworker/json-schema@4.1.1)(zod@4.6.5)
+      '@modelcontextprotocol/sdk': 1.32.1(@cfworker/json-schema@4.1.1)(zod@4.6.5)
     transitivePeerDependencies:
       - bufferutil
       - supports-color
       - utf-8-validate
 
-  '@hono/node-server@2.1.3(hono@4.13.13)':
+  '@hono/node-server@2.1.4(hono@4.13.13)':
     dependencies:
       hono: 4.13.13
 
@@ -5203,9 +5203,9 @@ snapshots:
     dependencies:
       zod: 4.6.5
 
-  '@modelcontextprotocol/sdk@1.31.0(@cfworker/json-schema@4.1.1)(zod@4.6.5)':
+  '@modelcontextprotocol/sdk@1.32.1(@cfworker/json-schema@4.1.1)(zod@4.6.5)':
     dependencies:
-      '@hono/node-server': 2.1.3(hono@4.13.13)
+      '@hono/node-server': 2.1.4(hono@4.13.13)
       ajv: 8.20.0
       ajv-formats: 3.0.1(ajv@8.20.0)
       content-type: 1.0.5
@@ -5213,8 +5213,8 @@ snapshots:
       cross-spawn: 7.0.6
       eventsource: 3.0.7
       eventsource-parser: 3.1.1
-      express: 5.2.1
-      express-rate-limit: 8.7.0(express@5.2.1)
+      express: 5.3.0
+      express-rate-limit: 8.7.1(express@5.3.0)
       hono: 4.13.13
       jose: 6.2.12
       json-schema-typed: 8.0.2
@@ -6345,7 +6345,7 @@ snapshots:
     dependencies:
       safe-buffer: 5.2.1
 
-  content-disposition@1.1.0: {}
+  content-disposition@2.0.1: {}
 
   content-type@1.0.5: {}
 
@@ -6849,11 +6849,11 @@ snapshots:
 
   expect-type@1.4.0: {}
 
-  express-rate-limit@8.7.0(express@5.2.1):
+  express-rate-limit@8.7.1(express@5.3.0):
     dependencies:
       debug: 4.4.3
-      express: 5.2.1
-      ip-address: 10.7.3
+      express: 5.3.0
+      ip-address: 10.7.4
     transitivePeerDependencies:
       - supports-color
 
@@ -6893,12 +6893,12 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  express@5.2.1:
+  express@5.3.0:
     dependencies:
       accepts: 2.0.0
       body-parser: 2.3.0
-      content-disposition: 1.1.0
-      content-type: 1.0.5
+      content-disposition: 2.0.1
+      content-type: 2.1.0
       cookie: 0.7.2
       cookie-signature: 1.2.2
       debug: 4.4.3
@@ -7261,7 +7261,7 @@ snapshots:
       hasown: 2.0.4
       side-channel: 1.1.0
 
-  ip-address@10.7.3: {}
+  ip-address@10.7.4: {}
 
   ipaddr.js@1.9.1: {}
 
