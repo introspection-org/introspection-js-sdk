@@ -94,6 +94,9 @@ importers:
       '@introspection-sdk/introspection-node':
         specifier: workspace:*
         version: link:../../packages/introspection-node
+      '@introspection-sdk/person-server':
+        specifier: workspace:*
+        version: link:../../packages/introspection-person-server
       jose:
         specifier: ^6.2.12
         version: 6.2.12
@@ -410,6 +413,34 @@ importers:
         specifier: 5.9.3
         version: 5.9.3
 
+  packages/introspection-person-server:
+    dependencies:
+      '@aauth/resource':
+        specifier: ^3.0.0
+        version: 3.0.0
+      '@hellocoop/httpsig':
+        specifier: ^2.6.0
+        version: 2.6.0
+      jose:
+        specifier: ^6.2.12
+        version: 6.2.12
+    devDependencies:
+      '@repo/eslint-config':
+        specifier: workspace:*
+        version: link:../eslint-config
+      '@repo/typescript-config':
+        specifier: workspace:*
+        version: link:../typescript-config
+      '@types/node':
+        specifier: ^22.20.5
+        version: 22.20.5
+      eslint:
+        specifier: ^9.39.5
+        version: 9.39.5(jiti@2.7.0)
+      typescript:
+        specifier: 5.9.3
+        version: 5.9.3
+
   packages/introspection-pi:
     dependencies:
       '@introspection-sdk/types':
@@ -495,7 +526,13 @@ importers:
       '@introspection-sdk/introspection-pi':
         specifier: workspace:*
         version: link:../packages/introspection-pi
+      '@introspection-sdk/person-server':
+        specifier: workspace:*
+        version: link:../packages/introspection-person-server
     devDependencies:
+      '@aauth/resource':
+        specifier: ^3.0.0
+        version: 3.0.0
       '@earendil-works/pi-agent-core':
         specifier: ^0.99.2
         version: 0.99.2(@aws-sdk/credential-provider-node@3.972.84)(@modelcontextprotocol/sdk@1.31.0(@cfworker/json-schema@4.1.1)(zod@4.6.5))(@smithy/signature-v4@5.7.4)(undici@8.11.2)(ws@8.22.0)(zod@4.6.5)
@@ -505,6 +542,9 @@ importers:
       '@earendil-works/pi-coding-agent':
         specifier: ^0.99.2
         version: 0.99.2(@aws-sdk/credential-provider-node@3.972.84)(@modelcontextprotocol/sdk@1.31.0(@cfworker/json-schema@4.1.1)(zod@4.6.5))(@smithy/signature-v4@5.7.4)(ws@8.22.0)(zod@4.6.5)
+      '@hellocoop/httpsig':
+        specifier: ^2.6.0
+        version: 2.6.0
       '@opentelemetry/api':
         specifier: ^1.9.1
         version: 1.9.1
@@ -559,6 +599,9 @@ importers:
       dotenv:
         specifier: ^16.4.0
         version: 16.6.1
+      jose:
+        specifier: ^6.2.12
+        version: 6.2.12
       typescript:
         specifier: ^5.9.3
         version: 5.9.3

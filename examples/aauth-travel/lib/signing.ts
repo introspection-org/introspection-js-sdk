@@ -1,7 +1,7 @@
 /**
- * Ed25519 signing keys for what this app signs: booking quotes and resource
- * tokens (as the provider), and person and auth tokens (as Acme's Person
- * Server). Set a PEM in the environment to keep a key across restarts;
+ * Ed25519 signing keys for what this app signs as the booking provider:
+ * quotes and resource tokens. Acme's Person Server keeps its own key
+ * (@introspection-sdk/person-server). Set a PEM in the environment to keep a key across restarts;
  * otherwise each process makes its own, which is fine for a local demo.
  */
 import "server-only";
@@ -67,6 +67,3 @@ function signer(kid: string, pem: string | undefined): Promise<Signer> {
 
 export const bookingSigner = () =>
   signer("flightsector-booking-1", process.env.BOOKING_SIGNING_KEY);
-
-export const personServerSigner = () =>
-  signer("acme-person-server-1", process.env.ACME_PS_SIGNING_KEY);

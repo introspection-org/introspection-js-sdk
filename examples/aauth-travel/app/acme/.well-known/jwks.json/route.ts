@@ -1,7 +1,7 @@
-import { personServerSigner } from "@/lib/signing";
+import { personServer } from "@/lib/acme/person-server";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
-  return Response.json((await personServerSigner()).jwks);
+  return Response.json((await personServer()).jwks());
 }

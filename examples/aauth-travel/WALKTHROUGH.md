@@ -331,137 +331,64 @@ Before booking anything, propose_trip posts the trip to person-server.aauth, a n
 }
 ```
 
-**Acme: missions** · `examples/aauth-travel/lib/acme/person-server.ts`
+**Acme: missions** · `packages/introspection-person-server/src/person-server.ts`
 
 ```ts
-/** The live mission `s256` names, if it is this agent's; the same 404 otherwise (no probing). */
-function missionOf(agent: Agent, s: unknown): Mission {
-  const mission = typeof s === "string" ? state.missions.get(s) : undefined;
-  if (!mission || mission.agent !== agent.id)
+/** The live mission `s256` names, if it is this agent's; the same 404 otherwise. */
+async function liveMission(agent: Agent, hash: unknown): Promise<Mission> {
+  const mission =
+    typeof hash === "string" ? await store.mission(hash) : undefined;
+  if (!mission || mission.agent_id !== agent.id)
     throw new AAuthError(404, "mission_not_found", "no such mission");
-  if (!mission.terminated && now() >= mission.expires_at)
-    mission.terminated = "expired";
-  if (mission.terminated)
-    throw new AAuthError(
-      403,
-      "mission_terminated",
-      `mission ${mission.terminated}`,
-      {},
-    );
+  if (mission.completed_at !== undefined)
+    throw new AAuthError(403, "mission_terminated", "mission completed");
+  if (now() >= mission.expires_at)
+    throw new AAuthError(403, "mission_terminated", "mission expired");
   return mission;
 }
 
-/** The agent's suggested budget, if the description names one: "up to $6,000". Dana sets the real one. */
-function budgetOf(description: string): number | null {
-  const match = /up to \$([\d,]+)/i.exec(description);
-  return match ? Number(match[1].replace(/,/g, "")) * 100 : null;
-}
-
-/**
- * `POST /ps/mission`: the agent proposes a trip. Acme's managers approve every
- * trip once, with its budget, before anything is booked.
- */
-export async function proposeMission(request: Request): Promise<Response> {
-  const body = await request.text();
-  const agent = await verifyAgent(request, body, ENDPOINTS.mission);
-  const params = readBody(body);
-  const person = personFor(agent, params.login_hint);
-  const description = String(params.description ?? "");
-  if (!description)
-    throw new AAuthError(400, "invalid_request", "describe the trip");
-  const suggested = budgetOf(description);
-  const resources = (Array.isArray(params.resources) ? params.resources : [])
-    .map(String)
-    .filter((r) => RESOURCES.includes(r));
-  return ask({
-    agent,
-    person,
-    approver: managerOf(person),
-    item: description,
-    reasons: [
-      `A trip for ${person.name}: you set its budget`,
-      suggested === null
-        ? "The agent suggested no budget"
-        : `The agent suggested up to ${dollars(suggested)}`,
-    ],
-    budget: { suggested_cents: suggested },
-    onApprove: async ({ budget_cents: budget = 0 }) => {
-      const approved_at = new Date().toISOString();
-      const expires_at = now() + MISSION_TTL_SECONDS;
-      const bytes = JSON.stringify({
-        agent: agent.id,
-        approved_at,
-        expires_at: new Date(expires_at * 1000).toISOString(),
-        description,
-        approved_resources: resources,
-        budget_cents: budget,
-      });
-      const mission: Mission = {
-        s256: s256(bytes),
-        bytes,
-        agent: agent.id,
-        person,
-        resources,
-        budget_cents: budget,
-        spent_cents: 0,
-        expires_at,
-        log: [],
-      };
-      state.missions.set(mission.s256, mission);
-      const person_tokens = Object.fromEntries(
-        await Promise.all(
-          resources.map(async (r) => [
-            r,
-            (await personToken(agent, person, r, mission)).person_token,
-          ]),
-        ),
-      );
-      record(
-        "acme.mission_approved",
-        `mission ${mission.s256.slice(0, 8)}: ${dollars(budget)}`,
-        { s256: mission.s256 },
-      );
-      return {
-        s256: mission.s256,
-        mission: Buffer.from(bytes).toString("base64url"),
-        person_tokens,
-      };
-    },
-  });
-}
-
-/** `POST /ps/mission/{s256}`: record a change, or propose the trip is done. */
-export async function missionAction(
+async function proposeMission(
   request: Request,
-  s: string,
+  path: string,
 ): Promise<Response> {
   const body = await request.text();
-  const agent = await verifyAgent(request, body, `${ENDPOINTS.mission}/${s}`);
+  const agent = await verifyAgent(request, body, path);
   const params = readBody(body);
-  const mission = missionOf(agent, s);
+  const person = await personFor(agent, params.login_hint, params.tenant);
+  const description = String(params.description ?? "");
+  if (!description)
+    throw new AAuthError(400, "invalid_request", "describe the mission");
+  const resources = (Array.isArray(params.resources) ? params.resources : [])
+    .map((r) => trim(String(r)))
+    .filter((r) => r.startsWith("https://"));
+  return ask("mission", agent, person, description, { grant: { resources } });
+}
+
+async function missionAction(
+  request: Request,
+  path: string,
+  hash: string,
+): Promise<Response> {
+  const body = await request.text();
+  const agent = await verifyAgent(request, body, path);
+  const params = readBody(body);
+  const mission = await liveMission(agent, hash);
   if (params.action === "update") {
     const entry = String(params.description ?? "");
-    mission.log.push({ at: new Date().toISOString(), entry });
+    mission.log.push({ at: now(), entry });
+    await store.putMission(mission);
     return Response.json({ s256: s256(entry) });
   }
-  if (params.action === "completion") {
-    return ask({
+  if (params.action === "completion")
+    return ask(
+      "completion",
       agent,
-      person: mission.person,
-      approver: mission.person,
-      item: String(params.summary ?? ""),
-      reasons: ["The agent says the trip is booked"],
-      onApprove: async () => {
-        mission.terminated = "completed";
-        record(
-          "acme.mission_completed",
-          `mission ${mission.s256.slice(0, 8)} completed`,
-          { s256: mission.s256 },
-        );
-        return {};
+      mission.person,
+      String(params.summary ?? "The agent says the mission is done"),
+      {
+        mission_s256: mission.s256,
       },
-    });
-  }
+    );
   throw new AAuthError(
     400,
     "invalid_request",
@@ -524,41 +451,82 @@ export async function decide(
   verdict: "approve" | "decline",
   budgetCents?: number,
 ) {
-  const pending = state.pending.get(id);
-  if (!pending) throw new AAuthError(404, "not_found", "no such request");
-  if (pending.status !== "pending")
-    throw new AAuthError(409, "invalid_request", `already ${pending.status}`);
-  if (pending.attempts >= MAX_ATTEMPTS || Date.now() > pending.expiresAt)
+  const asked = state.asked.get(id);
+  if (!asked) throw new AAuthError(404, "not_found", "no such request");
+  if (asked.approval.status !== "pending")
+    throw new AAuthError(
+      409,
+      "invalid_request",
+      `already ${asked.approval.status}`,
+    );
+  if (asked.attempts >= MAX_ATTEMPTS || Date.now() > asked.expiresAt)
     throw new AAuthError(410, "invalid_code", "this code has expired");
-  pending.attempts += 1;
+  asked.attempts += 1;
   if (
     !/^\d{6}$/.test(code) ||
-    !timingSafeEqual(hash(code), Buffer.from(pending.codeHash, "hex"))
+    !timingSafeEqual(hash(code), Buffer.from(asked.codeHash, "hex"))
   )
     throw new AAuthError(401, "invalid_code", "that code isn't right");
+  const trip = asked.approval.kind === "mission";
   if (
     verdict === "approve" &&
-    pending.budget &&
+    trip &&
     !(Number.isInteger(budgetCents) && budgetCents! > 0)
   )
     throw new AAuthError(400, "invalid_request", "set the trip's budget");
-  if (verdict === "decline") {
-    pending.status = "denied";
-  } else {
-    pending.result = await pending.onApprove({ budget_cents: budgetCents });
-    pending.status = "approved";
-  }
-  record("acme.decided", `${pending.approver.name} ${pending.status}`, {
-    pending: id,
-    status: pending.status,
+  asked.approval = await (
+    await personServer()
+  ).decide(id, {
+    status: verdict === "approve" ? "approved" : "denied",
+    ...(verdict === "approve" && trip
+      ? { budget: { amount: budgetCents!, ...USD } }
+      : {}),
+    decided_by: asked.approval.approver.email ?? asked.approval.approver.id,
   });
-  return { status: pending.status };
+  record(
+    "acme.decided",
+    `${asked.approval.approver.name} ${asked.approval.status}`,
+    {
+      pending: id,
+      status: asked.approval.status,
+    },
+  );
+  return { status: asked.approval.status };
 }
 ```
 
-**Acme: person tokens under the mission** · `examples/aauth-travel/lib/acme/person-server.ts`
+**Acme: person tokens under the mission** · `packages/introspection-person-server/src/person-server.ts`
 
 ```ts
+/** The person's identifier at one audience: no two audiences can correlate it. */
+const directed = (person: Person, audience: string) =>
+  createHmac("sha256", secret)
+    .update(`${person.id}\n${audience}`)
+    .digest("base64url");
+
+async function issue(
+  typ: string,
+  claims: JWTPayload,
+  notAfter: number,
+  person: Person,
+) {
+  const iat = now();
+  const exp = Math.min(iat + tokenTtl, notAfter);
+  const token = await signer.sign(
+    {
+      iss: issuer,
+      dwk: DWK,
+      jti: randomUUID(),
+      iat,
+      exp,
+      ...(person.tenant ? { tenant: person.tenant } : {}),
+      ...claims,
+    },
+    typ,
+  );
+  return { token, expires_in: exp - iat };
+}
+
 async function personToken(
   agent: Agent,
   person: Person,
@@ -574,23 +542,62 @@ async function personToken(
       ...(mission ? { mission_s256: mission.s256 } : {}),
     },
     Math.min(agent.exp, mission?.expires_at ?? Infinity),
+    person,
   );
+  await options.onIssued?.({
+    type: "person_token",
+    agent,
+    person,
+    resource,
+    ...(mission ? { mission } : {}),
+  });
   return { person_token: token, expires_in };
 }
 
-/** `POST /ps/person-token`: who the agent acts for, at one resource, under its mission. */
-export async function requestPersonToken(request: Request): Promise<Response> {
+async function authToken(
+  agent: Agent,
+  mission: Mission,
+  grant: Record<string, unknown>,
+) {
+  const { token, expires_in } = await issue(
+    "aa-auth+jwt",
+    {
+      ps: issuer,
+      cnf: { jwk: agent.jwk },
+      mission_s256: mission.s256,
+      ...grant,
+    },
+    Math.min(agent.exp, mission.expires_at),
+    mission.person,
+  );
+  await options.onIssued?.({
+    type: "auth_token",
+    agent,
+    person: mission.person,
+    resource: String(grant.aud),
+    mission,
+    ...(grant.budget ? { budget: grant.budget as Budget } : {}),
+  });
+  return { auth_token: token, expires_in };
+}
+
+async function requestPersonToken(
+  request: Request,
+  path: string,
+): Promise<Response> {
   const body = await request.text();
-  const agent = await verifyAgent(request, body, ENDPOINTS.personToken);
+  const agent = await verifyAgent(request, body, path);
   const params = readBody(body);
-  const resource = String(params.resource ?? "");
-  if (!RESOURCES.includes(resource))
-    throw new AAuthError(400, "invalid_request", "not a resource Acme uses");
-  const person = personFor(agent, params.login_hint);
+  const resource = trim(String(params.resource ?? ""));
+  if (!resource.startsWith("https://"))
+    throw new AAuthError(400, "invalid_request", "resource is an https origin");
+  const person = await personFor(agent, params.login_hint, params.tenant);
   const mission =
     params.mission_s256 === undefined
       ? undefined
-      : missionOf(agent, params.mission_s256);
+      : await liveMission(agent, params.mission_s256);
+  if (mission && mission.person.id !== person.id)
+    throw new AAuthError(404, "mission_not_found", "no such mission");
   return Response.json(await personToken(agent, person, resource, mission));
 }
 ```
@@ -615,6 +622,8 @@ export function resourceMetadata() {
       "Flights and hotels for company travel. Search is open; a reservation needs an auth token from the traveller's Person Server.",
     scope_descriptions: { [SCOPE]: "Reserve the quoted flight or hotel" },
     r3_vocabularies: [VOCABULARY],
+    // draft-hardt-aauth-budgets: each resource token's `budget` is its booking's price.
+    budget_units: [{ unit: BUDGET_UNIT.unit, decimals: BUDGET_UNIT.decimals }],
     additional_signature_components: ["content-type", "content-digest"],
   };
 }
@@ -965,7 +974,7 @@ export async function reserve(request: Request): Promise<Response> {
 
 _Booking provider → egress_
 
-A person token says who the agent acts for and under which mission, not what it may buy. So the provider publishes the booking as an R3 proposal (the quote, purpose and payer) and answers 401 with AAuth-Requirement: requirement=auth-token and a resource token naming the proposal by its hash, and carrying the mission's s256 across. Only Acme, signing as itself, can read the proposal.
+A person token says who the agent acts for and under which mission, not what it may buy. So the provider publishes the booking as an R3 proposal (the quote, purpose and payer) and answers 401 with AAuth-Requirement: requirement=auth-token and a resource token naming the proposal by its hash, carrying the mission's s256 across, and stating the booking's price as its budget (draft-hardt-aauth-budgets). Only Acme, signing as itself, can read the proposal.
 
 **the proposal and resource token** · `examples/aauth-travel/lib/booking.ts`
 
@@ -992,6 +1001,8 @@ async function propose(
     authorized: [ps],
   });
   const signer = await bookingSigner();
+  // The price, as a budgets-draft budget, so any Person Server can weigh it without reading R3.
+  const budget = { amount: Number(offer.total_cents), ...BUDGET_UNIT };
   const resourceToken = await createResourceToken(
     {
       resource: ISSUER,
@@ -1004,7 +1015,7 @@ async function propose(
       kid: signer.kid,
       r3: { uri: proposal.r3_uri, s256: proposal.r3_s256 },
     },
-    signer.signWithHeader,
+    (claims, header) => signer.signWithHeader({ ...claims, budget }, header),
   );
   record("booking.challenged", `asked ${ps} to approve ${booking.offer_id}`, {
     offer_id: booking.offer_id,
@@ -1113,7 +1124,7 @@ export async function serveProposal(
 
 _Egress → Acme's Person Server_
 
-The egress proxy holds the request and calls Acme's token endpoint, signed with the same key: the resource token and the person token it presented. Acme checks the signature and the agent token, that the resource token is addressed to Acme and names the same agent key and mission, then reads the proposal and weighs its quote against what is left of the trip's budget.
+The egress proxy holds the request and calls Acme's token endpoint, signed with the same key: the resource token and the person token it presented. Acme checks the signature and the agent token, that the resource token is addressed to Acme and names the same agent key and mission, then weighs the resource token's budget against what is left of the trip's. Acme's Person Server is @introspection-sdk/person-server, configured with Acme's people and its way of asking.
 
 **the token request and its answers** · `platform contract: token-request.json`
 
@@ -1163,27 +1174,60 @@ The egress proxy holds the request and calls Acme's token endpoint, signed with 
 }
 ```
 
-**Acme: verify the agent** · `examples/aauth-travel/lib/acme/person-server.ts`
+**Acme: verify the agent** · `packages/introspection-person-server/src/person-server.ts`
 
 ```ts
-/**
- * Every endpoint is called by an agent, signing with its own key and
- * presenting its agent token, from an agent provider Acme trusts.
- */
+/** The request's signature, and the agent token it presents, from a trusted agent provider. */
 async function verifyAgent(
   request: Request,
   body: string | undefined,
-  url: string,
+  path: string,
 ): Promise<Agent> {
-  const signed = await verifySignature(request, body, url);
-  const token = await verifyPresented(signed, {
-    audience: PS,
+  const signed = await verify(
+    {
+      method: request.method,
+      // As the agent addressed it: this identifier and the route's path, whatever routed it here.
+      authority: new URL(issuer).host,
+      path: `${base}${path}`,
+      headers: request.headers,
+      ...(body ? { body } : {}),
+    },
+    { requireContentDigest: true, supportedAlgorithms: ["Ed25519", "ES256"] },
+  );
+  if (!signed.verified)
+    throw signatureError(
+      signed.signatureError?.error ?? "invalid_signature",
+      signed.error ?? "signature does not verify",
+    );
+  if (signed.keyType !== "jwt" || !signed.jwt)
+    throw signatureError("unsupported_scheme", "sign with sig=jwt");
+  const claims = (() => {
+    try {
+      return decodeJwt(signed.jwt.raw);
+    } catch {
+      throw signatureError("invalid_jwt", "not a JWT");
+    }
+  })();
+  const provider = trim(String(claims.iss ?? ""));
+  if (!trusted(provider))
+    throw signatureError("invalid_jwt", `${provider} is not trusted here`);
+  const token = await verifyToken({
+    jwt: signed.jwt.raw,
+    httpSignatureThumbprint: signed.thumbprint,
+    resource: issuer,
     accept: ["agent"],
-    issuers: { agent: AGENT_PROVIDERS },
+    fetch: fetchLike,
+    now: now(),
+  }).catch((err: Error) => {
+    const code = err instanceof AAuthTokenError ? err.code : "invalid_jwt";
+    throw signatureError(
+      code === "token_expired" ? "expired_jwt" : "invalid_jwt",
+      err.message,
+    );
   });
   if (token.type !== "agent")
     throw signatureError("invalid_jwt", "present an agent token");
-  if (token.ps !== undefined && token.ps !== PS)
+  if (token.ps !== undefined && trim(token.ps) !== issuer)
     throw new AAuthError(
       403,
       "invalid_request",
@@ -1191,118 +1235,60 @@ async function verifyAgent(
     );
   return {
     id: token.sub,
-    exp: token.exp,
+    provider,
     jkt: signed.thumbprint,
     jwk: token.cnf.jwk,
+    exp: token.exp,
   };
 }
 
-/**
- * Acme binds each agent key to the one employee its first request names in
- * `login_hint`. That key can never act for anyone else.
- */
-function personFor(agent: Agent, loginHint?: unknown): Person {
-  const hinted =
-    typeof loginHint === "string"
-      ? people.find(
-          (p) =>
-            p.company === TENANT &&
-            (p.external_user_id === loginHint ||
-              p.email === loginHint ||
-              `user:${p.email}` === loginHint),
-        )
-      : undefined;
-  if (loginHint !== undefined && !hinted)
-    throw new AAuthError(400, "invalid_request", "not an Acme employee");
-  const bound = state.bindings.get(agent.jkt);
-  if (bound) {
-    if (hinted && hinted.external_user_id !== bound)
-      throw new AAuthError(403, "invalid_request", "bound to another person");
-    return people.find((p) => p.external_user_id === bound)!;
+/** The person the agent acts for. Each agent key is bound to the first person it names. */
+async function personFor(
+  agent: Agent,
+  loginHint: unknown,
+  tenant: unknown,
+): Promise<Person> {
+  const hint = typeof loginHint === "string" ? loginHint : undefined;
+  const hinted = hint
+    ? await options.directory.person(
+        hint,
+        typeof tenant === "string" ? tenant : undefined,
+      )
+    : undefined;
+  if (hint && !hinted)
+    throw new AAuthError(
+      400,
+      "invalid_request",
+      "not someone this Person Server speaks for",
+    );
+  if (hinted) {
+    const bound = await store.bind(agent.jkt, hinted.id);
+    if (bound !== hinted.id)
+      throw new AAuthError(
+        403,
+        "invalid_request",
+        "this agent acts for another person",
+      );
+    return hinted;
   }
-  if (!hinted)
+  const bound = await store.binding(agent.jkt);
+  if (!bound)
     throw new AAuthError(400, "invalid_request", "name the person: login_hint");
-  state.bindings.set(agent.jkt, hinted.external_user_id);
-  return hinted;
+  const person = (await store.approvals()).find(
+    (a) => a.person.id === bound,
+  )?.person;
+  return person ?? { id: bound };
 }
 ```
 
-**Acme: verify the request, weigh the budget** · `examples/aauth-travel/lib/acme/person-server.ts`
+**Acme: verify the request, weigh the budget** · `packages/introspection-person-server/src/person-server.ts`
 
 ```ts
-/**
- * `POST /ps/token`: the resource token for one booking, and the person token
- * the agent showed the resource. Acme reads the booking from the resource's
- * proposal and checks it against the mission's budget.
- */
-export async function authToken(request: Request): Promise<Response> {
-  const body = await request.text();
-  const agent = await verifyAgent(request, body, ENDPOINTS.token);
-  const params = readBody(body);
-  const rt = await verifyResourceToken(agent, params);
-  const mission = rt.mission_s256
-    ? missionOf(agent, rt.mission_s256)
-    : undefined;
-  if (!mission)
-    throw new AAuthError(
-      403,
-      "access_denied",
-      "Acme books travel only under an approved trip",
-    );
-  if (!mission.resources.includes(String(rt.iss)))
-    throw new AAuthError(
-      403,
-      "access_denied",
-      "this trip does not cover that resource",
-    );
-  const proposal = await readProposal(rt);
-  const total = Number(
-    decodeJwt(String(proposal.parameters?.quote)).total_cents,
-  );
-  const grant = async () => {
-    mission.spent_cents += total;
-    const { token, expires_in } = await issue(
-      "aa-auth+jwt",
-      {
-        aud: rt.iss,
-        ps: PS,
-        sub: rt.sub,
-        cnf: { jwk: agent.jwk },
-        scope: rt.scope,
-        mission_s256: mission.s256,
-        r3_uri: rt.r3_uri,
-        r3_s256: rt.r3_s256,
-      },
-      Math.min(agent.exp, mission.expires_at),
-    );
-    record(
-      "acme.auth_token_issued",
-      `${proposal.display?.summary}; ${dollars(mission.budget_cents - mission.spent_cents)} left`,
-      {
-        s256: mission.s256,
-      },
-    );
-    return { auth_token: token, expires_in };
-  };
-  const left = mission.budget_cents - mission.spent_cents;
-  if (total <= left) return Response.json(await grant());
-  return ask({
-    agent,
-    person: mission.person,
-    approver: managerOf(mission.person),
-    item: String(proposal.display?.summary ?? "a booking"),
-    reasons: [
-      `${dollars(total)} is over the ${dollars(left)} left of this trip's budget`,
-    ],
-    onApprove: grant,
-  });
-}
-
-/** The resource token names this Person Server and the agent's key, and binds the presented token. */
+/** A resource token, verified against its issuer's keys, binding a token this Person Server issued. */
 async function verifyResourceToken(
   agent: Agent,
   params: Record<string, unknown>,
-): Promise<JWTPayload> {
+) {
   const { resource_token, presented_token } = params;
   if (typeof resource_token !== "string" || typeof presented_token !== "string")
     throw new AAuthError(
@@ -1312,61 +1298,153 @@ async function verifyResourceToken(
     );
   const invalid = (detail: string) =>
     new AAuthError(400, "invalid_resource_token", detail);
-  const rt = await verifyIssued(resource_token, {
-    typ: "aa-resource+jwt",
-    dwk: "aauth-resource.json",
-    issuers: RESOURCES,
-  }).catch((err: Error) => {
-    throw invalid(err.message);
-  });
-  if (rt.aud !== PS || rt.ps !== PS)
-    throw invalid("not for this Person Server");
-  if (rt.agent_jkt !== agent.jkt) throw invalid("agent_jkt is not the signer");
-  const signer = await personServerSigner();
   const presented = await jwtVerify(
     presented_token,
     createLocalJWKSet(signer.jwks),
-    { issuer: PS },
+    { issuer },
   )
     .then((r) => r.payload)
-    .catch(() => {
+    .catch((err: Error) => {
       throw new AAuthError(
         400,
-        "invalid_presented_token",
-        "not a token this Person Server issued",
+        err.name === "JWTExpired"
+          ? "expired_presented_token"
+          : "invalid_presented_token",
+        "not a live token this Person Server issued",
       );
     });
+  let unverified: JWTPayload;
+  try {
+    if (decodeProtectedHeader(resource_token).typ !== "aa-resource+jwt")
+      throw invalid("not a resource token");
+    unverified = decodeJwt(resource_token);
+  } catch (err) {
+    if (err instanceof AAuthError) throw err;
+    throw invalid("not a JWT");
+  }
+  const resource = trim(String(unverified.iss ?? ""));
+  // The mission's approved resources are the only issuers whose keys are fetched.
+  const mission =
+    typeof unverified.mission_s256 === "string"
+      ? await liveMission(agent, unverified.mission_s256)
+      : undefined;
+  if (!mission)
+    throw new AAuthError(
+      403,
+      "access_denied",
+      "an auth token is issued only within a mission",
+    );
+  if (!mission.resources.includes(resource))
+    throw new AAuthError(
+      403,
+      "access_denied",
+      "this mission does not cover that resource",
+    );
+  const rt = await discoverJwks({
+    iss: resource,
+    dwk: "aauth-resource.json",
+    fetch: fetchLike,
+  })
+    .then((jwks) =>
+      jwtVerify(resource_token, createLocalJWKSet(jwks), {
+        typ: "aa-resource+jwt",
+        issuer: resource,
+        algorithms: ["Ed25519", "ES256"],
+      }),
+    )
+    .then((r) => r.payload)
+    .catch((err: Error) => {
+      throw invalid(err.message);
+    });
+  if (rt.aud !== issuer || trim(String(rt.ps ?? "")) !== issuer)
+    throw invalid("not for this Person Server");
+  if (rt.agent_jkt !== agent.jkt) throw invalid("agent_jkt is not the signer");
   if (
     presented.jti !== rt.presented_jti ||
     presented.sub !== rt.sub ||
-    presented.mission_s256 !== rt.mission_s256
+    presented.mission_s256 !== rt.mission_s256 ||
+    presented.tenant !== rt.tenant ||
+    presented.aud !== resource
   )
     throw invalid("does not match the presented token");
-  return rt;
+  return { rt, mission, resource };
 }
 
-/** The booking, from the proposal the resource published for this Person Server alone. */
-async function readProposal(rt: JWTPayload): Promise<R3Document> {
+/** The resource's one-line description of the request, from its R3 proposal; undefined if it has none. */
+async function proposalSummary(rt: JWTPayload): Promise<string | undefined> {
   if (typeof rt.r3_uri !== "string" || typeof rt.r3_s256 !== "string")
-    throw new AAuthError(
-      400,
-      "invalid_resource_token",
-      "no proposal to approve",
-    );
-  const signer = await personServerSigner();
-  const response = await signedFetch(rt.r3_uri, {
-    method: "GET",
-    signingKey: signer.privateJwk as JsonWebKey,
-    signatureKey: { type: "jwks_uri", id: PS, kid: signer.kid, dwk: DWK },
-  });
-  const bytes = await response.text();
-  if (!response.ok || !(await verifyR3Hash(bytes, rt.r3_s256)))
-    throw new AAuthError(
-      400,
-      "invalid_resource_token",
-      "the proposal does not match its hash",
-    );
-  return JSON.parse(bytes);
+    return undefined;
+  try {
+    const { headers } = await signedFetch(rt.r3_uri, {
+      method: "GET",
+      signingKey: signer.privateJwk as JsonWebKey,
+      signatureKey: {
+        type: "jwks_uri",
+        id: issuer,
+        kid: signer.kid,
+        dwk: DWK,
+      },
+      dryRun: true,
+    });
+    const response = await fetchLike(rt.r3_uri, { headers });
+    const bytes = await response.text();
+    if (!response.ok || !(await verifyR3Hash(bytes, rt.r3_s256)))
+      return undefined;
+    const summary = (JSON.parse(bytes) as { display?: { summary?: unknown } })
+      .display?.summary;
+    return typeof summary === "string" ? summary : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+async function requestAuthToken(
+  request: Request,
+  path: string,
+): Promise<Response> {
+  const body = await request.text();
+  const agent = await verifyAgent(request, body, path);
+  const params = readBody(body);
+  const { rt, mission, resource } = await verifyResourceToken(agent, params);
+  const budget = (() => {
+    try {
+      return readBudget(rt.budget);
+    } catch {
+      throw new AAuthError(
+        400,
+        "invalid_resource_token",
+        "budget is not a budget object",
+      );
+    }
+  })();
+  const grant: Record<string, unknown> = {
+    aud: resource,
+    sub: rt.sub,
+    ...Object.fromEntries(
+      (["scope", "r3_uri", "r3_s256"] as const)
+        .filter((k) => k in rt)
+        .map((k) => [k, rt[k]]),
+    ),
+    ...(budget ? { budget } : {}),
+  };
+  if (!budget) return Response.json(await authToken(agent, mission, grant));
+  if (mission.budget && sameScale(mission.budget, budget)) {
+    const spent = await store.spend(mission.s256, budget.amount, true, now());
+    if (spent) return Response.json(await authToken(agent, spent, grant));
+  }
+  return ask(
+    "auth_token",
+    agent,
+    mission.person,
+    String(rt.scope ?? "a request"),
+    {
+      mission_s256: mission.s256,
+      resource,
+      budget,
+      grant,
+      summary: await proposalSummary(rt),
+    },
+  );
 }
 ```
 
@@ -1421,51 +1499,33 @@ Four nights at $420 is $1,680, and $1,350 is left. Acme doesn't refuse: it email
 **Acme: find the approver, email a code** · `examples/aauth-travel/lib/acme/person-server.ts`
 
 ```ts
-function managerOf(person: Person): Person {
-  const manager = people.find((p) => p.external_user_id === person.manager);
-  if (!manager)
-    throw new AAuthError(
-      403,
-      "user_unreachable",
-      `${person.name} has no manager`,
-    );
-  return manager;
-}
-
-const hash = (code: string) => createHash("sha256").update(code).digest();
-
 /** A person decides, by email with a six-digit code; the agent polls a pending URL meanwhile. */
-async function ask(
-  request: Omit<
-    Pending,
-    "id" | "jkt" | "status" | "codeHash" | "expiresAt" | "attempts"
-  > & { agent: Agent },
-): Promise<Response> {
-  const { agent, ...rest } = request;
+async function ask(approval: Approval) {
   const code = String(randomInt(0, 1_000_000)).padStart(6, "0");
-  const pending: Pending = {
-    ...rest,
-    id: randomUUID(),
-    jkt: agent.jkt,
-    status: "pending",
+  const reasons = reasonsFor(approval);
+  state.asked.set(approval.id, {
+    approval,
+    reasons,
     codeHash: hash(code).toString("hex"),
     expiresAt: Date.now() + CODE_TTL_MS,
     attempts: 0,
-  };
-  state.pending.set(pending.id, pending);
+  });
   await sendApprovalEmail({
-    to: pending.approver.email,
-    approverName: pending.approver.name,
-    travellerName: pending.person.name,
-    item: pending.item,
-    reasons: pending.reasons,
-    link: `${PS}/approve/${pending.id}`,
+    to: approval.approver.email ?? "",
+    approverName: approval.approver.name ?? "",
+    travellerName: approval.person.name ?? "",
+    item: approval.summary ?? approval.description,
+    reasons,
+    link: `${PERSON_SERVER_URL}/approve/${approval.id}`,
     code,
   });
-  record("acme.approval_requested", `asked ${pending.approver.name} by email`, {
-    pending: pending.id,
-  });
-  return stillPending(pending);
+  record(
+    "acme.approval_requested",
+    `asked ${approval.approver.name} by email`,
+    {
+      pending: approval.id,
+    },
+  );
 }
 ```
 
@@ -1502,30 +1562,58 @@ _Platform → Agent → provider_
 
 The data plane has been polling the pending URL, signed with the session key; only the agent that asked may read it. Once Dana enters the code, the poll returns the auth token, egress caches it, and the platform posts a turn into Sam's conversation. The agent books the QT again, egress presents the token, and the provider books exactly the proposal Dana approved. Had Dana declined, the pending URL would answer 403 and the agent would offer something within budget.
 
-**Acme: the pending URL** · `examples/aauth-travel/lib/acme/person-server.ts`
+**Acme: the pending URL** · `packages/introspection-person-server/src/person-server.ts`
 
 ```ts
-/** The agent polls with a signed GET; only the agent that asked may read it. */
-export async function pendingState(
+/** The agent polls with a signed GET; only the key that asked may read it. Results are minted now. */
+async function pendingState(
   request: Request,
+  path: string,
   id: string,
 ): Promise<Response> {
-  const agent = await verifyAgent(request, undefined, ENDPOINTS.pending(id));
-  const pending = state.pending.get(id);
-  if (!pending || pending.jkt !== agent.jkt)
+  const agent = await verifyAgent(request, undefined, path);
+  const approval = await store.approval(id);
+  if (!approval || approval.agent.jkt !== agent.jkt)
     return problem(404, "not_found", "no such pending request");
-  if (pending.status === "pending" && Date.now() > pending.expiresAt)
-    pending.status = "expired";
-  switch (pending.status) {
-    case "pending":
-      return stillPending(pending);
-    case "approved":
-      return Response.json(pending.result);
-    case "denied":
-      return problem(403, "denied", `${pending.approver.name} declined`);
-    default:
-      return problem(408, "expired", "nobody answered in time");
+  if (request.method === "DELETE") {
+    if (approval.status === "pending")
+      await store.putApproval({
+        ...approval,
+        status: "denied",
+        decided_by: "agent",
+      });
+    return new Response(null, { status: 204 });
   }
+  if (approval.status === "denied")
+    return problem(
+      403,
+      "denied",
+      `${approval.approver.name ?? "The approver"} declined`,
+    );
+  if (approval.status === "pending")
+    return now() >= approval.expires_at
+      ? problem(408, "expired", "nobody answered in time")
+      : stillPending(id);
+  if (approval.kind === "completion") return Response.json({});
+  const mission = approval.mission_s256
+    ? await store.mission(approval.mission_s256)
+    : undefined;
+  if (!mission) return problem(404, "mission_not_found", "no such mission");
+  if (approval.kind === "mission") {
+    const tokens = await Promise.all(
+      mission.resources.map(async (r) => [
+        r,
+        (await personToken(agent, mission.person, r, mission)).person_token,
+      ]),
+    );
+    return Response.json({
+      s256: mission.s256,
+      mission: Buffer.from(mission.mission).toString("base64url"),
+      person_tokens: Object.fromEntries(tokens),
+    });
+  }
+  await liveMission(agent, mission.s256);
+  return Response.json(await authToken(agent, mission, approval.grant));
 }
 ```
 
@@ -1545,137 +1633,64 @@ _Agent → Acme → Sam_
 
 complete_trip proposes the mission complete, with a summary of what was booked. Sam accepts it, and Acme ends the mission: a person token or auth token under it is refused from then on, so nothing more can be booked against this trip.
 
-**Acme: missions** · `examples/aauth-travel/lib/acme/person-server.ts`
+**Acme: missions** · `packages/introspection-person-server/src/person-server.ts`
 
 ```ts
-/** The live mission `s256` names, if it is this agent's; the same 404 otherwise (no probing). */
-function missionOf(agent: Agent, s: unknown): Mission {
-  const mission = typeof s === "string" ? state.missions.get(s) : undefined;
-  if (!mission || mission.agent !== agent.id)
+/** The live mission `s256` names, if it is this agent's; the same 404 otherwise. */
+async function liveMission(agent: Agent, hash: unknown): Promise<Mission> {
+  const mission =
+    typeof hash === "string" ? await store.mission(hash) : undefined;
+  if (!mission || mission.agent_id !== agent.id)
     throw new AAuthError(404, "mission_not_found", "no such mission");
-  if (!mission.terminated && now() >= mission.expires_at)
-    mission.terminated = "expired";
-  if (mission.terminated)
-    throw new AAuthError(
-      403,
-      "mission_terminated",
-      `mission ${mission.terminated}`,
-      {},
-    );
+  if (mission.completed_at !== undefined)
+    throw new AAuthError(403, "mission_terminated", "mission completed");
+  if (now() >= mission.expires_at)
+    throw new AAuthError(403, "mission_terminated", "mission expired");
   return mission;
 }
 
-/** The agent's suggested budget, if the description names one: "up to $6,000". Dana sets the real one. */
-function budgetOf(description: string): number | null {
-  const match = /up to \$([\d,]+)/i.exec(description);
-  return match ? Number(match[1].replace(/,/g, "")) * 100 : null;
-}
-
-/**
- * `POST /ps/mission`: the agent proposes a trip. Acme's managers approve every
- * trip once, with its budget, before anything is booked.
- */
-export async function proposeMission(request: Request): Promise<Response> {
-  const body = await request.text();
-  const agent = await verifyAgent(request, body, ENDPOINTS.mission);
-  const params = readBody(body);
-  const person = personFor(agent, params.login_hint);
-  const description = String(params.description ?? "");
-  if (!description)
-    throw new AAuthError(400, "invalid_request", "describe the trip");
-  const suggested = budgetOf(description);
-  const resources = (Array.isArray(params.resources) ? params.resources : [])
-    .map(String)
-    .filter((r) => RESOURCES.includes(r));
-  return ask({
-    agent,
-    person,
-    approver: managerOf(person),
-    item: description,
-    reasons: [
-      `A trip for ${person.name}: you set its budget`,
-      suggested === null
-        ? "The agent suggested no budget"
-        : `The agent suggested up to ${dollars(suggested)}`,
-    ],
-    budget: { suggested_cents: suggested },
-    onApprove: async ({ budget_cents: budget = 0 }) => {
-      const approved_at = new Date().toISOString();
-      const expires_at = now() + MISSION_TTL_SECONDS;
-      const bytes = JSON.stringify({
-        agent: agent.id,
-        approved_at,
-        expires_at: new Date(expires_at * 1000).toISOString(),
-        description,
-        approved_resources: resources,
-        budget_cents: budget,
-      });
-      const mission: Mission = {
-        s256: s256(bytes),
-        bytes,
-        agent: agent.id,
-        person,
-        resources,
-        budget_cents: budget,
-        spent_cents: 0,
-        expires_at,
-        log: [],
-      };
-      state.missions.set(mission.s256, mission);
-      const person_tokens = Object.fromEntries(
-        await Promise.all(
-          resources.map(async (r) => [
-            r,
-            (await personToken(agent, person, r, mission)).person_token,
-          ]),
-        ),
-      );
-      record(
-        "acme.mission_approved",
-        `mission ${mission.s256.slice(0, 8)}: ${dollars(budget)}`,
-        { s256: mission.s256 },
-      );
-      return {
-        s256: mission.s256,
-        mission: Buffer.from(bytes).toString("base64url"),
-        person_tokens,
-      };
-    },
-  });
-}
-
-/** `POST /ps/mission/{s256}`: record a change, or propose the trip is done. */
-export async function missionAction(
+async function proposeMission(
   request: Request,
-  s: string,
+  path: string,
 ): Promise<Response> {
   const body = await request.text();
-  const agent = await verifyAgent(request, body, `${ENDPOINTS.mission}/${s}`);
+  const agent = await verifyAgent(request, body, path);
   const params = readBody(body);
-  const mission = missionOf(agent, s);
+  const person = await personFor(agent, params.login_hint, params.tenant);
+  const description = String(params.description ?? "");
+  if (!description)
+    throw new AAuthError(400, "invalid_request", "describe the mission");
+  const resources = (Array.isArray(params.resources) ? params.resources : [])
+    .map((r) => trim(String(r)))
+    .filter((r) => r.startsWith("https://"));
+  return ask("mission", agent, person, description, { grant: { resources } });
+}
+
+async function missionAction(
+  request: Request,
+  path: string,
+  hash: string,
+): Promise<Response> {
+  const body = await request.text();
+  const agent = await verifyAgent(request, body, path);
+  const params = readBody(body);
+  const mission = await liveMission(agent, hash);
   if (params.action === "update") {
     const entry = String(params.description ?? "");
-    mission.log.push({ at: new Date().toISOString(), entry });
+    mission.log.push({ at: now(), entry });
+    await store.putMission(mission);
     return Response.json({ s256: s256(entry) });
   }
-  if (params.action === "completion") {
-    return ask({
+  if (params.action === "completion")
+    return ask(
+      "completion",
       agent,
-      person: mission.person,
-      approver: mission.person,
-      item: String(params.summary ?? ""),
-      reasons: ["The agent says the trip is booked"],
-      onApprove: async () => {
-        mission.terminated = "completed";
-        record(
-          "acme.mission_completed",
-          `mission ${mission.s256.slice(0, 8)} completed`,
-          { s256: mission.s256 },
-        );
-        return {};
+      mission.person,
+      String(params.summary ?? "The agent says the mission is done"),
+      {
+        mission_s256: mission.s256,
       },
-    });
-  }
+    );
   throw new AAuthError(
     400,
     "invalid_request",

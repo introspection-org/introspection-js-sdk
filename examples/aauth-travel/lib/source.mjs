@@ -1,7 +1,7 @@
 // Reads the code a walkthrough step points at, cut to the part that matters.
 // Region markers never appear in what is shown.
 import { readFileSync } from "node:fs";
-import { join } from "node:path";
+import { join, posix } from "node:path";
 
 import { recipe } from "../flow/recipe.mjs";
 
@@ -78,7 +78,7 @@ export async function readSource(root, source) {
     language: LANGUAGES[extension] ?? "text",
     origin:
       source.kind === "example"
-        ? `examples/aauth-travel/${source.path}`
+        ? posix.normalize(`examples/aauth-travel/${source.path}`)
         : source.kind === "recipe"
           ? `recipe-travel-agent/${source.path}`
           : `platform contract: ${source.path}`,

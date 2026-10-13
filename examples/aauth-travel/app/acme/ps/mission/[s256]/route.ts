@@ -1,6 +1,5 @@
 /** An update to the trip, or the agent's proposal that it is done. */
-import { missionAction } from "@/lib/acme/person-server";
-import { respond } from "@/lib/aauth";
+import { handle } from "@/lib/acme/person-server";
 import { recorded } from "@/lib/demo/wire";
 
 export async function POST(
@@ -9,6 +8,6 @@ export async function POST(
 ) {
   const { s256 } = await params;
   return recorded("Acme", request, () =>
-    respond(() => missionAction(request, s256)),
+    handle(request, `/ps/mission/${s256}`),
   );
 }

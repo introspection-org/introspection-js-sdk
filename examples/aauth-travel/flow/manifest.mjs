@@ -69,7 +69,7 @@ export const flow = {
         },
         {
           kind: "example",
-          path: "lib/acme/person-server.ts",
+          path: "../../packages/introspection-person-server/src/person-server.ts",
           region: "missions",
           label: "Acme: missions",
         },
@@ -96,7 +96,7 @@ export const flow = {
         },
         {
           kind: "example",
-          path: "lib/acme/person-server.ts",
+          path: "../../packages/introspection-person-server/src/person-server.ts",
           region: "person-token",
           label: "Acme: person tokens under the mission",
         },
@@ -176,7 +176,7 @@ export const flow = {
       id: "challenge",
       title: "401: the provider asks for an auth token, for one proposal",
       actor: "Booking provider → egress",
-      body: "A person token says who the agent acts for and under which mission, not what it may buy. So the provider publishes the booking as an R3 proposal (the quote, purpose and payer) and answers 401 with AAuth-Requirement: requirement=auth-token and a resource token naming the proposal by its hash, and carrying the mission's s256 across. Only Acme, signing as itself, can read the proposal.",
+      body: "A person token says who the agent acts for and under which mission, not what it may buy. So the provider publishes the booking as an R3 proposal (the quote, purpose and payer) and answers 401 with AAuth-Requirement: requirement=auth-token and a resource token naming the proposal by its hash, carrying the mission's s256 across, and stating the booking's price as its budget (draft-hardt-aauth-budgets). Only Acme, signing as itself, can read the proposal.",
       sources: [
         {
           kind: "example",
@@ -202,7 +202,7 @@ export const flow = {
       id: "exchange",
       title: "Egress takes the resource token to Acme",
       actor: "Egress → Acme's Person Server",
-      body: "The egress proxy holds the request and calls Acme's token endpoint, signed with the same key: the resource token and the person token it presented. Acme checks the signature and the agent token, that the resource token is addressed to Acme and names the same agent key and mission, then reads the proposal and weighs its quote against what is left of the trip's budget.",
+      body: "The egress proxy holds the request and calls Acme's token endpoint, signed with the same key: the resource token and the person token it presented. Acme checks the signature and the agent token, that the resource token is addressed to Acme and names the same agent key and mission, then weighs the resource token's budget against what is left of the trip's. Acme's Person Server is @introspection-sdk/person-server, configured with Acme's people and its way of asking.",
       sources: [
         {
           kind: "contract",
@@ -211,13 +211,13 @@ export const flow = {
         },
         {
           kind: "example",
-          path: "lib/acme/person-server.ts",
+          path: "../../packages/introspection-person-server/src/person-server.ts",
           region: "verify-agent",
           label: "Acme: verify the agent",
         },
         {
           kind: "example",
-          path: "lib/acme/person-server.ts",
+          path: "../../packages/introspection-person-server/src/person-server.ts",
           region: "auth-token",
           label: "Acme: verify the request, weigh the budget",
         },
@@ -266,7 +266,7 @@ export const flow = {
       sources: [
         {
           kind: "example",
-          path: "lib/acme/person-server.ts",
+          path: "../../packages/introspection-person-server/src/person-server.ts",
           region: "pending",
           label: "Acme: the pending URL",
         },
@@ -289,7 +289,7 @@ export const flow = {
       sources: [
         {
           kind: "example",
-          path: "lib/acme/person-server.ts",
+          path: "../../packages/introspection-person-server/src/person-server.ts",
           region: "missions",
           label: "Acme: missions",
         },
