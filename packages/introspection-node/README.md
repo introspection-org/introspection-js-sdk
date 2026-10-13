@@ -626,3 +626,23 @@ export INTROSPECTION_SERVICE_NAME="my-service"                      # optional
 # SDK diagnostics: error, warn, info, debug, verbose. Default: warn.
 export INTROSPECTION_LOG_LEVEL="debug"                              # optional
 ```
+
+## Running behind a proxy
+
+REST calls honour `HTTPS_PROXY` / `HTTP_PROXY` and `NO_PROXY`, which Node's
+built-in `fetch` ignores on its own. Nothing else needs setting, apart from a
+proxy that re-signs TLS with a private CA: Node only trusts that CA through
+`NODE_EXTRA_CA_CERTS`.
+
+```shell
+export HTTPS_PROXY="http://proxy.internal:3128"
+export NODE_EXTRA_CA_CERTS="/etc/ssl/certs/proxy-ca.pem"   # only for a re-signing proxy
+```
+
+An allowlist must admit the control plane (`api.introspection.dev`) and your
+project's data plane, which is a regional host such as
+`api.syd01.ap-southeast-2.aws.introspection.dev`; `introspection whoami` prints
+both. A failed call names the host it could not reach, for example
+`GET api.syd01.ap-southeast-2.aws.introspection.dev/v1/tasks failed: fetch failed: …`.
+A `fetch` you pass in `advanced.fetch`, or one installed globally after the
+SDK loads, is used as is.
