@@ -27,6 +27,22 @@ export const PERSON_SERVER_URL = trim(
   process.env.ACME_PERSON_SERVER_URL ?? "https://ps.acme.localhost",
 );
 
+/**
+ * Which Person Server speaks for Acme's people: `acme`, Acme's own (above), or
+ * `hosted`, Introspection's hosted one, with Acme deciding approvals through
+ * its project's `/v1/approvals`.
+ */
+export const PERSON_SERVER_MODE: "acme" | "hosted" =
+  process.env.PERSON_SERVER === "hosted" ? "hosted" : "acme";
+
+/** Introspection's hosted Person Server, when Acme uses it. */
+export const HOSTED_PERSON_SERVER_URL = trim(
+  process.env.HOSTED_PERSON_SERVER_URL ??
+    (PERSON_SERVER_MODE === "hosted"
+      ? "https://ps.introspection.localhost"
+      : ""),
+);
+
 /** Agent providers whose agents may act here: the platform's control plane, by default. */
 export const AGENT_PROVIDERS = (
   process.env.TRUSTED_AGENT_PROVIDERS ?? "https://cp.introspection.localhost"

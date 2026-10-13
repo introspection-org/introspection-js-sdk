@@ -1,6 +1,6 @@
 import { headers } from "next/headers";
 
-import { approvalSummary } from "@/lib/acme/person-server";
+import { approvalSummary } from "@/lib/acme/approvals";
 import { PERSON_SERVER_URL } from "@/lib/origins";
 
 import { ApprovalForm } from "./approval-form";

@@ -13,7 +13,7 @@ import "server-only";
 import { IntrospectionClient } from "@introspection-sdk/introspection-node";
 
 import { clearInbox, inbox } from "../acme/mail";
-import { approvalSummary, missions } from "../acme/person-server";
+import { approvalSummary, missions } from "../acme/approvals";
 import { PERSON_SERVER_URL } from "../origins";
 import {
   ACTOR_HEADER,

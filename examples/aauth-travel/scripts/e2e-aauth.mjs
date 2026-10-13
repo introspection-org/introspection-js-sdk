@@ -9,6 +9,10 @@
 //
 // The dev server must trust this script's agent provider:
 // TRUSTED_AGENT_PROVIDERS=https://cp.introspection.localhost,https://e2e-agents.localhost
+//
+// With PERSON_SERVER=hosted it plays the same agent against Introspection's
+// hosted Person Server (HOSTED_PERSON_SERVER_URL, tenant E2E_TENANT), which
+// must trust the provider too; Acme's approval app still takes the decisions.
 // Approvals read the code from the server log, where Acme prints its email
 // when RESEND_API_KEY is unset.
 import { createHash } from "node:crypto";
@@ -26,10 +30,16 @@ import { SignJWT, exportJWK, generateKeyPair, importJWK } from "jose";
 
 const BOOKING =
   process.env.BOOKING_ISSUER ?? "https://booking.flightsector.localhost";
-const PS = process.env.ACME_PERSON_SERVER_URL ?? "https://ps.acme.localhost";
+const ACME = process.env.ACME_PERSON_SERVER_URL ?? "https://ps.acme.localhost";
+const HOSTED = process.env.PERSON_SERVER === "hosted";
+const PS = HOSTED
+  ? (process.env.HOSTED_PERSON_SERVER_URL ??
+    "https://ps.introspection.localhost")
+  : ACME;
+const TENANT = HOSTED ? process.env.E2E_TENANT : undefined;
+const SAM_HINT = HOSTED ? "user:sam@acme.example" : "slack:T0ACME/U0SAM";
 const AP = process.env.E2E_AGENT_PROVIDER ?? "https://e2e-agents.localhost";
 const AP_PORT = 3499;
-const SAM = "slack:T0ACME/U0SAM";
 const LOG = process.env.E2E_SERVER_LOG;
 const TRIP =
   "# Sam's week in Sydney\n\nFlights and a hotel for Sam, 19 to 23 October, up to $3,000.";
@@ -110,7 +120,7 @@ async function approving(act, verdict = "approve", budget) {
   const offset = readFileSync(LOG, "utf8").length;
   const pending = act();
   let email = "";
-  for (let i = 0; i < 40 && !/Your code: \d{6}/.test(email); i++) {
+  for (let i = 0; i < 80 && !/Your code: \d{6}/.test(email); i++) {
     await new Promise((resolve) => setTimeout(resolve, 250));
     email = readFileSync(LOG, "utf8").slice(offset);
   }
@@ -120,7 +130,7 @@ async function approving(act, verdict = "approve", budget) {
     ?.split("/")
     .pop();
   check(code && id, "the approval email is in the server log");
-  const decided = await fetch(`${PS}/ps/approvals/${id}`, {
+  const decided = await fetch(`${ACME}/ps/approvals/${id}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ code, verdict, ...(budget ? { budget } : {}) }),
@@ -164,7 +174,8 @@ function reserve(agent, missionS256, chosen) {
   const fetchAs = createAAuthFetch({
     getKeyMaterial: agent.keyMaterial,
     personServerUrl: PS,
-    loginHint: SAM,
+    loginHint: SAM_HINT,
+    ...(TENANT ? { tenant: TENANT } : {}),
     ...(missionS256 ? { missionS256 } : {}),
     maxPollDuration: 60,
   });
@@ -180,6 +191,17 @@ function reserve(agent, missionS256, chosen) {
   });
 }
 
+const metadata = await (
+  await fetch(`${PS}/.well-known/aauth-person.json`)
+).json();
+const MISSIONS = metadata.mission_endpoint;
+const PERSON_TOKENS = metadata.person_token_endpoint;
+const asSam = (body) => ({
+  ...body,
+  login_hint: SAM_HINT,
+  ...(TENANT ? { tenant: TENANT } : {}),
+});
+
 const agent = await newAgent();
 let mission;
 
@@ -188,11 +210,11 @@ await scenario(
   async () => {
     const response = await approving(
       () =>
-        missionCall(agent, `${PS}/ps/mission`, {
-          description: TRIP,
-          resources: [BOOKING],
-          login_hint: SAM,
-        }),
+        missionCall(
+          agent,
+          MISSIONS,
+          asSam({ description: TRIP, resources: [BOOKING] }),
+        ),
       "approve",
       3000,
     );
@@ -203,8 +225,9 @@ await scenario(
       createHash("sha256").update(bytes).digest("base64url") === mission.s256,
       "s256 is the blob's hash",
     );
+    const blob = JSON.parse(bytes);
     check(
-      JSON.parse(bytes).budget_cents === 300000,
+      (blob.budget_cents ?? blob.budget?.amount) === 300000,
       "the blob carries the $3,000 Dana set",
     );
     check(
@@ -255,27 +278,29 @@ await scenario("outside a mission, Acme books nothing", async () => {
     (response) => `answered ${response.status}`,
     (err) => err.message,
   );
-  check(/only under an approved trip/.test(refused), `reserve ${refused}`);
+  check(
+    /only under an approved trip|only within a mission/.test(refused),
+    `reserve ${refused}`,
+  );
 });
 
 await scenario(
   "Sam accepts the trip as done, and the mission ends",
   async () => {
     const done = await approving(() =>
-      missionCall(agent, `${PS}/ps/mission/${mission.s256}`, {
+      missionCall(agent, `${MISSIONS}/${mission.s256}`, {
         action: "completion",
         summary: "Booked QF1 and the QT.",
+        ...(TENANT ? { tenant: TENANT } : {}),
       }),
     );
     check(done.ok, `completion answered ${done.status}`);
-    const again = await agent.ps(`${PS}/ps/person-token`, {
+    const again = await agent.ps(PERSON_TOKENS, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        resource: BOOKING,
-        mission_s256: mission.s256,
-        login_hint: SAM,
-      }),
+      body: JSON.stringify(
+        asSam({ resource: BOOKING, mission_s256: mission.s256 }),
+      ),
     });
     check(
       again.status === 403,

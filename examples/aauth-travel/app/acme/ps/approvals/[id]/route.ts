@@ -1,5 +1,5 @@
 /** The approver's answer from Acme's page, proven by the code Acme emailed. */
-import { decide } from "@/lib/acme/person-server";
+import { decide } from "@/lib/acme/approvals";
 import { AAuthError, respond } from "@/lib/aauth";
 import { recorded } from "@/lib/demo/wire";
 

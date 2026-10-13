@@ -29,7 +29,12 @@ import {
 } from "./aauth";
 import { record } from "./events";
 import { HttpError } from "./http";
-import { AGENT_PROVIDERS, BOOKING_ISSUER, PERSON_SERVER_URL } from "./origins";
+import {
+  AGENT_PROVIDERS,
+  BOOKING_ISSUER,
+  HOSTED_PERSON_SERVER_URL,
+  PERSON_SERVER_URL,
+} from "./origins";
 import { bookingSigner } from "./signing";
 import { type Flight, flights, hotels } from "./world";
 
@@ -40,10 +45,14 @@ const SCOPE = "booking.reserve";
 const RESERVE_URL = `${ISSUER}/v1/reserve`;
 /** The R3 vocabulary this provider describes bookings in. */
 const VOCABULARY = `${ISSUER}/r3/vocabulary`;
+const BUDGET_UNIT = { unit: "USD", decimals: 2 } as const;
 const OPERATION = { action: "reserve" };
 // Person Servers whose people this provider serves. Fetching an issuer's keys
 // is egress, so the list is closed.
-const PERSON_SERVERS = (process.env.BOOKING_PERSON_SERVERS || PERSON_SERVER_URL)
+const PERSON_SERVERS = (
+  process.env.BOOKING_PERSON_SERVERS ||
+  [PERSON_SERVER_URL, HOSTED_PERSON_SERVER_URL].filter(Boolean).join(",")
+)
   .split(",")
   .map((url) => url.trim().replace(/\/+$/, ""))
   .filter(Boolean);
@@ -64,6 +73,8 @@ export function resourceMetadata() {
       "Flights and hotels for company travel. Search is open; a reservation needs an auth token from the traveller's Person Server.",
     scope_descriptions: { [SCOPE]: "Reserve the quoted flight or hotel" },
     r3_vocabularies: [VOCABULARY],
+    // draft-hardt-aauth-budgets: each resource token's `budget` is its booking's price.
+    budget_units: [{ unit: BUDGET_UNIT.unit, decimals: BUDGET_UNIT.decimals }],
     additional_signature_components: ["content-type", "content-digest"],
   };
 }
@@ -371,6 +382,8 @@ async function propose(
     authorized: [ps],
   });
   const signer = await bookingSigner();
+  // The price, as a budgets-draft budget, so any Person Server can weigh it without reading R3.
+  const budget = { amount: Number(offer.total_cents), ...BUDGET_UNIT };
   const resourceToken = await createResourceToken(
     {
       resource: ISSUER,
@@ -383,7 +396,7 @@ async function propose(
       kid: signer.kid,
       r3: { uri: proposal.r3_uri, s256: proposal.r3_s256 },
     },
-    signer.signWithHeader,
+    (claims, header) => signer.signWithHeader({ ...claims, budget }, header),
   );
   record("booking.challenged", `asked ${ps} to approve ${booking.offer_id}`, {
     offer_id: booking.offer_id,

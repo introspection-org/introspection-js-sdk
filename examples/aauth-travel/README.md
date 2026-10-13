@@ -13,7 +13,12 @@ None of this is decided by the model, and the agent never holds a credential. It
 This example is the **Flight Sector side and the Acme side** of the demo, and the explainer. The platform side (Agent Provider, egress signing, missions, waiting on a `202`) lives in `introspection-cloud`; see `docs/design/connectors-aauth-b2b2c.md` §12.
 
 - **Booking provider** (`https://booking.flightsector.localhost`) is a native three-party AAuth resource on [`@aauth/resource`](https://www.npmjs.com/package/@aauth/resource). Search is open and every offer carries a quote it signs. A reservation presenting an agent token gets `401 requirement=person-token`; one presenting a person token gets `401 requirement=auth-token` and a resource token for an R3 proposal only the person's Person Server can read; one presenting an auth token for that proposal is booked.
-- **Acme's Person Server** (`https://ps.acme.localhost`) is Acme's system, not Flight Sector's. It has a mission endpoint, a person-token endpoint and a token endpoint. A trip's manager approves it by a six-digit emailed code (approval page at `/approve/{id}`); within the trip, Acme issues auth tokens until the budget runs out, and asks the manager again past it. It books nothing outside a mission.
+- **Acme's Person Server** is Acme's system, not Flight Sector's, and it runs one of two ways (`PERSON_SERVER`):
+  - `hosted`: Introspection's hosted Person Server (`https://ps.introspection.localhost`, introspection-cloud `connectors-aauth-b2b2c.md` §11) runs the protocol, the missions and their budgets, with Acme as its own tenant. Acme keeps the human side: its approval app (`lib/acme/hosted.ts`) lists what is waiting at `/v1/approvals` with its project's key, emails the approver a code, and records the answer.
+  - `acme`: Acme runs its own (`https://ps.acme.localhost`, `lib/acme/person-server.ts`), as a Business that brings its own Person Server would.
+
+  Either way the trip's manager approves it, budget and all, by a six-digit emailed code (page at `/approve/{id}`). Within the trip, an auth token is issued for each booking whose price (the resource token's `budget`) fits what is left, and anything over goes back to the manager. Nothing books outside a mission.
+
 - **The walkthrough** (`https://flightsector.localhost`) covers every step of the flow, beside the code behind it. Steps light up as these services see traffic. `WALKTHROUGH.md` is the same thing as a document.
 
 The agent itself is the public [travel-agent recipe](https://github.com/introspection-org/recipe-travel-agent). The walkthrough reads it from GitHub at the commit pinned in `flow/recipe.mjs`; while that repository is private, set `GITHUB_TOKEN` for the page to show its code.
