@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import type { MemberCreateParams } from "@introspection-sdk/introspection-node";
 import {
   HttpClient,
   IntrospectionClient,
@@ -102,6 +103,97 @@ describe("MembersApi", () => {
         metadata: { plan: "enterprise" },
       },
     });
+  });
+
+  it("create() POSTs policy attributes", async () => {
+    const http = mockHttp({
+      requestResult: { ...MEMBER_FIXTURE, policy_attributes: { level: 6 } },
+    });
+    const member = await new MembersApi(http).create({
+      email: "ada@example.com",
+      name: "Ada Lovelace",
+      policy_attributes: { level: 6 },
+    });
+
+    expect(http.request).toHaveBeenCalledWith({
+      method: "POST",
+      path: "/v1/members",
+      body: {
+        email: "ada@example.com",
+        name: "Ada Lovelace",
+        policy_attributes: { level: 6 },
+      },
+    });
+    expect(member.policy_attributes).toEqual({ level: 6 });
+  });
+
+  it("update() PATCHes policy attributes", async () => {
+    const http = mockHttp({
+      requestResult: {
+        ...MEMBER_FIXTURE,
+        policy_attributes: { level: 7, region: "emea" },
+      },
+    });
+    const member = await new MembersApi(http).update(MEMBER_ID, {
+      policy_attributes: { level: 7, region: "emea" },
+    });
+
+    expect(http.request).toHaveBeenCalledWith({
+      method: "PATCH",
+      path: `/v1/members/${MEMBER_ID}`,
+      body: { policy_attributes: { level: 7, region: "emea" } },
+    });
+    expect(member.policy_attributes).toEqual({ level: 7, region: "emea" });
+  });
+
+  it("create() POSTs a customer member keyed by external_user_id", async () => {
+    const http = mockHttp({
+      requestResult: {
+        ...MEMBER_FIXTURE,
+        member_type: "customer",
+        external_user_id: "user:abc",
+      },
+    });
+    const member = await new MembersApi(http).create({
+      member_type: "customer",
+      external_user_id: "user:abc",
+      policy_attributes: { level: 6 },
+    });
+
+    expect(http.request).toHaveBeenCalledWith({
+      method: "POST",
+      path: "/v1/members",
+      body: {
+        member_type: "customer",
+        external_user_id: "user:abc",
+        policy_attributes: { level: 6 },
+      },
+    });
+    expect(member.member_type).toBe("customer");
+  });
+
+  it("create() params narrow on member_type", () => {
+    const business: MemberCreateParams = {
+      email: "ada@example.com",
+      name: "Ada Lovelace",
+      role: "admin",
+    };
+    const customer: MemberCreateParams = {
+      member_type: "customer",
+      external_user_id: "anon:xyz",
+    };
+    // @ts-expect-error a business member needs an email
+    const noEmail: MemberCreateParams = { name: "Ada Lovelace" };
+    // @ts-expect-error a customer member needs an external_user_id
+    const noExternalId: MemberCreateParams = { member_type: "customer" };
+    const noRole: MemberCreateParams = {
+      member_type: "customer",
+      external_user_id: "user:abc",
+      // @ts-expect-error a customer member takes no role
+      role: "admin",
+    };
+
+    expect([business, customer, noEmail, noExternalId, noRole]).toHaveLength(5);
   });
 
   it("get() reads one member", async () => {

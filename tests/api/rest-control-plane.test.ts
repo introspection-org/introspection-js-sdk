@@ -82,7 +82,6 @@ const CONNECTOR = {
   environment: "production",
   scopes: ["chat:write"],
   api_hosts: ["slack.com"],
-  approval_policy: "human",
   status: "active",
   requires_runtime: true,
 };
