@@ -2,6 +2,7 @@
 // a mission, using the official agent library (@aauth/agent). This is what the
 // platform's egress does for a sandboxed agent.
 //
+//   pnpm e2e   (starts the dev server and runs this; or by hand:)
 //   pnpm dev > /tmp/aauth-travel.log 2>&1 &
 //   portless alias e2e-agents 3499 --force
 //   E2E_SERVER_LOG=/tmp/aauth-travel.log NODE_EXTRA_CA_CERTS=~/.portless/ca.pem \
