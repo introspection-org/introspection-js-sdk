@@ -97,8 +97,11 @@ Every party is its own AAuth server, and an AAuth server identifier is `https://
 
 ```bash
 pnpm install
-pnpm --filter introspection-example-aauth-travel dev   # https://flightsector.localhost
+pnpm --filter introspection-example-aauth-travel setup   # once: portless on :443, asks for sudo
+pnpm --filter introspection-example-aauth-travel dev     # https://flightsector.localhost
 ```
+
+`setup` reads the stack the `introspection` CLI is logged in to (`introspection whoami`). Against a local stack it installs portless as a startup service on `:443`, which needs root once on macOS because the proxy listens on loopback, trusts its CA, and syncs `/etc/hosts`. Re-running it is safe.
 
 Without `RESEND_API_KEY`, Dana's email, with its code, is printed to this app's console.
 
@@ -109,10 +112,12 @@ Without `RESEND_API_KEY`, Dana's email, with its code, is printed to this app's 
 Run it against the local stack in `introspection-cloud`:
 
 ```bash
-make dev-aauth-demo        # AAuth agent and policy gate on in the local egress
+make dev-aauth-demo        # AAuth agent and policy gate on in the local egress; then restart make dev
 make seed-applications seed-travel-agent
 make seed-aauth-demo       # booking connector, the browserbase MCP, Sam, and this app's .env.local
 ```
+
+Run `setup` and `pnpm install` here first: `make dev-aauth-demo` registers `cp.introspection` and `ps.introspection` with this app's portless. `seed-travel-agent` pins the recipe's `main`; set `TRAVEL_AGENT_GIT_REF` to try a branch. `seed-aauth-demo` uses the DP's hosted Person Server; `PERSON_SERVER_MODE=acme` uses this app's own instead.
 
 `seed-aauth-demo` binds the `browserbase` MCP (the mock here, or Browserbase's hosted MCP when `BROWSERBASE_API_KEY` is set), and writes `INTROSPECTION_BASE_API_URL`, `INTROSPECTION_RUNTIME` and `DEMO_SAM_USER_ID` here, and `INTROSPECTION_TOKEN` when it can mint a project API key; otherwise add one by hand. Acme's Person Server knows Sam as `user:sam@acme.example`, the key the platform gives a runner identity.
 
