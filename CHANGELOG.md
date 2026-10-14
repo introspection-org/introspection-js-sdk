@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.32.0](https://github.com/introspection-org/introspection-js-sdk/compare/v0.31.0...v0.32.0) (2026-10-14)
+
+
+### ⚠ BREAKING CHANGES
+
+* **connectors:** Connector.approval_policy and Connector.person_server_mode are removed, along with the ConnectorApprovalPolicy and ConnectorPersonServerMode types and the matching create params. The control plane no longer serves or accepts them.
+
+### Features
+
+* **browser:** send ?project_id= so the DP picks the session cookie for the connected project ([#456](https://github.com/introspection-org/introspection-js-sdk/issues/456)) ([202ecda](https://github.com/introspection-org/introspection-js-sdk/commit/202ecdae2b9b4b4005b653f277b69cbf162416b1))
+* **connectors:** AAuth connectors with Cedar policy entities, and member policy attributes ([#458](https://github.com/introspection-org/introspection-js-sdk/issues/458)) ([69e0951](https://github.com/introspection-org/introspection-js-sdk/commit/69e095143b2efeaa055cc5a341c20e36dd6edf1f))
+* **proxy:** route proxy-native runtimes through HTTPS_PROXY ([#442](https://github.com/introspection-org/introspection-js-sdk/issues/442)) ([df43c00](https://github.com/introspection-org/introspection-js-sdk/commit/df43c00a075dab86da3038c279422edd984c428b))
+
+
+### Bug Fixes
+
+* declare repository on each published package for npm provenance ([#445](https://github.com/introspection-org/introspection-js-sdk/issues/445)) ([1d7c8ad](https://github.com/introspection-org/introspection-js-sdk/commit/1d7c8ad5727dd7f66503080d651cd51aeabd897e))
+* **node:** honour HTTPS_PROXY on REST calls and name the host in network errors ([#457](https://github.com/introspection-org/introspection-js-sdk/issues/457)) ([117d710](https://github.com/introspection-org/introspection-js-sdk/commit/117d710e59fa7cf5a936e4c8df22c343e74654cc))
+
 ## [0.31.0](https://github.com/introspection-org/introspection-js-sdk/compare/v0.30.0...v0.31.0) (2026-10-12)
 
 
