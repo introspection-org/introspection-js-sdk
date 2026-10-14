@@ -1,21 +1,21 @@
-// Plays the agent against a running `pnpm dev`, end to end over AAuth -11 with
-// a mission, using the official agent library (@aauth/agent). This is what the
-// platform's egress does for a sandboxed agent.
+// `pnpm e2e`: the whole AAuth flow with no Introspection backend. This script
+// plays the agent with the official agent library (@aauth/agent), as the
+// platform's egress does for a sandboxed agent, from a test Agent Provider of
+// its own. The app supplies the other parties: Flight Sector's booking
+// provider and Acme's Person Server. It checks the protocol between them, not
+// an agent: no model, recipe or Cedar rails run here.
 //
-//   pnpm e2e   (starts the dev server and runs this; or by hand:)
-//   pnpm dev > /tmp/aauth-travel.log 2>&1 &
-//   portless alias e2e-agents 3499 --force
-//   E2E_SERVER_LOG=/tmp/aauth-travel.log NODE_EXTRA_CA_CERTS=~/.portless/ca.pem \
-//     node scripts/e2e-aauth.mjs
+// Every party is named by an https URL with no port, so the script gives each
+// a free Cloudflare quick tunnel (`brew install cloudflared`), starts the app
+// with those URLs, runs the scenarios and stops it all. Approvals read the
+// code from the app's log, where Acme prints its email when RESEND_API_KEY is
+// unset.
 //
-// The dev server must trust this script's agent provider:
-// TRUSTED_AGENT_PROVIDERS=https://cp.introspection.localhost,https://e2e-agents.localhost
-//
-// With PERSON_SERVER=hosted it plays the same agent against Introspection's
-// hosted Person Server (HOSTED_PERSON_SERVER_URL, tenant E2E_TENANT), which
-// must trust the provider too; Acme's approval app still takes the decisions.
-// Approvals read the code from the server log, where Acme prints its email
-// when RESEND_API_KEY is unset.
+// With E2E_SERVER_LOG set it uses an app you started instead, at the parties'
+// URLs in the environment. With PERSON_SERVER=hosted it plays the agent
+// against Introspection's hosted Person Server (HOSTED_PERSON_SERVER_URL,
+// tenant E2E_TENANT), which must trust the provider.
+import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { createServer } from "node:http";
@@ -29,6 +29,83 @@ import {
 } from "@aauth/agent";
 import { SignJWT, exportJWK, generateKeyPair, importJWK } from "jose";
 
+const APP_PORT = 3400;
+const AP_PORT = 3499;
+const children = [];
+const stop = () => children.forEach((child) => child.kill());
+process.on("exit", stop);
+
+/** A quick tunnel to `port`; resolves with its https URL. */
+function tunnel(port) {
+  const child = spawn(
+    "cloudflared",
+    ["tunnel", "--no-autoupdate", "--url", `http://localhost:${port}`],
+    { stdio: ["ignore", "ignore", "pipe"] },
+  );
+  children.push(child);
+  return new Promise((resolve, reject) => {
+    child.on("error", () =>
+      reject(new Error("install cloudflared first: brew install cloudflared")),
+    );
+    child.stderr.on("data", (chunk) => {
+      const url = String(chunk).match(
+        /https:\/\/[a-z0-9-]+\.trycloudflare\.com/,
+      )?.[0];
+      if (url) resolve(url);
+    });
+  });
+}
+
+/** Wait until `url` answers, through a tunnel that may still be propagating. */
+async function reachable(url) {
+  for (let i = 0; i < 90; i++) {
+    try {
+      if ((await fetch(url)).ok) return;
+    } catch {
+      // not yet
+    }
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+  }
+  throw new Error(`${url} did not answer`);
+}
+
+if (!process.env.E2E_SERVER_LOG) {
+  const [booking, acme, provider] = await Promise.all([
+    tunnel(APP_PORT),
+    tunnel(APP_PORT),
+    tunnel(AP_PORT),
+  ]);
+  const log = join(tmpdir(), `aauth-travel-e2e-${process.pid}.log`);
+  writeFileSync(log, "");
+  Object.assign(process.env, {
+    BOOKING_ISSUER: booking,
+    ACME_PERSON_SERVER_URL: acme,
+    E2E_AGENT_PROVIDER: provider,
+    E2E_SERVER_LOG: log,
+  });
+  const app = spawn(
+    "node_modules/.bin/next",
+    ["dev", "--turbopack", "--port", String(APP_PORT)],
+    {
+      env: {
+        ...process.env,
+        APP_URL: `http://localhost:${APP_PORT}`,
+        PERSON_SERVER: "acme",
+        TRUSTED_AGENT_PROVIDERS: provider,
+      },
+      stdio: ["ignore", "pipe", "pipe"],
+    },
+  );
+  children.push(app);
+  const append = (chunk) => writeFileSync(log, chunk, { flag: "a" });
+  app.stdout.on("data", append);
+  app.stderr.on("data", append);
+  console.log(`booking ${booking}\nacme    ${acme}\nagents  ${provider}\n`);
+  await reachable(`http://localhost:${APP_PORT}/`);
+  await reachable(`${booking}/.well-known/aauth-resource.json`);
+  await reachable(`${acme}/.well-known/aauth-person.json`);
+}
+
 const BOOKING =
   process.env.BOOKING_ISSUER ?? "https://booking.flightsector.localhost";
 const ACME = process.env.ACME_PERSON_SERVER_URL ?? "https://ps.acme.localhost";
@@ -40,7 +117,6 @@ const PS = HOSTED
 const TENANT = HOSTED ? process.env.E2E_TENANT : undefined;
 const SAM_HINT = HOSTED ? "user:sam@acme.example" : "slack:T0ACME/U0SAM";
 const AP = process.env.E2E_AGENT_PROVIDER ?? "https://e2e-agents.localhost";
-const AP_PORT = 3499;
 const LOG = process.env.E2E_SERVER_LOG;
 const TRIP =
   "# Sam's week in Sydney\n\nFlights and a hotel for Sam, 19 to 23 October, up to $3,000.";
@@ -60,7 +136,7 @@ async function scenario(name, run) {
   }
 }
 
-// The test agent provider, served on :3499 behind portless.
+// The test agent provider, served on :3499 behind its tunnel.
 // Its key is kept across runs: verifiers cache an issuer's keys.
 const AP_KEY_FILE = join(tmpdir(), "aauth-travel-e2e-agent-provider.json");
 const apPrivate = existsSync(AP_KEY_FILE)
@@ -96,7 +172,7 @@ async function newAgent() {
   const jwt = await new SignJWT({
     iss: AP,
     dwk: "aauth-agent.json",
-    sub: "aauth:travel@e2e-agents.localhost",
+    sub: `aauth:travel@${new URL(AP).hostname}`,
     ps: PS,
     jti: crypto.randomUUID(),
     iat,
@@ -311,6 +387,7 @@ await scenario(
 );
 
 ap.close();
+stop();
 const failed = results.filter((r) => !r.ok);
 console.log(`\n${results.length - failed.length} of ${results.length} passed`);
 process.exit(failed.length ? 1 : 0);

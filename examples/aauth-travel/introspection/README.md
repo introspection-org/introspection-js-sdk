@@ -1,6 +1,6 @@
 # Introspection inputs
 
-What `pnpm run introspection:setup` creates in your project, as the request
+What `pnpm dev` creates in your Introspection project, as the request
 documents the `introspection` CLI sends. Edit them to change the demo.
 
 - `booking.json`: the booking provider as an AAuth connector

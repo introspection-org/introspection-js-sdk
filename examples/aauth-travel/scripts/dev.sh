@@ -1,0 +1,283 @@
+#!/usr/bin/env bash
+# `pnpm dev`: the Flight Sector demo app on :3400, its parties on public https
+# URLs, and your Introspection project set up to use them.
+#
+# Which Introspection it connects to is whichever stack `introspection login`
+# chose: staging, production, or your own. Not logged in, the app runs alone.
+#
+# Public URLs come from free Cloudflare quick tunnels (`brew install
+# cloudflared`), new each run; the project follows them. With
+# FLIGHTSECTOR_DOMAIN=example.dev they are a named tunnel's hosts on that
+# domain instead, the same every run (`cloudflared tunnel login` once).
+#
+# The project setup, the first time on a stack (safe to re-run):
+#   1. the agent: a repository Introspection hosts, seeded from the public
+#      travel-agent recipe, and its runtime
+#   2. flight search: Browserbase's hosted MCP with BROWSERBASE_API_KEY set,
+#      otherwise this app's mock
+#   3. the agent's application, and the booking provider as an AAuth connector
+#      (introspection/booking.json)
+#   4. Sam, the traveller, as a customer member (introspection/sam.json)
+#   5. a project key for the demo page and Acme's approval app, in .env.local
+# Later runs only point the connector and the mock at the new URLs.
+#
+# Env:
+#   PERSON_SERVER        hosted (default): Introspection's hosted Person Server
+#                        speaks for Acme. acme: Acme's own, served by this app.
+#   BROWSERBASE_API_KEY  real flight searches through Browserbase's hosted MCP
+#   FLIGHTSECTOR_DOMAIN  a domain in your Cloudflare account, for stable URLs
+#   RECIPE_URL           the recipe to seed from (default the public one)
+set -euo pipefail
+cd "$(dirname "$0")/.."
+
+PORT=3400
+ENV_FILE=.env.local
+WORK=.introspection-work
+RUNTIME=travel-agent
+RECIPE_URL="${RECIPE_URL:-https://github.com/introspection-org/recipe-travel-agent.git}"
+SAM_USER_ID=sam@acme.example
+
+say() { echo "[dev] $*"; }
+fail() {
+  echo "[dev] $*" >&2
+  exit 1
+}
+
+upsert_env() {
+  touch "$ENV_FILE"
+  if grep -q "^$1=" "$ENV_FILE"; then
+    local escaped
+    escaped="$(printf '%s' "$2" | sed 's/[&|\\]/\\&/g')"
+    sed -i.bak "s|^$1=.*|$1=$escaped|" "$ENV_FILE" && rm -f "$ENV_FILE.bak"
+  else
+    printf '%s=%s\n' "$1" "$2" >>"$ENV_FILE"
+  fi
+}
+
+remove_env() {
+  [ -f "$ENV_FILE" ] || return 0
+  sed -i.bak "/^$1=/d" "$ENV_FILE" && rm -f "$ENV_FILE.bak"
+}
+
+read_env() {
+  if [ -f "$ENV_FILE" ]; then
+    awk -F= -v key="$1" '$1 == key { sub(/^[^=]*=/, ""); print; exit }' "$ENV_FILE"
+  fi
+}
+
+# `json EXPR`: evaluate EXPR against the JSON on stdin (as `v`) and print it.
+json() {
+  node -e '
+    let s = "";
+    process.stdin.on("data", (d) => (s += d)).on("end", () => {
+      const v = JSON.parse(s);
+      const r = new Function("v", "return " + process.argv[1])(v);
+      if (r !== undefined && r !== null) console.log(typeof r === "string" ? r : JSON.stringify(r));
+    });
+  ' "$1"
+}
+
+# ---------------------------------------------------------------------------
+# Public URLs
+# ---------------------------------------------------------------------------
+
+command -v cloudflared >/dev/null 2>&1 || fail "install cloudflared first: brew install cloudflared"
+MODE="${PERSON_SERVER:-$(read_env PERSON_SERVER)}"
+MODE="${MODE:-hosted}"
+case "$MODE" in hosted | acme) ;; *) fail "PERSON_SERVER is hosted or acme" ;; esac
+
+PIDS=()
+trap 'kill "${PIDS[@]}" 2>/dev/null || true' EXIT
+
+# A quick tunnel to the app, its URL set in the variable named $1. Not run in
+# a subshell, so its pid reaches the trap.
+quick_tunnel() {
+  local log url=""
+  log="$(mktemp -t flightsector-tunnel)"
+  cloudflared tunnel --no-autoupdate --url "http://localhost:$PORT" >"$log" 2>&1 &
+  PIDS+=($!)
+  for _ in $(seq 60); do
+    url="$(grep -oE 'https://[a-z0-9-]+\.trycloudflare\.com' "$log" | head -1 || true)"
+    [ -n "$url" ] && break
+    sleep 1
+  done
+  [ -n "$url" ] || fail "the tunnel did not start; its log: $log"
+  printf -v "$1" '%s' "$url"
+}
+
+# Each party has a host of its own: the egress keys what it does on a request
+# by host, and the app tells the parties apart by it.
+if [ -n "${FLIGHTSECTOR_DOMAIN:-}" ]; then
+  NAME="${FLIGHTSECTOR_TUNNEL:-flightsector}"
+  cloudflared tunnel info "$NAME" >/dev/null 2>&1 || cloudflared tunnel create "$NAME" >/dev/null
+  BOOKING="https://booking.flightsector.${FLIGHTSECTOR_DOMAIN}"
+  MOCK="https://browserbase.flightsector.${FLIGHTSECTOR_DOMAIN}"
+  ACME="https://ps.flightsector.${FLIGHTSECTOR_DOMAIN}"
+  for url in "$BOOKING" "$MOCK" "$ACME"; do
+    cloudflared tunnel route dns --overwrite-dns "$NAME" "${url#https://}" >/dev/null
+  done
+  # --url sends every hostname routed to the tunnel to the app.
+  cloudflared tunnel --no-autoupdate run --url "http://localhost:$PORT" "$NAME" >"$(mktemp -t flightsector-tunnel)" 2>&1 &
+  PIDS+=($!)
+else
+  quick_tunnel BOOKING
+  quick_tunnel MOCK
+  ACME=""
+  if [ "$MODE" = acme ]; then quick_tunnel ACME; fi
+fi
+
+upsert_env APP_URL "http://localhost:$PORT"
+upsert_env BOOKING_ISSUER "$BOOKING"
+upsert_env BROWSERBASE_MCP_URL "$MOCK"
+if [ "$MODE" = acme ]; then upsert_env ACME_PERSON_SERVER_URL "$ACME"; fi
+say "booking provider: $BOOKING"
+
+# The app starts first: the runtime's first build reaches the mock it serves.
+node_modules/.bin/next dev --turbopack --port "$PORT" &
+PIDS+=($!)
+APP=$!
+for _ in $(seq 90); do
+  curl -s -o /dev/null "http://localhost:$PORT/" && break
+  sleep 1
+done
+
+# ---------------------------------------------------------------------------
+# The Introspection project
+# ---------------------------------------------------------------------------
+
+apply_connector() {
+  local metadata
+  metadata="$(node -e '
+    const [resource, tenant] = process.argv.slice(1);
+    const m = { aauth_resource: resource, aauth_upstream: resource };
+    if (tenant) m.aauth_tenant = tenant;
+    console.log(JSON.stringify(m));
+  ' "$BOOKING" "$TENANT")"
+  introspection connectors create @introspection/booking.json \
+    --person-server-url "$PERSON_SERVER_URL" \
+    --application-id "$(read_env AGENT_APPLICATION_ID)" \
+    --metadata "$metadata" >/dev/null
+  say "booking connector → $BOOKING, approvals by $PERSON_SERVER_URL"
+}
+
+# The key is a write-only credential the egress injects; it reaches the CLI on
+# stdin or from the environment, never in argv.
+bind_flight_search() {
+  local mcp_url
+  if [ -n "${BROWSERBASE_API_KEY:-}" ]; then
+    mcp_url="https://mcp.browserbase.com/mcp"
+    introspection bindings credentials create -r "$RUNTIME" --name BROWSERBASE_API_KEY \
+      --from-env BROWSERBASE_API_KEY >/dev/null 2>&1 || true
+  else
+    mcp_url="$MOCK/mcp"
+    printf 'mock-browserbase-key' | introspection bindings credentials create -r "$RUNTIME" \
+      --name BROWSERBASE_API_KEY --from-stdin >/dev/null 2>&1 || true
+  fi
+  introspection bindings mcp connect -r "$RUNTIME" --mcp-server-id browserbase \
+    --endpoint-url "$mcp_url" --header 'Authorization=Bearer ${BROWSERBASE_API_KEY}' >/dev/null
+  say "flight search → $mcp_url"
+}
+
+full_setup() {
+  mkdir -p "$WORK"
+
+  # 1. The agent.
+  if introspection runtimes list -o json | json "v.some((r) => r.slug === '$RUNTIME')" | grep -q true; then
+    say "runtime $RUNTIME exists"
+  else
+    if ! introspection repositories list -o json | json "v.some((r) => r.slug === '$RUNTIME')" | grep -q true; then
+      say "seeding a repository from $RECIPE_URL"
+      introspection repositories add "$RUNTIME" --provider introspection --template "$RECIPE_URL" >/dev/null
+    fi
+    rm -rf "${WORK:?}/$RUNTIME"
+    git clone -q "$(introspection repositories list -o json | json "v.find((r) => r.slug === '$RUNTIME').url")" "$WORK/$RUNTIME"
+    say "creating the $RUNTIME runtime"
+    (cd "$WORK/$RUNTIME" && introspection runtimes create --yes >/dev/null)
+  fi
+
+  # 2. Flight search.
+  bind_flight_search
+
+  # 3. The application whose client id is the agent's AAuth identity, and the connector.
+  local app_name="Flight Sector agent" app_id
+  app_id="$(introspection applications list -o json | json "(v.records ?? v).find((a) => a.name === '$app_name')?.id")"
+  if [ -z "$app_id" ]; then
+    app_id="$(introspection applications create --type service-account --name "$app_name" -o json | json 'v.id ?? v.application?.id')"
+  fi
+  [ -n "$app_id" ] || fail "could not create the $app_name application"
+  upsert_env AGENT_APPLICATION_ID "$app_id"
+  apply_connector
+
+  # 4. Sam, before his first session, so the rails can read his seniority.
+  introspection members create @introspection/sam.json >/dev/null
+  say "Sam is user:$SAM_USER_ID"
+
+  # 5. One project key for the demo page and Acme's approval app.
+  if [ -z "$(read_env INTROSPECTION_TOKEN)" ]; then
+    local key_file="$WORK/api-key" key
+    rm -f "$key_file"
+    introspection api-keys create --name "Flight Sector demo" --secret-file "$key_file" >/dev/null
+    key="$(cat "$key_file")"
+    rm -f "$key_file"
+    upsert_env INTROSPECTION_TOKEN "$key"
+    upsert_env ACME_INTROSPECTION_TOKEN "$key"
+  fi
+  upsert_env INTROSPECTION_BASE_API_URL "$CP_URL"
+  upsert_env INTROSPECTION_RUNTIME "$RUNTIME"
+  upsert_env DEMO_SAM_USER_ID "$SAM_USER_ID"
+  upsert_env TRUSTED_AGENT_PROVIDERS "$AGENT_PROVIDER"
+  upsert_env PERSON_SERVER "$MODE"
+  if [ "$MODE" = hosted ]; then
+    upsert_env HOSTED_PERSON_SERVER_URL "$PERSON_SERVER_URL"
+    upsert_env ACME_INTROSPECTION_URL "$DP_URL"
+    upsert_env ACME_ORG_ID "$ORG_ID"
+  fi
+}
+
+connect() {
+  command -v introspection >/dev/null 2>&1 || return 1
+  local whoami
+  whoami="$(introspection whoami 2>/dev/null)" || return 1
+  [ "$(json 'v.logged_in' <<<"$whoami")" = true ] || return 1
+  introspection members --help >/dev/null 2>&1 ||
+    fail "this introspection CLI predates \`members\`; upgrade it: introspection upgrade"
+  CP_URL="$(json 'v.cp_url' <<<"$whoami")"
+  DP_URL="$(json 'v.dp_url' <<<"$whoami")"
+  ORG_ID="$(json 'v.org_id' <<<"$whoami")"
+  local project_id
+  project_id="$(json 'v.project_id' <<<"$whoami")"
+
+  # The platform as Agent Provider, which the booking provider and Acme trust,
+  # and the Person Server that speaks for Acme.
+  AGENT_PROVIDER="$(curl -fsS "$CP_URL/.well-known/aauth-agent.json" | json 'v.issuer')" ||
+    fail "$CP_URL serves no Agent Provider: AAuth is not enabled on this stack"
+  if [ "$MODE" = hosted ]; then
+    PERSON_SERVER_URL="$(curl -fsS "$DP_URL/.well-known/aauth-person.json" | json 'v.issuer')" ||
+      fail "$DP_URL serves no hosted Person Server; restart with PERSON_SERVER=acme to use Acme's own"
+    TENANT="$ORG_ID:$project_id"
+  else
+    PERSON_SERVER_URL="$ACME"
+    TENANT=""
+  fi
+
+  # Set up on another stack (or never): set this one up from the start.
+  if [ "$(read_env INTROSPECTION_BASE_API_URL)" != "$CP_URL" ]; then
+    for key in INTROSPECTION_TOKEN ACME_INTROSPECTION_TOKEN AGENT_APPLICATION_ID; do remove_env "$key"; done
+  fi
+  if [ -n "$(read_env AGENT_APPLICATION_ID)" ] && [ -n "$(read_env INTROSPECTION_TOKEN)" ]; then
+    apply_connector
+    bind_flight_search
+  else
+    say "setting up your project on $CP_URL"
+    full_setup
+  fi
+  return 0
+}
+
+if connect; then
+  say "demo: http://localhost:$PORT/demo"
+else
+  say "not connected to Introspection: run \`introspection login\`, then restart pnpm dev."
+  say "meanwhile: http://localhost:$PORT (the walkthrough); pnpm e2e plays the agent without Introspection."
+fi
+wait "$APP"

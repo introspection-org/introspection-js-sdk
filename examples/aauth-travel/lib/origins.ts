@@ -1,8 +1,8 @@
 /**
  * Where each party in the demo lives. One Next.js process serves all of them,
  * but each is its own AAuth server with its own identifier, and an identifier
- * is `https://host` with no port or path. Locally, portless gives each name a
- * trusted https host on this one process (see package.json).
+ * is `https://host` with no port or path. `pnpm dev` gives each a public https
+ * URL through a Cloudflare tunnel, all served by this one process.
  */
 const trim = (url: string) => url.replace(/\/+$/, "");
 

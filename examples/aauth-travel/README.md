@@ -4,52 +4,42 @@ Flight Sector books work travel for other companies' employees. An employee mess
 
 The agent holds no credential and the model decides nothing: every booking runs on [AAuth](https://github.com/dickhardt/AAuth) (-11, three-party, with a mission), checked first by Flight Sector's Cedar rails in the platform's egress. [HOW-IT-WORKS.md](./HOW-IT-WORKS.md) covers the parties and the flow; [WALKTHROUGH.md](./WALKTHROUGH.md) steps through the code.
 
-## Quick start
+## Run it
 
-Needs Node 24 and pnpm. From this folder:
-
-```bash
-pnpm install
-pnpm dev    # https://flightsector.localhost: the walkthrough
-pnpm e2e    # the whole AAuth flow, with a script playing the agent (stop pnpm dev first)
-```
-
-The first run asks for your password once: every party is named `https://host` with no port, so it installs [portless](https://github.com/vercel-labs/portless) as a startup service on `:443` and trusts its local CA. Without `RESEND_API_KEY`, Dana's emails, with their codes, print to the console.
-
-> **No agent runs in the quick start.** `pnpm e2e` is a script making the requests the platform's egress would make for the agent: it exercises the booking provider and Acme's Person Server, with no model, no recipe and no Cedar rails. The walkthrough only reads the recipe's code from GitHub to show it. The real agent, the [travel-agent recipe](https://github.com/introspection-org/recipe-travel-agent), runs only on Introspection, because its egress is what holds the agent's identity and signs its requests; that is the next section.
-
-## With the agent, on Introspection
-
-This is where the agent runs: the [travel-agent recipe](https://github.com/introspection-org/recipe-travel-agent) becomes a runtime in your Introspection project, and `/demo` is Sam's chat with it, beside what every party saw. You need the `introspection` CLI, an account, and [`cloudflared`](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/downloads/) (`brew install cloudflared`); no domain and no Cloudflare account.
+You need Node 24, pnpm, [`cloudflared`](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/downloads/) (`brew install cloudflared`) and an Introspection account. No domain and no Cloudflare account.
 
 ```bash
 npm install -g @introspection-ai/cli
-introspection login                  # your organization and project
+introspection login          # your organization and project
 pnpm install
-pnpm dev:public                      # leave running: the app, and a public URL for the booking provider
-pnpm run introspection:setup         # in a second terminal
+pnpm dev
 ```
 
-Then open `http://localhost:3400/demo` and send a sample prompt as Sam.
+Then open `http://localhost:3400/demo` and send a sample prompt as Sam. Without `RESEND_API_KEY`, Dana's emails, with their codes, appear on the page and in the console.
 
-`dev:public` serves the app on `:3400` and gives the booking provider a public https URL through a free Cloudflare tunnel, since the platform's egress and Person Server call it. `introspection:setup` uses the CLI to set up your project, and is safe to re-run:
+`pnpm dev` serves the app on `:3400`, gives the booking provider and the Browserbase mock public https URLs through free Cloudflare tunnels (the platform's egress and Person Server call them), and sets up your project on whichever Introspection `introspection login` chose. The first time on a stack it creates:
 
-1. **The agent:** a repository Introspection hosts, seeded from the public recipe, and its runtime.
+1. **The agent:** a repository Introspection hosts, seeded from the public [travel-agent recipe](https://github.com/introspection-org/recipe-travel-agent), and its runtime.
 2. **Flight search:** Browserbase's hosted MCP with `BROWSERBASE_API_KEY` set, otherwise this app's mock.
 3. **The booking provider** as an AAuth connector, from [`introspection/booking.json`](./introspection/booking.json), acting as a new `Flight Sector agent` application.
 4. **Sam** as a customer member with the seniority the recipe's rules read, from [`introspection/sam.json`](./introspection/sam.json).
-5. **A project API key** for the demo page and Acme's approval app, written to `.env.local` with the rest of the settings.
+5. **A project API key** for the demo page and Acme's approval app, in `.env.local` with the rest of the settings.
+
+After that each run only points the connector and the mock at its new URLs.
 
 Options:
 
-- `FLIGHTSECTOR_DOMAIN=example.dev pnpm dev:public` uses a named tunnel at `booking.flightsector.example.dev`, the same every run, on a domain in your Cloudflare account (`cloudflared tunnel login` once). Without it the URL changes each run, and `dev:public` re-points the connector by itself.
-- `PERSON_SERVER=acme` (for both commands) has Acme run its own Person Server here, built on [`@introspection-sdk/person-server`](../../packages/introspection-person-server), instead of Introspection's hosted one.
+- `FLIGHTSECTOR_DOMAIN=example.dev pnpm dev` uses a named tunnel on a domain in your Cloudflare account (`cloudflared tunnel login` once), so the URLs stay the same every run.
+- `PERSON_SERVER=acme pnpm dev` has Acme run its own Person Server here, built on [`@introspection-sdk/person-server`](../../packages/introspection-person-server), instead of Introspection's hosted one.
 
-[HOW-IT-WORKS.md](./HOW-IT-WORKS.md#configuring-it-on-introspection) shows each step as the CLI command it runs.
+[HOW-IT-WORKS.md](./HOW-IT-WORKS.md) covers the parties, the flow, and each setup step as the CLI command it runs.
+
+## Without Introspection
+
+`pnpm e2e` checks the AAuth protocol between the booking provider and Acme's Person Server with no backend: a script plays the agent, signing its requests the way the platform's egress would, from a test Agent Provider of its own. No model, recipe or rules run; it is a protocol test, not the demo.
 
 ## When it doesn't work
 
-- **Certificate errors:** `pnpm exec portless doctor` should show the proxy on `:443` and its CA trusted; `pnpm run setup:https` re-runs the install.
-- **An agent token is refused:** its Agent Provider must be in `TRUSTED_AGENT_PROVIDERS`; `introspection:setup` sets it from your stack.
-- **`introspection:setup` says AAuth is not enabled:** the stack you are logged in to does not serve an Agent Provider or a hosted Person Server yet; try `PERSON_SERVER=acme`, or another stack.
+- **`pnpm dev` says AAuth is not enabled:** the stack you are logged in to serves no Agent Provider or hosted Person Server yet; try `PERSON_SERVER=acme`, or another stack.
+- **An agent token is refused:** its Agent Provider must be in `TRUSTED_AGENT_PROVIDERS`; `pnpm dev` sets it from your stack.
 - **No email:** without `RESEND_API_KEY` it is in the console, not your inbox.

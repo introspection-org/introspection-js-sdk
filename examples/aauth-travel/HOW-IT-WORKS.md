@@ -95,7 +95,7 @@ sequenceDiagram
 
 ## Configuring it on Introspection
 
-`pnpm run introspection:setup` runs these, against whichever stack `introspection login` chose. `BOOKING` is the booking provider's public URL from `pnpm dev:public`.
+`pnpm dev` runs these the first time, against whichever stack `introspection login` chose. `BOOKING` and `MOCK` are the booking provider's and the Browserbase mock's public URLs.
 
 ```bash
 # The agent: a hosted repository seeded from the public recipe, and its runtime
@@ -107,7 +107,7 @@ git clone "$(introspection repositories list -o json --query "[?slug=='travel-ag
 # Flight search: this app's mock (or https://mcp.browserbase.com/mcp with your key)
 printf mock-browserbase-key | introspection bindings credentials create -r travel-agent --name BROWSERBASE_API_KEY --from-stdin
 introspection bindings mcp connect -r travel-agent --mcp-server-id browserbase \
-  --endpoint-url "$BOOKING/browserbase/mcp" --header 'Authorization=Bearer ${BROWSERBASE_API_KEY}'
+  --endpoint-url "$MOCK/mcp" --header 'Authorization=Bearer ${BROWSERBASE_API_KEY}'
 
 # The application whose client id is the agent's AAuth identity
 introspection applications create --type service-account --name "Flight Sector agent"
@@ -130,9 +130,7 @@ The connector's `policy_entities` and Sam's `policy_attributes` are what the rec
 
 ## The e2e script
 
-`pnpm e2e` plays the agent with [`@aauth/agent`](https://www.npmjs.com/package/@aauth/agent), as the egress would, from a test Agent Provider at `https://e2e-agents.localhost`. It starts its own dev server trusting that provider, approves each email from the server's log, and stops the server at the end. With `PERSON_SERVER=hosted` it plays the same agent against Introspection's hosted Person Server instead.
-
-Every server here fetches the others' metadata, so Node must trust portless's CA: `pnpm dev` and `pnpm e2e` point `NODE_EXTRA_CA_CERTS` at `~/.portless/ca.pem` unless it is already set.
+`pnpm e2e` plays the agent with [`@aauth/agent`](https://www.npmjs.com/package/@aauth/agent), as the egress would, from a test Agent Provider of its own. It gives the booking provider, Acme's Person Server and the test provider each a quick tunnel, starts the app trusting that provider, approves each email from the app's log, and stops it all at the end. With `PERSON_SERVER=hosted` and `E2E_SERVER_LOG` pointing at a running app's log, it plays the same agent against Introspection's hosted Person Server instead.
 
 ## Settings
 
