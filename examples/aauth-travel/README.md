@@ -25,14 +25,25 @@ Then open `http://localhost:3400/demo` and send a sample prompt as Sam. Without 
 4. **Sam** as a customer member with the seniority the recipe's rules read, from [`introspection/sam.json`](./introspection/sam.json).
 5. **A project API key** for the demo page and Acme's approval app, in `.env.local` with the rest of the settings.
 
-After that each run only points the connector and the mock at its new URLs.
+### Public URLs
 
-Options:
+The platform's egress and Person Server call the booking provider and the Browserbase mock, so `pnpm dev` gives each a public https URL through Cloudflare:
 
-- `FLIGHTSECTOR_DOMAIN=example.dev pnpm dev` uses a named tunnel on a domain in your Cloudflare account (`cloudflared tunnel login` once), so the URLs stay the same every run.
+- **By default, a quick tunnel:** free, with no domain and no Cloudflare account, at a new `https://<words>.trycloudflare.com` each run. `pnpm dev` points your project's connector and flight-search binding at the new URLs as it starts, so a restart needs nothing from you. What it does break is anything in flight: a trip waiting on Dana, or an approval link from the last run. Cloudflare treats quick tunnels as for testing, with no uptime guarantee.
+- **For stable URLs, a named tunnel on your own domain:** the same every run, which is what to use when presenting. The domain must be on Cloudflare (the free plan is enough). Once:
+
+  ```bash
+  cloudflared tunnel login               # pick your domain's zone
+  ```
+
+  then run `FLIGHTSECTOR_DOMAIN=example.dev pnpm dev`. It creates a tunnel named `flightsector` and routes `flightsector-booking.example.dev` and `flightsector-browserbase.example.dev` (and `flightsector-ps.example.dev` with `PERSON_SERVER=acme`) to it. The names are one level under the domain because Cloudflare's included certificate covers `*.example.dev` but not deeper names.
+
+### Options
+
 - `PERSON_SERVER=acme pnpm dev` has Acme run its own Person Server here, built on [`@introspection-sdk/person-server`](../../packages/introspection-person-server), instead of Introspection's hosted one.
+- `BROWSERBASE_API_KEY=… pnpm dev` searches real flights through Browserbase's hosted MCP instead of the mock.
 
-[HOW-IT-WORKS.md](./HOW-IT-WORKS.md) covers the parties, the flow, and each setup step as the CLI command it runs.
+[HOW-IT-WORKS.md](./HOW-IT-WORKS.md) covers the parties and the flow; [WALKTHROUGH.md](./WALKTHROUGH.md) steps through the code.
 
 ## Without Introspection
 

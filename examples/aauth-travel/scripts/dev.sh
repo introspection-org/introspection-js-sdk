@@ -107,12 +107,14 @@ quick_tunnel() {
 
 # Each party has a host of its own: the egress keys what it does on a request
 # by host, and the app tells the parties apart by it.
+# One label under the domain: Cloudflare's included certificate covers
+# *.<domain>, not a second level.
 if [ -n "${FLIGHTSECTOR_DOMAIN:-}" ]; then
   NAME="${FLIGHTSECTOR_TUNNEL:-flightsector}"
   cloudflared tunnel info "$NAME" >/dev/null 2>&1 || cloudflared tunnel create "$NAME" >/dev/null
-  BOOKING="https://booking.flightsector.${FLIGHTSECTOR_DOMAIN}"
-  MOCK="https://browserbase.flightsector.${FLIGHTSECTOR_DOMAIN}"
-  ACME="https://ps.flightsector.${FLIGHTSECTOR_DOMAIN}"
+  BOOKING="https://flightsector-booking.${FLIGHTSECTOR_DOMAIN}"
+  MOCK="https://flightsector-browserbase.${FLIGHTSECTOR_DOMAIN}"
+  ACME="https://flightsector-ps.${FLIGHTSECTOR_DOMAIN}"
   for url in "$BOOKING" "$MOCK" "$ACME"; do
     cloudflared tunnel route dns --overwrite-dns "$NAME" "${url#https://}" >/dev/null
   done
