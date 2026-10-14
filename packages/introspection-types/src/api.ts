@@ -944,16 +944,8 @@ export interface MemberListParams extends CursorParams {
   external_user_id?: string[];
 }
 
-/**
- * `POST /v1/members` — invite an operator by email. Requires an admin
- * credential with `members:write`, a full (first and last) `name`, and an
- * `email` not already a member elsewhere.
- */
-export interface MemberCreateParams {
-  email: string;
-  name: string;
-  /** `member` (default), `admin` or `owner`, bounded by the caller's role. */
-  role?: string;
+/** Fields every `POST /v1/members` body may carry, whatever its kind. */
+interface MemberCreateCommon {
   /**
    * Seed the member's access-bearing tags. Setting any needs
    * `members:manage` as well (a 403 otherwise), the same gate as
@@ -973,6 +965,40 @@ export interface MemberCreateParams {
   policy_attributes?: Record<string, unknown>;
 }
 
+/**
+ * A business member: an operator invited by email. Requires an admin
+ * credential with `members:write`, a full (first and last) `name`, and an
+ * `email` not already a member elsewhere. The default when `member_type`
+ * is omitted.
+ */
+export interface BusinessMemberCreateParams extends MemberCreateCommon {
+  member_type?: "business";
+  email: string;
+  name: string;
+  /** `member` (default), `admin` or `owner`, bounded by the caller's role. */
+  role?: string;
+}
+
+/**
+ * A customer member: one of the organization's own end users, keyed by its
+ * id for them. It lands on the same member a runner identity asserting this
+ * `external_user_id` would mint, so its attributes are ready before its
+ * first session. Needs an org owner.
+ */
+export interface CustomerMemberCreateParams extends MemberCreateCommon {
+  member_type: "customer";
+  /** `user:{id}` or `anon:{id}`, as a runner identity asserts it. */
+  external_user_id: string;
+  /** Display only. */
+  name?: string;
+  /** Display only; a customer never signs in. */
+  email?: string;
+}
+
+/** `POST /v1/members` body, narrowed on `member_type`. */
+export type MemberCreateParams =
+  BusinessMemberCreateParams | CustomerMemberCreateParams;
+
 /** `PATCH /v1/members/{id}` — needs `members:manage`. */
 export interface MemberUpdateParams {
   name?: string;
@@ -987,7 +1013,7 @@ export interface MemberUpdateParams {
   /**
    * Replaces the metadata map wholesale (it is not merged). Omit, or pass
    * `null`, to leave it untouched; pass `{}` to clear it. Same bounds as
-   * {@link MemberCreateParams.metadata}.
+   * {@link BusinessMemberCreateParams.metadata}.
    */
   metadata?: Record<string, string> | null;
   /**
@@ -1086,7 +1112,7 @@ export interface RunIdentityInput {
    * keys are merged in, overwriting keys of the same name (including ones
    * an admin set) and keeping the rest. Absent or `{}` changes nothing; to
    * remove a key, use {@link MemberUpdateParams.metadata}. Same bounds as
-   * {@link MemberCreateParams.metadata}. Not carried on the session's
+   * {@link BusinessMemberCreateParams.metadata}. Not carried on the session's
    * claims.
    */
   metadata?: Record<string, string>;

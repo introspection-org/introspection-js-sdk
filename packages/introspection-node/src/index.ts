@@ -236,6 +236,8 @@ export type {
   MemberType,
   MemberListParams,
   MemberCreateParams,
+  BusinessMemberCreateParams,
+  CustomerMemberCreateParams,
   MemberUpdateParams,
   Automation,
   AutomationKind,

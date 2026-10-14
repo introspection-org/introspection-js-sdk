@@ -43,7 +43,10 @@ export class MembersApi {
     );
   }
 
-  /** Invite an operator by email; see {@link MemberCreateParams}. */
+  /**
+   * Invite a business member by email, or create a customer member keyed
+   * by `external_user_id`; see {@link MemberCreateParams}.
+   */
   create(params: MemberCreateParams): Promise<Member> {
     return this.http.request<Member>({
       method: "POST",
