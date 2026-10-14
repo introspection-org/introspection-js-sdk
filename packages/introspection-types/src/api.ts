@@ -897,6 +897,11 @@ export interface Member {
    * it.
    */
   metadata?: Record<string, string>;
+  /**
+   * Attributes the recipe's Cedar policies read for this member as a
+   * principal (e.g. `{ level: 6 }`); see {@link PolicyEntity}.
+   */
+  policy_attributes?: Record<string, unknown> | null;
   application_idp_id?: Uuid | null;
   connector_id?: Uuid | null;
   integration_id?: Uuid | null;
@@ -961,6 +966,11 @@ export interface MemberCreateParams {
    * characters; at most 64 entries. Out of bounds is a 422.
    */
   metadata?: Record<string, string>;
+  /**
+   * Seed the attributes Cedar policies read for this member; see
+   * {@link Member.policy_attributes}. Setting them needs an org owner.
+   */
+  policy_attributes?: Record<string, unknown>;
 }
 
 /** `PATCH /v1/members/{id}` — needs `members:manage`. */
@@ -980,6 +990,11 @@ export interface MemberUpdateParams {
    * {@link MemberCreateParams.metadata}.
    */
   metadata?: Record<string, string> | null;
+  /**
+   * Replaces the Cedar policy attributes wholesale. Omit to leave them
+   * untouched. Setting them needs an org owner.
+   */
+  policy_attributes?: Record<string, unknown>;
 }
 
 export interface RunnerIdentity {
@@ -1140,6 +1155,9 @@ export interface RunRequest {
  * - `"identity_assertion"` — per-call signed identity assertions.
  * - `"federated_exchange"` — federated token exchange.
  * - `"person_authorized"`  — per-action human-in-the-loop approval.
+ * - `"aauth"`              — AAuth: the platform is the connector's Agent
+ *   Provider and its egress signs for the session; approvals come from
+ *   `person_server_url`. Requires `person_server_url` and `application_id`.
  */
 export type ConnectorAuthMode =
   | "static"
@@ -1147,7 +1165,8 @@ export type ConnectorAuthMode =
   | "client_credentials"
   | "identity_assertion"
   | "federated_exchange"
-  | "person_authorized";
+  | "person_authorized"
+  | "aauth";
 
 export type ConnectorStatus = "pending" | "active" | "error";
 
@@ -1164,10 +1183,29 @@ export type ConnectionCreateSubjectType = "app" | "user";
 /** Subjects currently accepted by authorize and token-broker operations. */
 export type ConnectionBrokerSubjectType = "app" | "user" | "person";
 
-export type ConnectorPersonServerMode = "managed" | "byo" | "discovered";
+/** A Cedar entity reference, e.g. `{ type: "Company", id: "acme" }`. */
+export interface EntityUid {
+  type: string;
+  id: string;
+}
 
-export type ConnectorApprovalPolicy =
-  "human" | "judge_advises_human" | "judge_auto_within_envelope";
+/**
+ * A Cedar entity a recipe's policies read, in Cedar's JSON entity format:
+ * e.g. a company and the seniority its business-class bookings need.
+ *
+ * ```ts
+ * {
+ *   uid: { type: "Company", id: "acme" },
+ *   attrs: { business_min_level: 5 },
+ *   parents: [],
+ * }
+ * ```
+ */
+export interface PolicyEntity {
+  uid: EntityUid;
+  attrs?: Record<string, unknown>;
+  parents?: EntityUid[];
+}
 
 /**
  * A connector — a project-scoped integration to an external provider
@@ -1197,15 +1235,15 @@ export interface Connector {
   scopes: string[];
   api_hosts: string[];
   client_id?: string | null;
-  person_server_mode?: ConnectorPersonServerMode | null;
   person_server_url?: string | null;
-  approval_policy: ConnectorApprovalPolicy;
   application_id?: Uuid | null;
   assertion_audience?: string | null;
   webhook_url?: string | null;
   status: ConnectorStatus;
   created_by_member_id?: Uuid | null;
   metadata?: Record<string, unknown> | null;
+  /** Cedar entities for the recipe's policies; see {@link PolicyEntity}. */
+  policy_entities?: PolicyEntity[] | null;
   /**
    * Server-derived: whether `authorize` must name a `runtime` for this
    * connector (chat providers need the agent that replies). Read this —
@@ -1244,12 +1282,14 @@ export interface ConnectorCreateParams {
    * `.well-known` metadata. Not persisted.
    */
   issuer?: string;
-  person_server_mode?: ConnectorPersonServerMode;
+  /** Where approvals come from; required for an `aauth` connector. */
   person_server_url?: string;
-  approval_policy?: ConnectorApprovalPolicy;
+  /** Required for an `aauth` connector. */
   application_id?: Uuid;
   assertion_audience?: string;
   webhook_url?: string;
+  /** Cedar entities for the recipe's policies; see {@link PolicyEntity}. */
+  policy_entities?: PolicyEntity[];
 }
 
 /**
@@ -1270,6 +1310,8 @@ export interface ConnectorUpdateParams {
   client_secret?: string;
   /** Write-only; omit to leave the stored secret unchanged. */
   signing_secret?: string;
+  /** Replaces the Cedar entities; see {@link PolicyEntity}. */
+  policy_entities?: PolicyEntity[];
 }
 
 export type ConnectorListParams = CursorParams;

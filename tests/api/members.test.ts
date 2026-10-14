@@ -104,6 +104,47 @@ describe("MembersApi", () => {
     });
   });
 
+  it("create() POSTs policy attributes", async () => {
+    const http = mockHttp({
+      requestResult: { ...MEMBER_FIXTURE, policy_attributes: { level: 6 } },
+    });
+    const member = await new MembersApi(http).create({
+      email: "ada@example.com",
+      name: "Ada Lovelace",
+      policy_attributes: { level: 6 },
+    });
+
+    expect(http.request).toHaveBeenCalledWith({
+      method: "POST",
+      path: "/v1/members",
+      body: {
+        email: "ada@example.com",
+        name: "Ada Lovelace",
+        policy_attributes: { level: 6 },
+      },
+    });
+    expect(member.policy_attributes).toEqual({ level: 6 });
+  });
+
+  it("update() PATCHes policy attributes", async () => {
+    const http = mockHttp({
+      requestResult: {
+        ...MEMBER_FIXTURE,
+        policy_attributes: { level: 7, region: "emea" },
+      },
+    });
+    const member = await new MembersApi(http).update(MEMBER_ID, {
+      policy_attributes: { level: 7, region: "emea" },
+    });
+
+    expect(http.request).toHaveBeenCalledWith({
+      method: "PATCH",
+      path: `/v1/members/${MEMBER_ID}`,
+      body: { policy_attributes: { level: 7, region: "emea" } },
+    });
+    expect(member.policy_attributes).toEqual({ level: 7, region: "emea" });
+  });
+
   it("get() reads one member", async () => {
     const http = mockHttp({ requestResult: MEMBER_FIXTURE });
     const member = await new MembersApi(http).get(MEMBER_ID);
