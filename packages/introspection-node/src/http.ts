@@ -1,4 +1,5 @@
 import { BaseHttpClient } from "@introspection-sdk/http";
+import { proxyAwareFetch } from "./proxy-fetch.js";
 
 /**
  * A bearer credential that renews itself: a signed-in member's session (see
@@ -55,7 +56,7 @@ export class HttpClient extends BaseHttpClient {
     super({
       apiUrl: cfg.apiUrl,
       additionalHeaders: cfg.additionalHeaders,
-      fetch: cfg.fetch,
+      fetch: cfg.fetch ?? proxyAwareFetch(),
       maxRetries: cfg.maxRetries,
       retryBaseMs: cfg.retryBaseMs,
       transport: credentials
