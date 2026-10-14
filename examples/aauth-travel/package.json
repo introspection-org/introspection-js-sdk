@@ -6,6 +6,8 @@
   "scripts": {
     "setup:https": "scripts/setup.sh",
     "dev": "scripts/setup.sh && NODE_EXTRA_CA_CERTS=${NODE_EXTRA_CA_CERTS:-$HOME/.portless/ca.pem} next dev --turbopack --port 3400",
+    "dev:public": "scripts/dev-public.sh",
+    "introspection:setup": "scripts/introspection-setup.sh",
     "e2e": "scripts/e2e.sh",
     "build": "next build",
     "start": "next start --port 3400",

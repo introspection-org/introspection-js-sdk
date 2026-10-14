@@ -1,7 +1,7 @@
 import { headers } from "next/headers";
 
 import { approvalSummary } from "@/lib/acme/approvals";
-import { PERSON_SERVER_URL } from "@/lib/origins";
+import { PERSON_SERVER_MODE, PERSON_SERVER_URL } from "@/lib/origins";
 
 import { ApprovalForm } from "./approval-form";
 
@@ -26,6 +26,7 @@ export default async function ApprovePage({
   }
   // On Acme's own origin the page is /approve/{id}; elsewhere it is under /acme.
   const onAcme =
+    PERSON_SERVER_MODE === "acme" &&
     (await headers()).get("host") === new URL(PERSON_SERVER_URL).host;
   return (
     <div className="acme-card">

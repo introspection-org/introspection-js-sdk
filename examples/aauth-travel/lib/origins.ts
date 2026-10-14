@@ -43,6 +43,16 @@ export const HOSTED_PERSON_SERVER_URL = trim(
       : ""),
 );
 
+/**
+ * Where Acme's approval page is: Acme's own Person Server host when Acme runs
+ * one, and this app's `/acme` otherwise, since a hosted Person Server leaves
+ * Acme only its approval page to serve.
+ */
+export const ACME_APPROVAL_URL = trim(
+  process.env.ACME_APPROVAL_URL ??
+    (PERSON_SERVER_MODE === "hosted" ? `${APP_URL}/acme` : PERSON_SERVER_URL),
+);
+
 /** Agent providers whose agents may act here: the platform's control plane, by default. */
 export const AGENT_PROVIDERS = (
   process.env.TRUSTED_AGENT_PROVIDERS ?? "https://cp.introspection.localhost"

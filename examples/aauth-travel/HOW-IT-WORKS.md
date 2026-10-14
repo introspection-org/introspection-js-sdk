@@ -95,49 +95,38 @@ sequenceDiagram
 
 ## Configuring it on Introspection
 
-Deploy this app where Introspection's egress can reach it, and use its public hosts below in place of the `.localhost` ones. Then, with the `introspection` CLI logged in to your project:
+`pnpm run introspection:setup` runs these, against whichever stack `introspection login` chose. `BOOKING` is the booking provider's public URL from `pnpm dev:public`.
 
 ```bash
-# The agent: a runtime from the public recipe's manifest
-git clone https://github.com/introspection-org/recipe-travel-agent && cd recipe-travel-agent
-introspection runtimes create
+# The agent: a hosted repository seeded from the public recipe, and its runtime
+introspection repositories add travel-agent --provider introspection \
+  --template https://github.com/introspection-org/recipe-travel-agent.git
+git clone "$(introspection repositories list -o json --query "[?slug=='travel-agent'].url | [0]")" travel-agent
+(cd travel-agent && introspection runtimes create --yes)
 
-# Flight search: Browserbase's hosted MCP (or this app's mock at /mcp on the browserbase host)
-introspection bindings credentials create -r travel-agent --name BROWSERBASE_API_KEY --from-env BROWSERBASE_API_KEY
+# Flight search: this app's mock (or https://mcp.browserbase.com/mcp with your key)
+printf mock-browserbase-key | introspection bindings credentials create -r travel-agent --name BROWSERBASE_API_KEY --from-stdin
 introspection bindings mcp connect -r travel-agent --mcp-server-id browserbase \
-  --endpoint-url https://mcp.browserbase.com/mcp --header 'Authorization=Bearer ${BROWSERBASE_API_KEY}'
+  --endpoint-url "$BOOKING/browserbase/mcp" --header 'Authorization=Bearer ${BROWSERBASE_API_KEY}'
 
-# The demo page's key: set INTROSPECTION_TOKEN in this app's environment from the file
-introspection api-keys create --name aauth-travel-demo --secret-file ./introspection-key
+# The application whose client id is the agent's AAuth identity
+introspection applications create --type service-account --name "Flight Sector agent"
+
+# The booking provider as an AAuth connector, with the stack-specific fields as flags
+introspection connectors create @introspection/booking.json \
+  --person-server-url "$PERSON_SERVER" --application-id "$APPLICATION_ID" \
+  --metadata "{\"aauth_resource\": \"$BOOKING\", \"aauth_upstream\": \"$BOOKING\", \"aauth_tenant\": \"$ORG_ID:$PROJECT_ID\"}"
+
+# Sam, a customer member, with the attributes the rails read
+introspection members create @introspection/sam.json
+
+# The demo page's and Acme's key
+introspection api-keys create --name "Flight Sector demo" --secret-file ./key
 ```
 
-Set `INTROSPECTION_RUNTIME=travel-agent` and `TRUSTED_AGENT_PROVIDERS` to your control plane's URL. The booking connector carries AAuth fields the CLI does not take yet, so an org owner creates it through the API:
+`PERSON_SERVER` is the hosted Person Server's issuer, from the data plane's `/.well-known/aauth-person.json`, or Acme's own URL with `PERSON_SERVER=acme`. The Agent Provider (`TRUSTED_AGENT_PROVIDERS`) is the issuer of the control plane's `/.well-known/aauth-agent.json`. `aauth_resource` is the identifier the egress signs for, `aauth_upstream` where it sends the request, and `aauth_tenant` the hosted Person Server's tenant: your project, standing in for Acme.
 
-| Setting           | Value                                                                                                                                                                                                                                                                                                                                                                           |
-| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Booking connector | slug `booking`, `auth_mode: aauth`, `person_server_url: https://ps.acme.localhost`, `api_hosts: [api.booking.example]`, `metadata: {"aauth_resource": "https://booking.flightsector.localhost", "aauth_upstream": "https://booking.flightsector.localhost"}`                                                                                                                    |
-| Booking provider  | `https://booking.flightsector.localhost` (no credential: egress signs, the provider verifies)                                                                                                                                                                                                                                                                                   |
-| Flight search     | an `mcp` endpoint with `mcp_server_id: browserbase`: this app's mock at `https://browserbase.flightsector.localhost/mcp` (any bearer; it answers like Browserbase's hosted MCP for the recorded SFO⇄SYD searches, and lists the booking provider's flights for other routes), or the real `https://mcp.browserbase.com/mcp` with `Authorization: Bearer ${BROWSERBASE_API_KEY}` |
-
-The recipe's `policies/` (Flight Sector's rails) run in the egress before anything is signed, with the session's approved mission as `context.mission`. The seniority rule reads two things an org owner sets:
-
-- each traveller's level and company, as member `policy_attributes`:
-
-  ```bash
-  curl -X PATCH "$CP/v1/members/$SAM_MEMBER_ID" -H "Authorization: Bearer $OWNER_TOKEN" \
-    -d '{"policy_attributes": {"level": 5, "company": {"__entity": {"type": "Company", "id": "acme"}}}}'
-  ```
-
-- each company's threshold, as the booking connector's `policy_entities`:
-
-  ```bash
-  curl -X PATCH "$CP/v1/connectors/$BOOKING_CONNECTOR_ID" -H "Authorization: Bearer $OWNER_TOKEN" \
-    -d '{"policy_entities": [
-          {"uid": {"type": "Company", "id": "acme"},   "attrs": {"business_min_level": 5}, "parents": []},
-          {"uid": {"type": "Company", "id": "globex"}, "attrs": {"business_min_level": 7}, "parents": []}]}'
-  ```
-
-Then message the agent as Sam from `/demo`, or on Slack as `U0SAM` in workspace `T0ACME`.
+The connector's `policy_entities` and Sam's `policy_attributes` are what the recipe's `policies/` read before anything is signed, with the session's approved mission as `context.mission`. Their shapes are the recipe's `policies/schema.cedarschema`: Sam is a `Person` with a `level` and a `company`, and each `Company` has the least seniority that may fly business.
 
 ## The e2e script
 

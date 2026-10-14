@@ -12,7 +12,8 @@ scripts/setup.sh
 node_modules/.bin/portless alias e2e-agents 3499 --force >/dev/null
 
 export NODE_EXTRA_CA_CERTS="${NODE_EXTRA_CA_CERTS:-$HOME/.portless/ca.pem}"
-export E2E_SERVER_LOG="$(mktemp -t aauth-travel)"
+E2E_SERVER_LOG="$(mktemp -t aauth-travel)"
+export E2E_SERVER_LOG
 TRUSTED_AGENT_PROVIDERS="${TRUSTED_AGENT_PROVIDERS:-https://cp.introspection.localhost},https://e2e-agents.localhost" \
   node_modules/.bin/next dev --turbopack --port 3400 > "$E2E_SERVER_LOG" 2>&1 &
 SERVER=$!

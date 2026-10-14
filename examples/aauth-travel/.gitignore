@@ -4,3 +4,4 @@ tsconfig.tsbuildinfo
 # next dev writes these for coding agents
 AGENTS.md
 CLAUDE.md
+.introspection-work/

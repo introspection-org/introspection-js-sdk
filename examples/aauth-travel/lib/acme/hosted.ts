@@ -12,7 +12,7 @@ import { createHash, randomInt, timingSafeEqual } from "node:crypto";
 
 import { AAuthError } from "../aauth";
 import { record } from "../events";
-import { PERSON_SERVER_URL } from "../origins";
+import { ACME_APPROVAL_URL } from "../origins";
 import { people, type Person } from "../world";
 import { sendApprovalEmail } from "./mail";
 
@@ -185,7 +185,7 @@ async function sync(): Promise<void> {
       travellerName: person.name,
       item: approval.summary ?? approval.description,
       reasons,
-      link: `${PERSON_SERVER_URL}/approve/${approval.id}`,
+      link: `${ACME_APPROVAL_URL}/approve/${approval.id}`,
       code,
     });
     record("acme.approval_requested", `asked ${approver.name} by email`, {
