@@ -26,7 +26,7 @@
  *   getToken: () => token,
  * });
  *
- * await client.connect(); // -> intro_dp_<environment> session cookie
+ * await client.connect(); // -> intro_dp_<lane>_<project> session cookie
  * const run = await client.tasks.start({
  *   prompt: "Summarize my latest order",
  *   runtime_id: runtimeId,
@@ -59,6 +59,7 @@ export {
   BrowserHttpClient,
   ENVIRONMENT_HEADER,
   LANE_QUERY_PARAM,
+  PROJECT_ID_QUERY_PARAM,
   type BrowserHttpConfig,
 } from "./http.js";
 export {

@@ -59,7 +59,7 @@ customer web origins.
    Plane URL, so the SPA needs no Introspection config of its own.
 2. `client.connect()` redeems the token at the **Data Plane**
    `POST /v1/oauth/exchange` for an HttpOnly session cookie, named for the
-   token's environment lane (see [Environments](#environments)).
+   token's environment lane and project (see [Environments](#environments)).
 3. `client.tasks.start({ runtime_id })` and friends ride that cookie against
    the Data Plane for tasks, files, conversations, and shares.
 
@@ -78,7 +78,7 @@ const client = new IntrospectionApiClient({
   getToken: () => token,
 });
 
-await client.connect(); // -> intro_dp_<environment> session cookie
+await client.connect(); // -> intro_dp_<lane>_<project> session cookie
 
 const run = await client.tasks.start({
   prompt: "Summarize my latest order",
@@ -105,17 +105,21 @@ named recipe agent instead.
 
 ### Environments
 
-The session cookie is named for its environment lane —
-`intro_dp_development`, `intro_dp_staging`, `intro_dp_production` — so an app
-running more than one lane holds a live session for **each** in one browser. A
-single shared name gave the browser one slot, so a second `connect()` evicted
-the first.
+The session cookie is a signed `browser_session` JWT named for its environment
+lane **and** project — `intro_dp_{lane}_{base64url(project_uuid_bytes)}`, e.g.
+`intro_dp_production_AZLVpGw-ehCAAAAAAAAAAQ` — so an app running more than one
+lane or project holds a live session for **each** in one browser. A single
+shared name gave the browser one slot, so a second `connect()` evicted the
+first.
 
-**You never pass the environment in.** Your backend picks the lane when it
-mints the token; the Data Plane reads it off the token's claim and returns it,
-and the client sends it back as the `lane` query parameter so the right cookie
-is resolved. A query parameter, not a header, so requests stay CORS-simple and
-skip the preflight a custom header forces on every call:
+**You never pass the environment or project in.** Your backend picks them when
+it mints the token; the Data Plane reads them off the token's claims and
+returns them, and the client sends them back as the `lane` and `project_id`
+query parameters so the right cookie is resolved. Both are selectors, not
+credentials: the cookie's own signed lane and project are checked against
+them, so naming one this browser holds no cookie for grants nothing. Query
+parameters, not headers, so requests stay CORS-simple and skip the preflight a
+custom header forces on every call:
 
 ```typescript
 const dev = new IntrospectionApiClient({
@@ -129,11 +133,12 @@ const prod = new IntrospectionApiClient({
 
 await Promise.all([dev.connect(), prod.connect()]);
 
-dev.environment; // "development" -> cookie intro_dp_development
-prod.environment; // "production"  -> cookie intro_dp_production
+dev.environment; // "development" -> cookie intro_dp_development_<project>
+prod.environment; // "production"  -> cookie intro_dp_production_<project>
+dev.projectId; // the project the token was minted for
 
-await dev.tasks.list(); // GET /v1/tasks?lane=development
-await prod.tasks.list(); // GET /v1/tasks?lane=production
+await dev.tasks.list(); // GET /v1/tasks?lane=development&project_id=<uuid>
+await prod.tasks.list(); // GET /v1/tasks?lane=production&project_id=<uuid>
 ```
 
 `client.environment` is `undefined` until `connect()` resolves. The optional
@@ -141,10 +146,16 @@ await prod.tasks.list(); // GET /v1/tasks?lane=production
 if it disagrees with the token, `connect()` throws rather than silently
 preferring one — the token is the authority.
 
-> **Requires a Data Plane that returns `environment` from
-> `/v1/oauth/exchange`.** Against an older deployment `client.environment`
-> stays `undefined`, no header is sent, and a single-lane app keeps working
-> unchanged.
+Without `project_id` the Data Plane picks the lane's most recently issued
+cookie, so a page that connected to two projects on one lane would silently
+read whichever exchanged last; sending it is what keeps two clients on one lane
+apart.
+
+> **Requires a Data Plane that returns `environment` and `project_id` from
+> `/v1/oauth/exchange`.** Against an older deployment that omits `project_id`,
+> `client.projectId` stays `undefined` and only `lane` is sent; one that also
+> omits `environment` leaves `client.environment` `undefined` and sends
+> neither, so a single-lane app keeps working unchanged.
 
 ## Files and conversations
 

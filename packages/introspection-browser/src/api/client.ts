@@ -14,10 +14,12 @@
  *      is needed, resolves its `runtime_id` server-side. The SPA fetches
  *      the token through the `getToken` callback.
  *   2. `connect()` redeems the token at the DP `POST /v1/oauth/exchange`
- *      for an HttpOnly session cookie, named for the token's environment lane
- *      (`intro_dp_development` / `intro_dp_staging` / `intro_dp_production`).
- *      Distinct names mean an app running several lanes holds a live session
- *      for each in one browser instead of the newest evicting the last.
+ *      for an HttpOnly session cookie named for the token's environment lane
+ *      and project (`intro_dp_{lane}_{base64url(project_uuid_bytes)}`).
+ *      Distinct names mean an app running several lanes or projects holds a
+ *      live session for each in one browser instead of the newest evicting
+ *      the last. Every request names the lane and project it means in the
+ *      `?lane=` / `?project_id=` query — selectors, not credentials.
  *   3. Every subsequent call rides that cookie (`credentials: "include"`)
  *      — `client.tasks.start({ runtime_id })`, `.get(...)`, run streaming,
  *      etc.
@@ -88,6 +90,8 @@ export class IntrospectionApiClient {
    * scope — two clients on one page holding different lanes is the point.
    */
   private resolvedEnvironment?: Environment;
+  /** Project established by the most recent exchange; per instance likewise. */
+  private resolvedProjectId?: string;
   /** The exchange currently in flight, shared by every concurrent 401. */
   private inFlightExchange?: Promise<boolean>;
 
@@ -107,6 +111,7 @@ export class IntrospectionApiClient {
       fetch: this.fetchImpl,
       onUnauthorized: () => this.reexchange(),
       environment: () => this.resolvedEnvironment,
+      projectId: () => this.resolvedProjectId,
     });
     this.cookieClients = {
       tasks: new TasksClient(http),
@@ -152,6 +157,15 @@ export class IntrospectionApiClient {
   }
 
   /**
+   * Project this client is connected to, once `connect()` has resolved.
+   * `undefined` before the first exchange, or against a DP that does not
+   * return `project_id`, in which case requests name only the lane.
+   */
+  get projectId(): string | undefined {
+    return this.resolvedProjectId;
+  }
+
+  /**
    * Mint a token via `getToken` and redeem it at the DP for the session
    * cookie. Call once before issuing task requests.
    */
@@ -181,6 +195,7 @@ export class IntrospectionApiClient {
     // switched lanes, a stale value would name a cookie we no longer hold.
     const body = (await res.json().catch(() => ({}))) as {
       environment?: Environment;
+      project_id?: string;
     };
     if (body.environment) {
       if (this.opts.environment && this.opts.environment !== body.environment) {
@@ -192,6 +207,10 @@ export class IntrospectionApiClient {
       }
       this.resolvedEnvironment = body.environment;
     }
+    // Overwritten, not kept, when absent: naming a project whose cookie this
+    // exchange did not establish would be a 401/409, while omitting it falls
+    // back to the lane's newest cookie, which is the one just issued.
+    this.resolvedProjectId = body.project_id || undefined;
   }
 
   /**
