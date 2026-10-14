@@ -28,7 +28,8 @@ import {
  * `server.address` / `server.port` derived from the model's base URL.
  * Returns an empty record when the URL cannot be parsed.
  */
-export function serverAttributes(baseUrl: string): Attributes {
+export function serverAttributes(baseUrl: string | undefined): Attributes {
+  if (!baseUrl) return {};
   try {
     const url = new URL(baseUrl);
     const port = url.port
@@ -93,7 +94,7 @@ function requestTools(
 
 /** Attributes set on a chat span at request time, before the model has streamed. */
 export function chatRequestAttributes(
-  model: Model<string>,
+  model: Pick<Model<string>, "provider" | "id"> & { baseUrl?: string },
   context: ChatRequestContext,
   meta: AgentMeta,
   options?: ChatRequestAttributeOptions,

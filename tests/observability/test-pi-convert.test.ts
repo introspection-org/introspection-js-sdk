@@ -247,6 +247,36 @@ describe("inputMessagesToMessages (semconv → pi-ai)", () => {
     ]);
   });
 
+  it("round-trips an image a tool returned as an image", () => {
+    // Stringified, a photo the agent read comes back as base64 text: one
+    // phone photo was a million tokens and the resumed session could not run.
+    const original: Message[] = [
+      assistantMessage({
+        content: [
+          { type: "toolCall", id: "call-1", name: "read", arguments: {} },
+        ],
+      }),
+      {
+        role: "toolResult",
+        toolCallId: "call-1",
+        toolName: "read",
+        content: [
+          { type: "text", text: "Read image file [image/jpeg]" },
+          { type: "image", data: "aGk=", mimeType: "image/jpeg" },
+        ],
+        isError: false,
+        timestamp: 0,
+      },
+    ];
+
+    const replayed = inputMessagesToMessages(messagesToInputMessages(original));
+
+    expect((replayed[1] as ToolResultMessage).content).toEqual([
+      { type: "text", text: "Read image file [image/jpeg]" },
+      { type: "image", data: "aGk=", mimeType: "image/jpeg" },
+    ]);
+  });
+
   it("round-trips user / assistant text / toolCall / toolResult", () => {
     const original: Message[] = [
       userMessage("hello"),

@@ -159,6 +159,19 @@ For each tool call (`execute_tool ${tool_name}` span):
   requested abort are marked with `introspection.termination_reason =
 "cancelled"` and are not marked as errors.
 
+## Rendering a Pi run offline
+
+A Pi run that was not instrumented leaves only Pi's session file.
+`pi-session-spans` renders that file as the GenAI span list the platform's
+conversation export returns, using the same attribute builders as the live
+instrumentation:
+
+```bash
+pi-session-spans ~/.pi/agent/sessions/<session>.jsonl my-conversation > spans.json
+```
+
+The same is available in code as `piSessionToSpans`.
+
 ## Content scrubbing
 
 gen_ai spans carry full conversation content. Hosts that export one span

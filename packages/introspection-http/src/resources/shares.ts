@@ -3,6 +3,7 @@ import type {
   ResourceShare,
   ShareCreateParams,
   ShareListParams,
+  ShareUpdateParams,
 } from "@introspection-sdk/types";
 import { Paginator, cursorPaginate } from "../pagination.js";
 import type { ResourceHttpClient } from "./types.js";
@@ -10,10 +11,12 @@ import type { ResourceHttpClient } from "./types.js";
 /**
  * Runner-bound Resource Shares API (`/v1/shares`).
  *
- * Read-sharing grants for files and conversations: `create` / `list` / `get` /
- * `delete` (revoke). A grant carries a `url` (with the `?share_id` capability)
- * for reading the shared resource. To fork a new task from a shared
- * conversation, pass `fork_share_id` to `runner.tasks.create(...)`.
+ * Sharing grants for files, conversations and issues: `create` / `list` /
+ * `get` / `update` / `delete` (revoke). A grant targets a member, a tag
+ * (`granted_tag`), both, or the whole project, and applies ambiently: the
+ * grantee reads the resource through its ordinary list and get routes. To
+ * fork a new task from a shared conversation, pass `fork_share_id` to
+ * `runner.tasks.create(...)`.
  */
 export class SharesClient {
   constructor(private readonly http: ResourceHttpClient) {}
@@ -34,7 +37,10 @@ export class SharesClient {
     );
   }
 
-  /** Create a read-sharing grant. The caller must own the target resource. */
+  /**
+   * Create a grant. The caller must own the target resource, and for a tag
+   * share also hold the tag (or be an admin).
+   */
   create(body: ShareCreateParams): Promise<ResourceShare> {
     return this.http.request<ResourceShare>({
       method: "POST",
@@ -48,6 +54,18 @@ export class SharesClient {
     return this.http.request<ResourceShare>({
       method: "GET",
       path: `/v1/shares/${encodeURIComponent(shareId)}`,
+    });
+  }
+
+  /**
+   * Change a conversation grant's `visible_from` (`null` clears it); the
+   * grantee cannot change. Only the grantor (or an admin) may update.
+   */
+  update(shareId: string, body: ShareUpdateParams): Promise<ResourceShare> {
+    return this.http.request<ResourceShare>({
+      method: "PATCH",
+      path: `/v1/shares/${encodeURIComponent(shareId)}`,
+      body,
     });
   }
 

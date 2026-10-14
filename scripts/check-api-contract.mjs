@@ -212,8 +212,8 @@ const SURFACES = [
     sdk: () => interfaceMembers(TYPES, "FileListParams"),
     server: (spec) => queryParameters(spec, "/v1/files", "get"),
     // `identity_key` is privileged-only and 403s for these credentials;
-    // `task_id`/`share_id` are scoping params a runner already carries.
-    exempt: ["identity_key", "task_id", "share_id"],
+    // `task_id` is a scoping param a runner already carries.
+    exempt: ["identity_key", "task_id"],
     missingIsFatal: false,
     extraMeans: "sent as a query parameter the API does not accept",
     missingMeans: "accepted by the API but not exposed here",
@@ -235,6 +235,14 @@ const SURFACES = [
     extraMeans:
       "declared here but not returned by the API (the SDK describes a response that no longer exists)",
     missingMeans: "returned by the API but not surfaced by this SDK",
+  },
+  {
+    name: "ShareUpdateParams",
+    where: "PATCH /v1/shares/{id} body",
+    sdk: () => interfaceMembers(TYPES, "ShareUpdateParams"),
+    server: (spec) => schemaProperties(spec, "ShareUpdate"),
+    extraMeans: "declared here but not accepted by the API",
+    missingMeans: "accepted by the API but unavailable to callers of this SDK",
   },
   {
     name: "ShareListParams",
@@ -359,13 +367,7 @@ const SURFACES = [
     sdk: () => interfaceMembers(CONVERSATIONS, "ConversationListParams"),
     server: (spec) => queryParameters(spec, "/v1/conversations", "get"),
     // Product-UI shaped filters this SDK does not surface.
-    exempt: [
-      "conversation_ids",
-      "owner_key",
-      "resolution",
-      "sentiment",
-      "share_id",
-    ],
+    exempt: ["conversation_ids", "owner_key", "resolution", "sentiment"],
     // Resolved client-side and never sent: the ergonomic window aliases, and
     // `format`, which selects Arrow via the Accept header.
     allowedExtra: ["order", "start", "end", "lookback", "format"],

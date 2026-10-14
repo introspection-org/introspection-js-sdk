@@ -1,5 +1,35 @@
 # Changelog
 
+## [0.31.0](https://github.com/introspection-org/introspection-js-sdk/compare/v0.30.0...v0.31.0) (2026-10-12)
+
+
+### Features
+
+* **pi:** render a Pi session file as GenAI spans ([#443](https://github.com/introspection-org/introspection-js-sdk/issues/443)) ([2554025](https://github.com/introspection-org/introspection-js-sdk/commit/2554025544ef6c2a762b787644618bcf5e6b6ae6))
+
+
+### Bug Fixes
+
+* **pi:** hydrate tool-result images as images ([#439](https://github.com/introspection-org/introspection-js-sdk/issues/439)) ([9910ad8](https://github.com/introspection-org/introspection-js-sdk/commit/9910ad8c131648e6cfcc6e35da91447d5ab949d6))
+
+## [0.30.0](https://github.com/introspection-org/introspection-js-sdk/compare/v0.29.0...v0.30.0) (2026-10-10)
+
+
+### ⚠ BREAKING CHANGES
+
+* **conversations:** `share_id` is no longer accepted on ConversationListParams, ConversationItemListParams or ConversationExportParams. The API already ignored it, so remove it from call sites; reads of shared resources need no parameter.
+
+### Code Refactoring
+
+* **conversations:** drop the share_id read parameter ([#437](https://github.com/introspection-org/introspection-js-sdk/issues/437)) ([664bb91](https://github.com/introspection-org/introspection-js-sdk/commit/664bb91cfe7099ea46892d3baf73197ee53d43f6))
+
+## [0.29.0](https://github.com/introspection-org/introspection-js-sdk/compare/v0.28.0...v0.29.0) (2026-10-10)
+
+
+### Features
+
+* **shares:** tag shares, share update, and ambient share reads ([#434](https://github.com/introspection-org/introspection-js-sdk/issues/434)) ([e470cd3](https://github.com/introspection-org/introspection-js-sdk/commit/e470cd36cc0d6c952dd86d21a0dfee388a1269ff))
+
 ## [0.28.0](https://github.com/introspection-org/introspection-js-sdk/compare/v0.27.0...v0.28.0) (2026-10-07)
 
 

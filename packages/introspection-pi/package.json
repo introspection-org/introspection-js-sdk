@@ -2,6 +2,11 @@
   "name": "@introspection-sdk/introspection-pi",
   "version": "0.1.0",
   "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/introspection-org/introspection-js-sdk.git",
+    "directory": "packages/introspection-pi"
+  },
   "description": "Introspection observability extension for the Pi Agent SDK \u2014 OTEL GenAI semantic-convention spans for chat completions and tool execution",
   "type": "module",
   "main": "./dist/index.js",
@@ -11,6 +16,9 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
     }
+  },
+  "bin": {
+    "pi-session-spans": "./dist/bin.js"
   },
   "files": [
     "dist/"

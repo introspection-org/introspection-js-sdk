@@ -48,6 +48,11 @@ const COMPACTION_SUMMARY_PREFIX = `The conversation history before this point wa
 const COMPACTION_SUMMARY_SUFFIX = `
 </summary>`;
 
+/** The user-message text Pi sends the model for a compaction summary. */
+export function renderCompactionSummary(summary: string): string {
+  return COMPACTION_SUMMARY_PREFIX + summary + COMPACTION_SUMMARY_SUFFIX;
+}
+
 /** Options for the pi-ai → semconv conversion. */
 export interface ConvertOptions {
   /**
@@ -376,10 +381,7 @@ export function inputMessagesToMessages(
         } else if (isCompactionPart(part)) {
           content.push({
             type: "text",
-            text:
-              COMPACTION_SUMMARY_PREFIX +
-              part.content +
-              COMPACTION_SUMMARY_SUFFIX,
+            text: renderCompactionSummary(part.content),
           });
         } else if (isImageBlobPart(part)) {
           content.push({
@@ -433,7 +435,7 @@ export function inputMessagesToMessages(
           role: "toolResult",
           toolCallId: id,
           toolName,
-          content: [{ type: "text", text: stringifyToolResult(part.response) }],
+          content: toolResultContent(part.response),
           // The GenAI semconv has no field for a failed tool result, so the
           // flag does not survive the round trip in either direction.
           isError: false,
@@ -495,6 +497,39 @@ function parseToolArguments(value: unknown): ToolCall["arguments"] {
     return value as ToolCall["arguments"];
   }
   return {};
+}
+
+/**
+ * The blocks a `tool_call_response` was recorded from. `toolResultResponse`
+ * keeps a result carrying images as its pi blocks, so they come back as
+ * blocks: stringified, one photo a tool read is a megabyte of base64 text the
+ * model is billed for as tokens.
+ */
+function toolResultContent(value: unknown): ToolResultMessage["content"] {
+  if (Array.isArray(value)) {
+    const blocks: (TextContent | ImageContent)[] = [];
+    for (const block of value as unknown[]) {
+      if (!block || typeof block !== "object") return stringified(value);
+      const { type, text, data, mimeType } = block as Record<string, unknown>;
+      if (type === "text" && typeof text === "string") {
+        blocks.push({ type: "text", text });
+      } else if (
+        type === "image" &&
+        typeof data === "string" &&
+        typeof mimeType === "string"
+      ) {
+        blocks.push({ type: "image", data, mimeType });
+      } else {
+        return stringified(value);
+      }
+    }
+    if (blocks.length > 0) return blocks;
+  }
+  return stringified(value);
+}
+
+function stringified(value: unknown): ToolResultMessage["content"] {
+  return [{ type: "text", text: stringifyToolResult(value) }];
 }
 
 function stringifyToolResult(value: unknown): string {

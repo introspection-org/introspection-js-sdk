@@ -415,6 +415,40 @@ export interface SpanAttributes {
   [key: string]: unknown;
 }
 
+// Stored as JSON strings on a span, returned parsed by the conversation read.
+const JSON_ATTRIBUTES = new Set([
+  "gen_ai.input.messages",
+  "gen_ai.output.messages",
+  "gen_ai.system_instructions",
+  "gen_ai.tool.definitions",
+]);
+
+/**
+ * Flat OTel span attributes (`"gen_ai.usage.input_tokens": 3`) as the nested
+ * tree a conversation read returns (`{ gen_ai: { usage: { input_tokens: 3 } } }`).
+ * The JSON-encoded message attributes are parsed; `undefined` values are
+ * dropped.
+ */
+export function nestAttributes(flat: Record<string, unknown>): SpanAttributes {
+  const tree: Record<string, unknown> = {};
+  for (const [key, raw] of Object.entries(flat)) {
+    if (raw === undefined) continue;
+    const value =
+      JSON_ATTRIBUTES.has(key) && typeof raw === "string"
+        ? JSON.parse(raw)
+        : raw;
+    const path = key.split(".");
+    const leaf = path.pop() ?? key;
+    let node = tree;
+    for (const part of path) {
+      node[part] ??= {};
+      node = node[part] as Record<string, unknown>;
+    }
+    node[leaf] = value;
+  }
+  return tree;
+}
+
 /** OTel resource attributes, nested the way the resource names them. */
 export interface SpanResource {
   service?: {
@@ -564,8 +598,6 @@ export interface ConversationListParams extends CursorParams, ReadWindowParams {
   recipe_git_commit_sha?: string;
   /** Restrict to several conversations. */
   conversation_ids?: string[];
-  /** Read through one or more share grants. */
-  share_id?: string[];
   resolution?: ConversationResolution;
   sentiment?: ConversationSentiment;
   owner_key?: string;
@@ -622,8 +654,6 @@ export interface ConversationItemListParams {
   end_date?: string;
   /** Relative window in days (1-365), instead of `start_date`/`end_date`. */
   lookback_days?: number;
-  /** Read via a `/v1/shares` grant for this conversation. */
-  share_id?: string;
 }
 
 /**
@@ -645,8 +675,6 @@ export interface ConversationExportParams {
   operation_name?: string;
   /** Partition lookback bound in days (1-365). */
   lookback_days?: number;
-  /** Read via a `/v1/shares` grant for this conversation. */
-  share_id?: Uuid;
   /**
    * Lower bound on which records are assembled (ISO 8601).
    *

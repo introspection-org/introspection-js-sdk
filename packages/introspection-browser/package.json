@@ -2,6 +2,11 @@
   "name": "@introspection-sdk/introspection-browser",
   "version": "0.1.0",
   "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/introspection-org/introspection-js-sdk.git",
+    "directory": "packages/introspection-browser"
+  },
   "description": "Introspection observability SDK for the browser",
   "engines": {
     "node": ">=22"
@@ -40,10 +45,10 @@
     "@introspection-sdk/types": "workspace:*",
     "@introspection-sdk/http": "workspace:*",
     "@opentelemetry/api": "^1.9.1",
-    "@opentelemetry/api-logs": "^0.222.0",
-    "@opentelemetry/sdk-logs": "^0.222.0",
-    "@opentelemetry/exporter-logs-otlp-http": "^0.222.0",
-    "@opentelemetry/resources": "^2.11.0",
+    "@opentelemetry/api-logs": "^0.223.0",
+    "@opentelemetry/sdk-logs": "^0.223.0",
+    "@opentelemetry/exporter-logs-otlp-http": "^0.223.0",
+    "@opentelemetry/resources": "^2.12.0",
     "@opentelemetry/semantic-conventions": "^1.38.0"
   }
 }

@@ -2,6 +2,11 @@
   "name": "@introspection-sdk/types",
   "version": "0.1.0",
   "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/introspection-org/introspection-js-sdk.git",
+    "directory": "packages/introspection-types"
+  },
   "description": "Shared types for the Introspection JavaScript SDK",
   "engines": {
     "node": ">=22"
@@ -27,8 +32,8 @@
     "@ag-ui/core": "0.0.59"
   },
   "devDependencies": {
-    "@opentelemetry/sdk-logs": "^0.222.0",
-    "@opentelemetry/sdk-trace-base": "^2.11.0",
+    "@opentelemetry/sdk-logs": "^0.223.0",
+    "@opentelemetry/sdk-trace-base": "^2.12.0",
     "@repo/typescript-config": "workspace:*",
     "typescript": "5.9.3"
   },

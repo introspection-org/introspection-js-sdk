@@ -44,10 +44,11 @@ async function main() {
 
   // 2) Spawn a task on the runner (cursor-style sugar: one call
   //    creates the task and its first run) and stream its events.
-  // Tags stamped here group the task for `tasks.list({ tag })`, and are
-  // access-bearing: a caller whose member tags intersect them can read and
-  // write this task. Member tags are set by an org owner through the members
-  // API — a runner identity cannot assert its own.
+  // Tags stamped here group the task for `tasks.list({ tag })`. A caller
+  // whose member tags intersect them can still read and write this task, but
+  // that implicit tag access is deprecated: share with a cohort through a tag
+  // share (`shares.create({ granted_tag })`) instead. Member tags are set by an
+  // org owner through the members API — a runner identity cannot assert its own.
   const run = await runner.tasks.start({
     tags: ["project:x"],
     prompt: "Say hello in one sentence.",
@@ -59,10 +60,11 @@ async function main() {
   }
 
   // 3) Once the run has drained, the task carries its conversation id in
-  //    metadata. Fetch that conversation, then mint a read-share for it —
-  //    the grant's `url` (carrying the `?share_id` capability) is what you
-  //    hand to someone else, or feed back as `fork_share_id` to branch a
-  //    new task off this conversation.
+  //    metadata. Fetch that conversation, then share it — the conversation
+  //    then appears in the grantee's ordinary reads (here, everyone in the
+  //    project; pass `granted_member_id` or `granted_tag` to narrow it), and
+  //    the grant id can be fed back as `fork_share_id` to branch a new task
+  //    off this conversation.
   const conversationId = run.task?.metadata?.conversation_id as
     string | undefined;
   if (conversationId) {

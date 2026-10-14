@@ -132,7 +132,7 @@ export class IntrospectionApiClient {
     return this.cookieClients.conversations;
   }
 
-  /** `/v1/shares` read-sharing grants bound to the session cookie. */
+  /** `/v1/shares` sharing grants bound to the session cookie. */
   get shares(): SharesClient {
     return this.cookieClients.shares;
   }
