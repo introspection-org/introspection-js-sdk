@@ -662,3 +662,7 @@
     max-height: 720px;
   }
 }
+
+.timeline-label {
+  margin: 0 0 4px;
+}

@@ -446,11 +446,16 @@ export function AAuthDemo({ scenarios }: { scenarios: Scenario[] }) {
             <h2>
               {started ? "What each party sees" : "Type what Sam asks for"}
             </h2>
-            <p>
-              {started
-                ? "Flight Sector's travel-agent recipe runs on Introspection. Its egress signs every call, and runs Flight Sector's Cedar rails before Acme is asked. Acme's Person Server speaks for Sam: Dana approves the trip once, and anything over its budget."
-                : "Pick a sample or type your own: where, when, cabin, hotel and a budget. The travel-agent recipe proposes the trip to Acme, then books within it."}
-            </p>
+            {!started && (
+              <p>
+                Pick a sample or type your own: where, when, cabin, hotel and a
+                budget. Flight Sector&apos;s travel-agent recipe runs on
+                Introspection: its egress signs every call and runs Flight
+                Sector&apos;s Cedar rails before Acme is asked, and Acme&apos;s
+                Person Server speaks for Sam, so Dana approves the trip once and
+                anything over its budget.
+              </p>
+            )}
             {hint && (
               <p className="hint">
                 <strong>Next:</strong> {hint}
@@ -472,6 +477,9 @@ export function AAuthDemo({ scenarios }: { scenarios: Scenario[] }) {
             )}
           </div>
           <div className="pane-body">
+            {turns.length > 0 && (
+              <div className="step-label timeline-label">Timeline</div>
+            )}
             {turns.map((turn) => (
               <Moment
                 key={turn}
