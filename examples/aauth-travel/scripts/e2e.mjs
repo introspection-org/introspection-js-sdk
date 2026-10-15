@@ -29,8 +29,8 @@ import {
 } from "@aauth/agent";
 import { SignJWT, exportJWK, generateKeyPair, importJWK } from "jose";
 
-const APP_PORT = 3400;
-const AP_PORT = 3499;
+const APP_PORT = Number(process.env.E2E_APP_PORT ?? 3400);
+const AP_PORT = Number(process.env.E2E_AP_PORT ?? 3499);
 const children = [];
 const stop = () => children.forEach((child) => child.kill());
 process.on("exit", stop);
