@@ -5,6 +5,7 @@ import {
   type ReactNode,
   useCallback,
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
 } from "react";
@@ -389,9 +390,12 @@ export function AAuthDemo({ scenarios }: { scenarios: Scenario[] }) {
   const [picked, setPicked] = useState<number | null>(null);
   const chatEnd = useRef<HTMLDivElement>(null);
   const chatBox = useRef<HTMLDivElement>(null);
-  const seenEnd = useRef<HTMLDivElement>(null);
-  const detailsEnd = useRef<HTMLDivElement>(null);
-  const detailsTop = useRef<HTMLDivElement>(null);
+  const seenPane = useRef<HTMLDivElement>(null);
+  const detailsPane = useRef<HTMLDivElement>(null);
+  // Whether the reader is at a pane's end, so new and growing content keeps
+  // it there; scrolling up to read leaves it where they put it.
+  const seenAtEnd = useRef(true);
+  const detailsAtEnd = useRef(true);
   const composer = useRef<HTMLTextAreaElement>(null);
   // Grow with the text, as a chat app's input does, whether typed or picked.
   useEffect(() => {
@@ -413,8 +417,6 @@ export function AAuthDemo({ scenarios }: { scenarios: Scenario[] }) {
   }, [refresh]);
 
   const chatCount = state?.chat.length ?? 0;
-  const callCount = state?.exchanges.length ?? 0;
-  const mailCount = state?.inbox.length ?? 0;
   // Follow the chat as each reply streams in, not only when a new one starts.
   const chatSize =
     state?.chat.reduce((n, line) => n + line.text.length, 0) ?? 0;
@@ -422,16 +424,23 @@ export function AAuthDemo({ scenarios }: { scenarios: Scenario[] }) {
     const box = chatBox.current;
     if (box) box.scrollTop = box.scrollHeight;
   }, [chatCount, chatSize, state?.working]);
-  // New activity scrolls both panes while following the latest; picking a turn
-  // moves only the request details, to the top of that turn's requests.
+  // Every update keeps a pane that was at its end there, after layout, so a
+  // card that grows once rendered is not left half below the edge. Picking a
+  // turn moves only the request details, to the top of that turn's requests.
+  useLayoutEffect(() => {
+    const seen = seenPane.current;
+    if (seen && seenAtEnd.current) seen.scrollTop = seen.scrollHeight;
+    const details = detailsPane.current;
+    if (details && picked === null && detailsAtEnd.current)
+      details.scrollTop = details.scrollHeight;
+  }, [state, picked]);
   useEffect(() => {
-    if (picked !== null) return;
-    seenEnd.current?.scrollIntoView({ block: "nearest" });
-    detailsEnd.current?.scrollIntoView({ block: "nearest" });
-  }, [callCount, mailCount, picked]);
-  useEffect(() => {
-    if (picked !== null) detailsTop.current?.scrollTo({ top: 0 });
+    // Following the latest again follows the end again.
+    detailsAtEnd.current = picked === null;
+    if (picked !== null) detailsPane.current?.scrollTo({ top: 0 });
   }, [picked]);
+  const atEnd = (pane: HTMLDivElement) =>
+    pane.scrollHeight - pane.scrollTop - pane.clientHeight < 48;
 
   const act = async (body: Record<string, unknown>) => {
     setSending(true);
@@ -643,7 +652,11 @@ export function AAuthDemo({ scenarios }: { scenarios: Scenario[] }) {
               )}
             </div>
           )}
-          <div className="pane-body">
+          <div
+            className="pane-body"
+            ref={seenPane}
+            onScroll={(e) => (seenAtEnd.current = atEnd(e.currentTarget))}
+          >
             {turns.map((turn) => (
               <Moment
                 key={turn}
@@ -656,7 +669,6 @@ export function AAuthDemo({ scenarios }: { scenarios: Scenario[] }) {
                 onDecide={decide}
               />
             ))}
-            <div ref={seenEnd} />
           </div>
         </div>
 
@@ -671,7 +683,11 @@ export function AAuthDemo({ scenarios }: { scenarios: Scenario[] }) {
               </button>
             )}
           </div>
-          <div className="pane-body" ref={detailsTop}>
+          <div
+            className="pane-body"
+            ref={detailsPane}
+            onScroll={(e) => (detailsAtEnd.current = atEnd(e.currentTarget))}
+          >
             {details.length === 0 && (
               <p className="muted">
                 Each request Introspection&apos;s egress sends for the agent
@@ -698,7 +714,6 @@ export function AAuthDemo({ scenarios }: { scenarios: Scenario[] }) {
                 </pre>
               </div>
             ))}
-            <div ref={detailsEnd} />
           </div>
         </div>
       </div>
