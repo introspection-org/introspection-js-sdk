@@ -42,6 +42,8 @@ type Snapshot = {
   chat: { from: "Sam" | "Agent"; text: string }[];
   error?: string;
   /** The run's conversation in the Introspection app. */
+  /** The run's task, which is its conversation in Introspection. */
+  taskId?: string;
   trace?: string;
   working?: boolean;
   mission?: {
@@ -353,6 +355,18 @@ export function AAuthDemo({ scenarios }: { scenarios: Scenario[] }) {
           <Link href="/" className="link">
             The code behind it
           </Link>
+          {state?.taskId && (
+            <span className="conversation-id">
+              <code title={state.taskId}>{state.taskId.slice(0, 13)}…</code>
+              <button
+                className="copy"
+                onClick={() => navigator.clipboard?.writeText(state.taskId!)}
+                aria-label="Copy the conversation id"
+              >
+                Copy
+              </button>
+            </span>
+          )}
           {state?.trace && (
             <a
               href={state.trace}
@@ -360,7 +374,7 @@ export function AAuthDemo({ scenarios }: { scenarios: Scenario[] }) {
               rel="noreferrer"
               className="link"
             >
-              The conversation trace
+              Open in Introspection
             </a>
           )}
           {started && (

@@ -108,11 +108,21 @@ function memberId(key: string): string {
   return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
 }
 
-/** The person a member id names: the platform knows Sam as `user:{email}`. */
-const personOf = (member: string) =>
+/**
+ * The person a member id names: the platform knows Sam as `user:{email}`.
+ * Anyone else in the project, such as you chatting from the Introspection app,
+ * travels for Acme too, with Dana as their manager.
+ */
+const personOf = (member: string): Person =>
   people.find(
     (p) => p.company === "acme" && memberId(`user:${p.email}`) === member,
-  );
+  ) ?? {
+    external_user_id: `member:${member}`,
+    company: "acme",
+    name: "You, from the Introspection app",
+    email: "you@acme.example",
+    manager: people.find((p) => p.name === "Dana Park")!.external_user_id,
+  };
 
 const managerOf = (person: Person) =>
   people.find((p) => p.external_user_id === person.manager);
