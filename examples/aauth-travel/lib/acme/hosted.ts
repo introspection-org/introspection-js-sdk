@@ -1,9 +1,9 @@
 /**
- * Acme on Introspection's hosted Person Server. The platform runs the protocol, the missions
- * and their budgets; Acme keeps the human side. This module is Acme's approval
- * app: it lists what is waiting with Acme's project key, emails the approver a
- * six-digit code exactly as Acme's own Person Server does, and records the
- * answer on the platform.
+ * Acme on Introspection's hosted Person Server. The platform runs the
+ * protocol, the missions and their budgets; Acme keeps the human side. This
+ * module is Acme's approval app: it lists what is waiting with Acme's project
+ * key, emails the approver a six-digit code exactly as Acme's own Person Server
+ * does, and records the answer on the platform.
  */
 import "server-only";
 
