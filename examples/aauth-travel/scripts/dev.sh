@@ -7,8 +7,9 @@
 #
 # Public URLs come from free Cloudflare quick tunnels (`brew install
 # cloudflared`), new each run; the project follows them. With
-# FLIGHTSECTOR_DOMAIN=example.dev they are a named tunnel's hosts on that
-# domain instead, the same every run (`cloudflared tunnel login` once).
+# FLIGHTSECTOR_DOMAIN=example.dev (in the environment or .env.local) they are
+# a named tunnel's hosts on that domain instead, the same every run
+# (`cloudflared tunnel login` once).
 #
 # The project setup, the first time on a stack (safe to re-run):
 #   1. the agent: a repository Introspection hosts, seeded from the public
@@ -82,6 +83,7 @@ json() {
 # ---------------------------------------------------------------------------
 
 command -v cloudflared >/dev/null 2>&1 || fail "install cloudflared first: brew install cloudflared"
+FLIGHTSECTOR_DOMAIN="${FLIGHTSECTOR_DOMAIN:-$(read_env FLIGHTSECTOR_DOMAIN)}"
 MODE="${PERSON_SERVER:-$(read_env PERSON_SERVER)}"
 MODE="${MODE:-hosted}"
 case "$MODE" in hosted | acme) ;; *) fail "PERSON_SERVER is hosted or acme" ;; esac

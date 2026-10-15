@@ -38,28 +38,28 @@ export const SCENARIOS = [
     id: "approved",
     title: "Over budget, Dana approves",
     prompt:
-      "Book me economy to Sydney for 19 to 23 October, and the QT Sydney. Up to $3,000.",
+      "Book me economy from San Francisco to Sydney for 19 to 23 October, and the QT Sydney. Up to $3,000.",
     hint: "Approve the trip at $3,000. The flight books on its own; approve the QT when Dana is asked.",
   },
   {
     id: "first",
     title: "First class: the rails refuse",
     prompt:
-      "Fly me first class to Sydney for 19 to 23 October, with the Harbour Rocks. Up to $20,000.",
+      "Fly me first class from San Francisco to Sydney for 19 to 23 October, with the Harbour Rocks. Up to $20,000.",
     hint: "Approve the trip. Flight Sector's Cedar rails in Introspection's egress refuse first class before Acme is asked.",
   },
   {
     id: "personal",
     title: "Personal trip on the company",
     prompt:
-      "A personal weekend in Sydney, 19 to 23 October, economy and the Harbour Rocks, on the company account. Up to $3,000.",
+      "A personal weekend in Sydney from San Francisco, 19 to 23 October, economy and the Harbour Rocks, on the company account. Up to $3,000.",
     hint: "Approve the trip. The rails refuse each booking: personal travel is paid by the traveller.",
   },
   {
     id: "declined",
     title: "Over budget, Dana declines",
     prompt:
-      "Economy to Sydney for 19 to 23 October and the QT Sydney. Up to $2,000.",
+      "Economy from San Francisco to Sydney for 19 to 23 October and the QT Sydney. Up to $2,000.",
     hint: "Approve the trip at $2,000. The flight fits; decline the QT when Dana is asked.",
   },
 ] as const;
