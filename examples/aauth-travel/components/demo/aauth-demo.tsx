@@ -354,6 +354,10 @@ export function AAuthDemo({ scenarios }: { scenarios: Scenario[] }) {
       <div className="stage">
         <div className="phone">
           <div className="phone-screen">
+            <div className="phone-status" aria-hidden>
+              <span>9:41</span>
+              <span>5G</span>
+            </div>
             <div className="phone-head">
               <span className="avatar">F</span>
               <div>

@@ -133,10 +133,15 @@
   min-height: 0;
   display: flex;
   flex-direction: column;
+  align-items: center;
 }
 
+/* A phone's proportions, as tall as the column allows. */
 .phone-screen {
-  flex: 1;
+  flex: 0 1 auto;
+  height: min(100%, 780px);
+  aspect-ratio: 9 / 19.5;
+  max-width: 100%;
   min-height: 0;
   border: 12px solid #111;
   border-radius: 44px;
@@ -147,6 +152,14 @@
   box-shadow:
     0 16px 32px #1111101f,
     0 0 0 1px #000;
+}
+
+.phone-status {
+  display: flex;
+  justify-content: space-between;
+  padding: 12px 26px 0;
+  font-size: 13px;
+  font-weight: 600;
 }
 
 .phone-head {
