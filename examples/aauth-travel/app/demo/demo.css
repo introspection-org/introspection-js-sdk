@@ -785,8 +785,11 @@
 .ademo .copy-exchange {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
   margin-left: 8px;
-  padding: 2px 4px;
+  padding: 0;
   border: 0;
   border-radius: 4px;
   background: transparent;
