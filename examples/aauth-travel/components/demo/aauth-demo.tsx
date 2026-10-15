@@ -263,10 +263,12 @@ function Moment(props: {
 function ConversationBar({ base, taskId }: { base?: string; taskId?: string }) {
   // Shown as a browser shows an address: no scheme, the host set off from the path.
   const scheme = base?.match(/^https?:\/\//)?.[0] ?? "https://";
-  const current = base && taskId ? `${base}${taskId}`.slice(scheme.length) : "";
+  // Before a run, the project's conversations; during one, that run's.
+  const current = base
+    ? `${base}${taskId ?? ""}`.slice(scheme.length)
+    : (taskId ?? "");
   const [text, setText] = useState(current);
   useEffect(() => setText(current), [current]);
-  if (!current) return null;
   const go = () => {
     const value = text.trim();
     if (!value) return;
@@ -294,6 +296,7 @@ function ConversationBar({ base, taskId }: { base?: string; taskId?: string }) {
         onChange={(e) => setText(e.target.value)}
         onFocus={(e) => e.target.select()}
         spellCheck={false}
+        placeholder="Paste a conversation URL or id"
         aria-label="This run's conversation in Introspection, or another to open"
       />
       <button
