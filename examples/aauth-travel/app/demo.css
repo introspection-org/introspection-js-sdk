@@ -905,3 +905,14 @@
 .mail-done {
   border-color: var(--line);
 }
+
+.on-introspection {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  vertical-align: middle;
+}
+
+.on-introspection svg {
+  color: var(--ink);
+}
