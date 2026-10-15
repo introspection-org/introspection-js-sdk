@@ -488,7 +488,7 @@ export function AAuthDemo({ scenarios }: { scenarios: Scenario[] }) {
               rel="noopener noreferrer"
               className="control"
             >
-              Docs
+              Walkthrough
             </a>
             {started && (
               <button
