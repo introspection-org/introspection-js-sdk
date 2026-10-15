@@ -484,7 +484,7 @@ export function AAuthDemo({ scenarios }: { scenarios: Scenario[] }) {
           </div>
           <div className="ademo-controls">
             <Link href="/" className="control">
-              <span aria-hidden>&lt;/&gt;</span> Code
+              Docs
             </Link>
             {started && (
               <button
