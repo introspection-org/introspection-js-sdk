@@ -43,6 +43,60 @@ await ps.decide(approvalId, {
 });
 ```
 
+## Run it on its own
+
+```bash
+npm install @introspection-sdk/person-server
+# A stable Ed25519 signing key and subject secret, generated once:
+node -e 'const c=require("node:crypto");process.stdout.write(c.generateKeyPairSync("ed25519").privateKey.export({type:"pkcs8",format:"pem"}))' > ps-signing-key.pem
+node -e 'process.stdout.write(require("node:crypto").randomBytes(32).toString("hex"))' > ps-subject-secret
+```
+
+Node has no built-in server for `Request` → `Response` handlers, so adapt `node:http`. Bun and Deno take `ps.handle` as it is: `Bun.serve({ fetch: ps.handle })`, `Deno.serve(ps.handle)`.
+
+```ts
+// server.mjs
+import { readFileSync } from "node:fs";
+import { createServer } from "node:http";
+import { Readable } from "node:stream";
+
+import { createPersonServer } from "@introspection-sdk/person-server";
+
+const issuer = "https://ps.acme.example";
+const ps = await createPersonServer({
+  issuer,
+  trustedAgentProviders: ["https://api.introspection.dev"],
+  signingKey: readFileSync("ps-signing-key.pem", "utf8"),
+  subjectSecret: readFileSync("ps-subject-secret", "utf8"),
+  adminToken: process.env.PS_ADMIN_TOKEN, // turns on the management routes
+  directory: { person: (hint) => employees.byEmail(hint) },
+  onApproval: (approval) => notify(approval.approver, approval),
+});
+
+createServer(async (req, res) => {
+  const hasBody = req.method !== "GET" && req.method !== "HEAD";
+  const response = await ps.handle(
+    new Request(new URL(req.url, issuer), {
+      method: req.method,
+      headers: req.headers,
+      body: hasBody ? Readable.toWeb(req) : undefined,
+      duplex: "half",
+    }),
+  );
+  res.writeHead(response.status, Object.fromEntries(response.headers));
+  res.end(Buffer.from(await response.arrayBuffer()));
+}).listen(4100);
+```
+
+Serve it at `issuer` over https, behind your proxy or a tunnel (`cloudflared tunnel --url http://localhost:4100`), then check it:
+
+```bash
+curl https://ps.acme.example/.well-known/aauth-person.json
+curl -H "authorization: Bearer $PS_ADMIN_TOKEN" "https://ps.acme.example/consent?status=pending"
+```
+
+An Introspection connector uses it once its `person_server_url` names `issuer`.
+
 Keep the signing key and subject secret stable: resources cache your keys, and each person's directed `sub` is derived from the secret. The default store is in memory; implement `Store` for anything that must survive a restart. `spend` must check and add in one step.
 
 ## Routes
