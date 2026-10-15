@@ -289,6 +289,14 @@ connect() {
     TENANT=""
   fi
 
+  # The booking provider and Acme reach both at these public URLs, so a dead
+  # tunnel in front of a local stack fails every booking.
+  local doc
+  for doc in "$AGENT_PROVIDER/.well-known/aauth-agent.json" "$PERSON_SERVER_URL/.well-known/aauth-person.json"; do
+    curl -fsS -m 15 -o /dev/null "$doc" 2>/dev/null ||
+      fail "${doc%/.well-known/*} does not answer; on a local stack, restart its tunnel and the service it fronts"
+  done
+
   # The project in the Introspection app, by its slug, so the demo can link to
   # the run's conversation. INTROSPECTION_APP_URL overrides the app's host.
   local project_url

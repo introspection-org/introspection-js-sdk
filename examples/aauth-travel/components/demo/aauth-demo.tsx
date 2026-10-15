@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import {
   Fragment,
   type ReactNode,
@@ -483,9 +482,14 @@ export function AAuthDemo({ scenarios }: { scenarios: Scenario[] }) {
             </span>
           </div>
           <div className="ademo-controls">
-            <Link href="/" className="control">
+            <a
+              href="/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="control"
+            >
               Docs
-            </Link>
+            </a>
             {started && (
               <button
                 className="control"
