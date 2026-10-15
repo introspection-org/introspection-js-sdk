@@ -41,6 +41,8 @@ type Snapshot = {
   busy: boolean;
   chat: { from: "Sam" | "Agent"; text: string }[];
   error?: string;
+  /** The run's conversation in the Introspection app. */
+  trace?: string;
   mission?: {
     s256: string;
     budget_cents: number;
@@ -342,6 +344,16 @@ export function AAuthDemo({ scenarios }: { scenarios: Scenario[] }) {
           <Link href="/" className="link">
             The code behind it
           </Link>
+          {state?.trace && (
+            <a
+              href={state.trace}
+              target="_blank"
+              rel="noreferrer"
+              className="link"
+            >
+              The conversation trace
+            </a>
+          )}
           {started && (
             <button
               className="secondary"

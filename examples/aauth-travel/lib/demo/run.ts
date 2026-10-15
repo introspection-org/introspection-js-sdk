@@ -110,6 +110,15 @@ const say = (from: Chat["from"], text: string) => {
   setTurn(chat.length);
 };
 
+/** The run's conversation in the Introspection app, once there is one. */
+function traceUrl(taskId?: string) {
+  const app = process.env.INTROSPECTION_APP_URL?.replace(/\/+$/, "");
+  const project = process.env.INTROSPECTION_PROJECT_ID;
+  return app && project && taskId
+    ? `${app}/p/${project}/conversations/${taskId}`
+    : undefined;
+}
+
 export function snapshot() {
   const r = run();
   const sent = inbox();
@@ -120,6 +129,7 @@ export function snapshot() {
     chat: r.chat,
     error: r.error,
     taskId: r.taskId,
+    trace: traceUrl(r.taskId),
     mission: trip && {
       s256: trip.s256,
       budget_cents: trip.budget_cents,
