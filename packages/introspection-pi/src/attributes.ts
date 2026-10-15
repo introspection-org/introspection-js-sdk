@@ -15,7 +15,12 @@ import type {
   SimpleStreamOptions,
   Tool,
 } from "@earendil-works/pi-ai";
-import { GenAi, type ToolDefinition } from "@introspection-sdk/types";
+import {
+  GenAi,
+  McpAttr,
+  type McpServerBinding,
+  type ToolDefinition,
+} from "@introspection-sdk/types";
 import {
   assistantToOutputMessages,
   messagesToInputMessages,
@@ -194,6 +199,38 @@ export function chatResponseAttributes(message: AssistantMessage): Attributes {
   return attributes;
 }
 
+/**
+ * The MCP server a tool is served by, as the host that registered the tool
+ * knows it. `serverName` / `serverVersion` are unknown until the server has
+ * answered `initialize`.
+ */
+export interface McpToolOrigin {
+  /** The server id the Recipe declares. */
+  serverId: string;
+  /** The tool's name in the server's contract, not the client-prefixed tool name. */
+  toolName: string;
+  binding?: McpServerBinding;
+  serverName?: string;
+  serverVersion?: string;
+}
+
+/** The `mcp.*` attributes for a tool an MCP server serves; empty for any other tool. */
+export function mcpToolAttributes(
+  origin: McpToolOrigin | undefined,
+): Attributes {
+  if (!origin) return {};
+  const attributes: Attributes = {
+    [McpAttr.SERVER_ID]: origin.serverId,
+    [McpAttr.TOOL_NAME]: origin.toolName,
+  };
+  if (origin.binding) attributes[McpAttr.SERVER_BINDING] = origin.binding;
+  if (origin.serverName) attributes[McpAttr.SERVER_NAME] = origin.serverName;
+  if (origin.serverVersion) {
+    attributes[McpAttr.SERVER_VERSION] = origin.serverVersion;
+  }
+  return attributes;
+}
+
 /** Common attributes for an execute_tool span (set at start). */
 export function executeToolAttributes(
   toolName: string,
@@ -201,6 +238,7 @@ export function executeToolAttributes(
   args: unknown,
   meta: AgentMeta,
   description?: string,
+  mcp?: McpToolOrigin,
 ): Attributes {
   const attributes: Attributes = {
     [GenAi.CONVERSATION_ID]: meta.conversationId,
@@ -210,6 +248,7 @@ export function executeToolAttributes(
     [GenAi.TOOL_NAME]: toolName,
     [GenAi.TOOL_TYPE]: "function",
     [GenAi.TOOL_CALL_ID]: toolCallId,
+    ...mcpToolAttributes(mcp),
   };
   if (description) {
     attributes[GenAi.TOOL_DESCRIPTION] = description;

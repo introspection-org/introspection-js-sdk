@@ -428,6 +428,30 @@ export const IntrospectionAttr = {
 } as const;
 
 /**
+ * Attributes on an `execute_tool` span for a tool an MCP server serves. A
+ * built-in tool's span carries none of them.
+ */
+export const McpAttr = {
+  /** The server id the Recipe declares. */
+  SERVER_ID: "mcp.server.id",
+  /** The tool's name in the server's contract, before any prefix the client adds. */
+  TOOL_NAME: "mcp.tool.name",
+  /** Where the server was bound from; see {@link McpServerBinding}. */
+  SERVER_BINDING: "mcp.server.binding",
+  /** `serverInfo.name` from the server's `initialize` response. */
+  SERVER_NAME: "mcp.server.name",
+  /** `serverInfo.version` from the server's `initialize` response. */
+  SERVER_VERSION: "mcp.server.version",
+} as const;
+
+/**
+ * Where an MCP server was bound from: `live` is a project `kind: mcp`
+ * endpoint, `recipe` an eval task's committed binding to a fake, `local` an
+ * `introspection dev` session's local binding.
+ */
+export type McpServerBinding = "live" | "recipe" | "local";
+
+/**
  * Extract provider-reported cost attributes from a raw LLM usage block.
  *
  * OpenAI-compatible gateways (e.g. OpenRouter with `usage: {include: true}`)

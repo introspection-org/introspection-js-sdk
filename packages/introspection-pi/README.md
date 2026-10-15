@@ -50,6 +50,20 @@ instrumentSession(session, {
 });
 ```
 
+A host that registers MCP tools names the server behind each one, so its
+`execute_tool` span carries `mcp.server.id`, `mcp.tool.name`,
+`mcp.server.binding`, `mcp.server.name` and `mcp.server.version`. The lookup is
+read when the span starts and again when it ends; a tool it returns nothing for
+carries none of them:
+
+```ts
+instrumentSession(session, {
+  tracer,
+  meta,
+  mcpTool: (toolName) => mcpTools.get(toolName),
+});
+```
+
 ### Composing the pieces yourself
 
 ```ts
