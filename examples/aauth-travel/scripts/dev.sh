@@ -80,6 +80,14 @@ json() {
   ' "$1"
 }
 
+# `issuer URL`: the issuer the well-known document at URL names, empty when
+# there is none there; fails when nothing answers at all.
+issuer() {
+  local out
+  out="$(curl -sS -m 10 -w '\n%{http_code}' "$1" 2>/dev/null)" || return 1
+  if [ "${out##*$'\n'}" = 200 ]; then json 'v.issuer' <<<"${out%$'\n'*}"; fi
+}
+
 # ---------------------------------------------------------------------------
 # The Introspection CLI, installed or brought up to date
 # ---------------------------------------------------------------------------
@@ -291,10 +299,13 @@ connect() {
 
   # The platform as Agent Provider, which the booking provider and Acme trust,
   # and the Person Server that speaks for Acme.
-  AGENT_PROVIDER="$(curl -fsS "$CP_URL/.well-known/aauth-agent.json" | json 'v.issuer')" ||
-    fail "$CP_URL serves no Agent Provider: AAuth is not enabled on this stack"
+  AGENT_PROVIDER="$(issuer "$CP_URL/.well-known/aauth-agent.json")" ||
+    fail "nothing answers at $CP_URL: start the control plane"
+  [ -n "$AGENT_PROVIDER" ] || fail "$CP_URL serves no Agent Provider: AAuth is not enabled on this stack"
   if [ "$MODE" = hosted ]; then
-    PERSON_SERVER_URL="$(curl -fsS "$DP_URL/.well-known/aauth-person.json" | json 'v.issuer')" ||
+    PERSON_SERVER_URL="$(issuer "$DP_URL/.well-known/aauth-person.json")" ||
+      fail "nothing answers at $DP_URL: start the data plane"
+    [ -n "$PERSON_SERVER_URL" ] ||
       fail "$DP_URL serves no hosted Person Server; restart with PERSON_SERVER=acme to use Acme's own"
     TENANT="$ORG_ID:$project_id"
   else
