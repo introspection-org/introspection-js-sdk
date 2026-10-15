@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.33.0](https://github.com/introspection-org/introspection-js-sdk/compare/v0.32.0...v0.33.0) (2026-10-15)
+
+
+### ⚠ BREAKING CHANGES
+
+* **repositories:** `RepositoryProvider` is now `"github" | "introspection"`; `"hosted"` is no longer a member.
+
+### Features
+
+* **examples:** the AAuth travel demo ([#435](https://github.com/introspection-org/introspection-js-sdk/issues/435)) ([32ec303](https://github.com/introspection-org/introspection-js-sdk/commit/32ec303e9c1df1a5fe01b5fa1b307a1ccf88dbae))
+
+
+### Bug Fixes
+
+* **repositories:** the platform-served provider is `introspection` ([#459](https://github.com/introspection-org/introspection-js-sdk/issues/459)) ([390c5a8](https://github.com/introspection-org/introspection-js-sdk/commit/390c5a8c7383ae300598835883a1eaf8fa814707))
+
 ## [0.32.0](https://github.com/introspection-org/introspection-js-sdk/compare/v0.31.0...v0.32.0) (2026-10-14)
 
 
