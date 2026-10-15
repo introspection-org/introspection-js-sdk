@@ -263,8 +263,12 @@ export function AAuthDemo({ scenarios }: { scenarios: Scenario[] }) {
   const detailsEnd = useRef<HTMLDivElement>(null);
   const detailsTop = useRef<HTMLDivElement>(null);
   const composer = useRef<HTMLTextAreaElement>(null);
+  // Grow with the text, as a chat app's input does, whether typed or picked.
   useEffect(() => {
-    if (!prompt && composer.current) composer.current.style.height = "auto";
+    const box = composer.current;
+    if (!box) return;
+    box.style.height = "auto";
+    if (prompt) box.style.height = `${box.scrollHeight}px`;
   }, [prompt]);
 
   const refresh = useCallback(async () => {
@@ -430,12 +434,7 @@ export function AAuthDemo({ scenarios }: { scenarios: Scenario[] }) {
                 placeholder={
                   started ? "Reply as Sam" : "Message Flight Sector as Sam"
                 }
-                onChange={(e) => {
-                  setPrompt(e.target.value);
-                  // Grow with the text, as a chat app's input does.
-                  e.target.style.height = "auto";
-                  e.target.style.height = `${e.target.scrollHeight}px`;
-                }}
+                onChange={(e) => setPrompt(e.target.value)}
                 onKeyDown={(e) => {
                   if (e.key === "Enter" && !e.shiftKey) {
                     e.preventDefault();
