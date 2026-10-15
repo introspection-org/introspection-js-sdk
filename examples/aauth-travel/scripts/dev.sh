@@ -251,12 +251,18 @@ full_setup() {
   # 3. The application whose client id is the agent's AAuth identity, and the connector.
   local app_name="Flight Sector agent" app app_id client_id
   app="$(introspection applications list -o json | json "(v.records ?? v).find((a) => a.name === '$app_name')")"
+  # What the demo page does as it: run the runtime as Sam, follow and stop the
+  # task, and load a conversation. Naming them replaces the role's default.
+  local app_scopes="runtimes:read tasks:read tasks:write conversations:read"
   if [ -z "$app" ]; then
-    app="$(introspection applications create --type service-account --name "$app_name" -o json | json 'v.application ?? v')"
+    app="$(introspection applications create --type service-account --name "$app_name" \
+      --allowed-scope "$app_scopes" -o json | json 'v.application ?? v')"
   fi
   app_id="$(json 'v.id' <<<"$app")"
   client_id="$(json 'v.client_id' <<<"$app")"
   [ -n "$app_id" ] && [ -n "$client_id" ] || fail "could not create the $app_name application"
+  introspection applications update "$app_id" --allowed-scope "$app_scopes" >/dev/null ||
+    fail "could not set the $app_name application's scopes"
   upsert_env AGENT_APPLICATION_ID "$app_id"
   apply_connector
 
