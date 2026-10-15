@@ -339,6 +339,7 @@ export function AAuthDemo({ scenarios }: { scenarios: Scenario[] }) {
   const [sending, setSending] = useState(false);
   const [picked, setPicked] = useState<number | null>(null);
   const chatEnd = useRef<HTMLDivElement>(null);
+  const chatBox = useRef<HTMLDivElement>(null);
   const seenEnd = useRef<HTMLDivElement>(null);
   const detailsEnd = useRef<HTMLDivElement>(null);
   const detailsTop = useRef<HTMLDivElement>(null);
@@ -365,9 +366,13 @@ export function AAuthDemo({ scenarios }: { scenarios: Scenario[] }) {
   const chatCount = state?.chat.length ?? 0;
   const callCount = state?.exchanges.length ?? 0;
   const mailCount = state?.inbox.length ?? 0;
+  // Follow the chat as each reply streams in, not only when a new one starts.
+  const chatSize =
+    state?.chat.reduce((n, line) => n + line.text.length, 0) ?? 0;
   useEffect(() => {
-    chatEnd.current?.scrollIntoView({ block: "nearest" });
-  }, [chatCount]);
+    const box = chatBox.current;
+    if (box) box.scrollTop = box.scrollHeight;
+  }, [chatCount, chatSize]);
   // New activity scrolls both panes while following the latest; picking a turn
   // moves only the request details, to the top of that turn's requests.
   useEffect(() => {
@@ -472,7 +477,7 @@ export function AAuthDemo({ scenarios }: { scenarios: Scenario[] }) {
                 <span>Acme&apos;s travel agent</span>
               </div>
             </div>
-            <div className="phone-chat">
+            <div className="phone-chat" ref={chatBox}>
               {!started && (
                 <div className="ideas">
                   <span className="muted">Try asking for…</span>
