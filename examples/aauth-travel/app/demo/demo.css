@@ -532,6 +532,14 @@
   font-size: 13px;
 }
 
+/* A table never runs past the bubble: it scrolls sideways within it instead. */
+.bubble table {
+  display: block;
+  max-width: 100%;
+  overflow-x: auto;
+  font-size: 12.5px;
+}
+
 .bubble th,
 .bubble td,
 .moment-title th,
