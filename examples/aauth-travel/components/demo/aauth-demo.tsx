@@ -10,6 +10,8 @@ import {
   useState,
 } from "react";
 
+import { recipe } from "@/flow/recipe.mjs";
+
 import { AAuthLogo } from "./aauth-logo";
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -524,6 +526,14 @@ export function AAuthDemo({ scenarios }: { scenarios: Scenario[] }) {
             </span>
           </div>
           <div className="ademo-controls">
+            <a
+              href={`${recipe.repository}/tree/${recipe.ref}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="control"
+            >
+              Recipe
+            </a>
             <a
               href="/walkthrough"
               target="_blank"
