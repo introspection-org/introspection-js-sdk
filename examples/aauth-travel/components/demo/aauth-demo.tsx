@@ -421,7 +421,7 @@ export function AAuthDemo({ scenarios }: { scenarios: Scenario[] }) {
   useEffect(() => {
     const box = chatBox.current;
     if (box) box.scrollTop = box.scrollHeight;
-  }, [chatCount, chatSize]);
+  }, [chatCount, chatSize, state?.working]);
   // New activity scrolls both panes while following the latest; picking a turn
   // moves only the request details, to the top of that turn's requests.
   useEffect(() => {
