@@ -440,46 +440,45 @@ export function AAuthDemo({ scenarios }: { scenarios: Scenario[] }) {
 
         <div className="pane">
           <div className="pane-head">
-            <div className="step-label">
+            <div className="step-label">What each party sees</div>
+            <span className="pane-status">
               {started ? (state.busy ? "In progress" : "Done") : "Ready"}
-            </div>
-            <h2>
-              {started ? "What each party sees" : "Type what Sam asks for"}
-            </h2>
-            {!started && (
-              <p>
-                Pick a sample or type your own: where, when, cabin, hotel and a
-                budget. Flight Sector&apos;s travel-agent recipe runs on
-                Introspection: its egress signs every call and runs Flight
-                Sector&apos;s Cedar rails before Acme is asked, and Acme&apos;s
-                Person Server speaks for Sam, so Dana approves the trip once and
-                anything over its budget.
-              </p>
-            )}
-            {hint && (
-              <p className="hint">
-                <strong>Next:</strong> {hint}
-              </p>
-            )}
-            {state.mission && (
-              <div className="mission">
-                Mission <code>{state.mission.s256.slice(0, 10)}…</code> · budget
-                $
-                {Math.round(state.mission.budget_cents / 100).toLocaleString(
-                  "en-US",
-                )}{" "}
-                · spent $
-                {Math.round(state.mission.spent_cents / 100).toLocaleString(
-                  "en-US",
-                )}
-                {state.mission.terminated && ` · ${state.mission.terminated}`}
-              </div>
-            )}
+            </span>
           </div>
+          {(!started || hint || state.mission) && (
+            <div className="pane-intro">
+              {!started && (
+                <p>
+                  Pick a sample or type your own: where, when, cabin, hotel and
+                  a budget. Flight Sector&apos;s travel-agent recipe runs on
+                  Introspection: its egress signs every call and runs Flight
+                  Sector&apos;s Cedar rails before Acme is asked, and
+                  Acme&apos;s Person Server speaks for Sam, so Dana approves the
+                  trip once and anything over its budget.
+                </p>
+              )}
+              {hint && (
+                <p className="hint">
+                  <strong>Next:</strong> {hint}
+                </p>
+              )}
+              {state.mission && (
+                <div className="mission">
+                  Mission <code>{state.mission.s256.slice(0, 10)}…</code> ·
+                  budget $
+                  {Math.round(state.mission.budget_cents / 100).toLocaleString(
+                    "en-US",
+                  )}{" "}
+                  · spent $
+                  {Math.round(state.mission.spent_cents / 100).toLocaleString(
+                    "en-US",
+                  )}
+                  {state.mission.terminated && ` · ${state.mission.terminated}`}
+                </div>
+              )}
+            </div>
+          )}
           <div className="pane-body">
-            {turns.length > 0 && (
-              <div className="step-label timeline-label">Timeline</div>
-            )}
             {turns.map((turn) => (
               <Moment
                 key={turn}

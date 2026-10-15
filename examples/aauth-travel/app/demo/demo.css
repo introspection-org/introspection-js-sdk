@@ -313,7 +313,23 @@
 }
 
 .pane-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
   padding: 20px 24px 18px;
+  border-bottom: 1px solid var(--line);
+}
+
+.pane-status {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--muted);
+}
+
+/* What the run is up to: below the header, above the timeline. */
+.pane-intro {
+  padding: 14px 24px;
   border-bottom: 1px solid var(--line);
 }
 
@@ -334,7 +350,7 @@
   font-weight: 600;
 }
 
-.pane-head p {
+.pane-intro p {
   margin: 0;
   color: var(--ink-2);
   font-size: 15px;
@@ -668,15 +684,4 @@
   .pane {
     max-height: 720px;
   }
-}
-
-/* The timeline's own header, as the request pane's: pinned while it scrolls. */
-.timeline-label {
-  position: sticky;
-  top: 0;
-  z-index: 1;
-  margin: 0;
-  padding: 12px 24px;
-  background: var(--panel);
-  border-bottom: 1px solid var(--line);
 }
