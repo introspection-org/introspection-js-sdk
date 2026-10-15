@@ -193,16 +193,6 @@ function Inbox({
         <div className="mail-status">Answered</div>
       ) : (
         <div className="mail-actions">
-          <span className="mail-code" aria-label="Code from the email">
-            {Array.from({ length: 6 }, (_, i) => (
-              <span
-                key={i}
-                className={typed && typed.length > i ? "filled" : undefined}
-              >
-                {typed?.[i] ?? ""}
-              </span>
-            ))}
-          </span>
           {email.budget && (
             <label>
               Budget $
@@ -214,19 +204,31 @@ function Inbox({
               />
             </label>
           )}
-          <button
-            disabled={busy || typed !== null}
-            onClick={() => answer("approve")}
-          >
-            {email.to.startsWith("Sam") ? "Accept" : "Approve"}
-          </button>
-          <button
-            className="secondary"
-            disabled={busy || typed !== null}
-            onClick={() => answer("decline")}
-          >
-            Decline
-          </button>
+          <div className="mail-answer">
+            <span className="mail-code" aria-label="Code from the email">
+              {Array.from({ length: 6 }, (_, i) => (
+                <span
+                  key={i}
+                  className={typed && typed.length > i ? "filled" : undefined}
+                >
+                  {typed?.[i] ?? ""}
+                </span>
+              ))}
+            </span>
+            <button
+              disabled={busy || typed !== null}
+              onClick={() => answer("approve")}
+            >
+              {email.to.startsWith("Sam") ? "Accept" : "Approve"}
+            </button>
+            <button
+              className="secondary"
+              disabled={busy || typed !== null}
+              onClick={() => answer("decline")}
+            >
+              Decline
+            </button>
+          </div>
         </div>
       )}
     </div>
