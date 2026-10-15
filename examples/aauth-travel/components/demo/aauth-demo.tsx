@@ -726,17 +726,19 @@ export function AAuthDemo({ scenarios }: { scenarios: Scenario[] }) {
               </button>
             )}
           </div>
+          {details.length === 0 && (
+            <div className="pane-intro">
+              <p>
+                Each request Introspection&apos;s egress sends for the agent
+                appears here, as it arrived, signed.
+              </p>
+            </div>
+          )}
           <div
             className="pane-body"
             ref={detailsPane}
             onScroll={(e) => (detailsAtEnd.current = atEnd(e.currentTarget))}
           >
-            {details.length === 0 && (
-              <p className="muted">
-                Each request Introspection&apos;s egress sends for the agent
-                appears here, as it arrived, signed.
-              </p>
-            )}
             {details.map((x) => (
               <div key={x.id} className="exchange">
                 <div className="exchange-head">
