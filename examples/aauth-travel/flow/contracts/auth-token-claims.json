@@ -1,0 +1,31 @@
+{
+  "header": {
+    "alg": "Ed25519",
+    "typ": "aa-auth+jwt",
+    "kid": "acme-person-server-1"
+  },
+  "claims": {
+    "iss": "https://ps.acme.example",
+    "dwk": "aauth-person.json",
+    "aud": "https://booking.flightsector.example",
+    "ps": "https://ps.acme.example",
+    "sub": "…(Sam, directed to the booking provider)",
+    "cnf": {
+      "jwk": {
+        "kty": "OKP",
+        "crv": "Ed25519",
+        "x": "…",
+        "alg": "Ed25519"
+      }
+    },
+    "scope": "booking.reserve",
+    "tenant": "acme",
+    "mission_s256": "…",
+    "r3_uri": "https://booking.flightsector.example/r3/…",
+    "r3_s256": "…",
+    "jti": "…",
+    "iat": 1791158400,
+    "exp": 1791161600
+  },
+  "verified_by": "the booking provider, against https://ps.acme.example/.well-known/aauth-person.json; it books only the proposal r3_s256 names, and only for the key in cnf"
+}

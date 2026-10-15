@@ -1,0 +1,27 @@
+{
+  "header": {
+    "alg": "Ed25519",
+    "typ": "aa-agent+jwt",
+    "kid": "agent-provider-1"
+  },
+  "claims": {
+    "iss": "https://app.introspection.example",
+    "dwk": "aauth-agent.json",
+    "sub": "aauth:intro_app_flightsector@app.introspection.example",
+    "cnf": {
+      "jwk": {
+        "kty": "OKP",
+        "crv": "Ed25519",
+        "x": "…",
+        "alg": "Ed25519"
+      }
+    },
+    "ps": "https://ps.acme.example",
+    "introspection_session": "0199…",
+    "jti": "…",
+    "iat": 1791158000,
+    "exp": 1791161600
+  },
+  "minted_by": "the control plane, as Agent Provider, when the session starts; the session key's private half stays in egress, never in the sandbox",
+  "verified_by": "the booking provider and Acme's Person Server, against https://app.introspection.example/.well-known/aauth-agent.json"
+}

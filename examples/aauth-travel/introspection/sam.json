@@ -1,0 +1,9 @@
+{
+  "member_type": "customer",
+  "external_user_id": "user:sam@acme.example",
+  "name": "Sam Example",
+  "policy_attributes": {
+    "level": 5,
+    "company": { "__entity": { "type": "Company", "id": "acme" } }
+  }
+}

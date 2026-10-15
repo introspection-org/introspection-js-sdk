@@ -4,6 +4,9 @@ import type {
   ConversationItemInclude,
   ConversationItemListParams,
   ConversationListParams,
+  ConversationTurn,
+  ConversationTurnList,
+  ConversationTurnListParams,
   GenAiSpan,
   GenAiSpanList,
   MessagePart,
@@ -108,6 +111,30 @@ export class ConversationsClient {
 
   constructor(private readonly http: ResourceHttpClient) {
     this.items = new ConversationItemsClient(http);
+  }
+
+  /**
+   * List a conversation's turns: each person's message and the agent's
+   * answer. `await` for the first page, or `for await` every turn across
+   * pages. Turns come newest-first; reverse them to read forwards.
+   */
+  turns(
+    conversationId: string,
+    params?: ConversationTurnListParams,
+  ): Paginator<ConversationTurn, ConversationTurnList> {
+    return new Paginator(
+      {
+        fetch: (next) =>
+          this.http.request<ConversationTurnList>({
+            method: "GET",
+            path: `/v1/conversations/${encodeURIComponent(conversationId)}/turns`,
+            query: { ...params, next } as Record<string, unknown>,
+          }),
+        items: (page) => page.data,
+        next: (page) => page.next ?? undefined,
+      },
+      params?.next,
+    );
   }
 
   /**

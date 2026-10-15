@@ -37,7 +37,15 @@
     },
     "dev": {
       "cache": false,
-      "persistent": true
+      "persistent": true,
+      "passThroughEnv": [
+        "BROWSERBASE_API_KEY",
+        "FLIGHTSECTOR_DOMAIN",
+        "FLIGHTSECTOR_TUNNEL",
+        "PERSON_SERVER",
+        "RECIPE_URL",
+        "RESEND_API_KEY"
+      ]
     }
   }
 }

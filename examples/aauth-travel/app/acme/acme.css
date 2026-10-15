@@ -1,0 +1,168 @@
+.acme {
+  --acme-bg: #fbf7f1;
+  --acme-panel: #ffffff;
+  --acme-ink: #1d1a16;
+  --acme-muted: #6b645b;
+  --acme-line: #e8e1d6;
+  --acme-brand: #c2410c;
+  --acme-ok: #15803d;
+  --acme-no: #b91c1c;
+  min-height: 100vh;
+  background: var(--acme-bg);
+  color: var(--acme-ink);
+  font-family:
+    ui-sans-serif,
+    system-ui,
+    -apple-system,
+    "Segoe UI",
+    sans-serif;
+}
+
+@media (prefers-color-scheme: dark) {
+  .acme {
+    --acme-bg: #17140f;
+    --acme-panel: #211d17;
+    --acme-ink: #f3ede4;
+    --acme-muted: #a89f92;
+    --acme-line: #353027;
+    --acme-brand: #fb923c;
+    --acme-ok: #4ade80;
+    --acme-no: #f87171;
+  }
+}
+
+.acme-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--acme-line);
+  font-weight: 650;
+}
+
+.acme-mark {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: var(--acme-brand);
+  color: #fff;
+  font-weight: 800;
+}
+
+.acme-bar-sub {
+  color: var(--acme-muted);
+  font-weight: 450;
+}
+
+.acme-main {
+  max-width: 520px;
+  margin: 0 auto;
+  padding: 32px 16px 64px;
+}
+
+.acme-card {
+  background: var(--acme-panel);
+  border: 1px solid var(--acme-line);
+  border-radius: 14px;
+  padding: 24px;
+}
+
+.acme-card h1 {
+  font-size: 1.35rem;
+  line-height: 1.3;
+  margin: 0 0 6px;
+}
+
+.acme-muted {
+  color: var(--acme-muted);
+}
+
+.acme-reasons {
+  margin: 16px 0;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--acme-brand) 9%, transparent);
+  list-style: none;
+}
+
+.acme-reasons li + li {
+  margin-top: 4px;
+}
+
+.acme-code {
+  display: flex;
+  gap: 8px;
+  margin: 18px 0 6px;
+}
+
+.acme-code input {
+  width: 100%;
+  max-width: 52px;
+  aspect-ratio: 5 / 6;
+  text-align: center;
+  font-size: 1.5rem;
+  font-variant-numeric: tabular-nums;
+  border: 1px solid var(--acme-line);
+  border-radius: 10px;
+  background: var(--acme-bg);
+  color: var(--acme-ink);
+}
+
+.acme-code input:focus {
+  outline: 2px solid var(--acme-brand);
+  outline-offset: 1px;
+}
+
+.acme-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.acme-actions button {
+  flex: 1;
+  padding: 12px;
+  border-radius: 10px;
+  border: 1px solid var(--acme-line);
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  background: var(--acme-panel);
+  color: var(--acme-ink);
+}
+
+.acme-actions button.approve {
+  background: var(--acme-ok);
+  border-color: var(--acme-ok);
+  color: #fff;
+}
+
+.acme-actions button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.acme-error {
+  color: var(--acme-no);
+  min-height: 1.4em;
+}
+
+.acme-done {
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+.acme-budget {
+  display: grid;
+  gap: 0.4rem;
+  margin-bottom: 1rem;
+  font-weight: 600;
+}
+
+.acme-budget input {
+  font: inherit;
+  padding: 0.5rem 0.6rem;
+  max-width: 12rem;
+}
