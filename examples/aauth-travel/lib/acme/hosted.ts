@@ -1,6 +1,5 @@
 /**
- * Acme on Introspection's hosted Person Server (introspection-cloud
- * connectors-aauth-b2b2c.md §11). The platform runs the protocol, the missions
+ * Acme on Introspection's hosted Person Server. The platform runs the protocol, the missions
  * and their budgets; Acme keeps the human side. This module is Acme's approval
  * app: it lists what is waiting with Acme's project key, emails the approver a
  * six-digit code exactly as Acme's own Person Server does, and records the
