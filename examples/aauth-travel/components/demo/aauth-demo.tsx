@@ -342,19 +342,33 @@ export function AAuthDemo({ scenarios }: { scenarios: Scenario[] }) {
   return (
     <div className="ademo">
       <header className="ademo-head">
-        <div>
+        <div className="ademo-row">
           <div className="brand">
             <AAuthLogo />
             <span className="step-label">
               -11 · three-party, with a mission · on Introspection
             </span>
           </div>
-          <h1>Flight Sector&apos;s agent books Sam&apos;s trip for Acme</h1>
+          <div className="ademo-controls">
+            <Link href="/" className="link">
+              The code behind it
+            </Link>
+            {started && (
+              <button
+                className="secondary"
+                onClick={() => {
+                  setPicked(null);
+                  act({ action: "reset" });
+                }}
+                disabled={sending}
+              >
+                Start over
+              </button>
+            )}
+          </div>
         </div>
-        <div className="ademo-controls">
-          <Link href="/" className="link">
-            The code behind it
-          </Link>
+        <div className="ademo-title">
+          <h1>Flight Sector&apos;s agent books Sam&apos;s trip for Acme</h1>
           {state?.taskId && (
             <span className="conversation-id">
               <code title={state.taskId}>{state.taskId.slice(0, 13)}…</code>
@@ -365,29 +379,17 @@ export function AAuthDemo({ scenarios }: { scenarios: Scenario[] }) {
               >
                 Copy
               </button>
+              {state.trace && (
+                <a
+                  href={state.trace}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="link"
+                >
+                  Open in Introspection
+                </a>
+              )}
             </span>
-          )}
-          {state?.trace && (
-            <a
-              href={state.trace}
-              target="_blank"
-              rel="noreferrer"
-              className="link"
-            >
-              Open in Introspection
-            </a>
-          )}
-          {started && (
-            <button
-              className="secondary"
-              onClick={() => {
-                setPicked(null);
-                act({ action: "reset" });
-              }}
-              disabled={sending}
-            >
-              Start over
-            </button>
           )}
         </div>
       </header>
