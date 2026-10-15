@@ -121,7 +121,7 @@
 .stage {
   min-height: 0;
   display: grid;
-  grid-template-columns: minmax(0, 3fr) minmax(0, 4fr) minmax(0, 5fr);
+  grid-template-columns: minmax(0, 2fr) minmax(0, 3fr) minmax(0, 3fr);
   gap: 20px;
 }
 
@@ -458,7 +458,8 @@
 }
 
 .seen > span:nth-child(2) {
-  font-weight: 450;
+  font-weight: 400;
+  color: var(--ink-2);
 }
 
 .pill {
