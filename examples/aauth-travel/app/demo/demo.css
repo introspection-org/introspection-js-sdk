@@ -224,7 +224,7 @@
 
 .waiting {
   color: var(--wait);
-  font-weight: 600;
+  font-weight: 500;
   font-size: 13px;
 }
 
@@ -256,7 +256,7 @@
 .idea-title {
   display: block;
   font-size: 11px;
-  font-weight: 600;
+  font-weight: 500;
   color: var(--muted);
   margin-bottom: 2px;
 }
@@ -363,7 +363,7 @@
 .moment-title {
   margin: 0 0 12px;
   font-size: 15px;
-  font-weight: 500;
+  font-weight: 400;
   line-height: 1.45;
 }
 
@@ -374,7 +374,7 @@
   margin-bottom: 8px;
   color: var(--ink-2);
   font-size: 13px;
-  font-weight: 600;
+  font-weight: 500;
 }
 
 .mark {
@@ -440,7 +440,7 @@
 }
 
 .seen > span:nth-child(2) {
-  font-weight: 550;
+  font-weight: 450;
 }
 
 .pill {
@@ -484,7 +484,7 @@
 }
 
 .mail-to {
-  font-weight: 600;
+  font-weight: 500;
   color: var(--ink);
 }
 
@@ -524,6 +524,13 @@
   font-weight: inherit;
 }
 
+/* A table's first column is a label, such as "✈️ Flight": keep it on one line. */
+.bubble td:first-child,
+.moment-title td:first-child,
+.mail-item td:first-child {
+  white-space: nowrap;
+}
+
 .mail ul {
   margin: 0;
   padding-left: 18px;
@@ -555,7 +562,7 @@
 
 .mail-status {
   color: var(--ok);
-  font-weight: 600;
+  font-weight: 500;
   font-size: 13px;
 }
 
@@ -663,6 +670,13 @@
   }
 }
 
+/* The timeline's own header, as the request pane's: pinned while it scrolls. */
 .timeline-label {
-  margin: 0 0 4px;
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  margin: 0;
+  padding: 12px 24px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--line);
 }

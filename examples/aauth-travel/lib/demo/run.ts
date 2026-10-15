@@ -31,7 +31,9 @@ const SAM_USER_ID = process.env.DEMO_SAM_USER_ID || "sam@acme.example";
 const RUNTIME = process.env.INTROSPECTION_RUNTIME || "travel-agent";
 /** How long to keep watching a parked task for the platform to resume it. */
 const RESUME_WATCH_MS = 15 * 60 * 1000;
-const RESUME_POLL_MS = 2000;
+const RESUME_POLL_MS = 1000;
+/** How long after a decision the platform may take to resume the task. */
+const RESUME_SETTLE_MS = 60 * 1000;
 
 /** `mcp_browserbase_start_7683c2b5…` reads as `browserbase: start`. */
 function toolLabel(name: string) {
@@ -81,6 +83,8 @@ type Run = {
   epoch: number;
   inboxFrom: number;
   decided: number[];
+  /** When someone last answered Acme, so watching outlasts the platform's resume. */
+  decidedAt?: number;
   /** The chat line each email arrived under. */
   emailTurns: Record<number, number>;
   missionsFrom: number;
@@ -243,17 +247,21 @@ async function watch(r: Run, epoch: number) {
       .slice(r.inboxFrom)
       .some((_, i) => !r.decided.includes(r.inboxFrom + i));
     const task = await r.runner!.tasks.get(r.taskId!);
+    // A run the platform resumes can finish between polls, so the latest counts too.
     const active = task.metadata?.active_run_id as string | undefined;
-    if (active && !r.followed.has(active)) {
+    const latest = task.metadata?.latest_run_id as string | undefined;
+    const next = [active, latest].find((id) => id && !r.followed.has(id));
+    if (next) {
       await follow(
         r,
         epoch,
-        active,
-        r.runner!.tasks.runs.stream(r.taskId!, active) as Stream,
+        next,
+        r.runner!.tasks.runs.stream(r.taskId!, next) as Stream,
       );
       continue;
     }
-    if (!waiting && !active) return;
+    const settling = Date.now() - (r.decidedAt ?? 0) < RESUME_SETTLE_MS;
+    if (!waiting && !active && !settling) return;
     await new Promise((resolve) => setTimeout(resolve, RESUME_POLL_MS));
   }
 }
@@ -340,4 +348,5 @@ export async function decide(
     return;
   }
   r.decided.push(index);
+  r.decidedAt = Date.now();
 }
