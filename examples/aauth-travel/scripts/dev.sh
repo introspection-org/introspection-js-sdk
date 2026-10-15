@@ -191,12 +191,14 @@ full_setup() {
   else
     if ! introspection repositories list -o json | json "v.some((r) => r.slug === '$RUNTIME')" | grep -q true; then
       say "seeding a repository from $RECIPE_URL"
-      introspection repositories add "$RUNTIME" --provider introspection --template "$RECIPE_URL" >/dev/null
+      introspection repositories add "$RUNTIME" --provider introspection --template "$RECIPE_URL" >/dev/null ||
+        fail "could not seed $RUNTIME from $RECIPE_URL; set RECIPE_URL to a recipe git can clone (for example its SSH URL)"
     fi
     rm -rf "${WORK:?}/$RUNTIME"
     git clone -q "$(introspection repositories list -o json | json "v.find((r) => r.slug === '$RUNTIME').url")" "$WORK/$RUNTIME"
     say "creating the $RUNTIME runtime"
-    (cd "$WORK/$RUNTIME" && introspection runtimes create --yes >/dev/null)
+    (cd "$WORK/$RUNTIME" && introspection runtimes create --yes >/dev/null) ||
+      fail "could not create the $RUNTIME runtime from $WORK/$RUNTIME"
     # A hosted recipe is checked from the files a push carries, and the seed
     # push came before the runtime existed, so push once more to check it.
     say "pushing to $RUNTIME so the platform checks the recipe"
@@ -227,7 +229,8 @@ full_setup() {
   if [ -z "$(read_env INTROSPECTION_TOKEN)" ]; then
     local key_file="$WORK/api-key" key
     rm -f "$key_file"
-    introspection api-keys create --name "Flight Sector demo" --secret-file "$key_file" >/dev/null
+    introspection api-keys create --name "Flight Sector demo" --secret-file "$key_file" >/dev/null ||
+      fail "could not create the project API key"
     key="$(cat "$key_file")"
     rm -f "$key_file"
     upsert_env INTROSPECTION_TOKEN "$key"
@@ -284,6 +287,7 @@ connect() {
     bind_flight_search
   else
     say "setting up your project on $CP_URL"
+    for key in INTROSPECTION_TOKEN ACME_INTROSPECTION_TOKEN AGENT_APPLICATION_ID; do remove_env "$key"; done
     full_setup
   fi
   return 0

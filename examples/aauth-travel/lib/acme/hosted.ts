@@ -16,11 +16,14 @@ import { ACME_APPROVAL_URL } from "../origins";
 import { people, type Person } from "../world";
 import { sendApprovalEmail } from "./mail";
 
-const API = (
-  process.env.ACME_INTROSPECTION_URL ?? "http://localhost:8002"
-).replace(/\/+$/, "");
-const TOKEN = process.env.ACME_INTROSPECTION_TOKEN ?? "";
-const ORG_ID = process.env.ACME_ORG_ID ?? "";
+// Read on each use: `pnpm dev` writes these to .env.local after the app starts.
+const apiBase = () =>
+  (process.env.ACME_INTROSPECTION_URL ?? "http://localhost:8002").replace(
+    /\/+$/,
+    "",
+  );
+const token = () => process.env.ACME_INTROSPECTION_TOKEN ?? "";
+const orgId = () => process.env.ACME_ORG_ID ?? "";
 const POLL_MS = 2_000;
 const CODE_TTL_MS = 15 * 60 * 1000;
 const MAX_ATTEMPTS = 5;
@@ -78,10 +81,10 @@ async function api<T>(
   path: string,
   body?: unknown,
 ): Promise<T> {
-  const response = await fetch(`${API}${path}`, {
+  const response = await fetch(`${apiBase()}${path}`, {
     method,
     headers: {
-      Authorization: `Bearer ${TOKEN}`,
+      Authorization: `Bearer ${token()}`,
       ...(body ? { "Content-Type": "application/json" } : {}),
     },
     ...(body ? { body: JSON.stringify(body) } : {}),
@@ -97,7 +100,7 @@ async function api<T>(
 
 /** The customer member id the platform derives for an identity: uuid5(org, key). */
 function memberId(key: string): string {
-  const namespace = Buffer.from(ORG_ID.replace(/-/g, ""), "hex");
+  const namespace = Buffer.from(orgId().replace(/-/g, ""), "hex");
   const hash = createHash("sha1").update(namespace).update(key).digest();
   hash[6] = (hash[6] & 0x0f) | 0x50;
   hash[8] = (hash[8] & 0x3f) | 0x80;
@@ -196,7 +199,7 @@ async function sync(): Promise<void> {
 
 /** Start following the platform's approvals, once per process. */
 export function start(): void {
-  if (state.started || !TOKEN) return;
+  if (state.started || !token()) return;
   state.started = true;
   const tick = () =>
     sync()
