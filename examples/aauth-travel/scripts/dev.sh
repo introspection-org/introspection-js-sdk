@@ -197,6 +197,13 @@ full_setup() {
     git clone -q "$(introspection repositories list -o json | json "v.find((r) => r.slug === '$RUNTIME').url")" "$WORK/$RUNTIME"
     say "creating the $RUNTIME runtime"
     (cd "$WORK/$RUNTIME" && introspection runtimes create --yes >/dev/null)
+    # A hosted recipe is checked from the files a push carries, and the seed
+    # push came before the runtime existed, so push once more to check it.
+    say "pushing to $RUNTIME so the platform checks the recipe"
+    (cd "$WORK/$RUNTIME" &&
+      git -c user.name=aauth-travel -c user.email=aauth-travel@example.invalid \
+        commit -q --allow-empty -m "chore: check the recipe" &&
+      git push -q origin HEAD:main)
   fi
 
   # 2. Flight search.
