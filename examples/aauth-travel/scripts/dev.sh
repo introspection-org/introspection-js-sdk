@@ -2,6 +2,8 @@
 # `pnpm dev`: the Flight Sector demo app on :3400, its parties on public https
 # URLs, and your Introspection project set up to use them.
 #
+# It installs the introspection CLI, or upgrades it, first.
+#
 # Which Introspection it connects to is whichever stack `introspection login`
 # chose: staging, production, or your own. Not logged in, the app runs alone.
 #
@@ -19,7 +21,8 @@
 #   3. the agent's application, and the booking provider as an AAuth connector
 #      (introspection/booking.json)
 #   4. Sam, the traveller, as a customer member (introspection/sam.json)
-#   5. a project key for the demo page and Acme's approval app, in .env.local
+#   5. a client secret for the demo page to sign in as the agent's application,
+#      and, on the hosted Person Server, Acme's own application for approvals
 # Later runs only point the connector and the mock at the new URLs.
 #
 # Env:
@@ -78,6 +81,27 @@ json() {
   ' "$1"
 }
 
+# `issuer URL`: the issuer the well-known document at URL names, empty when
+# there is none there; fails when nothing answers at all.
+issuer() {
+  local out
+  out="$(curl -sS -m 10 -w '\n%{http_code}' "$1" 2>/dev/null)" || return 1
+  if [ "${out##*$'\n'}" = 200 ]; then json 'v.issuer' <<<"${out%$'\n'*}"; fi
+}
+
+# ---------------------------------------------------------------------------
+# The Introspection CLI, installed or brought up to date
+# ---------------------------------------------------------------------------
+
+if command -v introspection >/dev/null 2>&1; then
+  introspection upgrade --yes --non-interactive ||
+    say "could not upgrade the introspection CLI; carrying on with $(introspection --version)"
+else
+  say "installing the introspection CLI"
+  npm install -g @introspection-ai/cli >/dev/null || fail "could not install it: npm install -g @introspection-ai/cli"
+fi
+say "$(introspection --version)"
+
 # ---------------------------------------------------------------------------
 # Public URLs
 # ---------------------------------------------------------------------------
@@ -117,11 +141,24 @@ if [ -n "${FLIGHTSECTOR_DOMAIN:-}" ]; then
   BOOKING="https://flightsector-booking.${FLIGHTSECTOR_DOMAIN}"
   MOCK="https://flightsector-browserbase.${FLIGHTSECTOR_DOMAIN}"
   ACME="https://flightsector-ps.${FLIGHTSECTOR_DOMAIN}"
-  for url in "$BOOKING" "$MOCK" "$ACME"; do
-    cloudflared tunnel route dns --overwrite-dns "$NAME" "${url#https://}" >/dev/null
+  ROUTES=("$BOOKING=$PORT" "$MOCK=$PORT" "$ACME=$PORT")
+  # A local Introspection stack's Agent Provider and Person Server are named by
+  # their public URLs, so they get hosts here too: ones that outlive a restart.
+  if [ "$(introspection whoami 2>/dev/null | json 'v.cp_url' 2>/dev/null)" = "http://localhost:8000" ]; then
+    LOCAL_AGENT_PROVIDER="https://introspection-cp.${FLIGHTSECTOR_DOMAIN}"
+    LOCAL_PERSON_SERVER="https://introspection-ps.${FLIGHTSECTOR_DOMAIN}"
+    ROUTES+=("$LOCAL_AGENT_PROVIDER=8000" "$LOCAL_PERSON_SERVER=8002")
+  fi
+  TUNNEL_CONFIG="$(mktemp -t flightsector-tunnel-config)"
+  echo "ingress:" >"$TUNNEL_CONFIG"
+  for route in "${ROUTES[@]}"; do
+    host="${route%=*}"
+    host="${host#https://}"
+    cloudflared tunnel route dns --overwrite-dns "$NAME" "$host" >/dev/null
+    printf '  - hostname: %s\n    service: http://localhost:%s\n' "$host" "${route##*=}" >>"$TUNNEL_CONFIG"
   done
-  # --url sends every hostname routed to the tunnel to the app.
-  cloudflared tunnel --no-autoupdate run --url "http://localhost:$PORT" "$NAME" >"$(mktemp -t flightsector-tunnel)" 2>&1 &
+  echo "  - service: http_status:404" >>"$TUNNEL_CONFIG"
+  cloudflared tunnel --no-autoupdate --config "$TUNNEL_CONFIG" run "$NAME" >"$(mktemp -t flightsector-tunnel)" 2>&1 &
   PIDS+=($!)
 else
   quick_tunnel BOOKING
@@ -212,12 +249,20 @@ full_setup() {
   bind_flight_search
 
   # 3. The application whose client id is the agent's AAuth identity, and the connector.
-  local app_name="Flight Sector agent" app_id
-  app_id="$(introspection applications list -o json | json "(v.records ?? v).find((a) => a.name === '$app_name')?.id")"
-  if [ -z "$app_id" ]; then
-    app_id="$(introspection applications create --type service-account --name "$app_name" -o json | json 'v.id ?? v.application?.id')"
+  local app_name="Flight Sector agent" app app_id client_id
+  app="$(introspection applications list -o json | json "(v.records ?? v).find((a) => a.name === '$app_name')")"
+  # What the demo page does as it: run the runtime as Sam, follow and stop the
+  # task, and load a conversation. Naming them replaces the role's default.
+  local app_scopes="runtimes:read tasks:read tasks:write conversations:read"
+  if [ -z "$app" ]; then
+    app="$(introspection applications create --type service-account --name "$app_name" \
+      --allowed-scope "$app_scopes" -o json | json 'v.application ?? v')"
   fi
-  [ -n "$app_id" ] || fail "could not create the $app_name application"
+  app_id="$(json 'v.id' <<<"$app")"
+  client_id="$(json 'v.client_id' <<<"$app")"
+  [ -n "$app_id" ] && [ -n "$client_id" ] || fail "could not create the $app_name application"
+  introspection applications update "$app_id" --allowed-scope "$app_scopes" >/dev/null ||
+    fail "could not set the $app_name application's scopes"
   upsert_env AGENT_APPLICATION_ID "$app_id"
   apply_connector
 
@@ -225,16 +270,34 @@ full_setup() {
   introspection members create @introspection/sam.json >/dev/null
   say "Sam is user:$SAM_USER_ID"
 
-  # 5. One project key for the demo page and Acme's approval app.
-  if [ -z "$(read_env INTROSPECTION_TOKEN)" ]; then
-    local key_file="$WORK/api-key" key
-    rm -f "$key_file"
-    introspection api-keys create --name "Flight Sector demo" --secret-file "$key_file" >/dev/null ||
-      fail "could not create the project API key"
-    key="$(cat "$key_file")"
-    rm -f "$key_file"
-    upsert_env INTROSPECTION_TOKEN "$key"
-    upsert_env ACME_INTROSPECTION_TOKEN "$key"
+  # 5. The demo page signs in as that application, with a client secret.
+  if [ -z "$(read_env INTROSPECTION_CLIENT_SECRET)" ]; then
+    local secret
+    secret="$(introspection applications secrets create --app "$app_id" --name "Flight Sector demo" -o json | json 'v.secret')"
+    [ -n "$secret" ] || fail "could not create a client secret for the $app_name application"
+    upsert_env INTROSPECTION_CLIENT_SECRET "$secret"
+  fi
+  upsert_env INTROSPECTION_CLIENT_ID "$client_id"
+  upsert_env INTROSPECTION_PROJECT "$project_id"
+  # Acme's approval app, on the built-in Person Server, is an application of
+  # its own that may only read and answer approvals: the agent's may not.
+  if [ "$MODE" = hosted ]; then
+    local acme_name="Acme approvals" acme acme_id
+    acme="$(introspection applications list -o json | json "(v.records ?? v).find((a) => a.name === '$acme_name')")"
+    if [ -z "$acme" ]; then
+      acme="$(introspection applications create --type service-account --name "$acme_name" \
+        --allowed-scope "approvals:read approvals:write" -o json | json 'v.application ?? v')"
+    fi
+    acme_id="$(json 'v.id' <<<"$acme")"
+    [ -n "$acme_id" ] || fail "could not create the $acme_name application"
+    if [ -z "$(read_env ACME_CLIENT_SECRET)" ]; then
+      local acme_secret
+      acme_secret="$(introspection applications secrets create --app "$acme_id" --name "Acme approvals" -o json | json 'v.secret')"
+      [ -n "$acme_secret" ] || fail "could not create a client secret for the $acme_name application"
+      upsert_env ACME_CLIENT_SECRET "$acme_secret"
+    fi
+    upsert_env ACME_CLIENT_ID "$(json 'v.client_id' <<<"$acme")"
+    upsert_env ACME_PROJECT "$project_id"
   fi
   upsert_env INTROSPECTION_BASE_API_URL "$CP_URL"
   upsert_env INTROSPECTION_RUNTIME "$RUNTIME"
@@ -263,10 +326,13 @@ connect() {
 
   # The platform as Agent Provider, which the booking provider and Acme trust,
   # and the Person Server that speaks for Acme.
-  AGENT_PROVIDER="$(curl -fsS "$CP_URL/.well-known/aauth-agent.json" | json 'v.issuer')" ||
-    fail "$CP_URL serves no Agent Provider: AAuth is not enabled on this stack"
+  AGENT_PROVIDER="$(issuer "$CP_URL/.well-known/aauth-agent.json")" ||
+    fail "nothing answers at $CP_URL: start the control plane"
+  [ -n "$AGENT_PROVIDER" ] || fail "$CP_URL serves no Agent Provider: AAuth is not enabled on this stack"
   if [ "$MODE" = hosted ]; then
-    PERSON_SERVER_URL="$(curl -fsS "$DP_URL/.well-known/aauth-person.json" | json 'v.issuer')" ||
+    PERSON_SERVER_URL="$(issuer "$DP_URL/.well-known/aauth-person.json")" ||
+      fail "nothing answers at $DP_URL: start the data plane"
+    [ -n "$PERSON_SERVER_URL" ] ||
       fail "$DP_URL serves no hosted Person Server; restart with PERSON_SERVER=acme to use Acme's own"
     TENANT="$ORG_ID:$project_id"
   else
@@ -274,40 +340,67 @@ connect() {
     TENANT=""
   fi
 
-  # The Introspection app, so the demo can link to the run's conversation.
-  local app_url="${INTROSPECTION_APP_URL:-}"
-  if [ -z "$app_url" ]; then
-    case "$CP_URL" in
-      http://localhost:8000) app_url="http://localhost:3000" ;;
-      https://api.*) app_url="https://platform.${CP_URL#https://api.}" ;;
-    esac
+  if [ -n "${LOCAL_AGENT_PROVIDER:-}" ] &&
+    { [ "$AGENT_PROVIDER" != "$LOCAL_AGENT_PROVIDER" ] || { [ "$MODE" = hosted ] && [ "$PERSON_SERVER_URL" != "$LOCAL_PERSON_SERVER" ]; }; }; then
+    fail "your local stack's issuers are not on $FLIGHTSECTOR_DOMAIN yet. In introspection-cloud, set
+    apps/controlplane-api/.env  CONTROLPLANE_PUBLIC_URL=$LOCAL_AGENT_PROVIDER
+    apps/dataplane-api/.env     PERSON_SERVER_ISSUER=$LOCAL_PERSON_SERVER
+                                PERSON_SERVER_TRUSTED_AGENT_PROVIDERS=$LOCAL_AGENT_PROVIDER
+  then restart the CP, the DP and their workers, and run pnpm dev again"
   fi
-  if [ -n "$app_url" ]; then upsert_env INTROSPECTION_APP_URL "$app_url"; fi
-  upsert_env INTROSPECTION_PROJECT_ID "$project_id"
+
+  # The booking provider and Acme reach both at these public URLs, so a dead
+  # tunnel in front of a local stack fails every booking.
+  # A tunnel just started takes a few seconds to connect.
+  local doc answered
+  for doc in "$AGENT_PROVIDER/.well-known/aauth-agent.json" "$PERSON_SERVER_URL/.well-known/aauth-person.json"; do
+    answered=""
+    for _ in $(seq 15); do
+      if curl -fsS -m 10 -o /dev/null "$doc" 2>/dev/null; then
+        answered=1
+        break
+      fi
+      sleep 2
+    done
+    [ -n "$answered" ] ||
+      fail "${doc%/.well-known/*} does not answer; on a local stack, restart its tunnel and the service it fronts"
+  done
+
+  # The project in the Introspection app, by its slug, so the demo can link to
+  # the run's conversation. INTROSPECTION_APP_URL overrides the app's host.
+  local project_url
+  project_url="$(introspection open --annotations --print 2>/dev/null | tail -1)"
+  project_url="${project_url%/annotations}"
+  if [ -n "${INTROSPECTION_APP_URL:-}" ] && [ -n "$project_url" ]; then
+    project_url="${INTROSPECTION_APP_URL%/}/p/${project_url##*/p/}"
+  fi
+  remove_env INTROSPECTION_APP_URL
+  remove_env INTROSPECTION_PROJECT_ID
+  if [ -n "$project_url" ]; then upsert_env INTROSPECTION_PROJECT_URL "$project_url"; fi
 
   # Set up on another stack (or never): set this one up from the start.
   if [ "$(read_env INTROSPECTION_BASE_API_URL)" != "$CP_URL" ]; then
-    for key in INTROSPECTION_TOKEN ACME_INTROSPECTION_TOKEN AGENT_APPLICATION_ID; do remove_env "$key"; done
+    for key in INTROSPECTION_TOKEN INTROSPECTION_CLIENT_SECRET ACME_INTROSPECTION_TOKEN ACME_CLIENT_SECRET AGENT_APPLICATION_ID; do remove_env "$key"; done
   fi
   # A stack reset since keeps the URL but not the project, so check it is still there.
   local app_id
   app_id="$(read_env AGENT_APPLICATION_ID)"
-  if [ -n "$app_id" ] && [ -n "$(read_env INTROSPECTION_TOKEN)" ] &&
+  if [ -n "$app_id" ] && [ -n "$(read_env INTROSPECTION_CLIENT_SECRET)" ] &&
     introspection applications list -o json | json "(v.records ?? v).some((a) => a.id === '$app_id')" | grep -q true; then
     apply_connector
     bind_flight_search
   else
     say "setting up your project on $CP_URL"
-    for key in INTROSPECTION_TOKEN ACME_INTROSPECTION_TOKEN AGENT_APPLICATION_ID; do remove_env "$key"; done
+    for key in INTROSPECTION_TOKEN INTROSPECTION_CLIENT_SECRET ACME_INTROSPECTION_TOKEN ACME_CLIENT_SECRET AGENT_APPLICATION_ID; do remove_env "$key"; done
     full_setup
   fi
   return 0
 }
 
 if connect; then
-  say "demo: http://localhost:$PORT/demo"
+  say "demo: http://localhost:$PORT"
 else
   say "not connected to Introspection: run \`introspection login\`, then restart pnpm dev."
-  say "meanwhile: http://localhost:$PORT (the walkthrough); pnpm e2e plays the agent without Introspection."
+  say "meanwhile: http://localhost:$PORT/walkthrough; pnpm e2e plays the agent without Introspection."
 fi
 wait "$APP"

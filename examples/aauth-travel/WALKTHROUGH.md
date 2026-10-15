@@ -4,7 +4,7 @@
 
 Sam works at Acme, one of Flight Sector's customers, and asks Flight Sector's travel agent for a week in Sydney. The agent holds no credential. The platform is its Agent Provider: it mints an agent token for the session and signs every request the agent makes with the session's key. The trip is an AAuth mission: Acme's Person Server, which speaks for Sam, has Sam's manager approve it once, budget and all. The booking provider is a native AAuth resource. Flight Sector's own rails, Cedar policies shipped in the recipe, run in the platform first. Then each booking is AAuth's three-party flow: the resource names it in a proposal only Acme can read, and Acme issues an auth token within the trip's budget, asks the manager again, or refuses.
 
-Recipe code is from [recipe-travel-agent@f757015](https://github.com/introspection-org/recipe-travel-agent/tree/f75701528f16261301bcd4d3c6d6ce46bbb326da). Platform steps show the contract on the wire, not the code.
+Recipe code is from [recipe-travel-agent@main](https://github.com/introspection-org/recipe-travel-agent/tree/main). Platform steps show the contract on the wire, not the code.
 
 ## 1. Sam asks for a trip
 
@@ -1593,11 +1593,11 @@ async function ask(approval: Approval) {
 }
 ```
 
-## 12. Dana approves, the chat picks up, and the QT is booked
+## 12. Dana declines the QT, and the agent asks Sam
 
-_Platform → Agent → provider_
+_Acme → Platform → Agent_
 
-The data plane has been polling the pending URL, signed with the session key; only the agent that asked may read it. Once Dana enters the code, the poll returns the auth token, egress caches it, and the platform posts a turn into Sam's conversation. The agent books the QT again, egress presents the token, and the provider books exactly the proposal Dana approved. Had Dana declined, the pending URL would answer 403 and the agent would offer something within budget.
+Dana declines. The data plane has been polling the pending URL, signed with the session key; only the agent that asked may read it. It now answers 403, and the platform posts a turn into Sam's conversation saying the QT was declined. The recipe tells the agent to say so and not go looking for alternatives on its own: the flight stays booked, and it asks Sam what he'd like to do about the hotel.
 
 **Acme: the pending URL** · `packages/introspection-person-server/src/person-server.ts`
 
@@ -1664,7 +1664,253 @@ async function pendingState(
 }
 ```
 
-## 13. The trip is booked, and the mission ends
+**recipe: SYSTEM.md** · `recipe-travel-agent/SYSTEM.md`
+
+```md
+You are Flight Sector's travel agent. Employees of Flight Sector's customer companies message you in a Slack DM to plan and book work travel. You book flights and hotels on the employee's behalf.
+
+Write as you would in a chat on a phone: two or three short sentences, a short list only where it really helps, and no tables or headings.
+
+## A trip is a mission
+
+1. Confirm the trip: origin, destination, dates, which legs are for work, and a budget. When the traveller gives a date relative to now ("next Monday", "the 27th"), call `today` first, and say the actual dates back to them.
+2. Price it, then propose the whole trip with `propose_trip`: who travels, where, when, what you will book, and a suggested budget as "up to $N". Suggest the budget the employee named, even when the fares you were quoted come to more: the manager decides, and asks again for anything over what they set. Don't stop to ask the employee to choose between options. The employee's manager approves it once and sets the budget; the approved mission's `budget_cents` is what you have to spend.
+3. Once approved, book one item at a time with `book_item`, passing the offer's `offer_id` and `quote` unchanged, with its purpose and who pays.
+4. When everything is booked, report it with `complete_trip`; the employee accepts it.
+
+## Finding flights and hotels
+
+- **Flights:** search the web with the browser. `start` a session, `navigate` to `https://www.google.com/travel/flights?q=Flights%20from%20SFO%20to%20SYD%20on%202026-10-18%20one%20way%20economy` (your route, date and cabin), `extract` the flights shown with their airline, times, duration, stops and price, then `end` the session. Flight Sector never books first class: when the employee asks for it, say so and search business instead. Pick what fits, then `quote_flight` it by airline (and flight number, if the search showed one) for a bookable offer. Quote and propose the booking provider's fare, not the price the search showed; say so when they differ.
+- **Hotels:** `search_offers` with `kind: hotel`.
+- If the browser fails, `search_offers` with `kind: flight` also returns bookable flights.
+
+## Approval
+
+You never hold a booking credential, and you never decide what is in policy.
+
+- **Booked.** Share the confirmation.
+- **Awaiting approval.** A result says it is awaiting approval from the employee's organisation. Tell the employee, then stop. You'll be told here when it is decided:
+  - if the trip was approved, you are given its `s256` and budget: start booking it, and do not propose it again;
+  - if a booking over what is left of the budget was approved, book the same offer again;
+  - if declined, say so, and finish the trip with what is booked (`complete_trip`). Look for an alternative only if the traveller asks for one.
+- **Refused.** A result names a rule or a reason. Tell the employee and suggest what would fit.
+
+Never try to work around an approval, never ask the employee for credentials, and don't retry anything awaiting approval.
+```
+
+## 13. Sam's easy, so a cheaper hotel is booked within the budget
+
+_Sam → Agent → provider_
+
+Sam replies “I'm easy”. The agent searches again for a hotel that fits the $1,350 left, quotes it, and books it. It is within the trip's budget, so this time Acme issues the auth token at once and no one is asked: the same path as the flight.
+
+**recipe: search_offers and book_item** · `recipe-travel-agent/extensions/booking.js`
+
+```js
+// Flight Sector booking tools: plain HTTPS calls through the platform's egress.
+// A trip is an AAuth mission: the agent proposes it to the traveller's Person
+// Server, which the egress reaches at person-server.aauth, and the traveller's
+// company approves it once. Bookings then go to the `aauth` booking connector;
+// egress signs them and gets each auth token under the mission. Nothing here
+// holds a credential; anything awaiting a person comes back as 428, and the
+// runtime reports it.
+import { Type } from "typebox";
+
+const BOOKING_API_URL = (
+  process.env.BOOKING_API_URL ?? "https://api.booking.example"
+).replace(/\/$/, "");
+const PERSON_SERVER_URL = "https://person-server.aauth";
+const REQUEST_TIMEOUT_MS = 20_000;
+
+async function call(path, body, signal, base = BOOKING_API_URL) {
+  const timeout = AbortSignal.timeout(REQUEST_TIMEOUT_MS);
+  const response = await fetch(`${base}${path}`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(body),
+    signal: signal ? AbortSignal.any([signal, timeout]) : timeout,
+  });
+  return { status: response.status, text: await response.text() };
+}
+
+function result(res) {
+  return {
+    content: [{ type: "text", text: `HTTP ${res.status}\n${res.text}` }],
+    details: { status: res.status },
+    // A 428 is the approval steer, which carries what to tell the person.
+    isError: res.status >= 400 && res.status !== 428,
+  };
+}
+
+export function registerBookingTools(pi) {
+  pi.registerTool({
+    name: "today",
+    label: "Today's date",
+    description:
+      'Today\'s date and weekday, to work out a date the traveller gives relative to now, such as "next Monday".',
+    parameters: Type.Object({}),
+    async execute() {
+      const now = new Date();
+      const date = now.toISOString().slice(0, 10);
+      const weekday = now.toLocaleDateString("en-US", {
+        weekday: "long",
+        timeZone: "UTC",
+      });
+      return {
+        content: [{ type: "text", text: `${weekday} ${date}` }],
+        details: { date, weekday },
+      };
+    },
+  });
+
+  pi.registerTool({
+    name: "propose_trip",
+    label: "Propose the trip",
+    description:
+      "Propose the whole trip to the traveller's company before booking anything. Its manager approves it once and sets its budget; bookings within it then need no one. Returns the approved mission (its `budget_cents` is the budget the manager set) and its `s256`.",
+    promptSnippet:
+      "Propose the trip, with its budget, before booking anything.",
+    promptGuidelines: [
+      'Describe the trip in Markdown: who travels, where, when, what will be booked, and a suggested budget as "up to $N". The manager sets the actual budget.',
+      "Propose once per trip, before the first booking.",
+    ],
+    parameters: Type.Object({
+      description: Type.String({
+        description:
+          "Markdown: the trip, ending with a suggested budget, e.g. 'up to $3,000'",
+      }),
+    }),
+    async execute(_toolCallId, params, signal) {
+      return result(
+        await call(
+          "/mission",
+          { description: params.description },
+          signal,
+          PERSON_SERVER_URL,
+        ),
+      );
+    },
+  });
+
+  pi.registerTool({
+    name: "complete_trip",
+    label: "Report the trip booked",
+    description:
+      "Tell the traveller's company the trip is booked. The traveller accepts it, which ends the mission.",
+    parameters: Type.Object({
+      s256: Type.String({
+        description: "The mission's s256, from propose_trip or its approval",
+      }),
+      summary: Type.String({
+        description: "Markdown: what was booked, and the total",
+      }),
+    }),
+    async execute(_toolCallId, params, signal) {
+      return result(
+        await call(
+          `/mission/${params.s256}`,
+          { action: "completion", summary: params.summary },
+          signal,
+          PERSON_SERVER_URL,
+        ),
+      );
+    },
+  });
+
+  pi.registerTool({
+    name: "search_offers",
+    label: "Search travel",
+    description:
+      "Search flights or hotels. Every offer carries a signed `quote`; pass the offer's `offer_id` and `quote` unchanged to book_item.",
+    promptSnippet: "Search flights or hotels for signed, bookable offers.",
+    parameters: Type.Object({
+      kind: Type.Union([Type.Literal("flight"), Type.Literal("hotel")]),
+      from: Type.Optional(
+        Type.String({ description: "Flight origin IATA code, e.g. SFO" }),
+      ),
+      to: Type.Optional(
+        Type.String({ description: "Flight destination IATA code, e.g. SYD" }),
+      ),
+      date: Type.Optional(
+        Type.String({ description: "Flight date, YYYY-MM-DD" }),
+      ),
+      cabin: Type.Optional(
+        Type.String({ description: "economy, premium, business or first" }),
+      ),
+      city: Type.Optional(
+        Type.String({ description: "Hotel city IATA code, e.g. SYD" }),
+      ),
+      check_in: Type.Optional(Type.String({ description: "YYYY-MM-DD" })),
+      check_out: Type.Optional(Type.String({ description: "YYYY-MM-DD" })),
+    }),
+    async execute(_toolCallId, params, signal) {
+      return result(await call("/v1/search", params, signal));
+    },
+  });
+
+  pi.registerTool({
+    name: "quote_flight",
+    label: "Quote a flight",
+    description:
+      "Get a bookable offer for a flight found in a browser search. The booking provider quotes its own fare, which can differ from the price the search showed; the offer carries a signed `quote` to pass unchanged to book_item.",
+    promptSnippet:
+      "Quote a flight found in a browser search, for a bookable offer.",
+    parameters: Type.Object({
+      from: Type.String({ description: "Origin IATA code, e.g. SFO" }),
+      to: Type.String({ description: "Destination IATA code, e.g. SYD" }),
+      date: Type.String({ description: "YYYY-MM-DD" }),
+      carrier: Type.Optional(
+        Type.String({
+          description: "Airline as the search showed it, e.g. Qantas",
+        }),
+      ),
+      flight: Type.Optional(
+        Type.String({
+          description: "Flight number, when the search showed one, e.g. QF74",
+        }),
+      ),
+      cabin: Type.Optional(
+        Type.String({
+          description:
+            "economy, premium_economy or business; first is never booked",
+        }),
+      ),
+    }),
+    async execute(_toolCallId, params, signal) {
+      return result(await call("/v1/quote", params, signal));
+    },
+  });
+
+  pi.registerTool({
+    name: "book_item",
+    label: "Book travel",
+    description:
+      "Reserve one offer under the approved trip. Within its budget that is immediate; over what is left, it goes to the traveller's manager.",
+    promptSnippet: "Reserve one signed offer the traveller has confirmed.",
+    promptGuidelines: [
+      "Set purpose to business only for legs that serve the work trip; anything else is personal with payer traveler.",
+      "Book one item per call, and only after the traveller has confirmed it.",
+    ],
+    parameters: Type.Object({
+      offer_id: Type.String(),
+      quote: Type.String({
+        description: "The offer's signed quote, unchanged",
+      }),
+      purpose: Type.Union([Type.Literal("business"), Type.Literal("personal")]),
+      payer: Type.Union([Type.Literal("company"), Type.Literal("traveler")]),
+    }),
+    async execute(_toolCallId, params, signal) {
+      return result(await call("/v1/reserve", params, signal));
+    },
+  });
+}
+
+export default function (pi) {
+  registerBookingTools(pi);
+}
+```
+
+## 14. The trip is booked, and the mission ends
 
 _Agent → Acme → Sam_
 
