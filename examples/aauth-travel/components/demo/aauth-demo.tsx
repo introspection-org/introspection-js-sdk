@@ -43,6 +43,7 @@ type Snapshot = {
   error?: string;
   /** The run's conversation in the Introspection app. */
   trace?: string;
+  working?: boolean;
   mission?: {
     s256: string;
     budget_cents: number;
@@ -261,6 +262,10 @@ export function AAuthDemo({ scenarios }: { scenarios: Scenario[] }) {
   const seenEnd = useRef<HTMLDivElement>(null);
   const detailsEnd = useRef<HTMLDivElement>(null);
   const detailsTop = useRef<HTMLDivElement>(null);
+  const composer = useRef<HTMLTextAreaElement>(null);
+  useEffect(() => {
+    if (!prompt && composer.current) composer.current.style.height = "auto";
+  }, [prompt]);
 
   const refresh = useCallback(async () => {
     const response = await fetch("/api/demo/state", { cache: "no-store" });
@@ -411,38 +416,42 @@ export function AAuthDemo({ scenarios }: { scenarios: Scenario[] }) {
                   )}
                 </div>
               ))}
-              {state.busy && !waitingOn && (
+              {state.working && !waitingOn && (
                 <div className="bubble agent working">…</div>
               )}
               {state.error && <div className="error">{state.error}</div>}
               <div ref={chatEnd} />
             </div>
-            {!state.busy && (
-              <div className="phone-composer">
-                <textarea
-                  rows={4}
-                  value={prompt}
-                  placeholder={
-                    started ? "Reply as Sam" : "Message Flight Sector as Sam"
+            <div className="phone-composer">
+              <textarea
+                ref={composer}
+                rows={1}
+                value={prompt}
+                placeholder={
+                  started ? "Reply as Sam" : "Message Flight Sector as Sam"
+                }
+                onChange={(e) => {
+                  setPrompt(e.target.value);
+                  // Grow with the text, as a chat app's input does.
+                  e.target.style.height = "auto";
+                  e.target.style.height = `${e.target.scrollHeight}px`;
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.shiftKey) {
+                    e.preventDefault();
+                    if (!state.busy) send();
                   }
-                  onChange={(e) => setPrompt(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" && !e.shiftKey) {
-                      e.preventDefault();
-                      send();
-                    }
-                  }}
-                  aria-label="Sam's message"
-                />
-                <button
-                  onClick={send}
-                  disabled={sending || !prompt.trim()}
-                  aria-label="Send"
-                >
-                  ↑
-                </button>
-              </div>
-            )}
+                }}
+                aria-label="Sam's message"
+              />
+              <button
+                onClick={send}
+                disabled={sending || state.busy || !prompt.trim()}
+                aria-label="Send"
+              >
+                ↑
+              </button>
+            </div>
           </div>
         </div>
 

@@ -85,6 +85,8 @@ type Run = {
   decided: number[];
   /** When someone last answered Acme, so watching outlasts the platform's resume. */
   decidedAt?: number;
+  /** A run's stream is open: the agent is replying, not just being watched for. */
+  streaming?: boolean;
   /** The chat line each email arrived under. */
   emailTurns: Record<number, number>;
   missionsFrom: number;
@@ -129,6 +131,7 @@ export function snapshot() {
     chat: r.chat,
     error: r.error,
     taskId: r.taskId,
+    working: r.busy && !!r.streaming,
     trace: traceUrl(r.taskId),
     mission: trip && {
       s256: trip.s256,
@@ -184,6 +187,7 @@ function toolStatus(result: string) {
 /** Fold one run's AG-UI events into the chat and the agent's tool calls. */
 async function follow(r: Run, epoch: number, runId: string, stream: Stream) {
   r.followed.add(runId);
+  r.streaming = true;
   const messages = new Map<string, Chat>();
   const tools = new Map<
     string,
@@ -268,6 +272,7 @@ async function watch(r: Run, epoch: number) {
         next,
         r.runner!.tasks.runs.stream(r.taskId!, next) as Stream,
       );
+      r.streaming = false;
       continue;
     }
     const settling = Date.now() - (r.decidedAt ?? 0) < RESUME_SETTLE_MS;
@@ -286,6 +291,7 @@ async function drive(
   try {
     const { runId, stream } = await first();
     await follow(r, epoch, runId, stream);
+    r.streaming = false;
     await watch(r, epoch);
   } catch (err) {
     if (r.epoch === epoch)
