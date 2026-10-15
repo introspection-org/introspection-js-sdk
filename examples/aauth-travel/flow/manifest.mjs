@@ -259,10 +259,10 @@ export const flow = {
       lights: { type: "acme.approval_requested" },
     },
     {
-      id: "resume",
-      title: "Dana approves, the chat picks up, and the QT is booked",
-      actor: "Platform → Agent → provider",
-      body: "The data plane has been polling the pending URL, signed with the session key; only the agent that asked may read it. Once Dana enters the code, the poll returns the auth token, egress caches it, and the platform posts a turn into Sam's conversation. The agent books the QT again, egress presents the token, and the provider books exactly the proposal Dana approved. Had Dana declined, the pending URL would answer 403 and the agent would offer something within budget.",
+      id: "decline",
+      title: "Dana declines the QT, and the agent asks Sam",
+      actor: "Acme → Platform → Agent",
+      body: "Dana declines. The data plane has been polling the pending URL, signed with the session key; only the agent that asked may read it. It now answers 403, and the platform posts a turn into Sam's conversation saying the QT was declined. The recipe tells the agent to say so and not go looking for alternatives on its own: the flight stays booked, and it asks Sam what he'd like to do about the hotel.",
       sources: [
         {
           kind: "example",
@@ -274,6 +274,21 @@ export const flow = {
           kind: "contract",
           path: "interrupt-resume.json",
           label: "the poll and the turn that resumes the chat",
+        },
+        { kind: "recipe", path: "SYSTEM.md", label: "recipe: SYSTEM.md" },
+      ],
+      lights: { type: "acme.decided", where: { status: "denied" } },
+    },
+    {
+      id: "cheaper",
+      title: "Sam's easy, so a cheaper hotel is booked within the budget",
+      actor: "Sam → Agent → provider",
+      body: "Sam replies that he's easy. The agent searches again for a hotel that fits the $1,350 left, quotes it, and books it. It is within the trip's budget, so this time Acme issues the auth token at once and no one is asked: the same path as the flight.",
+      sources: [
+        {
+          kind: "recipe",
+          path: "extensions/booking.js",
+          label: "recipe: search_offers and book_item",
         },
       ],
       lights: {

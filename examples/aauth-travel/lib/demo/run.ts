@@ -48,10 +48,10 @@ function toolLabel(name: string) {
 export const SCENARIOS = [
   {
     id: "approved",
-    title: "Over budget, Dana approves",
+    title: "Over budget, Dana declines, Sam's easy",
     prompt:
       "Book me economy from San Francisco to Sydney for 19 to 23 October, and the QT Sydney. Up to $3,000.",
-    hint: "Approve the trip at $3,000. The flight books on its own; approve the QT when Dana is asked.",
+    hint: "Approve the trip at $3,000. The flight books on its own; decline the QT when Dana is asked, then tell the agent you're easy and it finds a cheaper hotel.",
   },
   {
     id: "first",

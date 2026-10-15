@@ -33,7 +33,8 @@ Sam's trip is "Flights and a hotel for Sam, 19 to 23 October, up to $3,000."
 | --------------------------------- | ----------------------------------------------------------------------------------------------- |
 | The trip                          | `202`: Acme emails Dana, Sam's manager, a code. Dana approves the mission on Acme's page        |
 | QF74 economy, SFO to SYD ($1,650) | `200`: within the trip's budget, so Acme issues an auth token and it's booked with no one asked |
-| QT Sydney, 4 nights ($1,680)      | `202`: $1,350 is left, so Acme asks Dana again. Dana approves, and it's booked                  |
+| QT Sydney, 4 nights ($1,680)      | `202`: $1,350 is left, so Acme asks Dana again. Dana declines, and the agent asks Sam           |
+| "I'm easy"                        | the agent books a cheaper hotel within the $1,350 left, with no one asked                       |
 | A booking with no trip            | `403` from Acme, and from the recipe's `missionless-booking` rule before that                   |
 | "That's everything"               | the agent proposes the mission complete; Sam accepts, and nothing more books under it           |
 
