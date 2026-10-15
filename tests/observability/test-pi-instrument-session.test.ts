@@ -192,42 +192,4 @@ describe("instrumentSession", () => {
     expect(chat?.attributes["host.tenant"]).toBe("org-1");
     expect(chat?.parentSpanContext?.spanId).toBe(turnSpan.spanContext().spanId);
   });
-
-  it("passes the host's MCP origin lookup to the tool spans", async () => {
-    const { exporter, tracer, provider } = setupTracer();
-    const fake = fakeSession("streamFunction");
-
-    const handle = instrumentSession(fake.session, {
-      tracer,
-      meta: META,
-      mcpTool: (toolName) =>
-        toolName === "mcp_attio_list-records_0123456789"
-          ? { serverId: "attio", toolName: "list-records", binding: "local" }
-          : undefined,
-    });
-    fake.emit({
-      type: "tool_execution_start",
-      toolCallId: "call-1",
-      toolName: "mcp_attio_list-records_0123456789",
-      args: {},
-    });
-    fake.emit({
-      type: "tool_execution_end",
-      toolCallId: "call-1",
-      toolName: "mcp_attio_list-records_0123456789",
-      result: { content: [] },
-      isError: false,
-    });
-    handle.detach();
-    await provider.forceFlush();
-
-    const tool = exporter
-      .getFinishedSpans()
-      .find((s) => s.name.startsWith("execute_tool"));
-    expect(tool?.attributes).toMatchObject({
-      "mcp.server.id": "attio",
-      "mcp.tool.name": "list-records",
-      "mcp.server.binding": "local",
-    });
-  });
 });

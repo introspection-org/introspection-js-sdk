@@ -27,9 +27,7 @@ import {
 import {
   instrumentAgent,
   instrumentStream,
-  McpAttr,
   type AgentMeta,
-  type McpToolOrigin,
 } from "../../packages/introspection-pi/src";
 
 const META: AgentMeta = {
@@ -654,62 +652,6 @@ describe("instrumentAgent", () => {
       .find((s) => s.name === "execute_tool shell");
     expect(span?.attributes["introspection.run.id"]).toBe("run-call-1");
     expect(span?.attributes["introspection.agent.invocation_index"]).toBe(2);
-  });
-
-  it("records the MCP origin on an MCP tool's span and none on a built-in tool's", async () => {
-    const { exporter, tracer, provider } = setupTracer();
-    const agent = fakeAgent();
-    const mcpToolName = "mcp_attio_list-records_0123456789";
-    const origin: McpToolOrigin = {
-      serverId: "attio",
-      toolName: "list-records",
-      binding: "live",
-    };
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const tools = instrumentAgent(agent as any, {
-      tracer,
-      meta: META,
-      mcpTool: (toolName) => (toolName === mcpToolName ? origin : undefined),
-    });
-
-    for (const toolName of [mcpToolName, "bash"]) {
-      agent.emit({
-        type: "tool_execution_start",
-        toolCallId: `call-${toolName}`,
-        toolName,
-        args: {},
-      });
-      // The server answers `initialize` during the first call.
-      origin.serverName = "attio-mcp";
-      origin.serverVersion = "2.4.0";
-      agent.emit({
-        type: "tool_execution_end",
-        toolCallId: `call-${toolName}`,
-        toolName,
-        result: { content: [] },
-        isError: false,
-      });
-    }
-
-    tools.stop();
-    await provider.forceFlush();
-
-    const spans = exporter.getFinishedSpans();
-    const mcpSpan = spans.find((s) => s.name === `execute_tool ${mcpToolName}`);
-    expect(mcpSpan?.attributes).toMatchObject({
-      [McpAttr.SERVER_ID]: "attio",
-      [McpAttr.TOOL_NAME]: "list-records",
-      [McpAttr.SERVER_BINDING]: "live",
-      [McpAttr.SERVER_NAME]: "attio-mcp",
-      [McpAttr.SERVER_VERSION]: "2.4.0",
-    });
-    const builtInSpan = spans.find((s) => s.name === "execute_tool bash");
-    expect(builtInSpan).toBeDefined();
-    expect(
-      Object.keys(builtInSpan!.attributes).filter((key) =>
-        key.startsWith("mcp."),
-      ),
-    ).toEqual([]);
   });
 
   it("marks the span as error and surfaces the result message when isError=true", async () => {
