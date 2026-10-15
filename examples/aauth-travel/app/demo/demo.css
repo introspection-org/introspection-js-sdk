@@ -157,7 +157,7 @@
   justify-content: space-between;
   padding: 12px 26px 0;
   font-size: 13px;
-  font-weight: 600;
+  font-weight: 500;
 }
 
 .phone-head {
@@ -316,6 +316,10 @@
   gap: 12px;
   padding: 20px 24px 18px;
   border-bottom: 1px solid var(--line);
+}
+
+.hint strong {
+  font-weight: 500;
 }
 
 .pane-status {
@@ -584,7 +588,7 @@
   background: transparent;
   color: var(--accent-2);
   padding: 10px 0 0;
-  font-weight: 600;
+  font-weight: 500;
   font-size: 13.5px;
 }
 
