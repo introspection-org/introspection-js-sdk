@@ -345,9 +345,18 @@ connect() {
 
   # The booking provider and Acme reach both at these public URLs, so a dead
   # tunnel in front of a local stack fails every booking.
-  local doc
+  # A tunnel just started takes a few seconds to connect.
+  local doc answered
   for doc in "$AGENT_PROVIDER/.well-known/aauth-agent.json" "$PERSON_SERVER_URL/.well-known/aauth-person.json"; do
-    curl -fsS -m 15 -o /dev/null "$doc" 2>/dev/null ||
+    answered=""
+    for _ in $(seq 15); do
+      if curl -fsS -m 10 -o /dev/null "$doc" 2>/dev/null; then
+        answered=1
+        break
+      fi
+      sleep 2
+    done
+    [ -n "$answered" ] ||
       fail "${doc%/.well-known/*} does not answer; on a local stack, restart its tunnel and the service it fronts"
   done
 
