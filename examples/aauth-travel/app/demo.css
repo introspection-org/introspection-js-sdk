@@ -547,7 +547,16 @@
 
 .bubble table,
 .moment-title table,
+/* Grid items keep their content's width unless told otherwise. */
+.mail > * {
+  min-width: 0;
+}
+
+/* A wide table scrolls inside the email rather than past its edge. */
 .mail-item table {
+  display: block;
+  max-width: 100%;
+  overflow-x: auto;
   border-collapse: collapse;
   margin: 6px 0;
   font-size: 13px;
