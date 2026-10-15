@@ -340,9 +340,9 @@ export async function send(prompt: string) {
 }
 
 /**
- * Load a conversation the demo has had with Sam, by its task id: follow its
- * active or latest run, and take Sam's next message into it. Its earlier turns
- * are not listed anywhere to replay, so the chat shows what that run streams.
+ * Load a conversation the demo has had with Sam, by its task id, so Sam's
+ * next message continues it. A run still going is followed; the earlier turns
+ * are not shown, since the demo has no history of them to draw.
  */
 export async function join(taskId: string) {
   if (run().busy) return;
