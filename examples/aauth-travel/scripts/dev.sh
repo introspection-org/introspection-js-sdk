@@ -85,7 +85,7 @@ json() {
 # ---------------------------------------------------------------------------
 
 if command -v introspection >/dev/null 2>&1; then
-  introspection upgrade --yes --non-interactive >/dev/null 2>&1 ||
+  introspection upgrade --yes --non-interactive ||
     say "could not upgrade the introspection CLI; carrying on with $(introspection --version)"
 else
   say "installing the introspection CLI"
