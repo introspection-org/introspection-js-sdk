@@ -360,19 +360,27 @@ async function history(runner: Runner, taskId: string): Promise<Chat[]> {
   const turns = [];
   for await (const turn of runner.conversations.turns(taskId, { limit: 100 }))
     turns.push(turn);
-  return turns
-    .sort((a, b) => a.started_at.localeCompare(b.started_at))
-    .flatMap((turn) =>
-      turn.messages.map((message) => ({
-        from: message.role === "user" ? ("Sam" as const) : ("Agent" as const),
-        text: message.parts
-          .map((part) =>
-            part.type === "text" && "content" in part ? part.content : "",
-          )
-          .join(""),
-      })),
-    )
-    .filter((line) => line.text.trim());
+  return (
+    turns
+      .sort((a, b) => a.started_at.localeCompare(b.started_at))
+      .flatMap((turn) =>
+        turn.messages.map((message) => ({
+          from: message.role === "user" ? ("Sam" as const) : ("Agent" as const),
+          text: message.parts
+            .map((part) =>
+              part.type === "text" && "content" in part ? part.content : "",
+            )
+            .join(""),
+        })),
+      )
+      // The platform resumes the agent with a `[platform]` message of its own,
+      // which the live chat never shows.
+      .filter(
+        (line) =>
+          line.text.trim() &&
+          !(line.from === "Sam" && line.text.startsWith("[platform]")),
+      )
+  );
 }
 
 export async function join(taskId: string) {
