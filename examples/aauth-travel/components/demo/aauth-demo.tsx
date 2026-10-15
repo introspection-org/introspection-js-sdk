@@ -333,6 +333,47 @@ function ConversationBar({
   );
 }
 
+/** Copies a request and its response, as shown, and says so for a moment. */
+function CopyButton({ text }: { text: string }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <button
+      className="copy-exchange"
+      onClick={() => {
+        void navigator.clipboard?.writeText(text).then(() => {
+          setCopied(true);
+          setTimeout(() => setCopied(false), 1500);
+        });
+      }}
+      title="Copy the request and response"
+      aria-label="Copy the request and response"
+    >
+      {copied ? (
+        "Copied"
+      ) : (
+        <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden>
+          <rect
+            x="5"
+            y="5"
+            width="9"
+            height="9"
+            rx="1.5"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.4"
+          />
+          <path
+            d="M11 5V3.5A1.5 1.5 0 0 0 9.5 2h-6A1.5 1.5 0 0 0 2 3.5v6A1.5 1.5 0 0 0 3.5 11H5"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.4"
+          />
+        </svg>
+      )}
+    </button>
+  );
+}
+
 export function AAuthDemo({ scenarios }: { scenarios: Scenario[] }) {
   const [state, setState] = useState<Snapshot | null>(null);
   const [prompt, setPrompt] = useState("");
@@ -624,6 +665,7 @@ export function AAuthDemo({ scenarios }: { scenarios: Scenario[] }) {
                     {x.label}
                     {x.repeats > 1 && ` ×${x.repeats}`}
                   </span>
+                  <CopyButton text={`${x.request}\n\n${x.response}`} />
                 </div>
                 <pre>
                   {highlight(x.request)}
