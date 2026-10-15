@@ -84,7 +84,7 @@
 
 .ademo-head {
   display: grid;
-  gap: 4px;
+  gap: 2px;
 }
 
 .ademo-row,
@@ -117,6 +117,7 @@
 
 .ademo-head h1 {
   margin: 0;
+  line-height: 1.2;
   font-size: 24px;
   font-weight: 600;
   letter-spacing: -0.01em;
@@ -806,7 +807,9 @@
   gap: 6px;
   justify-content: center;
   min-width: 96px;
-  padding: 5px 12px;
+  /* No taller than the wordmark, so the brand line keeps its height. */
+  height: 24px;
+  padding: 0 10px;
   font-family: inherit;
   font-size: 13px;
   font-weight: 400;
