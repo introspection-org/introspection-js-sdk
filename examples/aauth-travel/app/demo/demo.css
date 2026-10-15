@@ -96,7 +96,6 @@
 }
 
 .ademo-title {
-  justify-content: flex-start;
   gap: 16px;
   flex-wrap: wrap;
 }
@@ -716,6 +715,7 @@
 
 /* The run's conversation, as a browser's address bar. */
 .conversation-bar {
+  margin-left: auto;
   display: flex;
   align-items: center;
   gap: 8px;
