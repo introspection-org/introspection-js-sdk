@@ -120,7 +120,7 @@
 .stage {
   min-height: 0;
   display: grid;
-  grid-template-columns: 380px minmax(360px, 1fr) minmax(400px, 1.15fr);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 20px;
 }
 
@@ -131,6 +131,8 @@
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: center;
+  padding: 16px;
 }
 
 /* A phone's proportions, as tall as the column allows. */
