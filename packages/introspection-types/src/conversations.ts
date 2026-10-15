@@ -38,6 +38,7 @@
 import type { CursorParams, IsoDate, ReadWindowParams, Uuid } from "./api.js";
 import type {
   InputMessage,
+  MessagePart,
   OutputMessage,
   SystemInstruction,
   ToolDefinition,
@@ -653,6 +654,82 @@ export interface ConversationItemListParams {
   /** Upper bound on item start time (RFC 3339). */
   end_date?: string;
   /** Relative window in days (1-365), instead of `start_date`/`end_date`. */
+  lookback_days?: number;
+}
+
+/** A message of a turn: what the person said or the agent answered. */
+export interface ConversationTurnMessage {
+  /** Stable message identifier. */
+  id: string;
+  /** Who spoke. */
+  role: "user" | "assistant";
+  /** The message's parts; text parts carry `content`. */
+  parts: MessagePart[];
+  /** Why the model stopped, on assistant messages. */
+  finish_reason?: string;
+  /** Span carrying this message. */
+  source_span_id: string;
+  /** When the message was recorded. */
+  created_at: IsoDate;
+  /** The client's own id for a message it sent. */
+  client_message_id?: string;
+  /** The model response that produced it. */
+  response_id?: string;
+}
+
+/** One turn of a conversation: a person's message and the agent's answer. */
+export interface ConversationTurn {
+  /** Discriminator — always `"conversation.turn"`. */
+  object: "conversation.turn";
+  id: string;
+  trace_id: string;
+  /** One-based position within this agent's transcript. */
+  ordinal: number;
+  agent_id?: string;
+  agent_name?: string;
+  started_at: IsoDate;
+  ended_at: IsoDate;
+  status: string;
+  messages: ConversationTurnMessage[];
+  response_ids: string[];
+  has_steps: boolean;
+  item_count: number;
+  tool_use_count: number;
+  failed_tool_use_count: number;
+  error_count: number;
+  input_tokens: number;
+  output_tokens: number;
+  cost_usd: number;
+  duration_ms: number;
+}
+
+/** List envelope for a conversation's turns, newest first. */
+export interface ConversationTurnList {
+  /** Discriminator — always `"list"`. */
+  object: "list";
+  data: ConversationTurn[];
+  first_id: string | null;
+  last_id: string | null;
+  has_more: boolean;
+  /** Opaque cursor for the next older page, or null when exhausted. */
+  next: string | null;
+}
+
+/**
+ * Query params for `GET /v1/conversations/{id}/turns`.
+ */
+export interface ConversationTurnListParams {
+  /** Maximum turns per page (1-100, server default 25). */
+  limit?: number;
+  /** Opaque cursor returned by the previous page. */
+  next?: string;
+  /** Agent selector, as on items. */
+  agent?: string;
+  /** Only the turn of this trace. */
+  trace_id?: string;
+  /** Only turns before this trace. */
+  before_trace_id?: string;
+  /** Relative window in days (1-365). */
   lookback_days?: number;
 }
 
