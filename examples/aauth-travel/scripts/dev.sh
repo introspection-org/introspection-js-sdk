@@ -289,16 +289,17 @@ connect() {
     TENANT=""
   fi
 
-  # The Introspection app, so the demo can link to the run's conversation.
-  local app_url="${INTROSPECTION_APP_URL:-}"
-  if [ -z "$app_url" ]; then
-    case "$CP_URL" in
-      http://localhost:8000) app_url="http://localhost:3000" ;;
-      https://api.*) app_url="https://platform.${CP_URL#https://api.}" ;;
-    esac
+  # The project in the Introspection app, by its slug, so the demo can link to
+  # the run's conversation. INTROSPECTION_APP_URL overrides the app's host.
+  local project_url
+  project_url="$(introspection open --annotations --print 2>/dev/null | tail -1)"
+  project_url="${project_url%/annotations}"
+  if [ -n "${INTROSPECTION_APP_URL:-}" ] && [ -n "$project_url" ]; then
+    project_url="${INTROSPECTION_APP_URL%/}/p/${project_url##*/p/}"
   fi
-  if [ -n "$app_url" ]; then upsert_env INTROSPECTION_APP_URL "$app_url"; fi
-  upsert_env INTROSPECTION_PROJECT_ID "$project_id"
+  remove_env INTROSPECTION_APP_URL
+  remove_env INTROSPECTION_PROJECT_ID
+  if [ -n "$project_url" ]; then upsert_env INTROSPECTION_PROJECT_URL "$project_url"; fi
 
   # Set up on another stack (or never): set this one up from the start.
   if [ "$(read_env INTROSPECTION_BASE_API_URL)" != "$CP_URL" ]; then

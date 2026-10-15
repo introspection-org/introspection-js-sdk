@@ -118,9 +118,8 @@ const say = (from: Chat["from"], text: string) => {
 
 /** Where the Introspection app shows this project's conversations. */
 function conversationsUrl() {
-  const app = process.env.INTROSPECTION_APP_URL?.replace(/\/+$/, "");
-  const project = process.env.INTROSPECTION_PROJECT_ID;
-  return app && project ? `${app}/p/${project}/conversations/` : undefined;
+  const project = process.env.INTROSPECTION_PROJECT_URL?.replace(/\/+$/, "");
+  return project ? `${project}/conversations/` : undefined;
 }
 
 export function snapshot() {
