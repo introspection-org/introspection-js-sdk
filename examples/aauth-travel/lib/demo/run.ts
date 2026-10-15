@@ -340,10 +340,30 @@ export async function send(prompt: string) {
 }
 
 /**
- * Load a conversation the demo has had with Sam, by its task id, so Sam's
- * next message continues it. A run still going is followed; the earlier turns
- * are not shown, since the demo has no history of them to draw.
+ * Load a conversation the demo has had with Sam, by its task id: its chat so
+ * far from its turns in Introspection, a run still going followed, and Sam's
+ * next message continuing it. What happened behind the chat is not restored.
  */
+/** The conversation so far, from its turns in Introspection, oldest first. */
+async function history(runner: Runner, taskId: string): Promise<Chat[]> {
+  const turns = [];
+  for await (const turn of runner.conversations.turns(taskId, { limit: 100 }))
+    turns.push(turn);
+  return turns
+    .sort((a, b) => a.started_at.localeCompare(b.started_at))
+    .flatMap((turn) =>
+      turn.messages.map((message) => ({
+        from: message.role === "user" ? ("Sam" as const) : ("Agent" as const),
+        text: message.parts
+          .map((part) =>
+            part.type === "text" && "content" in part ? part.content : "",
+          )
+          .join(""),
+      })),
+    )
+    .filter((line) => line.text.trim());
+}
+
 export async function join(taskId: string) {
   if (run().busy) return;
   reset();
@@ -361,6 +381,7 @@ export async function join(taskId: string) {
       .run({ identity: { user_id: SAM_USER_ID } });
     const task = await r.runner.tasks.get(taskId);
     r.taskId = taskId;
+    if (r.epoch === epoch) r.chat = await history(r.runner, taskId);
     // Follow a run only while one is live; an idle conversation's sandbox is
     // gone, and Sam's next message starts a fresh one.
     const active = task.metadata?.active_run_id as string | undefined;
