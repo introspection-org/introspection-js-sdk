@@ -265,8 +265,15 @@ export async function decide(
       "invalid_request",
       `already ${asked.approval.status}`,
     );
-  if (asked.attempts >= MAX_ATTEMPTS || Date.now() > asked.expiresAt)
-    throw new AAuthError(410, "invalid_code", "this code has expired");
+  if (asked.attempts >= MAX_ATTEMPTS || Date.now() > asked.expiresAt) {
+    // Forgetting it has the next sync email the approver a fresh code.
+    state.asked.delete(id);
+    throw new AAuthError(
+      410,
+      "invalid_code",
+      "this code has expired; a new one is on its way",
+    );
+  }
   asked.attempts += 1;
   if (
     !/^\d{6}$/.test(code) ||
