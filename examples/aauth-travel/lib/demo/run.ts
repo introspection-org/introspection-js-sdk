@@ -326,7 +326,9 @@ export async function start(prompt: string) {
 /** Sam's next message, on the same task. */
 export async function send(prompt: string) {
   const r = run();
-  if (r.busy || !r.runner || !r.taskId || !prompt.trim()) return;
+  if (r.streaming || !r.runner || !r.taskId || !prompt.trim()) return;
+  // Only watching for a resume, not replying: Sam may speak, which ends the watch.
+  if (r.busy) r.epoch += 1;
   say("Sam", prompt.trim());
   const epoch = r.epoch;
   void drive(r, epoch, async () => {

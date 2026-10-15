@@ -518,14 +518,14 @@ export function AAuthDemo({ scenarios }: { scenarios: Scenario[] }) {
                 onKeyDown={(e) => {
                   if (e.key === "Enter" && !e.shiftKey) {
                     e.preventDefault();
-                    if (!state.busy) send();
+                    if (!state.working) send();
                   }
                 }}
                 aria-label="Sam's message"
               />
               <button
                 onClick={send}
-                disabled={sending || state.busy || !prompt.trim()}
+                disabled={sending || state.working || !prompt.trim()}
                 aria-label="Send"
               >
                 ↑
