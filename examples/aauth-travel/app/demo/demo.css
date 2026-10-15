@@ -139,9 +139,10 @@
 /* A phone's proportions, as tall as the column allows. */
 .phone-screen {
   flex: 0 1 auto;
-  height: min(100%, 780px);
-  aspect-ratio: 9 / 19.5;
-  max-width: 100%;
+  width: 100%;
+  max-width: 400px;
+  max-height: 100%;
+  aspect-ratio: 9 / 17;
   min-height: 0;
   border: 12px solid #111;
   border-radius: 44px;
