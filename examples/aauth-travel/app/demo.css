@@ -547,14 +547,7 @@
 
 .bubble table,
 .moment-title table,
-/* Grid items keep their content's width unless told otherwise. */
-.mail > * {
-  min-width: 0;
-}
-
-/* A table fits the email's width, its cells wrapping, never past the edge. */
 .mail-item table {
-  width: 100%;
   border-collapse: collapse;
   margin: 6px 0;
   font-size: 13px;
@@ -572,17 +565,8 @@
 .bubble td,
 .moment-title th,
 .moment-title td,
-/* The first column, a description, wraps; the short ones after it don't. */
-.mail-item th:first-child,
-.mail-item td:first-child {
-  width: 100%;
-  white-space: normal;
-  overflow-wrap: anywhere;
-}
-
 .mail-item th,
 .mail-item td {
-  white-space: nowrap;
   border-bottom: 1px solid var(--line);
   padding: 3px 8px 3px 0;
   text-align: left;
@@ -591,9 +575,30 @@
 
 /* A table's first column is a label, such as "✈️ Flight": keep it on one line. */
 .bubble td:first-child,
-.moment-title td:first-child,
-.mail-item td:first-child {
+.moment-title td:first-child {
   white-space: nowrap;
+}
+
+/* An email's table fits its card: the first column, a description, wraps and
+   takes the room; the short columns after it keep to one line. */
+.mail > * {
+  min-width: 0;
+}
+
+.mail-item table {
+  width: 100%;
+}
+
+.mail-item th,
+.mail-item td {
+  white-space: nowrap;
+}
+
+.mail-item th:first-child,
+.mail-item td:first-child {
+  width: 100%;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 .mail ul {
