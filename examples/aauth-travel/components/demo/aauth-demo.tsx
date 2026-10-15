@@ -582,13 +582,23 @@ export function AAuthDemo({ scenarios }: { scenarios: Scenario[] }) {
                 }}
                 aria-label="Sam's message"
               />
-              <button
-                onClick={send}
-                disabled={sending || state.working || !prompt.trim()}
-                aria-label="Send"
-              >
-                ↑
-              </button>
+              {state.working ? (
+                <button
+                  onClick={() => act({ action: "stop" })}
+                  disabled={sending}
+                  aria-label="Stop"
+                >
+                  ■
+                </button>
+              ) : (
+                <button
+                  onClick={send}
+                  disabled={sending || !prompt.trim()}
+                  aria-label="Send"
+                >
+                  ↑
+                </button>
+              )}
             </div>
           </div>
         </div>
