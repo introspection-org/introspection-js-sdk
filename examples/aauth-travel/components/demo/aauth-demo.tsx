@@ -260,7 +260,15 @@ function Moment(props: {
  * The run's conversation in Introspection, as an address bar: its URL to copy
  * or open, or another conversation's URL or id to paste and open.
  */
-function ConversationBar({ base, taskId }: { base?: string; taskId?: string }) {
+function ConversationBar({
+  base,
+  taskId,
+  onLoad,
+}: {
+  base?: string;
+  taskId?: string;
+  onLoad: (taskId: string) => void;
+}) {
   // Shown as a browser shows an address: no scheme, the host set off from the path.
   const scheme = base?.match(/^https?:\/\//)?.[0] ?? "https://";
   // Before a run, the project's conversations; during one, that run's.
@@ -269,7 +277,7 @@ function ConversationBar({ base, taskId }: { base?: string; taskId?: string }) {
     : (taskId ?? "");
   const [text, setText] = useState(current);
   useEffect(() => setText(current), [current]);
-  const go = () => {
+  const open = () => {
     const value = text.trim();
     if (!value) return;
     const url = /^https?:\/\//.test(value)
@@ -279,13 +287,17 @@ function ConversationBar({ base, taskId }: { base?: string; taskId?: string }) {
         : `${base}${value}`;
     window.open(url, "_blank", "noreferrer");
   };
-  const edited = text.trim() !== current;
+  // Enter on another conversation's URL or id loads it into the demo.
+  const pasted = text.match(
+    /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i,
+  )?.[0];
   return (
     <form
       className="conversation-bar"
       onSubmit={(e) => {
         e.preventDefault();
-        go();
+        if (pasted && pasted !== taskId) onLoad(pasted);
+        else open();
       }}
     >
       <span className="conversation-bar-icon" aria-hidden>
@@ -297,13 +309,14 @@ function ConversationBar({ base, taskId }: { base?: string; taskId?: string }) {
         onFocus={(e) => e.target.select()}
         spellCheck={false}
         placeholder="Paste a conversation URL or id"
-        aria-label="This run's conversation in Introspection, or another to open"
+        aria-label="This run's conversation in Introspection, or another to load"
       />
       <button
-        type="submit"
+        type="button"
+        onClick={open}
         disabled={!text.trim()}
-        title={edited ? "Go" : "Open in Introspection"}
-        aria-label={edited ? "Go" : "Open in Introspection"}
+        title="Open in Introspection"
+        aria-label="Open in Introspection"
       >
         <svg viewBox="0 0 16 16" width="15" height="15" aria-hidden>
           <path
@@ -434,7 +447,14 @@ export function AAuthDemo({ scenarios }: { scenarios: Scenario[] }) {
         </div>
         <div className="ademo-title">
           <h1>Flight Sector&apos;s agent books Sam&apos;s trip for Acme</h1>
-          <ConversationBar base={state?.conversations} taskId={state?.taskId} />
+          <ConversationBar
+            base={state?.conversations}
+            taskId={state?.taskId}
+            onLoad={(id) => {
+              setPicked(null);
+              act({ action: "join", taskId: id });
+            }}
+          />
         </div>
       </header>
 

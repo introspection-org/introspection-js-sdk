@@ -337,6 +337,38 @@ export async function send(prompt: string) {
   });
 }
 
+/**
+ * Load a conversation the demo has had with Sam, by its task id: follow its
+ * active or latest run, and take Sam's next message into it. Its earlier turns
+ * are not listed anywhere to replay, so the chat shows what that run streams.
+ */
+export async function join(taskId: string) {
+  if (run().busy) return;
+  reset();
+  const r = run();
+  startRecording();
+  if (!process.env.INTROSPECTION_TOKEN) {
+    r.error =
+      "Set INTROSPECTION_TOKEN to a project API key (and INTROSPECTION_BASE_API_URL for a local control plane).";
+    return;
+  }
+  const epoch = r.epoch;
+  void drive(r, epoch, async () => {
+    r.runner = await new IntrospectionClient()
+      .runtimes(RUNTIME)
+      .run({ identity: { user_id: SAM_USER_ID } });
+    const task = await r.runner.tasks.get(taskId);
+    r.taskId = taskId;
+    const runId = (task.metadata?.active_run_id ??
+      task.metadata?.latest_run_id) as string | undefined;
+    if (!runId) throw new Error(`${taskId} has no run to load`);
+    return {
+      runId,
+      stream: r.runner.tasks.runs.stream(taskId, runId) as Stream,
+    };
+  });
+}
+
 /** A person answers Acme's email from the page: the same call Acme's approval page makes. */
 export async function decide(
   index: number,
