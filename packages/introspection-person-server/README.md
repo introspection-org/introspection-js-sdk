@@ -63,14 +63,34 @@ import { Readable } from "node:stream";
 import { createPersonServer } from "@introspection-sdk/person-server";
 
 const issuer = "https://ps.acme.example";
+const people = {
+  "user:sam@acme.example": {
+    id: "sam",
+    name: "Sam",
+    email: "sam@acme.example",
+  },
+  "user:dana@acme.example": {
+    id: "dana",
+    name: "Dana",
+    email: "dana@acme.example",
+  },
+};
 const ps = await createPersonServer({
   issuer,
   trustedAgentProviders: ["https://api.introspection.dev"],
   signingKey: readFileSync("ps-signing-key.pem", "utf8"),
   subjectSecret: readFileSync("ps-subject-secret", "utf8"),
   adminToken: process.env.PS_ADMIN_TOKEN, // turns on the management routes
-  directory: { person: (hint) => employees.byEmail(hint) },
-  onApproval: (approval) => notify(approval.approver, approval),
+  directory: {
+    // Who you speak for, by the login hint an agent's connector sends.
+    person: (hint) => people[hint],
+    approver: (kind, person) =>
+      kind === "completion" ? person : people["user:dana@acme.example"],
+  },
+  onApproval: (approval) =>
+    console.log(
+      `approval ${approval.id} for ${approval.approver.email}: ${approval.description}`,
+    ),
 });
 
 createServer(async (req, res) => {
@@ -93,6 +113,14 @@ Serve it at `issuer` over https, behind your proxy or a tunnel (`cloudflared tun
 ```bash
 curl https://ps.acme.example/.well-known/aauth-person.json
 curl -H "authorization: Bearer $PS_ADMIN_TOKEN" "https://ps.acme.example/consent?status=pending"
+```
+
+Each approval is logged as it arrives. Decide one through the management routes (or `ps.decide()` in code), setting a mission's budget as you approve it:
+
+```bash
+curl -X POST -H "authorization: Bearer $PS_ADMIN_TOKEN" -H "content-type: application/json" \
+  -d '{"decision": "approve", "budget": {"amount": 300000, "unit": "USD", "decimals": 2}, "decided_by": "dana@acme.example"}' \
+  "https://ps.acme.example/consent/<approval id>/decision"
 ```
 
 An Introspection connector uses it once its `person_server_url` names `issuer`.
