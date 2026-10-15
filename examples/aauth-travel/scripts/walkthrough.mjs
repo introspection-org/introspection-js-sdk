@@ -17,7 +17,7 @@ const out = [
   "",
   flow.intro,
   "",
-  `Recipe code is from [recipe-travel-agent@${recipe.commit.slice(0, 7)}](${recipe.repository}/tree/${recipe.commit}). Platform steps show the contract on the wire, not the code.`,
+  `Recipe code is from [recipe-travel-agent@${recipe.ref}](${recipe.repository}/tree/${recipe.ref}). Platform steps show the contract on the wire, not the code.`,
   "",
 ];
 

@@ -50,8 +50,8 @@ export default async function Page() {
           <p>{flow.intro}</p>
           <p className="provenance">
             Recipe code is shown from{" "}
-            <a href={`${recipeSource.repository}/tree/${recipeSource.commit}`}>
-              recipe-travel-agent@{recipeSource.commit.slice(0, 7)}
+            <a href={`${recipeSource.repository}/tree/${recipeSource.ref}`}>
+              recipe-travel-agent@{recipeSource.ref}
             </a>
             . Platform steps show the contract on the wire.
           </p>
