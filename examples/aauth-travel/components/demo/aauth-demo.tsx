@@ -591,7 +591,7 @@ export function AAuthDemo({ scenarios }: { scenarios: Scenario[] }) {
 
         <div className="pane">
           <div className="pane-head">
-            <div className="step-label">What each party sees</div>
+            <div className="step-label">Behind the chat</div>
             <span className="pane-status">
               {started ? (state.busy ? "In progress" : "Done") : "Ready"}
             </span>
