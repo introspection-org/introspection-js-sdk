@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.34.0](https://github.com/introspection-org/introspection-js-sdk/compare/v0.33.0...v0.34.0) (2026-10-15)
+
+
+### ⚠ BREAKING CHANGES
+
+* **tags:** `client.projectLabels` is now `client.tags`, `ProjectLabelsApi`/`attachProjectLabels` are `TagsApi`/`attachTags`, and `ProjectLabel{,Create,Update,ListParams}` are replaced by `Tag`, `TagCreate`, `TagUpdate` and `TagListParams`, which take a `TagKind`.
+
+### Features
+
+* **tags:** the tag catalogue, keyed by access or annotation ([#462](https://github.com/introspection-org/introspection-js-sdk/issues/462)) ([670d247](https://github.com/introspection-org/introspection-js-sdk/commit/670d247267165ca81f870f0d807cd292f307c56e))
+
 ## [0.33.0](https://github.com/introspection-org/introspection-js-sdk/compare/v0.32.0...v0.33.0) (2026-10-15)
 
 
