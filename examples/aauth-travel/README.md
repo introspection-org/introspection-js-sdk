@@ -15,7 +15,7 @@ pnpm install
 pnpm dev
 ```
 
-Then open `http://localhost:3400/demo` and send a sample prompt as Sam. Without `RESEND_API_KEY`, Dana's emails, with their codes, appear on the page and in the console.
+Then open `http://localhost:3400` and send a sample prompt as Sam. Without `RESEND_API_KEY`, Dana's emails, with their codes, appear on the page and in the console.
 
 `pnpm dev` serves the app on `:3400`, gives the booking provider and the Browserbase mock public https URLs through free Cloudflare tunnels (the platform's egress and Person Server call them), and sets up your project on whichever Introspection `introspection login` chose. The first time on a stack it creates:
 

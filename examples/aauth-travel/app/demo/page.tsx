@@ -1,10 +1,6 @@
-import { AAuthDemo } from "@/components/demo/aauth-demo";
-import { SCENARIOS } from "@/lib/demo/run";
+import { redirect } from "next/navigation";
 
-import "./demo.css";
-
-export const dynamic = "force-dynamic";
-
+/** The demo moved to `/`; old links still land on it. */
 export default function DemoPage() {
-  return <AAuthDemo scenarios={SCENARIOS.map((s) => ({ ...s }))} />;
+  redirect("/");
 }

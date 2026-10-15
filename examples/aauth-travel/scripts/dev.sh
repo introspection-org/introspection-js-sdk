@@ -362,9 +362,9 @@ connect() {
 }
 
 if connect; then
-  say "demo: http://localhost:$PORT/demo"
+  say "demo: http://localhost:$PORT"
 else
   say "not connected to Introspection: run \`introspection login\`, then restart pnpm dev."
-  say "meanwhile: http://localhost:$PORT (the walkthrough); pnpm e2e plays the agent without Introspection."
+  say "meanwhile: http://localhost:$PORT/walkthrough; pnpm e2e plays the agent without Introspection."
 fi
 wait "$APP"

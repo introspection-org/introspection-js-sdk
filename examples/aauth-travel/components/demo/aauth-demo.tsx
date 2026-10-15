@@ -483,7 +483,7 @@ export function AAuthDemo({ scenarios }: { scenarios: Scenario[] }) {
           </div>
           <div className="ademo-controls">
             <a
-              href="/"
+              href="/walkthrough"
               target="_blank"
               rel="noopener noreferrer"
               className="control"

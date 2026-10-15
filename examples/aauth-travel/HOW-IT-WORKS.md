@@ -21,9 +21,9 @@ This example is the **Flight Sector side and the Acme side** of the demo, and th
 
   Either way the trip's manager approves it, budget and all, by a six-digit emailed code (page at `/approve/{id}`). Within the trip, an auth token is issued for each booking whose price (the resource token's `budget`) fits what is left, and anything over goes back to the manager. Nothing books outside a mission.
 
-- **The walkthrough** (`http://localhost:3400`) covers every step of the default trip, beside the code behind it. `WALKTHROUGH.md` is the same thing as a document.
+- **The walkthrough** (`http://localhost:3400/walkthrough`) covers every step of the default trip, beside the code behind it. `WALKTHROUGH.md` is the same thing as a document.
 
-The agent itself is the public [travel-agent recipe](https://github.com/introspection-org/recipe-travel-agent). The walkthrough reads it from GitHub at the commit pinned in `flow/recipe.mjs`; while that repository is private, set `GITHUB_TOKEN` for the page to show its code.
+The agent itself is the public [travel-agent recipe](https://github.com/introspection-org/recipe-travel-agent). The walkthrough reads it from GitHub on its main branch (`flow/recipe.mjs`); while that repository is private, set `GITHUB_TOKEN` for the page to show its code.
 
 ## The flow
 
@@ -138,7 +138,7 @@ The connector's `policy_entities` and Sam's `policy_attributes` are what the rec
 
 | Variable                                                   | Default                                      | What it is                                                  |
 | ---------------------------------------------------------- | -------------------------------------------- | ----------------------------------------------------------- |
-| `APP_URL`                                                  | `http://localhost:3400`                      | the walkthrough's origin                                    |
+| `APP_URL`                                                  | `http://localhost:3400`                      | the app's origin                                            |
 | `BOOKING_ISSUER`                                           | `https://booking.flightsector.localhost`     | the booking provider's AAuth identifier                     |
 | `BROWSERBASE_MCP_URL`                                      | `https://browserbase.flightsector.localhost` | the mock Browserbase MCP's host                             |
 | `BOOKING_PERSON_SERVERS`                                   | `ACME_PERSON_SERVER_URL`                     | Person Servers whose people the provider serves             |
@@ -160,4 +160,4 @@ The connector's `policy_entities` and Sam's `policy_attributes` are what the rec
 
 The page reads the real files at request time, and `pnpm walkthrough` writes `WALKTHROUGH.md` from the same manifest, so the explanation can't drift from the code. Platform internals are never shown: platform steps appear only as their contracts.
 
-After changing the recipe, move the commit in `flow/recipe.mjs`, then `pnpm walkthrough`.
+After changing the recipe, run `pnpm walkthrough` to refresh `WALKTHROUGH.md`; the page reads it live.
