@@ -58,18 +58,18 @@ type Decide = (
 
 const PARTY: Record<string, { name: string; mark: string; host: string }> = {
   Tools: {
-    name: "the agent's tools",
+    name: "Tools",
     mark: "T",
     host: "travel-agent recipe, in its sandbox",
   },
   Acme: { name: "Acme", mark: "A", host: "ps.acme.localhost" },
   "Booking provider": {
-    name: "the booking provider",
+    name: "Booking provider",
     mark: "B",
     host: "booking.flightsector.localhost",
   },
   Browserbase: {
-    name: "Browserbase's MCP",
+    name: "Browserbase",
     mark: "W",
     host: "browserbase.flightsector.localhost (mock)",
   },
@@ -131,12 +131,7 @@ function tone(status: number) {
 }
 
 function sees(parties: string[]) {
-  const names = parties.map((p) => PARTY[p]?.name ?? p);
-  const list =
-    names.length > 1
-      ? `${names.slice(0, -1).join(", ")} and ${names.at(-1)}`
-      : names[0];
-  return `What ${list} ${names.length > 1 || names[0].startsWith("the") ? "see" : "sees"}`;
+  return parties.map((p) => PARTY[p]?.name ?? p).join(" · ");
 }
 
 function Inbox({
