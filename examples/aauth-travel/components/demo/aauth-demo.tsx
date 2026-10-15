@@ -261,19 +261,23 @@ function Moment(props: {
  * or open, or another conversation's URL or id to paste and open.
  */
 function ConversationBar({ base, taskId }: { base?: string; taskId?: string }) {
-  const current = base && taskId ? `${base}${taskId}` : (taskId ?? "");
+  // Shown as a browser shows an address: no scheme, the host set off from the path.
+  const scheme = base?.match(/^https?:\/\//)?.[0] ?? "https://";
+  const current = base && taskId ? `${base}${taskId}`.slice(scheme.length) : "";
   const [text, setText] = useState(current);
   useEffect(() => setText(current), [current]);
   if (!current) return null;
   const go = () => {
     const value = text.trim();
+    if (!value) return;
     const url = /^https?:\/\//.test(value)
       ? value
-      : base
-        ? `${base}${value}`
-        : "";
-    if (url) window.open(url, "_blank", "noreferrer");
+      : value.includes("/")
+        ? `${scheme}${value}`
+        : `${base}${value}`;
+    window.open(url, "_blank", "noreferrer");
   };
+  const edited = text.trim() !== current;
   return (
     <form
       className="conversation-bar"
@@ -282,6 +286,9 @@ function ConversationBar({ base, taskId }: { base?: string; taskId?: string }) {
         go();
       }}
     >
+      <span className="conversation-bar-icon" aria-hidden>
+        ⓘ
+      </span>
       <input
         value={text}
         onChange={(e) => setText(e.target.value)}
@@ -289,8 +296,22 @@ function ConversationBar({ base, taskId }: { base?: string; taskId?: string }) {
         spellCheck={false}
         aria-label="This run's conversation in Introspection, or another to open"
       />
-      <button type="submit" disabled={!text.trim()}>
-        {text.trim() === current ? "Open" : "Go"}
+      <button
+        type="submit"
+        disabled={!text.trim()}
+        title={edited ? "Go" : "Open in Introspection"}
+        aria-label={edited ? "Go" : "Open in Introspection"}
+      >
+        <svg viewBox="0 0 16 16" width="15" height="15" aria-hidden>
+          <path
+            d="M9 2h5v5M14 2 7.5 8.5M12 9.5V13a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1h3.5"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </svg>
       </button>
     </form>
   );
