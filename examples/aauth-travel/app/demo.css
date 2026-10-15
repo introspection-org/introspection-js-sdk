@@ -84,7 +84,7 @@
 
 .ademo-head {
   display: grid;
-  gap: 2px;
+  gap: 10px;
 }
 
 .ademo-row,
@@ -104,6 +104,11 @@
   display: flex;
   align-items: center;
   gap: 10px;
+}
+
+/* The walkthrough's `.brand` (globals.css) is spaced for its own page. */
+.ademo .brand {
+  margin-bottom: 0;
 }
 
 .ademo .eyebrow {
