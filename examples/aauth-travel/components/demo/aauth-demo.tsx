@@ -12,7 +12,7 @@ import {
 
 import { recipe } from "@/flow/recipe.mjs";
 
-import { AAuthLogo } from "./aauth-logo";
+import { AAuthLogo, IntrospectionMark } from "./aauth-logo";
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
@@ -529,7 +529,11 @@ export function AAuthDemo({ scenarios }: { scenarios: Scenario[] }) {
           <div className="brand">
             <AAuthLogo />
             <span className="step-label">
-              -11 · three-party, with a mission · on Introspection
+              -11 · three-party, with a mission · on{" "}
+              <span className="on-introspection">
+                <IntrospectionMark />
+                Introspection
+              </span>
             </span>
           </div>
           <div className="ademo-controls">
