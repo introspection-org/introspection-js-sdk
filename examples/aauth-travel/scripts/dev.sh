@@ -2,6 +2,8 @@
 # `pnpm dev`: the Flight Sector demo app on :3400, its parties on public https
 # URLs, and your Introspection project set up to use them.
 #
+# It installs the introspection CLI, or upgrades it, first.
+#
 # Which Introspection it connects to is whichever stack `introspection login`
 # chose: staging, production, or your own. Not logged in, the app runs alone.
 #
@@ -77,6 +79,19 @@ json() {
     });
   ' "$1"
 }
+
+# ---------------------------------------------------------------------------
+# The Introspection CLI, installed or brought up to date
+# ---------------------------------------------------------------------------
+
+if command -v introspection >/dev/null 2>&1; then
+  introspection upgrade --yes --non-interactive >/dev/null 2>&1 ||
+    say "could not upgrade the introspection CLI; carrying on with $(introspection --version)"
+else
+  say "installing the introspection CLI"
+  npm install -g @introspection-ai/cli >/dev/null || fail "could not install it: npm install -g @introspection-ai/cli"
+fi
+say "$(introspection --version)"
 
 # ---------------------------------------------------------------------------
 # Public URLs
