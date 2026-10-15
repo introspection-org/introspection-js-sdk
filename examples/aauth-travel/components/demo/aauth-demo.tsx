@@ -287,10 +287,11 @@ function ConversationBar({
         : `${base}${value}`;
     window.open(url, "_blank", "noreferrer");
   };
-  // Enter loads (or reloads) the conversation a URL or id names; only the icon opens it.
-  const pasted = text.match(
-    /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i,
-  )?.[0];
+  // Enter loads (or reloads) the conversation a URL or id names; only the icon
+  // opens it. The id is the last one: a project's id can come first.
+  const pasted = text
+    .match(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi)
+    ?.at(-1);
   return (
     <form
       className="conversation-bar"
