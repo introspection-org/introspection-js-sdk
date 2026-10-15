@@ -355,20 +355,24 @@ export async function join(taskId: string) {
     return;
   }
   const epoch = r.epoch;
-  void drive(r, epoch, async () => {
+  try {
     r.runner = await new IntrospectionClient()
       .runtimes(RUNTIME)
       .run({ identity: { user_id: SAM_USER_ID } });
     const task = await r.runner.tasks.get(taskId);
     r.taskId = taskId;
-    const runId = (task.metadata?.active_run_id ??
-      task.metadata?.latest_run_id) as string | undefined;
-    if (!runId) throw new Error(`${taskId} has no run to load`);
-    return {
-      runId,
-      stream: r.runner.tasks.runs.stream(taskId, runId) as Stream,
-    };
-  });
+    // Follow a run only while one is live; an idle conversation's sandbox is
+    // gone, and Sam's next message starts a fresh one.
+    const active = task.metadata?.active_run_id as string | undefined;
+    if (active)
+      void drive(r, epoch, async () => ({
+        runId: active,
+        stream: r.runner!.tasks.runs.stream(taskId, active) as Stream,
+      }));
+  } catch (err) {
+    if (r.epoch === epoch)
+      r.error = `Could not load ${taskId}: ${err instanceof Error ? err.message : String(err)}`;
+  }
 }
 
 /** A person answers Acme's email from the page: the same call Acme's approval page makes. */
