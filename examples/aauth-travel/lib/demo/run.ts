@@ -350,13 +350,8 @@ export async function send(prompt: string) {
   });
 }
 
-/**
- * Load a conversation the demo has had with Sam, by its task id: its chat so
- * far from its turns in Introspection, a run still going followed, and Sam's
- * next message continuing it. What happened behind the chat is not restored.
- */
-/** The conversation so far, from its turns in Introspection, oldest first. */
-async function history(runner: Runner, taskId: string): Promise<Chat[]> {
+/** The conversation so far, from its turns in Introspection, oldest first, with when each line was said. */
+async function history(runner: Runner, taskId: string) {
   const turns = [];
   for await (const turn of runner.conversations.turns(taskId, { limit: 100 }))
     turns.push(turn);
@@ -371,6 +366,7 @@ async function history(runner: Runner, taskId: string): Promise<Chat[]> {
               part.type === "text" && "content" in part ? part.content : "",
             )
             .join(""),
+          at: message.created_at,
         })),
       )
       // The platform resumes the agent with a `[platform]` message of its own,
@@ -383,6 +379,79 @@ async function history(runner: Runner, taskId: string): Promise<Chat[]> {
   );
 }
 
+type Part = {
+  type: string;
+  id?: string;
+  name?: string;
+  arguments?: unknown;
+  response?: unknown;
+};
+type Message = { parts?: Part[] };
+
+/**
+ * The agent's tool calls, each under the chat line it followed, from the
+ * conversation's items: the model's calls and the results it was given back.
+ * What happened on the wire behind them is not recorded, so it is not restored.
+ */
+async function toolCalls(
+  runner: Runner,
+  taskId: string,
+  lines: { at: string }[],
+) {
+  const calls: { id: string; name: string; args: string; at: string }[] = [];
+  const results = new Map<string, unknown>();
+  for await (const span of runner.conversations.items.list(taskId, {
+    limit: 500,
+  })) {
+    const genAi = span.attributes?.gen_ai as
+      | { input?: { messages?: Message[] }; output?: { messages?: Message[] } }
+      | undefined;
+    for (const message of genAi?.input?.messages ?? [])
+      for (const part of message.parts ?? [])
+        if (part.type === "tool_call_response" && part.id)
+          results.set(part.id, part.response);
+    for (const message of genAi?.output?.messages ?? [])
+      for (const part of message.parts ?? [])
+        if (part.type === "tool_call" && part.id && part.name)
+          calls.push({
+            id: part.id,
+            name: part.name,
+            args:
+              typeof part.arguments === "string"
+                ? part.arguments
+                : JSON.stringify(part.arguments ?? {}),
+            at: span.end_time ?? span.start_time,
+          });
+  }
+  for (const call of calls.sort((a, b) => a.at.localeCompare(b.at))) {
+    setTurn(lines.filter((line) => line.at <= call.at).length);
+    const result = results.get(call.id);
+    const content =
+      typeof result === "string" ? result : JSON.stringify(result ?? "");
+    const http = /^HTTP (\d{3})\b/.exec(content);
+    note({
+      from: "Agent",
+      to: "Tools",
+      label: toolLabel(call.name),
+      request: [`${call.name}(…)`, ...body(call.args)].join("\n"),
+      response:
+        result === undefined
+          ? "(no result recorded)"
+          : body(JSON.stringify({ content: [{ type: "text", text: content }] }))
+              .join("\n")
+              .trim() || content,
+      status:
+        result === undefined ? 0 : http ? Number(http[1]) : toolStatus(content),
+    });
+  }
+}
+
+/**
+ * Load a conversation the demo has had with Sam, by its task id: its chat and
+ * the agent's tool calls from Introspection, a run still going followed, and
+ * Sam's next message continuing it. The wire behind each tool call is not
+ * recorded, so it is not restored.
+ */
 export async function join(taskId: string) {
   if (run().busy) return;
   reset();
@@ -400,7 +469,12 @@ export async function join(taskId: string) {
       .run({ identity: { user_id: SAM_USER_ID } });
     const task = await r.runner.tasks.get(taskId);
     r.taskId = taskId;
-    if (r.epoch === epoch) r.chat = await history(r.runner, taskId);
+    const lines = await history(r.runner, taskId);
+    if (r.epoch !== epoch) return;
+    r.chat = lines.map(({ from, text }) => ({ from, text }));
+    await toolCalls(r.runner, taskId, lines);
+    if (r.epoch !== epoch) return;
+    setTurn(r.chat.length);
     // Follow a run only while one is live; an idle conversation's sandbox is
     // gone, and Sam's next message starts a fresh one.
     const active = task.metadata?.active_run_id as string | undefined;
