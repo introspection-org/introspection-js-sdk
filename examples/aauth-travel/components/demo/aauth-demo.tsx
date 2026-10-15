@@ -258,6 +258,7 @@ export function AAuthDemo({ scenarios }: { scenarios: Scenario[] }) {
   const chatEnd = useRef<HTMLDivElement>(null);
   const seenEnd = useRef<HTMLDivElement>(null);
   const detailsEnd = useRef<HTMLDivElement>(null);
+  const detailsTop = useRef<HTMLDivElement>(null);
 
   const refresh = useCallback(async () => {
     const response = await fetch("/api/demo/state", { cache: "no-store" });
@@ -276,11 +277,16 @@ export function AAuthDemo({ scenarios }: { scenarios: Scenario[] }) {
   useEffect(() => {
     chatEnd.current?.scrollIntoView({ block: "nearest" });
   }, [chatCount]);
+  // New activity scrolls both panes while following the latest; picking a turn
+  // moves only the request details, to the top of that turn's requests.
   useEffect(() => {
+    if (picked !== null) return;
     seenEnd.current?.scrollIntoView({ block: "nearest" });
-    if (picked === null)
-      detailsEnd.current?.scrollIntoView({ block: "nearest" });
+    detailsEnd.current?.scrollIntoView({ block: "nearest" });
   }, [callCount, mailCount, picked]);
+  useEffect(() => {
+    if (picked !== null) detailsTop.current?.scrollTo({ top: 0 });
+  }, [picked]);
 
   const act = async (body: Record<string, unknown>) => {
     setSending(true);
@@ -501,7 +507,7 @@ export function AAuthDemo({ scenarios }: { scenarios: Scenario[] }) {
               </button>
             )}
           </div>
-          <div className="pane-body">
+          <div className="pane-body" ref={detailsTop}>
             {details.length === 0 && (
               <p className="muted">
                 Each request Introspection&apos;s egress sends for the agent
