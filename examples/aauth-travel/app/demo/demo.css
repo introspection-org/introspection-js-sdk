@@ -23,8 +23,8 @@
   --sam: var(--accent);
   --agent-bubble: #fff;
   --soft: var(--bg-soft);
-  /* Shiki's github-dark, as the Introspection app's code viewer. */
-  --code-bg: #24292e;
+  /* Shiki's github-dark on the Introspection app's dark surface, as its code viewer. */
+  --code-bg: #1c1c1c;
   --code-ink: #e1e4e8;
   --radius: 6px;
   font-family: var(--sans);
@@ -619,7 +619,7 @@
 .exchange {
   border-radius: var(--radius);
   background: var(--code-bg);
-  border: 1px solid #1b1f23;
+  border: 1px solid #2e2e2e;
   overflow: hidden;
 }
 
@@ -631,8 +631,8 @@
   font-family: var(--mono);
   font-size: 11.5px;
   color: #959da5;
-  background: #1f2428;
-  border-bottom: 1px solid #1b1f23;
+  background: #232323;
+  border-bottom: 1px solid #2e2e2e;
 }
 
 .exchange-head .dir {
@@ -647,10 +647,10 @@
 
 .ademo .exchange pre {
   margin: 0;
-  padding: 14px;
+  padding: 12px;
   font-family: var(--mono);
-  font-size: 12.5px;
-  line-height: 1.55;
+  font-size: 13px;
+  line-height: 1.5;
   color: var(--code-ink);
   white-space: pre-wrap;
   overflow-wrap: anywhere;
