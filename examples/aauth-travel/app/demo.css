@@ -552,11 +552,9 @@
   min-width: 0;
 }
 
-/* A wide table scrolls inside the email rather than past its edge. */
+/* A table fits the email's width, its cells wrapping, never past the edge. */
 .mail-item table {
-  display: block;
-  max-width: 100%;
-  overflow-x: auto;
+  width: 100%;
   border-collapse: collapse;
   margin: 6px 0;
   font-size: 13px;
@@ -576,6 +574,7 @@
 .moment-title td,
 .mail-item th,
 .mail-item td {
+  overflow-wrap: anywhere;
   border-bottom: 1px solid var(--line);
   padding: 3px 8px 3px 0;
   text-align: left;
