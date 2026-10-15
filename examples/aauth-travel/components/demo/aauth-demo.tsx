@@ -143,6 +143,29 @@ function Inbox({
   onDecide: Decide;
 }) {
   const [budget, setBudget] = useState(email.budget?.suggested ?? 3000);
+  // The approver types the code Acme emailed; the page plays that out, a
+  // digit at a time, before it sends the answer.
+  const [typed, setTyped] = useState<string | null>(null);
+  const answer = (verdict: "approve" | "decline") => {
+    if (typed !== null) return;
+    setTyped("");
+    const digits = email.code.split("");
+    digits.forEach((_, i) =>
+      setTimeout(() => setTyped(email.code.slice(0, i + 1)), (i + 1) * 120),
+    );
+    setTimeout(
+      () => {
+        onDecide(
+          email,
+          verdict,
+          verdict === "approve" && email.budget ? budget : undefined,
+        );
+        // A refused answer leaves the card open: let it be tried again.
+        setTimeout(() => setTyped(null), 3000);
+      },
+      digits.length * 120 + 300,
+    );
+  };
   // Sam is the traveller, Dana his manager: each in their own colour.
   const who = email.to.startsWith("Sam") ? "mail-sam" : "mail-dana";
   return (
@@ -170,6 +193,16 @@ function Inbox({
         <div className="mail-status">Answered</div>
       ) : (
         <div className="mail-actions">
+          <span className="mail-code" aria-label="Code from the email">
+            {Array.from({ length: 6 }, (_, i) => (
+              <span
+                key={i}
+                className={typed && typed.length > i ? "filled" : undefined}
+              >
+                {typed?.[i] ?? ""}
+              </span>
+            ))}
+          </span>
           {email.budget && (
             <label>
               Budget $
@@ -182,17 +215,15 @@ function Inbox({
             </label>
           )}
           <button
-            disabled={busy}
-            onClick={() =>
-              onDecide(email, "approve", email.budget ? budget : undefined)
-            }
+            disabled={busy || typed !== null}
+            onClick={() => answer("approve")}
           >
             {email.to.startsWith("Sam") ? "Accept" : "Approve"}
           </button>
           <button
             className="secondary"
-            disabled={busy}
-            onClick={() => onDecide(email, "decline")}
+            disabled={busy || typed !== null}
+            onClick={() => answer("decline")}
           >
             Decline
           </button>

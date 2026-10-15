@@ -588,6 +588,36 @@
   flex-wrap: wrap;
 }
 
+.mail-code {
+  display: inline-flex;
+  gap: 4px;
+  margin-right: 4px;
+}
+
+.mail-code span {
+  width: 24px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--line-2);
+  border-radius: 6px;
+  background: var(--bg);
+  font-family: var(--mono);
+  font-size: 15px;
+}
+
+.mail-code span.filled {
+  border-color: var(--accent);
+  animation: mail-code-in 120ms ease-out;
+}
+
+@keyframes mail-code-in {
+  from {
+    transform: translateY(3px);
+    opacity: 0;
+  }
+}
+
 .mail-actions label {
   font-size: 14px;
 }
