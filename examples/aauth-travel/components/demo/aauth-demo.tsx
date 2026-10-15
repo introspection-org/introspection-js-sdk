@@ -150,10 +150,17 @@ function Inbox({
   onDecide: Decide;
 }) {
   const [budget, setBudget] = useState(email.budget?.suggested ?? 3000);
+  // Sam is the traveller, Dana his manager: each in their own colour.
+  const who = email.to.startsWith("Sam") ? "mail-sam" : "mail-dana";
   return (
-    <div className={`mail ${email.decided ? "mail-done" : ""}`}>
+    <div className={`mail ${who} ${email.decided ? "mail-done" : ""}`}>
       <div className="mail-head">
-        <span className="mail-to">{email.to}&apos;s inbox</span>
+        <span className="mail-to">
+          <span className="mail-avatar" aria-hidden>
+            {email.to.charAt(0)}
+          </span>
+          {email.to}&apos;s inbox
+        </span>
         <span>from Acme Travel Approvals</span>
       </div>
       <div className="mail-item">

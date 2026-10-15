@@ -802,3 +802,41 @@
   background: #2e2e2e;
   color: #e1e4e8;
 }
+
+.mail-to {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.mail-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.mail-sam {
+  border-color: var(--accent);
+}
+
+.mail-sam .mail-avatar {
+  background: var(--accent);
+}
+
+.mail-dana {
+  border-color: #7a3e6e;
+}
+
+.mail-dana .mail-avatar {
+  background: #7a3e6e;
+}
+
+.mail-done {
+  border-color: var(--line);
+}
