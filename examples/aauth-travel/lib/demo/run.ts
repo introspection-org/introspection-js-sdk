@@ -81,8 +81,6 @@ type Run = {
   error?: string;
   runner?: Runner;
   taskId?: string;
-  /** The run the agent is on now, which Stop cancels. */
-  runId?: string;
   /** Runs already followed, so a resumed run is streamed once. */
   followed: Set<string>;
   /** Bumped on every reset, so a stale follower stops writing. */
@@ -197,7 +195,6 @@ function toolStatus(result: string) {
 /** Fold one run's AG-UI events into the chat and the agent's tool calls. */
 async function follow(r: Run, epoch: number, runId: string, stream: Stream) {
   r.followed.add(runId);
-  r.runId = runId;
   r.streaming = true;
   const messages = new Map<string, Chat>();
   const tools = new Map<
@@ -352,19 +349,19 @@ export async function send(prompt: string) {
   });
 }
 
-/** Sam stops the agent: cancel the run it is on. The task stays, so Sam can carry on. */
+/** Sam stops the agent: cancel whichever run the task is on. The task stays, so Sam can carry on. */
 export async function stop() {
   const r = run();
-  if (!r.runner || !r.taskId || !r.runId || !r.streaming) return;
-  const { taskId, runId } = r;
+  if (!r.runner || !r.taskId || !r.busy) return;
+  try {
+    await r.runner.tasks.runs.cancel(r.taskId, "current");
+  } catch (err) {
+    r.error = `Could not stop the agent: ${err instanceof Error ? err.message : String(err)}`;
+    return;
+  }
   r.epoch += 1;
   r.busy = false;
   r.streaming = false;
-  try {
-    await r.runner.tasks.runs.cancel(taskId, runId);
-  } catch (err) {
-    r.error = `Could not stop the agent: ${err instanceof Error ? err.message : String(err)}`;
-  }
 }
 
 /** The conversation so far, from its turns in Introspection, oldest first, with when each line was said. */
