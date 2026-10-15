@@ -572,9 +572,17 @@
 .bubble td,
 .moment-title th,
 .moment-title td,
+/* The first column, a description, wraps; the short ones after it don't. */
+.mail-item th:first-child,
+.mail-item td:first-child {
+  width: 100%;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
 .mail-item th,
 .mail-item td {
-  overflow-wrap: anywhere;
+  white-space: nowrap;
   border-bottom: 1px solid var(--line);
   padding: 3px 8px 3px 0;
   text-align: left;
