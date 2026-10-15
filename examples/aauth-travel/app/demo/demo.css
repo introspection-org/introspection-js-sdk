@@ -23,8 +23,9 @@
   --sam: var(--accent);
   --agent-bubble: #fff;
   --soft: var(--bg-soft);
-  --code-bg: #0f1115;
-  --code-ink: #d7dae0;
+  /* Shiki's github-dark, as the Introspection app's code viewer. */
+  --code-bg: #24292e;
+  --code-ink: #e1e4e8;
   --radius: 6px;
   font-family: var(--sans);
   color: var(--ink);
@@ -618,7 +619,7 @@
 .exchange {
   border-radius: var(--radius);
   background: var(--code-bg);
-  border: 1px solid #1f232b;
+  border: 1px solid #1b1f23;
   overflow: hidden;
 }
 
@@ -629,17 +630,17 @@
   padding: 8px 14px;
   font-family: var(--mono);
   font-size: 11.5px;
-  color: #9aa1ad;
-  background: #151820;
-  border-bottom: 1px solid #1f232b;
+  color: #959da5;
+  background: #1f2428;
+  border-bottom: 1px solid #1b1f23;
 }
 
 .exchange-head .dir {
-  color: #e6e8ec;
+  color: #e1e4e8;
 }
 
 .exchange-head .kind {
-  color: #7c8594;
+  color: #6a737d;
   margin-left: auto;
   text-align: right;
 }
@@ -656,20 +657,20 @@
 }
 
 .exchange pre .k {
-  color: #8ab4ff;
+  color: #79b8ff;
 }
 .exchange pre .s {
-  color: #a5d6a7;
+  color: #9ecbff;
 }
 .exchange pre .n {
-  color: #f7c97e;
+  color: #79b8ff;
 }
 .exchange pre .m {
-  color: #ff9e9e;
+  color: #f97583;
   font-weight: 600;
 }
 .exchange pre .h {
-  color: #c3a6ff;
+  color: #b392f0;
 }
 
 @media (max-width: 1100px) {
