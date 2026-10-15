@@ -547,7 +547,10 @@ export async function decide(
     }),
   });
   if (!response.ok) {
-    r.error = `Acme refused the decision: ${response.status}`;
+    const problem = (await response.json().catch(() => ({}))) as {
+      detail?: string;
+    };
+    r.error = `Acme refused the decision (${response.status})${problem.detail ? `: ${problem.detail}` : ""}`;
     return;
   }
   r.decided.push(index);
