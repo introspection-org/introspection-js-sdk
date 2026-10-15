@@ -287,7 +287,7 @@ function ConversationBar({
         : `${base}${value}`;
     window.open(url, "_blank", "noreferrer");
   };
-  // Enter loads the conversation a URL or id names; the icon opens it in Introspection.
+  // Enter loads (or reloads) the conversation a URL or id names; only the icon opens it.
   const pasted = text.match(
     /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i,
   )?.[0];
@@ -297,7 +297,6 @@ function ConversationBar({
       onSubmit={(e) => {
         e.preventDefault();
         if (pasted) onLoad(pasted);
-        else open();
       }}
     >
       <span className="conversation-bar-icon" aria-hidden>
