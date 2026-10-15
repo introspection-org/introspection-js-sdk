@@ -4,7 +4,7 @@
 
 Sam works at Acme, one of Flight Sector's customers, and asks Flight Sector's travel agent for a week in Sydney. The agent holds no credential. The platform is its Agent Provider: it mints an agent token for the session and signs every request the agent makes with the session's key. The trip is an AAuth mission: Acme's Person Server, which speaks for Sam, has Sam's manager approve it once, budget and all. The booking provider is a native AAuth resource. Flight Sector's own rails, Cedar policies shipped in the recipe, run in the platform first. Then each booking is AAuth's three-party flow: the resource names it in a proposal only Acme can read, and Acme issues an auth token within the trip's budget, asks the manager again, or refuses.
 
-Recipe code is from [recipe-travel-agent@cf680b8](https://github.com/introspection-org/recipe-travel-agent/tree/cf680b8004210df1b0be99208882940bdd1e780f). Platform steps show the contract on the wire, not the code.
+Recipe code is from [recipe-travel-agent@f757015](https://github.com/introspection-org/recipe-travel-agent/tree/f75701528f16261301bcd4d3c6d6ce46bbb326da). Platform steps show the contract on the wire, not the code.
 
 ## 1. Sam asks for a trip
 
@@ -17,16 +17,18 @@ _Employee → Agent_
 ```md
 You are Flight Sector's travel agent. Employees of Flight Sector's customer companies message you in a Slack DM to plan and book work travel. You book flights and hotels on the employee's behalf.
 
+Write as you would in a chat on a phone: two or three short sentences, a short list only where it really helps, and no tables or headings.
+
 ## A trip is a mission
 
-1. Confirm the trip: origin, destination, dates, which legs are for work, and a budget.
-2. Price it, then propose the whole trip with `propose_trip`: who travels, where, when, what you will book, and a suggested budget as "up to $N". The employee's manager approves it once and sets the budget; the approved mission's `budget_cents` is what you have to spend.
+1. Confirm the trip: origin, destination, dates, which legs are for work, and a budget. When the traveller gives a date relative to now ("next Monday", "the 27th"), call `today` first, and say the actual dates back to them.
+2. Price it, then propose the whole trip with `propose_trip`: who travels, where, when, what you will book, and a suggested budget as "up to $N". Suggest the budget the employee named, even when the fares you were quoted come to more: the manager decides, and asks again for anything over what they set. Don't stop to ask the employee to choose between options. The employee's manager approves it once and sets the budget; the approved mission's `budget_cents` is what you have to spend.
 3. Once approved, book one item at a time with `book_item`, passing the offer's `offer_id` and `quote` unchanged, with its purpose and who pays.
 4. When everything is booked, report it with `complete_trip`; the employee accepts it.
 
 ## Finding flights and hotels
 
-- **Flights:** search the web with the browser. `start` a session, `navigate` to `https://www.google.com/travel/flights?q=Flights%20from%20SFO%20to%20SYD%20on%202026-10-18%20one%20way%20economy` (your route, date and cabin), `extract` the flights shown with their airline, times, duration, stops and price, then `end` the session. Pick what fits, then `quote_flight` it by airline (and flight number, if the search showed one) for a bookable offer. Quote and propose the booking provider's fare, not the price the search showed; say so when they differ.
+- **Flights:** search the web with the browser. `start` a session, `navigate` to `https://www.google.com/travel/flights?q=Flights%20from%20SFO%20to%20SYD%20on%202026-10-18%20one%20way%20economy` (your route, date and cabin), `extract` the flights shown with their airline, times, duration, stops and price, then `end` the session. Flight Sector never books first class: when the employee asks for it, say so and search business instead. Pick what fits, then `quote_flight` it by airline (and flight number, if the search showed one) for a bookable offer. Quote and propose the booking provider's fare, not the price the search showed; say so when they differ.
 - **Hotels:** `search_offers` with `kind: hotel`.
 - If the browser fails, `search_offers` with `kind: flight` also returns bookable flights.
 
@@ -38,7 +40,7 @@ You never hold a booking credential, and you never decide what is in policy.
 - **Awaiting approval.** A result says it is awaiting approval from the employee's organisation. Tell the employee, then stop. You'll be told here when it is decided:
   - if the trip was approved, you are given its `s256` and budget: start booking it, and do not propose it again;
   - if a booking over what is left of the budget was approved, book the same offer again;
-  - if declined, say so and offer an alternative, such as a cheaper hotel.
+  - if declined, say so, and finish the trip with what is booked (`complete_trip`). Look for an alternative only if the traveller asks for one.
 - **Refused.** A result names a rule or a reason. Tell the employee and suggest what would fit.
 
 Never try to work around an approval, never ask the employee for credentials, and don't retry anything awaiting approval.
@@ -53,7 +55,7 @@ Never try to work around an approval, never ask the employee for credentials, an
 // company approves it once. Bookings then go to the `aauth` booking connector;
 // egress signs them and gets each auth token under the mission. Nothing here
 // holds a credential; anything awaiting a person comes back as 428, and the
-// runtime reports it (introspection-cloud connectors-aauth-b2b2c.md §12.3).
+// runtime reports it.
 import { Type } from "typebox";
 
 const BOOKING_API_URL = (
@@ -83,6 +85,26 @@ function result(res) {
 }
 
 export function registerBookingTools(pi) {
+  pi.registerTool({
+    name: "today",
+    label: "Today's date",
+    description:
+      'Today\'s date and weekday, to work out a date the traveller gives relative to now, such as "next Monday".',
+    parameters: Type.Object({}),
+    async execute() {
+      const now = new Date();
+      const date = now.toISOString().slice(0, 10);
+      const weekday = now.toLocaleDateString("en-US", {
+        weekday: "long",
+        timeZone: "UTC",
+      });
+      return {
+        content: [{ type: "text", text: `${weekday} ${date}` }],
+        details: { date, weekday },
+      };
+    },
+  });
+
   pi.registerTool({
     name: "propose_trip",
     label: "Propose the trip",
@@ -191,7 +213,8 @@ export function registerBookingTools(pi) {
       ),
       cabin: Type.Optional(
         Type.String({
-          description: "economy, premium_economy, business or first",
+          description:
+            "economy, premium_economy or business; first is never booked",
         }),
       ),
     }),
@@ -669,9 +692,10 @@ permit (principal, action == Action::"booking.reserve", resource);
 forbid (principal, action == Action::"booking.reserve", resource)
 unless { context has mission };
 
+// Refused at the quote too, so a trip in first is never proposed to a manager.
 @id("no-first-class")
-@reason("first class is never booked")
-forbid (principal, action == Action::"booking.reserve", resource)
+@reason("first class is never booked: quote business or economy instead")
+forbid (principal, action in [Action::"booking.quote", Action::"booking.reserve"], resource)
 when { resource has cabin && resource.cabin == "first" };
 
 @id("business-by-seniority")
@@ -689,7 +713,7 @@ unless {
 forbid (principal, action == Action::"booking.reserve", resource)
 unless {
   context has judgement && context.judgement has requested &&
-  context.judgement.requested >= 60
+  context.judgement.requested >= 50
 };
 
 @id("personal-is-the-travellers")
@@ -705,12 +729,15 @@ when {
 @id("propose")
 permit (principal, action == Action::"mission.propose", resource);
 
+@id("complete")
+permit (principal, action == Action::"mission.complete", resource);
+
 @id("proposed-as-asked")
 @reason("the proposed trip is not the one the traveller asked for: propose their destination, dates and budget")
 forbid (principal, action == Action::"mission.propose", resource)
 unless {
   context has judgement && context.judgement has requested &&
-  context.judgement.requested >= 60
+  context.judgement.requested >= 50
 };
 ```
 
@@ -729,7 +756,9 @@ booking:
     path: /v1/quote
     action: booking.quote
     resource:
-      type: Search
+      type: Quote
+      attribute_map:
+        cabin: /cabin
   - method: POST
     path: /v1/reserve
     action: booking.reserve
@@ -773,9 +802,17 @@ person-server:
     context: [judgement]
     judge: mission-proposal
     resource:
-      type: Mission
+      type: TripProposal
       attribute_map:
         description: /description
+  - method: POST
+    path: /mission/*
+    action: mission.complete
+    context: [mission]
+    resource:
+      type: TripCompletion
+      attribute_map:
+        summary: /summary
 ```
 
 **what the gate sees, and the refusal** · `platform contract: policy-denied.json`
