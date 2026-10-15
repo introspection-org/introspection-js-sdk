@@ -44,7 +44,8 @@ type Snapshot = {
   /** The run's conversation in the Introspection app. */
   /** The run's task, which is its conversation in Introspection. */
   taskId?: string;
-  trace?: string;
+  /** Where the Introspection app shows the project's conversations. */
+  conversations?: string;
   working?: boolean;
   mission?: {
     s256: string;
@@ -255,6 +256,46 @@ function Moment(props: {
   );
 }
 
+/**
+ * The run's conversation in Introspection, as an address bar: its URL to copy
+ * or open, or another conversation's URL or id to paste and open.
+ */
+function ConversationBar({ base, taskId }: { base?: string; taskId?: string }) {
+  const current = base && taskId ? `${base}${taskId}` : (taskId ?? "");
+  const [text, setText] = useState(current);
+  useEffect(() => setText(current), [current]);
+  if (!current) return null;
+  const go = () => {
+    const value = text.trim();
+    const url = /^https?:\/\//.test(value)
+      ? value
+      : base
+        ? `${base}${value}`
+        : "";
+    if (url) window.open(url, "_blank", "noreferrer");
+  };
+  return (
+    <form
+      className="conversation-bar"
+      onSubmit={(e) => {
+        e.preventDefault();
+        go();
+      }}
+    >
+      <input
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        onFocus={(e) => e.target.select()}
+        spellCheck={false}
+        aria-label="This run's conversation in Introspection, or another to open"
+      />
+      <button type="submit" disabled={!text.trim()}>
+        {text.trim() === current ? "Open" : "Go"}
+      </button>
+    </form>
+  );
+}
+
 export function AAuthDemo({ scenarios }: { scenarios: Scenario[] }) {
   const [state, setState] = useState<Snapshot | null>(null);
   const [prompt, setPrompt] = useState("");
@@ -350,47 +391,26 @@ export function AAuthDemo({ scenarios }: { scenarios: Scenario[] }) {
             </span>
           </div>
           <div className="ademo-controls">
-            <Link href="/" className="link">
-              The code behind it
+            <Link href="/" className="control">
+              <span aria-hidden>&lt;/&gt;</span> Code
             </Link>
             {started && (
               <button
-                className="secondary"
+                className="control"
                 onClick={() => {
                   setPicked(null);
                   act({ action: "reset" });
                 }}
                 disabled={sending}
               >
-                Start over
+                <span aria-hidden>↺</span> Start over
               </button>
             )}
           </div>
         </div>
         <div className="ademo-title">
           <h1>Flight Sector&apos;s agent books Sam&apos;s trip for Acme</h1>
-          {state?.taskId && (
-            <span className="conversation-id">
-              <code title={state.taskId}>{state.taskId.slice(0, 13)}…</code>
-              <button
-                className="copy"
-                onClick={() => navigator.clipboard?.writeText(state.taskId!)}
-                aria-label="Copy the conversation id"
-              >
-                Copy
-              </button>
-              {state.trace && (
-                <a
-                  href={state.trace}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="link"
-                >
-                  Open in Introspection
-                </a>
-              )}
-            </span>
-          )}
+          <ConversationBar base={state?.conversations} taskId={state?.taskId} />
         </div>
       </header>
 
