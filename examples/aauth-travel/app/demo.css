@@ -575,9 +575,30 @@
 
 /* A table's first column is a label, such as "✈️ Flight": keep it on one line. */
 .bubble td:first-child,
-.moment-title td:first-child,
-.mail-item td:first-child {
+.moment-title td:first-child {
   white-space: nowrap;
+}
+
+/* An email's table fits its card: the first column, a description, wraps and
+   takes the room; the short columns after it keep to one line. */
+.mail > * {
+  min-width: 0;
+}
+
+.mail-item table {
+  width: 100%;
+}
+
+.mail-item th,
+.mail-item td {
+  white-space: nowrap;
+}
+
+.mail-item th:first-child,
+.mail-item td:first-child {
+  width: 100%;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 .mail ul {

@@ -437,7 +437,14 @@ export function AAuthDemo({ scenarios }: { scenarios: Scenario[] }) {
     const box = composer.current;
     if (!box) return;
     box.style.height = "auto";
-    if (prompt) box.style.height = `${box.scrollHeight}px`;
+    // scrollHeight leaves out the borders; without them the box is a little
+    // short of its text and shows a scrollbar for a single line.
+    const borders = box.offsetHeight - box.clientHeight;
+    if (prompt) box.style.height = `${box.scrollHeight + borders}px`;
+    box.style.overflowY =
+      box.scrollHeight + borders > parseFloat(getComputedStyle(box).maxHeight)
+        ? "auto"
+        : "hidden";
   }, [prompt]);
 
   const refresh = useCallback(async () => {
