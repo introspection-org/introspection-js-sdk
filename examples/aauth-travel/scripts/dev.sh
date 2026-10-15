@@ -132,11 +132,24 @@ if [ -n "${FLIGHTSECTOR_DOMAIN:-}" ]; then
   BOOKING="https://flightsector-booking.${FLIGHTSECTOR_DOMAIN}"
   MOCK="https://flightsector-browserbase.${FLIGHTSECTOR_DOMAIN}"
   ACME="https://flightsector-ps.${FLIGHTSECTOR_DOMAIN}"
-  for url in "$BOOKING" "$MOCK" "$ACME"; do
-    cloudflared tunnel route dns --overwrite-dns "$NAME" "${url#https://}" >/dev/null
+  ROUTES=("$BOOKING=$PORT" "$MOCK=$PORT" "$ACME=$PORT")
+  # A local Introspection stack's Agent Provider and Person Server are named by
+  # their public URLs, so they get hosts here too: ones that outlive a restart.
+  if [ "$(introspection whoami 2>/dev/null | json 'v.cp_url' 2>/dev/null)" = "http://localhost:8000" ]; then
+    LOCAL_AGENT_PROVIDER="https://introspection-cp.${FLIGHTSECTOR_DOMAIN}"
+    LOCAL_PERSON_SERVER="https://introspection-ps.${FLIGHTSECTOR_DOMAIN}"
+    ROUTES+=("$LOCAL_AGENT_PROVIDER=8000" "$LOCAL_PERSON_SERVER=8002")
+  fi
+  TUNNEL_CONFIG="$(mktemp -t flightsector-tunnel-config)"
+  echo "ingress:" >"$TUNNEL_CONFIG"
+  for route in "${ROUTES[@]}"; do
+    host="${route%=*}"
+    host="${host#https://}"
+    cloudflared tunnel route dns --overwrite-dns "$NAME" "$host" >/dev/null
+    printf '  - hostname: %s\n    service: http://localhost:%s\n' "$host" "${route##*=}" >>"$TUNNEL_CONFIG"
   done
-  # --url sends every hostname routed to the tunnel to the app.
-  cloudflared tunnel --no-autoupdate run --url "http://localhost:$PORT" "$NAME" >"$(mktemp -t flightsector-tunnel)" 2>&1 &
+  echo "  - service: http_status:404" >>"$TUNNEL_CONFIG"
+  cloudflared tunnel --no-autoupdate --config "$TUNNEL_CONFIG" run "$NAME" >"$(mktemp -t flightsector-tunnel)" 2>&1 &
   PIDS+=($!)
 else
   quick_tunnel BOOKING
@@ -287,6 +300,15 @@ connect() {
   else
     PERSON_SERVER_URL="$ACME"
     TENANT=""
+  fi
+
+  if [ -n "${LOCAL_AGENT_PROVIDER:-}" ] &&
+    { [ "$AGENT_PROVIDER" != "$LOCAL_AGENT_PROVIDER" ] || { [ "$MODE" = hosted ] && [ "$PERSON_SERVER_URL" != "$LOCAL_PERSON_SERVER" ]; }; }; then
+    fail "your local stack's issuers are not on $FLIGHTSECTOR_DOMAIN yet. In introspection-cloud, set
+    apps/controlplane-api/.env  CONTROLPLANE_PUBLIC_URL=$LOCAL_AGENT_PROVIDER
+    apps/dataplane-api/.env     PERSON_SERVER_ISSUER=$LOCAL_PERSON_SERVER
+                                PERSON_SERVER_TRUSTED_AGENT_PROVIDERS=$LOCAL_AGENT_PROVIDER
+  then restart the CP, the DP and their workers, and run pnpm dev again"
   fi
 
   # The booking provider and Acme reach both at these public URLs, so a dead
