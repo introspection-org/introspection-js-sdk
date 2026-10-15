@@ -7,9 +7,7 @@
 const trim = (url: string) => url.replace(/\/+$/, "");
 
 /** The walkthrough. */
-export const APP_URL = trim(
-  process.env.APP_URL ?? "https://flightsector.localhost",
-);
+export const APP_URL = trim(process.env.APP_URL ?? "http://localhost:3400");
 
 /** Flight Sector's booking provider, an AAuth resource. */
 export const BOOKING_ISSUER = trim(

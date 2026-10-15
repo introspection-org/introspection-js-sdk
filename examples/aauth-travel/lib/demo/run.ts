@@ -14,7 +14,11 @@ import { IntrospectionClient } from "@introspection-sdk/introspection-node";
 
 import { clearInbox, inbox } from "../acme/mail";
 import { approvalSummary, missions } from "../acme/approvals";
-import { ACME_APPROVAL_URL } from "../origins";
+import {
+  ACME_APPROVAL_URL,
+  BOOKING_ISSUER,
+  BROWSERBASE_MCP_URL,
+} from "../origins";
 import {
   ACTOR_HEADER,
   body,
@@ -131,6 +135,13 @@ export function snapshot() {
     taskId: r.taskId,
     working: r.busy && !!r.streaming,
     conversations: conversationsUrl(),
+    hosts: {
+      Acme: new URL(ACME_APPROVAL_URL).host,
+      "Booking provider": new URL(BOOKING_ISSUER).host,
+      Browserbase: process.env.BROWSERBASE_API_KEY
+        ? "mcp.browserbase.com"
+        : `${new URL(BROWSERBASE_MCP_URL).host} (mock)`,
+    } as Record<string, string>,
     mission: trip && {
       s256: trip.s256,
       budget_cents: trip.budget_cents,

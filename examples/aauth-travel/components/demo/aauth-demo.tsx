@@ -46,6 +46,7 @@ type Snapshot = {
   taskId?: string;
   /** Where the Introspection app shows the project's conversations. */
   conversations?: string;
+  hosts?: Record<string, string>;
   working?: boolean;
   mission?: {
     s256: string;
@@ -62,23 +63,15 @@ type Decide = (
   budget?: number,
 ) => void;
 
-const PARTY: Record<string, { name: string; mark: string; host: string }> = {
+const PARTY: Record<string, { name: string; mark: string; host?: string }> = {
   Tools: {
     name: "Tools",
     mark: "T",
     host: "travel-agent recipe, in its sandbox",
   },
-  Acme: { name: "Acme", mark: "A", host: "ps.acme.localhost" },
-  "Booking provider": {
-    name: "Booking provider",
-    mark: "B",
-    host: "booking.flightsector.localhost",
-  },
-  Browserbase: {
-    name: "Browserbase",
-    mark: "W",
-    host: "browserbase.flightsector.localhost (mock)",
-  },
+  Acme: { name: "Acme", mark: "A" },
+  "Booking provider": { name: "Booking provider", mark: "B" },
+  Browserbase: { name: "Browserbase", mark: "W" },
 };
 
 const TOKEN =
@@ -674,7 +667,8 @@ export function AAuthDemo({ scenarios }: { scenarios: Scenario[] }) {
               <div key={x.id} className="exchange">
                 <div className="exchange-head">
                   <span className="dir">
-                    {x.from} ↔ {PARTY[x.to]?.host ?? x.to}
+                    {x.from} ↔{" "}
+                    {state?.hosts?.[x.to] ?? PARTY[x.to]?.host ?? x.to}
                   </span>
                   <span className="kind">
                     {x.label}
