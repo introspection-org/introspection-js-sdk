@@ -275,7 +275,11 @@ connect() {
   if [ "$(read_env INTROSPECTION_BASE_API_URL)" != "$CP_URL" ]; then
     for key in INTROSPECTION_TOKEN ACME_INTROSPECTION_TOKEN AGENT_APPLICATION_ID; do remove_env "$key"; done
   fi
-  if [ -n "$(read_env AGENT_APPLICATION_ID)" ] && [ -n "$(read_env INTROSPECTION_TOKEN)" ]; then
+  # A stack reset since keeps the URL but not the project, so check it is still there.
+  local app_id
+  app_id="$(read_env AGENT_APPLICATION_ID)"
+  if [ -n "$app_id" ] && [ -n "$(read_env INTROSPECTION_TOKEN)" ] &&
+    introspection applications list -o json | json "(v.records ?? v).some((a) => a.id === '$app_id')" | grep -q true; then
     apply_connector
     bind_flight_search
   else
