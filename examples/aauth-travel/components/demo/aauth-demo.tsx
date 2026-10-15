@@ -449,7 +449,7 @@ export function AAuthDemo({ scenarios }: { scenarios: Scenario[] }) {
   };
 
   if (!state) return null;
-  const started = Boolean(state.prompt);
+  const started = Boolean(state.prompt || state.taskId || state.chat.length);
   const waitingOn = state.inbox.find((e) => !e.decided);
   const hint = scenarios.find(
     (s) => s.prompt === (state.prompt ?? prompt),
