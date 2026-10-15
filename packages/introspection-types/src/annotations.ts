@@ -1,4 +1,4 @@
-import type { CursorParams, IsoDate, ListParams, Uuid } from "./api.js";
+import type { IsoDate, ListParams, Uuid } from "./api.js";
 
 /** One trace/span target for a member-authored annotation. IDs use OTel hex encoding. */
 export interface AnnotationTarget {
@@ -60,28 +60,4 @@ export type AnnotationMutation =
 export interface AnnotationEventOptions {
   /** Must be UUIDv7. Omit to have the SDK mint one before the first attempt. */
   event_id?: Uuid;
-}
-
-/** Presentation metadata for a reusable project label. */
-export interface ProjectLabel {
-  slug: string;
-  color: string;
-  description: string | null;
-  created_at: IsoDate;
-  updated_at: IsoDate;
-}
-
-export interface ProjectLabelListParams extends CursorParams {
-  search?: string;
-}
-
-export interface ProjectLabelCreate {
-  slug: string;
-  color: string;
-  description?: string | null;
-}
-
-/** Label slugs and colors are immutable after creation. */
-export interface ProjectLabelUpdate {
-  description: string | null;
 }
