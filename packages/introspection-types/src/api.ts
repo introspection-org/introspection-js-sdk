@@ -615,7 +615,7 @@ export interface RecipeListParams extends CursorParams {
   name?: string;
 }
 
-export type RepositoryProvider = "github" | "hosted";
+export type RepositoryProvider = "github" | "introspection";
 
 /** A Git repository linked to a project — the source a recipe pins. */
 export interface Repository {
