@@ -138,13 +138,57 @@ function headerLines(headers: Headers, shown: string[]) {
   });
 }
 
+const REASONS: Record<string, string> = {
+  "200": "OK",
+  "201": "Created",
+  "202": "Accepted",
+  "400": "Bad Request",
+  "401": "Unauthorized",
+  "403": "Forbidden",
+  "404": "Not Found",
+  "409": "Conflict",
+  "428": "Precondition Required",
+  "502": "Bad Gateway",
+  "503": "Service Unavailable",
+  "504": "Gateway Timeout",
+};
+
+function pretty(text: string) {
+  try {
+    return JSON.stringify(JSON.parse(text), null, 2);
+  } catch {
+    return text;
+  }
+}
+
+/** A tool's answer, as the HTTP reply it wraps rather than the JSON it arrives in. */
+function toolReply(value: unknown) {
+  const content = (value as { content?: { type?: string; text?: string }[] })
+    ?.content;
+  const text = Array.isArray(content)
+    ? content.find((c) => c.type === "text")?.text
+    : undefined;
+  if (typeof text !== "string") return null;
+  const http = /^HTTP (\d{3})\n?([\s\S]*)$/.exec(text);
+  if (!http) return pretty(text);
+  const [, code, rest] = http;
+  return [
+    `HTTP/1.1 ${code} ${REASONS[code] ?? ""}`.trim(),
+    "",
+    pretty(rest.trim()),
+  ]
+    .join("\n")
+    .trim();
+}
+
 export function body(text: string) {
   if (!text) return [];
   // An MCP answer arrives as one server-sent event; show the message it carries.
   const event = /^event: message\ndata: (.*)$/m.exec(text);
   if (event) text = event[1];
   try {
-    return ["", shorten(JSON.stringify(JSON.parse(text), null, 2))];
+    const value = JSON.parse(text);
+    return ["", shorten(toolReply(value) ?? JSON.stringify(value, null, 2))];
   } catch {
     return ["", shorten(text.slice(0, 600))];
   }
