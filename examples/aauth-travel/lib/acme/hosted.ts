@@ -237,10 +237,12 @@ async function sync(): Promise<void> {
 
 /** Start following the platform's approvals, once per process. */
 export function start(): void {
-  if (state.started || !account()) return;
+  if (state.started) return;
   state.started = true;
+  // `pnpm dev` writes Acme's credentials after the app boots, so until they
+  // appear each tick waits for them rather than giving up.
   const tick = () =>
-    sync()
+    (account() ? sync() : Promise.resolve())
       .catch((err: Error) =>
         console.error(`[acme] approvals sync: ${err.message}`),
       )
