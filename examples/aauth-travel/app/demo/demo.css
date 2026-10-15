@@ -344,7 +344,7 @@
   border-left-color: var(--ask);
 }
 
-.moment h3 {
+.moment-title {
   margin: 0 0 12px;
   font-size: 15px;
   font-weight: 500;
@@ -379,6 +379,31 @@
   border-radius: var(--radius);
   padding: 4px 14px;
   font-size: 14px;
+}
+
+.seen > span:nth-child(2) {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bubble p,
+.moment-title p {
+  margin: 0 0 6px;
+}
+
+.bubble p:last-child,
+.moment-title p:last-child {
+  margin-bottom: 0;
+}
+
+.bubble ul,
+.bubble ol,
+.moment-title ul,
+.moment-title ol {
+  margin: 4px 0;
+  padding-left: 18px;
 }
 
 .seen {

@@ -33,6 +33,12 @@ const RUNTIME = process.env.INTROSPECTION_RUNTIME || "travel-agent";
 const RESUME_WATCH_MS = 15 * 60 * 1000;
 const RESUME_POLL_MS = 2000;
 
+/** `mcp_browserbase_start_7683c2b5…` reads as `browserbase: start`. */
+function toolLabel(name: string) {
+  const mcp = /^mcp_([a-z0-9-]+)_(.+?)(?:_[0-9a-f]{6,})?$/.exec(name);
+  return mcp ? `${mcp[1]}: ${mcp[2]}` : name;
+}
+
 export const SCENARIOS = [
   {
     id: "approved",
@@ -47,13 +53,6 @@ export const SCENARIOS = [
     prompt:
       "Fly me first class from San Francisco to Sydney for 19 to 23 October, with the Harbour Rocks. Up to $20,000.",
     hint: "Approve the trip. Flight Sector's Cedar rails in Introspection's egress refuse first class before Acme is asked.",
-  },
-  {
-    id: "personal",
-    title: "Personal trip on the company",
-    prompt:
-      "A personal weekend in Sydney from San Francisco, 19 to 23 October, economy and the Harbour Rocks, on the company account. Up to $3,000.",
-    hint: "Approve the trip. The rails refuse each booking: personal travel is paid by the traveller.",
   },
   {
     id: "declined",
@@ -207,7 +206,7 @@ async function follow(r: Run, epoch: number, runId: string, stream: Stream) {
           tool.exchange = note({
             from: "Agent",
             to: "Tools",
-            label: tool.name,
+            label: toolLabel(tool.name),
             request: [`${tool.name}(…)`, ...body(tool.args)].join("\n"),
             response: "…",
             status: 102,

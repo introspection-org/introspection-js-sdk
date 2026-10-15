@@ -11,6 +11,7 @@ import {
 } from "react";
 
 import { AAuthLogo } from "./aauth-logo";
+import Markdown from "react-markdown";
 
 type Exchange = {
   id: number;
@@ -208,7 +209,9 @@ function Moment(props: {
   const parties = [...new Set(calls.map((x) => x.to))];
   return (
     <section className={`moment ${shown ? "moment-shown" : ""}`}>
-      <h3>{title}</h3>
+      <div className="moment-title">
+        <Markdown>{title}</Markdown>
+      </div>
       {parties.length > 0 && (
         <>
           <div className="sees-head">
@@ -379,7 +382,11 @@ export function AAuthDemo({ scenarios }: { scenarios: Scenario[] }) {
                   key={i}
                   className={`bubble ${line.from === "Sam" ? "sam" : "agent"}`}
                 >
-                  {line.text}
+                  {line.from === "Agent" ? (
+                    <Markdown>{line.text}</Markdown>
+                  ) : (
+                    line.text
+                  )}
                 </div>
               ))}
               {state.busy && !waitingOn && (
@@ -396,7 +403,7 @@ export function AAuthDemo({ scenarios }: { scenarios: Scenario[] }) {
             {!state.busy && (
               <div className="phone-composer">
                 <textarea
-                  rows={2}
+                  rows={4}
                   value={prompt}
                   placeholder={
                     started ? "Reply as Sam" : "Message Flight Sector as Sam"
