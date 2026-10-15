@@ -424,7 +424,7 @@ export function AAuthDemo({ scenarios }: { scenarios: Scenario[] }) {
                 }}
                 disabled={sending}
               >
-                <span aria-hidden>↺</span> Start over
+                <span aria-hidden>↺</span> Restart
               </button>
             )}
           </div>
