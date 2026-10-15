@@ -460,7 +460,7 @@
 
 .seen > span:nth-child(2) {
   font-weight: 400;
-  color: var(--ink-2);
+  color: #55544f;
 }
 
 .pill {
