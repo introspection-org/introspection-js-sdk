@@ -113,12 +113,8 @@ export {
   attachRepositories,
 } from "./resources/repositories.js";
 export type { RepositoryContentsApi } from "./resources/repositories.js";
-export {
-  AnnotationsApi,
-  ProjectLabelsApi,
-  attachAnnotations,
-  attachProjectLabels,
-} from "./resources/annotations.js";
+export { AnnotationsApi, attachAnnotations } from "./resources/annotations.js";
+export { TagsApi, attachTags } from "./resources/tags.js";
 
 // REST API wire types
 export type {
@@ -223,10 +219,13 @@ export type {
   AnnotationListParams,
   AnnotationMutation,
   AnnotationEventOptions,
-  ProjectLabel,
-  ProjectLabelListParams,
-  ProjectLabelCreate,
-  ProjectLabelUpdate,
+  Tag,
+  TagKind,
+  TagListParams,
+  TagCreate,
+  AccessTagCreate,
+  AnnotationTagCreate,
+  TagUpdate,
   RunnerSpec,
   RunnerDeployment,
   RunnerContext,

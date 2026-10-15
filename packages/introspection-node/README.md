@@ -354,8 +354,9 @@ const span = {
   span_id: "0123456789abcdef",
 };
 
-await client.projectLabels.create({
-  slug: "strong-structure",
+await client.tags.create({
+  kind: "annotation",
+  name: "strong-structure",
   color: "#f97316",
   description: "A useful structure to preserve during distillation",
 });
@@ -373,8 +374,12 @@ Labels and reviewers are complete snapshots; pass `[]` to clear one. Comments
 append. Every mutation gets a UUIDv7 `event_id` before its
 first transport attempt, so an automatic retry remains one event. Supply
 `{ event_id }` as the final method argument when retrying across processes.
-`client.annotations.list()` and `client.projectLabels.list()` are both awaitable
-for the first page and async-iterable across every cursor page.
+`client.annotations.list()` and `client.tags.list("annotation")` are both
+awaitable for the first page and async-iterable across every cursor page.
+Tags come in two catalogues — `annotation` tags (the labels above, each with a
+color) and `access` tags (the values shares and member tags carry, which have
+no color) — so `list` takes the kind, and `get`, `update` and `delete` take the
+kind and the name.
 Read immutable annotation history with
 `client.events.list({ event_name: "introspection.annotation", trace_id, span_id })`.
 

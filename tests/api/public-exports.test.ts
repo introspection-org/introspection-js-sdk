@@ -68,7 +68,7 @@ describe("public export barrels", () => {
     expect(mod.attachAutomations).toBeTypeOf("function");
     expect(mod.AppConnectionsApi).toBeTypeOf("function");
     expect(mod.AnnotationsApi).toBeTypeOf("function");
-    expect(mod.ProjectLabelsApi).toBeTypeOf("function");
+    expect(mod.TagsApi).toBeTypeOf("function");
     expect(mod.foldSpans).toBeTypeOf("function");
     expect(mod.foldAgui).toBeTypeOf("function");
     expect(mod.mergeTranscripts).toBeTypeOf("function");

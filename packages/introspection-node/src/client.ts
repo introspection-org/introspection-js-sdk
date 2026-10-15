@@ -50,10 +50,9 @@ import {
 } from "./resources/automations.js";
 import {
   attachAnnotations,
-  attachProjectLabels,
   type AnnotationsApi,
-  type ProjectLabelsApi,
 } from "./resources/annotations.js";
+import { attachTags, type TagsApi } from "./resources/tags.js";
 import {
   attachRepositories,
   type RepositoriesApi,
@@ -137,8 +136,8 @@ export class IntrospectionClient implements DataPlaneResources {
   /** Read folded span annotations and append one annotation mutation. */
   readonly annotations: AnnotationsApi;
 
-  /** Manage reusable project labels. */
-  readonly projectLabels: ProjectLabelsApi;
+  /** The project tag catalogue, keyed by `access` or `annotation`. */
+  readonly tags: TagsApi;
 
   /** Read immutable annotation activity and other typed platform events. */
   readonly events: EventsApi;
@@ -231,7 +230,7 @@ export class IntrospectionClient implements DataPlaneResources {
     this.automations = attachAutomations(this.dpHttp);
     this.repositories = attachRepositories(this.cpHttp, this.dpHttp);
     this.annotations = attachAnnotations(this.cpHttp, this.dpHttp);
-    this.projectLabels = attachProjectLabels(this.dpHttp);
+    this.tags = attachTags(this.dpHttp);
     this.events = new EventsApi(this.dpHttp);
     this.tasks = new TasksApi(this.dpHttp);
     this.files = new FilesApi(this.dpHttp);
