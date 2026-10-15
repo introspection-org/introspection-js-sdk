@@ -22,7 +22,7 @@
 #      (introspection/booking.json)
 #   4. Sam, the traveller, as a customer member (introspection/sam.json)
 #   5. a client secret for the demo page to sign in as the agent's application,
-#      and, on the hosted Person Server, a project key for Acme's approval app
+#      and, on the hosted Person Server, Acme's own application for approvals
 # Later runs only point the connector and the mock at the new URLs.
 #
 # Env:
@@ -273,15 +273,25 @@ full_setup() {
   fi
   upsert_env INTROSPECTION_CLIENT_ID "$client_id"
   upsert_env INTROSPECTION_PROJECT "$project_id"
-  # Acme's approval app answers approvals, which an agent's application may
-  # not; on the built-in Person Server it has a project key of its own.
-  if [ "$MODE" = hosted ] && [ -z "$(read_env ACME_INTROSPECTION_TOKEN)" ]; then
-    local key_file="$WORK/api-key"
-    rm -f "$key_file"
-    introspection api-keys create --name "Acme approvals" --secret-file "$key_file" >/dev/null ||
-      fail "could not create Acme's project API key"
-    upsert_env ACME_INTROSPECTION_TOKEN "$(cat "$key_file")"
-    rm -f "$key_file"
+  # Acme's approval app, on the built-in Person Server, is an application of
+  # its own that may only read and answer approvals: the agent's may not.
+  if [ "$MODE" = hosted ]; then
+    local acme_name="Acme approvals" acme acme_id
+    acme="$(introspection applications list -o json | json "(v.records ?? v).find((a) => a.name === '$acme_name')")"
+    if [ -z "$acme" ]; then
+      acme="$(introspection applications create --type service-account --name "$acme_name" \
+        --allowed-scope "approvals:read approvals:write" -o json | json 'v.application ?? v')"
+    fi
+    acme_id="$(json 'v.id' <<<"$acme")"
+    [ -n "$acme_id" ] || fail "could not create the $acme_name application"
+    if [ -z "$(read_env ACME_CLIENT_SECRET)" ]; then
+      local acme_secret
+      acme_secret="$(introspection applications secrets create --app "$acme_id" --name "Acme approvals" -o json | json 'v.secret')"
+      [ -n "$acme_secret" ] || fail "could not create a client secret for the $acme_name application"
+      upsert_env ACME_CLIENT_SECRET "$acme_secret"
+    fi
+    upsert_env ACME_CLIENT_ID "$(json 'v.client_id' <<<"$acme")"
+    upsert_env ACME_PROJECT "$project_id"
   fi
   upsert_env INTROSPECTION_BASE_API_URL "$CP_URL"
   upsert_env INTROSPECTION_RUNTIME "$RUNTIME"
@@ -355,7 +365,7 @@ connect() {
 
   # Set up on another stack (or never): set this one up from the start.
   if [ "$(read_env INTROSPECTION_BASE_API_URL)" != "$CP_URL" ]; then
-    for key in INTROSPECTION_TOKEN INTROSPECTION_CLIENT_SECRET ACME_INTROSPECTION_TOKEN AGENT_APPLICATION_ID; do remove_env "$key"; done
+    for key in INTROSPECTION_TOKEN INTROSPECTION_CLIENT_SECRET ACME_INTROSPECTION_TOKEN ACME_CLIENT_SECRET AGENT_APPLICATION_ID; do remove_env "$key"; done
   fi
   # A stack reset since keeps the URL but not the project, so check it is still there.
   local app_id
@@ -366,7 +376,7 @@ connect() {
     bind_flight_search
   else
     say "setting up your project on $CP_URL"
-    for key in INTROSPECTION_TOKEN INTROSPECTION_CLIENT_SECRET ACME_INTROSPECTION_TOKEN AGENT_APPLICATION_ID; do remove_env "$key"; done
+    for key in INTROSPECTION_TOKEN INTROSPECTION_CLIENT_SECRET ACME_INTROSPECTION_TOKEN ACME_CLIENT_SECRET AGENT_APPLICATION_ID; do remove_env "$key"; done
     full_setup
   fi
   return 0

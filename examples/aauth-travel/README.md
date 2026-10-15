@@ -23,7 +23,7 @@ Then open `http://localhost:3400` and send a sample prompt as Sam. Without `RESE
 2. **Flight search:** Browserbase's hosted MCP with `BROWSERBASE_API_KEY` set, otherwise this app's mock.
 3. **The booking provider** as an AAuth connector, from [`introspection/booking.json`](./introspection/booking.json), acting as a new `Flight Sector agent` application.
 4. **Sam** as a customer member with the seniority the recipe's rules read, from [`introspection/sam.json`](./introspection/sam.json).
-5. **A client secret** for the agent's application, which the demo page signs in with, and, with the hosted Person Server, **a project API key** for Acme's approval app (an application cannot answer approvals). Both go in `.env.local` with the rest of the settings.
+5. **Client secrets** for two applications, in `.env.local` with the rest of the settings: the agent's, which the demo page signs in with, and, with the hosted Person Server, **Acme approvals**, which may only read and answer approvals.
 
 ### Public URLs
 

@@ -9,6 +9,8 @@ import "server-only";
 
 import { createHash, randomInt, timingSafeEqual } from "node:crypto";
 
+import { serviceAccountToken } from "@introspection-sdk/introspection-node";
+
 import { AAuthError } from "../aauth";
 import { record } from "../events";
 import { ACME_APPROVAL_URL } from "../origins";
@@ -21,7 +23,34 @@ const apiBase = () =>
     /\/+$/,
     "",
   );
-const token = () => process.env.ACME_INTROSPECTION_TOKEN ?? "";
+/** Acme's own application, which may only read and answer approvals. */
+const account = () => {
+  const clientId = process.env.ACME_CLIENT_ID;
+  const clientSecret = process.env.ACME_CLIENT_SECRET;
+  const project = process.env.ACME_PROJECT;
+  return clientId && clientSecret && project
+    ? {
+        clientId,
+        clientSecret,
+        project,
+        baseApiUrl: process.env.INTROSPECTION_BASE_API_URL,
+      }
+    : null;
+};
+const minted = ((
+  globalThis as unknown as { __acmeToken?: { token: string; until: number } }
+).__acmeToken ??= { token: "", until: 0 });
+
+/** A token for Acme's application, minted again a minute before it expires. */
+async function token(): Promise<string> {
+  const credentials = account();
+  if (!credentials) return "";
+  if (minted.token && Date.now() < minted.until) return minted.token;
+  const { access_token, expires_in } = await serviceAccountToken(credentials);
+  minted.token = access_token;
+  minted.until = Date.now() + Math.max(expires_in - 60, 30) * 1000;
+  return minted.token;
+}
 const orgId = () => process.env.ACME_ORG_ID ?? "";
 const POLL_MS = 2_000;
 const CODE_TTL_MS = 15 * 60 * 1000;
@@ -83,7 +112,7 @@ async function api<T>(
   const response = await fetch(`${apiBase()}${path}`, {
     method,
     headers: {
-      Authorization: `Bearer ${token()}`,
+      Authorization: `Bearer ${await token()}`,
       ...(body ? { "Content-Type": "application/json" } : {}),
     },
     ...(body ? { body: JSON.stringify(body) } : {}),
@@ -208,7 +237,7 @@ async function sync(): Promise<void> {
 
 /** Start following the platform's approvals, once per process. */
 export function start(): void {
-  if (state.started || !token()) return;
+  if (state.started || !account()) return;
   state.started = true;
   const tick = () =>
     sync()
