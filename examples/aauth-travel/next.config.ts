@@ -21,6 +21,9 @@ const hosts = [
     ? [{ host: new URL(PERSON_SERVER_URL).hostname, prefix: "acme" }]
     : []),
   { host: new URL(BROWSERBASE_MCP_URL).hostname, prefix: "browserbase" },
+  // The names a local Introspection stack's egress sends these as.
+  { host: "booking.flightsector.localhost", prefix: "booking" },
+  { host: "browserbase.flightsector.localhost", prefix: "browserbase" },
 ].filter(({ host }) => host !== appHost);
 const passthrough = [...prefixes, "_next"].map((p) => `${p}/`).join("|");
 

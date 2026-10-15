@@ -14,7 +14,7 @@ import { IntrospectionClient } from "@introspection-sdk/introspection-node";
 
 import { clearInbox, inbox } from "../acme/mail";
 import { approvalSummary, missions } from "../acme/approvals";
-import { PERSON_SERVER_URL } from "../origins";
+import { ACME_APPROVAL_URL } from "../origins";
 import {
   ACTOR_HEADER,
   body,
@@ -327,7 +327,7 @@ export async function decide(
   if (!email || r.decided.includes(index)) return;
   const id = email.link.split("/").pop();
   const who = email.approverName.startsWith("Sam") ? "Sam" : "Dana";
-  const response = await fetch(`${PERSON_SERVER_URL}/ps/approvals/${id}`, {
+  const response = await fetch(`${ACME_APPROVAL_URL}/ps/approvals/${id}`, {
     method: "POST",
     headers: { "Content-Type": "application/json", [ACTOR_HEADER]: who },
     body: JSON.stringify({
