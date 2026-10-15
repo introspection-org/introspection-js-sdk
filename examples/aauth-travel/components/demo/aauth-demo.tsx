@@ -287,7 +287,7 @@ function ConversationBar({
         : `${base}${value}`;
     window.open(url, "_blank", "noreferrer");
   };
-  // Enter on another conversation's URL or id loads it into the demo.
+  // Enter loads the conversation a URL or id names; the icon opens it in Introspection.
   const pasted = text.match(
     /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i,
   )?.[0];
@@ -296,7 +296,7 @@ function ConversationBar({
       className="conversation-bar"
       onSubmit={(e) => {
         e.preventDefault();
-        if (pasted && pasted !== taskId) onLoad(pasted);
+        if (pasted) onLoad(pasted);
         else open();
       }}
     >
