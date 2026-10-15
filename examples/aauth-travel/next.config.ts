@@ -29,6 +29,8 @@ const passthrough = [...prefixes, "_next"].map((p) => `${p}/`).join("|");
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
+  // A page to present: no dev badge over the phone.
+  devIndicators: false,
   // The walkthrough reads these files at request time.
   outputFileTracingIncludes: {
     "/": ["./flow/**/*", "./recipe/**/*", "./lib/**/*"],

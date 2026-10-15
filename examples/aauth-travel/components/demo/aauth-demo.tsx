@@ -400,6 +400,7 @@ export function AAuthDemo({ scenarios }: { scenarios: Scenario[] }) {
               {state.error && <div className="error">{state.error}</div>}
               <div ref={chatEnd} />
             </div>
+            {hint && <p className="hint">{hint}</p>}
             {!state.busy && (
               <div className="phone-composer">
                 <textarea
@@ -427,7 +428,6 @@ export function AAuthDemo({ scenarios }: { scenarios: Scenario[] }) {
               </div>
             )}
           </div>
-          {hint && <p className="hint">{hint}</p>}
         </div>
 
         <div className="pane">
