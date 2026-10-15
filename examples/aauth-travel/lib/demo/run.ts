@@ -309,6 +309,23 @@ async function drive(
   }
 }
 
+/**
+ * The demo page signs in as the agent's application. Its token lasts about an
+ * hour, so each conversation started or loaded mints its own.
+ */
+function serviceAccount() {
+  const clientId = process.env.INTROSPECTION_CLIENT_ID;
+  const clientSecret = process.env.INTROSPECTION_CLIENT_SECRET;
+  const project = process.env.INTROSPECTION_PROJECT;
+  if (!clientId || !clientSecret || !project) return null;
+  return {
+    clientId,
+    clientSecret,
+    project,
+    baseApiUrl: process.env.INTROSPECTION_BASE_API_URL,
+  };
+}
+
 /** Sam's first message: open a runner as Sam and start the task. */
 export async function start(prompt: string) {
   if (run().busy) return;
@@ -317,14 +334,17 @@ export async function start(prompt: string) {
   r.prompt = prompt.trim();
   startRecording();
   say("Sam", r.prompt);
-  if (!process.env.INTROSPECTION_TOKEN) {
+  const account = serviceAccount();
+  if (!account) {
     r.error =
-      "Set INTROSPECTION_TOKEN to a project API key (and INTROSPECTION_BASE_API_URL for a local control plane).";
+      "Run pnpm dev to set up the agent's application: INTROSPECTION_CLIENT_ID, INTROSPECTION_CLIENT_SECRET and INTROSPECTION_PROJECT.";
     return;
   }
   const epoch = r.epoch;
   void drive(r, epoch, async () => {
-    r.runner = await new IntrospectionClient()
+    r.runner = await (
+      await IntrospectionClient.fromServiceAccount(account)
+    )
       .runtimes(RUNTIME)
       .run({ identity: { user_id: SAM_USER_ID } });
     const handle = await r.runner.tasks.start({ prompt: r.prompt! });
@@ -471,14 +491,17 @@ export async function join(taskId: string) {
   reset();
   const r = run();
   startRecording();
-  if (!process.env.INTROSPECTION_TOKEN) {
+  const account = serviceAccount();
+  if (!account) {
     r.error =
-      "Set INTROSPECTION_TOKEN to a project API key (and INTROSPECTION_BASE_API_URL for a local control plane).";
+      "Run pnpm dev to set up the agent's application: INTROSPECTION_CLIENT_ID, INTROSPECTION_CLIENT_SECRET and INTROSPECTION_PROJECT.";
     return;
   }
   const epoch = r.epoch;
   try {
-    r.runner = await new IntrospectionClient()
+    r.runner = await (
+      await IntrospectionClient.fromServiceAccount(account)
+    )
       .runtimes(RUNTIME)
       .run({ identity: { user_id: SAM_USER_ID } });
     const task = await r.runner.tasks.get(taskId);
