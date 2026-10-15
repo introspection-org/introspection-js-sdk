@@ -1702,7 +1702,7 @@ Never try to work around an approval, never ask the employee for credentials, an
 
 _Sam → Agent → provider_
 
-Sam replies that he's easy. The agent searches again for a hotel that fits the $1,350 left, quotes it, and books it. It is within the trip's budget, so this time Acme issues the auth token at once and no one is asked: the same path as the flight.
+Sam replies “I'm easy”. The agent searches again for a hotel that fits the $1,350 left, quotes it, and books it. It is within the trip's budget, so this time Acme issues the auth token at once and no one is asked: the same path as the flight.
 
 **recipe: search_offers and book_item** · `recipe-travel-agent/extensions/booking.js`
 

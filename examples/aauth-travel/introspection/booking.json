@@ -12,8 +12,8 @@
       },
       "attrs": {
         "business_min_level": 5,
-        "booking_limit_cents": 100000,
-        "senior_booking_limit_cents": 250000
+        "booking_limit_cents": 200000,
+        "senior_booking_limit_cents": 800000
       },
       "parents": []
     },
@@ -24,8 +24,8 @@
       },
       "attrs": {
         "business_min_level": 7,
-        "booking_limit_cents": 100000,
-        "senior_booking_limit_cents": 250000
+        "booking_limit_cents": 200000,
+        "senior_booking_limit_cents": 800000
       },
       "parents": []
     }

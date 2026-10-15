@@ -283,7 +283,7 @@ export const flow = {
       id: "cheaper",
       title: "Sam's easy, so a cheaper hotel is booked within the budget",
       actor: "Sam → Agent → provider",
-      body: "Sam replies that he's easy. The agent searches again for a hotel that fits the $1,350 left, quotes it, and books it. It is within the trip's budget, so this time Acme issues the auth token at once and no one is asked: the same path as the flight.",
+      body: "Sam replies \u201cI'm easy\u201d. The agent searches again for a hotel that fits the $1,350 left, quotes it, and books it. It is within the trip's budget, so this time Acme issues the auth token at once and no one is asked: the same path as the flight.",
       sources: [
         {
           kind: "recipe",
