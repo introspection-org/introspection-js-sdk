@@ -402,11 +402,6 @@ export function AAuthDemo({ scenarios }: { scenarios: Scenario[] }) {
               {state.busy && !waitingOn && (
                 <div className="bubble agent working">…</div>
               )}
-              {state.busy && waitingOn && (
-                <div className="waiting">
-                  Waiting for {waitingOn.to} to answer Acme&apos;s email →
-                </div>
-              )}
               {state.error && <div className="error">{state.error}</div>}
               <div ref={chatEnd} />
             </div>
