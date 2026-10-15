@@ -489,9 +489,39 @@
 }
 
 .mail-item {
-  font-weight: 600;
-  white-space: pre-line;
-  font-size: 15px;
+  font-size: 14.5px;
+  line-height: 1.45;
+}
+
+.mail-item p {
+  margin: 0 0 6px;
+}
+
+/* Bold only where the page means it: the agent's own emphasis reads as plain text. */
+.bubble strong,
+.moment-title strong,
+.mail-item strong {
+  font-weight: inherit;
+}
+
+.bubble table,
+.moment-title table,
+.mail-item table {
+  border-collapse: collapse;
+  margin: 6px 0;
+  font-size: 13px;
+}
+
+.bubble th,
+.bubble td,
+.moment-title th,
+.moment-title td,
+.mail-item th,
+.mail-item td {
+  border-bottom: 1px solid var(--line);
+  padding: 3px 8px 3px 0;
+  text-align: left;
+  font-weight: inherit;
 }
 
 .mail ul {

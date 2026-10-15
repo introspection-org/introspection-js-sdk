@@ -12,6 +12,7 @@ import {
 
 import { AAuthLogo } from "./aauth-logo";
 import Markdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 
 type Exchange = {
   id: number;
@@ -154,7 +155,11 @@ function Inbox({
         <span className="mail-to">{email.to}&apos;s inbox</span>
         <span>from Acme Travel Approvals</span>
       </div>
-      <div className="mail-item">{email.item.replace(/^#+\s*/gm, "")}</div>
+      <div className="mail-item">
+        <Markdown remarkPlugins={[remarkGfm]}>
+          {email.item.replace(/^#+\s*/gm, "")}
+        </Markdown>
+      </div>
       <ul>
         {email.reasons.map((reason) => (
           <li key={reason}>{reason}</li>
@@ -210,7 +215,7 @@ function Moment(props: {
   return (
     <section className={`moment ${shown ? "moment-shown" : ""}`}>
       <div className="moment-title">
-        <Markdown>{title}</Markdown>
+        <Markdown remarkPlugins={[remarkGfm]}>{title}</Markdown>
       </div>
       {parties.length > 0 && (
         <>
@@ -387,7 +392,7 @@ export function AAuthDemo({ scenarios }: { scenarios: Scenario[] }) {
                   className={`bubble ${line.from === "Sam" ? "sam" : "agent"}`}
                 >
                   {line.from === "Agent" ? (
-                    <Markdown>{line.text}</Markdown>
+                    <Markdown remarkPlugins={[remarkGfm]}>{line.text}</Markdown>
                   ) : (
                     line.text
                   )}
