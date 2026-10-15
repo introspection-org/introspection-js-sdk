@@ -136,10 +136,10 @@
 /* A phone's proportions, as tall as the column allows. */
 .phone-screen {
   flex: 0 1 auto;
-  /* Poppy's phone's proportions (356 × 700), as tall as the panes beside it. */
+  /* The whole column: as tall as the panes beside it, and as wide as its quarter. */
   height: 100%;
-  max-width: 100%;
-  aspect-ratio: 356 / 700;
+  width: 100%;
+  max-width: 460px;
   min-height: 0;
   border: 12px solid #111;
   border-radius: 44px;
@@ -198,7 +198,7 @@
 }
 
 .bubble {
-  max-width: 84%;
+  max-width: 90%;
   padding: 9px 13px;
   border-radius: 18px;
   font-size: 14.5px;
