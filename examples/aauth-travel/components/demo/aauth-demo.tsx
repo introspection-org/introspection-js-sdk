@@ -404,7 +404,6 @@ export function AAuthDemo({ scenarios }: { scenarios: Scenario[] }) {
               {state.error && <div className="error">{state.error}</div>}
               <div ref={chatEnd} />
             </div>
-            {hint && <p className="hint">{hint}</p>}
             {!state.busy && (
               <div className="phone-composer">
                 <textarea
@@ -447,6 +446,11 @@ export function AAuthDemo({ scenarios }: { scenarios: Scenario[] }) {
                 ? "Flight Sector's travel-agent recipe runs on Introspection. Its egress signs every call, and runs Flight Sector's Cedar rails before Acme is asked. Acme's Person Server speaks for Sam: Dana approves the trip once, and anything over its budget."
                 : "Pick a sample or type your own: where, when, cabin, hotel and a budget. The travel-agent recipe proposes the trip to Acme, then books within it."}
             </p>
+            {hint && (
+              <p className="hint">
+                <strong>Next:</strong> {hint}
+              </p>
+            )}
             {state.mission && (
               <div className="mission">
                 Mission <code>{state.mission.s256.slice(0, 10)}…</code> · budget
