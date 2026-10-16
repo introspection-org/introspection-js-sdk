@@ -88,10 +88,7 @@ export {
 
 // Offline rendering — a Pi session file as the span list the platform's
 // conversation export returns (also the `pi-session-spans` bin).
-export {
-  piSessionToSpans,
-  type PiSessionToSpansOptions,
-} from "./session-spans.js";
+export { piSessionToSpans } from "./session-spans.js";
 
 // Re-export the GenAI types so consumers don't need a second import.
 export type {

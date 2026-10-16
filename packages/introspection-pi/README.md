@@ -185,17 +185,6 @@ pi-session-spans ~/.pi/agent/sessions/<session>.jsonl my-conversation > spans.js
 
 The same is available in code as `piSessionToSpans`.
 
-A caller that knows which MCP servers the run used passes the same `mcpTool`
-lookup `instrumentSession` takes (`piSessionToSpans(content, id, { mcpTool })`),
-so the converted `execute_tool` spans carry the `mcp.*` attributes a live run
-records. On the command line, `--mcp-tools` names a JSON object of those
-origins keyed by Pi tool name:
-
-```bash
-echo '{"mcp_attio_list-records_0123456789": {"serverId": "attio", "toolName": "list-records", "binding": "recipe"}}' > mcp-tools.json
-pi-session-spans <session>.jsonl my-conversation --mcp-tools mcp-tools.json > spans.json
-```
-
 ## Content scrubbing
 
 gen_ai spans carry full conversation content. Hosts that export one span
