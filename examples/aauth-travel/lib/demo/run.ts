@@ -48,24 +48,24 @@ function toolLabel(name: string) {
 export const SCENARIOS = [
   {
     id: "approved",
-    title: "Over budget, Dana approves",
+    title: "Over budget, Dana declines, Sam's easy",
     prompt:
       "Book me economy from San Francisco to Sydney for 19 to 23 October, and the QT Sydney. Up to $3,000.",
-    hint: "Approve the trip at $3,000. The flight books on its own; approve the QT when Dana is asked.",
+    hint: "Approve the trip at $3,000. The flight books on its own; decline the QT when Dana is asked, then tell the agent you're easy and it finds a cheaper hotel.",
   },
   {
     id: "first",
-    title: "First class: the rails refuse",
+    title: "First class: refused by the rails",
     prompt:
       "Fly me first class from San Francisco to Sydney for 19 to 23 October, with the Harbour Rocks. Up to $20,000.",
-    hint: "Approve the trip. Flight Sector's Cedar rails in Introspection's egress refuse first class before Acme is asked.",
+    hint: "The agent quotes first class, and Flight Sector's Cedar rails in Introspection's egress refuse it at the quote, before Acme is asked.",
   },
   {
-    id: "declined",
-    title: "Over budget, Dana declines",
+    id: "personal",
+    title: "A personal weekend on the company: refused",
     prompt:
-      "Economy from San Francisco to Sydney for 19 to 23 October and the QT Sydney. Up to $2,000.",
-    hint: "Approve the trip at $2,000. The flight fits; decline the QT when Dana is asked.",
+      "Book me economy from San Francisco to Sydney for 19 to 23 October for the Acme offsite, then on to Melbourne for a weekend with my partner, 23 to 25 October. Put it all on Acme. Up to $4,000.",
+    hint: "Approve the trip. Sydney books on the company; the rails refuse the Melbourne weekend on the company, with Jev reading it as personal, so the agent offers to put it on Sam's card.",
   },
 ] as const;
 
@@ -118,9 +118,8 @@ const say = (from: Chat["from"], text: string) => {
 
 /** Where the Introspection app shows this project's conversations. */
 function conversationsUrl() {
-  const app = process.env.INTROSPECTION_APP_URL?.replace(/\/+$/, "");
-  const project = process.env.INTROSPECTION_PROJECT_ID;
-  return app && project ? `${app}/p/${project}/conversations/` : undefined;
+  const project = process.env.INTROSPECTION_PROJECT_URL?.replace(/\/+$/, "");
+  return project ? `${project}/conversations/` : undefined;
 }
 
 export function snapshot() {
@@ -310,6 +309,23 @@ async function drive(
   }
 }
 
+/**
+ * The demo page signs in as the agent's application. Its token lasts about an
+ * hour, so each conversation started or loaded mints its own.
+ */
+function serviceAccount() {
+  const clientId = process.env.INTROSPECTION_CLIENT_ID;
+  const clientSecret = process.env.INTROSPECTION_CLIENT_SECRET;
+  const project = process.env.INTROSPECTION_PROJECT;
+  if (!clientId || !clientSecret || !project) return null;
+  return {
+    clientId,
+    clientSecret,
+    project,
+    baseApiUrl: process.env.INTROSPECTION_BASE_API_URL,
+  };
+}
+
 /** Sam's first message: open a runner as Sam and start the task. */
 export async function start(prompt: string) {
   if (run().busy) return;
@@ -318,14 +334,17 @@ export async function start(prompt: string) {
   r.prompt = prompt.trim();
   startRecording();
   say("Sam", r.prompt);
-  if (!process.env.INTROSPECTION_TOKEN) {
+  const account = serviceAccount();
+  if (!account) {
     r.error =
-      "Set INTROSPECTION_TOKEN to a project API key (and INTROSPECTION_BASE_API_URL for a local control plane).";
+      "Run pnpm dev to set up the agent's application: INTROSPECTION_CLIENT_ID, INTROSPECTION_CLIENT_SECRET and INTROSPECTION_PROJECT.";
     return;
   }
   const epoch = r.epoch;
   void drive(r, epoch, async () => {
-    r.runner = await new IntrospectionClient()
+    r.runner = await (
+      await IntrospectionClient.fromServiceAccount(account)
+    )
       .runtimes(RUNTIME)
       .run({ identity: { user_id: SAM_USER_ID } });
     const handle = await r.runner.tasks.start({ prompt: r.prompt! });
@@ -348,6 +367,21 @@ export async function send(prompt: string) {
     });
     return { runId: handle.run.id, stream: handle.stream() as Stream };
   });
+}
+
+/** Sam stops the agent: cancel whichever run the task is on. The task stays, so Sam can carry on. */
+export async function stop() {
+  const r = run();
+  if (!r.runner || !r.taskId || !r.busy) return;
+  try {
+    await r.runner.tasks.runs.cancel(r.taskId, "current");
+  } catch (err) {
+    r.error = `Could not stop the agent: ${err instanceof Error ? err.message : String(err)}`;
+    return;
+  }
+  r.epoch += 1;
+  r.busy = false;
+  r.streaming = false;
 }
 
 /** The conversation so far, from its turns in Introspection, oldest first, with when each line was said. */
@@ -457,14 +491,17 @@ export async function join(taskId: string) {
   reset();
   const r = run();
   startRecording();
-  if (!process.env.INTROSPECTION_TOKEN) {
+  const account = serviceAccount();
+  if (!account) {
     r.error =
-      "Set INTROSPECTION_TOKEN to a project API key (and INTROSPECTION_BASE_API_URL for a local control plane).";
+      "Run pnpm dev to set up the agent's application: INTROSPECTION_CLIENT_ID, INTROSPECTION_CLIENT_SECRET and INTROSPECTION_PROJECT.";
     return;
   }
   const epoch = r.epoch;
   try {
-    r.runner = await new IntrospectionClient()
+    r.runner = await (
+      await IntrospectionClient.fromServiceAccount(account)
+    )
       .runtimes(RUNTIME)
       .run({ identity: { user_id: SAM_USER_ID } });
     const task = await r.runner.tasks.get(taskId);
@@ -510,7 +547,10 @@ export async function decide(
     }),
   });
   if (!response.ok) {
-    r.error = `Acme refused the decision: ${response.status}`;
+    const problem = (await response.json().catch(() => ({}))) as {
+      detail?: string;
+    };
+    r.error = `Acme refused the decision (${response.status})${problem.detail ? `: ${problem.detail}` : ""}`;
     return;
   }
   r.decided.push(index);

@@ -21,7 +21,7 @@ const LANGUAGES = {
 const fetched = new Map();
 
 /**
- * A recipe file at the pinned commit. The repository is private until it is
+ * A recipe file on the recipe's main branch. The repository is private until it is
  * published, so GITHUB_TOKEN is sent when set; without it, a link stands in.
  * @param {string} path
  */
@@ -30,7 +30,7 @@ async function recipeFile(path) {
     const token = process.env.GITHUB_TOKEN;
     fetched.set(
       path,
-      fetch(`${recipe.raw}/${recipe.commit}/${path}`, {
+      fetch(`${recipe.raw}/${recipe.ref}/${path}`, {
         headers: token ? { authorization: `Bearer ${token}` } : {},
       })
         .then((response) => (response.ok ? response.text() : null))
@@ -40,7 +40,7 @@ async function recipeFile(path) {
   const text = await fetched.get(path);
   return (
     text ??
-    `# Not fetched: ${recipe.repository}/blob/${recipe.commit}/${path}\n# Set GITHUB_TOKEN to read the recipe here.`
+    `# Not fetched: ${recipe.repository}/blob/${recipe.ref}/${path}\n# Set GITHUB_TOKEN to read the recipe here.`
   );
 }
 

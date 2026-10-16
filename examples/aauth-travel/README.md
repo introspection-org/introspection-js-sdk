@@ -15,7 +15,7 @@ pnpm install
 pnpm dev
 ```
 
-Then open `http://localhost:3400/demo` and send a sample prompt as Sam. Without `RESEND_API_KEY`, Dana's emails, with their codes, appear on the page and in the console.
+Then open `http://localhost:3400` and send a sample prompt as Sam. Without `RESEND_API_KEY`, Dana's emails, with their codes, appear on the page and in the console.
 
 `pnpm dev` serves the app on `:3400`, gives the booking provider and the Browserbase mock public https URLs through free Cloudflare tunnels (the platform's egress and Person Server call them), and sets up your project on whichever Introspection `introspection login` chose. The first time on a stack it creates:
 
@@ -23,7 +23,7 @@ Then open `http://localhost:3400/demo` and send a sample prompt as Sam. Without 
 2. **Flight search:** Browserbase's hosted MCP with `BROWSERBASE_API_KEY` set, otherwise this app's mock.
 3. **The booking provider** as an AAuth connector, from [`introspection/booking.json`](./introspection/booking.json), acting as a new `Flight Sector agent` application.
 4. **Sam** as a customer member with the seniority the recipe's rules read, from [`introspection/sam.json`](./introspection/sam.json).
-5. **A project API key** for the demo page and Acme's approval app, in `.env.local` with the rest of the settings.
+5. **Client secrets** for two applications, in `.env.local` with the rest of the settings: the agent's, which the demo page signs in with, and, with the hosted Person Server, **Acme approvals**, which may only read and answer approvals.
 
 ### Public URLs
 

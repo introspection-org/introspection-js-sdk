@@ -1,16 +1,18 @@
 "use client";
 
-import Link from "next/link";
 import {
   Fragment,
   type ReactNode,
   useCallback,
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
 } from "react";
 
-import { AAuthLogo } from "./aauth-logo";
+import { recipe } from "@/flow/recipe.mjs";
+
+import { AAuthLogo, IntrospectionMark } from "./aauth-logo";
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
@@ -143,6 +145,29 @@ function Inbox({
   onDecide: Decide;
 }) {
   const [budget, setBudget] = useState(email.budget?.suggested ?? 3000);
+  // The approver types the code Acme emailed; the page plays that out, a
+  // digit at a time, before it sends the answer.
+  const [typed, setTyped] = useState<string | null>(null);
+  const answer = (verdict: "approve" | "decline") => {
+    if (typed !== null) return;
+    setTyped("");
+    const digits = email.code.split("");
+    digits.forEach((_, i) =>
+      setTimeout(() => setTyped(email.code.slice(0, i + 1)), (i + 1) * 120),
+    );
+    setTimeout(
+      () => {
+        onDecide(
+          email,
+          verdict,
+          verdict === "approve" && email.budget ? budget : undefined,
+        );
+        // A refused answer leaves the card open: let it be tried again.
+        setTimeout(() => setTyped(null), 3000);
+      },
+      digits.length * 120 + 300,
+    );
+  };
   // Sam is the traveller, Dana his manager: each in their own colour.
   const who = email.to.startsWith("Sam") ? "mail-sam" : "mail-dana";
   return (
@@ -181,21 +206,31 @@ function Inbox({
               />
             </label>
           )}
-          <button
-            disabled={busy}
-            onClick={() =>
-              onDecide(email, "approve", email.budget ? budget : undefined)
-            }
-          >
-            {email.to.startsWith("Sam") ? "Accept" : "Approve"}
-          </button>
-          <button
-            className="secondary"
-            disabled={busy}
-            onClick={() => onDecide(email, "decline")}
-          >
-            Decline
-          </button>
+          <div className="mail-answer">
+            <span className="mail-code" aria-label="Code from the email">
+              {Array.from({ length: 6 }, (_, i) => (
+                <span
+                  key={i}
+                  className={typed && typed.length > i ? "filled" : undefined}
+                >
+                  {typed?.[i] ?? ""}
+                </span>
+              ))}
+            </span>
+            <button
+              disabled={busy || typed !== null}
+              onClick={() => answer("approve")}
+            >
+              {email.to.startsWith("Sam") ? "Accept" : "Approve"}
+            </button>
+            <button
+              className="secondary"
+              disabled={busy || typed !== null}
+              onClick={() => answer("decline")}
+            >
+              Decline
+            </button>
+          </div>
         </div>
       )}
     </div>
@@ -390,16 +425,26 @@ export function AAuthDemo({ scenarios }: { scenarios: Scenario[] }) {
   const [picked, setPicked] = useState<number | null>(null);
   const chatEnd = useRef<HTMLDivElement>(null);
   const chatBox = useRef<HTMLDivElement>(null);
-  const seenEnd = useRef<HTMLDivElement>(null);
-  const detailsEnd = useRef<HTMLDivElement>(null);
-  const detailsTop = useRef<HTMLDivElement>(null);
+  const seenPane = useRef<HTMLDivElement>(null);
+  const detailsPane = useRef<HTMLDivElement>(null);
+  // Whether the reader is at a pane's end, so new and growing content keeps
+  // it there; scrolling up to read leaves it where they put it.
+  const seenAtEnd = useRef(true);
+  const detailsAtEnd = useRef(true);
   const composer = useRef<HTMLTextAreaElement>(null);
   // Grow with the text, as a chat app's input does, whether typed or picked.
   useEffect(() => {
     const box = composer.current;
     if (!box) return;
     box.style.height = "auto";
-    if (prompt) box.style.height = `${box.scrollHeight}px`;
+    // scrollHeight leaves out the borders; without them the box is a little
+    // short of its text and shows a scrollbar for a single line.
+    const borders = box.offsetHeight - box.clientHeight;
+    if (prompt) box.style.height = `${box.scrollHeight + borders}px`;
+    box.style.overflowY =
+      box.scrollHeight + borders > parseFloat(getComputedStyle(box).maxHeight)
+        ? "auto"
+        : "hidden";
   }, [prompt]);
 
   const refresh = useCallback(async () => {
@@ -414,8 +459,6 @@ export function AAuthDemo({ scenarios }: { scenarios: Scenario[] }) {
   }, [refresh]);
 
   const chatCount = state?.chat.length ?? 0;
-  const callCount = state?.exchanges.length ?? 0;
-  const mailCount = state?.inbox.length ?? 0;
   // Follow the chat as each reply streams in, not only when a new one starts.
   const chatSize =
     state?.chat.reduce((n, line) => n + line.text.length, 0) ?? 0;
@@ -423,16 +466,23 @@ export function AAuthDemo({ scenarios }: { scenarios: Scenario[] }) {
     const box = chatBox.current;
     if (box) box.scrollTop = box.scrollHeight;
   }, [chatCount, chatSize, state?.working]);
-  // New activity scrolls both panes while following the latest; picking a turn
-  // moves only the request details, to the top of that turn's requests.
+  // Every update keeps a pane that was at its end there, after layout, so a
+  // card that grows once rendered is not left half below the edge. Picking a
+  // turn moves only the request details, to the top of that turn's requests.
+  useLayoutEffect(() => {
+    const seen = seenPane.current;
+    if (seen && seenAtEnd.current) seen.scrollTop = seen.scrollHeight;
+    const details = detailsPane.current;
+    if (details && picked === null && detailsAtEnd.current)
+      details.scrollTop = details.scrollHeight;
+  }, [state, picked]);
   useEffect(() => {
-    if (picked !== null) return;
-    seenEnd.current?.scrollIntoView({ block: "nearest" });
-    detailsEnd.current?.scrollIntoView({ block: "nearest" });
-  }, [callCount, mailCount, picked]);
-  useEffect(() => {
-    if (picked !== null) detailsTop.current?.scrollTo({ top: 0 });
+    // Following the latest again follows the end again.
+    detailsAtEnd.current = picked === null;
+    if (picked !== null) detailsPane.current?.scrollTo({ top: 0 });
   }, [picked]);
+  const atEnd = (pane: HTMLDivElement) =>
+    pane.scrollHeight - pane.scrollTop - pane.clientHeight < 48;
 
   const act = async (body: Record<string, unknown>) => {
     setSending(true);
@@ -479,13 +529,30 @@ export function AAuthDemo({ scenarios }: { scenarios: Scenario[] }) {
           <div className="brand">
             <AAuthLogo />
             <span className="step-label">
-              -11 · three-party, with a mission · on Introspection
+              -11 · three-party, with a mission · on{" "}
+              <span className="on-introspection">
+                <IntrospectionMark />
+                Introspection
+              </span>
             </span>
           </div>
           <div className="ademo-controls">
-            <Link href="/" className="control">
-              <span aria-hidden>&lt;/&gt;</span> Code
-            </Link>
+            <a
+              href={`${recipe.repository}/tree/${recipe.ref}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="control"
+            >
+              Recipe
+            </a>
+            <a
+              href="/walkthrough"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="control"
+            >
+              Walkthrough
+            </a>
             {started && (
               <button
                 className="control"
@@ -578,13 +645,23 @@ export function AAuthDemo({ scenarios }: { scenarios: Scenario[] }) {
                 }}
                 aria-label="Sam's message"
               />
-              <button
-                onClick={send}
-                disabled={sending || state.working || !prompt.trim()}
-                aria-label="Send"
-              >
-                ↑
-              </button>
+              {state.working ? (
+                <button
+                  onClick={() => act({ action: "stop" })}
+                  disabled={sending}
+                  aria-label="Stop"
+                >
+                  ■
+                </button>
+              ) : (
+                <button
+                  onClick={send}
+                  disabled={sending || !prompt.trim()}
+                  aria-label="Send"
+                >
+                  ↑
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -629,7 +706,11 @@ export function AAuthDemo({ scenarios }: { scenarios: Scenario[] }) {
               )}
             </div>
           )}
-          <div className="pane-body">
+          <div
+            className="pane-body"
+            ref={seenPane}
+            onScroll={(e) => (seenAtEnd.current = atEnd(e.currentTarget))}
+          >
             {turns.map((turn) => (
               <Moment
                 key={turn}
@@ -642,7 +723,6 @@ export function AAuthDemo({ scenarios }: { scenarios: Scenario[] }) {
                 onDecide={decide}
               />
             ))}
-            <div ref={seenEnd} />
           </div>
         </div>
 
@@ -657,13 +737,19 @@ export function AAuthDemo({ scenarios }: { scenarios: Scenario[] }) {
               </button>
             )}
           </div>
-          <div className="pane-body" ref={detailsTop}>
-            {details.length === 0 && (
-              <p className="muted">
+          {details.length === 0 && (
+            <div className="pane-intro">
+              <p>
                 Each request Introspection&apos;s egress sends for the agent
                 appears here, as it arrived, signed.
               </p>
-            )}
+            </div>
+          )}
+          <div
+            className="pane-body"
+            ref={detailsPane}
+            onScroll={(e) => (detailsAtEnd.current = atEnd(e.currentTarget))}
+          >
             {details.map((x) => (
               <div key={x.id} className="exchange">
                 <div className="exchange-head">
@@ -684,7 +770,6 @@ export function AAuthDemo({ scenarios }: { scenarios: Scenario[] }) {
                 </pre>
               </div>
             ))}
-            <div ref={detailsEnd} />
           </div>
         </div>
       </div>

@@ -4,10 +4,6 @@ import {
   NotFoundError,
   ValidationError,
   type Paginated,
-  type ProjectLabel,
-  type ProjectLabelCreate,
-  type ProjectLabelListParams,
-  type ProjectLabelUpdate,
   type AnnotationListParams,
   type AnnotationEventOptions,
   type AnnotationMutation,
@@ -69,71 +65,6 @@ function normalizedEmails(emails: string | readonly string[]): string[] {
     );
   }
   return normalized;
-}
-
-/** Managed project label catalog used by annotations. */
-export class ProjectLabelsApi {
-  constructor(private readonly dpHttp: HttpClient) {}
-
-  list(params: ProjectLabelListParams = {}): Paginator<ProjectLabel> {
-    return cursorPaginate(
-      (next) =>
-        this.dpHttp.request<Paginated<ProjectLabel>>({
-          method: "GET",
-          path: "/v1/project-labels",
-          query: { ...params, next } as Record<string, unknown>,
-        }),
-      params.next,
-    );
-  }
-
-  create(body: ProjectLabelCreate): Promise<ProjectLabel> {
-    const slug = body.slug.trim();
-    if (!slug || slug.length > 128) {
-      throw clientValidationError(
-        "Project label slug must contain 1 to 128 characters",
-        "invalid_project_label_slug",
-      );
-    }
-    if (!/^#[0-9a-f]{6}$/i.test(body.color)) {
-      throw clientValidationError(
-        "Project label color must be a six-digit hex color such as #f97316",
-        "invalid_project_label_color",
-      );
-    }
-    if (body.description != null && body.description.length > 2_000) {
-      throw clientValidationError(
-        "Project label description must not exceed 2000 characters",
-        "invalid_project_label_description",
-      );
-    }
-    return this.dpHttp.request<ProjectLabel>({
-      method: "POST",
-      path: "/v1/project-labels",
-      body: { ...body, slug, color: body.color.toLowerCase() },
-    });
-  }
-
-  get(slug: string): Promise<ProjectLabel> {
-    return this.dpHttp.request<ProjectLabel>({
-      method: "GET",
-      path: `/v1/project-labels/${encodeURIComponent(slug)}`,
-    });
-  }
-
-  update(slug: string, body: ProjectLabelUpdate): Promise<ProjectLabel> {
-    if (body.description != null && body.description.length > 2_000) {
-      throw clientValidationError(
-        "Project label description must not exceed 2000 characters",
-        "invalid_project_label_description",
-      );
-    }
-    return this.dpHttp.request<ProjectLabel>({
-      method: "PATCH",
-      path: `/v1/project-labels/${encodeURIComponent(slug)}`,
-      body,
-    });
-  }
 }
 
 /**
@@ -271,8 +202,4 @@ export function attachAnnotations(
   dpHttp: HttpClient,
 ): AnnotationsApi {
   return new AnnotationsApi(cpHttp, dpHttp);
-}
-
-export function attachProjectLabels(dpHttp: HttpClient): ProjectLabelsApi {
-  return new ProjectLabelsApi(dpHttp);
 }
