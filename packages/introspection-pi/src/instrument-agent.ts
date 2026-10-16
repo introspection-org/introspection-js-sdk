@@ -28,7 +28,6 @@ import {
   executeToolAttributes,
   executeToolResultAttribute,
   invokeAgentAttributes,
-  mcpToolAttributes,
   type AgentMeta,
   type McpToolOrigin,
 } from "./attributes.js";
@@ -79,8 +78,7 @@ export interface InstrumentAgentOptions {
   spanName?: (toolName: string) => string;
   /**
    * The MCP server serving a tool, by its registered tool name; undefined for
-   * a tool no MCP server serves. Read when the span starts and again when it
-   * ends, so a server identity learned during the call is recorded.
+   * a tool no MCP server serves. Read once, when the span starts.
    */
   mcpTool?: (toolName: string) => McpToolOrigin | undefined;
 }
@@ -265,7 +263,6 @@ function handleEvent(
       // payload for failed executions so consumers can reconstruct the tool
       // response instead of relying on the lossy span-status description.
       span.setAttributes(executeToolResultAttribute(event.result));
-      span.setAttributes(mcpToolAttributes(opts.mcpTool?.(event.toolName)));
 
       let errorType: string | undefined;
       if (event.isError && signal?.aborted) {

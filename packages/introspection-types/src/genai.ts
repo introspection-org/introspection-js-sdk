@@ -438,10 +438,6 @@ export const McpAttr = {
   TOOL_NAME: "mcp.tool.name",
   /** Where the server was bound from; see {@link McpServerBinding}. */
   SERVER_BINDING: "mcp.server.binding",
-  /** `serverInfo.name` from the server's `initialize` response. */
-  SERVER_NAME: "mcp.server.name",
-  /** `serverInfo.version` from the server's `initialize` response. */
-  SERVER_VERSION: "mcp.server.version",
 } as const;
 
 /**

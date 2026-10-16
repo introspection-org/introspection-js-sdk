@@ -199,19 +199,13 @@ export function chatResponseAttributes(message: AssistantMessage): Attributes {
   return attributes;
 }
 
-/**
- * The MCP server a tool is served by, as the host that registered the tool
- * knows it. `serverName` / `serverVersion` are unknown until the server has
- * answered `initialize`.
- */
+/** The MCP server a tool is served by, as the host that registered the tool knows it. */
 export interface McpToolOrigin {
   /** The server id the Recipe declares. */
   serverId: string;
   /** The tool's name in the server's contract, not the client-prefixed tool name. */
   toolName: string;
   binding?: McpServerBinding;
-  serverName?: string;
-  serverVersion?: string;
 }
 
 /** The `mcp.*` attributes for a tool an MCP server serves; empty for any other tool. */
@@ -224,10 +218,6 @@ export function mcpToolAttributes(
     [McpAttr.TOOL_NAME]: origin.toolName,
   };
   if (origin.binding) attributes[McpAttr.SERVER_BINDING] = origin.binding;
-  if (origin.serverName) attributes[McpAttr.SERVER_NAME] = origin.serverName;
-  if (origin.serverVersion) {
-    attributes[McpAttr.SERVER_VERSION] = origin.serverVersion;
-  }
   return attributes;
 }
 

@@ -36,7 +36,7 @@ of the Anthropic response — no mocked pi events, no mocked stream.
 | `test-pi-recorded-run.test.ts`    | `pi-run`     | `invoke_agent` run span parenting the whole trace, and GenAI client metrics         |
 | `test-pi-recorded-errors.test.ts` | `pi-errors`  | a real provider 404 (status ERROR) vs. a real mid-stream abort (Unset + cancelled)  |
 | `test-pi-baggage.test.ts`         | `pi-baggage` | baggage overriding `AgentMeta` across concurrent agents                             |
-| `test-pi-recorded-mcp.test.ts`    | `pi-mcp`     | `mcp.*` on an MCP tool's span, identity learned mid-call, none on a built-in tool   |
+| `test-pi-recorded-mcp.test.ts`    | `pi-mcp`     | `mcp.*` on an MCP tool's span, none on a built-in tool                              |
 
 The remaining `test-pi-*.test.ts` files are unit tests over the attribute
 builders, converters, and wrappers; they need no network and no cassette.

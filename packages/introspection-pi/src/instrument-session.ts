@@ -63,7 +63,7 @@ export interface InstrumentSessionOptions {
   abortTerminationReason?: () => AbortTerminationReason | null;
   /** Host attributes (tenant labels, correlation ids) added to every span. */
   extraAttributes?: () => Attributes;
-  /** The MCP server serving a tool; read at the start and end of each tool span. */
+  /** The MCP server serving a tool; read when each tool span starts. */
   mcpTool?: (toolName: string) => McpToolOrigin | undefined;
 }
 

@@ -403,16 +403,16 @@ describe("executeToolAttributes / executeToolResultAttribute", () => {
         serverId: "attio",
         toolName: "list-records",
         binding: "recipe",
-        serverName: "attio-mcp",
-        serverVersion: "2.4.0",
       },
     );
-    expect(attrs).toMatchObject({
+    expect(
+      Object.fromEntries(
+        Object.entries(attrs).filter(([key]) => key.startsWith("mcp.")),
+      ),
+    ).toEqual({
       "mcp.server.id": "attio",
       "mcp.tool.name": "list-records",
       "mcp.server.binding": "recipe",
-      "mcp.server.name": "attio-mcp",
-      "mcp.server.version": "2.4.0",
     });
   });
 
@@ -424,7 +424,7 @@ describe("executeToolAttributes / executeToolResultAttribute", () => {
     expect(mcpToolAttributes(undefined)).toEqual({});
   });
 
-  it("leaves out an MCP origin field that is not yet known", () => {
+  it("leaves out the binding when the host does not know it", () => {
     expect(
       mcpToolAttributes({ serverId: "attio", toolName: "list-records" }),
     ).toEqual({

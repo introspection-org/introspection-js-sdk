@@ -51,10 +51,9 @@ instrumentSession(session, {
 ```
 
 A host that registers MCP tools names the server behind each one, so its
-`execute_tool` span carries `mcp.server.id`, `mcp.tool.name`,
-`mcp.server.binding`, `mcp.server.name` and `mcp.server.version`. The lookup is
-read when the span starts and again when it ends; a tool it returns nothing for
-carries none of them:
+`execute_tool` span carries `mcp.server.id`, `mcp.tool.name` and
+`mcp.server.binding`. The lookup is read when the span starts; a tool it returns
+nothing for carries none of them:
 
 ```ts
 instrumentSession(session, {
@@ -185,6 +184,17 @@ pi-session-spans ~/.pi/agent/sessions/<session>.jsonl my-conversation > spans.js
 ```
 
 The same is available in code as `piSessionToSpans`.
+
+A caller that knows which MCP servers the run used passes the same `mcpTool`
+lookup `instrumentSession` takes (`piSessionToSpans(content, id, { mcpTool })`),
+so the converted `execute_tool` spans carry the `mcp.*` attributes a live run
+records. On the command line, `--mcp-tools` names a JSON object of those
+origins keyed by Pi tool name:
+
+```bash
+echo '{"mcp_attio_list-records_0123456789": {"serverId": "attio", "toolName": "list-records", "binding": "recipe"}}' > mcp-tools.json
+pi-session-spans <session>.jsonl my-conversation --mcp-tools mcp-tools.json > spans.json
+```
 
 ## Content scrubbing
 

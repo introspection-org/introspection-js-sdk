@@ -1,6 +1,7 @@
 /**
  * Unit tests for rendering a Pi session file as the GenAI span list the
- * platform's conversation export returns.
+ * platform's conversation export returns. A pure conversion with no LLM call
+ * (AGENTS.md §6 exception 1), so the session files are written inline.
  */
 
 import { describe, expect, it } from "vitest";
@@ -11,7 +12,9 @@ import { foldSpans } from "@introspection-sdk/http";
 import {
   messagesToInputMessages,
   piSessionToSpans,
+  type McpToolOrigin,
 } from "@introspection-sdk/introspection-pi";
+import { mcpToolLookupFromJson } from "../../packages/introspection-pi/src/session-spans";
 
 const usage = {
   input: 60,
@@ -241,5 +244,94 @@ describe("pi-session-spans", () => {
 
     expect(expected[0]?.parts[0]?.type).toBe("compaction");
     expect(last?.attributes.gen_ai?.input?.messages).toEqual(expected);
+  });
+
+  describe("MCP tools", () => {
+    const MCP_TOOL = "mcp_attio_list-records_0123456789";
+    const mcpCall = {
+      ...call,
+      content: [
+        { type: "toolCall", id: "c1", name: "read", arguments: { path: "a" } },
+        { type: "toolCall", id: "c2", name: MCP_TOOL, arguments: {} },
+      ],
+    };
+    const mcpResult = {
+      role: "toolResult",
+      toolCallId: "c2",
+      toolName: MCP_TOOL,
+      content: [{ type: "text", text: "[]" }],
+      isError: false,
+      timestamp: 3500,
+    };
+    const file = sessionFile([user, mcpCall, result, mcpResult, answer]);
+    const origin: McpToolOrigin = {
+      serverId: "attio",
+      toolName: "list-records",
+      binding: "recipe",
+    };
+    const mcpOf = (span: { attributes: Record<string, unknown> }) =>
+      span.attributes.mcp;
+
+    it("stamps the MCP origin on an MCP tool's span and nothing on a built-in tool's", () => {
+      const spans = piSessionToSpans(file, "conv-1", {
+        mcpTool: (name) => (name === MCP_TOOL ? origin : undefined),
+      }).data;
+
+      const byName = new Map(spans.map((span) => [span.name, span]));
+      expect(mcpOf(byName.get(`execute_tool ${MCP_TOOL}`)!)).toEqual({
+        server: { id: "attio", binding: "recipe" },
+        tool: { name: "list-records" },
+      });
+      expect(mcpOf(byName.get("execute_tool read")!)).toBeUndefined();
+      expect(
+        spans.filter((span) => span.name?.startsWith("chat")).map(mcpOf),
+      ).toEqual([undefined, undefined]);
+    });
+
+    it("renders exactly as before without a lookup", () => {
+      const without = JSON.stringify(piSessionToSpans(file, "conv-1"));
+
+      expect(without).not.toContain('"mcp"');
+      expect(
+        JSON.stringify(
+          piSessionToSpans(file, "conv-1", { mcpTool: () => undefined }),
+        ),
+      ).toBe(without);
+    });
+
+    it("reads the bin's --mcp-tools file as the lookup", () => {
+      const lookup = mcpToolLookupFromJson(
+        JSON.stringify({
+          [MCP_TOOL]: origin,
+          mcp_notion_search_0123456789: {
+            serverId: "notion",
+            toolName: "search",
+          },
+        }),
+      );
+
+      expect(lookup(MCP_TOOL)).toEqual(origin);
+      expect(lookup("mcp_notion_search_0123456789")).toEqual({
+        serverId: "notion",
+        toolName: "search",
+      });
+      expect(lookup("read")).toBeUndefined();
+    });
+
+    it("refuses an --mcp-tools file it cannot read as MCP origins", () => {
+      expect(() => mcpToolLookupFromJson("[]")).toThrow(
+        "keyed by Pi tool name",
+      );
+      expect(() =>
+        mcpToolLookupFromJson(
+          JSON.stringify({ [MCP_TOOL]: { serverId: "attio" } }),
+        ),
+      ).toThrow(`MCP tool '${MCP_TOOL}'`);
+      expect(() =>
+        mcpToolLookupFromJson(
+          JSON.stringify({ [MCP_TOOL]: { ...origin, binding: "fake" } }),
+        ),
+      ).toThrow("a binding of live, recipe or local");
+    });
   });
 });

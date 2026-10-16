@@ -4,9 +4,8 @@
  *
  * A host attaches `instrumentSession` with an `mcpTool` lookup naming the MCP
  * server behind each tool it registered. Only pi's real tool loop proves the
- * lookup is consulted for the tool the model actually called, that an
- * identity the server answers during the call (its `initialize` response)
- * reaches the span, and that a built-in tool in the same run stays clean.
+ * lookup is consulted for the tool the model actually called, once, and that
+ * a built-in tool in the same run stays clean.
  */
 
 import {
@@ -49,16 +48,13 @@ interface McpServer {
   tool: AgentTool;
   /** The host's lookup, as `instrumentSession` receives it. */
   lookup: (toolName: string) => McpToolOrigin | undefined;
-  /** What the lookup returned for the MCP tool, in call order. */
-  seen: (McpToolOrigin | undefined)[];
+  /** Tool names the lookup was asked about, in call order. */
+  seen: string[];
   /** Cities the model asked about. */
   calls: string[];
 }
 
-/**
- * A tool the host registered from an MCP server. The server's identity is
- * unknown until it answers `initialize`, which happens inside the first call.
- */
+/** A tool the host registered from an MCP server. */
 async function makeMcpServer(): Promise<McpServer> {
   const { Type } = await import("@earendil-works/pi-ai");
   const origin: McpToolOrigin = {
@@ -66,7 +62,7 @@ async function makeMcpServer(): Promise<McpServer> {
     toolName: "lookup-timezone",
     binding: "recipe",
   };
-  const seen: (McpToolOrigin | undefined)[] = [];
+  const seen: string[] = [];
   const calls: string[] = [];
   const tool: AgentTool = {
     name: MCP_TOOL,
@@ -76,16 +72,13 @@ async function makeMcpServer(): Promise<McpServer> {
     execute: async (_id, params) => {
       const city = (params as { city: string }).city;
       calls.push(city);
-      origin.serverName = "cities-mcp";
-      origin.serverVersion = "1.2.0";
       const result = city === "Tokyo" ? "Asia/Tokyo" : `No data for ${city}`;
       return { content: [{ type: "text", text: result }], details: { result } };
     },
   };
   const lookup = (toolName: string) => {
-    if (toolName !== MCP_TOOL) return undefined;
-    seen.push({ ...origin });
-    return origin;
+    seen.push(toolName);
+    return toolName === MCP_TOOL ? origin : undefined;
   };
   return { tool, lookup, seen, calls };
 }
@@ -154,23 +147,24 @@ describe("Pi MCP tool spans — real Agent against a Polly-recorded Anthropic ca
     expect(weather.calls).toEqual(["Tokyo"]);
     expect(mcp.calls).toEqual(["Tokyo"]);
 
-    // The server's identity was unknown when the span started and learned
-    // during the call.
-    expect(mcp.seen).toHaveLength(2);
-    expect(mcp.seen[0]?.serverName).toBeUndefined();
-    expect(mcp.seen[0]?.serverVersion).toBeUndefined();
-    expect(mcp.seen[1]?.serverName).toBe("cities-mcp");
+    // Each tool span asks once, at its start.
+    expect([...mcp.seen].sort()).toEqual(["get_weather", MCP_TOOL].sort());
 
     const tools = tracing!.spansFor("execute_tool");
     expect(tools).toHaveLength(2);
 
     const mcpSpan = tools.find((s) => s.name === `execute_tool ${MCP_TOOL}`);
-    expect(mcpSpan?.attributes).toMatchObject({
+    expect(mcpSpan).toBeDefined();
+    expect(
+      Object.fromEntries(
+        Object.entries(mcpSpan!.attributes).filter(([key]) =>
+          key.startsWith("mcp."),
+        ),
+      ),
+    ).toEqual({
       [McpAttr.SERVER_ID]: "cities",
       [McpAttr.TOOL_NAME]: "lookup-timezone",
       [McpAttr.SERVER_BINDING]: "recipe",
-      [McpAttr.SERVER_NAME]: "cities-mcp",
-      [McpAttr.SERVER_VERSION]: "1.2.0",
     });
 
     const builtInSpan = tools.find(

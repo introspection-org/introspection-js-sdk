@@ -22,8 +22,18 @@ import {
   chatResponseAttributes,
   executeToolAttributes,
   executeToolResultAttribute,
+  type McpToolOrigin,
 } from "./attributes.js";
 import { renderCompactionSummary } from "./convert.js";
+
+export interface PiSessionToSpansOptions {
+  /**
+   * The MCP server serving a tool, by its Pi tool name, as
+   * `instrumentSession` takes it; its `execute_tool` spans then carry the
+   * same `mcp.*` attributes a live run records.
+   */
+  mcpTool?: (toolName: string) => McpToolOrigin | undefined;
+}
 
 /**
  * One `chat` span per model call and one `execute_tool` span per result.
@@ -34,6 +44,7 @@ import { renderCompactionSummary } from "./convert.js";
 export function piSessionToSpans(
   content: string,
   conversationId: string,
+  options: PiSessionToSpansOptions = {},
 ): GenAiSpanList {
   const meta = { conversationId, agentId: "root", agentName: "agent" };
   const spans: GenAiSpan[] = [];
@@ -117,6 +128,8 @@ export function piSessionToSpans(
             message.toolCallId,
             toolCalls.get(message.toolCallId)?.arguments,
             meta,
+            undefined,
+            options.mcpTool?.(message.toolName),
           ),
           // The shape the live instrumentation records from Pi's tool result.
           ...executeToolResultAttribute({
@@ -155,4 +168,39 @@ export function piSessionToSpans(
     has_more: false,
     next: null,
   };
+}
+
+const MCP_SERVER_BINDINGS: readonly string[] = ["live", "recipe", "local"];
+
+/**
+ * The `mcpTool` lookup for a JSON object of MCP origins keyed by Pi tool
+ * name, as `pi-session-spans --mcp-tools` reads it.
+ */
+export function mcpToolLookupFromJson(
+  json: string,
+): (toolName: string) => McpToolOrigin | undefined {
+  const parsed: unknown = JSON.parse(json);
+  if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
+    throw new Error("MCP tools must be a JSON object keyed by Pi tool name");
+  }
+  const origins = new Map<string, McpToolOrigin>();
+  for (const [name, value] of Object.entries(parsed)) {
+    const origin = value as Partial<McpToolOrigin> | null;
+    if (
+      typeof origin?.serverId !== "string" ||
+      typeof origin.toolName !== "string" ||
+      (origin.binding !== undefined &&
+        !MCP_SERVER_BINDINGS.includes(origin.binding))
+    ) {
+      throw new Error(
+        `MCP tool '${name}' needs a string serverId and toolName, and a binding of live, recipe or local`,
+      );
+    }
+    origins.set(name, {
+      serverId: origin.serverId,
+      toolName: origin.toolName,
+      ...(origin.binding ? { binding: origin.binding } : {}),
+    });
+  }
+  return (toolName) => origins.get(toolName);
 }
