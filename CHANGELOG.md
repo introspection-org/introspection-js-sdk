@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.35.0](https://github.com/introspection-org/introspection-js-sdk/compare/v0.34.0...v0.35.0) (2026-10-16)
+
+
+### Features
+
+* **examples:** the AAuth travel demo sets itself up reliably, signs in with applications, and opens on the demo ([#464](https://github.com/introspection-org/introspection-js-sdk/issues/464)) ([551820d](https://github.com/introspection-org/introspection-js-sdk/commit/551820d79fcc0c4aa258857212a09378f2fbb9b6))
+* **pi:** record the MCP server behind a tool on its execute_tool span ([#461](https://github.com/introspection-org/introspection-js-sdk/issues/461)) ([ed95ea8](https://github.com/introspection-org/introspection-js-sdk/commit/ed95ea8776774a7b65c9c915fca6d80571312d1f))
+
+
+### Bug Fixes
+
+* **examples:** AAuth travel demo polish after the first rehearsals ([#466](https://github.com/introspection-org/introspection-js-sdk/issues/466)) ([822af5e](https://github.com/introspection-org/introspection-js-sdk/commit/822af5e53c94d5c31ca60509a1c06914047ed358))
+* **examples:** the AAuth demo header shows the Introspection mark beside its name ([#467](https://github.com/introspection-org/introspection-js-sdk/issues/467)) ([824a273](https://github.com/introspection-org/introspection-js-sdk/commit/824a273dde06d971d5dab5ecd2685fefc2c75977))
+* let person-server publish, and state what a new published package needs ([#468](https://github.com/introspection-org/introspection-js-sdk/issues/468)) ([1ec5cf4](https://github.com/introspection-org/introspection-js-sdk/commit/1ec5cf4f80cd8e92721e36faa6278e0e280b01ef))
+
 ## [0.34.0](https://github.com/introspection-org/introspection-js-sdk/compare/v0.33.0...v0.34.0) (2026-10-15)
 
 
