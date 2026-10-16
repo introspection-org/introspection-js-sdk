@@ -27,6 +27,8 @@ open coverage/index.html
 
 Tests run in vitest with `isolate: true` + `pool: "forks"`, so each test file gets its own worker process. OTel global state cannot leak between files. Within a single file, use `installTestOTelGlobals()` from `tests/polly-setup.ts` to keep the per-test state clean.
 
+On Node 25+, run the tests and the pre-commit hook with `NODE_OPTIONS=--no-experimental-webstorage`: Node's built-in `localStorage` breaks the browser tests. CI uses Node 22.
+
 ---
 
 ## 2. Pre-commit hook expectations
@@ -222,6 +224,21 @@ span processor on the provider receives the same spans (see
 `examples/otel/pi/dual-export.ts`, which is deliberately vendor-neutral —
 point it at any OTLP endpoint). What was removed were the vendor-specific
 tests and fixtures for frameworks that no longer exist, not the capability.
+
+## 9. Publishing packages
+
+`publish.yml` publishes every non-private package under `packages/` through npm trusted publishing (repository `introspection-org/introspection-js-sdk`, workflow `publish.yml`, environment `publish`). Never add an npm token: an `_authToken` overrides OIDC.
+
+Before a new package's first release:
+
+- **Declare `repository`** in its `package.json`, copied from a sibling with its own `directory`. Without it npm rejects the provenance (`E422`).
+- **Create it on npm and add its trusted publisher.** npm accepts a publisher only on an existing package, so publish a stub, then add the publisher above on the package's Settings page with Allow `npm publish` ticked. Without it the publish fails with `E404`.
+
+```bash
+d=$(mktemp -d) && cd "$d" && echo '{"name":"@introspection-sdk/<package>","version":"0.0.0"}' > package.json && npm publish --access public --tag placeholder
+```
+
+Mark a package `"private": true` to keep it off npm.
 
 <!-- BEGIN:turborepo-agent-rules -->
 
