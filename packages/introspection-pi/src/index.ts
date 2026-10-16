@@ -64,9 +64,11 @@ export {
   executeToolAttributes,
   executeToolResultAttribute,
   invokeAgentAttributes,
+  mcpToolAttributes,
   serverAttributes,
   type AgentMeta,
   type ChatRequestContext,
+  type McpToolOrigin,
 } from "./attributes.js";
 
 // Metric instruments — exposed for callers that record their own measurements
@@ -101,11 +103,13 @@ export type {
   TextPart,
   ToolCallRequestPart,
   ToolCallResponsePart,
+  McpServerBinding,
   ToolDefinition,
 } from "@introspection-sdk/types";
 export {
   GenAi,
   GenAiSpanName,
   IntrospectionAttr,
+  McpAttr,
   toAttributes,
 } from "@introspection-sdk/types";

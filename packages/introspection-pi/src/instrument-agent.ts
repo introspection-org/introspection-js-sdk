@@ -29,6 +29,7 @@ import {
   executeToolResultAttribute,
   invokeAgentAttributes,
   type AgentMeta,
+  type McpToolOrigin,
 } from "./attributes.js";
 import { semconvFinishReason } from "./convert.js";
 import { classifyErrorType } from "./error-type.js";
@@ -75,6 +76,11 @@ export interface InstrumentAgentOptions {
   ) => Attributes;
   /** Override the default span name builder. */
   spanName?: (toolName: string) => string;
+  /**
+   * The MCP server serving a tool, by its registered tool name; undefined for
+   * a tool no MCP server serves. Read once, when the span starts.
+   */
+  mcpTool?: (toolName: string) => McpToolOrigin | undefined;
 }
 
 export interface AgentInstrumentation {
@@ -227,6 +233,7 @@ function handleEvent(
           event.args,
           opts.meta,
           description,
+          opts.mcpTool?.(event.toolName),
         ),
         ...opts.extraAttributes?.(event),
       };
