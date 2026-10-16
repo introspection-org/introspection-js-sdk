@@ -27,7 +27,7 @@ open coverage/index.html
 
 Tests run in vitest with `isolate: true` + `pool: "forks"`, so each test file gets its own worker process. OTel global state cannot leak between files. Within a single file, use `installTestOTelGlobals()` from `tests/polly-setup.ts` to keep the per-test state clean.
 
-On Node 25 or later, run the tests and the pre-commit hook with `NODE_OPTIONS=--no-experimental-webstorage`. Node's own `localStorage` global shadows the test environment's, so the browser tests fail locally while CI, on Node 22, passes.
+On Node 25+, run the tests and the pre-commit hook with `NODE_OPTIONS=--no-experimental-webstorage`: Node's built-in `localStorage` breaks the browser tests. CI uses Node 22.
 
 ---
 
@@ -203,8 +203,6 @@ Tests should pass the base URL explicitly via the `pollyEndpoints` constants in 
 | Forking a workflow file from the public repo              | App-token `repositories: introspection-js-sdk` becomes wrong on a fork                                            | Verify every `owner:` / `repositories:` reference matches THIS repo |
 | Hashing the request body for recording lookup             | SDKs auto-inject machine-specific content (default system prompts, billing nonces) — body differs across machines | Match on `method + URL + call-order` instead                        |
 | Splitting one concern across files with overlapping setup | ~50 LOC of polly + beforeEach boilerplate duplicated per file                                                     | One file per concern, nested `describe`s                            |
-| Adding a published package without `repository`           | npm rejected its provenance with `E422`, and the publish job failed (#445, #468)                                  | Copy `repository` from a sibling package, with its own `directory`  |
-| Merging a package npm has never seen                      | Its first publish failed with `E404 Not Found - PUT`, and the release published no package                        | Onboard it on npm first, as in section 9                            |
 
 ---
 
@@ -229,20 +227,18 @@ tests and fixtures for frameworks that no longer exist, not the capability.
 
 ## 9. Publishing packages
 
-`.github/workflows/publish.yml` publishes every package under `packages/` not marked `"private": true`, with `pnpm -r publish --provenance`, on a release tag. npm authenticates the job by trusted publishing: it checks the job's OIDC token against the publisher configured on each package, which names the repository `introspection-org/introspection-js-sdk`, the workflow `publish.yml` and the environment `publish`. No npm token is stored, and none must be added, because an `_authToken` in `.npmrc` takes precedence over OIDC and bypasses the publisher.
+`publish.yml` publishes every non-private package under `packages/` through npm trusted publishing (repository `introspection-org/introspection-js-sdk`, workflow `publish.yml`, environment `publish`). Never add an npm token: an `_authToken` overrides OIDC.
 
-A new published package must meet both of these before the release that first publishes it:
+Before a new package's first release:
 
-- **Its `package.json` declares `repository`**, with this repository's URL and the package's own `directory`, as every sibling does. npm verifies the provenance against `repository.url` and refuses an empty one with `E422`.
-- **It exists on npm with a trusted publisher.** npm accepts a publisher only on a package that exists, so a member of the `introspection-sdk` npm organization with two-factor authentication publishes a stub, then adds the publisher on the package's Settings page: GitHub Actions, organization `introspection-org`, repository `introspection-js-sdk`, workflow `publish.yml`, environment `publish`, with Allow `npm publish` ticked. Without it npm answers `E404 Not Found - PUT`, which reads as a missing package rather than a refused credential.
+- **Declare `repository`** in its `package.json`, copied from a sibling with its own `directory`. Without it npm rejects the provenance (`E422`).
+- **Create it on npm and add its trusted publisher.** npm accepts a publisher only on an existing package, so publish a stub, then add the publisher above on the package's Settings page with Allow `npm publish` ticked. Without it the publish fails with `E404`.
 
 ```bash
-d=$(mktemp -d) && cd "$d" \
-  && echo '{"name":"@introspection-sdk/<package>","version":"0.0.0"}' > package.json \
-  && npm publish --access public --tag placeholder
+d=$(mktemp -d) && cd "$d" && echo '{"name":"@introspection-sdk/<package>","version":"0.0.0"}' > package.json && npm publish --access public --tag placeholder
 ```
 
-A package that is not meant for npm is marked `"private": true` instead.
+Mark a package `"private": true` to keep it off npm.
 
 <!-- BEGIN:turborepo-agent-rules -->
 
