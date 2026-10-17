@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.35.1](https://github.com/introspection-org/introspection-js-sdk/compare/v0.35.0...v0.35.1) (2026-10-17)
+
+
+### Bug Fixes
+
+* **examples:** the AAuth demo books against the provider's real host and shows tool errors ([#469](https://github.com/introspection-org/introspection-js-sdk/issues/469)) ([0338dd2](https://github.com/introspection-org/introspection-js-sdk/commit/0338dd22ffa31aa3280a0f03c09cb1b2ec6661d6))
+
 ## [0.35.0](https://github.com/introspection-org/introspection-js-sdk/compare/v0.34.0...v0.35.0) (2026-10-16)
 
 
