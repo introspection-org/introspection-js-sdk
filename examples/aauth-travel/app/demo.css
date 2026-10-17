@@ -237,6 +237,29 @@
   border-bottom-left-radius: 6px;
 }
 
+.why {
+  align-self: flex-start;
+  max-width: 90%;
+  margin-top: -4px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.why summary {
+  cursor: pointer;
+  width: fit-content;
+}
+
+.why-line {
+  margin-top: 4px;
+  overflow-wrap: anywhere;
+}
+
+.why-line code {
+  font-family: var(--mono);
+  color: var(--no);
+}
+
 .waiting {
   color: var(--wait);
   font-weight: 500;

@@ -3,7 +3,6 @@
   "slug": "booking",
   "provider": "flightsector",
   "auth_mode": "aauth",
-  "api_hosts": ["api.booking.example"],
   "policy_entities": [
     {
       "uid": {

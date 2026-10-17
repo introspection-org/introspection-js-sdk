@@ -1,6 +1,6 @@
 /**
  * The demo page's run, on Introspection. Sam's message starts a task on the
- * travel-agent runtime (the recipe at github.com/introspection-org/recipe-travel-agent),
+ * travel-agent runtime (the recipe at github.com/introspection-recipes/recipe-travel-agent),
  * acting for Sam: the runner identity mints Sam's customer member, and the
  * platform's egress signs every call the agent makes as that member's agent.
  * The page follows each run's AG-UI stream, including the run the platform
@@ -70,6 +70,8 @@ export const SCENARIOS = [
 ] as const;
 
 type Chat = { from: "Sam" | "Agent"; text: string };
+/** A tool call that failed, under the chat line that follows it, as the wire's calls are. */
+type ToolError = { turn: number; tool: string; text: string };
 type Runner = Awaited<
   ReturnType<ReturnType<IntrospectionClient["runtimes"]>["run"]>
 >;
@@ -78,6 +80,7 @@ type Run = {
   prompt?: string;
   busy: boolean;
   chat: Chat[];
+  toolErrors: ToolError[];
   error?: string;
   runner?: Runner;
   taskId?: string;
@@ -99,6 +102,7 @@ type Run = {
 const fresh = (epoch = 0): Run => ({
   busy: false,
   chat: [],
+  toolErrors: [],
   followed: new Set(),
   epoch,
   inboxFrom: inbox().length,
@@ -130,6 +134,7 @@ export function snapshot() {
     prompt: r.prompt,
     busy: r.busy,
     chat: r.chat,
+    toolErrors: r.toolErrors,
     error: r.error,
     taskId: r.taskId,
     working: r.busy && !!r.streaming,
@@ -192,6 +197,63 @@ function toolStatus(result: string) {
   return /\b(403|forbid|denied|refused)\b/i.test(result) ? 403 : 200;
 }
 
+/**
+ * Why a tool call failed, in a line: `HTTP 503 no healthy upstream`, or
+ * undefined when it did not. The result is the tool's own object, whose
+ * `isError` the recipe sets; an approval steer (428) is not a failure.
+ */
+function toolError(content: string) {
+  let text = content;
+  let failed = false;
+  try {
+    const parsed = JSON.parse(content) as {
+      isError?: unknown;
+      content?: unknown;
+    };
+    if (parsed && typeof parsed === "object") {
+      failed = parsed.isError === true;
+      const part = Array.isArray(parsed.content)
+        ? (parsed.content as { type?: string; text?: unknown }[]).find(
+            (c) => c?.type === "text",
+          )
+        : undefined;
+      if (typeof part?.text === "string") text = part.text;
+    }
+  } catch {
+    // a plain-text result
+  }
+  text = text.trim();
+  const http = /^HTTP (\d{3})\b\s*([\s\S]*)$/.exec(text);
+  if (http) {
+    const status = Number(http[1]);
+    failed ||= status >= 400 && status !== 428;
+    if (!failed) return undefined;
+    let reason = http[2].trim();
+    try {
+      const problem = JSON.parse(reason) as {
+        detail?: unknown;
+        title?: unknown;
+        error?: unknown;
+      };
+      const said = [problem.detail, problem.title, problem.error].find(
+        (v) => typeof v === "string" && v,
+      );
+      if (typeof said === "string") reason = said;
+    } catch {
+      // not a problem document
+    }
+    text = `HTTP ${status} ${reason}`;
+  }
+  if (!failed) return undefined;
+  const lines = text
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .slice(0, 2)
+    .join(" ");
+  return lines.length > 200 ? `${lines.slice(0, 199)}…` : lines;
+}
+
 /** Fold one run's AG-UI events into the chat and the agent's tool calls. */
 async function follow(r: Run, epoch: number, runId: string, stream: Stream) {
   r.followed.add(runId);
@@ -246,6 +308,13 @@ async function follow(r: Run, epoch: number, runId: string, stream: Stream) {
           tool.exchange.response = body(content).join("\n").trim() || content;
           tool.exchange.status = toolStatus(content);
         }
+        const failed = toolError(content);
+        if (tool && failed)
+          r.toolErrors.push({
+            turn: r.chat.length,
+            tool: toolLabel(tool.name),
+            text: failed,
+          });
         break;
       }
       case "RUN_ERROR": {
@@ -426,11 +495,13 @@ type Message = { parts?: Part[] };
  * The agent's tool calls, each under the chat line it followed, from the
  * conversation's items: the model's calls and the results it was given back.
  * What happened on the wire behind them is not recorded, so it is not restored.
+ * The ones that failed go into `errors`, for the chat's "why".
  */
 async function toolCalls(
   runner: Runner,
   taskId: string,
   lines: { at: string }[],
+  errors: ToolError[],
 ) {
   const calls: { id: string; name: string; args: string; at: string }[] = [];
   const results = new Map<string, unknown>();
@@ -458,10 +529,13 @@ async function toolCalls(
           });
   }
   for (const call of calls.sort((a, b) => a.at.localeCompare(b.at))) {
-    setTurn(lines.filter((line) => line.at <= call.at).length);
+    const turn = lines.filter((line) => line.at <= call.at).length;
+    setTurn(turn);
     const result = results.get(call.id);
     const content =
       typeof result === "string" ? result : JSON.stringify(result ?? "");
+    const failed = result === undefined ? undefined : toolError(content);
+    if (failed) errors.push({ turn, tool: toolLabel(call.name), text: failed });
     const http = /^HTTP (\d{3})\b/.exec(content);
     note({
       from: "Agent",
@@ -509,7 +583,7 @@ export async function join(taskId: string) {
     const lines = await history(r.runner, taskId);
     if (r.epoch !== epoch) return;
     r.chat = lines.map(({ from, text }) => ({ from, text }));
-    await toolCalls(r.runner, taskId, lines);
+    await toolCalls(r.runner, taskId, lines, r.toolErrors);
     if (r.epoch !== epoch) return;
     setTurn(r.chat.length);
     // Follow a run only while one is live; an idle conversation's sandbox is

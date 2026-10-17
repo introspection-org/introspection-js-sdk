@@ -19,9 +19,9 @@ Then open `http://localhost:3400` and send a sample prompt as Sam. Without `RESE
 
 `pnpm dev` serves the app on `:3400`, gives the booking provider and the Browserbase mock public https URLs through free Cloudflare tunnels (the platform's egress and Person Server call them), and sets up your project on whichever Introspection `introspection login` chose. The first time on a stack it creates:
 
-1. **The agent:** a repository Introspection hosts, seeded from the public [travel-agent recipe](https://github.com/introspection-org/recipe-travel-agent), and its runtime.
+1. **The agent:** a repository Introspection hosts, seeded from the public [travel-agent recipe](https://github.com/introspection-recipes/recipe-travel-agent), and its runtime.
 2. **Flight search:** Browserbase's hosted MCP with `BROWSERBASE_API_KEY` set, otherwise this app's mock.
-3. **The booking provider** as an AAuth connector, from [`introspection/booking.json`](./introspection/booking.json), acting as a new `Flight Sector agent` application.
+3. **The booking provider** as an AAuth connector, from [`introspection/booking.json`](./introspection/booking.json), acting as a new `Flight Sector agent` application. The connector allows the provider's public host, and the runtime's `BOOKING_API_URL` variable tells the recipe where to call it.
 4. **Sam** as a customer member with the seniority the recipe's rules read, from [`introspection/sam.json`](./introspection/sam.json).
 5. **Client secrets** for two applications, in `.env.local` with the rest of the settings: the agent's, which the demo page signs in with, and, with the hosted Person Server, **Acme approvals**, which may only read and answer approvals.
 
@@ -29,7 +29,7 @@ Then open `http://localhost:3400` and send a sample prompt as Sam. Without `RESE
 
 The platform's egress and Person Server call the booking provider and the Browserbase mock, so `pnpm dev` gives each a public https URL through Cloudflare:
 
-- **By default, a quick tunnel:** free, with no domain and no Cloudflare account, at a new `https://<words>.trycloudflare.com` each run. `pnpm dev` points your project's connector and flight-search binding at the new URLs as it starts, so a restart needs nothing from you. What it does break is anything in flight: a trip waiting on Dana, or an approval link from the last run. Cloudflare treats quick tunnels as for testing, with no uptime guarantee.
+- **By default, a quick tunnel:** free, with no domain and no Cloudflare account, at a new `https://<words>.trycloudflare.com` each run. `pnpm dev` points your project's connector, `BOOKING_API_URL` and flight-search binding at the new URLs as it starts, so a restart needs nothing from you. What it does break is anything in flight: a trip waiting on Dana, or an approval link from the last run. Cloudflare treats quick tunnels as for testing, with no uptime guarantee.
 - **For stable URLs, a named tunnel on your own domain:** the same every run, which is what to use when presenting. The domain must be on Cloudflare (the free plan is enough). Once:
 
   ```bash

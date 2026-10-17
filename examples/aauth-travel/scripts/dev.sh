@@ -18,12 +18,13 @@
 #      travel-agent recipe, and its runtime
 #   2. flight search: Browserbase's hosted MCP with BROWSERBASE_API_KEY set,
 #      otherwise this app's mock
-#   3. the agent's application, and the booking provider as an AAuth connector
-#      (introspection/booking.json)
+#   3. the agent's application, the booking provider as an AAuth connector
+#      (introspection/booking.json) on its public host, and the runtime's
+#      BOOKING_API_URL variable naming that host for the recipe
 #   4. Sam, the traveller, as a customer member (introspection/sam.json)
 #   5. a client secret for the demo page to sign in as the agent's application,
 #      and, on the hosted Person Server, Acme's own application for approvals
-# Later runs only point the connector and the mock at the new URLs.
+# Later runs only point the connector, BOOKING_API_URL and the mock at the new URLs.
 #
 # Env:
 #   PERSON_SERVER        hosted (default): Introspection's hosted Person Server
@@ -38,7 +39,7 @@ PORT=3400
 ENV_FILE=.env.local
 WORK=.introspection-work
 RUNTIME=travel-agent
-RECIPE_URL="${RECIPE_URL:-https://github.com/introspection-org/recipe-travel-agent.git}"
+RECIPE_URL="${RECIPE_URL:-https://github.com/introspection-recipes/recipe-travel-agent.git}"
 SAM_USER_ID=sam@acme.example
 
 say() { echo "[dev] $*"; }
@@ -190,14 +191,19 @@ apply_connector() {
   local metadata
   metadata="$(node -e '
     const [resource, tenant] = process.argv.slice(1);
-    const m = { aauth_resource: resource, aauth_upstream: resource };
+    const m = { aauth_resource: resource };
     if (tenant) m.aauth_tenant = tenant;
     console.log(JSON.stringify(m));
   ' "$BOOKING" "$TENANT")"
+  # The booking provider's host changes with its tunnel, so the connector's
+  # api_hosts and the recipe's BOOKING_API_URL are set here, not in booking.json.
   introspection connectors create @introspection/booking.json \
+    --api-host "${BOOKING#https://}" \
     --person-server-url "$PERSON_SERVER_URL" \
     --application-id "$(read_env AGENT_APPLICATION_ID)" \
     --metadata "$metadata" >/dev/null
+  printf '%s' "$BOOKING" | introspection bindings variables create -r "$RUNTIME" \
+    --name BOOKING_API_URL --from-stdin >/dev/null
   say "booking connector → $BOOKING, approvals by $PERSON_SERVER_URL"
 }
 
