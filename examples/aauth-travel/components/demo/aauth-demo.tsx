@@ -37,11 +37,14 @@ type Email = {
   budget: { suggested: number | null } | null;
   decided: boolean;
 };
+type ToolError = { turn: number; tool: string; text: string };
 type Scenario = { id: string; title: string; prompt: string; hint: string };
 type Snapshot = {
   prompt?: string;
   busy: boolean;
   chat: { from: "Sam" | "Agent"; text: string }[];
+  /** Tool calls that failed, each under the chat line that followed it. */
+  toolErrors?: ToolError[];
   error?: string;
   /** The run's conversation in the Introspection app. */
   /** The run's task, which is its conversation in Introspection. */
@@ -234,6 +237,21 @@ function Inbox({
         </div>
       )}
     </div>
+  );
+}
+
+/** The agent's failed tool calls, folded away under its reply. */
+function Why({ errors }: { errors: ToolError[] }) {
+  if (errors.length === 0) return null;
+  return (
+    <details className="why">
+      <summary>why</summary>
+      {errors.map((e, i) => (
+        <div key={i} className="why-line">
+          <code>{e.tool}</code>: {e.text}
+        </div>
+      ))}
+    </details>
   );
 }
 
@@ -610,18 +628,38 @@ export function AAuthDemo({ scenarios }: { scenarios: Scenario[] }) {
                   ))}
                 </div>
               )}
-              {state.chat.map((line, i) => (
-                <div
-                  key={i}
-                  className={`bubble ${line.from === "Sam" ? "sam" : "agent"}`}
-                >
-                  {line.from === "Agent" ? (
-                    <Markdown remarkPlugins={[remarkGfm]}>{line.text}</Markdown>
-                  ) : (
-                    line.text
-                  )}
-                </div>
-              ))}
+              {state.chat.map((line, i) => {
+                // Under the agent's reply that follows them, or ahead of Sam's.
+                const why = (
+                  <Why
+                    errors={(state.toolErrors ?? []).filter(
+                      (e) => e.turn === i,
+                    )}
+                  />
+                );
+                return (
+                  <Fragment key={i}>
+                    {line.from === "Sam" && why}
+                    <div
+                      className={`bubble ${line.from === "Sam" ? "sam" : "agent"}`}
+                    >
+                      {line.from === "Agent" ? (
+                        <Markdown remarkPlugins={[remarkGfm]}>
+                          {line.text}
+                        </Markdown>
+                      ) : (
+                        line.text
+                      )}
+                    </div>
+                    {line.from === "Agent" && why}
+                  </Fragment>
+                );
+              })}
+              <Why
+                errors={(state.toolErrors ?? []).filter(
+                  (e) => e.turn >= state.chat.length,
+                )}
+              />
               {state.working && !waitingOn && (
                 <div className="bubble agent working">…</div>
               )}
