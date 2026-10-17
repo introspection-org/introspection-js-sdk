@@ -21,14 +21,14 @@ Write as you would in a chat on a phone: two or three short sentences, a short l
 
 ## A trip is a mission
 
-1. Confirm the trip: origin, destination, dates, which legs are for work, and a budget. When the traveller gives a date relative to now ("next Monday", "the 27th"), call `today` first, and say the actual dates back to them.
+1. Confirm the trip: origin, destination, dates, which legs are for work, and a budget. Always call `today` first, on its own, and wait for its answer before calling any other tool or working out any date, and say the actual dates, with the year, back to them.
 2. Price it, then propose the whole trip with `propose_trip`: who travels, where, when, what you will book, and a suggested budget as "up to $N". Suggest the budget the employee named, even when the fares you were quoted come to more: the manager decides, and asks again for anything over what they set. Don't stop to ask the employee to choose between options. The employee's manager approves it once and sets the budget; the approved mission's `budget_cents` is what you have to spend.
 3. Once approved, book one item at a time with `book_item`, passing the offer's `offer_id` and `quote` unchanged, with its purpose and who pays.
 4. When everything is booked, report it with `complete_trip`; the employee accepts it.
 
 ## Finding flights and hotels
 
-- **Flights:** search the web with the browser. `start` a session, `navigate` to `https://www.google.com/travel/flights?q=Flights%20from%20SFO%20to%20SYD%20on%202026-10-18%20one%20way%20economy` (your route, date and cabin), `extract` the flights shown with their airline, times, duration, stops and price, then `end` the session. Flight Sector never books first class: when the employee asks for it, say so and search business instead. Pick what fits, then `quote_flight` it by airline (and flight number, if the search showed one) for a bookable offer. Quote and propose the booking provider's fare, not the price the search showed; say so when they differ.
+- **Flights:** search the web with the browser. `start` a session, `navigate` to `https://www.google.com/travel/flights?q=Flights%20from%20SFO%20to%20SYD%20on%202026-10-18%20one%20way%20economy` (your route, date and cabin), `extract` the flights shown with their airline, times, duration, stops and price, then `end` the session. The booking provider sells only some of those flights: `search_offers` with `kind: flight` lists the ones it sells on each route, so pick what fits from that list, then `quote_flight` it by airline and flight number for a bookable offer. Quote and propose the booking provider's fare, never the price the search showed, and don't compare the two.
 - **Hotels:** `search_offers` with `kind: hotel`.
 - If the browser fails, `search_offers` with `kind: flight` also returns bookable flights.
 
@@ -42,6 +42,7 @@ You never hold a booking credential, and you never decide what is in policy.
   - if a booking over what is left of the budget was approved, book the same offer again;
   - if declined, say so, and finish the trip with what is booked (`complete_trip`). Look for an alternative only if the traveller asks for one.
 - **Refused.** A result names a rule or a reason. Tell the employee and suggest what would fit.
+- **Unavailable.** No response, a 5xx, or something that could not be reached. Retry once at most; if it fails again, tell the employee what is not working and stop. Don't keep retrying, and don't promise to.
 
 Never try to work around an approval, never ask the employee for credentials, and don't retry anything awaiting approval.
 ```
@@ -58,29 +59,161 @@ Never try to work around an approval, never ask the employee for credentials, an
 // runtime reports it.
 import { Type } from "typebox";
 
-const BOOKING_API_URL = (
-  process.env.BOOKING_API_URL ?? "https://api.booking.example"
-).replace(/\/$/, "");
+// Required: the booking provider's real URL, set as a project variable. The
+// project's AAuth connector must list its host in `api_hosts` for the egress to
+// sign for it.
+const BOOKING_API_URL = (process.env.BOOKING_API_URL ?? "")
+  .trim()
+  .replace(/\/$/, "");
 const PERSON_SERVER_URL = "https://person-server.aauth";
 const REQUEST_TIMEOUT_MS = 20_000;
+// A service that is down does not come back for a retry a second later, so
+// after this many failures in a row the agent is told to stop.
+const MAX_FAILURES_IN_A_ROW = 2;
+let failuresInARow = 0;
+
+const NOT_CONFIGURED = {
+  content: [
+    {
+      type: "text",
+      text:
+        "Booking is not configured: the project has no BOOKING_API_URL variable. " +
+        "It needs that variable set to the booking provider's URL, and an AAuth connector whose api_hosts includes that host. " +
+        "Retrying will not help. Tell the employee booking is not set up yet, and that whoever runs this agent needs to configure it. Then stop.",
+    },
+  ],
+  details: { status: 0, reason: "booking_api_url_unset" },
+  isError: true,
+};
+
+const DNS_ERRORS = new Set(["ENOTFOUND", "EAI_AGAIN"]);
+
+function errorCode(err) {
+  // fetch wraps the socket error, sometimes twice.
+  for (let e = err; e; e = e.cause)
+    if (typeof e.code === "string") return e.code;
+  return undefined;
+}
 
 async function call(path, body, signal, base = BOOKING_API_URL) {
   const timeout = AbortSignal.timeout(REQUEST_TIMEOUT_MS);
-  const response = await fetch(`${base}${path}`, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify(body),
-    signal: signal ? AbortSignal.any([signal, timeout]) : timeout,
-  });
-  return { status: response.status, text: await response.text() };
+  const host = URL.canParse(base) ? new URL(base).host : base;
+  try {
+    const response = await fetch(`${base}${path}`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+      signal: signal ? AbortSignal.any([signal, timeout]) : timeout,
+    });
+    return {
+      status: response.status,
+      text: await response.text(),
+      contentType: response.headers.get("content-type") ?? "",
+      host,
+    };
+  } catch (err) {
+    // A stopped run ends here; anything else is a service that did not answer.
+    if (signal?.aborted) throw err;
+    return {
+      status: 0,
+      text: timeout.aborted ? "timed out" : String(err?.message ?? err),
+      code: errorCode(err),
+      host,
+    };
+  }
+}
+
+const POLICY_DENIED = "https://introspection.dev/problems/policy-denied";
+const UPSTREAM_UNREACHABLE = "/problems/upstream-unreachable";
+
+function refusedByPolicy(res) {
+  if (res.status !== 403) return false;
+  try {
+    return JSON.parse(res.text).type === POLICY_DENIED;
+  } catch {
+    return false;
+  }
+}
+
+// An RFC 9457 problem, whether or not it was labelled application/problem+json.
+function problemOf(res) {
+  if (res.status === 0) return undefined;
+  let body;
+  try {
+    body = JSON.parse(res.text);
+  } catch {
+    return undefined;
+  }
+  if (!body || typeof body !== "object") return undefined;
+  if (
+    !res.contentType?.includes("application/problem+json") &&
+    typeof body.type !== "string"
+  )
+    return undefined;
+  const problem = {};
+  for (const key of ["type", "title", "detail", "host", "reason"])
+    if (typeof body[key] === "string") problem[key] = body[key];
+  return problem;
+}
+
+function describe(problem) {
+  const lines = [`Problem: ${problem.type ?? "about:blank"}`];
+  if (problem.title) lines.push(`Title: ${problem.title}`);
+  if (problem.detail) lines.push(`Detail: ${problem.detail}`);
+  if (problem.host) lines.push(`Host: ${problem.host}`);
+  if (problem.reason) lines.push(`Reason: ${problem.reason}`);
+  return lines.join("\n");
 }
 
 function result(res) {
+  const decided = res.status === 428 || refusedByPolicy(res);
+  const problem = decided ? undefined : problemOf(res);
+
+  // An upstream that does not resolve or refuses connections is a setup fault,
+  // not an outage: no number of retries fixes it.
+  const unreachable = problem?.type?.endsWith(UPSTREAM_UNREACHABLE);
+  if (unreachable || (res.status === 0 && DNS_ERRORS.has(res.code))) {
+    const host = problem?.host ?? res.host;
+    const reason =
+      problem?.reason ?? (res.code ? "dns_resolution_failed" : "unreachable");
+    const text =
+      (res.status === 0
+        ? `No response: ${res.text}`
+        : `HTTP ${res.status}\n${describe(problem)}`) +
+      `\n\nBooking is misconfigured: ${host} cannot be reached (${reason}). Retrying will not help. ` +
+      "Tell the employee booking is not set up correctly, not that they should try again later, " +
+      "and what is already booked. Then stop.";
+    return {
+      content: [{ type: "text", text }],
+      details: {
+        status: res.status,
+        misconfigured: true,
+        host,
+        reason,
+        ...(res.code && { code: res.code }),
+        ...(problem && { problem }),
+      },
+      isError: true,
+    };
+  }
+
+  const unavailable =
+    res.status === 0 || res.status === 401 || res.status >= 500;
+  failuresInARow = unavailable ? failuresInARow + 1 : 0;
+  let text =
+    res.status === 0
+      ? `No response: ${res.text}`
+      : `HTTP ${res.status}\n${res.text}`;
+  if (problem) text += `\n\n${describe(problem)}`;
+  if (failuresInARow >= MAX_FAILURES_IN_A_ROW)
+    text +=
+      `\n\n${failuresInARow} failures in a row: the service is not answering. Do not retry. ` +
+      "Tell the employee what is not working and what is already booked, and that they can ask again later. Then stop.";
   return {
-    content: [{ type: "text", text: `HTTP ${res.status}\n${res.text}` }],
-    details: { status: res.status },
-    // A 428 is the approval steer, which carries what to tell the person.
-    isError: res.status >= 400 && res.status !== 428,
+    content: [{ type: "text", text }],
+    details: { status: res.status, ...(problem && { problem }) },
+    // A 428 is the approval steer and a policy refusal is a decision; each carries what to tell the person.
+    isError: res.status === 0 || (res.status >= 400 && !decided),
   };
 }
 
@@ -186,6 +319,7 @@ export function registerBookingTools(pi) {
       check_out: Type.Optional(Type.String({ description: "YYYY-MM-DD" })),
     }),
     async execute(_toolCallId, params, signal) {
+      if (!BOOKING_API_URL) return NOT_CONFIGURED;
       return result(await call("/v1/search", params, signal));
     },
   });
@@ -213,12 +347,12 @@ export function registerBookingTools(pi) {
       ),
       cabin: Type.Optional(
         Type.String({
-          description:
-            "economy, premium_economy or business; first is never booked",
+          description: "economy, premium_economy, business or first",
         }),
       ),
     }),
     async execute(_toolCallId, params, signal) {
+      if (!BOOKING_API_URL) return NOT_CONFIGURED;
       return result(await call("/v1/quote", params, signal));
     },
   });
@@ -242,6 +376,7 @@ export function registerBookingTools(pi) {
       payer: Type.Union([Type.Literal("company"), Type.Literal("traveler")]),
     }),
     async execute(_toolCallId, params, signal) {
+      if (!BOOKING_API_URL) return NOT_CONFIGURED;
       return result(await call("/v1/reserve", params, signal));
     },
   });
@@ -706,6 +841,20 @@ unless {
   principal has level && principal has company &&
   principal.level >= principal.company.business_min_level &&
   resource has block_minutes && resource.block_minutes >= 360
+};
+
+@id("over-seniority-limit")
+@reason("this booking costs more than the traveller's seniority allows on the company's account")
+forbid (principal, action == Action::"booking.reserve", resource)
+when {
+  resource.payer == "company" && resource has total_cents &&
+  principal has level && principal has company &&
+  principal.company has booking_limit_cents &&
+  principal.company has senior_booking_limit_cents &&
+  resource.total_cents >
+    (if principal.level >= principal.company.business_min_level
+     then principal.company.senior_booking_limit_cents
+     else principal.company.booking_limit_cents)
 };
 
 @id("asked-for")
@@ -1673,14 +1822,14 @@ Write as you would in a chat on a phone: two or three short sentences, a short l
 
 ## A trip is a mission
 
-1. Confirm the trip: origin, destination, dates, which legs are for work, and a budget. When the traveller gives a date relative to now ("next Monday", "the 27th"), call `today` first, and say the actual dates back to them.
+1. Confirm the trip: origin, destination, dates, which legs are for work, and a budget. Always call `today` first, on its own, and wait for its answer before calling any other tool or working out any date, and say the actual dates, with the year, back to them.
 2. Price it, then propose the whole trip with `propose_trip`: who travels, where, when, what you will book, and a suggested budget as "up to $N". Suggest the budget the employee named, even when the fares you were quoted come to more: the manager decides, and asks again for anything over what they set. Don't stop to ask the employee to choose between options. The employee's manager approves it once and sets the budget; the approved mission's `budget_cents` is what you have to spend.
 3. Once approved, book one item at a time with `book_item`, passing the offer's `offer_id` and `quote` unchanged, with its purpose and who pays.
 4. When everything is booked, report it with `complete_trip`; the employee accepts it.
 
 ## Finding flights and hotels
 
-- **Flights:** search the web with the browser. `start` a session, `navigate` to `https://www.google.com/travel/flights?q=Flights%20from%20SFO%20to%20SYD%20on%202026-10-18%20one%20way%20economy` (your route, date and cabin), `extract` the flights shown with their airline, times, duration, stops and price, then `end` the session. Flight Sector never books first class: when the employee asks for it, say so and search business instead. Pick what fits, then `quote_flight` it by airline (and flight number, if the search showed one) for a bookable offer. Quote and propose the booking provider's fare, not the price the search showed; say so when they differ.
+- **Flights:** search the web with the browser. `start` a session, `navigate` to `https://www.google.com/travel/flights?q=Flights%20from%20SFO%20to%20SYD%20on%202026-10-18%20one%20way%20economy` (your route, date and cabin), `extract` the flights shown with their airline, times, duration, stops and price, then `end` the session. The booking provider sells only some of those flights: `search_offers` with `kind: flight` lists the ones it sells on each route, so pick what fits from that list, then `quote_flight` it by airline and flight number for a bookable offer. Quote and propose the booking provider's fare, never the price the search showed, and don't compare the two.
 - **Hotels:** `search_offers` with `kind: hotel`.
 - If the browser fails, `search_offers` with `kind: flight` also returns bookable flights.
 
@@ -1694,6 +1843,7 @@ You never hold a booking credential, and you never decide what is in policy.
   - if a booking over what is left of the budget was approved, book the same offer again;
   - if declined, say so, and finish the trip with what is booked (`complete_trip`). Look for an alternative only if the traveller asks for one.
 - **Refused.** A result names a rule or a reason. Tell the employee and suggest what would fit.
+- **Unavailable.** No response, a 5xx, or something that could not be reached. Retry once at most; if it fails again, tell the employee what is not working and stop. Don't keep retrying, and don't promise to.
 
 Never try to work around an approval, never ask the employee for credentials, and don't retry anything awaiting approval.
 ```
@@ -1716,29 +1866,161 @@ Sam replies “I'm easy”. The agent searches again for a hotel that fits the $
 // runtime reports it.
 import { Type } from "typebox";
 
-const BOOKING_API_URL = (
-  process.env.BOOKING_API_URL ?? "https://api.booking.example"
-).replace(/\/$/, "");
+// Required: the booking provider's real URL, set as a project variable. The
+// project's AAuth connector must list its host in `api_hosts` for the egress to
+// sign for it.
+const BOOKING_API_URL = (process.env.BOOKING_API_URL ?? "")
+  .trim()
+  .replace(/\/$/, "");
 const PERSON_SERVER_URL = "https://person-server.aauth";
 const REQUEST_TIMEOUT_MS = 20_000;
+// A service that is down does not come back for a retry a second later, so
+// after this many failures in a row the agent is told to stop.
+const MAX_FAILURES_IN_A_ROW = 2;
+let failuresInARow = 0;
+
+const NOT_CONFIGURED = {
+  content: [
+    {
+      type: "text",
+      text:
+        "Booking is not configured: the project has no BOOKING_API_URL variable. " +
+        "It needs that variable set to the booking provider's URL, and an AAuth connector whose api_hosts includes that host. " +
+        "Retrying will not help. Tell the employee booking is not set up yet, and that whoever runs this agent needs to configure it. Then stop.",
+    },
+  ],
+  details: { status: 0, reason: "booking_api_url_unset" },
+  isError: true,
+};
+
+const DNS_ERRORS = new Set(["ENOTFOUND", "EAI_AGAIN"]);
+
+function errorCode(err) {
+  // fetch wraps the socket error, sometimes twice.
+  for (let e = err; e; e = e.cause)
+    if (typeof e.code === "string") return e.code;
+  return undefined;
+}
 
 async function call(path, body, signal, base = BOOKING_API_URL) {
   const timeout = AbortSignal.timeout(REQUEST_TIMEOUT_MS);
-  const response = await fetch(`${base}${path}`, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify(body),
-    signal: signal ? AbortSignal.any([signal, timeout]) : timeout,
-  });
-  return { status: response.status, text: await response.text() };
+  const host = URL.canParse(base) ? new URL(base).host : base;
+  try {
+    const response = await fetch(`${base}${path}`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+      signal: signal ? AbortSignal.any([signal, timeout]) : timeout,
+    });
+    return {
+      status: response.status,
+      text: await response.text(),
+      contentType: response.headers.get("content-type") ?? "",
+      host,
+    };
+  } catch (err) {
+    // A stopped run ends here; anything else is a service that did not answer.
+    if (signal?.aborted) throw err;
+    return {
+      status: 0,
+      text: timeout.aborted ? "timed out" : String(err?.message ?? err),
+      code: errorCode(err),
+      host,
+    };
+  }
+}
+
+const POLICY_DENIED = "https://introspection.dev/problems/policy-denied";
+const UPSTREAM_UNREACHABLE = "/problems/upstream-unreachable";
+
+function refusedByPolicy(res) {
+  if (res.status !== 403) return false;
+  try {
+    return JSON.parse(res.text).type === POLICY_DENIED;
+  } catch {
+    return false;
+  }
+}
+
+// An RFC 9457 problem, whether or not it was labelled application/problem+json.
+function problemOf(res) {
+  if (res.status === 0) return undefined;
+  let body;
+  try {
+    body = JSON.parse(res.text);
+  } catch {
+    return undefined;
+  }
+  if (!body || typeof body !== "object") return undefined;
+  if (
+    !res.contentType?.includes("application/problem+json") &&
+    typeof body.type !== "string"
+  )
+    return undefined;
+  const problem = {};
+  for (const key of ["type", "title", "detail", "host", "reason"])
+    if (typeof body[key] === "string") problem[key] = body[key];
+  return problem;
+}
+
+function describe(problem) {
+  const lines = [`Problem: ${problem.type ?? "about:blank"}`];
+  if (problem.title) lines.push(`Title: ${problem.title}`);
+  if (problem.detail) lines.push(`Detail: ${problem.detail}`);
+  if (problem.host) lines.push(`Host: ${problem.host}`);
+  if (problem.reason) lines.push(`Reason: ${problem.reason}`);
+  return lines.join("\n");
 }
 
 function result(res) {
+  const decided = res.status === 428 || refusedByPolicy(res);
+  const problem = decided ? undefined : problemOf(res);
+
+  // An upstream that does not resolve or refuses connections is a setup fault,
+  // not an outage: no number of retries fixes it.
+  const unreachable = problem?.type?.endsWith(UPSTREAM_UNREACHABLE);
+  if (unreachable || (res.status === 0 && DNS_ERRORS.has(res.code))) {
+    const host = problem?.host ?? res.host;
+    const reason =
+      problem?.reason ?? (res.code ? "dns_resolution_failed" : "unreachable");
+    const text =
+      (res.status === 0
+        ? `No response: ${res.text}`
+        : `HTTP ${res.status}\n${describe(problem)}`) +
+      `\n\nBooking is misconfigured: ${host} cannot be reached (${reason}). Retrying will not help. ` +
+      "Tell the employee booking is not set up correctly, not that they should try again later, " +
+      "and what is already booked. Then stop.";
+    return {
+      content: [{ type: "text", text }],
+      details: {
+        status: res.status,
+        misconfigured: true,
+        host,
+        reason,
+        ...(res.code && { code: res.code }),
+        ...(problem && { problem }),
+      },
+      isError: true,
+    };
+  }
+
+  const unavailable =
+    res.status === 0 || res.status === 401 || res.status >= 500;
+  failuresInARow = unavailable ? failuresInARow + 1 : 0;
+  let text =
+    res.status === 0
+      ? `No response: ${res.text}`
+      : `HTTP ${res.status}\n${res.text}`;
+  if (problem) text += `\n\n${describe(problem)}`;
+  if (failuresInARow >= MAX_FAILURES_IN_A_ROW)
+    text +=
+      `\n\n${failuresInARow} failures in a row: the service is not answering. Do not retry. ` +
+      "Tell the employee what is not working and what is already booked, and that they can ask again later. Then stop.";
   return {
-    content: [{ type: "text", text: `HTTP ${res.status}\n${res.text}` }],
-    details: { status: res.status },
-    // A 428 is the approval steer, which carries what to tell the person.
-    isError: res.status >= 400 && res.status !== 428,
+    content: [{ type: "text", text }],
+    details: { status: res.status, ...(problem && { problem }) },
+    // A 428 is the approval steer and a policy refusal is a decision; each carries what to tell the person.
+    isError: res.status === 0 || (res.status >= 400 && !decided),
   };
 }
 
@@ -1844,6 +2126,7 @@ export function registerBookingTools(pi) {
       check_out: Type.Optional(Type.String({ description: "YYYY-MM-DD" })),
     }),
     async execute(_toolCallId, params, signal) {
+      if (!BOOKING_API_URL) return NOT_CONFIGURED;
       return result(await call("/v1/search", params, signal));
     },
   });
@@ -1871,12 +2154,12 @@ export function registerBookingTools(pi) {
       ),
       cabin: Type.Optional(
         Type.String({
-          description:
-            "economy, premium_economy or business; first is never booked",
+          description: "economy, premium_economy, business or first",
         }),
       ),
     }),
     async execute(_toolCallId, params, signal) {
+      if (!BOOKING_API_URL) return NOT_CONFIGURED;
       return result(await call("/v1/quote", params, signal));
     },
   });
@@ -1900,6 +2183,7 @@ export function registerBookingTools(pi) {
       payer: Type.Union([Type.Literal("company"), Type.Literal("traveler")]),
     }),
     async execute(_toolCallId, params, signal) {
+      if (!BOOKING_API_URL) return NOT_CONFIGURED;
       return result(await call("/v1/reserve", params, signal));
     },
   });
