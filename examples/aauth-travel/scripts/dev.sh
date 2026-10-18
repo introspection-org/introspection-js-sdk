@@ -31,6 +31,10 @@
 #                        speaks for Acme. acme: Acme's own, served by this app.
 #   BROWSERBASE_API_KEY  real flight searches through Browserbase's hosted MCP
 #   FLIGHTSECTOR_DOMAIN  a domain in your Cloudflare account, for stable URLs
+#   FLIGHTSECTOR_HOST_PREFIX  prefixes those hosts, e.g. smoke- for an automated
+#                        run that must not take over a presenter's hosts
+#   FLIGHTSECTOR_TUNNEL_TOKEN  run the named tunnel by its token, for CI: no
+#                        `cloudflared tunnel login`; its DNS routes must already exist
 #   RECIPE_URL           the recipe to seed from (default the public one)
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -138,10 +142,15 @@ quick_tunnel() {
 # *.<domain>, not a second level.
 if [ -n "${FLIGHTSECTOR_DOMAIN:-}" ]; then
   NAME="${FLIGHTSECTOR_TUNNEL:-flightsector}"
-  cloudflared tunnel info "$NAME" >/dev/null 2>&1 || cloudflared tunnel create "$NAME" >/dev/null
-  BOOKING="https://flightsector-booking.${FLIGHTSECTOR_DOMAIN}"
-  MOCK="https://flightsector-browserbase.${FLIGHTSECTOR_DOMAIN}"
-  ACME="https://flightsector-ps.${FLIGHTSECTOR_DOMAIN}"
+  PREFIX="${FLIGHTSECTOR_HOST_PREFIX:-}"
+  # A token connects one tunnel and nothing else, so it can neither create the
+  # tunnel nor route DNS: both are done once, by an account login.
+  if [ -z "${FLIGHTSECTOR_TUNNEL_TOKEN:-}" ]; then
+    cloudflared tunnel info "$NAME" >/dev/null 2>&1 || cloudflared tunnel create "$NAME" >/dev/null
+  fi
+  BOOKING="https://${PREFIX}flightsector-booking.${FLIGHTSECTOR_DOMAIN}"
+  MOCK="https://${PREFIX}flightsector-browserbase.${FLIGHTSECTOR_DOMAIN}"
+  ACME="https://${PREFIX}flightsector-ps.${FLIGHTSECTOR_DOMAIN}"
   ROUTES=("$BOOKING=$PORT" "$MOCK=$PORT" "$ACME=$PORT")
   # A local Introspection stack's Agent Provider and Person Server are named by
   # their public URLs, so they get hosts here too: ones that outlive a restart.
@@ -155,11 +164,14 @@ if [ -n "${FLIGHTSECTOR_DOMAIN:-}" ]; then
   for route in "${ROUTES[@]}"; do
     host="${route%=*}"
     host="${host#https://}"
-    cloudflared tunnel route dns --overwrite-dns "$NAME" "$host" >/dev/null
+    if [ -z "${FLIGHTSECTOR_TUNNEL_TOKEN:-}" ]; then
+      cloudflared tunnel route dns --overwrite-dns "$NAME" "$host" >/dev/null
+    fi
     printf '  - hostname: %s\n    service: http://localhost:%s\n' "$host" "${route##*=}" >>"$TUNNEL_CONFIG"
   done
   echo "  - service: http_status:404" >>"$TUNNEL_CONFIG"
-  cloudflared tunnel --no-autoupdate --config "$TUNNEL_CONFIG" run "$NAME" >"$(mktemp -t flightsector-tunnel)" 2>&1 &
+  # The token reaches cloudflared in its environment (TUNNEL_TOKEN), never argv.
+  TUNNEL_TOKEN="${FLIGHTSECTOR_TUNNEL_TOKEN:-}" cloudflared tunnel --no-autoupdate --config "$TUNNEL_CONFIG" run "$NAME" >"$(mktemp -t flightsector-tunnel)" 2>&1 &
   PIDS+=($!)
 else
   quick_tunnel BOOKING
