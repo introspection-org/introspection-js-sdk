@@ -2,6 +2,8 @@
 
 import { useRef, useState } from "react";
 
+import { fetchRetrying } from "@/lib/retry";
+
 const DIGITS = 6;
 
 export function ApprovalForm({
@@ -50,7 +52,7 @@ export function ApprovalForm({
   async function submit(verdict: "approve" | "decline") {
     setBusy(true);
     setError("");
-    const response = await fetch(decisionUrl, {
+    const response = await fetchRetrying(decisionUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({

@@ -21,7 +21,7 @@ import {
 } from "@introspection-sdk/person-server";
 
 import { record } from "../events";
-import { AGENT_PROVIDERS, PERSON_SERVER_URL } from "../origins";
+import { agentProviders, PERSON_SERVER_URL } from "../origins";
 import { people, type Person as Employee } from "../world";
 import { sendApprovalEmail } from "./mail";
 
@@ -155,7 +155,7 @@ export function personServer(): Promise<PersonServer> {
     name: "Acme Person Server",
     description:
       "Speaks for Acme's people. A manager approves each trip as a mission; bookings within it need no one.",
-    trustedAgentProviders: AGENT_PROVIDERS,
+    trustedAgentProviders: (issuer) => agentProviders().includes(issuer),
     signingKey: process.env.ACME_PS_SIGNING_KEY,
     subjectSecret: process.env.ACME_PS_SUBJECT_SECRET,
     store: state.store,

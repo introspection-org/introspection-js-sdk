@@ -14,6 +14,7 @@ import { IntrospectionClient } from "@introspection-sdk/introspection-node";
 
 import { clearInbox, inbox } from "../acme/mail";
 import { approvalSummary, missions } from "../acme/approvals";
+import { fetchRetrying } from "../retry";
 import {
   ACME_APPROVAL_URL,
   BOOKING_ISSUER,
@@ -611,15 +612,18 @@ export async function decide(
   if (!email || r.decided.includes(index)) return;
   const id = email.link.split("/").pop();
   const who = email.approverName.startsWith("Sam") ? "Sam" : "Dana";
-  const response = await fetch(`${ACME_APPROVAL_URL}/ps/approvals/${id}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", [ACTOR_HEADER]: who },
-    body: JSON.stringify({
-      code: email.code,
-      verdict,
-      ...(budgetDollars ? { budget: budgetDollars } : {}),
-    }),
-  });
+  const response = await fetchRetrying(
+    `${ACME_APPROVAL_URL}/ps/approvals/${id}`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json", [ACTOR_HEADER]: who },
+      body: JSON.stringify({
+        code: email.code,
+        verdict,
+        ...(budgetDollars ? { budget: budgetDollars } : {}),
+      }),
+    },
+  );
   if (!response.ok) {
     const problem = (await response.json().catch(() => ({}))) as {
       detail?: string;
