@@ -30,7 +30,7 @@ import {
 import { record } from "./events";
 import { HttpError } from "./http";
 import {
-  AGENT_PROVIDERS,
+  agentProviders,
   BOOKING_ISSUER,
   HOSTED_PERSON_SERVER_URL,
   PERSON_SERVER_URL,
@@ -327,7 +327,7 @@ export async function reserve(request: Request): Promise<Response> {
     audience: ISSUER,
     accept: ["agent", "person", "auth"],
     issuers: {
-      agent: AGENT_PROVIDERS,
+      agent: agentProviders(),
       person: PERSON_SERVERS,
       auth: PERSON_SERVERS,
     },

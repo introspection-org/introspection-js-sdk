@@ -51,10 +51,15 @@ export const ACME_APPROVAL_URL = trim(
     (PERSON_SERVER_MODE === "hosted" ? `${APP_URL}/acme` : PERSON_SERVER_URL),
 );
 
-/** Agent providers whose agents may act here: the platform's control plane, by default. */
-export const AGENT_PROVIDERS = (
-  process.env.TRUSTED_AGENT_PROVIDERS ?? "https://cp.introspection.localhost"
-)
-  .split(",")
-  .map((url) => trim(url.trim()))
-  .filter(Boolean);
+/**
+ * Agent providers whose agents may act here: the platform's control plane, by default.
+ * Read on each request, since `pnpm dev` writes it after the server has started.
+ */
+export function agentProviders(): string[] {
+  return (
+    process.env.TRUSTED_AGENT_PROVIDERS ?? "https://cp.introspection.localhost"
+  )
+    .split(",")
+    .map((url) => trim(url.trim()))
+    .filter(Boolean);
+}
