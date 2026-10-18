@@ -35,6 +35,8 @@
 #                        run that must not take over a presenter's hosts
 #   FLIGHTSECTOR_TUNNEL_TOKEN  run the named tunnel by its token, for CI: no
 #                        `cloudflared tunnel login`; its DNS routes must already exist
+#   FLIGHTSECTOR_NO_SETUP=1  serve the app and its tunnel only, from .env.local as
+#                        it stands: no CLI, and nothing in the project changes
 #   RECIPE_URL           the recipe to seed from (default the public one)
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -98,14 +100,16 @@ issuer() {
 # The Introspection CLI, installed or brought up to date
 # ---------------------------------------------------------------------------
 
-if command -v introspection >/dev/null 2>&1; then
+if [ -n "${FLIGHTSECTOR_NO_SETUP:-}" ]; then
+  :
+elif command -v introspection >/dev/null 2>&1; then
   introspection upgrade --yes --non-interactive ||
     say "could not upgrade the introspection CLI; carrying on with $(introspection --version)"
 else
   say "installing the introspection CLI"
   npm install -g @introspection-ai/cli >/dev/null || fail "could not install it: npm install -g @introspection-ai/cli"
 fi
-say "$(introspection --version)"
+[ -n "${FLIGHTSECTOR_NO_SETUP:-}" ] || say "$(introspection --version)"
 
 # ---------------------------------------------------------------------------
 # Public URLs
@@ -237,6 +241,20 @@ bind_flight_search() {
   say "flight search → $mcp_url"
 }
 
+# A new client secret named $2 for application $1, on stdout. It is minted only
+# when .env.local holds none, so any secret already under that name is an
+# orphan: revoke them first, or switching stacks twice meets the two-secret cap.
+mint_secret() {
+  local app_id="$1" name="$2" id out
+  for id in $(introspection applications secrets list --app "$app_id" -o json |
+    json "(v.records ?? v).filter((s) => s.name === '$name').map((s) => s.id).join(' ')"); do
+    introspection applications secrets revoke --app "$app_id" --secret "$id" --yes >/dev/null
+  done
+  out="$(introspection applications secrets create --app "$app_id" --name "$name" -o json 2>&1)" ||
+    fail "could not create the $name client secret: $out"
+  json 'v.secret' <<<"$out"
+}
+
 full_setup() {
   mkdir -p "$WORK"
 
@@ -291,7 +309,7 @@ full_setup() {
   # 5. The demo page signs in as that application, with a client secret.
   if [ -z "$(read_env INTROSPECTION_CLIENT_SECRET)" ]; then
     local secret
-    secret="$(introspection applications secrets create --app "$app_id" --name "Flight Sector demo" -o json | json 'v.secret')"
+    secret="$(mint_secret "$app_id" "Flight Sector demo")"
     [ -n "$secret" ] || fail "could not create a client secret for the $app_name application"
     upsert_env INTROSPECTION_CLIENT_SECRET "$secret"
   fi
@@ -310,7 +328,7 @@ full_setup() {
     [ -n "$acme_id" ] || fail "could not create the $acme_name application"
     if [ -z "$(read_env ACME_CLIENT_SECRET)" ]; then
       local acme_secret
-      acme_secret="$(introspection applications secrets create --app "$acme_id" --name "Acme approvals" -o json | json 'v.secret')"
+      acme_secret="$(mint_secret "$acme_id" "Acme approvals")"
       [ -n "$acme_secret" ] || fail "could not create a client secret for the $acme_name application"
       upsert_env ACME_CLIENT_SECRET "$acme_secret"
     fi
@@ -415,7 +433,9 @@ connect() {
   return 0
 }
 
-if connect; then
+if [ -n "${FLIGHTSECTOR_NO_SETUP:-}" ]; then
+  say "serving the app and its tunnel only; the project is left as set up: http://localhost:$PORT"
+elif connect; then
   say "demo: http://localhost:$PORT"
 else
   say "not connected to Introspection: run \`introspection login\`, then restart pnpm dev."
