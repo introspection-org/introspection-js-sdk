@@ -128,7 +128,7 @@ trap 'kill "${PIDS[@]}" 2>/dev/null || true' EXIT
 # a subshell, so its pid reaches the trap.
 quick_tunnel() {
   local log url=""
-  log="$(mktemp -t flightsector-tunnel)"
+  log="$(mktemp "${TMPDIR:-/tmp}/flightsector-tunnel.XXXXXX")"
   cloudflared tunnel --no-autoupdate --url "http://localhost:$PORT" >"$log" 2>&1 &
   PIDS+=($!)
   for _ in $(seq 60); do
@@ -163,7 +163,7 @@ if [ -n "${FLIGHTSECTOR_DOMAIN:-}" ]; then
     LOCAL_PERSON_SERVER="https://introspection-ps.${FLIGHTSECTOR_DOMAIN}"
     ROUTES+=("$LOCAL_AGENT_PROVIDER=8000" "$LOCAL_PERSON_SERVER=8002")
   fi
-  TUNNEL_CONFIG="$(mktemp -t flightsector-tunnel-config)"
+  TUNNEL_CONFIG="$(mktemp "${TMPDIR:-/tmp}/flightsector-tunnel-config.XXXXXX")"
   echo "ingress:" >"$TUNNEL_CONFIG"
   for route in "${ROUTES[@]}"; do
     host="${route%=*}"
@@ -175,7 +175,7 @@ if [ -n "${FLIGHTSECTOR_DOMAIN:-}" ]; then
   done
   echo "  - service: http_status:404" >>"$TUNNEL_CONFIG"
   # The token reaches cloudflared in its environment (TUNNEL_TOKEN), never argv.
-  TUNNEL_TOKEN="${FLIGHTSECTOR_TUNNEL_TOKEN:-}" cloudflared tunnel --no-autoupdate --config "$TUNNEL_CONFIG" run "$NAME" >"$(mktemp -t flightsector-tunnel)" 2>&1 &
+  TUNNEL_TOKEN="${FLIGHTSECTOR_TUNNEL_TOKEN:-}" cloudflared tunnel --no-autoupdate --config "$TUNNEL_CONFIG" run "$NAME" >"$(mktemp "${TMPDIR:-/tmp}/flightsector-tunnel.XXXXXX")" 2>&1 &
   PIDS+=($!)
 else
   quick_tunnel BOOKING
