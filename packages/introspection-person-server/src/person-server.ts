@@ -425,6 +425,10 @@ export async function createPersonServer(options: PersonServerOptions) {
       typeof hash === "string" ? await store.mission(hash) : undefined;
     if (!mission || mission.agent_id !== agent.id)
       throw new AAuthError(404, "mission_not_found", "no such mission");
+    // The agent identifier is the provider's; the person is the key's. Another
+    // key under the same identifier, bound to someone else, is a stranger.
+    if ((await store.binding(agent.jkt)) !== mission.person.id)
+      throw new AAuthError(404, "mission_not_found", "no such mission");
     if (mission.completed_at !== undefined)
       throw new AAuthError(403, "mission_terminated", "mission completed");
     if (now() >= mission.expires_at)
@@ -460,8 +464,8 @@ export async function createPersonServer(options: PersonServerOptions) {
     const mission = await liveMission(agent, hash);
     if (params.action === "update") {
       const entry = String(params.description ?? "");
-      mission.log.push({ at: now(), entry });
-      await store.putMission(mission);
+      if (!(await store.logMission(mission.s256, { at: now(), entry }, now())))
+        throw new AAuthError(403, "mission_terminated", "mission ended");
       return Response.json({ s256: s256(entry) });
     }
     if (params.action === "completion")
@@ -716,7 +720,7 @@ export async function createPersonServer(options: PersonServerOptions) {
       return problem(404, "not_found", "no such pending request");
     if (request.method === "DELETE") {
       if (approval.status === "pending")
-        await store.putApproval({
+        await store.transitionApproval("pending", {
           ...approval,
           status: "denied",
           decided_by: "agent",
@@ -733,11 +737,12 @@ export async function createPersonServer(options: PersonServerOptions) {
       return now() >= approval.expires_at
         ? problem(408, "expired", "nobody answered in time")
         : stillPending(id);
+    const collected = () =>
+      problem(410, "collected", "this approval's token was already collected");
+    if (approval.status === "collected") return collected();
     if (approval.kind === "completion") return Response.json({});
-    const mission = approval.mission_s256
-      ? await store.mission(approval.mission_s256)
-      : undefined;
-    if (!mission) return problem(404, "mission_not_found", "no such mission");
+    // Nothing is issued under a mission that has ended, whatever was approved.
+    const mission = await liveMission(agent, approval.mission_s256);
     if (approval.kind === "mission") {
       const tokens = await Promise.all(
         mission.resources.map(async (r) => [
@@ -751,23 +756,31 @@ export async function createPersonServer(options: PersonServerOptions) {
         person_tokens: Object.fromEntries(tokens),
       });
     }
-    await liveMission(agent, mission.s256);
+    // Collected once: an approval spends once, so it mints once.
+    if (
+      !(await store.transitionApproval("approved", {
+        ...approval,
+        status: "collected",
+      }))
+    )
+      return collected();
     return Response.json(await authToken(agent, mission, approval.grant));
   }
 
   // #endregion
 
   // #region decide
-  /** Record a decision. Approving does what was asked: creates the mission, spends the request, or completes the mission. */
+  /**
+   * Record a decision. Approving does what was asked: creates the mission,
+   * spends the request, or completes the mission. A decision is made once: a
+   * second, even a concurrent one, is a 409.
+   */
   async function decide(id: string, decision: Decision): Promise<Approval> {
     const approval = await store.approval(id);
     if (!approval) throw new AAuthError(404, "not_found", "no such approval");
-    if (approval.status !== "pending")
-      throw new AAuthError(
-        409,
-        "invalid_request",
-        `already ${approval.status}`,
-      );
+    const already = () =>
+      new AAuthError(409, "invalid_request", `already ${approval.status}`);
+    if (approval.status !== "pending") throw already();
     if (now() >= approval.expires_at)
       throw new AAuthError(410, "expired", "this approval has expired");
     if (decision.budget && approval.kind !== "mission")
@@ -783,6 +796,8 @@ export async function createPersonServer(options: PersonServerOptions) {
       ...(budget ? { decided_budget: budget } : {}),
       ...(decision.decided_by ? { decided_by: decision.decided_by } : {}),
     };
+    let created: Mission | undefined;
+    let existing: Mission | undefined;
     if (decision.status === "approved") {
       if (approval.kind === "mission") {
         const resources =
@@ -796,7 +811,7 @@ export async function createPersonServer(options: PersonServerOptions) {
           approved_resources: resources,
           ...(budget ? { budget } : {}),
         });
-        const mission: Mission = {
+        created = {
           s256: s256(bytes),
           mission: bytes,
           agent_id: approval.agent.id,
@@ -807,32 +822,35 @@ export async function createPersonServer(options: PersonServerOptions) {
           log: [],
           expires_at,
         };
-        await store.putMission(mission);
-        decided.mission_s256 = mission.s256;
+        decided.mission_s256 = created.s256;
       } else if (approval.mission_s256) {
-        const mission = await store.mission(approval.mission_s256);
+        existing = await store.mission(approval.mission_s256);
         if (
-          !mission ||
-          mission.completed_at !== undefined ||
-          now() >= mission.expires_at
+          !existing ||
+          existing.completed_at !== undefined ||
+          now() >= existing.expires_at
         )
           throw new AAuthError(
             409,
             "mission_terminated",
             "the mission has ended",
           );
-        if (approval.kind === "completion")
-          await store.putMission({ ...mission, completed_at: now() });
-        // A request in another unit than the mission's budget is approved without spending it.
-        else if (
-          approval.budget &&
-          mission.budget &&
-          sameScale(mission.budget, approval.budget)
-        )
-          await store.spend(mission.s256, approval.budget.amount, false, now());
       }
     }
-    await store.putApproval(decided);
+    // The transition is the decision: what it does happens only once.
+    if (!(await store.transitionApproval("pending", decided))) throw already();
+    if (created) await store.putMission(created);
+    if (existing) {
+      if (approval.kind === "completion")
+        await store.endMission(existing.s256, now());
+      // A request in another unit than the mission's budget is approved without spending it.
+      else if (
+        approval.budget &&
+        existing.budget &&
+        sameScale(existing.budget, approval.budget)
+      )
+        await store.spend(existing.s256, approval.budget.amount, false, now());
+    }
     await options.onDecision?.(decided);
     return decided;
   }
@@ -850,11 +868,9 @@ export async function createPersonServer(options: PersonServerOptions) {
   }
 
   async function terminate(hash: string): Promise<Mission> {
-    const mission = await store.mission(hash);
-    if (!mission)
+    const ended = await store.endMission(hash, now());
+    if (!ended)
       throw new AAuthError(404, "mission_not_found", "no such mission");
-    const ended = { ...mission, completed_at: mission.completed_at ?? now() };
-    await store.putMission(ended);
     return ended;
   }
 

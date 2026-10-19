@@ -125,7 +125,7 @@ curl -X POST -H "authorization: Bearer $PS_ADMIN_TOKEN" -H "content-type: applic
 
 An Introspection connector uses it once its `person_server_url` names `issuer`.
 
-Keep the signing key and subject secret stable: resources cache your keys, and each person's directed `sub` is derived from the secret. The default store is in memory; implement `Store` for anything that must survive a restart. `spend` must check and add in one step.
+Keep the signing key and subject secret stable: resources cache your keys, and each person's directed `sub` is derived from the secret. The default store is in memory; implement `Store` for anything that must survive a restart. `spend` must check and add in one step, and `transitionApproval` must change an approval only from the status it expects, so each decision and each collection happens once.
 
 ## Routes
 
@@ -157,6 +157,8 @@ Fixed and small:
 - a request with no `budget` is issued within the mission without spending;
 - completing a mission is the person's own decision, and nothing is issued under it afterwards;
 - each agent key is bound to the first person it names.
+- an approved auth token is collected once: later polls of the same approval answer `410`, so one approval spends once;
+- each approval is decided once, however many answers arrive.
 
 ## Hooks
 

@@ -443,4 +443,76 @@ describe("@introspection-sdk/person-server", () => {
       ((await ended.json()) as { completed_at?: number }).completed_at,
     ).toBeDefined();
   });
+
+  it("hands out an approved auth token once, so an approval spends once", async () => {
+    const agent = await AgentClient.create();
+    const trip = await approvedTrip(agent, 100_000);
+    const presented = trip.person_tokens[RESOURCE]!;
+    const over = await call(agent, "POST", "/ps/token", {
+      resource_token: await resourceToken(agent, presented, 150_000),
+      presented_token: presented,
+    });
+    expect(over.status).toBe(202);
+    await ps.decide(asked.at(-1)!.id, { status: "approved" });
+    const pendingPath = new URL(over.headers.get("location")!).pathname;
+    expect((await call(agent, "GET", pendingPath)).status).toBe(200);
+    for (let i = 0; i < 3; i++)
+      expect((await call(agent, "GET", pendingPath)).status).toBe(410);
+    expect((await ps.mission(trip.s256))?.spent).toBe(150_000);
+  });
+
+  it("decides an approval once, however many answers arrive", async () => {
+    const agent = await AgentClient.create();
+    await call(agent, "POST", "/ps/mission", {
+      description: "Trip",
+      resources: [RESOURCE],
+      login_hint: "sam@acme.example",
+    });
+    const id = asked.at(-1)!.id;
+    const results = await Promise.allSettled([
+      ps.decide(id, { status: "approved" }),
+      ps.decide(id, { status: "approved" }),
+    ]);
+    expect(results.filter((r) => r.status === "fulfilled")).toHaveLength(1);
+    expect(await ps.missions()).toHaveLength(1);
+  });
+
+  it("issues no person tokens under a mission that has ended", async () => {
+    const agent = await AgentClient.create();
+    const proposed = await call(agent, "POST", "/ps/mission", {
+      description: "Trip",
+      resources: [RESOURCE],
+      login_hint: "sam@acme.example",
+    });
+    const decided = await ps.decide(asked.at(-1)!.id, { status: "approved" });
+    await ps.terminate(decided.mission_s256!);
+    const poll = await call(
+      agent,
+      "GET",
+      new URL(proposed.headers.get("location")!).pathname,
+    );
+    expect(poll.status).toBe(403);
+    expect(((await poll.json()) as { error: string }).error).toBe(
+      "mission_terminated",
+    );
+  });
+
+  it("keeps another key under the same agent away from someone else's mission", async () => {
+    const sams = await AgentClient.create();
+    const trip = await approvedTrip(sams);
+    const danas = await AgentClient.create();
+    expect(
+      (
+        await call(danas, "POST", "/ps/person-token", {
+          resource: RESOURCE,
+          login_hint: "dana@acme.example",
+        })
+      ).status,
+    ).toBe(200);
+    const update = await call(danas, "POST", `/ps/mission/${trip.s256}`, {
+      action: "update",
+      description: "Rebook for Dana",
+    });
+    expect(update.status).toBe(404);
+  });
 });

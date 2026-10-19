@@ -32,7 +32,8 @@ export interface Agent {
 }
 
 export type ApprovalKind = "mission" | "auth_token" | "completion";
-export type ApprovalStatus = "pending" | "approved" | "denied";
+/** `collected`: approved, and its auth token handed out. An auth token is collected once. */
+export type ApprovalStatus = "pending" | "approved" | "denied" | "collected";
 
 /** A decision this Person Server waits on. Whoever operates it makes the decision. */
 export interface Approval {
@@ -84,8 +85,12 @@ export interface Decision {
 }
 
 /**
- * Where a Person Server keeps its state. `spend` must check and spend in one
- * step, so two concurrent bookings cannot both fit in what is left.
+ * Where a Person Server keeps its state. Three methods must be atomic, since
+ * concurrent requests race on them: `spend` checks and spends in one step, so
+ * two bookings cannot both fit in what is left; `transitionApproval` changes an
+ * approval only from the status it was read in, so a decision, a withdrawal or
+ * a collection happens once; and `logMission` and `endMission` change a mission
+ * in place rather than overwriting a concurrent spend.
  */
 export interface Store {
   binding(jkt: string): Promise<string | undefined>;
@@ -103,9 +108,23 @@ export interface Store {
     withinBudget: boolean,
     now: number,
   ): Promise<Mission | undefined>;
+  /** Append to a live mission's log; returns whether it was live. */
+  logMission(
+    s256: string,
+    entry: { at: number; entry: string },
+    now: number,
+  ): Promise<boolean>;
+  /** Mark a mission completed at `at` unless it already is; returns it, or undefined if there is none. */
+  endMission(s256: string, at: number): Promise<Mission | undefined>;
   missions(): Promise<Mission[]>;
   approval(id: string): Promise<Approval | undefined>;
+  /** Save a new approval. */
   putApproval(approval: Approval): Promise<void>;
+  /** Replace approval `next.id` with `next` only if its status is still `expected`; returns whether it did. */
+  transitionApproval(
+    expected: ApprovalStatus,
+    next: Approval,
+  ): Promise<boolean>;
   approvals(): Promise<Approval[]>;
 }
 

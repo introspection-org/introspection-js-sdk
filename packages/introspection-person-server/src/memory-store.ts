@@ -1,4 +1,4 @@
-import type { Approval, Mission, Store } from "./types.js";
+import type { Approval, ApprovalStatus, Mission, Store } from "./types.js";
 
 /** Everything in memory: for development, tests and single-process demos. */
 export class MemoryStore implements Store {
@@ -47,6 +47,28 @@ export class MemoryStore implements Store {
     return mission;
   }
 
+  async logMission(
+    s256: string,
+    entry: { at: number; entry: string },
+    now: number,
+  ) {
+    const mission = this.missionsByHash.get(s256);
+    if (
+      !mission ||
+      mission.completed_at !== undefined ||
+      mission.expires_at <= now
+    )
+      return false;
+    mission.log.push(entry);
+    return true;
+  }
+
+  async endMission(s256: string, at: number) {
+    const mission = this.missionsByHash.get(s256);
+    if (mission) mission.completed_at ??= at;
+    return mission;
+  }
+
   async missions() {
     return [...this.missionsByHash.values()];
   }
@@ -57,6 +79,12 @@ export class MemoryStore implements Store {
 
   async putApproval(approval: Approval) {
     this.approvalsById.set(approval.id, approval);
+  }
+
+  async transitionApproval(expected: ApprovalStatus, next: Approval) {
+    if (this.approvalsById.get(next.id)?.status !== expected) return false;
+    this.approvalsById.set(next.id, next);
+    return true;
   }
 
   async approvals() {
