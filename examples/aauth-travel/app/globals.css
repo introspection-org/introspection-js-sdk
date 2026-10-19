@@ -9,6 +9,7 @@
   --recipe: #bf3989;
   --example: #1f6feb;
   --contract: #8250df;
+  --package: #1a7f37;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -23,6 +24,7 @@
     --recipe: #f778ba;
     --example: #58a6ff;
     --contract: #a371f7;
+    --package: #3fb950;
   }
   .shiki span {
     color: var(--shiki-dark) !important;
@@ -223,6 +225,9 @@ main {
 .kind-contract::before {
   background: var(--contract);
 }
+.kind-package::before {
+  background: var(--package);
+}
 
 .sources {
   min-width: 0;
@@ -264,6 +269,9 @@ main {
 }
 .tab-contract[aria-selected="true"] {
   border-color: var(--contract);
+}
+.tab-package[aria-selected="true"] {
+  border-color: var(--package);
 }
 
 .origin {

@@ -489,7 +489,7 @@ Before booking anything, propose_trip posts the trip to person-server.aauth, a n
 }
 ```
 
-**Acme: missions** · `packages/introspection-person-server/src/person-server.ts`
+**Acme: missions** · `@introspection-sdk/person-server/src/person-server.ts`
 
 ```ts
 /** The live mission `s256` names, if it is this agent's; the same 404 otherwise. */
@@ -653,7 +653,7 @@ export async function decide(
 }
 ```
 
-**Acme: person tokens under the mission** · `packages/introspection-person-server/src/person-server.ts`
+**Acme: person tokens under the mission** · `@introspection-sdk/person-server/src/person-server.ts`
 
 ```ts
 /** The person's identifier at one audience: no two audiences can correlate it. */
@@ -1074,7 +1074,7 @@ The agent's book_item is a plain POST. The egress proxy signs it with RFC 9421 H
 }
 ```
 
-**verify the HTTP signature** · `packages/introspection-aauth-resource/src/resource.ts`
+**verify the HTTP signature** · `@introspection-sdk/aauth-resource/src/resource.ts`
 
 ```ts
 /** Verify the RFC 9421 signature on a request as addressed to `url`; a body must be covered by `content-digest`. */
@@ -1152,7 +1152,7 @@ _Booking provider → egress_
 
 A person token says who the agent acts for and under which mission, not what it may buy. So the provider publishes the booking as an R3 proposal (the quote, purpose and payer) and answers 401 with AAuth-Requirement: requirement=auth-token and a resource token naming the proposal by its hash, carrying the mission's s256 across, and stating the booking's price as its budget (draft-hardt-aauth-budgets). Only Acme, signing as itself, can read the proposal.
 
-**the proposal and resource token** · `packages/introspection-aauth-resource/src/resource.ts`
+**the proposal and resource token** · `@introspection-sdk/aauth-resource/src/resource.ts`
 
 ```ts
 /** `401 requirement=auth-token`: a resource token for this one call, its proposal readable by the person's Person Server alone. */
@@ -1252,7 +1252,7 @@ async function propose(
 }
 ```
 
-**the proposal, to Acme alone** · `packages/introspection-aauth-resource/src/resource.ts`
+**the proposal, to Acme alone** · `@introspection-sdk/aauth-resource/src/resource.ts`
 
 ```ts
 /** An R3 proposal, to the Person Server it was published for and no one else. */
@@ -1336,7 +1336,7 @@ The egress proxy holds the request and calls Acme's token endpoint, signed with 
 }
 ```
 
-**Acme: verify the agent** · `packages/introspection-person-server/src/person-server.ts`
+**Acme: verify the agent** · `@introspection-sdk/person-server/src/person-server.ts`
 
 ```ts
 /** The request's signature, and the agent token it presents, from a trusted agent provider. */
@@ -1443,7 +1443,7 @@ async function personFor(
 }
 ```
 
-**Acme: verify the request, weigh the budget** · `packages/introspection-person-server/src/person-server.ts`
+**Acme: verify the request, weigh the budget** · `@introspection-sdk/person-server/src/person-server.ts`
 
 ```ts
 /** A resource token, verified against its issuer's keys, binding a token this Person Server issued. */
@@ -1724,7 +1724,7 @@ _Acme → Platform → Agent_
 
 Dana declines. The data plane has been polling the pending URL, signed with the session key; only the agent that asked may read it. It now answers 403, and the platform posts a turn into Sam's conversation saying the QT was declined. The recipe tells the agent to say so and not go looking for alternatives on its own: the flight stays booked, and it asks Sam what he'd like to do about the hotel.
 
-**Acme: the pending URL** · `packages/introspection-person-server/src/person-server.ts`
+**Acme: the pending URL** · `@introspection-sdk/person-server/src/person-server.ts`
 
 ```ts
 /** The agent polls with a signed GET; only the key that asked may read it. Results are minted now. */
@@ -2176,7 +2176,7 @@ _Agent → Acme → Sam_
 
 complete_trip proposes the mission complete, with a summary of what was booked. Sam accepts it, and Acme ends the mission: a person token or auth token under it is refused from then on, so nothing more can be booked against this trip.
 
-**Acme: missions** · `packages/introspection-person-server/src/person-server.ts`
+**Acme: missions** · `@introspection-sdk/person-server/src/person-server.ts`
 
 ```ts
 /** The live mission `s256` names, if it is this agent's; the same 404 otherwise. */

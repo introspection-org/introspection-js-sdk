@@ -4,13 +4,16 @@
 //
 // Source kinds:
 //   example  - a file in this example; `region` cuts a `#region name` block
+//   package  - a file in an @introspection-sdk package this example depends on,
+//              by package name; `region` as for an example
 //   recipe   - the recipe, read from GitHub at flow/recipe.mjs's commit
 //   contract - a platform wire shape (flow/contracts/), shown as data
 
 /** @typedef {{ kind: "example", path: string, region?: string, label?: string }} ExampleSource */
+/** @typedef {{ kind: "package", package: string, path: string, region?: string, label?: string }} PackageSource */
 /** @typedef {{ kind: "recipe", path: string, label?: string }} RecipeSource */
 /** @typedef {{ kind: "contract", path: string, label?: string }} ContractSource */
-/** @typedef {ExampleSource | RecipeSource | ContractSource} Source */
+/** @typedef {ExampleSource | PackageSource | RecipeSource | ContractSource} Source */
 /** @typedef {{ type: string, where?: Record<string, string | boolean> }} Lights */
 /**
  * @typedef {{
@@ -68,8 +71,9 @@ export const flow = {
           label: "the proposal, and what comes back",
         },
         {
-          kind: "example",
-          path: "../../packages/introspection-person-server/src/person-server.ts",
+          kind: "package",
+          package: "@introspection-sdk/person-server",
+          path: "src/person-server.ts",
           region: "missions",
           label: "Acme: missions",
         },
@@ -95,8 +99,9 @@ export const flow = {
           label: "Acme: check the code",
         },
         {
-          kind: "example",
-          path: "../../packages/introspection-person-server/src/person-server.ts",
+          kind: "package",
+          package: "@introspection-sdk/person-server",
+          path: "src/person-server.ts",
           region: "person-token",
           label: "Acme: person tokens under the mission",
         },
@@ -159,8 +164,9 @@ export const flow = {
           label: "what reaches the provider",
         },
         {
-          kind: "example",
-          path: "../../packages/introspection-aauth-resource/src/resource.ts",
+          kind: "package",
+          package: "@introspection-sdk/aauth-resource",
+          path: "src/resource.ts",
           region: "verify-signature",
           label: "verify the HTTP signature",
         },
@@ -179,8 +185,9 @@ export const flow = {
       body: "A person token says who the agent acts for and under which mission, not what it may buy. So the provider publishes the booking as an R3 proposal (the quote, purpose and payer) and answers 401 with AAuth-Requirement: requirement=auth-token and a resource token naming the proposal by its hash, carrying the mission's s256 across, and stating the booking's price as its budget (draft-hardt-aauth-budgets). Only Acme, signing as itself, can read the proposal.",
       sources: [
         {
-          kind: "example",
-          path: "../../packages/introspection-aauth-resource/src/resource.ts",
+          kind: "package",
+          package: "@introspection-sdk/aauth-resource",
+          path: "src/resource.ts",
           region: "propose",
           label: "the proposal and resource token",
         },
@@ -190,8 +197,9 @@ export const flow = {
           label: "its claims",
         },
         {
-          kind: "example",
-          path: "../../packages/introspection-aauth-resource/src/resource.ts",
+          kind: "package",
+          package: "@introspection-sdk/aauth-resource",
+          path: "src/resource.ts",
           region: "serve-r3",
           label: "the proposal, to Acme alone",
         },
@@ -210,14 +218,16 @@ export const flow = {
           label: "the token request and its answers",
         },
         {
-          kind: "example",
-          path: "../../packages/introspection-person-server/src/person-server.ts",
+          kind: "package",
+          package: "@introspection-sdk/person-server",
+          path: "src/person-server.ts",
           region: "verify-agent",
           label: "Acme: verify the agent",
         },
         {
-          kind: "example",
-          path: "../../packages/introspection-person-server/src/person-server.ts",
+          kind: "package",
+          package: "@introspection-sdk/person-server",
+          path: "src/person-server.ts",
           region: "auth-token",
           label: "Acme: verify the request, weigh the budget",
         },
@@ -265,8 +275,9 @@ export const flow = {
       body: "Dana declines. The data plane has been polling the pending URL, signed with the session key; only the agent that asked may read it. It now answers 403, and the platform posts a turn into Sam's conversation saying the QT was declined. The recipe tells the agent to say so and not go looking for alternatives on its own: the flight stays booked, and it asks Sam what he'd like to do about the hotel.",
       sources: [
         {
-          kind: "example",
-          path: "../../packages/introspection-person-server/src/person-server.ts",
+          kind: "package",
+          package: "@introspection-sdk/person-server",
+          path: "src/person-server.ts",
           region: "pending",
           label: "Acme: the pending URL",
         },
@@ -303,8 +314,9 @@ export const flow = {
       body: "complete_trip proposes the mission complete, with a summary of what was booked. Sam accepts it, and Acme ends the mission: a person token or auth token under it is refused from then on, so nothing more can be booked against this trip.",
       sources: [
         {
-          kind: "example",
-          path: "../../packages/introspection-person-server/src/person-server.ts",
+          kind: "package",
+          package: "@introspection-sdk/person-server",
+          path: "src/person-server.ts",
           region: "missions",
           label: "Acme: missions",
         },

@@ -1,6 +1,6 @@
 // Reads the code a walkthrough step points at, cut to the part that matters.
 // Region markers never appear in what is shown.
-import { readFileSync } from "node:fs";
+import { readFileSync, realpathSync } from "node:fs";
 import { join, posix } from "node:path";
 
 import { recipe } from "../flow/recipe.mjs";
@@ -44,21 +44,36 @@ async function recipeFile(path) {
   );
 }
 
+/**
+ * Where a source's file is: an example's under this example, a package's under
+ * the package this example depends on (its workspace link, followed), a
+ * contract's under flow/contracts.
+ * @param {string} root @param {import("../flow/manifest.mjs").Source} source
+ */
+function localFile(root, source) {
+  if (source.kind === "package")
+    return join(
+      realpathSync(join(root, "node_modules", source.package)),
+      source.path,
+    );
+  return join(
+    source.kind === "example" ? root : join(root, "flow/contracts"),
+    source.path,
+  );
+}
+
 /** @param {string} root @param {import("../flow/manifest.mjs").Source} source */
 export async function readSource(root, source) {
   const text =
     source.kind === "recipe"
       ? await recipeFile(source.path)
-      : readFileSync(
-          join(
-            source.kind === "example" ? root : join(root, "flow/contracts"),
-            source.path,
-          ),
-          "utf8",
-        );
+      : readFileSync(localFile(root, source), "utf8");
   let lines = text.split("\n");
 
-  if (source.kind === "example" && source.region) {
+  if (
+    (source.kind === "example" || source.kind === "package") &&
+    source.region
+  ) {
     const start = lines.findIndex((line) =>
       new RegExp(`#region\\s+${source.region}\\b`).test(line),
     );
@@ -77,10 +92,12 @@ export async function readSource(root, source) {
     code: lines.join("\n"),
     language: LANGUAGES[extension] ?? "text",
     origin:
-      source.kind === "example"
-        ? posix.normalize(`examples/aauth-travel/${source.path}`)
-        : source.kind === "recipe"
-          ? `recipe-travel-agent/${source.path}`
-          : `platform contract: ${source.path}`,
+      source.kind === "package"
+        ? `${source.package}/${source.path}`
+        : source.kind === "example"
+          ? posix.normalize(`examples/aauth-travel/${source.path}`)
+          : source.kind === "recipe"
+            ? `recipe-travel-agent/${source.path}`
+            : `platform contract: ${source.path}`,
   };
 }
