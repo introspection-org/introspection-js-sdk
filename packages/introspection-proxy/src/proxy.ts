@@ -25,6 +25,7 @@ import { context, propagation } from "@opentelemetry/api";
 import {
   Agent,
   EnvHttpProxyAgent,
+  FormData as UndiciFormData,
   buildConnector,
   fetch as undiciFetch,
   type Dispatcher,
@@ -147,6 +148,32 @@ function withInjectedTraceContext(
   return { ...opts, headers };
 }
 
+/**
+ * Encode a body that undici-npm would not serialize the way the global fetch
+ * does. Node's global `FormData` comes from Node's bundled undici, which this
+ * package's undici does not recognise as multipart, so it would send the form
+ * without a `multipart/form-data` boundary.
+ */
+async function withSerializedBody(
+  opts: Record<string, unknown>,
+): Promise<Record<string, unknown>> {
+  const body = opts.body;
+  if (!(body instanceof FormData) || body instanceof UndiciFormData) {
+    return opts;
+  }
+  const encoded = new Response(body);
+  const headers = new Headers(opts.headers as HeadersInit | undefined);
+  const contentType = encoded.headers.get("content-type");
+  if (contentType && !headers.has("content-type")) {
+    headers.set("content-type", contentType);
+  }
+  return {
+    ...opts,
+    headers,
+    body: new Uint8Array(await encoded.arrayBuffer()),
+  };
+}
+
 /** @internal Used by the lazy installer to preserve the pre-install fetch. */
 export function createProxyFetchWithBase(
   options: ProxyFetchOptions = {},
@@ -227,11 +254,11 @@ export function createProxyFetchWithBase(
       opts.headers = headers;
     }
 
-    const execute = () =>
+    const execute = async () =>
       undiciFetch(
         target as unknown as Parameters<typeof undiciFetch>[0],
         withInjectedTraceContext(
-          opts,
+          await withSerializedBody(opts),
           options.propagateBaggage ?? false,
         ) as unknown as Parameters<typeof undiciFetch>[1],
       ) as unknown as Promise<Response>;
