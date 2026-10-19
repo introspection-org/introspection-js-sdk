@@ -72,6 +72,13 @@ export interface AAuthResourceOptions {
   kid?: string;
   /** Where proposals live until their Person Server reads them; in memory by default. */
   r3Store?: R3Store;
+  /** Called as each call is put to a Person Server, e.g. to log or narrate it. */
+  onPropose?: (proposal: {
+    ps: string;
+    scope: string;
+    parameters: Record<string, string>;
+    mission_s256?: string;
+  }) => void;
 }
 
 /** What one call asks the person's Person Server to approve. */
@@ -114,13 +121,23 @@ export interface AAuthResource {
   /**
    * Admit a call on an auth token whose R3 proposal is exactly `ask`, or answer
    * with the challenge for what it lacks. `body` is the raw request body the
-   * signature covers.
+   * signature covers. `ask` may be a function, run once the presented token
+   * verifies, so a resource challenges before it validates the call; an error
+   * it throws propagates. `url` is the public URL the request was addressed to,
+   * when the app serves it under another path; `{issuer}{path}` by default.
    */
   authorize(
     request: Request,
     body: string,
-    ask: AuthorizeRequest,
+    ask:
+      | AuthorizeRequest
+      | ((
+          token: VerifiedToken,
+        ) => AuthorizeRequest | Promise<AuthorizeRequest>),
+    options?: { url?: string },
   ): Promise<Authorization>;
+  /** An R3 proposal, to the Person Server it was published for and no one else. */
+  serveProposal(request: Request, key: string): Promise<Response>;
   /** Serve this resource's discovery documents and R3 proposals; undefined for other paths. */
   handle(request: Request): Promise<Response | undefined>;
 }
@@ -169,6 +186,7 @@ interface SignedRequest {
   server?: string;
 }
 
+// #region verify-signature
 /** Verify the RFC 9421 signature on a request as addressed to `url`; a body must be covered by `content-digest`. */
 async function verifySignature(
   request: Request,
@@ -197,6 +215,7 @@ async function verifySignature(
     ...(result.jwks_uri ? { server: result.jwks_uri.id } : {}),
   };
 }
+// #endregion
 
 export async function createAAuthResource(
   options: AAuthResourceOptions,
@@ -259,6 +278,7 @@ export async function createAAuthResource(
     });
   }
 
+  // #region propose
   /** `401 requirement=auth-token`: a resource token for this one call, its proposal readable by the person's Person Server alone. */
   async function propose(
     token: VerifiedToken,
@@ -293,16 +313,30 @@ export async function createAAuthResource(
           header,
         ),
     );
+    options.onPropose?.({
+      ps,
+      scope: ask.scope,
+      parameters: ask.parameters,
+      ...("mission_s256" in token && token.mission_s256
+        ? { mission_s256: token.mission_s256 }
+        : {}),
+    });
     return challenge(
       { requirement: "auth-token", resourceToken },
       `take the resource token to ${ps}`,
     );
   }
+  // #endregion
 
   async function authorize(
     request: Request,
     body: string,
-    ask: AuthorizeRequest,
+    asked:
+      | AuthorizeRequest
+      | ((
+          token: VerifiedToken,
+        ) => AuthorizeRequest | Promise<AuthorizeRequest>),
+    { url }: { url?: string } = {},
   ): Promise<Authorization> {
     try {
       if (!request.headers.get("signature-key"))
@@ -313,8 +347,11 @@ export async function createAAuthResource(
             "sign the request",
           ),
         };
-      const url = `${issuer}${new URL(request.url).pathname}`;
-      const signed = await verifySignature(request, body, url);
+      const signed = await verifySignature(
+        request,
+        body,
+        url ?? `${issuer}${new URL(request.url).pathname}`,
+      );
       const token = await verifyPresented(signed, ["agent", "person", "auth"]);
       if (token.type === "agent")
         return {
@@ -324,6 +361,7 @@ export async function createAAuthResource(
             "present a person token from the person's Person Server",
           ),
         };
+      const ask = typeof asked === "function" ? await asked(token) : asked;
       if (token.type === "auth" && token.r3_s256) {
         const approved = await verifyProposalParameters({
           store: r3,
@@ -360,6 +398,7 @@ export async function createAAuthResource(
     }
   }
 
+  // #region serve-r3
   /** An R3 proposal, to the Person Server it was published for and no one else. */
   async function serveProposal(
     request: Request,
@@ -388,6 +427,7 @@ export async function createAAuthResource(
       headers: served.headers,
     });
   }
+  // #endregion
 
   const metadata = () => ({
     issuer,
@@ -424,6 +464,7 @@ export async function createAAuthResource(
       }
     },
     authorize,
+    serveProposal,
     async handle(request) {
       const { pathname } = new URL(request.url);
       if (request.method !== "GET") return undefined;

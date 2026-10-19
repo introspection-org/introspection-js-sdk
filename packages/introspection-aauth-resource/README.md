@@ -53,4 +53,13 @@ export async function handle(request: Request): Promise<Response> {
 
 `authz.jti` is the auth token's id: keep it with what the call created to answer a retried call with the same result.
 
-See [`examples/aauth-strata`](../../examples/aauth-strata) for a resource and Person Server together, with an in-process end-to-end check.
+Two resources are built on it:
+
+- [`examples/aauth-travel`](../../examples/aauth-travel)'s booking provider (`lib/booking.ts`), served by Next.js under a rewritten path, so it passes `authorize(…, { url })` and lets its router hand `serveProposal` the key.
+- The strata works API in [introspection-org/recipe-strata-vendor](https://github.com/introspection-org/recipe-strata-vendor) (`aauth-strata/`).
+
+## Options worth knowing
+
+- `authorize(request, body, ask, { url })`: `ask` may be a function, run only once the presented token verifies, so a resource challenges before it validates the call. `url` is the public URL the request was addressed to, when the app serves it under another path.
+- `onPropose`: called as each call is put to a Person Server, e.g. to log or narrate it.
+- `r3Store`: where proposals live until their Person Server reads them; in memory by default, so a multi-process deployment supplies a shared one.

@@ -160,7 +160,7 @@ export const flow = {
         },
         {
           kind: "example",
-          path: "lib/aauth.ts",
+          path: "../../packages/introspection-aauth-resource/src/resource.ts",
           region: "verify-signature",
           label: "verify the HTTP signature",
         },
@@ -180,7 +180,7 @@ export const flow = {
       sources: [
         {
           kind: "example",
-          path: "lib/booking.ts",
+          path: "../../packages/introspection-aauth-resource/src/resource.ts",
           region: "propose",
           label: "the proposal and resource token",
         },
@@ -191,7 +191,7 @@ export const flow = {
         },
         {
           kind: "example",
-          path: "lib/booking.ts",
+          path: "../../packages/introspection-aauth-resource/src/resource.ts",
           region: "serve-r3",
           label: "the proposal, to Acme alone",
         },

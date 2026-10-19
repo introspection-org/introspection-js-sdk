@@ -83,22 +83,6 @@ importers:
         specifier: ^3.1.1
         version: 3.1.1(@babel/runtime@7.29.7)
 
-  examples/aauth-strata:
-    dependencies:
-      '@introspection-sdk/aauth-resource':
-        specifier: workspace:*
-        version: link:../../packages/introspection-aauth-resource
-      '@introspection-sdk/person-server':
-        specifier: workspace:*
-        version: link:../../packages/introspection-person-server
-    devDependencies:
-      '@aauth/agent':
-        specifier: ^4.1.1
-        version: 4.1.1
-      jose:
-        specifier: ^6.2.12
-        version: 6.2.12
-
   examples/aauth-travel:
     dependencies:
       '@aauth/resource':
@@ -107,6 +91,9 @@ importers:
       '@hellocoop/httpsig':
         specifier: ^2.6.0
         version: 2.6.0
+      '@introspection-sdk/aauth-resource':
+        specifier: workspace:*
+        version: link:../../packages/introspection-aauth-resource
       '@introspection-sdk/introspection-node':
         specifier: workspace:*
         version: link:../../packages/introspection-node
