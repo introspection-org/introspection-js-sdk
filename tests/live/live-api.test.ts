@@ -8,10 +8,14 @@
  * creates what it reads and deletes it again, so it holds no state between
  * runs. Nothing here goes through Polly: these requests must reach the stack.
  *
- * Excluded from `pnpm test`; run with `INTROSPECTION_LIVE=1 pnpm test:live`,
- * reading `INTROSPECTION_TOKEN`, `INTROSPECTION_BASE_API_URL` (Control Plane),
- * `INTROSPECTION_DP_URL` (Data Plane), `INTROSPECTION_CP_SESSION` and
- * `INTROSPECTION_MEMBER_TOKEN`. A test whose settings are missing skips.
+ * Excluded from `pnpm test`; run with `INTROSPECTION_LIVE=1 pnpm test:live`.
+ * The suite authenticates as the project's service account
+ * (`INTROSPECTION_CLIENT_ID`, `INTROSPECTION_CLIENT_SECRET`,
+ * `INTROSPECTION_PROJECT`) against `INTROSPECTION_BASE_API_URL` (Control
+ * Plane), and the Data Plane URL comes from the token response, never from
+ * configuration. `INTROSPECTION_MEMBER_TOKEN` and `INTROSPECTION_CP_SESSION`
+ * cover the routes whose scopes a service account cannot hold. A test whose
+ * settings are missing skips.
  *
  * Mirrors the Rust SDK's `tests/live_api_test.rs`.
  *
@@ -26,10 +30,12 @@ import {
   AuthenticationError,
   IntrospectionClient,
   NotFoundError,
+  serviceAccountToken,
   ValidationError,
+  type OAuthToken,
 } from "@introspection-sdk/introspection-node";
 
-type Credential = "apiKey" | "session" | "member";
+type Credential = "serviceAccount" | "session" | "member";
 
 const MAX_RECORDS = 500;
 
@@ -39,27 +45,62 @@ function setting(ctx: TestContext, name: string): string {
   return value as string;
 }
 
+function requireLive(ctx: TestContext): void {
+  if (process.env.INTROSPECTION_LIVE !== "1") {
+    ctx.skip("INTROSPECTION_LIVE is not 1");
+  }
+}
+
+let minted: Promise<OAuthToken> | undefined;
+
+/** The run's one service-account token, minted on first use. */
+function serviceAccount(ctx: TestContext): Promise<OAuthToken> {
+  requireLive(ctx);
+  const params = {
+    clientId: setting(ctx, "INTROSPECTION_CLIENT_ID"),
+    clientSecret: setting(ctx, "INTROSPECTION_CLIENT_SECRET"),
+    project: setting(ctx, "INTROSPECTION_PROJECT"),
+    baseApiUrl: setting(ctx, "INTROSPECTION_BASE_API_URL"),
+  };
+  minted ??= serviceAccountToken(params);
+  return minted;
+}
+
+/** The Data Plane URL the token endpoint hands the service account. */
+async function discoveredDpUrl(ctx: TestContext): Promise<string> {
+  const { dp_url } = await serviceAccount(ctx);
+  expect(dp_url, "the token response names the Data Plane").toBeTruthy();
+  return dp_url as string;
+}
+
 /**
  * The run's client for `credential`, or a skip when the run is not live or a
  * setting it needs is missing.
  *
- * - `apiKey`: the project's API key, the SDK's primary credential.
- * - `session`: the API key plus a member's Control Plane session, for
- *   member-authored Control Plane routes.
- * - `member`: a member's Data Plane token, for the Data Plane writes no API
- *   key capability grants (automations, tags, share deletion).
+ * - `serviceAccount`: the project's service account, the SDK's primary
+ *   credential, built by `fromServiceAccount` so the Data Plane URL is
+ *   discovered.
+ * - `member`: a member's Data Plane token, for annotation tags
+ *   (`annotations:write` is not a service-account scope).
+ * - `session`: a member's Control Plane session, for members reads
+ *   (`members:read` is not a service-account scope either). The session is
+ *   sent as the cookie alone; the Control Plane refuses it beside a bearer.
  */
-function liveClient(
+async function liveClient(
   ctx: TestContext,
   credential: Credential,
-): IntrospectionClient {
-  if (process.env.INTROSPECTION_LIVE !== "1") {
-    ctx.skip("INTROSPECTION_LIVE is not 1");
+): Promise<IntrospectionClient> {
+  requireLive(ctx);
+  const baseApiUrl = setting(ctx, "INTROSPECTION_BASE_API_URL");
+  if (credential === "serviceAccount") {
+    return IntrospectionClient.fromServiceAccount({
+      clientId: setting(ctx, "INTROSPECTION_CLIENT_ID"),
+      clientSecret: setting(ctx, "INTROSPECTION_CLIENT_SECRET"),
+      project: setting(ctx, "INTROSPECTION_PROJECT"),
+      baseApiUrl,
+    });
   }
-  const token =
-    credential === "member"
-      ? setting(ctx, "INTROSPECTION_MEMBER_TOKEN")
-      : setting(ctx, "INTROSPECTION_TOKEN");
+  const token = setting(ctx, "INTROSPECTION_MEMBER_TOKEN");
   const cpSession =
     credential === "session"
       ? setting(ctx, "INTROSPECTION_CP_SESSION")
@@ -67,10 +108,7 @@ function liveClient(
   return new IntrospectionClient({
     token,
     cpSession,
-    advanced: {
-      baseApiUrl: process.env.INTROSPECTION_BASE_API_URL,
-      dpUrl: process.env.INTROSPECTION_DP_URL,
-    },
+    advanced: { baseApiUrl, dpUrl: await discoveredDpUrl(ctx) },
   });
 }
 
@@ -111,7 +149,7 @@ async function expectStatus<E extends abstract new (...args: never) => Error>(
 
 describe("live API", () => {
   it("files CRUD walk", async (ctx) => {
-    const client = liveClient(ctx, "apiKey");
+    const client = await liveClient(ctx, "serviceAccount");
     const files = client.files;
     const name = `${unique("file")}.txt`;
 
@@ -154,7 +192,7 @@ describe("live API", () => {
   });
 
   it("upload and shares CRUD walk", async (ctx) => {
-    const client = liveClient(ctx, "apiKey");
+    const client = await liveClient(ctx, "serviceAccount");
     const files = client.files;
     const file = await files.upload({
       file: new TextEncoder().encode("shared bytes"),
@@ -180,9 +218,7 @@ describe("live API", () => {
         ValidationError,
         422,
       );
-      // No API key capability carries `shares:delete`, so a member removes it.
-      const member = liveClient(ctx, "member");
-      await member.shares.delete(share.id);
+      await shares.delete(share.id);
       await expectStatus(shares.get(share.id), NotFoundError, 404);
     } finally {
       await files.delete(fileId);
@@ -190,40 +226,42 @@ describe("live API", () => {
   });
 
   it("tags CRUD walk", async (ctx) => {
-    const client = liveClient(ctx, "member");
-    const tags = client.tags;
-    const access = unique("access");
+    // Access tags are the service account's; annotation tags need
+    // `annotations:write`, which only a member holds.
+    const access = (await liveClient(ctx, "serviceAccount")).tags;
+    const annotations = (await liveClient(ctx, "member")).tags;
+    const accessName = unique("access");
     const annotation = unique("label");
 
-    await tags.create({ kind: "access", name: access });
-    const created = await tags.create({
+    await access.create({ kind: "access", name: accessName });
+    const created = await annotations.create({
       kind: "annotation",
       name: annotation,
       color: "#f97316",
     });
     try {
-      await tags.get("access", access);
-      await tags.get("annotation", created.name);
-      const listed = await collect(tags.list("annotation"));
+      await access.get("access", accessName);
+      await annotations.get("annotation", created.name);
+      const listed = await collect(annotations.list("annotation"));
       expect(listed.some((tag) => tag.name === created.name)).toBe(true);
 
-      await tags.update("annotation", created.name, {
+      await annotations.update("annotation", created.name, {
         color: "#22c55e",
         description: "recolored",
       });
     } finally {
-      await tags.delete("annotation", created.name);
-      await tags.delete("access", access);
+      await annotations.delete("annotation", created.name);
+      await access.delete("access", accessName);
     }
     await expectStatus(
-      tags.get("annotation", created.name),
+      annotations.get("annotation", created.name),
       NotFoundError,
       404,
     );
   });
 
   it("automations CRUD walk", async (ctx) => {
-    const client = liveClient(ctx, "member");
+    const client = await liveClient(ctx, "serviceAccount");
     // An automation dispatches into a runtime group, so it needs a runtime
     // the seed does not create.
     const runtimeGroupId = setting(ctx, "INTROSPECTION_RUNTIME_GROUP_ID");
@@ -251,7 +289,7 @@ describe("live API", () => {
   });
 
   it("control-plane reads", async (ctx) => {
-    const client = liveClient(ctx, "apiKey");
+    const client = await liveClient(ctx, "serviceAccount");
     const project = setting(ctx, "INTROSPECTION_PROJECT");
     await collect(client.runtimes.list({ project }));
     await collect(client.recipes.list({ project }));
@@ -261,13 +299,13 @@ describe("live API", () => {
   });
 
   it("telemetry reads", async (ctx) => {
-    const client = liveClient(ctx, "apiKey");
+    const client = await liveClient(ctx, "serviceAccount");
     await client.conversations.list();
     await client.events.list({ event_name: "introspection.annotation" });
   });
 
   it("members reads with a Control Plane session", async (ctx) => {
-    const client = liveClient(ctx, "session");
+    const client = await liveClient(ctx, "session");
     const members = await collect(client.members.list());
     const first = members[0];
     expect(first, "the seeded org has members").toBeDefined();
@@ -275,12 +313,23 @@ describe("live API", () => {
   });
 
   it("rejected credentials are typed", async (ctx) => {
-    liveClient(ctx, "apiKey");
+    requireLive(ctx);
+    await expectStatus(
+      serviceAccountToken({
+        clientId: setting(ctx, "INTROSPECTION_CLIENT_ID"),
+        clientSecret: "intro_sk_not_a_real_secret",
+        project: setting(ctx, "INTROSPECTION_PROJECT"),
+        baseApiUrl: setting(ctx, "INTROSPECTION_BASE_API_URL"),
+      }),
+      AuthenticationError,
+      401,
+    );
+
     const client = new IntrospectionClient({
-      token: "intro_dev_not_a_real_key",
+      token: "not_a_real_token",
       advanced: {
-        baseApiUrl: process.env.INTROSPECTION_BASE_API_URL,
-        dpUrl: process.env.INTROSPECTION_DP_URL,
+        baseApiUrl: setting(ctx, "INTROSPECTION_BASE_API_URL"),
+        dpUrl: await discoveredDpUrl(ctx),
       },
     });
     await expectStatus(

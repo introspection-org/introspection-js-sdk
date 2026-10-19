@@ -14,7 +14,7 @@
     "test": "pnpm --filter introspection-tests test",
     "test:replay": "pnpm --filter introspection-tests test:replay",
     "test:record": "pnpm --filter introspection-tests test:record",
-    "test:live": "pnpm --filter introspection-tests test:live"
+    "test:live": "turbo run test:live --filter=introspection-tests --ui=stream"
   },
   "devDependencies": {
     "husky": "^9.0.0",
