@@ -206,12 +206,15 @@ function toolStatus(result: string) {
 function toolError(content: string) {
   let text = content;
   let failed = false;
+  let problemType: unknown;
   try {
     const parsed = JSON.parse(content) as {
       isError?: unknown;
       content?: unknown;
+      details?: { problem?: { type?: unknown } };
     };
     if (parsed && typeof parsed === "object") {
+      problemType = parsed.details?.problem?.type;
       failed = parsed.isError === true;
       const part = Array.isArray(parsed.content)
         ? (parsed.content as { type?: string; text?: unknown }[]).find(
@@ -230,16 +233,16 @@ function toolError(content: string) {
     failed ||= status >= 400 && status !== 428;
     if (!failed) return undefined;
     let reason = http[2].trim();
-    // A rail refusing a call is the demo working: the agent says why, and the
-    // backend pane shows the call.
-    if (/"type"\s*:\s*"[^"]*\/problems\/(policy-)?denied"/.test(reason))
-      return undefined;
     try {
-      const problem = JSON.parse(reason) as {
+      // The problem document is the body's first line; the tool may add a
+      // plain-text summary after it.
+      const problem = JSON.parse(reason.split("\n")[0]) as {
+        type?: unknown;
         detail?: unknown;
         title?: unknown;
         error?: unknown;
       };
+      problemType ??= problem.type;
       const said = [problem.detail, problem.title, problem.error].find(
         (v) => typeof v === "string" && v,
       );
@@ -249,6 +252,13 @@ function toolError(content: string) {
     }
     text = `HTTP ${status} ${reason}`;
   }
+  // A rail refusing a call is the demo working: the agent says why, and the
+  // backend pane shows the call.
+  if (
+    typeof problemType === "string" &&
+    /\/problems\/(policy-)?denied$/.test(problemType)
+  )
+    return undefined;
   if (!failed) return undefined;
   const lines = text
     .split("\n")
