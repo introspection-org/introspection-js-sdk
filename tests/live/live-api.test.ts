@@ -14,6 +14,11 @@
  * `INTROSPECTION_MEMBER_TOKEN`. A test whose settings are missing skips.
  *
  * Mirrors the Rust SDK's `tests/live_api_test.rs`.
+ *
+ * `test:live` sets `NODE_USE_ENV_PROXY=1` so that, behind an `HTTPS_PROXY`,
+ * Node's own fetch routes the requests: the SDK's undici-based proxy fetch
+ * sends a global `FormData` body without its multipart encoding, so every
+ * upload fails with a 422 there.
  */
 import { randomUUID } from "node:crypto";
 import { describe, expect, it, type TestContext } from "vitest";
@@ -240,7 +245,12 @@ describe("live API", () => {
     } finally {
       await automations.delete(created.id);
     }
-    await expectStatus(automations.get(created.id), NotFoundError, 404);
+    // The DP reads an automation with deleted ones included, so a deleted one
+    // comes back stamped rather than 404. `Automation` does not type the field.
+    const deleted = (await automations.get(created.id)) as {
+      deleted_at?: string | null;
+    };
+    expect(deleted.deleted_at).toBeTruthy();
   });
 
   it("control-plane reads", async (ctx) => {
