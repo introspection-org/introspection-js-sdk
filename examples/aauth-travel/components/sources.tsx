@@ -5,7 +5,7 @@ import { useState } from "react";
 export interface RenderedSource {
   label: string;
   origin: string;
-  kind: "example" | "recipe" | "contract";
+  kind: "example" | "package" | "recipe" | "contract";
   language: string;
   html: string;
 }

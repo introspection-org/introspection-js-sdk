@@ -489,7 +489,7 @@ Before booking anything, propose_trip posts the trip to person-server.aauth, a n
 }
 ```
 
-**Acme: missions** · `packages/introspection-person-server/src/person-server.ts`
+**Acme: missions** · `@introspection-sdk/person-server/src/person-server.ts`
 
 ```ts
 /** The live mission `s256` names, if it is this agent's; the same 404 otherwise. */
@@ -653,7 +653,7 @@ export async function decide(
 }
 ```
 
-**Acme: person tokens under the mission** · `packages/introspection-person-server/src/person-server.ts`
+**Acme: person tokens under the mission** · `@introspection-sdk/person-server/src/person-server.ts`
 
 ```ts
 /** The person's identifier at one audience: no two audiences can correlate it. */
@@ -769,22 +769,36 @@ Search is open. The provider signs each offer's facts (price, nights, cabin) as 
 **the provider's metadata** · `examples/aauth-travel/lib/booking.ts`
 
 ```ts
-/** `/.well-known/aauth-resource.json`: how an agent plans its first call. */
-export function resourceMetadata() {
-  return {
+/**
+ * The provider as an AAuth resource (@introspection-sdk/aauth-resource): its
+ * metadata at `/.well-known/aauth-resource.json`, its key, and its proposals.
+ */
+export const bookingResource = () =>
+  (registry.__flightSectorBooking ??= createAAuthResource({
     issuer: ISSUER,
-    jwks_uri: `${ISSUER}/.well-known/jwks.json`,
-    access_mode: "auth-token",
     name: "Flight Sector Booking",
     description:
       "Flights and hotels for company travel. Search is open; a reservation needs an auth token from the traveller's Person Server.",
-    scope_descriptions: { [SCOPE]: "Reserve the quoted flight or hotel" },
-    r3_vocabularies: [VOCABULARY],
+    scopes: { [SCOPE]: "Reserve the quoted flight or hotel" },
+    vocabulary: VOCABULARY,
     // draft-hardt-aauth-budgets: each resource token's `budget` is its booking's price.
-    budget_units: [{ unit: BUDGET_UNIT.unit, decimals: BUDGET_UNIT.decimals }],
-    additional_signature_components: ["content-type", "content-digest"],
-  };
-}
+    budgetUnits: [{ unit: BUDGET_UNIT.unit, decimals: BUDGET_UNIT.decimals }],
+    personServers: PERSON_SERVERS,
+    agentProviders: agentProviders(),
+    // Set a PEM to keep the key across restarts; otherwise each process makes its own.
+    signingKey: process.env.BOOKING_SIGNING_KEY,
+    kid: "flightsector-booking-1",
+    onPropose: ({ ps, parameters, mission_s256 }) =>
+      record(
+        "booking.challenged",
+        `asked ${ps} to approve ${parameters.offer_id}`,
+        {
+          offer_id: parameters.offer_id,
+          ps,
+          mission: mission_s256,
+        },
+      ),
+  }));
 ```
 
 **provider signs each offer** · `examples/aauth-travel/lib/booking.ts`
@@ -792,10 +806,11 @@ export function resourceMetadata() {
 ```ts
 /** Sign an offer's facts. The quote is what the Person Server decides on. */
 async function quote(offer: Record<string, unknown>) {
-  const signer = await bookingSigner();
   const iat = Math.floor(Date.now() / 1000);
   const valid_until = iat + QUOTE_TTL_SECONDS;
-  const quote = await signer.sign({ ...offer, iss: ISSUER, iat, valid_until });
+  const quote = await (
+    await bookingResource()
+  ).sign({ ...offer, iat, valid_until });
   return { ...offer, valid_until, quote };
 }
 ```
@@ -1059,25 +1074,11 @@ The agent's book_item is a plain POST. The egress proxy signs it with RFC 9421 H
 }
 ```
 
-**verify the HTTP signature** · `examples/aauth-travel/lib/aauth.ts`
+**verify the HTTP signature** · `@introspection-sdk/aauth-resource/src/resource.ts`
 
 ```ts
-export interface SignedRequest {
-  keyType: "jwt" | "jwks_uri" | "hwk" | "jkt_jwt";
-  /** JWK Thumbprint of the key that signed the request. */
-  thumbprint: string;
-  /** The token in `Signature-Key: sig=jwt;jwt="…"`, not yet verified. */
-  jwt?: string;
-  /** The server in `Signature-Key: sig=jwks_uri;id="…"`, verified against its keys. */
-  server?: string;
-}
-
-/**
- * Verify the RFC 9421 signature on a request, as addressed to `url` (this
- * server's own host, not the path Next routed it to). A body must be covered
- * by `content-digest`.
- */
-export async function verifySignature(
+/** Verify the RFC 9421 signature on a request as addressed to `url`; a body must be covered by `content-digest`. */
+async function verifySignature(
   request: Request,
   body: string | undefined,
   url: string,
@@ -1111,48 +1112,37 @@ export async function verifySignature(
 ```ts
 /**
  * A reservation books on an auth token whose R3 proposal is exactly this
- * booking. Before that the provider asks for what it lacks: a person token
+ * booking. Until then the resource asks for what is lacking: a person token
  * (who the agent acts for, and under which mission), then an auth token for
  * this booking, described in a proposal only the person's Person Server reads.
+ * The booking is read only once the presented token verifies.
  */
 export async function reserve(request: Request): Promise<Response> {
   const body = await request.text();
-  if (!request.headers.get("signature-key"))
-    return challenge({ requirement: "person-token" }, "sign the request");
-  const signed = await verifySignature(request, body, RESERVE_URL);
-  const token = await verifyPresented(signed, {
-    audience: ISSUER,
-    accept: ["agent", "person", "auth"],
-    issuers: {
-      agent: agentProviders(),
-      person: PERSON_SERVERS,
-      auth: PERSON_SERVERS,
+  let asked: { booking: Booking; offer: JWTPayload } | undefined;
+  const authz = await (
+    await bookingResource()
+  ).authorize(
+    request,
+    body,
+    async () => {
+      asked = await readReservation(body);
+      const { booking, offer } = asked;
+      return {
+        scope: SCOPE,
+        operation: OPERATION,
+        parameters: booking,
+        summary: summarize(booking, offer),
+        // The price, as a budgets-draft budget, so any Person Server can weigh it without reading R3.
+        budget: { amount: Number(offer.total_cents), ...BUDGET_UNIT },
+      };
     },
-  });
-  if (token.type === "agent")
-    return challenge(
-      { requirement: "person-token" },
-      "present a person token from the traveller's Person Server",
-    );
-  const { booking, offer } = await readReservation(body);
-  if (token.type === "auth" && token.r3_s256) {
-    const approved = await verifyProposalParameters({
-      store: r3,
-      r3_s256: token.r3_s256,
-      presented: booking,
-      operation: OPERATION,
-    }).then(
-      () => true,
-      () => false,
-    );
-    if (approved) {
-      const earlier = reservations.find(
-        (r) => r.auth_token_jti === token.claims.jti,
-      );
-      return Response.json(earlier ?? book(token, booking, offer));
-    }
-  }
-  return propose(token, signed.thumbprint, booking, offer);
+    { url: RESERVE_URL },
+  );
+  if (!authz.ok) return authz.response;
+  const { booking, offer } = asked!;
+  const earlier = reservations.find((r) => r.auth_token_jti === authz.jti);
+  return Response.json(earlier ?? book(authz.token, booking, offer));
 }
 ```
 
@@ -1162,66 +1152,55 @@ _Booking provider → egress_
 
 A person token says who the agent acts for and under which mission, not what it may buy. So the provider publishes the booking as an R3 proposal (the quote, purpose and payer) and answers 401 with AAuth-Requirement: requirement=auth-token and a resource token naming the proposal by its hash, carrying the mission's s256 across, and stating the booking's price as its budget (draft-hardt-aauth-budgets). Only Acme, signing as itself, can read the proposal.
 
-**the proposal and resource token** · `examples/aauth-travel/lib/booking.ts`
+**the proposal and resource token** · `@introspection-sdk/aauth-resource/src/resource.ts`
 
 ```ts
-/**
- * `401 requirement=auth-token` with a resource token for this one booking:
- * its R3 proposal names the parameters, and only the Person Server may read it.
- * `mission_s256` comes across from the presented token unchanged.
- */
+/** `401 requirement=auth-token`: a resource token for this one call, its proposal readable by the person's Person Server alone. */
 async function propose(
   token: VerifiedToken,
   agentJkt: string,
-  booking: Booking,
-  offer: JWTPayload,
+  ask: AuthorizeRequest,
 ): Promise<Response> {
   const ps = token.type === "auth" ? token.ps : token.iss;
   const proposal = await publishProposal({
-    vocabulary: VOCABULARY,
-    operation: OPERATION,
-    parameters: booking,
-    display: { summary: summarize(booking, offer) },
+    vocabulary,
+    operation: ask.operation,
+    parameters: ask.parameters,
+    display: { summary: ask.summary },
     store: r3,
-    baseUri: `${ISSUER}/r3`,
+    baseUri: `${issuer}/r3`,
     authorized: [ps],
   });
-  const signer = await bookingSigner();
-  // The price, as a budgets-draft budget, so any Person Server can weigh it without reading R3.
-  const budget = { amount: Number(offer.total_cents), ...BUDGET_UNIT };
   const resourceToken = await createResourceToken(
     {
-      resource: ISSUER,
+      resource: issuer,
       audience: ps,
       presentedToken: token as Parameters<
         typeof createResourceToken
       >[0]["presentedToken"],
       agentJkt,
-      scope: SCOPE,
-      kid: signer.kid,
+      scope: ask.scope,
+      kid,
       r3: { uri: proposal.r3_uri, s256: proposal.r3_s256 },
     },
-    (claims, header) => signer.signWithHeader({ ...claims, budget }, header),
+    (claims, header) =>
+      signWithHeader(
+        { ...claims, ...(ask.budget ? { budget: ask.budget } : {}) },
+        header,
+      ),
   );
-  record("booking.challenged", `asked ${ps} to approve ${booking.offer_id}`, {
-    offer_id: booking.offer_id,
+  options.onPropose?.({
     ps,
-    mission: "mission_s256" in token ? token.mission_s256 : undefined,
+    scope: ask.scope,
+    parameters: ask.parameters,
+    ...("mission_s256" in token && token.mission_s256
+      ? { mission_s256: token.mission_s256 }
+      : {}),
   });
   return challenge(
     { requirement: "auth-token", resourceToken },
     `take the resource token to ${ps}`,
   );
-}
-
-/** The proposal's one-line description, for whoever approves it. */
-function summarize(booking: Booking, offer: JWTPayload): string {
-  const dollars = `$${Math.round(Number(offer.total_cents) / 100).toLocaleString("en-US")}`;
-  const what =
-    offer.kind === "hotel"
-      ? `${offer.name}, ${offer.nights} nights`
-      : `${offer.flight}, ${offer.cabin}`;
-  return `Book ${what} for ${dollars}, ${booking.purpose}, paid by ${booking.payer}`;
 }
 ```
 
@@ -1273,18 +1252,15 @@ function summarize(booking: Booking, offer: JWTPayload): string {
 }
 ```
 
-**the proposal, to Acme alone** · `examples/aauth-travel/lib/booking.ts`
+**the proposal, to Acme alone** · `@introspection-sdk/aauth-resource/src/resource.ts`
 
 ```ts
-/** An R3 document, to the Person Server it was published for and no one else. */
-export async function serveProposal(
-  request: Request,
-  key: string,
-): Promise<Response> {
+/** An R3 proposal, to the Person Server it was published for and no one else. */
+async function serveProposal(request: Request, key: string): Promise<Response> {
   const id = /jwks_uri;(?:[^,]*;)?id="([^"]+)"/.exec(
     request.headers.get("signature-key") ?? "",
   )?.[1];
-  if (!id || !PERSON_SERVERS.includes(id))
+  if (!id || !options.personServers.includes(id))
     throw signatureError(
       "invalid_signature",
       "only the person's Person Server reads a proposal",
@@ -1292,7 +1268,7 @@ export async function serveProposal(
   const signed = await verifySignature(
     request,
     undefined,
-    `${ISSUER}/r3/${key}`,
+    `${issuer}/r3/${key}`,
   );
   const served = await serveR3Document({
     store: r3,
@@ -1360,7 +1336,7 @@ The egress proxy holds the request and calls Acme's token endpoint, signed with 
 }
 ```
 
-**Acme: verify the agent** · `packages/introspection-person-server/src/person-server.ts`
+**Acme: verify the agent** · `@introspection-sdk/person-server/src/person-server.ts`
 
 ```ts
 /** The request's signature, and the agent token it presents, from a trusted agent provider. */
@@ -1467,7 +1443,7 @@ async function personFor(
 }
 ```
 
-**Acme: verify the request, weigh the budget** · `packages/introspection-person-server/src/person-server.ts`
+**Acme: verify the request, weigh the budget** · `@introspection-sdk/person-server/src/person-server.ts`
 
 ```ts
 /** A resource token, verified against its issuer's keys, binding a token this Person Server issued. */
@@ -1748,7 +1724,7 @@ _Acme → Platform → Agent_
 
 Dana declines. The data plane has been polling the pending URL, signed with the session key; only the agent that asked may read it. It now answers 403, and the platform posts a turn into Sam's conversation saying the QT was declined. The recipe tells the agent to say so and not go looking for alternatives on its own: the flight stays booked, and it asks Sam what he'd like to do about the hotel.
 
-**Acme: the pending URL** · `packages/introspection-person-server/src/person-server.ts`
+**Acme: the pending URL** · `@introspection-sdk/person-server/src/person-server.ts`
 
 ```ts
 /** The agent polls with a signed GET; only the key that asked may read it. Results are minted now. */
@@ -2200,7 +2176,7 @@ _Agent → Acme → Sam_
 
 complete_trip proposes the mission complete, with a summary of what was booked. Sam accepts it, and Acme ends the mission: a person token or auth token under it is refused from then on, so nothing more can be booked against this trip.
 
-**Acme: missions** · `packages/introspection-person-server/src/person-server.ts`
+**Acme: missions** · `@introspection-sdk/person-server/src/person-server.ts`
 
 ```ts
 /** The live mission `s256` names, if it is this agent's; the same 404 otherwise. */

@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
 
-import { bookingSigner } from "@/lib/signing";
+import { bookingResource } from "@/lib/booking";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
-  return NextResponse.json((await bookingSigner()).jwks);
+  return NextResponse.json((await bookingResource()).jwks());
 }

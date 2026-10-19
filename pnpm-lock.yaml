@@ -91,6 +91,9 @@ importers:
       '@hellocoop/httpsig':
         specifier: ^2.6.0
         version: 2.6.0
+      '@introspection-sdk/aauth-resource':
+        specifier: workspace:*
+        version: link:../../packages/introspection-aauth-resource
       '@introspection-sdk/introspection-node':
         specifier: workspace:*
         version: link:../../packages/introspection-node
@@ -225,6 +228,34 @@ importers:
       typescript-eslint:
         specifier: ^8.71.2
         version: 8.71.2(eslint@9.39.5(jiti@2.7.0))(typescript@5.9.3)
+
+  packages/introspection-aauth-resource:
+    dependencies:
+      '@aauth/resource':
+        specifier: ^3.0.0
+        version: 3.0.0
+      '@hellocoop/httpsig':
+        specifier: ^2.6.0
+        version: 2.6.0
+      jose:
+        specifier: ^6.2.12
+        version: 6.2.12
+    devDependencies:
+      '@repo/eslint-config':
+        specifier: workspace:*
+        version: link:../eslint-config
+      '@repo/typescript-config':
+        specifier: workspace:*
+        version: link:../typescript-config
+      '@types/node':
+        specifier: ^22.20.5
+        version: 22.20.5
+      eslint:
+        specifier: ^9.39.5
+        version: 9.39.5(jiti@2.7.0)
+      typescript:
+        specifier: 5.9.3
+        version: 5.9.3
 
   packages/introspection-browser:
     dependencies:

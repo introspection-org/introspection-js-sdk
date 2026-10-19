@@ -9,6 +9,7 @@ export const dynamic = "force-dynamic";
 
 const KIND_NOTE = {
   example: "Flight Sector's code in this example",
+  package: "an Introspection SDK package this example builds on",
   recipe: "the public recipe",
   contract: "a platform contract: the shape on the wire, not the code",
 };
