@@ -11,6 +11,7 @@
     "test:observability": "vitest run observability/",
     "test:record": "POLLY_MODE=record vitest run",
     "test:replay": "POLLY_MODE=replay vitest run",
+    "test:live": "vitest run --config vitest.live.config.ts",
     "test:cov": "vitest run --coverage",
     "test:cov:check": "vitest run --coverage --coverage.reporter=text --coverage.reporter=json-summary"
   },
