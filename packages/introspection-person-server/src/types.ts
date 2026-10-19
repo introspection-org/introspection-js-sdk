@@ -57,6 +57,10 @@ export interface Approval {
   /** Approving a mission sets its budget. */
   decided_budget?: Budget;
   decided_by?: string;
+  /** When it was decided or withdrawn, in seconds since the epoch. */
+  decided_at?: number;
+  /** The tenant the agent asked under. */
+  tenant?: string;
   created_at: number;
   expires_at: number;
 }
@@ -73,6 +77,8 @@ export interface Mission {
   log: { at: number; entry: string }[];
   expires_at: number;
   completed_at?: number;
+  /** The tenant the agent asked under. */
+  tenant?: string;
 }
 
 /** What an operator answers. */
@@ -85,26 +91,41 @@ export interface Decision {
 }
 
 /**
- * Where a Person Server keeps its state. Three methods must be atomic, since
- * concurrent requests race on them: `spend` checks and spends in one step, so
- * two bookings cannot both fit in what is left; `transitionApproval` changes an
- * approval only from the status it was read in, so a decision, a withdrawal or
- * a collection happens once; `insertMission` never replaces a mission; and
- * `logMission` and `endMission` change a mission in place rather than
- * overwriting a concurrent spend.
+ * Where a Person Server keeps its state.
+ *
+ * Every method takes the request's `tenant`, the AAuth `tenant` the agent
+ * named (undefined when it named none), and must keep each tenant's records
+ * apart: a record is found only under the tenant it was saved with. A tenant
+ * the store cannot scope, such as one in a format it does not serve, finds
+ * nothing.
+ *
+ * Three methods must be atomic, since concurrent requests race on them:
+ * `spend` checks and spends in one step, so two bookings cannot both fit in
+ * what is left; `transitionApproval` changes an approval only from the status
+ * it was read in, so a decision, a withdrawal or a collection happens once;
+ * and `insertMission` never replaces a mission. `logMission` and `endMission`
+ * change a mission in place rather than overwriting a concurrent spend.
  */
 export interface Store {
-  binding(jkt: string): Promise<string | undefined>;
+  binding(tenant: string | undefined, jkt: string): Promise<string | undefined>;
   /** Bind a key to a person unless it is bound already; returns the person it is bound to. */
-  bind(jkt: string, personId: string): Promise<string>;
-  mission(s256: string): Promise<Mission | undefined>;
+  bind(
+    tenant: string | undefined,
+    jkt: string,
+    personId: string,
+  ): Promise<string>;
+  mission(
+    tenant: string | undefined,
+    s256: string,
+  ): Promise<Mission | undefined>;
   /** Save a newly approved mission unless one with its hash exists; returns whether it did. */
-  insertMission(mission: Mission): Promise<boolean>;
+  insertMission(tenant: string | undefined, mission: Mission): Promise<boolean>;
   /**
    * Add `amount` to a live mission's spend; with `withinBudget`, only if it
    * fits what is left. Returns the mission, or undefined when it did not.
    */
   spend(
+    tenant: string | undefined,
     s256: string,
     amount: number,
     withinBudget: boolean,
@@ -112,22 +133,33 @@ export interface Store {
   ): Promise<Mission | undefined>;
   /** Append to a live mission's log; returns whether it was live. */
   logMission(
+    tenant: string | undefined,
     s256: string,
     entry: { at: number; entry: string },
     now: number,
   ): Promise<boolean>;
   /** Mark a mission completed at `at` unless it already is; returns it, or undefined if there is none. */
-  endMission(s256: string, at: number): Promise<Mission | undefined>;
-  missions(): Promise<Mission[]>;
-  approval(id: string): Promise<Approval | undefined>;
+  endMission(
+    tenant: string | undefined,
+    s256: string,
+    at: number,
+  ): Promise<Mission | undefined>;
+  /** The tenant's missions. */
+  missions(tenant: string | undefined): Promise<Mission[]>;
+  approval(
+    tenant: string | undefined,
+    id: string,
+  ): Promise<Approval | undefined>;
   /** Save a new approval. */
-  putApproval(approval: Approval): Promise<void>;
+  putApproval(tenant: string | undefined, approval: Approval): Promise<void>;
   /** Replace approval `next.id` with `next` only if its status is still `expected`; returns whether it did. */
   transitionApproval(
+    tenant: string | undefined,
     expected: ApprovalStatus,
     next: Approval,
   ): Promise<boolean>;
-  approvals(): Promise<Approval[]>;
+  /** The tenant's approvals. */
+  approvals(tenant: string | undefined): Promise<Approval[]>;
 }
 
 /** Who this Person Server speaks for, and who decides for them. */

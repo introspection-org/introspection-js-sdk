@@ -1,39 +1,59 @@
 import type { Approval, ApprovalStatus, Mission, Store } from "./types.js";
 
-/** Everything in memory: for development, tests and single-process demos. */
-export class MemoryStore implements Store {
-  private readonly bindings = new Map<string, string>();
-  private readonly missionsByHash = new Map<string, Mission>();
-  private readonly approvalsById = new Map<string, Approval>();
+/** One tenant's records of one kind, by their own identifiers. */
+class Scoped<T> {
+  private readonly byTenant = new Map<string | undefined, Map<string, T>>();
 
-  async binding(jkt: string) {
-    return this.bindings.get(jkt);
+  get(tenant: string | undefined, id: string) {
+    return this.byTenant.get(tenant)?.get(id);
   }
 
-  async bind(jkt: string, personId: string) {
-    const bound = this.bindings.get(jkt);
+  set(tenant: string | undefined, id: string, value: T) {
+    let records = this.byTenant.get(tenant);
+    if (!records) this.byTenant.set(tenant, (records = new Map()));
+    records.set(id, value);
+  }
+
+  all(tenant: string | undefined) {
+    return [...(this.byTenant.get(tenant)?.values() ?? [])];
+  }
+}
+
+/** Everything in memory: for development, tests and single-process demos. */
+export class MemoryStore implements Store {
+  private readonly bindings = new Scoped<string>();
+  private readonly missionsByHash = new Scoped<Mission>();
+  private readonly approvalsById = new Scoped<Approval>();
+
+  async binding(tenant: string | undefined, jkt: string) {
+    return this.bindings.get(tenant, jkt);
+  }
+
+  async bind(tenant: string | undefined, jkt: string, personId: string) {
+    const bound = this.bindings.get(tenant, jkt);
     if (bound) return bound;
-    this.bindings.set(jkt, personId);
+    this.bindings.set(tenant, jkt, personId);
     return personId;
   }
 
-  async mission(s256: string) {
-    return this.missionsByHash.get(s256);
+  async mission(tenant: string | undefined, s256: string) {
+    return this.missionsByHash.get(tenant, s256);
   }
 
-  async insertMission(mission: Mission) {
-    if (this.missionsByHash.has(mission.s256)) return false;
-    this.missionsByHash.set(mission.s256, mission);
+  async insertMission(tenant: string | undefined, mission: Mission) {
+    if (this.missionsByHash.get(tenant, mission.s256)) return false;
+    this.missionsByHash.set(tenant, mission.s256, mission);
     return true;
   }
 
   async spend(
+    tenant: string | undefined,
     s256: string,
     amount: number,
     withinBudget: boolean,
     now: number,
   ) {
-    const mission = this.missionsByHash.get(s256);
+    const mission = this.missionsByHash.get(tenant, s256);
     if (
       !mission ||
       mission.completed_at !== undefined ||
@@ -50,11 +70,12 @@ export class MemoryStore implements Store {
   }
 
   async logMission(
+    tenant: string | undefined,
     s256: string,
     entry: { at: number; entry: string },
     now: number,
   ) {
-    const mission = this.missionsByHash.get(s256);
+    const mission = this.missionsByHash.get(tenant, s256);
     if (
       !mission ||
       mission.completed_at !== undefined ||
@@ -65,31 +86,36 @@ export class MemoryStore implements Store {
     return true;
   }
 
-  async endMission(s256: string, at: number) {
-    const mission = this.missionsByHash.get(s256);
+  async endMission(tenant: string | undefined, s256: string, at: number) {
+    const mission = this.missionsByHash.get(tenant, s256);
     if (mission) mission.completed_at ??= at;
     return mission;
   }
 
-  async missions() {
-    return [...this.missionsByHash.values()];
+  async missions(tenant: string | undefined) {
+    return this.missionsByHash.all(tenant);
   }
 
-  async approval(id: string) {
-    return this.approvalsById.get(id);
+  async approval(tenant: string | undefined, id: string) {
+    return this.approvalsById.get(tenant, id);
   }
 
-  async putApproval(approval: Approval) {
-    this.approvalsById.set(approval.id, approval);
+  async putApproval(tenant: string | undefined, approval: Approval) {
+    this.approvalsById.set(tenant, approval.id, approval);
   }
 
-  async transitionApproval(expected: ApprovalStatus, next: Approval) {
-    if (this.approvalsById.get(next.id)?.status !== expected) return false;
-    this.approvalsById.set(next.id, next);
+  async transitionApproval(
+    tenant: string | undefined,
+    expected: ApprovalStatus,
+    next: Approval,
+  ) {
+    if (this.approvalsById.get(tenant, next.id)?.status !== expected)
+      return false;
+    this.approvalsById.set(tenant, next.id, next);
     return true;
   }
 
-  async approvals() {
-    return [...this.approvalsById.values()];
+  async approvals(tenant: string | undefined) {
+    return this.approvalsById.all(tenant);
   }
 }

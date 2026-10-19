@@ -123,9 +123,11 @@ curl -X POST -H "authorization: Bearer $PS_ADMIN_TOKEN" -H "content-type: applic
   "https://ps.acme.example/consent/<approval id>/decision"
 ```
 
+An agent that names a `tenant` names it on every request, `/token` included: the tokens it is given carry that tenant, and an auth token request whose tenant differs from its presented token's is refused.
+
 An Introspection connector uses it once its `person_server_url` names `issuer`.
 
-Keep the signing key and subject secret stable: resources cache your keys, and each person's directed `sub` is derived from the secret. The default store is in memory; implement `Store` for anything that must survive a restart. `spend` must check and add in one step, and `transitionApproval` must change an approval only from the status it expects, so each decision and each collection happens once.
+Keep the signing key and subject secret stable: resources cache your keys, and each person's directed `sub` is derived from the secret. The default store is in memory; implement `Store` for anything that must survive a restart. Every `Store` method takes the request's tenant first (the `tenant` the agent named, `undefined` when it named none), and records are kept apart per tenant: a record is found only under the tenant it was saved with. Pass the same tenant to `ps.decide()`, `ps.mission()` and the other lookups, or `?tenant=` to the management routes. `spend` must check and add in one step, and `transitionApproval` must change an approval only from the status it expects, so each decision and each collection happens once.
 
 ## Routes
 

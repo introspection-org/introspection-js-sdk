@@ -42,8 +42,8 @@ interface Asked {
 /** Keeps missions where the demo page can read them as they change. */
 class AcmeStore extends MemoryStore {
   readonly trips = new Map<string, Mission>();
-  override async insertMission(mission: Mission) {
-    const inserted = await super.insertMission(mission);
+  override async insertMission(tenant: string | undefined, mission: Mission) {
+    const inserted = await super.insertMission(tenant, mission);
     if (inserted) this.trips.set(mission.s256, mission);
     return inserted;
   }
@@ -231,13 +231,17 @@ export async function decide(
     throw new AAuthError(400, "invalid_request", "set the trip's budget");
   asked.approval = await (
     await personServer()
-  ).decide(id, {
-    status: verdict === "approve" ? "approved" : "denied",
-    ...(verdict === "approve" && trip
-      ? { budget: { amount: budgetCents!, ...USD } }
-      : {}),
-    decided_by: asked.approval.approver.email ?? asked.approval.approver.id,
-  });
+  ).decide(
+    id,
+    {
+      status: verdict === "approve" ? "approved" : "denied",
+      ...(verdict === "approve" && trip
+        ? { budget: { amount: budgetCents!, ...USD } }
+        : {}),
+      decided_by: asked.approval.approver.email ?? asked.approval.approver.id,
+    },
+    asked.approval.tenant,
+  );
   record(
     "acme.decided",
     `${asked.approval.approver.name} ${asked.approval.status}`,
