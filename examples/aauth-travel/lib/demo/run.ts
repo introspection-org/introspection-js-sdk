@@ -230,6 +230,10 @@ function toolError(content: string) {
     failed ||= status >= 400 && status !== 428;
     if (!failed) return undefined;
     let reason = http[2].trim();
+    // A rail refusing a call is the demo working: the agent says why, and the
+    // backend pane shows the call.
+    if (/"type"\s*:\s*"[^"]*\/problems\/(policy-)?denied"/.test(reason))
+      return undefined;
     try {
       const problem = JSON.parse(reason) as {
         detail?: unknown;
