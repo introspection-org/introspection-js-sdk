@@ -498,6 +498,10 @@ async function liveMission(agent: Agent, hash: unknown): Promise<Mission> {
     typeof hash === "string" ? await store.mission(hash) : undefined;
   if (!mission || mission.agent_id !== agent.id)
     throw new AAuthError(404, "mission_not_found", "no such mission");
+  // The agent identifier is the provider's; the person is the key's. Another
+  // key under the same identifier, bound to someone else, is a stranger.
+  if ((await store.binding(agent.jkt)) !== mission.person.id)
+    throw new AAuthError(404, "mission_not_found", "no such mission");
   if (mission.completed_at !== undefined)
     throw new AAuthError(403, "mission_terminated", "mission completed");
   if (now() >= mission.expires_at)
@@ -533,8 +537,8 @@ async function missionAction(
   const mission = await liveMission(agent, hash);
   if (params.action === "update") {
     const entry = String(params.description ?? "");
-    mission.log.push({ at: now(), entry });
-    await store.putMission(mission);
+    if (!(await store.logMission(mission.s256, { at: now(), entry }, now())))
+      throw new AAuthError(403, "mission_terminated", "mission ended");
     return Response.json({ s256: s256(entry) });
   }
   if (params.action === "completion")
@@ -1739,7 +1743,7 @@ async function pendingState(
     return problem(404, "not_found", "no such pending request");
   if (request.method === "DELETE") {
     if (approval.status === "pending")
-      await store.putApproval({
+      await store.transitionApproval("pending", {
         ...approval,
         status: "denied",
         decided_by: "agent",
@@ -1756,11 +1760,12 @@ async function pendingState(
     return now() >= approval.expires_at
       ? problem(408, "expired", "nobody answered in time")
       : stillPending(id);
+  const collected = () =>
+    problem(410, "collected", "this approval's token was already collected");
+  if (approval.status === "collected") return collected();
   if (approval.kind === "completion") return Response.json({});
-  const mission = approval.mission_s256
-    ? await store.mission(approval.mission_s256)
-    : undefined;
-  if (!mission) return problem(404, "mission_not_found", "no such mission");
+  // Nothing is issued under a mission that has ended, whatever was approved.
+  const mission = await liveMission(agent, approval.mission_s256);
   if (approval.kind === "mission") {
     const tokens = await Promise.all(
       mission.resources.map(async (r) => [
@@ -1774,7 +1779,14 @@ async function pendingState(
       person_tokens: Object.fromEntries(tokens),
     });
   }
-  await liveMission(agent, mission.s256);
+  // Collected once: an approval spends once, so it mints once.
+  if (
+    !(await store.transitionApproval("approved", {
+      ...approval,
+      status: "collected",
+    }))
+  )
+    return collected();
   return Response.json(await authToken(agent, mission, approval.grant));
 }
 ```
@@ -2185,6 +2197,10 @@ async function liveMission(agent: Agent, hash: unknown): Promise<Mission> {
     typeof hash === "string" ? await store.mission(hash) : undefined;
   if (!mission || mission.agent_id !== agent.id)
     throw new AAuthError(404, "mission_not_found", "no such mission");
+  // The agent identifier is the provider's; the person is the key's. Another
+  // key under the same identifier, bound to someone else, is a stranger.
+  if ((await store.binding(agent.jkt)) !== mission.person.id)
+    throw new AAuthError(404, "mission_not_found", "no such mission");
   if (mission.completed_at !== undefined)
     throw new AAuthError(403, "mission_terminated", "mission completed");
   if (now() >= mission.expires_at)
@@ -2220,8 +2236,8 @@ async function missionAction(
   const mission = await liveMission(agent, hash);
   if (params.action === "update") {
     const entry = String(params.description ?? "");
-    mission.log.push({ at: now(), entry });
-    await store.putMission(mission);
+    if (!(await store.logMission(mission.s256, { at: now(), entry }, now())))
+      throw new AAuthError(403, "mission_terminated", "mission ended");
     return Response.json({ s256: s256(entry) });
   }
   if (params.action === "completion")

@@ -89,15 +89,17 @@ export interface Decision {
  * concurrent requests race on them: `spend` checks and spends in one step, so
  * two bookings cannot both fit in what is left; `transitionApproval` changes an
  * approval only from the status it was read in, so a decision, a withdrawal or
- * a collection happens once; and `logMission` and `endMission` change a mission
- * in place rather than overwriting a concurrent spend.
+ * a collection happens once; `insertMission` never replaces a mission; and
+ * `logMission` and `endMission` change a mission in place rather than
+ * overwriting a concurrent spend.
  */
 export interface Store {
   binding(jkt: string): Promise<string | undefined>;
   /** Bind a key to a person unless it is bound already; returns the person it is bound to. */
   bind(jkt: string, personId: string): Promise<string>;
   mission(s256: string): Promise<Mission | undefined>;
-  putMission(mission: Mission): Promise<void>;
+  /** Save a newly approved mission unless one with its hash exists; returns whether it did. */
+  insertMission(mission: Mission): Promise<boolean>;
   /**
    * Add `amount` to a live mission's spend; with `withinBudget`, only if it
    * fits what is left. Returns the mission, or undefined when it did not.

@@ -21,8 +21,10 @@ export class MemoryStore implements Store {
     return this.missionsByHash.get(s256);
   }
 
-  async putMission(mission: Mission) {
+  async insertMission(mission: Mission) {
+    if (this.missionsByHash.has(mission.s256)) return false;
     this.missionsByHash.set(mission.s256, mission);
+    return true;
   }
 
   async spend(

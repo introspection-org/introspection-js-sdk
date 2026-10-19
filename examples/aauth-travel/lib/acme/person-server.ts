@@ -42,9 +42,10 @@ interface Asked {
 /** Keeps missions where the demo page can read them as they change. */
 class AcmeStore extends MemoryStore {
   readonly trips = new Map<string, Mission>();
-  override async putMission(mission: Mission) {
-    this.trips.set(mission.s256, mission);
-    await super.putMission(mission);
+  override async insertMission(mission: Mission) {
+    const inserted = await super.insertMission(mission);
+    if (inserted) this.trips.set(mission.s256, mission);
+    return inserted;
   }
 }
 

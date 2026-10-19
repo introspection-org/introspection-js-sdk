@@ -803,7 +803,9 @@ export async function createPersonServer(options: PersonServerOptions) {
         const resources =
           (approval.grant.resources as string[] | undefined) ?? [];
         const expires_at = now() + missionTtl;
+        // The approval's id makes each mission's hash its own.
         const bytes = JSON.stringify({
+          approval: approval.id,
           agent: approval.agent.id,
           approved_at: new Date(now() * 1000).toISOString(),
           expires_at: new Date(expires_at * 1000).toISOString(),
@@ -838,8 +840,12 @@ export async function createPersonServer(options: PersonServerOptions) {
       }
     }
     // The transition is the decision: what it does happens only once.
-    if (!(await store.transitionApproval("pending", decided))) throw already();
-    if (created) await store.putMission(created);
+    // The mission goes in first, so a decision never points at a mission it did not create.
+    if (created && !(await store.insertMission(created))) throw already();
+    if (!(await store.transitionApproval("pending", decided))) {
+      if (created) await store.endMission(created.s256, now());
+      throw already();
+    }
     if (existing) {
       if (approval.kind === "completion")
         await store.endMission(existing.s256, now());

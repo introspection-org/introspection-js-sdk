@@ -515,4 +515,27 @@ describe("@introspection-sdk/person-server", () => {
     });
     expect(update.status).toBe(404);
   });
+
+  it("keeps identical missions approved together apart", async () => {
+    const propose = async (hint: string) => {
+      const agent = await AgentClient.create();
+      await call(agent, "POST", "/ps/mission", {
+        description: "Sydney",
+        resources: [RESOURCE],
+        login_hint: hint,
+      });
+      const decided = await ps.decide(asked.at(-1)!.id, {
+        status: "approved",
+      });
+      return decided.mission_s256!;
+    };
+    const sams = await propose("sam@acme.example");
+    const ended = await ps.terminate(sams);
+    const danas = await propose("dana@acme.example");
+    expect(danas).not.toBe(sams);
+    expect(await ps.mission(sams)).toMatchObject({
+      person: { id: "sam" },
+      completed_at: ended.completed_at,
+    });
+  });
 });
