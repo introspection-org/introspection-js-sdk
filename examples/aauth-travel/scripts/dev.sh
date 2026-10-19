@@ -245,13 +245,21 @@ bind_flight_search() {
 # when .env.local holds none, so any secret already under that name is an
 # orphan: revoke them first, or switching stacks twice meets the two-secret cap.
 mint_secret() {
-  local app_id="$1" name="$2" id out
+  local app_id="$1" name="$2" id out err
   for id in $(introspection applications secrets list --app "$app_id" -o json |
     json "(v.records ?? v).filter((s) => s.name === '$name').map((s) => s.id).join(' ')"); do
     introspection applications secrets revoke --app "$app_id" --secret "$id" --yes >/dev/null
   done
-  out="$(introspection applications secrets create --app "$app_id" --name "$name" -o json 2>&1)" ||
+  # The CLI writes the JSON on stdout and its notices ("shown once, store it
+  # now") on stderr, so the two are read apart: merged, the notice breaks the
+  # JSON after the secret already exists.
+  err="$(mktemp "${TMPDIR:-/tmp}/flightsector-mint.XXXXXX")"
+  if ! out="$(introspection applications secrets create --app "$app_id" --name "$name" -o json 2>"$err")"; then
+    out="$(cat "$err")"
+    rm -f "$err"
     fail "could not create the $name client secret: $out"
+  fi
+  rm -f "$err"
   json 'v.secret' <<<"$out"
 }
 
