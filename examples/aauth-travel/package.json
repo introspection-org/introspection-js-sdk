@@ -20,7 +20,7 @@
     "@introspection-sdk/person-server": "workspace:*",
     "jose": "^6.2.12",
     "next": "^16.3.6",
-    "react": "^19.3.0",
+    "react": "^19.3.1",
     "react-dom": "^19.3.0",
     "react-markdown": "^10.1.0",
     "remark-gfm": "^4.0.1",
