@@ -396,6 +396,12 @@ function serviceAccount() {
   };
 }
 
+function notSetUp() {
+  return process.env.DEMO_SETUP === "pending"
+    ? "pnpm dev is still setting up your project: send this again once it prints the demo URL."
+    : "Run pnpm dev to set up the agent's application: INTROSPECTION_CLIENT_ID, INTROSPECTION_CLIENT_SECRET and INTROSPECTION_PROJECT.";
+}
+
 /** Sam's first message: open a runner as Sam and start the task. */
 export async function start(prompt: string) {
   if (run().busy) return;
@@ -406,8 +412,7 @@ export async function start(prompt: string) {
   say("Sam", r.prompt);
   const account = serviceAccount();
   if (!account) {
-    r.error =
-      "Run pnpm dev to set up the agent's application: INTROSPECTION_CLIENT_ID, INTROSPECTION_CLIENT_SECRET and INTROSPECTION_PROJECT.";
+    r.error = notSetUp();
     return;
   }
   const epoch = r.epoch;
@@ -568,8 +573,7 @@ export async function join(taskId: string) {
   startRecording();
   const account = serviceAccount();
   if (!account) {
-    r.error =
-      "Run pnpm dev to set up the agent's application: INTROSPECTION_CLIENT_ID, INTROSPECTION_CLIENT_SECRET and INTROSPECTION_PROJECT.";
+    r.error = notSetUp();
     return;
   }
   const epoch = r.epoch;

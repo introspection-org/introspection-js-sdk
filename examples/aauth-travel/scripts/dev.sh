@@ -191,6 +191,9 @@ if [ "$MODE" = acme ]; then upsert_env ACME_PERSON_SERVER_URL "$ACME"; fi
 say "booking provider: $BOOKING"
 
 # The app starts first: the runtime's first build reaches the mock it serves.
+# Until setup is done it says so, rather than that the project isn't set up.
+remove_env DEMO_SETUP
+if [ -z "${FLIGHTSECTOR_NO_SETUP:-}" ]; then upsert_env DEMO_SETUP pending; fi
 node_modules/.bin/next dev --turbopack --port "$PORT" &
 PIDS+=($!)
 APP=$!
@@ -449,4 +452,5 @@ else
   say "not connected to Introspection: run \`introspection login\`, then restart pnpm dev."
   say "meanwhile: http://localhost:$PORT/walkthrough; pnpm e2e plays the agent without Introspection."
 fi
+remove_env DEMO_SETUP
 wait "$APP"
