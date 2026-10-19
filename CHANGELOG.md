@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.36.0](https://github.com/introspection-org/introspection-js-sdk/compare/v0.35.1...v0.36.0) (2026-10-19)
+
+
+### Features
+
+* @introspection-sdk/aauth-resource, with the travel booking provider built on it ([#489](https://github.com/introspection-org/introspection-js-sdk/issues/489)) ([9530f4e](https://github.com/introspection-org/introspection-js-sdk/commit/9530f4ee7ac35117c48fed7c79839aff05fa65ea))
+* **examples:** the AAuth demo runs a named tunnel by its token, sets up idempotently, and can serve without setup ([#472](https://github.com/introspection-org/introspection-js-sdk/issues/472)) ([12f25a7](https://github.com/introspection-org/introspection-js-sdk/commit/12f25a75271af066d7b626c2e35a508cf892f74e))
+
+
+### Bug Fixes
+
+* **examples:** the AAuth demo's dev script names its temp files portably, so it runs on Linux ([#474](https://github.com/introspection-org/introspection-js-sdk/issues/474)) ([d542140](https://github.com/introspection-org/introspection-js-sdk/commit/d542140b6fefcacf1c10ced3f56bfcfc941aa4a9))
+* **examples:** the AAuth demo's dev script reads a minted secret's JSON apart from the CLI's notices ([#475](https://github.com/introspection-org/introspection-js-sdk/issues/475)) ([f4c72fc](https://github.com/introspection-org/introspection-js-sdk/commit/f4c72fc1332b44af7658214285e90527ef19aab1))
+
 ## [0.35.1](https://github.com/introspection-org/introspection-js-sdk/compare/v0.35.0...v0.35.1) (2026-10-17)
 
 
