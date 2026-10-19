@@ -9,9 +9,13 @@ import { clearMetadataCache } from "@aauth/resource";
 import { fetch as signedFetch } from "@hellocoop/httpsig";
 import {
   createPersonServer,
+  MemoryStore,
   type Approval,
+  type ApprovalStatus,
+  type Mission,
   type Person,
   type PersonServer,
+  type Store,
 } from "@introspection-sdk/person-server";
 import {
   type JWK,
@@ -179,7 +183,12 @@ beforeEach(async () => {
     display: { summary: "QT Sydney, 4 nights, $1,680" },
   });
   asked = [];
-  ps = await createPersonServer({
+  ps = await server();
+});
+
+/** The Person Server under test, over `store` when given. */
+const server = (store?: Store) =>
+  createPersonServer({
     issuer: PS,
     basePath: "/ps",
     trustedAgentProviders: [PROVIDER],
@@ -192,8 +201,8 @@ beforeEach(async () => {
     },
     adminToken: "admin",
     fetch: world,
+    ...(store ? { store } : {}),
   });
-});
 
 const call = async (
   agent: AgentClient,
@@ -474,7 +483,11 @@ describe("@introspection-sdk/person-server", () => {
       ps.decide(id, { status: "approved" }),
     ]);
     expect(results.filter((r) => r.status === "fulfilled")).toHaveLength(1);
-    expect(await ps.missions()).toHaveLength(1);
+    // A loser that made a mission before losing ends it.
+    const live = (await ps.missions()).filter(
+      (m) => m.completed_at === undefined,
+    );
+    expect(live).toHaveLength(1);
   });
 
   it("issues no person tokens under a mission that has ended", async () => {
@@ -537,5 +550,59 @@ describe("@introspection-sdk/person-server", () => {
       person: { id: "sam" },
       completed_at: ended.completed_at,
     });
+  });
+
+  it("never replaces a mission in the store", async () => {
+    const store = new MemoryStore();
+    const mission = (person: string): Mission => ({
+      s256: "h",
+      mission: "{}",
+      agent_id: "aauth:travel@agents.example",
+      person: { id: person },
+      resources: [],
+      spent: 0,
+      log: [],
+      expires_at: Number.MAX_SAFE_INTEGER,
+    });
+    expect(await store.insertMission(mission("sam"))).toBe(true);
+    await store.endMission("h", 10);
+    expect(await store.insertMission(mission("dana"))).toBe(false);
+    expect(await store.mission("h")).toMatchObject({
+      person: { id: "sam" },
+      completed_at: 10,
+    });
+  });
+
+  it("ends the mission a decision made when the decision loses the race", async () => {
+    class LosesNextTransition extends MemoryStore {
+      lose = false;
+      override async transitionApproval(
+        expected: ApprovalStatus,
+        next: Approval,
+      ) {
+        if (this.lose) {
+          this.lose = false;
+          return false;
+        }
+        return super.transitionApproval(expected, next);
+      }
+    }
+    const store = new LosesNextTransition();
+    ps = await server(store);
+    const agent = await AgentClient.create();
+    await call(agent, "POST", "/ps/mission", {
+      description: "Trip",
+      resources: [RESOURCE],
+      login_hint: "sam@acme.example",
+    });
+    const id = asked.at(-1)!.id;
+    store.lose = true;
+    await expect(ps.decide(id, { status: "approved" })).rejects.toMatchObject({
+      status: 409,
+    });
+    const missions = await store.missions();
+    expect(missions).toHaveLength(1);
+    expect(missions[0]!.completed_at).toBeDefined();
+    expect((await store.approval(id))?.status).toBe("pending");
   });
 });
