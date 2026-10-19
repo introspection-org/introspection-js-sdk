@@ -28,6 +28,9 @@ export const quotes = {
   "WR-2026-0433": [
     {
       quote_id: "Q-9101",
+      trade: "plumbing",
+      area: "common",
+      responsibility: "owners_corporation",
       vendor_id: "V-403",
       total_cents: 198000,
       budget_line: "general_repairs",
@@ -39,6 +42,9 @@ export const quotes = {
   "WR-2026-0435": [
     {
       quote_id: "Q-9120",
+      trade: "drainage",
+      area: "common",
+      responsibility: "owners_corporation",
       vendor_id: "V-405",
       total_cents: 935000,
       budget_line: "general_repairs",
