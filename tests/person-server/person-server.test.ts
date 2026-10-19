@@ -36,8 +36,14 @@ const R3 = `${RESOURCE}/r3/1`;
 const USD = { unit: "USD", decimals: 2 };
 
 const people: Person[] = [
-  { id: "sam", name: "Sam", email: "sam@acme.example", manager: "dana" },
-  { id: "dana", name: "Dana", email: "dana@acme.example" },
+  {
+    id: "sam",
+    name: "Sam",
+    email: "sam@acme.example",
+    tenant: "acme",
+    manager: "dana",
+  },
+  { id: "dana", name: "Dana", email: "dana@acme.example", tenant: "acme" },
 ];
 
 interface Party {
@@ -265,8 +271,11 @@ describe("@introspection-sdk/person-server", () => {
     const presented = trip.person_tokens[RESOURCE]!;
     const person = (await jwtVerify(presented, createLocalJWKSet(ps.jwks())))
       .payload;
-    expect(person).toMatchObject({ aud: RESOURCE, mission_s256: trip.s256 });
-    expect(person.tenant).toBeUndefined();
+    expect(person).toMatchObject({
+      aud: RESOURCE,
+      mission_s256: trip.s256,
+      tenant: "acme",
+    });
     expect(person.sub).not.toBe("sam");
 
     // Within the budget: issued at once, and spent.
@@ -709,17 +718,43 @@ describe("@introspection-sdk/person-server", () => {
     const agent = await AgentClient.create();
     const { trip } = await acmeTrip(agent);
     const presented = trip.person_tokens[RESOURCE]!;
-    for (const tenant of ["globex", ""]) {
-      const refused = await call(agent, "POST", "/ps/token", {
+    const request = async (tenant: string) =>
+      call(agent, "POST", "/ps/token", {
         resource_token: await resourceToken(agent, presented, 500),
         presented_token: presented,
         tenant,
       });
-      expect(refused.status).toBe(400);
-      expect(((await refused.json()) as { error: string }).error).toBe(
-        "invalid_resource_token",
-      );
-    }
+    const refused = await request("globex");
+    expect(refused.status).toBe(400);
+    expect(((await refused.json()) as { error: string }).error).toBe(
+      "invalid_resource_token",
+    );
+    // An empty tenant names none, and the mission is acme's alone.
+    const unnamed = await request("");
+    expect(unnamed.status).toBe(404);
+    expect(((await unnamed.json()) as { error: string }).error).toBe(
+      "mission_not_found",
+    );
+    expect(await ps.mission(trip.s256)).toBeUndefined();
     expect((await ps.mission(trip.s256, "acme"))?.spent).toBe(0);
+  });
+
+  it("issues under a tenant the directory stamps when the agent names none", async () => {
+    const agent = await AgentClient.create();
+    const trip = await approvedTrip(agent);
+    const presented = trip.person_tokens[RESOURCE]!;
+    expect(decodeJwt(presented).tenant).toBe("acme");
+    expect(await ps.mission(trip.s256)).toBeDefined();
+    const booked = await call(agent, "POST", "/ps/token", {
+      resource_token: await resourceToken(agent, presented, 1000),
+      presented_token: presented,
+    });
+    expect(booked.status).toBe(200);
+    const { auth_token } = (await booked.json()) as { auth_token: string };
+    expect(decodeJwt(auth_token)).toMatchObject({
+      aud: RESOURCE,
+      tenant: "acme",
+    });
+    expect((await ps.mission(trip.s256))?.spent).toBe(1000);
   });
 });

@@ -556,7 +556,8 @@ export async function createPersonServer(options: PersonServerOptions) {
     }
     const resource = trim(String(unverified.iss ?? ""));
     const tenant = tenantOf(params);
-    if (presented.tenant !== tenant)
+    // Unnamed, the lookups below are scoped to no tenant, so another tenant's token finds nothing.
+    if (tenant !== undefined && presented.tenant !== tenant)
       throw invalid("tenant does not match the presented token");
     // The mission's approved resources are the only issuers whose keys are fetched.
     const mission =

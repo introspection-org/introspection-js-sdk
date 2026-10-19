@@ -123,7 +123,7 @@ curl -X POST -H "authorization: Bearer $PS_ADMIN_TOKEN" -H "content-type: applic
   "https://ps.acme.example/consent/<approval id>/decision"
 ```
 
-An agent that names a `tenant` names it on every request, `/token` included: the tokens it is given carry that tenant, and an auth token request whose tenant differs from its presented token's is refused.
+An agent that names a `tenant` names it on every request, `/token` included: the tokens it is given carry that tenant, and an auth token request that names a tenant other than its presented token's is refused.
 
 An Introspection connector uses it once its `person_server_url` names `issuer`.
 
