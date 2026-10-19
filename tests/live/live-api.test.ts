@@ -245,12 +245,9 @@ describe("live API", () => {
     } finally {
       await automations.delete(created.id);
     }
-    // The DP reads an automation with deleted ones included, so a deleted one
-    // comes back stamped rather than 404. `Automation` does not type the field.
-    const deleted = (await automations.get(created.id)) as {
-      deleted_at?: string | null;
-    };
-    expect(deleted.deleted_at).toBeTruthy();
+    // Fails today: the DP reads automations with deleted ones included and
+    // returns no deleted_at, so a deleted automation reads back as live.
+    await expectStatus(automations.get(created.id), NotFoundError, 404);
   });
 
   it("control-plane reads", async (ctx) => {
