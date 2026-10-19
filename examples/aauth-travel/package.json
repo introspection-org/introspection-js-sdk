@@ -19,7 +19,7 @@
     "@introspection-sdk/introspection-node": "workspace:*",
     "@introspection-sdk/person-server": "workspace:*",
     "jose": "^6.2.12",
-    "next": "^16.3.6",
+    "next": "^16.4.2",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
     "react-markdown": "^10.1.0",
