@@ -15,6 +15,7 @@
  */
 
 import { IntrospectionClient } from "@introspection-sdk/introspection-node";
+import { setupTracing } from "@introspection-sdk/introspection-node/otel";
 
 if (!process.env.INTROSPECTION_TOKEN) {
   throw new Error("Set INTROSPECTION_TOKEN to an Introspection API key.");
@@ -29,6 +30,10 @@ const started = await runner.tasks.start({
 });
 await started.text();
 const task = await runner.tasks.get(started.run.task_id);
+
+// withUserId sets OTel baggage, which propagates only once setupTracing() has
+// installed the context manager.
+const provider = setupTracing({ serviceName: "support-api" });
 
 // #region docs:observe/patterns/feedback-events
 import { IntrospectionLogs } from "@introspection-sdk/introspection-node/otel";
@@ -47,4 +52,5 @@ await logs.withUserId(user.id, async () => {
 
 await logs.flush();
 await logs.shutdown();
+await provider.shutdown();
 console.log(`sent feedback and case_closed for conversation ${task.id}`);

@@ -55,7 +55,12 @@ const taskId = handle.run.task_id;
 // #region docs:patterns/structured-output/validate
 import { Value } from "typebox/value";
 
-const result = raw ? JSON.parse(raw) : undefined;
+let result: unknown;
+try {
+  result = raw ? JSON.parse(raw) : undefined;
+} catch {
+  result = undefined; // malformed arguments count as invalid
+}
 if (!Value.Check(Triage, result)) {
   await runner.tasks.runs.create(taskId, {
     kind: "prompt",
