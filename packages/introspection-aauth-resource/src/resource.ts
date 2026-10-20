@@ -70,8 +70,9 @@ export interface AAuthResourceOptions {
   /**
    * This resource's own Access Server (draft -11 four-party), when it has one:
    * its resource tokens name it as `aud`, so the person's Person Server
-   * redeems them there, and it accepts the auth tokens that AS issues for the
-   * people of `personServers`. Unset, each Person Server issues them itself.
+   * redeems them there, and it accepts only the auth tokens that AS issues for
+   * the people of `personServers`, never one a Person Server issued itself,
+   * which would skip the AS's policy. Unset, each Person Server issues them.
    */
   accessServer?: string;
   /** A PKCS#8 PEM to keep the key across restarts; a fresh key otherwise. */
@@ -275,9 +276,7 @@ export async function createAAuthResource(
   const issuers: Record<TokenKind, readonly string[]> = {
     agent: options.agentProviders,
     person: options.personServers,
-    auth: accessServer
-      ? [...options.personServers, accessServer]
-      : options.personServers,
+    auth: accessServer ? [accessServer] : options.personServers,
   };
 
   /** The token a signed request presented: a kind it accepts, from an issuer it trusts, binding the signing key. */
@@ -313,7 +312,7 @@ export async function createAAuthResource(
     });
     if (!issuers[token.type].includes(token.iss))
       throw signatureError("invalid_jwt", `${token.iss} does not issue those`);
-    // An auth token is the Access Server's or its Person Server's own, for one of its people.
+    // An auth token is the Access Server's, for one of its Person Servers' people, or else that Person Server's own.
     if (
       token.type === "auth" &&
       (token.iss === accessServer

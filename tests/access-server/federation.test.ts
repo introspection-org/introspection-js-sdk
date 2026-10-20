@@ -533,6 +533,38 @@ describe("@introspection-sdk/access-server federation", () => {
     expect(await spent(trip.s256)).toBe(150_000);
   });
 
+  it("a resource with an AS refuses a PS-issued auth token", async () => {
+    const agent = await AgentClient.create();
+    const trip = await approvedTrip(agent);
+    const rt = decodeJwt(await challenge(agent, trip.personToken, 100_000));
+    // Everything the AS would have issued, but minted by the Person Server itself.
+    const psKey = await party(ps.jwks().keys[0]!.kid!, PS_KEY);
+    const minted = await psKey.sign(
+      {
+        iss: PS,
+        dwk: "aauth-person.json",
+        jti: "minted-by-ps",
+        aud: RESOURCE,
+        ps: PS,
+        sub: rt.sub,
+        mission_s256: rt.mission_s256,
+        scope: "booking.reserve",
+        r3_uri: rt.r3_uri,
+        r3_s256: rt.r3_s256,
+        cnf: { jwk: agent.session.publicJwk },
+      },
+      "aa-auth+jwt",
+    );
+    const response = await agent.send(
+      "POST",
+      `${RESOURCE}/reserve`,
+      { amount: 100_000 },
+      minted,
+    );
+    expect(response.status).toBe(401);
+    expect(response.headers.get("signature-error")).toContain("invalid_jwt");
+  });
+
   it("refuses an auth token from a Person Server that is not this resource's", async () => {
     const agent = await AgentClient.create();
     const trip = await approvedTrip(agent);
