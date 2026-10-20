@@ -152,6 +152,12 @@ const personOf = (member: string): Person =>
     manager: people.find((p) => p.name === "Dana Park")!.external_user_id,
   };
 
+/** Who decided, as the platform names a member: the identity it knows them by, or their member id. */
+const approverOf = (person: Person) =>
+  person.external_user_id.startsWith("member:")
+    ? { member_id: person.external_user_id.slice("member:".length) }
+    : { identity: { user_id: person.email } };
+
 const managerOf = (person: Person) =>
   people.find((p) => p.external_user_id === person.manager);
 
@@ -292,7 +298,7 @@ export async function decide(
     ...(verdict === "approve" && mission
       ? { budget: { amount: budgetCents, ...USD } }
       : {}),
-    decided_by: asked.approver.email,
+    decided_by: approverOf(asked.approver),
   });
   record("acme.decided", `${asked.approver.name} ${asked.approval.status}`, {
     pending: id,
