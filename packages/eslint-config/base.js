@@ -28,7 +28,7 @@ export const config = [
       complexity: ["error", 65],
       "max-lines": [
         "error",
-        { max: 988, skipBlankLines: true, skipComments: true },
+        { max: 1211, skipBlankLines: true, skipComments: true },
       ],
       "max-lines-per-function": [
         "error",

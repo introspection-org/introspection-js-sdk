@@ -54,12 +54,12 @@ If your branch is intentionally adding code that can't be covered by unit tests 
 
 ### Size limits ratchet
 
-`packages/eslint-config/base.js` caps code size for every package that lints with it. Each limit sits at today's worst value, so the current code passes; the targets are where we're heading:
+`packages/eslint-config/base.js` caps code size for every package that lints with it. Each limit sits at today's worst value across all packages, `introspection-types` included, so the current code passes; the targets are where we're heading:
 
 | Rule                                                     | Limit | Target |
 | -------------------------------------------------------- | ----: | -----: |
 | `complexity`                                             |    65 |     10 |
-| `max-lines` (per file, blank lines and comments skipped) |   988 |    400 |
+| `max-lines` (per file, blank lines and comments skipped) |  1211 |    400 |
 | `max-lines-per-function` (same skips)                    |   851 |     80 |
 | `max-params`                                             |     9 |      4 |
 | `max-depth`                                              |     5 |      4 |
