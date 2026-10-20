@@ -3,11 +3,10 @@ import type {
   AppConnectionCreateParams,
   AppConnectionListParams,
   ConnectPage,
-  Paginated,
   Uuid,
 } from "@introspection-sdk/types";
 import type { HttpClient } from "../http.js";
-import { Paginator, cursorPaginate } from "../pagination.js";
+import { Paginator, paginateGet } from "../pagination.js";
 
 /**
  * CRUD on `/v1/connections` (Data Plane): the apps members connected for
@@ -36,13 +35,10 @@ export class AppConnectionsApi<
    */
   list(params: AppConnectionListParams = {}): Paginator<AppConnection> {
     const { next: start, ...filters } = params;
-    return cursorPaginate(
-      (next) =>
-        this.http.request<Paginated<AppConnection>>({
-          method: "GET",
-          path: "/v1/connections",
-          query: { ...filters, next } as Record<string, unknown>,
-        }),
+    return paginateGet<AppConnection>(
+      this.http,
+      "/v1/connections",
+      filters,
       start,
     );
   }

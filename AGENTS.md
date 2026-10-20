@@ -52,6 +52,17 @@ If your branch is intentionally adding code that can't be covered by unit tests 
 
 `.github/workflows/ci.yml` runs the same coverage check on every PR and uploads the HTML report as a downloadable artifact. CI is the source of truth — if your local hook passes but CI fails, CI wins (your local has stale builds or stale deps).
 
+### Duplicate code (jscpd)
+
+```bash
+pnpm jscpd           # exact clones
+pnpm jscpd:renamed   # clones that differ only in identifier names
+```
+
+Both run a pinned `jscpd@5.4.1` over `packages/*/src` TypeScript (`.jscpd.json`: weak mode, `dist/` and `*.d.ts` ignored, 53 tokens / 9 lines minimum), and the `Duplicate Code` CI job fails on any clone from either. There is no threshold and no baseline: the count is zero and stays there.
+
+When one fires, extract the shared code: a helper in the package both copies already depend on (`@introspection-sdk/http` for resources, `@introspection-sdk/types` for pure helpers, a subpath such as `@introspection-sdk/types/logs` when the helper needs an OTel import the main entry must not take). Wrap a block in `// jscpd:ignore-start -- <reason>` / `// jscpd:ignore-end` only when it is declarations, not logic: a re-export list, an import list, or interface or field declarations that mirror a wire schema. Never use the markers on code that runs.
+
 ---
 
 ## 4. Repo layout conventions
@@ -239,6 +250,12 @@ d=$(mktemp -d) && cd "$d" && echo '{"name":"@introspection-sdk/<package>","versi
 ```
 
 Mark a package `"private": true` to keep it off npm.
+
+### Package checks
+
+CI runs `pnpm check:packages` after `pnpm build` and fails on any finding. It runs each public package's `check:package` script: `publint --strict`, then `attw --pack . --profile esm-only` (`@arethetypeswrong/cli`). Run it locally after `pnpm build`. A new public package needs the same `check:package` script.
+
+The packages are ESM-only (`"type": "module"`, no CommonJS build). The `esm-only` profile ignores the `node10` and `node16`-from-CJS resolutions, because `require()` and the legacy `moduleResolution: "node"` are unsupported; supporting them would need a dual build. Every other attw problem in `node16`-from-ESM and `bundler` still fails the check.
 
 <!-- BEGIN:turborepo-agent-rules -->
 
