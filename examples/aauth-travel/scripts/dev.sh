@@ -190,6 +190,26 @@ upsert_env BROWSERBASE_MCP_URL "$MOCK"
 if [ "$MODE" = acme ]; then upsert_env ACME_PERSON_SERVER_URL "$ACME"; fi
 say "booking provider: $BOOKING"
 
+# The booking provider and Acme's Person Server sign with keys made here once
+# and kept in .keys/, so a restart keeps them: a Person Server that cached the
+# provider's keys would otherwise reject its tokens until that cache expires.
+# They reach the app in its environment, never on a command line.
+mkdir -p .keys
+pem() {
+  [ -s ".keys/$1" ] || (umask 077 && node -e '
+    const { generateKeyPairSync } = require("node:crypto");
+    process.stdout.write(generateKeyPairSync("ed25519").privateKey.export({ type: "pkcs8", format: "pem" }));
+  ' >".keys/$1")
+  cat ".keys/$1"
+}
+secret() {
+  [ -s ".keys/$1" ] || (umask 077 && openssl rand -hex 32 >".keys/$1")
+  cat ".keys/$1"
+}
+export BOOKING_SIGNING_KEY="${BOOKING_SIGNING_KEY:-$(pem booking.pem)}"
+export ACME_PS_SIGNING_KEY="${ACME_PS_SIGNING_KEY:-$(pem acme-ps.pem)}"
+export ACME_PS_SUBJECT_SECRET="${ACME_PS_SUBJECT_SECRET:-$(secret acme-ps-subject)}"
+
 # The app runs the workspace's own Person Server, resource and client packages
 # from their dist/, so install and build them first: after a pull or a branch
 # switch the source and its dependencies move on, and a stale dist answers in
