@@ -46,6 +46,10 @@
         "RECIPE_URL",
         "RESEND_API_KEY"
       ]
+    },
+    "test:live": {
+      "cache": false,
+      "passThroughEnv": ["INTROSPECTION_*"]
     }
   }
 }
