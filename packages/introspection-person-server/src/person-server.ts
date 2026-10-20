@@ -335,7 +335,7 @@ export async function createPersonServer(options: PersonServerOptions) {
     const person = (await store.approvals(tenant)).find(
       (a) => a.person.id === bound,
     )?.person;
-    return person ?? { id: bound, ...(named ? { tenant: named } : {}) };
+    return person ?? { ...(named ? { tenant: named } : {}), id: bound };
   }
   // #endregion
 
@@ -356,12 +356,12 @@ export async function createPersonServer(options: PersonServerOptions) {
     const exp = Math.min(iat + tokenTtl, notAfter);
     const token = await signer.sign(
       {
+        ...(person.tenant ? { tenant: person.tenant } : {}),
         iss: issuer,
         dwk: DWK,
         jti: randomUUID(),
         iat,
         exp,
-        ...(person.tenant ? { tenant: person.tenant } : {}),
         ...claims,
       },
       typ,
@@ -630,7 +630,7 @@ export async function createPersonServer(options: PersonServerOptions) {
       presented.aud !== resource
     )
       throw invalid("does not match the presented token");
-    return { rt, mission, resource, tenant };
+    return { tenant, rt, mission, resource };
   }
 
   /** The resource's one-line description of the request, from its R3 proposal; undefined if it has none. */
@@ -668,7 +668,7 @@ export async function createPersonServer(options: PersonServerOptions) {
     const body = await request.text();
     const agent = await verifyAgent(request, body, path);
     const params = readBody(body);
-    const { rt, mission, resource, tenant } = await verifyResourceToken(
+    const { tenant, rt, mission, resource } = await verifyResourceToken(
       agent,
       params,
     );
@@ -741,6 +741,7 @@ export async function createPersonServer(options: PersonServerOptions) {
         : await options.directory.approver?.(kind, person)) ?? person;
     const created = now();
     const approval: Approval = {
+      tenant,
       id: randomUUID(),
       kind,
       status: "pending",
@@ -750,7 +751,6 @@ export async function createPersonServer(options: PersonServerOptions) {
       description,
       grant: {},
       ...extra,
-      tenant,
       created_at: created,
       expires_at: created + approvalTtl,
     };
@@ -778,9 +778,9 @@ export async function createPersonServer(options: PersonServerOptions) {
   // #region pending
   /** The agent polls with a signed GET; only the key that asked may read it. Results are minted now. */
   async function pendingState(
+    tenant: string,
     request: Request,
     path: string,
-    tenant: string,
     id: string,
   ): Promise<Response> {
     const agent = await verifyAgent(request, undefined, path);
@@ -921,6 +921,7 @@ export async function createPersonServer(options: PersonServerOptions) {
           ...(budget ? { budget } : {}),
         });
         created = {
+          tenant,
           s256: s256(bytes),
           mission: bytes,
           agent_id: approval.agent.id,
@@ -930,7 +931,6 @@ export async function createPersonServer(options: PersonServerOptions) {
           spent: 0,
           log: [],
           expires_at,
-          tenant,
         };
         decided.mission_s256 = created.s256;
       } else if (approval.mission_s256) {
@@ -1077,9 +1077,9 @@ export async function createPersonServer(options: PersonServerOptions) {
         throw new AAuthError(400, "invalid_request", "not a tenant");
       }
       return pendingState(
+        tenantFor(named || undefined),
         request,
         path,
-        tenantFor(named || undefined),
         pending[2],
       );
     }
