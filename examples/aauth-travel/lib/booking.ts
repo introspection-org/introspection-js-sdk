@@ -32,6 +32,7 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 const ISSUER = BOOKING_ISSUER;
 const SCOPE = "booking.reserve";
 const RESERVE_URL = `${ISSUER}/v1/reserve`;
+const CANCEL_URL = `${ISSUER}/v1/cancel`;
 /** The R3 vocabulary this provider describes bookings in. */
 const VOCABULARY = `${ISSUER}/r3/vocabulary`;
 const BUDGET_UNIT = { unit: "USD", decimals: 2 } as const;
@@ -104,7 +105,10 @@ export interface Reservation {
   sub: string;
   mission_s256?: string;
   auth_token_jti: string;
+  /** When the flight departs or the stay begins: a booking can be cancelled until then. */
+  starts_at: string;
   reserved_at: string;
+  cancelled_at?: string;
 }
 
 const store = globalThis as unknown as {
@@ -343,6 +347,56 @@ export async function reserve(request: Request): Promise<Response> {
 }
 // #endregion
 
+// #region cancel
+/**
+ * Cancel a booking on the person token of the agent that made it: one booked
+ * under the same mission, before the flight departs or the stay begins. It
+ * spends nothing, so no Person Server is asked. Cancelling twice answers the
+ * same cancellation.
+ */
+export async function cancel(request: Request): Promise<Response> {
+  const body = await request.text();
+  const caller = await (
+    await bookingResource()
+  ).authenticate(request, body, { url: CANCEL_URL });
+  if (!caller.ok) return caller.response;
+  let confirmation: unknown;
+  try {
+    confirmation = JSON.parse(body).confirmation;
+  } catch {
+    throw new AAuthError(400, "invalid_request", "body must be JSON");
+  }
+  const reservation = reservations.find(
+    (r) =>
+      r.confirmation === confirmation &&
+      r.ps === caller.ps &&
+      (r.mission_s256
+        ? r.mission_s256 === caller.mission_s256
+        : r.sub === caller.sub),
+  );
+  if (!reservation)
+    throw new AAuthError(
+      404,
+      "not_found",
+      `no booking ${String(confirmation)} under this trip`,
+    );
+  if (reservation.cancelled_at) return Response.json(reservation);
+  if (Date.parse(reservation.starts_at) <= Date.now())
+    throw new AAuthError(
+      409,
+      "already_started",
+      `${reservation.confirmation} has already started and can no longer be cancelled`,
+    );
+  reservation.cancelled_at = new Date().toISOString();
+  record(
+    "booking.cancelled",
+    `${reservation.confirmation}: ${reservation.offer_id}`,
+    { ...reservation },
+  );
+  return Response.json(reservation);
+}
+// #endregion
+
 /** The proposal's one-line description, for whoever approves it. */
 function summarize(booking: Booking, offer: JWTPayload): string {
   const dollars = `$${Math.round(Number(offer.total_cents) / 100).toLocaleString("en-US")}`;
@@ -377,6 +431,7 @@ function book(
     sub: token.sub,
     mission_s256: "mission_s256" in token ? token.mission_s256 : undefined,
     auth_token_jti: String(token.claims.jti),
+    starts_at: String(offer.kind === "hotel" ? offer.check_in : offer.depart),
     reserved_at: new Date().toISOString(),
   };
   reservations.push(reservation);
