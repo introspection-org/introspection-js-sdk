@@ -27,6 +27,25 @@ pnpm api-connectors-pipedream     # Create a Pipedream connector and authorize o
 pnpm api-connectors-custom-app    # Registry search + OAuth discovery for a custom MCP app (Linear)
 ```
 
+## Docs reference snippets
+
+`reference/` backs the code blocks on the docs' JavaScript SDK and
+Authentication pages. The docs extract the code between
+`// #region docs:<id>` and `// #endregion docs:<id>` at a pinned release tag;
+the code around a region does the setup the docs leave out. Regions inside a
+function are indented one level, so the extractor dedents them. Prettier skips
+`reference/` so the regions keep the docs' layout, and
+`pnpm check:doc-regions` (repo root) checks the markers.
+
+```bash
+pnpm reference-javascript          # Reattach, files, reads, warm task on one runner
+pnpm reference-javascript-run-task # Run a task on the support-agent runtime
+pnpm reference-javascript-feedback # IntrospectionLogs feedback + track
+pnpm reference-auth-api-key        # API-key client, implicit and explicit
+pnpm reference-auth-service-account # client_credentials service account
+pnpm reference-auth-hosted-login <code> <redirect-uri> <code-verifier>
+```
+
 ## Egress Proxy
 
 Route third-party API calls through the Introspection egress (reverse) proxy so

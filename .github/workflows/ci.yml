@@ -57,6 +57,9 @@ jobs:
       - name: Run type checking
         run: pnpm check-types
 
+      - name: Check docs snippet regions
+        run: pnpm check:doc-regions
+
   test:
     name: Unit Tests
     needs: lint

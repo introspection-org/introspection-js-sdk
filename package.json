@@ -9,6 +9,7 @@
     "format": "prettier --write \"**/*.{ts,tsx,md}\"",
     "format:check": "prettier --check \"**/*.{ts,tsx,md}\"",
     "check-types": "turbo run check-types",
+    "check:doc-regions": "node scripts/check-doc-regions.mjs",
     "pre-commit": "pnpm lint && pnpm format:check && pnpm check-types",
     "prepare": "husky install",
     "test": "pnpm --filter introspection-tests test",
