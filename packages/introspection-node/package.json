@@ -40,7 +40,8 @@
     "check-types": "tsc --noEmit",
     "build": "rm -rf dist && tsc",
     "prepare": "rm -rf dist && tsc",
-    "clean": "rm -rf dist"
+    "clean": "rm -rf dist",
+    "check:package": "publint --strict && attw --pack . --profile esm-only"
   },
   "devDependencies": {
     "@earendil-works/pi-agent-core": "^0.99.2",

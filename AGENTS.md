@@ -258,6 +258,12 @@ d=$(mktemp -d) && cd "$d" && echo '{"name":"@introspection-sdk/<package>","versi
 
 Mark a package `"private": true` to keep it off npm.
 
+### Package checks
+
+CI runs `pnpm check:packages` after `pnpm build` and fails on any finding. It runs each public package's `check:package` script: `publint --strict`, then `attw --pack . --profile esm-only` (`@arethetypeswrong/cli`). Run it locally after `pnpm build`. A new public package needs the same `check:package` script.
+
+The packages are ESM-only (`"type": "module"`, no CommonJS build). The `esm-only` profile ignores the `node10` and `node16`-from-CJS resolutions, because `require()` and the legacy `moduleResolution: "node"` are unsupported; supporting them would need a dual build. Every other attw problem in `node16`-from-ESM and `bundler` still fails the check.
+
 <!-- BEGIN:turborepo-agent-rules -->
 
 # This is NOT the Turborepo you know

@@ -28,7 +28,8 @@
     "check-types": "tsc --noEmit",
     "build": "rm -rf dist && tsc",
     "clean": "rm -rf dist",
-    "prepare": "rm -rf dist && tsc"
+    "prepare": "rm -rf dist && tsc",
+    "check:package": "publint --strict && attw --pack . --profile esm-only"
   },
   "dependencies": {
     "@aauth/resource": "^3.0.0",
