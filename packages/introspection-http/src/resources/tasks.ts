@@ -3,7 +3,6 @@ import {
   StreamIncompleteError,
 } from "@introspection-sdk/types";
 import type {
-  Paginated,
   Task,
   TaskCancelResponse,
   TaskCancelOptions,
@@ -17,7 +16,7 @@ import type {
   TaskUpdateParams,
 } from "@introspection-sdk/types";
 import { EventType, type AGUIEvent } from "@ag-ui/core";
-import { Paginator, cursorPaginate } from "../pagination.js";
+import { Paginator, paginateGet } from "../pagination.js";
 import { streamResumable, type StreamOptions } from "../resumable.js";
 import type { ResourceHttpClient } from "./types.js";
 
@@ -92,16 +91,18 @@ export class RunHandle {
 export class TaskRunsClient {
   constructor(private readonly http: ResourceHttpClient) {}
 
-  async create(taskId: string, body: TaskRunCreateParams): Promise<RunHandle> {
-    const res = await this.http.request<TaskRunResponse>({
-      method: "POST",
-      path: `/v1/tasks/${encodeURIComponent(taskId)}/runs`,
-      body,
-    });
-    return new RunHandle(null, res.run, this);
+  create(taskId: string, body: TaskRunCreateParams): Promise<RunHandle> {
+    return this.postRun(taskId, body);
   }
 
-  async resume(taskId: string, body: TaskRunResumeParams): Promise<RunHandle> {
+  resume(taskId: string, body: TaskRunResumeParams): Promise<RunHandle> {
+    return this.postRun(taskId, body);
+  }
+
+  private async postRun(
+    taskId: string,
+    body: TaskRunCreateParams | TaskRunResumeParams,
+  ): Promise<RunHandle> {
     const res = await this.http.request<TaskRunResponse>({
       method: "POST",
       path: `/v1/tasks/${encodeURIComponent(taskId)}/runs`,
@@ -164,15 +165,7 @@ export class TasksClient<
    * stop fetching).
    */
   list(params?: TaskListParams): Paginator<Task> {
-    return cursorPaginate(
-      (next) =>
-        this.http.request<Paginated<Task>>({
-          method: "GET",
-          path: "/v1/tasks",
-          query: { ...params, next } as Record<string, unknown>,
-        }),
-      params?.next,
-    );
+    return paginateGet<Task>(this.http, "/v1/tasks", params, params?.next);
   }
 
   create(body: TCreate): Promise<TaskCreateResponse> {

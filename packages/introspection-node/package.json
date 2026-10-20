@@ -113,8 +113,6 @@
     "@introspection-sdk/introspection-pi": "workspace:*",
     "@introspection-sdk/introspection-proxy": "workspace:*",
     "@introspection-sdk/types": "workspace:*",
-    "@opentelemetry/api": "^1.9.1",
-    "https-proxy-agent": "^7.0.6",
-    "proxy-from-env": "^2.1.0"
+    "@opentelemetry/api": "^1.9.1"
   }
 }

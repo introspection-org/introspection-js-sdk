@@ -7,4 +7,4 @@ export {
   type Budget,
   respond,
 } from "./resource.js";
-export { AAuthError, problem } from "./errors.js";
+export { AAuthError, problem } from "@introspection-sdk/person-server";

@@ -24,6 +24,7 @@ export type {
   TokenExchangeParams,
   AuthorizationCodeParams,
   OAuthToken,
+  TokenEndpointOptions,
 } from "./auth.js";
 
 // Native email-code sign-in (a `native` Application's end users).
@@ -117,6 +118,7 @@ export { AnnotationsApi, attachAnnotations } from "./resources/annotations.js";
 export { TagsApi, attachTags } from "./resources/tags.js";
 
 // REST API wire types
+// jscpd:ignore-start -- re-export list of wire type names
 export type {
   AGUIEvent,
   BaseEvent,
@@ -324,6 +326,7 @@ export type {
   MetricQueryMeta,
   MetricQueryResponse,
 } from "@introspection-sdk/types";
+// jscpd:ignore-end
 export {
   ConversationsMethods,
   IntrospectionEventNames,

@@ -1,6 +1,5 @@
 import {
   ValidationError,
-  type Paginated,
   type Tag,
   type TagCreate,
   type TagKind,
@@ -8,7 +7,7 @@ import {
   type TagUpdate,
 } from "@introspection-sdk/types";
 import type { HttpClient } from "../http.js";
-import { Paginator, cursorPaginate } from "../pagination.js";
+import { Paginator, paginateGet } from "../pagination.js";
 
 const HEX_COLOR = /^#[0-9a-f]{6}$/i;
 
@@ -54,13 +53,10 @@ export class TagsApi {
 
   /** List one catalogue. `kind` is required: no listing spans both. */
   list(kind: TagKind, params: TagListParams = {}): Paginator<Tag> {
-    return cursorPaginate(
-      (next) =>
-        this.dpHttp.request<Paginated<Tag>>({
-          method: "GET",
-          path: "/v1/tags",
-          query: { ...params, kind, next } as Record<string, unknown>,
-        }),
+    return paginateGet<Tag>(
+      this.dpHttp,
+      "/v1/tags",
+      { ...params, kind },
       params.next,
     );
   }
