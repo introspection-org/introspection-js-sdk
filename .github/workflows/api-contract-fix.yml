@@ -1,0 +1,264 @@
+# When the nightly API Contract check goes red, ask Claude Code to bring the SDK
+# back in sync with the published reference, and keep ONE pull request open for
+# it on the fixed branch bot/api-contract-sync.
+#
+# Claude only edits files. Every git and PR step is a shell step here, so what
+# lands on the branch is decided by this file and not by the model:
+#   - Claude runs with a read-only token and no git commit/push tools.
+#   - The workflow re-verifies typecheck + tests itself, refuses any diff that
+#     touches the check script or .github/, and only then commits.
+#   - The push and the PR use a GitHub App token (minted after Claude has
+#     finished), so the PR triggers CI — a GITHUB_TOKEN push would not.
+#
+# Never runs on pull requests: workflow_run only fires for the default-branch
+# copy of this file, and only for API Contract runs on main started by the
+# schedule or a manual dispatch.
+name: API Contract Fix
+
+on:
+  workflow_run:
+    workflows: ["API Contract"]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+# One fix job at a time; a second red night queues behind the first instead of
+# racing it onto the same branch.
+concurrency:
+  group: api-contract-fix
+  cancel-in-progress: false
+
+permissions: {}
+
+env:
+  BRANCH: bot/api-contract-sync
+  COMMIT_TITLE: "fix(types): sync with API reference"
+
+jobs:
+  sync:
+    name: Sync SDK with the API reference
+    if: >-
+      github.repository == 'introspection-org/introspection-js-sdk' &&
+      (
+        (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main') ||
+        (github.event_name == 'workflow_run' &&
+          github.event.workflow_run.conclusion == 'failure' &&
+          github.event.workflow_run.head_branch == 'main' &&
+          (github.event.workflow_run.event == 'schedule' ||
+            github.event.workflow_run.event == 'workflow_dispatch'))
+      )
+    runs-on: ubuntu-latest
+    # ANTHROPIC_API_KEY, GH_APP_ID and GH_APP_PRIVATE_KEY live in this environment.
+    environment: build
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      - name: Find the open sync PR
+        id: pr
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_URL: ${{ github.event.workflow_run.html_url || format('{0}/{1}/actions/runs/{2}', github.server_url, github.repository, github.run_id) }}
+        run: |
+          pr=$(gh pr list --repo "$GITHUB_REPOSITORY" --head "$BRANCH" --base main \
+            --state open --json number --jq '.[0].number // empty')
+          {
+            echo "number=$pr"
+            echo "ref=${pr:+$BRANCH}"
+            echo "run_url=$RUN_URL"
+          } >> "$GITHUB_OUTPUT"
+          if [ -z "$pr" ] && gh api "repos/$GITHUB_REPOSITORY/branches/$BRANCH" --silent 2>/dev/null; then
+            # A closed, unmerged PR left the branch behind. Starting it over
+            # from main would need a force-push, which this workflow never does.
+            echo "::error::$BRANCH exists without an open PR. Delete the branch or reopen its PR, then rerun."
+            exit 1
+          fi
+
+      - uses: actions/checkout@v7
+        with:
+          # The open PR's branch, so new commits stack on it; main otherwise.
+          ref: ${{ steps.pr.outputs.ref || 'main' }}
+          persist-credentials: false
+
+      - name: Start the sync branch from main
+        if: steps.pr.outputs.number == ''
+        run: git switch -c "$BRANCH"
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # Same command as the nightly in api-contract.yml. Run on the PR branch it
+      # answers "is anything still unfixed?", so a night whose drift the open PR
+      # already covers ends here without calling Claude.
+      - name: Rerun the contract check
+        id: drift
+        run: |
+          report="$RUNNER_TEMP/api-contract-drift.txt"
+          set +e
+          node scripts/check-api-contract.mjs > "$report" 2>&1
+          status=$?
+          set -e
+          cat "$report"
+          if [ "$status" -eq 0 ]; then
+            echo "No drift on $(git branch --show-current); nothing to fix." >> "$GITHUB_STEP_SUMMARY"
+            echo "found=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if grep -q '^could not read the API reference' "$report"; then
+            # An unreachable reference is not drift; Claude cannot fix it.
+            echo "::error::The API reference could not be fetched; see the log above."
+            exit 1
+          fi
+          {
+            echo "### Drift report"
+            echo '```'
+            cat "$report"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          echo "found=true" >> "$GITHUB_OUTPUT"
+          echo "report=$report" >> "$GITHUB_OUTPUT"
+
+      - name: Build the prompt
+        id: prompt
+        if: steps.drift.outputs.found == 'true'
+        env:
+          REPORT: ${{ steps.drift.outputs.report }}
+        run: |
+          # Claude's notes for the PR go here; keep them out of the commit.
+          mkdir -p .api-contract-fix
+          echo "/.api-contract-fix/" >> .git/info/exclude
+          delimiter="EOF_$(openssl rand -hex 16)"
+          {
+            echo "prompt<<$delimiter"
+            cat .github/api-contract-fix.md
+            printf '\n## Drift report\n\n```\n'
+            cat "$REPORT"
+            printf '```\n'
+            echo "$delimiter"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Run Claude Code
+        if: steps.drift.outputs.found == 'true'
+        # v1.0.254
+        uses: anthropics/claude-code-action@db77d4d3c98f3f6380e7cd45ffba2342a3dbde3c
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          # Read-only on purpose: Claude edits the working tree, the workflow pushes.
+          github_token: ${{ github.token }}
+          prompt: ${{ steps.prompt.outputs.prompt }}
+          claude_args: >-
+            --model claude-sonnet-5-5
+            --max-turns 40
+            --allowedTools "Read,Edit,Write,Glob,Grep,Bash(node scripts/check-api-contract.mjs),Bash(pnpm install:*),Bash(pnpm build:*),Bash(pnpm check-types:*),Bash(pnpm --filter introspection-tests test:*),Bash(git status:*),Bash(git diff:*),Bash(git log:*)"
+            --disallowedTools "Bash(git commit:*),Bash(git push:*),WebFetch,WebSearch"
+
+      - name: Check what Claude changed
+        id: changes
+        if: steps.drift.outputs.found == 'true'
+        run: |
+          git add -A
+          changed=$(git diff --cached --name-only)
+          if [ -z "$changed" ]; then
+            echo "Claude made no changes; see its notes below." >> "$GITHUB_STEP_SUMMARY"
+            cat .api-contract-fix/pr-notes.md >> "$GITHUB_STEP_SUMMARY" 2>/dev/null || true
+            echo "::error::Drift remains and Claude changed nothing. Every item may need a maintainer decision."
+            exit 1
+          fi
+          echo "$changed"
+          forbidden=$(echo "$changed" | grep -E '^(scripts/check-api-contract\.mjs|\.github/)' || true)
+          if [ -n "$forbidden" ]; then
+            echo "::error::Claude edited files it must not touch: $forbidden"
+            exit 1
+          fi
+          deleted_tests=$(git diff --cached --name-only --diff-filter=D -- tests/ || true)
+          if [ -n "$deleted_tests" ]; then
+            echo "::error::Claude deleted tests: $deleted_tests"
+            exit 1
+          fi
+
+      # Don't take Claude's word for it: the commit lands only if the repo's own
+      # gates pass. The contract check may stay red when items became questions,
+      # so its result goes into the PR instead of failing the job.
+      - name: Verify the fix
+        id: verify
+        if: steps.drift.outputs.found == 'true'
+        run: |
+          pnpm build
+          pnpm check-types
+          pnpm --filter introspection-tests test
+          if node scripts/check-api-contract.mjs > "$RUNNER_TEMP/after.txt" 2>&1; then
+            echo "contract=passing" >> "$GITHUB_OUTPUT"
+          else
+            echo "contract=still failing" >> "$GITHUB_OUTPUT"
+          fi
+          cat "$RUNNER_TEMP/after.txt"
+
+      - uses: actions/create-github-app-token@v1
+        id: app-token
+        if: steps.drift.outputs.found == 'true'
+        with:
+          app-id: ${{ vars.GH_APP_ID }}
+          private-key: ${{ secrets.GH_APP_PRIVATE_KEY }}
+          owner: introspection-org
+          repositories: introspection-js-sdk
+          permission-contents: write
+          permission-pull-requests: write
+
+      - name: Commit and push
+        if: steps.drift.outputs.found == 'true'
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          APP_SLUG: ${{ steps.app-token.outputs.app-slug }}
+          RUN_URL: ${{ steps.pr.outputs.run_url }}
+        run: |
+          bot="${APP_SLUG}[bot]"
+          bot_id=$(gh api "/users/${bot}" --jq .id)
+          git -c user.name="$bot" -c user.email="${bot_id}+${bot}@users.noreply.github.com" \
+            commit -m "$COMMIT_TITLE" -m "Drift reported by $RUN_URL"
+          # Plain push, never forced: on an existing PR this only adds commits.
+          git -c credential.helper= -c http.https://github.com/.extraheader= \
+            push "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" \
+            "HEAD:refs/heads/$BRANCH"
+
+      - name: Open or update the PR
+        if: steps.drift.outputs.found == 'true'
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          PR: ${{ steps.pr.outputs.number }}
+          RUN_URL: ${{ steps.pr.outputs.run_url }}
+          REPORT: ${{ steps.drift.outputs.report }}
+          CONTRACT: ${{ steps.verify.outputs.contract }}
+        run: |
+          body="$RUNNER_TEMP/pr-body.md"
+          {
+            echo "The [API Contract check]($RUN_URL) found drift between the SDK and the published API reference. Claude Code edited the SDK; this workflow ran \`pnpm check-types\` and the unit tests on the result (passing). The contract check is now **$CONTRACT**."
+            echo
+            if [ -s .api-contract-fix/pr-notes.md ]; then
+              cat .api-contract-fix/pr-notes.md
+            else
+              echo "_Claude left no notes._"
+            fi
+            echo
+            echo "<details><summary>Drift report</summary>"
+            echo
+            echo '```'
+            cat "$REPORT"
+            echo '```'
+            echo "</details>"
+            echo
+            echo "_Opened by [api-contract-fix.yml](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}). Further drift is added to this PR as new commits._"
+          } > "$body"
+          if [ -n "$PR" ]; then
+            gh pr comment "$PR" --repo "$GITHUB_REPOSITORY" --body-file "$body"
+          else
+            gh pr create --repo "$GITHUB_REPOSITORY" --base main --head "$BRANCH" \
+              --title "$COMMIT_TITLE" --body-file "$body"
+          fi

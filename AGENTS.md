@@ -52,6 +52,12 @@ If your branch is intentionally adding code that can't be covered by unit tests 
 
 `.github/workflows/ci.yml` runs the same coverage check on every PR and uploads the HTML report as a downloadable artifact. CI is the source of truth — if your local hook passes but CI fails, CI wins (your local has stale builds or stale deps).
 
+### API contract drift
+
+`.github/workflows/api-contract.yml` runs `node scripts/check-api-contract.mjs` nightly against the published API reference. When it goes red on `main`, `.github/workflows/api-contract-fix.yml` reruns the check and, if the drift is real, has Claude Code edit the SDK following `.github/api-contract-fix.md`. The workflow, not Claude, verifies typecheck and tests, commits, and pushes to the fixed branch `bot/api-contract-sync`. It keeps one PR open from that branch: later drift adds commits to it, never a force-push. Breaking public-API changes and possible allowlist entries come back as questions in the PR, not as edits.
+
+Review that PR like any other. To change what Claude may do, edit `.github/api-contract-fix.md`. If the branch is left behind by a closed, unmerged PR, delete the branch, or the next run fails. Run the workflow by hand with `gh workflow run api-contract-fix.yml`.
+
 ---
 
 ## 4. Repo layout conventions
