@@ -42,9 +42,10 @@ interface Asked {
 /** Keeps missions where the demo page can read them as they change. */
 class AcmeStore extends MemoryStore {
   readonly trips = new Map<string, Mission>();
-  override async putMission(mission: Mission) {
-    this.trips.set(mission.s256, mission);
-    await super.putMission(mission);
+  override async insertMission(tenant: string, mission: Mission) {
+    const inserted = await super.insertMission(tenant, mission);
+    if (inserted) this.trips.set(mission.s256, mission);
+    return inserted;
   }
 }
 
@@ -159,6 +160,8 @@ export function personServer(): Promise<PersonServer> {
     signingKey: process.env.ACME_PS_SIGNING_KEY,
     subjectSecret: process.env.ACME_PS_SUBJECT_SECRET,
     store: state.store,
+    // Every Acme person is in the acme tenant, whether or not the agent names it.
+    defaultTenant: TENANT,
     directory: {
       person: (hint) => {
         const found = employee(hint);
@@ -230,7 +233,7 @@ export async function decide(
     throw new AAuthError(400, "invalid_request", "set the trip's budget");
   asked.approval = await (
     await personServer()
-  ).decide(id, {
+  ).decide(asked.approval.tenant, id, {
     status: verdict === "approve" ? "approved" : "denied",
     ...(verdict === "approve" && trip
       ? { budget: { amount: budgetCents!, ...USD } }

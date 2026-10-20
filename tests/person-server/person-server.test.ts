@@ -3,15 +3,21 @@
  * with @hellocoop/httpsig, an agent provider and a resource behind an
  * injected fetch, and an operator deciding approvals.
  */
-import { createHash } from "node:crypto";
+import { createHash, randomUUID as randomId } from "node:crypto";
 
 import { clearMetadataCache } from "@aauth/resource";
 import { fetch as signedFetch } from "@hellocoop/httpsig";
 import {
   createPersonServer,
+  DEFAULT_TENANT,
+  MemoryStore,
   type Approval,
+  type ApprovalStatus,
+  type Mission,
   type Person,
   type PersonServer,
+  type PersonServerOptions,
+  type Store,
 } from "@introspection-sdk/person-server";
 import {
   type JWK,
@@ -179,7 +185,12 @@ beforeEach(async () => {
     display: { summary: "QT Sydney, 4 nights, $1,680" },
   });
   asked = [];
-  ps = await createPersonServer({
+  ps = await server();
+});
+
+/** The Person Server under test, over `store` when given; its people are all acme's, its default tenant. */
+const server = (store?: Store, overrides: Partial<PersonServerOptions> = {}) =>
+  createPersonServer({
     issuer: PS,
     basePath: "/ps",
     trustedAgentProviders: [PROVIDER],
@@ -192,8 +203,10 @@ beforeEach(async () => {
     },
     adminToken: "admin",
     fetch: world,
+    defaultTenant: "acme",
+    ...(store ? { store } : {}),
+    ...overrides,
   });
-});
 
 const call = async (
   agent: AgentClient,
@@ -211,7 +224,7 @@ async function approvedTrip(agent: AgentClient, amount = 300_000) {
   expect(proposed.status).toBe(202);
   const pendingPath = new URL(proposed.headers.get("location")!).pathname;
   expect((await call(agent, "GET", pendingPath)).status).toBe(202);
-  await ps.decide(asked.at(-1)!.id, {
+  await ps.decide("acme", asked.at(-1)!.id, {
     status: "approved",
     budget: { amount, ...USD },
     decided_by: "dana",
@@ -295,14 +308,14 @@ describe("@introspection-sdk/person-server", () => {
       kind: "auth_token",
       summary: "QT Sydney, 4 nights, $1,680",
     });
-    await ps.decide(asked.at(-1)!.id, { status: "approved" });
+    await ps.decide("acme", asked.at(-1)!.id, { status: "approved" });
     const granted = await call(
       agent,
       "GET",
       new URL(hotel.headers.get("location")!).pathname,
     );
     expect(granted.status).toBe(200);
-    expect((await ps.mission(trip.s256))?.spent).toBe(333_000);
+    expect((await ps.mission("acme", trip.s256))?.spent).toBe(333_000);
 
     // Completion is the person's to accept; nothing issues under the mission after.
     const done = await call(agent, "POST", `/ps/mission/${trip.s256}`, {
@@ -314,7 +327,7 @@ describe("@introspection-sdk/person-server", () => {
       kind: "completion",
       approver: { id: "sam" },
     });
-    await ps.decide(asked.at(-1)!.id, { status: "approved" });
+    await ps.decide("acme", asked.at(-1)!.id, { status: "approved" });
     const again = await call(agent, "POST", "/ps/person-token", {
       resource: RESOURCE,
       mission_s256: trip.s256,
@@ -442,5 +455,584 @@ describe("@introspection-sdk/person-server", () => {
     expect(
       ((await ended.json()) as { completed_at?: number }).completed_at,
     ).toBeDefined();
+  });
+
+  it("hands out an approved auth token once, so an approval spends once", async () => {
+    const agent = await AgentClient.create();
+    const trip = await approvedTrip(agent, 100_000);
+    const presented = trip.person_tokens[RESOURCE]!;
+    const over = await call(agent, "POST", "/ps/token", {
+      resource_token: await resourceToken(agent, presented, 150_000),
+      presented_token: presented,
+    });
+    expect(over.status).toBe(202);
+    await ps.decide("acme", asked.at(-1)!.id, { status: "approved" });
+    const pendingPath = new URL(over.headers.get("location")!).pathname;
+    expect((await call(agent, "GET", pendingPath)).status).toBe(200);
+    for (let i = 0; i < 3; i++)
+      expect((await call(agent, "GET", pendingPath)).status).toBe(410);
+    expect((await ps.mission("acme", trip.s256))?.spent).toBe(150_000);
+  });
+
+  /** An approved request over a 1,000.00 trip budget, not yet collected. */
+  async function approvedOverBudget(agent: AgentClient) {
+    const trip = await approvedTrip(agent, 100_000);
+    const presented = trip.person_tokens[RESOURCE]!;
+    const over = await call(agent, "POST", "/ps/token", {
+      resource_token: await resourceToken(agent, presented, 150_000),
+      presented_token: presented,
+    });
+    expect(over.status).toBe(202);
+    const id = asked.at(-1)!.id;
+    await ps.decide("acme", id, { status: "approved" });
+    expect((await ps.mission("acme", trip.s256))?.spent).toBe(0);
+    return {
+      trip,
+      id,
+      pendingPath: new URL(over.headers.get("location")!).pathname,
+    };
+  }
+
+  it("issues an approved auth token only once its spend has landed", async () => {
+    class DelaysSpend extends MemoryStore {
+      gate?: Promise<void>;
+      entered?: () => void;
+      override async spend(
+        tenant: string,
+        s256: string,
+        amount: number,
+        withinBudget: boolean,
+        at: number,
+      ) {
+        if (this.gate) {
+          this.entered?.();
+          await this.gate;
+        }
+        return super.spend(tenant, s256, amount, withinBudget, at);
+      }
+    }
+    const store = new DelaysSpend();
+    ps = await server(store);
+    const agent = await AgentClient.create();
+    const { trip, pendingPath } = await approvedOverBudget(agent);
+    let release!: () => void;
+    store.gate = new Promise((resolve) => (release = resolve));
+    const entered = new Promise<void>((resolve) => (store.entered = resolve));
+    let settled = false;
+    const first = call(agent, "GET", pendingPath).then((r) => {
+      settled = true;
+      return r;
+    });
+    await entered;
+    expect(settled).toBe(false);
+    expect((await call(agent, "GET", pendingPath)).status).toBe(410);
+    expect((await ps.mission("acme", trip.s256))?.spent).toBe(0);
+    store.gate = undefined;
+    release();
+    const collected = await first;
+    expect(collected.status).toBe(200);
+    expect(
+      ((await collected.json()) as { auth_token?: string }).auth_token,
+    ).toBeDefined();
+    expect((await ps.mission("acme", trip.s256))?.spent).toBe(150_000);
+    expect((await call(agent, "GET", pendingPath)).status).toBe(410);
+  });
+
+  it("puts an approval back when its spend fails, and spends it once when collected", async () => {
+    class FailsSpendOnce extends MemoryStore {
+      fail = false;
+      override async spend(
+        tenant: string,
+        s256: string,
+        amount: number,
+        withinBudget: boolean,
+        at: number,
+      ) {
+        if (this.fail) {
+          this.fail = false;
+          throw new Error("the store is down");
+        }
+        return super.spend(tenant, s256, amount, withinBudget, at);
+      }
+    }
+    const store = new FailsSpendOnce();
+    ps = await server(store);
+    const agent = await AgentClient.create();
+    const { trip, id, pendingPath } = await approvedOverBudget(agent);
+    store.fail = true;
+    const failed = await call(agent, "GET", pendingPath);
+    expect(failed.status).toBe(500);
+    expect(await failed.json()).not.toHaveProperty("auth_token");
+    expect((await ps.approval("acme", id))?.status).toBe("approved");
+    expect((await ps.mission("acme", trip.s256))?.spent).toBe(0);
+    const collected = await call(agent, "GET", pendingPath);
+    expect(collected.status).toBe(200);
+    expect(
+      ((await collected.json()) as { auth_token?: string }).auth_token,
+    ).toBeDefined();
+    expect((await ps.mission("acme", trip.s256))?.spent).toBe(150_000);
+    expect((await call(agent, "GET", pendingPath)).status).toBe(410);
+  });
+
+  it("issues and spends nothing for an approval whose mission has ended", async () => {
+    const agent = await AgentClient.create();
+    const { trip, id, pendingPath } = await approvedOverBudget(agent);
+    await ps.terminate("acme", trip.s256);
+    const poll = await call(agent, "GET", pendingPath);
+    expect(poll.status).toBe(403);
+    expect(((await poll.json()) as { error: string }).error).toBe(
+      "mission_terminated",
+    );
+    expect((await ps.approval("acme", id))?.status).toBe("approved");
+    expect((await ps.mission("acme", trip.s256))?.spent).toBe(0);
+  });
+
+  it("puts an approval back when its mission ends as it is collected", async () => {
+    class EndsBeforeSpend extends MemoryStore {
+      end = false;
+      override async spend(
+        tenant: string,
+        s256: string,
+        amount: number,
+        withinBudget: boolean,
+        at: number,
+      ) {
+        if (this.end) await this.endMission(tenant, s256, at);
+        return super.spend(tenant, s256, amount, withinBudget, at);
+      }
+    }
+    const store = new EndsBeforeSpend();
+    ps = await server(store);
+    const agent = await AgentClient.create();
+    const { trip, id, pendingPath } = await approvedOverBudget(agent);
+    store.end = true;
+    const poll = await call(agent, "GET", pendingPath);
+    expect(poll.status).toBe(403);
+    expect(((await poll.json()) as { error: string }).error).toBe(
+      "mission_terminated",
+    );
+    expect((await ps.approval("acme", id))?.status).toBe("approved");
+    expect((await ps.mission("acme", trip.s256))?.spent).toBe(0);
+  });
+
+  it("decides an approval once, however many answers arrive", async () => {
+    const agent = await AgentClient.create();
+    await call(agent, "POST", "/ps/mission", {
+      description: "Trip",
+      resources: [RESOURCE],
+      login_hint: "sam@acme.example",
+    });
+    const id = asked.at(-1)!.id;
+    const results = await Promise.allSettled([
+      ps.decide("acme", id, { status: "approved" }),
+      ps.decide("acme", id, { status: "approved" }),
+    ]);
+    expect(results.filter((r) => r.status === "fulfilled")).toHaveLength(1);
+    // A loser that made a mission before losing ends it.
+    const live = (await ps.missions("acme")).filter(
+      (m) => m.completed_at === undefined,
+    );
+    expect(live).toHaveLength(1);
+  });
+
+  it("issues no person tokens under a mission that has ended", async () => {
+    const agent = await AgentClient.create();
+    const proposed = await call(agent, "POST", "/ps/mission", {
+      description: "Trip",
+      resources: [RESOURCE],
+      login_hint: "sam@acme.example",
+    });
+    const decided = await ps.decide("acme", asked.at(-1)!.id, {
+      status: "approved",
+    });
+    await ps.terminate("acme", decided.mission_s256!);
+    const poll = await call(
+      agent,
+      "GET",
+      new URL(proposed.headers.get("location")!).pathname,
+    );
+    expect(poll.status).toBe(403);
+    expect(((await poll.json()) as { error: string }).error).toBe(
+      "mission_terminated",
+    );
+  });
+
+  it("keeps another key under the same agent away from someone else's mission", async () => {
+    const sams = await AgentClient.create();
+    const trip = await approvedTrip(sams);
+    const danas = await AgentClient.create();
+    expect(
+      (
+        await call(danas, "POST", "/ps/person-token", {
+          resource: RESOURCE,
+          login_hint: "dana@acme.example",
+        })
+      ).status,
+    ).toBe(200);
+    const update = await call(danas, "POST", `/ps/mission/${trip.s256}`, {
+      action: "update",
+      description: "Rebook for Dana",
+    });
+    expect(update.status).toBe(404);
+  });
+
+  it("keeps identical missions approved together apart", async () => {
+    const propose = async (hint: string) => {
+      const agent = await AgentClient.create();
+      await call(agent, "POST", "/ps/mission", {
+        description: "Sydney",
+        resources: [RESOURCE],
+        login_hint: hint,
+      });
+      const decided = await ps.decide("acme", asked.at(-1)!.id, {
+        status: "approved",
+      });
+      return decided.mission_s256!;
+    };
+    const sams = await propose("sam@acme.example");
+    const ended = await ps.terminate("acme", sams);
+    const danas = await propose("dana@acme.example");
+    expect(danas).not.toBe(sams);
+    expect(await ps.mission("acme", sams)).toMatchObject({
+      person: { id: "sam" },
+      completed_at: ended.completed_at,
+    });
+  });
+
+  it("never replaces a mission in the store", async () => {
+    const store = new MemoryStore();
+    const mission = (person: string): Mission => ({
+      s256: "h",
+      tenant: "acme",
+      mission: "{}",
+      agent_id: "aauth:travel@agents.example",
+      person: { id: person },
+      resources: [],
+      spent: 0,
+      log: [],
+      expires_at: Number.MAX_SAFE_INTEGER,
+    });
+    expect(await store.insertMission("acme", mission("sam"))).toBe(true);
+    await store.endMission("acme", "h", 10);
+    expect(await store.insertMission("acme", mission("dana"))).toBe(false);
+    expect(await store.mission("acme", "h")).toMatchObject({
+      person: { id: "sam" },
+      completed_at: 10,
+    });
+  });
+
+  it("ends the mission a decision made when the decision loses the race", async () => {
+    class LosesNextTransition extends MemoryStore {
+      lose = false;
+      override async transitionApproval(
+        tenant: string,
+        expected: ApprovalStatus,
+        next: Approval,
+      ) {
+        if (this.lose) {
+          this.lose = false;
+          return false;
+        }
+        return super.transitionApproval(tenant, expected, next);
+      }
+    }
+    const store = new LosesNextTransition();
+    ps = await server(store);
+    const agent = await AgentClient.create();
+    await call(agent, "POST", "/ps/mission", {
+      description: "Trip",
+      resources: [RESOURCE],
+      login_hint: "sam@acme.example",
+    });
+    const id = asked.at(-1)!.id;
+    store.lose = true;
+    await expect(
+      ps.decide("acme", id, { status: "approved" }),
+    ).rejects.toMatchObject({
+      status: 409,
+    });
+    const missions = await store.missions("acme");
+    expect(missions).toHaveLength(1);
+    expect(missions[0]!.completed_at).toBeDefined();
+    expect((await store.approval("acme", id))?.status).toBe("pending");
+  });
+
+  it("keeps each tenant's records apart in the store", async () => {
+    const store = new MemoryStore();
+    const mission = (person: string, tenant: string): Mission => ({
+      s256: "h",
+      tenant,
+      mission: "{}",
+      agent_id: "aauth:travel@agents.example",
+      person: { id: person },
+      resources: [],
+      spent: 0,
+      log: [],
+      expires_at: Number.MAX_SAFE_INTEGER,
+    });
+    expect(await store.insertMission("acme", mission("sam", "acme"))).toBe(
+      true,
+    );
+    expect(await store.insertMission("globex", mission("dana", "globex"))).toBe(
+      true,
+    );
+    expect(
+      await store.insertMission("default", mission("lee", "default")),
+    ).toBe(true);
+    expect(await store.mission("acme", "h")).toMatchObject({
+      person: { id: "sam" },
+    });
+    expect(await store.mission("globex", "h")).toMatchObject({
+      person: { id: "dana" },
+    });
+    expect(await store.mission("default", "h")).toMatchObject({
+      person: { id: "lee" },
+    });
+    await store.endMission("acme", "h", 10);
+    expect((await store.mission("globex", "h"))?.completed_at).toBeUndefined();
+    expect(await store.missions("acme")).toHaveLength(1);
+    expect(await store.missions("initech")).toHaveLength(0);
+
+    const sam = { id: "sam", name: "Sam" };
+    expect(await store.bind("acme", "jkt", sam)).toEqual(sam);
+    expect(await store.bind("acme", "jkt", { id: "dana" })).toEqual(sam);
+    expect(await store.binding("acme", "jkt")).toEqual(sam);
+    expect(await store.binding("globex", "jkt")).toBeUndefined();
+    expect(await store.binding("default", "jkt")).toBeUndefined();
+    expect(await store.bind("globex", "jkt", { id: "dana" })).toEqual({
+      id: "dana",
+    });
+  });
+
+  /** Sam's trip, proposed and approved under tenant `acme`. */
+  async function acmeTrip(agent: AgentClient) {
+    const proposed = await call(agent, "POST", "/ps/mission", {
+      description: "Sydney",
+      resources: [RESOURCE],
+      login_hint: "sam@acme.example",
+      tenant: "acme",
+    });
+    expect(proposed.status).toBe(202);
+    const pendingPath = new URL(proposed.headers.get("location")!).pathname;
+    expect(pendingPath).toContain("/pending/acme/");
+    expect((await call(agent, "GET", pendingPath)).status).toBe(202);
+    const id = asked.at(-1)!.id;
+    expect(asked.at(-1)).toMatchObject({ tenant: "acme" });
+    const decided = await ps.decide("acme", id, {
+      status: "approved",
+      budget: { amount: 1000, ...USD },
+    });
+    expect(decided.decided_at).toBeDefined();
+    const approved = await call(agent, "GET", pendingPath);
+    expect(approved.status).toBe(200);
+    const trip = (await approved.json()) as {
+      s256: string;
+      person_tokens: Record<string, string>;
+    };
+    return { id, trip };
+  }
+
+  it("asks, decides and issues under the tenant the agent names", async () => {
+    const agent = await AgentClient.create();
+    const { id, trip } = await acmeTrip(agent);
+    const presented = trip.person_tokens[RESOURCE]!;
+    expect(decodeJwt(presented)).toMatchObject({
+      mission_s256: trip.s256,
+      tenant: "acme",
+    });
+    expect(await ps.mission("acme", trip.s256)).toMatchObject({
+      tenant: "acme",
+    });
+    expect(await ps.mission("globex", trip.s256)).toBeUndefined();
+    expect(await ps.missions("globex")).toHaveLength(0);
+    for (const tenant of ["globex", "default"])
+      await expect(
+        ps.decide(tenant, id, { status: "denied" }),
+      ).rejects.toMatchObject({ status: 404 });
+
+    const admin = { authorization: "Bearer admin" };
+    const listed = async (query: string) =>
+      (await (
+        await ps.handle(
+          new Request(`${PS}/ps/missions${query}`, { headers: admin }),
+        )
+      ).json()) as Mission[];
+    expect(await listed("?tenant=acme")).toHaveLength(1);
+    expect(await listed("?tenant=globex")).toHaveLength(0);
+    // Unnamed, the management routes are under the default tenant.
+    expect(await listed("")).toHaveLength(1);
+    expect((await call(agent, "GET", `/ps/pending/%E0/${id}`)).status).toBe(
+      400,
+    );
+
+    const booked = await call(agent, "POST", "/ps/token", {
+      resource_token: await resourceToken(agent, presented, 500),
+      presented_token: presented,
+      tenant: "acme",
+    });
+    expect(booked.status).toBe(200);
+    expect(
+      decodeJwt(((await booked.json()) as { auth_token: string }).auth_token),
+    ).toMatchObject({ tenant: "acme" });
+  });
+
+  it("keeps the tenant the directory gives a person", async () => {
+    const store = new MemoryStore();
+    ps = await server(store);
+    const agent = await AgentClient.create();
+    const jkt = await thumbprint(agent.session.publicJwk);
+    const refused = [
+      await call(agent, "POST", "/ps/mission", {
+        description: "Sydney",
+        resources: [RESOURCE],
+        login_hint: "sam@acme.example",
+        tenant: "globex",
+      }),
+      await call(agent, "POST", "/ps/person-token", {
+        resource: RESOURCE,
+        login_hint: "sam@acme.example",
+        tenant: "globex",
+      }),
+    ];
+    for (const response of refused) {
+      expect(response.status).toBe(403);
+      expect(await response.json()).toMatchObject({
+        error: "invalid_request",
+        detail: "this person is not in that tenant",
+      });
+    }
+    expect(asked).toHaveLength(0);
+    expect(await store.approvals("globex")).toHaveLength(0);
+    expect(await store.binding("globex", jkt)).toBeUndefined();
+
+    const { trip } = await acmeTrip(agent);
+    expect(decodeJwt(trip.person_tokens[RESOURCE]!).tenant).toBe("acme");
+    expect(await store.binding("acme", jkt)).toMatchObject({
+      id: "sam",
+      tenant: "acme",
+    });
+    // Naming none is being under the default, which is not Sam's tenant either.
+    ps = await server(store, { defaultTenant: "default" });
+    const other = await AgentClient.create();
+    const unnamed = await call(other, "POST", "/ps/mission", {
+      description: "Sydney",
+      resources: [RESOURCE],
+      login_hint: "sam@acme.example",
+    });
+    expect(unnamed.status).toBe(403);
+    expect(
+      await store.binding("default", await thumbprint(other.session.publicJwk)),
+    ).toBeUndefined();
+  });
+
+  it("refuses an auth token request under another tenant than its presented token's", async () => {
+    const agent = await AgentClient.create();
+    const { trip } = await acmeTrip(agent);
+    const presented = trip.person_tokens[RESOURCE]!;
+    const request = async (tenant: string) =>
+      call(agent, "POST", "/ps/token", {
+        resource_token: await resourceToken(agent, presented, 500),
+        presented_token: presented,
+        tenant,
+      });
+    const refused = await request("globex");
+    expect(refused.status).toBe(400);
+    expect(((await refused.json()) as { error: string }).error).toBe(
+      "invalid_resource_token",
+    );
+    expect((await ps.mission("acme", trip.s256))?.spent).toBe(0);
+    // An empty tenant names none, so the request is under the default: acme.
+    const unnamed = await request("");
+    expect(unnamed.status).toBe(200);
+    expect((await ps.mission("acme", trip.s256))?.spent).toBe(500);
+  });
+
+  it("issues under a tenant the directory stamps when the agent names none", async () => {
+    const agent = await AgentClient.create();
+    const trip = await approvedTrip(agent);
+    const presented = trip.person_tokens[RESOURCE]!;
+    expect(decodeJwt(presented).tenant).toBe("acme");
+    expect(await ps.mission("acme", trip.s256)).toBeDefined();
+    expect(await ps.mission("default", trip.s256)).toBeUndefined();
+    const booked = await call(agent, "POST", "/ps/token", {
+      resource_token: await resourceToken(agent, presented, 1000),
+      presented_token: presented,
+    });
+    expect(booked.status).toBe(200);
+    const { auth_token } = (await booked.json()) as { auth_token: string };
+    expect(decodeJwt(auth_token)).toMatchObject({
+      aud: RESOURCE,
+      tenant: "acme",
+    });
+    expect((await ps.mission("acme", trip.s256))?.spent).toBe(1000);
+  });
+
+  it("refuses a request naming no tenant when every request must name one", async () => {
+    const store = new MemoryStore();
+    ps = await server(store, { requireTenant: true });
+    const agent = await AgentClient.create();
+    const jkt = await thumbprint(agent.session.publicJwk);
+    const propose = (tenant?: string) =>
+      call(agent, "POST", "/ps/mission", {
+        description: "Sydney",
+        resources: [RESOURCE],
+        login_hint: "sam@acme.example",
+        ...(tenant !== undefined ? { tenant } : {}),
+      });
+    for (const unnamed of [await propose(), await propose("")]) {
+      expect(unnamed.status).toBe(400);
+      expect(await unnamed.json()).toMatchObject({
+        error: "invalid_request",
+        detail: "name the tenant",
+      });
+    }
+    expect(asked).toHaveLength(0);
+    expect(await store.binding("acme", jkt)).toBeUndefined();
+    expect(await store.binding("default", jkt)).toBeUndefined();
+    expect((await call(agent, "GET", `/ps/pending/${randomId()}`)).status).toBe(
+      400,
+    );
+
+    const named = await propose("acme");
+    expect(named.status).toBe(202);
+    expect(new URL(named.headers.get("location")!).pathname).toContain(
+      "/pending/acme/",
+    );
+    expect(await store.approvals("acme")).toHaveLength(1);
+  });
+
+  it("puts a request naming no tenant under the default tenant", async () => {
+    ps = await createPersonServer({
+      issuer: PS,
+      basePath: "/ps",
+      trustedAgentProviders: [PROVIDER],
+      directory: { person: (hint) => ({ id: hint }) },
+      onApproval: (approval) => {
+        asked.push(approval);
+      },
+      fetch: world,
+    });
+    expect(DEFAULT_TENANT).toBe("default");
+    const agent = await AgentClient.create();
+    const proposed = await call(agent, "POST", "/ps/mission", {
+      description: "Sydney",
+      resources: [RESOURCE],
+      login_hint: "lee",
+    });
+    expect(proposed.status).toBe(202);
+    const pendingPath = new URL(proposed.headers.get("location")!).pathname;
+    expect(pendingPath).toContain("/pending/default/");
+    expect(asked.at(-1)).toMatchObject({ tenant: "default" });
+    // The short pending URL is the default tenant's too.
+    const id = asked.at(-1)!.id;
+    expect((await call(agent, "GET", `/ps/pending/${id}`)).status).toBe(202);
+    await ps.decide("default", id, { status: "approved" });
+    const approved = await call(agent, "GET", pendingPath);
+    expect(approved.status).toBe(200);
+    const { person_tokens } = (await approved.json()) as {
+      person_tokens: Record<string, string>;
+    };
+    // A default the agent never named is not a tenant claim.
+    expect(decodeJwt(person_tokens[RESOURCE]!)).not.toHaveProperty("tenant");
   });
 });

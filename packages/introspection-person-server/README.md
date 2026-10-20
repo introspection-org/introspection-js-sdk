@@ -35,8 +35,8 @@ const ps = await createPersonServer({
 // Any framework: one catch-all route.
 export default { fetch: (request: Request) => ps.handle(request) };
 
-// When the approver answers:
-await ps.decide(approvalId, {
+// When the approver answers, under the tenant it was asked under:
+await ps.decide(approval.tenant, approval.id, {
   status: "approved",
   budget: { amount: 300_000, unit: "USD", decimals: 2 }, // a mission's budget
   decided_by: "dana@acme.example",
@@ -123,9 +123,24 @@ curl -X POST -H "authorization: Bearer $PS_ADMIN_TOKEN" -H "content-type: applic
   "https://ps.acme.example/consent/<approval id>/decision"
 ```
 
+Every request is under a tenant: the `tenant` the agent names (in the body of each POST, in the pending URL `/pending/{tenant}/{id}` of each poll), else `defaultTenant` (`"default"` unless set). With `requireTenant: true` there is no default, and a request naming none is answered `400` before anything is recorded. `directory.person` is passed that tenant. A person it returns with a `tenant` is in that tenant alone: a request under any other is refused with `403`, so a directory that stamps one tenant on its people sets `defaultTenant` to it. A person returned without a `tenant` takes the request's, so a directory that serves several tenants checks the `tenant` it is passed and returns `undefined` for someone outside it. Tokens carry the directory's tenant, else the one the agent named, so tokens for a request under the default with no directory tenant carry none. An auth token request is refused unless it is under the tenant its presented token was issued under (a token with no `tenant` was issued under the default).
+
 An Introspection connector uses it once its `person_server_url` names `issuer`.
 
-Keep the signing key and subject secret stable: resources cache your keys, and each person's directed `sub` is derived from the secret. The default store is in memory; implement `Store` for anything that must survive a restart. `spend` must check and add in one step.
+## Run the example
+
+`examples/server.ts` in this repository is a runnable server: it speaks for anyone whose login hint is `user:<email>`, prints each approval, and is decided through the management routes. From this package, with Node 22.18 or later (which runs TypeScript as is):
+
+```bash
+pnpm build
+node examples/server.ts --help
+PS_ADMIN_TOKEN=secret PS_SIGNING_KEY="$(cat ps-signing-key.pem)" PS_SUBJECT_SECRET="$(cat ps-subject-secret)" \
+  node examples/server.ts --issuer https://ps.acme.example --default-tenant acme --approver dana@acme.example
+```
+
+Every flag defaults to an environment variable (`--issuer` to `PS_ISSUER`, and so on). The signing key, subject secret and admin token are read from the environment only, never flags, since a process's arguments are visible to anything on the host that can list processes.
+
+Keep the signing key and subject secret stable: resources cache your keys, and each person's directed `sub` is derived from the secret. The default store is in memory; implement `Store` for anything that must survive a restart. Every `Store` method takes the request's tenant first, always a string, and records are kept apart per tenant: a record is found only under the tenant it was saved with. Each `Approval` and `Mission` records its `tenant`. Pass it, first, to `ps.decide()`, `ps.terminate()`, `ps.mission()` and the other lookups, or `?tenant=` to the management routes, which default to `defaultTenant`. `spend` must check and add in one step, and `transitionApproval` must change an approval only from the status it expects, so each decision and each collection happens once.
 
 ## Routes
 
@@ -153,10 +168,12 @@ Fixed and small:
 
 - a mission is always put to the approver, who may set its budget;
 - an auth token needs a live mission covering the resource token's issuer, and only those issuers' keys are fetched;
-- a request whose `budget` is in the mission's unit and scale and fits what is left is issued at once and spent; any other budgeted request is put to the approver, and spent when approved;
+- a request whose `budget` is in the mission's unit and scale and fits what is left is issued at once and spent; any other budgeted request is put to the approver, and spent when its approved token is collected, so a token is issued only once its spend has landed;
 - a request with no `budget` is issued within the mission without spending;
 - completing a mission is the person's own decision, and nothing is issued under it afterwards;
 - each agent key is bound to the first person it names.
+- an approved auth token is collected once: later polls of the same approval answer `410`, so one approval spends once;
+- each approval is decided once, however many answers arrive.
 
 ## Hooks
 

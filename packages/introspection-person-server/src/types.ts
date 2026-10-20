@@ -32,7 +32,8 @@ export interface Agent {
 }
 
 export type ApprovalKind = "mission" | "auth_token" | "completion";
-export type ApprovalStatus = "pending" | "approved" | "denied";
+/** `collected`: approved, and its auth token handed out. An auth token is collected once. */
+export type ApprovalStatus = "pending" | "approved" | "denied" | "collected";
 
 /** A decision this Person Server waits on. Whoever operates it makes the decision. */
 export interface Approval {
@@ -56,6 +57,10 @@ export interface Approval {
   /** Approving a mission sets its budget. */
   decided_budget?: Budget;
   decided_by?: string;
+  /** When it was decided or withdrawn, in seconds since the epoch. */
+  decided_at?: number;
+  /** The tenant it was asked under: the one the agent named, else the default. */
+  tenant: string;
   created_at: number;
   expires_at: number;
 }
@@ -72,6 +77,8 @@ export interface Mission {
   log: { at: number; entry: string }[];
   expires_at: number;
   completed_at?: number;
+  /** The tenant it was asked under: the one the agent named, else the default. */
+  tenant: string;
 }
 
 /** What an operator answers. */
@@ -84,37 +91,81 @@ export interface Decision {
 }
 
 /**
- * Where a Person Server keeps its state. `spend` must check and spend in one
- * step, so two concurrent bookings cannot both fit in what is left.
+ * Where a Person Server keeps its state.
+ *
+ * Every method takes the request's `tenant`, the AAuth `tenant` the agent
+ * named or else the server's default, and must keep each tenant's records
+ * apart: a record is found only under the tenant it was saved with. A tenant
+ * the store cannot scope, such as one in a format it does not serve, finds
+ * nothing.
+ *
+ * Three methods must be atomic, since concurrent requests race on them:
+ * `spend` checks and spends in one step, so two bookings cannot both fit in
+ * what is left; `transitionApproval` changes an approval only from the status
+ * it was read in, so a decision, a withdrawal or a collection happens once;
+ * and `insertMission` never replaces a mission. `logMission` and `endMission`
+ * change a mission in place rather than overwriting a concurrent spend.
  */
 export interface Store {
-  binding(jkt: string): Promise<string | undefined>;
-  /** Bind a key to a person unless it is bound already; returns the person it is bound to. */
-  bind(jkt: string, personId: string): Promise<string>;
-  mission(s256: string): Promise<Mission | undefined>;
-  putMission(mission: Mission): Promise<void>;
+  /** The person an agent key is bound to. */
+  binding(tenant: string, jkt: string): Promise<Person | undefined>;
+  /** Bind a key to a person unless it is bound already; returns whoever it is bound to. */
+  bind(tenant: string, jkt: string, person: Person): Promise<Person>;
+  mission(tenant: string, s256: string): Promise<Mission | undefined>;
+  /** Save a newly approved mission unless one with its hash exists; returns whether it did. */
+  insertMission(tenant: string, mission: Mission): Promise<boolean>;
   /**
    * Add `amount` to a live mission's spend; with `withinBudget`, only if it
    * fits what is left. Returns the mission, or undefined when it did not.
    */
   spend(
+    tenant: string,
     s256: string,
     amount: number,
     withinBudget: boolean,
     now: number,
   ): Promise<Mission | undefined>;
-  missions(): Promise<Mission[]>;
-  approval(id: string): Promise<Approval | undefined>;
-  putApproval(approval: Approval): Promise<void>;
-  approvals(): Promise<Approval[]>;
+  /** Append to a live mission's log; returns whether it was live. */
+  logMission(
+    tenant: string,
+    s256: string,
+    entry: { at: number; entry: string },
+    now: number,
+  ): Promise<boolean>;
+  /** Mark a mission completed at `at` unless it already is; returns it, or undefined if there is none. */
+  endMission(
+    tenant: string,
+    s256: string,
+    at: number,
+  ): Promise<Mission | undefined>;
+  /** The tenant's missions. */
+  missions(tenant: string): Promise<Mission[]>;
+  approval(tenant: string, id: string): Promise<Approval | undefined>;
+  /** Save a new approval. */
+  putApproval(tenant: string, approval: Approval): Promise<void>;
+  /** Replace approval `next.id` with `next` only if its status is still `expected`; returns whether it did. */
+  transitionApproval(
+    tenant: string,
+    expected: ApprovalStatus,
+    next: Approval,
+  ): Promise<boolean>;
+  /** The tenant's approvals. */
+  approvals(tenant: string): Promise<Approval[]>;
 }
 
 /** Who this Person Server speaks for, and who decides for them. */
 export interface Directory {
-  /** The person a `login_hint` names, or undefined if this Person Server does not speak for them. */
+  /**
+   * The person a `login_hint` names, or undefined if this Person Server does
+   * not speak for them. `tenant` is the one the request is under: the one the
+   * agent named, else the default. A person returned with a `tenant` is in
+   * that tenant alone, and a request under any other is refused. A person
+   * returned without one takes the request's, so a directory serving several
+   * tenants checks `tenant` itself and returns undefined for a stranger.
+   */
   person(
     loginHint: string,
-    tenant?: string,
+    tenant: string,
   ): Promise<Person | undefined> | Person | undefined;
   /** Who decides a request; the person themself when omitted or undefined. */
   approver?(
