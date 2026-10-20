@@ -18,6 +18,7 @@
 import {
   EventType,
   IntrospectionClient,
+  type AGUIEvent,
 } from "@introspection-sdk/introspection-node";
 import { Type } from "typebox";
 
@@ -44,11 +45,31 @@ const args = new Map<string, string>();
 let submitId: string | undefined;
 
 for await (const e of handle.stream()) {
+  if (e.type === EventType.MESSAGES_SNAPSHOT) submitId = fromSnapshot(e, args);
   if (e.type === EventType.TOOL_CALL_START && e.toolCallName === "submit_result") submitId = e.toolCallId;
   if (e.type === EventType.TOOL_CALL_ARGS) args.set(e.toolCallId, (args.get(e.toolCallId) ?? "") + e.delta);
 }
 const raw = submitId ? args.get(submitId) : undefined;
 // #endregion docs:patterns/structured-output/read-stream
+
+// A reconnect past the replay buffer yields a `MESSAGES_SNAPSHOT` with the
+// run's messages so far: its tool calls replace the arguments read, and later
+// deltas append to them.
+function fromSnapshot(
+  e: Extract<AGUIEvent, { type: EventType.MESSAGES_SNAPSHOT }>,
+  args: Map<string, string>,
+): string | undefined {
+  let id: string | undefined;
+  args.clear();
+  for (const m of e.messages) {
+    if (m.role !== "assistant") continue;
+    for (const call of m.toolCalls ?? []) {
+      args.set(call.id, call.function.arguments);
+      if (call.function.name === "submit_result") id = call.id;
+    }
+  }
+  return id;
+}
 
 const taskId = handle.run.task_id;
 
