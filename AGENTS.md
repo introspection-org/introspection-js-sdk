@@ -52,6 +52,22 @@ If your branch is intentionally adding code that can't be covered by unit tests 
 
 `.github/workflows/ci.yml` runs the same coverage check on every PR and uploads the HTML report as a downloadable artifact. CI is the source of truth — if your local hook passes but CI fails, CI wins (your local has stale builds or stale deps).
 
+### Size limits ratchet
+
+`packages/eslint-config/base.js` caps code size for every package that lints with it. Each limit sits at today's worst value across all packages, `introspection-types` included, so the current code passes; the targets are where we're heading:
+
+| Rule                                                     | Limit | Target |
+| -------------------------------------------------------- | ----: | -----: |
+| `complexity`                                             |    65 |     10 |
+| `max-lines` (per file, blank lines and comments skipped) |  1211 |    400 |
+| `max-lines-per-function` (same skips)                    |   856 |     80 |
+| `max-params`                                             |     9 |      4 |
+| `max-depth`                                              |     5 |      4 |
+
+`eslint-plugin-only-warn` turns these into warnings, and every package's `lint` script runs `--max-warnings 0`, so a finding fails `pnpm lint:limits`, `pnpm lint` and the CI "Check size limits" step.
+
+Later PRs lower a limit step by step as they refactor the worst offenders, updating this table in the same PR. **Never raise a limit.** If new code exceeds one, split it.
+
 ### Duplicate code (jscpd)
 
 ```bash
