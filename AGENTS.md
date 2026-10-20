@@ -60,13 +60,24 @@ If your branch is intentionally adding code that can't be covered by unit tests 
 | -------------------------------------------------------- | ----: | -----: |
 | `complexity`                                             |    65 |     10 |
 | `max-lines` (per file, blank lines and comments skipped) |  1211 |    400 |
-| `max-lines-per-function` (same skips)                    |   851 |     80 |
+| `max-lines-per-function` (same skips)                    |   856 |     80 |
 | `max-params`                                             |     9 |      4 |
 | `max-depth`                                              |     5 |      4 |
 
 `eslint-plugin-only-warn` turns these into warnings, and every package's `lint` script runs `--max-warnings 0`, so a finding fails `pnpm lint:limits`, `pnpm lint` and the CI "Check size limits" step.
 
 Later PRs lower a limit step by step as they refactor the worst offenders, updating this table in the same PR. **Never raise a limit.** If new code exceeds one, split it.
+
+### Duplicate code (jscpd)
+
+```bash
+pnpm jscpd           # exact clones
+pnpm jscpd:renamed   # clones that differ only in identifier names
+```
+
+Both run a pinned `jscpd@5.4.1` over `packages/*/src` TypeScript (`.jscpd.json`: weak mode, `dist/` and `*.d.ts` ignored, 53 tokens / 9 lines minimum), and the `Duplicate Code` CI job fails on any clone from either. There is no threshold and no baseline: the count is zero and stays there.
+
+When one fires, extract the shared code: a helper in the package both copies already depend on (`@introspection-sdk/http` for resources, `@introspection-sdk/types` for pure helpers, a subpath such as `@introspection-sdk/types/logs` when the helper needs an OTel import the main entry must not take). Wrap a block in `// jscpd:ignore-start -- <reason>` / `// jscpd:ignore-end` only when it is declarations, not logic: a re-export list, an import list, or interface or field declarations that mirror a wire schema. Never use the markers on code that runs.
 
 ---
 

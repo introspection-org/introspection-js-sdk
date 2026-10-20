@@ -28,7 +28,6 @@
  * ```
  */
 
-import { SeverityNumber, type LogAttributes } from "@opentelemetry/api-logs";
 import {
   LoggerProvider,
   BatchLogRecordProcessor,
@@ -40,7 +39,13 @@ import {
   defaultResource,
 } from "@opentelemetry/resources";
 import { ATTR_SERVICE_NAME } from "@opentelemetry/semantic-conventions";
-import { propagation, context } from "@opentelemetry/api";
+import { context } from "@opentelemetry/api";
+import {
+  LogEventClient,
+  activeBaggageValue,
+  logBatchConfig,
+  logsEndpoint,
+} from "@introspection-sdk/types/logs";
 
 import {
   DEFAULT_SERVICE_NAME,
@@ -50,28 +55,11 @@ import {
   withOtlpHttpsProxy,
 } from "../utils.js";
 import { VERSION } from "../version.js";
-import {
-  generateEventId,
-  reservedEventNamePrefix,
-  toAttributeValue,
-  type FeedbackOptions,
-  type LogEventOptions,
-  type LogEventSeverity,
-  type UserTraits,
-  type GenAiContext,
-  type IdentityContext,
-} from "../types.js";
+import { type UserTraits, type IdentityContext } from "../types.js";
 
 /**
  * Configuration for {@link IntrospectionLogs}.
  */
-const SEVERITY_NUMBERS: Record<LogEventSeverity, SeverityNumber> = {
-  DEBUG: SeverityNumber.DEBUG,
-  INFO: SeverityNumber.INFO,
-  WARN: SeverityNumber.WARN,
-  ERROR: SeverityNumber.ERROR,
-};
-
 export interface IntrospectionLogsOptions {
   /** Authentication token (env: INTROSPECTION_TOKEN). */
   token?: string;
@@ -109,11 +97,12 @@ export interface IntrospectionLogsOptions {
   logExporter?: LogRecordExporter;
 }
 
-export class IntrospectionLogs {
+export class IntrospectionLogs extends LogEventClient {
   private loggerProvider: LoggerProvider;
-  private otelLogger: ReturnType<LoggerProvider["getLogger"]>;
+  protected otelLogger: ReturnType<LoggerProvider["getLogger"]>;
 
   constructor(options: IntrospectionLogsOptions = {}) {
+    super();
     const token = options.token || process.env.INTROSPECTION_TOKEN || "";
     const serviceName =
       options.serviceName ||
@@ -131,9 +120,7 @@ export class IntrospectionLogs {
     }
 
     // Construct endpoint URL for logs.
-    const endpoint = baseOtelUrl.endsWith("/v1/logs")
-      ? baseOtelUrl
-      : `${baseOtelUrl.replace(/\/$/, "")}/v1/logs`;
+    const endpoint = logsEndpoint(baseOtelUrl);
 
     const headers = exporterHeaders(token, options.additionalHeaders);
 
@@ -149,20 +136,7 @@ export class IntrospectionLogs {
 
     const processor = new BatchLogRecordProcessor({
       exporter,
-      // maxBatchSize is the export batch size, not the queue bound. Wiring it
-      // to maxQueueSize left the queue at 100 while the batch size kept its
-      // default of 512, which the OTel processor warns about and clamps on
-      // every construction.
-      maxExportBatchSize: options.maxBatchSize ?? 100,
-      scheduledDelayMillis: options.flushInterval ?? 5000,
-      // Passed only when set, so an unset option leaves the OTel SDK's own
-      // default (and its env-var override) in charge.
-      ...(options.maxQueueSize != null
-        ? { maxQueueSize: options.maxQueueSize }
-        : {}),
-      ...(options.exportTimeoutMillis != null
-        ? { exportTimeoutMillis: options.exportTimeoutMillis }
-        : {}),
+      ...logBatchConfig(options),
     });
 
     const baseResource = defaultResource();
@@ -190,19 +164,6 @@ export class IntrospectionLogs {
     );
   }
 
-  /** Get gen_ai context from baggage */
-  private getGenAiFromContext(): GenAiContext {
-    const baggage = propagation.getBaggage(context.active());
-    return {
-      conversationId: baggage?.getEntry("gen_ai.conversation.id")?.value,
-      previousResponseId: baggage?.getEntry(
-        "gen_ai.request.previous_response_id",
-      )?.value,
-      agentName: baggage?.getEntry("gen_ai.agent.name")?.value,
-      agentId: baggage?.getEntry("gen_ai.agent.id")?.value,
-    };
-  }
-
   /**
    * Get identity from baggage.
    *
@@ -213,15 +174,14 @@ export class IntrospectionLogs {
    * identity with {@link withUserId} / {@link withAnonymousId} instead, which
    * carry it on the async context where it belongs.
    */
-  private getIdentityFromContext(): IdentityContext {
-    const baggage = propagation.getBaggage(context.active());
+  protected getIdentityFromContext(): IdentityContext {
     return {
-      userId: baggage?.getEntry("identity.user_id")?.value,
-      anonymousId: baggage?.getEntry("identity.anonymous_id")?.value,
+      userId: activeBaggageValue("identity.user_id"),
+      anonymousId: activeBaggageValue("identity.anonymous_id"),
     };
   }
 
-  private getTimestamp(): [number, number] {
+  protected getTimestamp(): [number, number] {
     // Wall-clock only. An earlier version subtracted one `process.hrtime`
     // reading from another taken microseconds later, which looked like an
     // hrtime/epoch correlation but only ever removed the elapsed call time.
@@ -231,151 +191,8 @@ export class IntrospectionLogs {
     return [seconds, nanos];
   }
 
-  private buildAttributes(
-    eventName: string,
-    options: {
-      properties?: Record<string, unknown>;
-      traits?: Record<string, unknown>;
-      conversationId?: string;
-      previousResponseId?: string;
-      eventId?: string;
-      /** Identity known at the call site, overriding the context. */
-      identity?: IdentityContext;
-    } = {},
-  ): LogAttributes {
-    const { properties, traits, conversationId, previousResponseId, eventId } =
-      options;
-
-    const attributes: LogAttributes = {
-      "event.name": eventName,
-      "event.id": eventId || generateEventId(),
-    };
-
-    const identity = options.identity ?? this.getIdentityFromContext();
-    if (identity.userId) attributes["identity.user.id"] = identity.userId;
-    if (identity.anonymousId)
-      attributes["identity.anonymous.id"] = identity.anonymousId;
-
-    const genAi = this.getGenAiFromContext();
-    const finalConversationId = conversationId || genAi.conversationId;
-    const finalPreviousResponseId =
-      previousResponseId || genAi.previousResponseId;
-
-    if (finalConversationId)
-      attributes["gen_ai.conversation.id"] = finalConversationId;
-    if (finalPreviousResponseId)
-      attributes["gen_ai.request.previous_response_id"] =
-        finalPreviousResponseId;
-    if (genAi.agentName) attributes["gen_ai.agent.name"] = genAi.agentName;
-    if (genAi.agentId) attributes["gen_ai.agent.id"] = genAi.agentId;
-
-    if (properties) {
-      for (const [key, value] of Object.entries(properties)) {
-        if (value != null) {
-          const attrKey = `properties.${key}`;
-          attributes[attrKey] = toAttributeValue(value);
-        }
-      }
-    }
-
-    if (traits) {
-      for (const [key, value] of Object.entries(traits)) {
-        if (value != null) {
-          const attrKey = `context.traits.${key}`;
-          attributes[attrKey] = toAttributeValue(value);
-        }
-      }
-    }
-
-    return attributes;
-  }
-
-  /**
-   * Log an app event under any custom name, e.g. `"ark.feed.entry"`.
-   *
-   * `attributes` land under `properties.*`, which is where the platform's
-   * `introspection.track` read projection finds them; read the events back
-   * with `client.events.list({ event_name: "introspection.track" })`.
-   * Identity and gen_ai context are taken from the active baggage unless
-   * `options.identity` overrides them.
-   *
-   * Pass a stable `options.eventId` when delivery may repeat: consumers
-   * dedupe on it, so re-sending the same id is safe.
-   *
-   * @throws Error when `name` is empty or falls under a reserved namespace
-   *   (`introspection.*`, `gen_ai.*`).
-   */
-  logEvent(
-    name: string,
-    attributes?: Record<string, unknown>,
-    options: LogEventOptions = {},
-  ): void {
-    if (!name) {
-      throw new Error("logEvent: event name must be a non-empty string.");
-    }
-    const reserved = reservedEventNamePrefix(name);
-    if (reserved) {
-      throw new Error(
-        `logEvent: event name "${name}" is in the reserved "${reserved}*" namespace, which belongs to the platform and OpenTelemetry. Use your own prefix, e.g. "myapp.${name.slice(reserved.length)}".`,
-      );
-    }
-    const contextIdentity = this.getIdentityFromContext();
-    const severity = options.severity ?? "INFO";
-    this.otelLogger.emit({
-      timestamp: options.timestamp ?? this.getTimestamp(),
-      context: context.active(),
-      severityNumber: SEVERITY_NUMBERS[severity],
-      severityText: severity,
-      attributes: this.buildAttributes(name, {
-        properties: attributes,
-        eventId: options.eventId,
-        identity: {
-          userId: options.identity?.userId ?? contextIdentity.userId,
-          anonymousId:
-            options.identity?.anonymousId ?? contextIdentity.anonymousId,
-        },
-      }),
-    });
-    sdkLogger.debug(`Logged event: ${name}`);
-  }
-
-  /**
-   * Track an analytics event. A thin alias of {@link logEvent} kept for the
-   * Segment-style call shape.
-   */
-  track(
-    eventName: string,
-    properties?: Record<string, unknown>,
-    options?: { eventId?: string },
-  ): void {
-    this.logEvent(eventName, properties, { eventId: options?.eventId });
-  }
-
-  feedback(name: string, options: FeedbackOptions = {}): void {
-    const { comments, conversationId, previousResponseId, eventId, ...extra } =
-      options;
-    // `name` last: it is the positional argument, so an `extra` key that
-    // happens to be called `name` must not silently replace the feedback
-    // name the caller passed.
-    const properties: Record<string, unknown> = { ...extra, name };
-    // `!= null`, not truthiness: `comments: ""` is a comment the caller
-    // supplied. Dropping it here
-    // made the same call produce a different event shape per SDK.
-    if (comments != null) properties.comments = comments;
-    const attributes = this.buildAttributes("introspection.feedback", {
-      properties,
-      conversationId: conversationId as string | undefined,
-      previousResponseId: previousResponseId as string | undefined,
-      eventId: eventId as string | undefined,
-    });
-    this.otelLogger.emit({
-      timestamp: this.getTimestamp(),
-      context: context.active(),
-      severityNumber: SeverityNumber.INFO,
-      severityText: "INFO",
-      attributes,
-    });
-    sdkLogger.debug(`Feedback: ${name}`);
+  protected debugLog(message: string): void {
+    sdkLogger.debug(message);
   }
 
   /**
@@ -406,79 +223,15 @@ export class IntrospectionLogs {
     // downstream propagator) sees the same identity when a real manager is
     // installed.
     context.with(this.createBaggageContext(identity), () => {
-      const attributes = this.buildAttributes("identify", {
-        traits,
-        eventId,
-        identity: { userId, anonymousId },
-      });
-      this.otelLogger.emit({
-        timestamp: this.getTimestamp(),
-        context: context.active(),
-        severityNumber: SeverityNumber.INFO,
-        severityText: "INFO",
-        attributes,
-      });
+      this.emit(
+        this.buildAttributes("identify", {
+          traits,
+          eventId,
+          identity: { userId, anonymousId },
+        }),
+      );
     });
     sdkLogger.debug(`Identified: ${userId}`);
-  }
-
-  createBaggageContext(values: Record<string, string>) {
-    const ctx = context.active();
-    let bag = propagation.getBaggage(ctx) || propagation.createBaggage();
-    for (const [key, value] of Object.entries(values)) {
-      bag = bag.setEntry(key, { value });
-    }
-    return propagation.setBaggage(ctx, bag);
-  }
-
-  async withBaggage<T>(
-    values: Record<string, string>,
-    callback: () => T | Promise<T>,
-  ): Promise<T> {
-    const ctx = this.createBaggageContext(values);
-    return await context.with(ctx, callback);
-  }
-
-  async withAgent<T>(
-    agentName: string,
-    agentId: string | undefined,
-    callback: () => T | Promise<T>,
-  ): Promise<T> {
-    const values: Record<string, string> = { "gen_ai.agent.name": agentName };
-    if (agentId) values["gen_ai.agent.id"] = agentId;
-    return await context.with(this.createBaggageContext(values), callback);
-  }
-
-  async withConversation<T>(
-    conversationId: string | undefined,
-    previousResponseId: string | undefined,
-    callback: () => T | Promise<T>,
-  ): Promise<T> {
-    const values: Record<string, string> = {};
-    if (conversationId) values["gen_ai.conversation.id"] = conversationId;
-    if (previousResponseId)
-      values["gen_ai.request.previous_response_id"] = previousResponseId;
-    return await context.with(this.createBaggageContext(values), callback);
-  }
-
-  async withUserId<T>(
-    userId: string,
-    callback: () => T | Promise<T>,
-  ): Promise<T> {
-    return await context.with(
-      this.createBaggageContext({ "identity.user_id": userId }),
-      callback,
-    );
-  }
-
-  async withAnonymousId<T>(
-    anonymousId: string,
-    callback: () => T | Promise<T>,
-  ): Promise<T> {
-    return await context.with(
-      this.createBaggageContext({ "identity.anonymous_id": anonymousId }),
-      callback,
-    );
   }
 
   /** The user id on the current async context, if one is scoped. */

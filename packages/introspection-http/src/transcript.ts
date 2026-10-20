@@ -283,6 +283,21 @@ export interface TranscriptAccumulatorOptions {
 }
 
 /**
+ * The fields the text, reasoning and tool-call events carry. Each case of
+ * {@link TranscriptAccumulator.push} reads the ones its event type defines;
+ * the `*_CHUNK` and reasoning forms may omit any of them.
+ */
+interface StreamEventFields {
+  messageId: string;
+  role?: string;
+  delta: string;
+  toolCallId: string;
+  toolCallName: string;
+  content: string;
+  isError?: boolean;
+}
+
+/**
  * Incremental AG-UI → transcript fold for the live path.
  *
  * Push events as they stream; read {@link entries} at any point for the
@@ -318,43 +333,24 @@ export class TranscriptAccumulator {
   }
 
   push(event: AGUIEvent): void {
+    // Each case reads only the fields its event type defines.
+    const fields = event as unknown as StreamEventFields;
     switch (event.type) {
-      case EventType.TEXT_MESSAGE_START: {
-        const { messageId, role } = event as {
-          messageId: string;
-          role?: string;
-        };
-        this.openMessage(messageId, role === "user" ? "user" : "assistant");
+      case EventType.TEXT_MESSAGE_CONTENT:
+        this.appendText(fields.messageId, fields.delta);
         return;
-      }
-      case EventType.TEXT_MESSAGE_CONTENT: {
-        const { messageId, delta } = event as {
-          messageId: string;
-          delta: string;
-        };
-        this.appendText(messageId, delta);
+      // START carries no delta; CHUNK is START + CONTENT in one frame.
+      case EventType.TEXT_MESSAGE_START:
+      case EventType.TEXT_MESSAGE_CHUNK:
+        this.streamText(fields);
         return;
-      }
-      case EventType.TEXT_MESSAGE_CHUNK: {
-        const { messageId, delta, role } = event as {
-          messageId?: string;
-          delta?: string;
-          role?: string;
-        };
-        if (!messageId) return;
-        this.openMessage(messageId, role === "user" ? "user" : "assistant");
-        if (delta) this.appendText(messageId, delta);
-        return;
-      }
       // The runtime streams reasoning *before* the text message it belongs
       // to, so deltas buffer until the next assistant message opens rather
       // than attaching to whichever message happened to stream last.
       case EventType.REASONING_MESSAGE_CONTENT:
-      case EventType.REASONING_MESSAGE_CHUNK: {
-        const { delta } = event as { delta?: string };
-        if (delta) this.pendingThinking += delta;
+      case EventType.REASONING_MESSAGE_CHUNK:
+        if (fields.delta) this.pendingThinking += fields.delta;
         return;
-      }
       case EventType.REASONING_START:
       case EventType.REASONING_MESSAGE_START:
       case EventType.REASONING_MESSAGE_END:
@@ -363,7 +359,7 @@ export class TranscriptAccumulator {
       // Compatibility input: legacy emitters stream thinking against the
       // already-open assistant message rather than ahead of it.
       case EventType.THINKING_TEXT_MESSAGE_CONTENT: {
-        const { delta } = event as { delta: string };
+        const { delta } = fields;
         if (this.lastAssistant) {
           this.lastAssistant.thinking =
             (this.lastAssistant.thinking ?? "") + delta;
@@ -376,47 +372,23 @@ export class TranscriptAccumulator {
         this.applyMessagesSnapshot(event);
         return;
       }
-      case EventType.TOOL_CALL_START: {
-        const { toolCallId, toolCallName } = event as {
-          toolCallId: string;
-          toolCallName: string;
-        };
-        this.openTool(toolCallId, toolCallName);
+      case EventType.TOOL_CALL_ARGS:
+        this.appendArgs(fields.toolCallId, fields.delta);
         return;
-      }
-      case EventType.TOOL_CALL_ARGS: {
-        const { toolCallId, delta } = event as {
-          toolCallId: string;
-          delta: string;
-        };
-        this.appendArgs(toolCallId, delta);
+      // START carries no delta; CHUNK is START + ARGS in one frame.
+      case EventType.TOOL_CALL_START:
+      case EventType.TOOL_CALL_CHUNK:
+        this.streamTool(fields);
         return;
-      }
-      case EventType.TOOL_CALL_CHUNK: {
-        const { toolCallId, toolCallName, delta } = event as {
-          toolCallId?: string;
-          toolCallName?: string;
-          delta?: string;
-        };
-        if (!toolCallId) return;
-        this.openTool(toolCallId, toolCallName ?? "");
-        if (delta) this.appendArgs(toolCallId, delta);
-        return;
-      }
       // END seals the arguments only — execution is still in flight, so the
       // status stays `running`. It is also the earliest point the sealed
       // args can reveal an `agent` start call, i.e. a delegation.
-      case EventType.TOOL_CALL_END: {
-        const { toolCallId } = event as { toolCallId: string };
-        this.maybeConvertToDelegation(toolCallId);
+      case EventType.TOOL_CALL_END:
+        this.maybeConvertToDelegation(fields.toolCallId);
         return;
-      }
       case EventType.TOOL_CALL_RESULT: {
-        const { toolCallId, content } = event as {
-          toolCallId: string;
-          content: string;
-        };
-        const isError = (event as { isError?: boolean }).isError === true;
+        const { toolCallId, content } = fields;
+        const isError = fields.isError === true;
         this.maybeConvertToDelegation(toolCallId);
         const delegation = this.delegationsByCallId.get(toolCallId);
         if (delegation) {
@@ -519,6 +491,26 @@ export class TranscriptAccumulator {
       this.messagesById.get(messageId) ??
       this.openMessage(messageId, "assistant");
     entry.text += delta;
+  }
+
+  private streamText({
+    messageId,
+    role,
+    delta,
+  }: Partial<StreamEventFields>): void {
+    if (!messageId) return;
+    this.openMessage(messageId, role === "user" ? "user" : "assistant");
+    if (delta) this.appendText(messageId, delta);
+  }
+
+  private streamTool({
+    toolCallId,
+    toolCallName,
+    delta,
+  }: Partial<StreamEventFields>): void {
+    if (!toolCallId) return;
+    this.openTool(toolCallId, toolCallName ?? "");
+    if (delta) this.appendArgs(toolCallId, delta);
   }
 
   private openTool(callId: string, name: string): TranscriptToolEntry {

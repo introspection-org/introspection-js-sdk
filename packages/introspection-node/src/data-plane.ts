@@ -63,6 +63,7 @@ export class DataPlaneClient implements DataPlaneResources {
   /** @internal */
   readonly http: HttpClient;
 
+  // jscpd:ignore-start -- field declarations of the resource namespaces
   readonly tasks: TasksApi;
   readonly files: FilesApi;
   readonly conversations: ConversationsApi;
@@ -77,6 +78,7 @@ export class DataPlaneClient implements DataPlaneResources {
    * runtime context.
    */
   readonly connections: AppConnectionsApi<Required<AppConnectionCreateParams>>;
+  // jscpd:ignore-end
 
   constructor(options: DataPlaneClientOptions) {
     if (!options.dpUrl) throw new Error("DataPlaneClient requires a dpUrl");

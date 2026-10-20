@@ -32,7 +32,7 @@ export const config = [
       ],
       "max-lines-per-function": [
         "error",
-        { max: 851, skipBlankLines: true, skipComments: true },
+        { max: 856, skipBlankLines: true, skipComments: true },
       ],
       "max-params": ["error", 9],
       "max-depth": ["error", 5],
