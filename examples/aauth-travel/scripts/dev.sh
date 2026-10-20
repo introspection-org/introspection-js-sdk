@@ -276,6 +276,29 @@ mint_secret() {
   json 'v.secret' <<<"$out"
 }
 
+# Acme's approval app, on the built-in Person Server, is an application of
+# its own that may only read and answer approvals: the agent's may not. Run on
+# every start, so a secret missing from .env.local is minted again.
+ensure_acme_app() {
+  local project_id="$1"
+  local acme_name="Acme approvals" acme acme_id
+  acme="$(introspection applications list -o json | json "(v.records ?? v).find((a) => a.name === '$acme_name')")"
+  if [ -z "$acme" ]; then
+    acme="$(introspection applications create --type service-account --name "$acme_name" \
+      --allowed-scope "approvals:read approvals:write" -o json | json 'v.application ?? v')"
+  fi
+  acme_id="$(json 'v.id' <<<"$acme")"
+  [ -n "$acme_id" ] || fail "could not create the $acme_name application"
+  if [ -z "$(read_env ACME_CLIENT_SECRET)" ]; then
+    local acme_secret
+    acme_secret="$(mint_secret "$acme_id" "Acme approvals")"
+    [ -n "$acme_secret" ] || fail "could not create a client secret for the $acme_name application"
+    upsert_env ACME_CLIENT_SECRET "$acme_secret"
+  fi
+  upsert_env ACME_CLIENT_ID "$(json 'v.client_id' <<<"$acme")"
+  upsert_env ACME_PROJECT "$project_id"
+}
+
 full_setup() {
   mkdir -p "$WORK"
 
@@ -336,26 +359,7 @@ full_setup() {
   fi
   upsert_env INTROSPECTION_CLIENT_ID "$client_id"
   upsert_env INTROSPECTION_PROJECT "$project_id"
-  # Acme's approval app, on the built-in Person Server, is an application of
-  # its own that may only read and answer approvals: the agent's may not.
-  if [ "$MODE" = hosted ]; then
-    local acme_name="Acme approvals" acme acme_id
-    acme="$(introspection applications list -o json | json "(v.records ?? v).find((a) => a.name === '$acme_name')")"
-    if [ -z "$acme" ]; then
-      acme="$(introspection applications create --type service-account --name "$acme_name" \
-        --allowed-scope "approvals:read approvals:write" -o json | json 'v.application ?? v')"
-    fi
-    acme_id="$(json 'v.id' <<<"$acme")"
-    [ -n "$acme_id" ] || fail "could not create the $acme_name application"
-    if [ -z "$(read_env ACME_CLIENT_SECRET)" ]; then
-      local acme_secret
-      acme_secret="$(mint_secret "$acme_id" "Acme approvals")"
-      [ -n "$acme_secret" ] || fail "could not create a client secret for the $acme_name application"
-      upsert_env ACME_CLIENT_SECRET "$acme_secret"
-    fi
-    upsert_env ACME_CLIENT_ID "$(json 'v.client_id' <<<"$acme")"
-    upsert_env ACME_PROJECT "$project_id"
-  fi
+  if [ "$MODE" = hosted ]; then ensure_acme_app "$project_id"; fi
   upsert_env INTROSPECTION_BASE_API_URL "$CP_URL"
   upsert_env INTROSPECTION_RUNTIME "$RUNTIME"
   upsert_env DEMO_SAM_USER_ID "$SAM_USER_ID"
@@ -446,6 +450,7 @@ connect() {
     introspection applications list -o json | json "(v.records ?? v).some((a) => a.id === '$app_id')" | grep -q true; then
     apply_connector
     bind_flight_search
+    if [ "$MODE" = hosted ]; then ensure_acme_app "$(read_env INTROSPECTION_PROJECT)"; fi
   else
     say "setting up your project on $CP_URL"
     for key in INTROSPECTION_TOKEN INTROSPECTION_CLIENT_SECRET ACME_INTROSPECTION_TOKEN ACME_CLIENT_SECRET AGENT_APPLICATION_ID; do remove_env "$key"; done
