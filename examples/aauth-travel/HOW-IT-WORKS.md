@@ -27,7 +27,7 @@ The agent itself is the public [travel-agent recipe](https://github.com/introspe
 
 ## The flow
 
-Sam's trip is "Flights and a hotel for Sam, 19 to 23 October, up to $3,000."
+Sam's trip is "Flights and a hotel for Sam, Monday to Friday next week, up to $3,000."
 
 | Sam asks for                      | What happens                                                                                    |
 | --------------------------------- | ----------------------------------------------------------------------------------------------- |
@@ -50,7 +50,7 @@ sequenceDiagram
     participant Acme as Acme's Person Server
     participant Dana as Dana (Sam's manager)
 
-    Sam->>Agent: Sydney, 19 to 23 Oct, economy and the QT, up to $3,000
+    Sam->>Agent: Sydney, Mon to Fri next week, economy and the QT, up to $3,000
     Agent->>Acme: POST /ps/mission (the trip, login_hint Sam)
     Acme-->>Agent: 202 + Location (pending)
     Acme->>Dana: email with a six-digit code
