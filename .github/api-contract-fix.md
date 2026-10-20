@@ -32,6 +32,8 @@ and `https://docs.introspection.dev/openapi/controlplane.json`; read it with
 - Never edit `scripts/check-api-contract.mjs`: not its reference URLs, and not
   its allowlist (the `exempt`, `allowedExtra` and SDK-only declarations).
 - Never edit anything under `.github/`.
+- Never edit anything under `tests/live/`. This PR changes the SDK, its types
+  and its unit tests only; live tests are updated in a separate PR.
 - Never weaken, skip or delete a test, and never lower a coverage threshold.
 - Do not refactor, reformat or touch code the drift report does not reach.
 - Do not run `git commit` or `git push`. The workflow commits and opens the PR.
@@ -69,4 +71,8 @@ the commit and puts it into the PR) with:
    field or parameter.
 2. **Questions for a maintainer**: one line per item you left alone, and why.
    Write "None" if there are none.
-3. **Checks**: the result of each of the three commands above.
+3. **Live tests to add**: one line per SDK operation (client method and
+   endpoint) whose parameters or response this fix added or changed, with the
+   fields involved. This is the input for the separate live-test PR. Write
+   "None" if no operation changed.
+4. **Checks**: the result of each of the three commands above.

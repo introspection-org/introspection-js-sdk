@@ -173,7 +173,8 @@ jobs:
             exit 1
           fi
           echo "$changed"
-          forbidden=$(echo "$changed" | grep -E '^(scripts/check-api-contract\.mjs|\.github/)' || true)
+          # Live tests are updated in a separate PR, never by this job.
+          forbidden=$(echo "$changed" | grep -E '^(scripts/check-api-contract\.mjs|\.github/|tests/live/)' || true)
           if [ -n "$forbidden" ]; then
             echo "::error::Claude edited files it must not touch: $forbidden"
             exit 1
@@ -245,6 +246,14 @@ jobs:
               cat .api-contract-fix/pr-notes.md
             else
               echo "_Claude left no notes._"
+            fi
+            # The separate live-test PR is built from this section, so it is
+            # always present even when Claude's notes leave it out.
+            if ! grep -qi 'live tests to add' .api-contract-fix/pr-notes.md 2>/dev/null; then
+              echo
+              echo "### Live tests to add"
+              echo
+              echo "_Not listed by Claude; derive them from this PR's diff._"
             fi
             echo
             echo "<details><summary>Drift report</summary>"
