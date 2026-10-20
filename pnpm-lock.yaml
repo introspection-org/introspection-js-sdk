@@ -240,6 +240,9 @@ importers:
       '@hellocoop/httpsig':
         specifier: ^2.6.0
         version: 2.6.0
+      '@introspection-sdk/person-server':
+        specifier: workspace:*
+        version: link:../introspection-person-server
       jose:
         specifier: ^6.2.12
         version: 6.2.12
@@ -305,6 +308,9 @@ importers:
 
   packages/introspection-coding-agent:
     dependencies:
+      '@introspection-sdk/introspection-proxy':
+        specifier: workspace:*
+        version: link:../introspection-proxy
       '@introspection-sdk/types':
         specifier: workspace:*
         version: link:../introspection-types
@@ -326,12 +332,6 @@ importers:
       '@opentelemetry/sdk-trace-base':
         specifier: ^2.0.1
         version: 2.12.0(@opentelemetry/api@1.9.1)
-      https-proxy-agent:
-        specifier: ^7.0.6
-        version: 7.0.6
-      proxy-from-env:
-        specifier: ^2.1.0
-        version: 2.1.0
     devDependencies:
       '@repo/eslint-config':
         specifier: workspace:*
@@ -394,12 +394,6 @@ importers:
       '@opentelemetry/api':
         specifier: ^1.9.1
         version: 1.9.1
-      https-proxy-agent:
-        specifier: ^7.0.6
-        version: 7.0.6
-      proxy-from-env:
-        specifier: ^2.1.0
-        version: 2.1.0
     devDependencies:
       '@earendil-works/pi-agent-core':
         specifier: ^0.99.2
@@ -514,6 +508,12 @@ importers:
       '@opentelemetry/api':
         specifier: ^1.9.0
         version: 1.9.1
+      https-proxy-agent:
+        specifier: ^7.0.6
+        version: 7.0.6
+      proxy-from-env:
+        specifier: ^2.1.0
+        version: 2.1.0
       undici:
         specifier: ^8.12.2
         version: 8.12.2
@@ -540,6 +540,12 @@ importers:
         specifier: 0.0.59
         version: 0.0.59
     devDependencies:
+      '@opentelemetry/api':
+        specifier: ^1.9.1
+        version: 1.9.1
+      '@opentelemetry/api-logs':
+        specifier: ^0.223.0
+        version: 0.223.0
       '@opentelemetry/sdk-logs':
         specifier: ^0.223.0
         version: 0.223.0(@opentelemetry/api@1.9.1)

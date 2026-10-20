@@ -40,14 +40,6 @@ import {
 import type { Environment } from "@introspection-sdk/types";
 import { TasksClient } from "./tasks.js";
 
-type CookieClients = {
-  tasks: TasksClient;
-  files: FilesClient;
-  conversations: ConversationsClient;
-  shares: SharesClient;
-  automations: AutomationsClient;
-};
-
 export interface IntrospectionApiClientOptions {
   /**
    * Data Plane REST base URL for the cookie-session APIs (`connect()` and
@@ -84,7 +76,16 @@ export interface IntrospectionApiClientOptions {
 
 export class IntrospectionApiClient {
   private readonly fetchImpl: typeof fetch;
-  private readonly cookieClients: CookieClients;
+  /** `/v1/tasks` operations bound to the DP session cookie. */
+  readonly tasks: TasksClient;
+  /** `/v1/files` operations bound to the DP session cookie. */
+  readonly files: FilesClient;
+  /** Read-only `/v1/conversations` projection bound to the session cookie. */
+  readonly conversations: ConversationsClient;
+  /** `/v1/shares` sharing grants bound to the session cookie. */
+  readonly shares: SharesClient;
+  /** `/v1/automations` operations bound to the DP session cookie. */
+  readonly automations: AutomationsClient;
   /**
    * Lane established by the most recent exchange. Per instance, never module
    * scope — two clients on one page holding different lanes is the point.
@@ -113,38 +114,11 @@ export class IntrospectionApiClient {
       environment: () => this.resolvedEnvironment,
       projectId: () => this.resolvedProjectId,
     });
-    this.cookieClients = {
-      tasks: new TasksClient(http),
-      files: new FilesClient(http),
-      conversations: new ConversationsClient(http),
-      shares: new SharesClient(http),
-      automations: new AutomationsClient(http),
-    };
-  }
-
-  /** `/v1/tasks` operations bound to the DP session cookie. */
-  get tasks(): TasksClient {
-    return this.cookieClients.tasks;
-  }
-
-  /** `/v1/files` operations bound to the DP session cookie. */
-  get files(): FilesClient {
-    return this.cookieClients.files;
-  }
-
-  /** Read-only `/v1/conversations` projection bound to the session cookie. */
-  get conversations(): ConversationsClient {
-    return this.cookieClients.conversations;
-  }
-
-  /** `/v1/shares` sharing grants bound to the session cookie. */
-  get shares(): SharesClient {
-    return this.cookieClients.shares;
-  }
-
-  /** `/v1/automations` operations bound to the DP session cookie. */
-  get automations(): AutomationsClient {
-    return this.cookieClients.automations;
+    this.tasks = new TasksClient(http);
+    this.files = new FilesClient(http);
+    this.conversations = new ConversationsClient(http);
+    this.shares = new SharesClient(http);
+    this.automations = new AutomationsClient(http);
   }
 
   /**
