@@ -38,16 +38,24 @@ const account = () => {
     : null;
 };
 const minted = ((
-  globalThis as unknown as { __acmeToken?: { token: string; until: number } }
-).__acmeToken ??= { token: "", until: 0 });
+  globalThis as unknown as {
+    __acmeToken?: { token: string; until: number; for: string };
+  }
+).__acmeToken ??= { token: "", until: 0, for: "" });
 
-/** A token for Acme's application, minted again a minute before it expires. */
+/**
+ * A token for Acme's application, minted again a minute before it expires, or
+ * when `pnpm dev` has since rewritten the credentials for another stack.
+ */
 async function token(): Promise<string> {
   const credentials = account();
   if (!credentials) return "";
-  if (minted.token && Date.now() < minted.until) return minted.token;
+  const key = `${credentials.clientId}@${credentials.baseApiUrl ?? ""}`;
+  if (minted.token && minted.for === key && Date.now() < minted.until)
+    return minted.token;
   const { access_token, expires_in } = await serviceAccountToken(credentials);
   minted.token = access_token;
+  minted.for = key;
   minted.until = Date.now() + Math.max(expires_in - 60, 30) * 1000;
   return minted.token;
 }
@@ -117,6 +125,7 @@ async function api<T>(
     },
     ...(body ? { body: JSON.stringify(body) } : {}),
   });
+  if (response.status === 401) minted.token = "";
   if (!response.ok)
     throw new AAuthError(
       response.status,
@@ -245,10 +254,14 @@ async function sync(): Promise<void> {
 export function start(): void {
   if (state.started) return;
   state.started = true;
-  // `pnpm dev` writes Acme's credentials after the app boots, so until they
-  // appear each tick waits for them rather than giving up.
+  // `pnpm dev` writes Acme's credentials after the app boots, and a stack
+  // switch leaves the last stack's in place until then, so each tick waits for
+  // setup to finish rather than polling with them.
   const tick = () =>
-    (account() ? sync() : Promise.resolve())
+    (account() && process.env.DEMO_SETUP !== "pending"
+      ? sync()
+      : Promise.resolve()
+    )
       .catch((err: Error) =>
         console.error(`[acme] approvals sync: ${err.message}`),
       )
