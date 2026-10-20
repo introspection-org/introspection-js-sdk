@@ -24,6 +24,7 @@ export type {
   TokenExchangeParams,
   AuthorizationCodeParams,
   OAuthToken,
+  TokenEndpointOptions,
 } from "./auth.js";
 
 // Native email-code sign-in (a `native` Application's end users).

@@ -35,7 +35,7 @@
 export const DEV_TARGET_HEADER = "x-introspection-dev-target";
 
 /** The env var `introspection dev` prints and both the CLI and SDK read. */
-export const DEV_TARGET_ENV = "INTROSPECTION_DEV_TARGET";
+const DEV_TARGET_ENV = "INTROSPECTION_DEV_TARGET";
 
 /**
  * Percent-encode to RFC 3986, so the header carries identical bytes on the
