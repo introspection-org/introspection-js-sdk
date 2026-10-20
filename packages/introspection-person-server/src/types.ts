@@ -107,9 +107,10 @@ export interface Decision {
  * change a mission in place rather than overwriting a concurrent spend.
  */
 export interface Store {
-  binding(tenant: string, jkt: string): Promise<string | undefined>;
-  /** Bind a key to a person unless it is bound already; returns the person it is bound to. */
-  bind(tenant: string, jkt: string, personId: string): Promise<string>;
+  /** The person an agent key is bound to. */
+  binding(tenant: string, jkt: string): Promise<Person | undefined>;
+  /** Bind a key to a person unless it is bound already; returns whoever it is bound to. */
+  bind(tenant: string, jkt: string, person: Person): Promise<Person>;
   mission(tenant: string, s256: string): Promise<Mission | undefined>;
   /** Save a newly approved mission unless one with its hash exists; returns whether it did. */
   insertMission(tenant: string, mission: Mission): Promise<boolean>;

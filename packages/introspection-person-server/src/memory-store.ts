@@ -1,4 +1,10 @@
-import type { Approval, ApprovalStatus, Mission, Store } from "./types.js";
+import type {
+  Approval,
+  ApprovalStatus,
+  Mission,
+  Person,
+  Store,
+} from "./types.js";
 
 /** One tenant's records of one kind, by their own identifiers. */
 class Scoped<T> {
@@ -21,7 +27,7 @@ class Scoped<T> {
 
 /** Everything in memory: for development, tests and single-process demos. */
 export class MemoryStore implements Store {
-  private readonly bindings = new Scoped<string>();
+  private readonly bindings = new Scoped<Person>();
   private readonly missionsByHash = new Scoped<Mission>();
   private readonly approvalsById = new Scoped<Approval>();
 
@@ -29,11 +35,11 @@ export class MemoryStore implements Store {
     return this.bindings.get(tenant, jkt);
   }
 
-  async bind(tenant: string, jkt: string, personId: string) {
+  async bind(tenant: string, jkt: string, person: Person) {
     const bound = this.bindings.get(tenant, jkt);
     if (bound) return bound;
-    this.bindings.set(tenant, jkt, personId);
-    return personId;
+    this.bindings.set(tenant, jkt, person);
+    return person;
   }
 
   async mission(tenant: string, s256: string) {

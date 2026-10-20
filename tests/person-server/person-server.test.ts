@@ -793,11 +793,15 @@ describe("@introspection-sdk/person-server", () => {
     expect(await store.missions("acme")).toHaveLength(1);
     expect(await store.missions("initech")).toHaveLength(0);
 
-    expect(await store.bind("acme", "jkt", "sam")).toBe("sam");
-    expect(await store.binding("acme", "jkt")).toBe("sam");
+    const sam = { id: "sam", name: "Sam" };
+    expect(await store.bind("acme", "jkt", sam)).toEqual(sam);
+    expect(await store.bind("acme", "jkt", { id: "dana" })).toEqual(sam);
+    expect(await store.binding("acme", "jkt")).toEqual(sam);
     expect(await store.binding("globex", "jkt")).toBeUndefined();
     expect(await store.binding("default", "jkt")).toBeUndefined();
-    expect(await store.bind("globex", "jkt", "dana")).toBe("dana");
+    expect(await store.bind("globex", "jkt", { id: "dana" })).toEqual({
+      id: "dana",
+    });
   });
 
   /** Sam's trip, proposed and approved under tenant `acme`. */
@@ -903,7 +907,10 @@ describe("@introspection-sdk/person-server", () => {
 
     const { trip } = await acmeTrip(agent);
     expect(decodeJwt(trip.person_tokens[RESOURCE]!).tenant).toBe("acme");
-    expect(await store.binding("acme", jkt)).toBe("sam");
+    expect(await store.binding("acme", jkt)).toMatchObject({
+      id: "sam",
+      tenant: "acme",
+    });
     // Naming none is being under the default, which is not Sam's tenant either.
     ps = await server(store, { defaultTenant: "default" });
     const other = await AgentClient.create();

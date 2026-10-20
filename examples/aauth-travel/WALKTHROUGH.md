@@ -504,7 +504,7 @@ async function liveMission(
     throw new AAuthError(404, "mission_not_found", "no such mission");
   // The agent identifier is the provider's; the person is the key's. Another
   // key under the same identifier, bound to someone else, is a stranger.
-  if ((await store.binding(tenant, agent.jkt)) !== mission.person.id)
+  if ((await store.binding(tenant, agent.jkt))?.id !== mission.person.id)
     throw new AAuthError(404, "mission_not_found", "no such mission");
   if (mission.completed_at !== undefined)
     throw new AAuthError(403, "mission_terminated", "mission completed");
@@ -693,12 +693,12 @@ async function issue(
   const exp = Math.min(iat + tokenTtl, notAfter);
   const token = await signer.sign(
     {
+      ...(person.tenant ? { tenant: person.tenant } : {}),
       iss: issuer,
       dwk: DWK,
       jti: randomUUID(),
       iat,
       exp,
-      ...(person.tenant ? { tenant: person.tenant } : {}),
       ...claims,
     },
     typ,
@@ -1437,40 +1437,40 @@ async function personFor(
   agent: Agent,
   loginHint: unknown,
 ): Promise<Person> {
-  const hint = typeof loginHint === "string" ? loginHint : undefined;
-  const hinted = hint
-    ? await options.directory.person(hint, tenant)
-    : undefined;
-  if (hint && !hinted)
+  if (typeof loginHint !== "string" || !loginHint) {
+    const bound = await store.binding(tenant, agent.jkt);
+    if (!bound)
+      throw new AAuthError(
+        400,
+        "invalid_request",
+        "name the person: login_hint",
+      );
+    return bound;
+  }
+  const hinted = await options.directory.person(loginHint, tenant);
+  if (!hinted)
     throw new AAuthError(
       400,
       "invalid_request",
       "not someone this Person Server speaks for",
     );
-  if (hinted) {
-    // The directory's tenant is the person's; a request cannot move them.
-    if (hinted.tenant && hinted.tenant !== tenant)
-      throw new AAuthError(
-        403,
-        "invalid_request",
-        "this person is not in that tenant",
-      );
-    const bound = await store.bind(tenant, agent.jkt, hinted.id);
-    if (bound !== hinted.id)
-      throw new AAuthError(
-        403,
-        "invalid_request",
-        "this agent acts for another person",
-      );
-    return hinted.tenant || !named ? hinted : { ...hinted, tenant: named };
-  }
-  const bound = await store.binding(tenant, agent.jkt);
-  if (!bound)
-    throw new AAuthError(400, "invalid_request", "name the person: login_hint");
-  const person = (await store.approvals(tenant)).find(
-    (a) => a.person.id === bound,
-  )?.person;
-  return person ?? { id: bound, ...(named ? { tenant: named } : {}) };
+  // The directory's tenant is the person's; a request cannot move them.
+  if (hinted.tenant && hinted.tenant !== tenant)
+    throw new AAuthError(
+      403,
+      "invalid_request",
+      "this person is not in that tenant",
+    );
+  const person =
+    hinted.tenant || !named ? hinted : { ...hinted, tenant: named };
+  const bound = await store.bind(tenant, agent.jkt, person);
+  if (bound.id !== person.id)
+    throw new AAuthError(
+      403,
+      "invalid_request",
+      "this agent acts for another person",
+    );
+  return person;
 }
 ```
 
@@ -1566,7 +1566,7 @@ async function verifyResourceToken(
     presented.aud !== resource
   )
     throw invalid("does not match the presented token");
-  return { rt, mission, resource, tenant };
+  return { tenant, rt, mission, resource };
 }
 
 /** The resource's one-line description of the request, from its R3 proposal; undefined if it has none. */
@@ -1604,7 +1604,7 @@ async function requestAuthToken(
   const body = await request.text();
   const agent = await verifyAgent(request, body, path);
   const params = readBody(body);
-  const { rt, mission, resource, tenant } = await verifyResourceToken(
+  const { tenant, rt, mission, resource } = await verifyResourceToken(
     agent,
     params,
   );
@@ -1776,9 +1776,9 @@ Dana declines. The data plane has been polling the pending URL, signed with the 
 ```ts
 /** The agent polls with a signed GET; only the key that asked may read it. Results are minted now. */
 async function pendingState(
+  tenant: string,
   request: Request,
   path: string,
-  tenant: string,
   id: string,
 ): Promise<Response> {
   const agent = await verifyAgent(request, undefined, path);
@@ -2275,7 +2275,7 @@ async function liveMission(
     throw new AAuthError(404, "mission_not_found", "no such mission");
   // The agent identifier is the provider's; the person is the key's. Another
   // key under the same identifier, bound to someone else, is a stranger.
-  if ((await store.binding(tenant, agent.jkt)) !== mission.person.id)
+  if ((await store.binding(tenant, agent.jkt))?.id !== mission.person.id)
     throw new AAuthError(404, "mission_not_found", "no such mission");
   if (mission.completed_at !== undefined)
     throw new AAuthError(403, "mission_terminated", "mission completed");

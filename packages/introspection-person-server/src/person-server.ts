@@ -150,24 +150,22 @@ function readBody(body: string): Record<string, unknown> {
 
 function readBudget(value: unknown): Budget | undefined {
   if (value === undefined || value === null) return undefined;
-  const b = value as Partial<Budget>;
+  const { amount, unit, decimals } = value as Partial<Budget>;
   if (
-    !Number.isSafeInteger(b.amount) ||
-    (b.amount as number) < 0 ||
-    typeof b.unit !== "string" ||
-    !Number.isInteger(b.decimals) ||
-    (b.decimals as number) < 0
+    typeof amount !== "number" ||
+    !Number.isSafeInteger(amount) ||
+    amount < 0 ||
+    typeof unit !== "string" ||
+    typeof decimals !== "number" ||
+    !Number.isInteger(decimals) ||
+    decimals < 0
   )
     throw new AAuthError(
       400,
       "invalid_request",
       "budget is {amount, unit, decimals}",
     );
-  return {
-    amount: b.amount as number,
-    unit: b.unit,
-    decimals: b.decimals as number,
-  };
+  return { amount, unit, decimals };
 }
 
 const sameScale = (a: Budget, b: Budget) =>
@@ -298,44 +296,40 @@ export async function createPersonServer(options: PersonServerOptions) {
     agent: Agent,
     loginHint: unknown,
   ): Promise<Person> {
-    const hint = typeof loginHint === "string" ? loginHint : undefined;
-    const hinted = hint
-      ? await options.directory.person(hint, tenant)
-      : undefined;
-    if (hint && !hinted)
+    if (typeof loginHint !== "string" || !loginHint) {
+      const bound = await store.binding(tenant, agent.jkt);
+      if (!bound)
+        throw new AAuthError(
+          400,
+          "invalid_request",
+          "name the person: login_hint",
+        );
+      return bound;
+    }
+    const hinted = await options.directory.person(loginHint, tenant);
+    if (!hinted)
       throw new AAuthError(
         400,
         "invalid_request",
         "not someone this Person Server speaks for",
       );
-    if (hinted) {
-      // The directory's tenant is the person's; a request cannot move them.
-      if (hinted.tenant && hinted.tenant !== tenant)
-        throw new AAuthError(
-          403,
-          "invalid_request",
-          "this person is not in that tenant",
-        );
-      const bound = await store.bind(tenant, agent.jkt, hinted.id);
-      if (bound !== hinted.id)
-        throw new AAuthError(
-          403,
-          "invalid_request",
-          "this agent acts for another person",
-        );
-      return hinted.tenant || !named ? hinted : { ...hinted, tenant: named };
-    }
-    const bound = await store.binding(tenant, agent.jkt);
-    if (!bound)
+    // The directory's tenant is the person's; a request cannot move them.
+    if (hinted.tenant && hinted.tenant !== tenant)
       throw new AAuthError(
-        400,
+        403,
         "invalid_request",
-        "name the person: login_hint",
+        "this person is not in that tenant",
       );
-    const person = (await store.approvals(tenant)).find(
-      (a) => a.person.id === bound,
-    )?.person;
-    return person ?? { ...(named ? { tenant: named } : {}), id: bound };
+    const person =
+      hinted.tenant || !named ? hinted : { ...hinted, tenant: named };
+    const bound = await store.bind(tenant, agent.jkt, person);
+    if (bound.id !== person.id)
+      throw new AAuthError(
+        403,
+        "invalid_request",
+        "this agent acts for another person",
+      );
+    return person;
   }
   // #endregion
 
@@ -464,7 +458,7 @@ export async function createPersonServer(options: PersonServerOptions) {
       throw new AAuthError(404, "mission_not_found", "no such mission");
     // The agent identifier is the provider's; the person is the key's. Another
     // key under the same identifier, bound to someone else, is a stranger.
-    if ((await store.binding(tenant, agent.jkt)) !== mission.person.id)
+    if ((await store.binding(tenant, agent.jkt))?.id !== mission.person.id)
       throw new AAuthError(404, "mission_not_found", "no such mission");
     if (mission.completed_at !== undefined)
       throw new AAuthError(403, "mission_terminated", "mission completed");
@@ -885,7 +879,7 @@ export async function createPersonServer(options: PersonServerOptions) {
     const approval = await store.approval(tenant, id);
     if (!approval) throw new AAuthError(404, "not_found", "no such approval");
     const already = () =>
-      new AAuthError(409, "invalid_request", `already ${approval.status}`);
+      new AAuthError(409, "invalid_request", "already decided");
     if (approval.status !== "pending") throw already();
     if (now() >= approval.expires_at)
       throw new AAuthError(410, "expired", "this approval has expired");
