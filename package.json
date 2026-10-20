@@ -9,6 +9,7 @@
     "format": "prettier --write \"**/*.{ts,tsx,md}\"",
     "format:check": "prettier --check \"**/*.{ts,tsx,md}\"",
     "check-types": "turbo run check-types",
+    "check-cycles": "madge --circular --extensions ts packages/*/src",
     "pre-commit": "pnpm lint && pnpm format:check && pnpm check-types",
     "prepare": "husky install",
     "test": "pnpm --filter introspection-tests test",
@@ -19,6 +20,7 @@
   "devDependencies": {
     "husky": "^9.0.0",
     "lint-staged": "^15.2.0",
+    "madge": "8.0.0",
     "prettier": "^3.9.10",
     "turbo": "^2.11.8",
     "typescript": "5.9.3"

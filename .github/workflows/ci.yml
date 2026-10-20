@@ -57,6 +57,9 @@ jobs:
       - name: Run type checking
         run: pnpm check-types
 
+      - name: Check for runtime import cycles
+        run: pnpm check-cycles
+
   test:
     name: Unit Tests
     needs: lint

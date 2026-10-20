@@ -100,6 +100,13 @@ tests/recordings/<name>/recording.har
 
 Polly appends a `_<hash>` suffix to the cassette name (`pi-chat_3668022627/`). The files are HAR 1.2 and inspectable in any HAR viewer.
 
+### Import cycles and the browser boundary
+
+CI fails the `Lint & Type Check` job on either of these:
+
+- **Runtime import cycles.** `pnpm check-cycles` runs `madge --circular` over `packages/*/src`. `.madgerc` skips `import type`, so a type-only back-edge (such as `resources/*.ts` importing the `IntrospectionClient` type from `client.ts`) is allowed. To break a runtime cycle, move the shared code into a module both sides import, or make the back-edge `import type`.
+- **Node built-ins in browser-safe packages.** `introspection-browser`, `introspection-http` and `introspection-types` ship to browsers, so their `eslint.config.mjs` forbids importing `node:*` and every bare built-in name (`fs`, `path`, `crypto`, …) through `no-restricted-imports`. Node-only code belongs in `introspection-node`.
+
 ---
 
 ## 5. SDK API surface conventions
