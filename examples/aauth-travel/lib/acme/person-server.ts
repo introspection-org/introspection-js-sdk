@@ -23,6 +23,7 @@ import {
 import { record } from "../events";
 import { agentProviders, PERSON_SERVER_URL } from "../origins";
 import { people, type Person as Employee } from "../world";
+import { dollars, tripBudget, tripReasons } from "./budget";
 import { sendApprovalEmail } from "./mail";
 
 const TENANT = "acme";
@@ -87,26 +88,11 @@ function managerOf(person: Person) {
 }
 // #endregion
 
-const dollars = (cents: number) =>
-  `$${Math.round(cents / 100).toLocaleString("en-US")}`;
 const hash = (code: string) => createHash("sha256").update(code).digest();
 
-/** The agent's suggested budget, if the description names one: "up to $3,000". Dana sets the real one. */
-function suggestedCents(description: string): number | null {
-  const match = /up to \$([\d,]+)/i.exec(description);
-  return match ? Number(match[1]!.replace(/,/g, "")) * 100 : null;
-}
-
 function reasonsFor(approval: Approval): string[] {
-  if (approval.kind === "mission") {
-    const suggested = suggestedCents(approval.description);
-    return [
-      `A trip for ${approval.person.name}: you set its budget`,
-      suggested === null
-        ? "The agent suggested no budget"
-        : `The agent suggested up to ${dollars(suggested)}`,
-    ];
-  }
+  if (approval.kind === "mission")
+    return tripReasons(approval.person.name ?? "", approval.description);
   if (approval.kind === "completion")
     return ["The agent says the trip is booked"];
   const trip = approval.mission_s256
@@ -279,7 +265,7 @@ export function approvalSummary(id: string) {
     reasons: asked.reasons,
     budget:
       approval.kind === "mission"
-        ? { suggested_cents: suggestedCents(approval.description) }
+        ? tripBudget(approval.description)
         : undefined,
   };
 }

@@ -15,12 +15,11 @@ export function ApprovalForm({
   decisionUrl: string;
   sentTo: string;
   initialStatus: string;
-  /** Set when approving a trip: Dana sets its budget, starting from the agent's suggestion. */
-  budget?: { suggested_cents: number | null };
+  /** Set when approving a trip: Dana sets its budget, starting from the trip's quoted total. */
+  budget?: { quoted_cents: number | null; suggested_cents: number | null };
 }) {
-  const [dollars, setDollars] = useState(
-    budget?.suggested_cents ? String(budget.suggested_cents / 100) : "",
-  );
+  const start = budget?.quoted_cents ?? budget?.suggested_cents;
+  const [dollars, setDollars] = useState(start ? String(start / 100) : "");
   const [digits, setDigits] = useState<string[]>(Array(DIGITS).fill(""));
   const [status, setStatus] = useState(initialStatus);
   const [error, setError] = useState("");

@@ -15,6 +15,7 @@ import { AAuthError } from "../aauth";
 import { record } from "../events";
 import { ACME_APPROVAL_URL } from "../origins";
 import { people, type Person } from "../world";
+import { dollars, tripBudget, tripReasons } from "./budget";
 import { sendApprovalEmail } from "./mail";
 
 // Read on each use: `pnpm dev` writes these to .env.local after the app starts.
@@ -170,26 +171,11 @@ const approverOf = (person: Person) =>
 const managerOf = (person: Person) =>
   people.find((p) => p.external_user_id === person.manager);
 
-const dollars = (cents: number) =>
-  `$${Math.round(cents / 100).toLocaleString("en-US")}`;
 const hash = (code: string) => createHash("sha256").update(code).digest();
 
-/** The agent's suggested budget, if the description names one: "up to $3,000". */
-function suggestedCents(description: string): number | null {
-  const match = /up to \$([\d,]+)/i.exec(description);
-  return match ? Number(match[1].replace(/,/g, "")) * 100 : null;
-}
-
 function reasonsFor(approval: Approval, person: Person): string[] {
-  if (approval.kind === "mission") {
-    const suggested = suggestedCents(approval.description);
-    return [
-      `A trip for ${person.name}: you set its budget`,
-      suggested === null
-        ? "The agent suggested no budget"
-        : `The agent suggested up to ${dollars(suggested)}`,
-    ];
-  }
+  if (approval.kind === "mission")
+    return tripReasons(person.name, approval.description);
   if (approval.kind === "completion")
     return ["The agent says the trip is booked"];
   const mission = state.missions.find((m) => m.id === approval.mission_id);
@@ -335,7 +321,7 @@ export function approvalSummary(id: string) {
     reasons: asked.reasons,
     budget:
       asked.approval.kind === "mission"
-        ? { suggested_cents: suggestedCents(asked.approval.description) }
+        ? tripBudget(asked.approval.description)
         : undefined,
   };
 }
