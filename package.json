@@ -9,6 +9,8 @@
     "format": "prettier --write \"**/*.{ts,tsx,md}\"",
     "format:check": "prettier --check \"**/*.{ts,tsx,md}\"",
     "check-types": "turbo run check-types",
+    "knip": "knip",
+    "knip:production": "knip --production",
     "pre-commit": "pnpm lint && pnpm format:check && pnpm check-types",
     "prepare": "husky install",
     "test": "pnpm --filter introspection-tests test",
@@ -17,7 +19,10 @@
     "test:live": "turbo run test:live --filter=introspection-tests --ui=stream"
   },
   "devDependencies": {
+    "@repo/eslint-config": "workspace:^",
+    "eslint": "^9.39.5",
     "husky": "^9.0.0",
+    "knip": "6.42.1",
     "lint-staged": "^15.2.0",
     "prettier": "^3.9.10",
     "turbo": "^2.11.8",

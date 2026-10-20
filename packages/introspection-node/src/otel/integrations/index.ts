@@ -14,7 +14,7 @@ import {
   type IntegrationSetupContext,
 } from "./base.js";
 
-export { DidNotEnable, isModuleNotFound };
+export { DidNotEnable };
 export type { Integration, IntegrationHandles, IntegrationSetupContext };
 
 /**

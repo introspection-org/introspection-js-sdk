@@ -3,8 +3,4 @@
  * core so the browser and Node SDKs share one `Paginator`. Re-exported
  * here to keep the existing `./pagination.js` import path stable.
  */
-export {
-  Paginator,
-  cursorPaginate,
-  type PageSource,
-} from "@introspection-sdk/http";
+export { Paginator, cursorPaginate } from "@introspection-sdk/http";
