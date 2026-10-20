@@ -50,8 +50,8 @@ Write them in the style of the existing suite in `tests/live/live-api.test.ts`:
 - Do not run `git commit` or `git push`. The workflow commits and opens the PR.
 
 You cannot run the suite against a deployment here: there is no stack and no
-credentials, so every live test skips. Someone runs it against a stack before
-the PR merges.
+credentials, and the suite runs without `INTROSPECTION_LIVE=1`, so every live
+test skips. Someone runs it against a stack before the PR merges.
 
 ## When you are done
 

@@ -63,6 +63,22 @@ Each PR links the other, and later drift adds commits to both (the live branch m
 
 Review both PRs like any other. To change what Claude may do, edit the two prompts under `.github/`. If a branch is left behind by a closed, unmerged PR, delete the branch, or the next run fails. If only the live-tests job fails, rerun that job from the run page; a new run skips it when the fix PR already covers the drift. Run the workflow by hand with `gh workflow run api-contract-fix.yml`.
 
+### Size limits ratchet
+
+`packages/eslint-config/base.js` caps code size for every package that lints with it. Each limit sits at today's worst value across all packages, `introspection-types` included, so the current code passes; the targets are where we're heading:
+
+| Rule                                                     | Limit | Target |
+| -------------------------------------------------------- | ----: | -----: |
+| `complexity`                                             |    65 |     10 |
+| `max-lines` (per file, blank lines and comments skipped) |  1211 |    400 |
+| `max-lines-per-function` (same skips)                    |   856 |     80 |
+| `max-params`                                             |     9 |      4 |
+| `max-depth`                                              |     5 |      4 |
+
+`eslint-plugin-only-warn` turns these into warnings, and every package's `lint` script runs `--max-warnings 0`, so a finding fails `pnpm lint:limits`, `pnpm lint` and the CI "Check size limits" step.
+
+Later PRs lower a limit step by step as they refactor the worst offenders, updating this table in the same PR. **Never raise a limit.** If new code exceeds one, split it.
+
 ### Duplicate code (jscpd)
 
 ```bash
