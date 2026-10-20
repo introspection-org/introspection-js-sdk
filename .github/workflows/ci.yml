@@ -51,6 +51,9 @@ jobs:
       - name: Check formatting
         run: pnpm format:check
 
+      - name: Check size limits
+        run: pnpm lint:limits
+
       - name: Run linting
         run: pnpm lint
 
