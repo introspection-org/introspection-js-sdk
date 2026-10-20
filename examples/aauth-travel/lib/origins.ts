@@ -14,6 +14,20 @@ export const BOOKING_ISSUER = trim(
   process.env.BOOKING_ISSUER ?? "https://booking.flightsector.localhost",
 );
 
+/**
+ * With `FLIGHTSECTOR_FEDERATED=1`, Flight Sector keeps its own AAuth Access
+ * Server (-11 four-party): the booking provider's resource tokens name it, and
+ * the traveller's Person Server redeems them there, under Flight Sector's
+ * policy as well as the person's.
+ */
+export const FLIGHTSECTOR_FEDERATED =
+  process.env.FLIGHTSECTOR_FEDERATED === "1";
+
+/** Flight Sector's Access Server, when it runs one. */
+export const FLIGHTSECTOR_AS_URL = trim(
+  process.env.FLIGHTSECTOR_AS_URL ?? "https://as.flightsector.localhost",
+);
+
 /** A stand-in for Browserbase's hosted MCP, for flight searches without an account. */
 export const BROWSERBASE_MCP_URL = trim(
   process.env.BROWSERBASE_MCP_URL ??

@@ -5,7 +5,8 @@ An AAuth Person Server ([draft-hardt-oauth-aauth-protocol](https://github.com/di
 - verifies each agent by its HTTP Message Signature (RFC 9421) and the agent token it presents, from agent providers you trust;
 - approves **missions**, and issues **person tokens** and **auth tokens** under them;
 - weighs each auth token request against its mission's **budget** ([draft-hardt-aauth-budgets](https://github.com/dickhardt/AAuth)): a request whose resource token carries a `budget` that fits what is left is issued at once, and spent;
-- turns anything that needs a human into an **approval**, which you decide however you reach the person: email, chat, your own app.
+- turns anything that needs a human into an **approval**, which you decide however you reach the person: email, chat, your own app;
+- **federates** with a resource's own Access Server (four-party) when the resource token names one, after weighing the request against the mission as for any resource.
 
 Handlers take a Web `Request` and return a `Response`, so it mounts in Next.js, Hono, Bun, Deno, Workers or plain Node.
 
@@ -175,6 +176,23 @@ Fixed and small:
 - an approved auth token is collected once: later polls of the same approval answer `410`, so one approval spends once;
 - each approval is decided once, however many answers arrive.
 
+## Resources with their own Access Server
+
+A resource that keeps its own policy names its Access Server (AS) as the `aud` of its resource tokens instead of this Person Server ([`-11` #access-server-federation](https://github.com/dickhardt/AAuth)). That `aud` is the only signal; nothing is configured here. On `POST {base}/token`:
+
+1. The resource token is verified against the resource's keys and weighed against the mission exactly as above: a resource the mission does not cover is refused, and a `budget` over what is left goes to the approver first. Only the AS a verified resource token names is ever fetched.
+2. The request is redeemed at the AS: `{aud}/.well-known/aauth-access.json`, then a `POST` to its `auth_token_endpoint` signed with this server's key (`sig=jwks_uri;id=<issuer>;dwk="aauth-person.json"`), carrying `resource_token`, `agent_token` and `presented_token`.
+3. The AS's auth token is checked before the agent gets it (#auth-token-delivery: its keys, `iss`, `aud`, `ps`, `sub`, `cnf`, `mission_s256`, a scope no broader than asked, an `exp` within the presented token's), the budget is spent only then, and the token is returned unchanged.
+4. A `202` from the AS (`requirement=approval` or `interaction`) is answered to the agent as this server's own `202`, relaying the AS's `AAuth-Requirement`; each poll of the agent's pending URL polls the AS's `Location`, so no worker is needed. An AS refusal is relayed with its own `error` and status, and ends the approval; an AS that cannot be reached, answers malformed or issues a token that fails the checks is `502 as_unreachable`.
+
+The approval for such a request carries `federation` (the AS, the three tokens, and where the AS said to poll), and is `approved` while the AS decides, so `decide()` cannot settle it. `requirement=claims`, `clarification` and `402` are refused with the AS's reason; revocation at the AS is not done yet.
+
+[`@introspection-sdk/access-server`](../introspection-access-server) is the other side.
+
 ## Hooks
 
-`onApproval(approval)` when a decision is needed, `onDecision(approval)` once it is made, and `onIssued({type, agent, person, resource, mission, budget})` for each token issued.
+`onApproval(approval)` when a decision is needed, `onDecision(approval)` once it is made, and `onIssued({type, agent, person, resource, mission, budget, access_server?})` for each token issued, `access_server` naming the AS when it issued it.
+
+## Building blocks
+
+The pieces this server and `@introspection-sdk/access-server` share are exported too: `loadSigner`, `readProposalSummary`, `verifySignature`, `signatureError`, `discovery`, `beneath` and `answer`.

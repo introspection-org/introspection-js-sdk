@@ -35,6 +35,28 @@ export type ApprovalKind = "mission" | "auth_token" | "completion";
 /** `collected`: approved, and its auth token handed out. An auth token is collected once. */
 export type ApprovalStatus = "pending" | "approved" | "denied" | "collected";
 
+/**
+ * An auth token request the resource's own Access Server decides too (draft
+ * -11 four-party): the resource token's `aud` is the AS, and the Person Server
+ * redeems it there with the three tokens below.
+ */
+export interface Federation {
+  /** The Access Server: the verified resource token's `aud`. */
+  access_server: string;
+  resource_token: string;
+  agent_token: string;
+  presented_token: string;
+  /**
+   * Whether the request must fit what is left of the mission's budget when it
+   * is spent: true when the mission covered it, false once a person approved it.
+   */
+  within_budget: boolean;
+  /** Where the Access Server said to poll, once it answered `202`. */
+  location?: string;
+  /** The Access Server's `AAuth-Requirement` while it decides, relayed to the agent. */
+  requirement?: string;
+}
+
 /** A decision this Person Server waits on. Whoever operates it makes the decision. */
 export interface Approval {
   id: string;
@@ -54,6 +76,8 @@ export interface Approval {
   budget?: Budget;
   /** For a mission: the resources it would cover. For an auth token: the claims it is minted with. */
   grant: Record<string, unknown>;
+  /** Set when the resource's Access Server decides too; then the approval is `approved` once the person's side is. */
+  federation?: Federation;
   /** Approving a mission sets its budget. */
   decided_budget?: Budget;
   decided_by?: string;

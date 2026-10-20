@@ -77,6 +77,7 @@ const PARTY: Record<string, { name: string; mark: string; host?: string }> = {
   Acme: { name: "Acme", mark: "A" },
   "Booking provider": { name: "Booking provider", mark: "B" },
   Browserbase: { name: "Browserbase", mark: "W" },
+  "Flight Sector AS": { name: "Flight Sector AS", mark: "F" },
 };
 
 const TOKEN =

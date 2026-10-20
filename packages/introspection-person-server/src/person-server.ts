@@ -11,29 +11,31 @@
 import { createHash, createHmac, randomBytes, randomUUID } from "node:crypto";
 
 import {
-  verifyR3Hash,
   discoverJwks,
+  isServerIdentifier,
   verifyToken,
   AAuthTokenError,
 } from "@aauth/resource";
-import { fetch as signedFetch, verify } from "@hellocoop/httpsig";
 import {
-  type JWK,
   type JWTPayload,
-  type KeyObject,
-  SignJWT,
-  calculateJwkThumbprint,
   createLocalJWKSet,
   decodeJwt,
   decodeProtectedHeader,
-  exportJWK,
-  generateKeyPair,
-  importPKCS8,
   jwtVerify,
 } from "jose";
 
 import { AAuthError, problem } from "./errors.js";
+import { federatedAccess } from "./federated.js";
 import { MemoryStore } from "./memory-store.js";
+import { readProposalSummary } from "./proposal.js";
+import {
+  answer,
+  beneath,
+  discovery,
+  signatureError,
+  verifySignature,
+} from "./server.js";
+import { loadSigner } from "./signer.js";
 import type {
   Agent,
   Approval,
@@ -47,9 +49,7 @@ import type {
 } from "./types.js";
 
 type FetchLike = (input: string, init?: RequestInit) => Promise<Response>;
-type CryptoKeyLike = CryptoKey | KeyObject;
 
-const ALG = "Ed25519";
 const DWK = "aauth-person.json";
 /** The tenant a request that names none is under, unless `defaultTenant` or `requireTenant` says otherwise. */
 export const DEFAULT_TENANT = "default";
@@ -101,31 +101,8 @@ export interface Issued {
   resource: string;
   mission?: Mission;
   budget?: Budget;
-}
-
-interface Signer {
-  kid: string;
-  jwks: { keys: JWK[] };
-  privateJwk: JWK;
-  sign(claims: JWTPayload, typ: string): Promise<string>;
-}
-
-async function loadSigner(pem: string | undefined): Promise<Signer> {
-  const key: CryptoKeyLike = pem
-    ? await importPKCS8(pem, ALG, { extractable: true })
-    : (await generateKeyPair(ALG, { extractable: true })).privateKey;
-  const exported = await exportJWK(key);
-  const kid = await calculateJwkThumbprint(exported);
-  const privateJwk = { ...exported, kid, alg: ALG };
-  const publicJwk: JWK = { ...privateJwk };
-  delete publicJwk.d;
-  return {
-    kid,
-    jwks: { keys: [{ ...publicJwk, use: "sig" }] },
-    privateJwk,
-    sign: (claims, typ) =>
-      new SignJWT(claims).setProtectedHeader({ alg: ALG, typ, kid }).sign(key),
-  };
+  /** When the resource's Access Server issued it, not this Person Server: that AS. */
+  access_server?: string;
 }
 
 const s256 = (bytes: string | Buffer) =>
@@ -171,11 +148,24 @@ function readBudget(value: unknown): Budget | undefined {
 const sameScale = (a: Budget, b: Budget) =>
   a.unit === b.unit && a.decimals === b.decimals;
 
-function signatureError(code: string, detail: string): AAuthError {
-  return new AAuthError(401, code, detail, {
-    "Signature-Error": `error=${code}`,
-  });
-}
+/** `202`: the agent polls `location` until it is decided. */
+const pendingResponse = (
+  location: string,
+  retryAfter: number,
+  requirement = "requirement=approval",
+) =>
+  Response.json(
+    { status: "pending" },
+    {
+      status: 202,
+      headers: {
+        Location: location,
+        "Retry-After": String(retryAfter),
+        "Cache-Control": "no-store",
+        "AAuth-Requirement": requirement,
+      },
+    },
+  );
 
 export type PersonServer = Awaited<ReturnType<typeof createPersonServer>>;
 
@@ -226,23 +216,13 @@ export async function createPersonServer(options: PersonServerOptions) {
     request: Request,
     body: string | undefined,
     path: string,
-  ): Promise<Agent> {
-    const signed = await verify(
-      {
-        method: request.method,
-        // As the agent addressed it: this identifier and the route's path, whatever routed it here.
-        authority: new URL(issuer).host,
-        path: `${base}${path}`,
-        headers: request.headers,
-        ...(body ? { body } : {}),
-      },
-      { requireContentDigest: true, supportedAlgorithms: ["Ed25519", "ES256"] },
+  ): Promise<{ agent: Agent; agentToken: string }> {
+    const signed = await verifySignature(
+      request,
+      body,
+      new URL(issuer).host,
+      `${base}${path}`,
     );
-    if (!signed.verified)
-      throw signatureError(
-        signed.signatureError?.error ?? "invalid_signature",
-        signed.error ?? "signature does not verify",
-      );
     if (signed.keyType !== "jwt" || !signed.jwt)
       throw signatureError("unsupported_scheme", "sign with sig=jwt");
     const claims = (() => {
@@ -278,22 +258,31 @@ export async function createPersonServer(options: PersonServerOptions) {
         "this agent's Person Server is another",
       );
     return {
-      id: token.sub,
-      provider,
-      jkt: signed.thumbprint,
-      jwk: token.cnf.jwk,
-      exp: token.exp,
+      agent: {
+        id: token.sub,
+        provider,
+        jkt: signed.thumbprint,
+        jwk: token.cnf.jwk,
+        exp: token.exp,
+      },
+      agentToken: signed.jwt.raw,
     };
   }
 
-  /** A signed request's verified agent and its JSON body. */
+  /** A signed request's verified agent, the agent token it presented, and its JSON body. */
   async function readSigned(
     request: Request,
     path: string,
-  ): Promise<{ agent: Agent; params: Record<string, unknown> }> {
+  ): Promise<{
+    agent: Agent;
+    agentToken: string;
+    params: Record<string, unknown>;
+  }> {
     const body = await request.text();
-    const agent = await verifyAgent(request, body, path);
-    return { agent, params: readBody(body) };
+    return {
+      ...(await verifyAgent(request, body, path)),
+      params: readBody(body),
+    };
   }
 
   /** The tenant a request names, and the person its agent acts for there. */
@@ -623,8 +612,12 @@ export async function createPersonServer(options: PersonServerOptions) {
       .catch((err: Error) => {
         throw invalid(err.message);
       });
-    if (rt.aud !== issuer || trim(String(rt.ps ?? "")) !== issuer)
+    if (trim(String(rt.ps ?? "")) !== issuer)
       throw invalid("not for this Person Server");
+    // An `aud` other than this Person Server is the resource's Access Server (four-party).
+    const audience = typeof rt.aud === "string" ? trim(rt.aud) : "";
+    if (audience !== issuer && !isServerIdentifier(audience))
+      throw invalid("aud is neither this Person Server nor an Access Server");
     if (rt.agent_jkt !== agent.jkt)
       throw invalid("agent_jkt is not the signer");
     if (
@@ -635,46 +628,25 @@ export async function createPersonServer(options: PersonServerOptions) {
       presented.aud !== resource
     )
       throw invalid("does not match the presented token");
-    return { tenant, rt, mission, resource };
+    return {
+      tenant,
+      rt,
+      mission,
+      resource,
+      ...(audience === issuer ? {} : { accessServer: audience }),
+    };
   }
 
-  /** The resource's one-line description of the request, from its R3 proposal; undefined if it has none. */
-  async function proposalSummary(rt: JWTPayload): Promise<string | undefined> {
-    if (typeof rt.r3_uri !== "string" || typeof rt.r3_s256 !== "string")
-      return undefined;
-    try {
-      const { headers } = await signedFetch(rt.r3_uri, {
-        method: "GET",
-        signingKey: signer.privateJwk as JsonWebKey,
-        signatureKey: {
-          type: "jwks_uri",
-          id: issuer,
-          kid: signer.kid,
-          dwk: DWK,
-        },
-        dryRun: true,
-      });
-      const response = await fetchLike(rt.r3_uri, { headers });
-      const bytes = await response.text();
-      if (!response.ok || !(await verifyR3Hash(bytes, rt.r3_s256)))
-        return undefined;
-      const summary = (JSON.parse(bytes) as { display?: { summary?: unknown } })
-        .display?.summary;
-      return typeof summary === "string" ? summary : undefined;
-    } catch {
-      return undefined;
-    }
-  }
+  const proposalSummary = (rt: JWTPayload) =>
+    readProposalSummary(rt, { issuer, dwk: DWK, signer, fetch: fetchLike });
 
   async function requestAuthToken(
     request: Request,
     path: string,
   ): Promise<Response> {
-    const { agent, params } = await readSigned(request, path);
-    const { tenant, rt, mission, resource } = await verifyResourceToken(
-      agent,
-      params,
-    );
+    const { agent, agentToken, params } = await readSigned(request, path);
+    const { tenant, rt, mission, resource, accessServer } =
+      await verifyResourceToken(agent, params);
     const budget = (() => {
       try {
         return readBudget(rt.budget);
@@ -696,6 +668,19 @@ export async function createPersonServer(options: PersonServerOptions) {
       ),
       ...(budget ? { budget } : {}),
     };
+    const asked = {
+      mission_s256: mission.s256,
+      resource,
+      ...(budget ? { budget } : {}),
+      grant,
+    };
+    if (accessServer)
+      return access.request(tenant, agent, mission, rt, asked, {
+        access_server: accessServer,
+        resource_token: String(params.resource_token),
+        agent_token: agentToken,
+        presented_token: String(params.presented_token),
+      });
     if (!budget) return Response.json(await authToken(agent, mission, grant));
     if (mission.budget && sameScale(mission.budget, budget)) {
       const spent = await store.spend(
@@ -713,19 +698,13 @@ export async function createPersonServer(options: PersonServerOptions) {
       agent,
       mission.person,
       String(rt.scope ?? "a request"),
-      {
-        mission_s256: mission.s256,
-        resource,
-        budget,
-        grant,
-        summary: await proposalSummary(rt),
-      },
+      { ...asked, summary: await proposalSummary(rt) },
     );
   }
   // #endregion
 
   // #region ask
-  async function ask(
+  async function newApproval(
     tenant: string,
     kind: ApprovalKind,
     agent: Agent,
@@ -734,16 +713,21 @@ export async function createPersonServer(options: PersonServerOptions) {
     extra: Partial<
       Pick<
         Approval,
-        "mission_s256" | "resource" | "budget" | "grant" | "summary"
+        | "mission_s256"
+        | "resource"
+        | "budget"
+        | "grant"
+        | "summary"
+        | "federation"
       >
     >,
-  ): Promise<Response> {
+  ): Promise<Approval> {
     const approver =
       (kind === "completion"
         ? undefined
         : await options.directory.approver?.(kind, person)) ?? person;
     const created = now();
-    const approval: Approval = {
+    return {
       tenant,
       id: randomUUID(),
       kind,
@@ -757,26 +741,34 @@ export async function createPersonServer(options: PersonServerOptions) {
       created_at: created,
       expires_at: created + approvalTtl,
     };
-    await store.putApproval(tenant, approval);
-    await options.onApproval?.(approval);
-    return stillPending(tenant, approval.id);
   }
 
-  const stillPending = (tenant: string, id: string) =>
-    Response.json(
-      { status: "pending" },
-      {
-        status: 202,
-        headers: {
-          Location: endpoints.pending(tenant, id),
-          "Retry-After": String(retryAfter),
-          "Cache-Control": "no-store",
-          "AAuth-Requirement": "requirement=approval",
-        },
-      },
-    );
+  async function ask(
+    ...args: Parameters<typeof newApproval>
+  ): Promise<Response> {
+    const approval = await newApproval(...args);
+    await store.putApproval(approval.tenant, approval);
+    await options.onApproval?.(approval);
+    return stillPending(approval.tenant, approval.id);
+  }
+
+  const stillPending = (tenant: string, id: string, requirement?: string) =>
+    pendingResponse(endpoints.pending(tenant, id), retryAfter, requirement);
 
   // #endregion
+
+  const access = federatedAccess({
+    store,
+    now,
+    federation: { issuer, signer, fetch: fetchLike, now },
+    newApproval,
+    ask,
+    stillPending,
+    collected: () => collected(),
+    proposalSummary,
+    onApproval: options.onApproval,
+    onIssued: options.onIssued,
+  });
 
   // #region pending
   /** The agent polls with a signed GET; only the key that asked may read it. Results are minted now. */
@@ -786,7 +778,7 @@ export async function createPersonServer(options: PersonServerOptions) {
     path: string,
     id: string,
   ): Promise<Response> {
-    const agent = await verifyAgent(request, undefined, path);
+    const { agent } = await verifyAgent(request, undefined, path);
     const approval = await store.approval(tenant, id);
     if (!approval || approval.agent.jkt !== agent.jkt)
       return problem(404, "not_found", "no such pending request");
@@ -804,14 +796,12 @@ export async function createPersonServer(options: PersonServerOptions) {
       return problem(
         403,
         "denied",
-        `${approval.approver.name ?? "The approver"} declined`,
+        `${approval.decided_by === approval.federation?.access_server ? "The resource's Access Server" : (approval.approver.name ?? "The approver")} declined`,
       );
     if (approval.status === "pending")
       return now() >= approval.expires_at
         ? problem(408, "expired", "nobody answered in time")
         : stillPending(tenant, id);
-    const collected = () =>
-      problem(410, "collected", "this approval's token was already collected");
     if (approval.status === "collected") return collected();
     if (approval.kind === "completion") return Response.json({});
     // Nothing is issued under a mission that has ended, whatever was approved.
@@ -829,47 +819,31 @@ export async function createPersonServer(options: PersonServerOptions) {
         person_tokens: Object.fromEntries(tokens),
       });
     }
+    const { federation: federated } = approval;
+    if (federated)
+      return access.redeem(
+        tenant,
+        agent,
+        mission,
+        { ...approval, federation: federated },
+        true,
+      );
     // Collected once: only the poll that collects it spends, so it spends and mints once.
     const collecting: Approval = { ...approval, status: "collected" };
     if (!(await store.transitionApproval(tenant, "approved", collecting)))
       return collected();
-    let issuedUnder = mission;
-    // A request in another unit than the mission's budget is approved without spending it.
-    if (
-      approval.budget &&
-      mission.budget &&
-      sameScale(mission.budget, approval.budget)
-    ) {
-      // Put back so a later poll can collect it once a spend lands.
-      const restore = () =>
-        store
-          .transitionApproval(tenant, "collected", approval)
-          .catch(() => false);
-      let spent: Mission | undefined;
-      try {
-        spent = await store.spend(
-          tenant,
-          mission.s256,
-          approval.budget.amount,
-          false,
-          now(),
-        );
-      } catch (error) {
-        await restore();
-        throw error;
-      }
-      if (!spent) {
-        await restore();
-        throw new AAuthError(
-          403,
-          "mission_terminated",
-          "the mission has ended",
-        );
-      }
-      issuedUnder = spent;
-    }
-    return Response.json(await authToken(agent, issuedUnder, approval.grant));
+    const issuedUnder = await access.spendApproved(
+      tenant,
+      approval,
+      mission,
+      false,
+      true,
+    );
+    return Response.json(await authToken(agent, issuedUnder!, approval.grant));
   }
+
+  const collected = () =>
+    problem(410, "collected", "this approval's token was already collected");
 
   // #endregion
 
@@ -1053,12 +1027,10 @@ export async function createPersonServer(options: PersonServerOptions) {
     request: Request,
     pathname = new URL(request.url).pathname,
   ): Promise<Response | undefined> {
-    if (request.method === "GET" && pathname === `/.well-known/${DWK}`)
-      return Response.json(metadata());
-    if (request.method === "GET" && pathname === "/.well-known/jwks.json")
-      return Response.json(signer.jwks);
-    if (base && !pathname.startsWith(`${base}/`)) return undefined;
-    const path = pathname.slice(base.length);
+    const served = discovery(request, pathname, DWK, metadata, signer.jwks);
+    if (served) return served;
+    const path = beneath(pathname, base);
+    if (path === undefined) return undefined;
     if (request.method === "POST" && path === "/mission")
       return proposeMission(request, path);
     const action = /^\/mission\/([^/]+)$/.exec(path);
@@ -1094,13 +1066,7 @@ export async function createPersonServer(options: PersonServerOptions) {
     request: Request,
     pathname?: string,
   ): Promise<Response> {
-    try {
-      return (await route(request, pathname)) ?? problem(404, "not_found");
-    } catch (err) {
-      if (err instanceof AAuthError)
-        return problem(err.status, err.error, err.message, err.headers);
-      return problem(500, "server_error", (err as Error).message);
-    }
+    return answer(() => route(request, pathname));
   }
 
   return {

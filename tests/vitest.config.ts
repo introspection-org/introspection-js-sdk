@@ -48,6 +48,14 @@ export default defineConfig({
         repoRoot,
         "packages/introspection-types/src/index.ts",
       ),
+      "@introspection-sdk/access-server": resolve(
+        repoRoot,
+        "packages/introspection-access-server/src/index.ts",
+      ),
+      "@introspection-sdk/aauth-resource": resolve(
+        repoRoot,
+        "packages/introspection-aauth-resource/src/index.ts",
+      ),
       "@introspection-sdk/person-server": resolve(
         repoRoot,
         "packages/introspection-person-server/src/index.ts",

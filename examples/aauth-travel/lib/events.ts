@@ -14,7 +14,9 @@ export type FlowEventType =
   | "acme.mission_completed"
   | "acme.approval_requested"
   | "acme.decided"
-  | "acme.auth_token_issued";
+  | "acme.auth_token_issued"
+  | "flightsector.as_allowed"
+  | "flightsector.as_denied";
 
 export interface FlowEvent {
   seq: number;

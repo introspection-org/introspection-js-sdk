@@ -19,6 +19,8 @@ import {
   ACME_APPROVAL_URL,
   BOOKING_ISSUER,
   BROWSERBASE_MCP_URL,
+  FLIGHTSECTOR_AS_URL,
+  FLIGHTSECTOR_FEDERATED,
 } from "../origins";
 import {
   ACTOR_HEADER,
@@ -163,6 +165,9 @@ export function snapshot() {
     hosts: {
       Acme: new URL(ACME_APPROVAL_URL).host,
       "Booking provider": new URL(BOOKING_ISSUER).host,
+      ...(FLIGHTSECTOR_FEDERATED
+        ? { "Flight Sector AS": new URL(FLIGHTSECTOR_AS_URL).host }
+        : {}),
       Browserbase: process.env.BROWSERBASE_API_KEY
         ? "mcp.browserbase.com"
         : `${new URL(BROWSERBASE_MCP_URL).host} (mock)`,

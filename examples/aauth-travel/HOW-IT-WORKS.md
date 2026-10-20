@@ -135,7 +135,7 @@ The connector's `policy_entities` and Sam's `policy_attributes` are what the rec
 
 ## The e2e script
 
-`pnpm e2e` plays the agent with [`@aauth/agent`](https://www.npmjs.com/package/@aauth/agent), as the egress would, from a test Agent Provider of its own. It gives the booking provider, Acme's Person Server and the test provider each a quick tunnel, starts the app trusting that provider, approves each email from the app's log, and stops it all at the end. With `PERSON_SERVER=hosted` and `E2E_SERVER_LOG` pointing at a running app's log, it plays the same agent against Introspection's hosted Person Server instead.
+`pnpm e2e` plays the agent with [`@aauth/agent`](https://www.npmjs.com/package/@aauth/agent), as the egress would, from a test Agent Provider of its own. It gives the booking provider, Acme's Person Server and the test provider each a quick tunnel, starts the app trusting that provider, approves each email from the app's log, and stops it all at the end. With `PERSON_SERVER=hosted` and `E2E_SERVER_LOG` pointing at a running app's log, it plays the same agent against Introspection's hosted Person Server instead. With `FLIGHTSECTOR_FEDERATED=1` it gives Flight Sector's Access Server a tunnel too, and checks that the Access Server allowed the booking.
 
 ## Settings
 
@@ -153,6 +153,9 @@ The connector's `policy_entities` and Sam's `policy_attributes` are what the rec
 | `ACME_PS_SUBJECT_SECRET`                                   | random per process                           | derives each person's directed `sub` per audience           |
 | `ACME_PS_SIGNING_KEY`, `BOOKING_SIGNING_KEY`               | generated per process                        | PKCS#8 Ed25519 PEMs for stable keys                         |
 | `RESEND_API_KEY`, `ACME_MAIL_FROM`                         | unset: print to console                      | how Acme emails Dana                                        |
+| `FLIGHTSECTOR_FEDERATED`                                   | unset                                        | `1`: Flight Sector runs its own Access Server (four-party)  |
+| `FLIGHTSECTOR_AS_URL`                                      | `https://as.flightsector.localhost`          | Flight Sector's Access Server identifier                    |
+| `FLIGHTSECTOR_ACCOUNTS`                                    | `acme@ACME_PERSON_SERVER_URL`                | companies with an account, as `tenant@person-server`        |
 | `ACME_WORKSPACE_ID`, `ACME_SAM_USER_ID`, `ACME_DANA_EMAIL` | the emulator's seed                          | Sam and Dana on a real Slack workspace                      |
 
 ## How the explainer works

@@ -41,6 +41,7 @@
       "passThroughEnv": [
         "BROWSERBASE_API_KEY",
         "FLIGHTSECTOR_DOMAIN",
+        "FLIGHTSECTOR_FEDERATED",
         "FLIGHTSECTOR_TUNNEL",
         "PERSON_SERVER",
         "RECIPE_URL",

@@ -14,7 +14,9 @@
 // With E2E_SERVER_LOG set it uses an app you started instead, at the parties'
 // URLs in the environment. With PERSON_SERVER=hosted it plays the agent
 // against Introspection's hosted Person Server (HOSTED_PERSON_SERVER_URL,
-// tenant E2E_TENANT), which must trust the provider.
+// tenant E2E_TENANT), which must trust the provider. With
+// FLIGHTSECTOR_FEDERATED=1 Flight Sector runs its own Access Server too, on a
+// tunnel of its own, and Acme's Person Server redeems each booking there.
 import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
@@ -31,6 +33,7 @@ import { SignJWT, exportJWK, generateKeyPair, importJWK } from "jose";
 
 const APP_PORT = Number(process.env.E2E_APP_PORT ?? 3400);
 const AP_PORT = Number(process.env.E2E_AP_PORT ?? 3499);
+const FEDERATED = process.env.FLIGHTSECTOR_FEDERATED === "1";
 const children = [];
 const stop = () => children.forEach((child) => child.kill());
 process.on("exit", stop);
@@ -70,10 +73,11 @@ async function reachable(url) {
 }
 
 if (!process.env.E2E_SERVER_LOG) {
-  const [booking, acme, provider] = await Promise.all([
+  const [booking, acme, provider, as] = await Promise.all([
     tunnel(APP_PORT),
     tunnel(APP_PORT),
     tunnel(AP_PORT),
+    ...(FEDERATED ? [tunnel(APP_PORT)] : []),
   ]);
   const log = join(tmpdir(), `aauth-travel-e2e-${process.pid}.log`);
   writeFileSync(log, "");
@@ -82,6 +86,7 @@ if (!process.env.E2E_SERVER_LOG) {
     ACME_PERSON_SERVER_URL: acme,
     E2E_AGENT_PROVIDER: provider,
     E2E_SERVER_LOG: log,
+    ...(as ? { FLIGHTSECTOR_AS_URL: as } : {}),
   });
   const app = spawn(
     "node_modules/.bin/next",
@@ -100,10 +105,13 @@ if (!process.env.E2E_SERVER_LOG) {
   const append = (chunk) => writeFileSync(log, chunk, { flag: "a" });
   app.stdout.on("data", append);
   app.stderr.on("data", append);
-  console.log(`booking ${booking}\nacme    ${acme}\nagents  ${provider}\n`);
+  console.log(
+    `booking ${booking}\nacme    ${acme}\nagents  ${provider}\n${as ? `as      ${as}\n` : ""}`,
+  );
   await reachable(`http://localhost:${APP_PORT}/`);
   await reachable(`${booking}/.well-known/aauth-resource.json`);
   await reachable(`${acme}/.well-known/aauth-person.json`);
+  if (as) await reachable(`${as}/.well-known/aauth-access.json`);
 }
 
 const BOOKING =
@@ -329,6 +337,15 @@ await scenario(
     );
     check(String(body.confirmation).startsWith("FS-"), "a confirmation");
     check(body.mission_s256 === mission.s256, "booked under the mission");
+    if (FEDERATED) {
+      const { events } = await (
+        await fetch(`http://localhost:${APP_PORT}/api/events`)
+      ).json();
+      check(
+        events.some((e) => e.type === "flightsector.as_allowed"),
+        "Flight Sector's Access Server allowed it",
+      );
+    }
   },
 );
 
