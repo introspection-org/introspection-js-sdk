@@ -286,6 +286,27 @@ export async function createPersonServer(options: PersonServerOptions) {
     };
   }
 
+  /** A signed request's verified agent and its JSON body. */
+  async function readSigned(
+    request: Request,
+    path: string,
+  ): Promise<{ agent: Agent; params: Record<string, unknown> }> {
+    const body = await request.text();
+    const agent = await verifyAgent(request, body, path);
+    return { agent, params: readBody(body) };
+  }
+
+  /** The tenant a request names, and the person its agent acts for there. */
+  async function requester(
+    agent: Agent,
+    params: Record<string, unknown>,
+  ): Promise<{ tenant: string; person: Person }> {
+    const named = tenantOf(params);
+    const tenant = tenantFor(named);
+    const person = await personFor(tenant, named, agent, params.login_hint);
+    return { tenant, person };
+  }
+
   /**
    * The person the agent acts for. Each agent key is bound to the first person
    * it names. Tokens carry the directory's tenant, else the one the agent named.
@@ -421,9 +442,7 @@ export async function createPersonServer(options: PersonServerOptions) {
     request: Request,
     path: string,
   ): Promise<Response> {
-    const body = await request.text();
-    const agent = await verifyAgent(request, body, path);
-    const params = readBody(body);
+    const { agent, params } = await readSigned(request, path);
     const resource = trim(String(params.resource ?? ""));
     if (!resource.startsWith("https://"))
       throw new AAuthError(
@@ -431,9 +450,7 @@ export async function createPersonServer(options: PersonServerOptions) {
         "invalid_request",
         "resource is an https origin",
       );
-    const named = tenantOf(params);
-    const tenant = tenantFor(named);
-    const person = await personFor(tenant, named, agent, params.login_hint);
+    const { tenant, person } = await requester(agent, params);
     const mission =
       params.mission_s256 === undefined
         ? undefined
@@ -471,12 +488,8 @@ export async function createPersonServer(options: PersonServerOptions) {
     request: Request,
     path: string,
   ): Promise<Response> {
-    const body = await request.text();
-    const agent = await verifyAgent(request, body, path);
-    const params = readBody(body);
-    const named = tenantOf(params);
-    const tenant = tenantFor(named);
-    const person = await personFor(tenant, named, agent, params.login_hint);
+    const { agent, params } = await readSigned(request, path);
+    const { tenant, person } = await requester(agent, params);
     const description = String(params.description ?? "");
     if (!description)
       throw new AAuthError(400, "invalid_request", "describe the mission");
@@ -493,9 +506,7 @@ export async function createPersonServer(options: PersonServerOptions) {
     path: string,
     hash: string,
   ): Promise<Response> {
-    const body = await request.text();
-    const agent = await verifyAgent(request, body, path);
-    const params = readBody(body);
+    const { agent, params } = await readSigned(request, path);
     const tenant = tenantFor(tenantOf(params));
     const mission = await liveMission(tenant, agent, hash);
     if (params.action === "update") {
@@ -659,9 +670,7 @@ export async function createPersonServer(options: PersonServerOptions) {
     request: Request,
     path: string,
   ): Promise<Response> {
-    const body = await request.text();
-    const agent = await verifyAgent(request, body, path);
-    const params = readBody(body);
+    const { agent, params } = await readSigned(request, path);
     const { tenant, rt, mission, resource } = await verifyResourceToken(
       agent,
       params,

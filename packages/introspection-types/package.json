@@ -18,6 +18,10 @@
     ".": {
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
+    },
+    "./logs": {
+      "types": "./dist/logs.d.ts",
+      "default": "./dist/logs.js"
     }
   },
   "files": [
@@ -26,22 +30,33 @@
   "scripts": {
     "build": "rm -rf dist && tsc",
     "clean": "rm -rf dist",
-    "prepare": "rm -rf dist && tsc"
+    "prepare": "rm -rf dist && tsc",
+    "check:package": "publint --strict && attw --pack . --profile esm-only"
   },
   "dependencies": {
     "@ag-ui/core": "0.0.59"
   },
   "devDependencies": {
+    "@opentelemetry/api": "^1.9.1",
+    "@opentelemetry/api-logs": "^0.223.0",
     "@opentelemetry/sdk-logs": "^0.223.0",
     "@opentelemetry/sdk-trace-base": "^2.12.0",
     "@repo/typescript-config": "workspace:*",
     "typescript": "5.9.3"
   },
   "peerDependencies": {
+    "@opentelemetry/api": ">=1.9.0",
+    "@opentelemetry/api-logs": ">=0.200.0",
     "@opentelemetry/sdk-logs": ">=0.200.0",
     "@opentelemetry/sdk-trace-base": ">=2.0.0"
   },
   "peerDependenciesMeta": {
+    "@opentelemetry/api": {
+      "optional": true
+    },
+    "@opentelemetry/api-logs": {
+      "optional": true
+    },
     "@opentelemetry/sdk-trace-base": {
       "optional": true
     }

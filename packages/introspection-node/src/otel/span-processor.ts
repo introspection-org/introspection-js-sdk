@@ -59,79 +59,26 @@ const IDENTITY_BAGGAGE_TO_ATTRIBUTE: Readonly<Record<string, string>> = {
 };
 
 /**
- * A {@link ReadableSpan} wrapper that substitutes the original attributes with
- * a converted set while delegating every other property to the original span.
+ * A {@link ReadableSpan} view that substitutes the original attributes (and,
+ * when given, the resource) while delegating every other property to the
+ * original span.
  *
  * Used internally by {@link IntrospectionSpanProcessor} to convert
  * `gen_ai` spans to the Introspection backend.
  */
-class ConvertedReadableSpan implements ReadableSpan {
-  private _original: ReadableSpan;
-  private _convertedAttributes: Attributes;
-  private _resource?: Resource;
-
-  constructor(
-    original: ReadableSpan,
-    convertedAttributes: Attributes,
-    resource?: Resource,
-  ) {
-    this._original = original;
-    this._convertedAttributes = convertedAttributes;
-    this._resource = resource;
-  }
-
-  get name() {
-    return this._original.name;
-  }
-  get kind() {
-    return this._original.kind;
-  }
-  spanContext() {
-    return this._original.spanContext();
-  }
-  get parentSpanContext() {
-    return this._original.parentSpanContext;
-  }
-  get startTime() {
-    return this._original.startTime;
-  }
-  get endTime() {
-    return this._original.endTime;
-  }
-  get status() {
-    return this._original.status;
-  }
-  get links() {
-    return this._original.links;
-  }
-  get events() {
-    return this._original.events;
-  }
-  get duration() {
-    return this._original.duration;
-  }
-  get ended() {
-    return this._original.ended;
-  }
-  get resource() {
-    return this._resource ?? this._original.resource;
-  }
-  get instrumentationScope() {
-    return this._original.instrumentationScope;
-  }
-  get droppedAttributesCount() {
-    return this._original.droppedAttributesCount;
-  }
-  get droppedEventsCount() {
-    return this._original.droppedEventsCount;
-  }
-  get droppedLinksCount() {
-    return this._original.droppedLinksCount;
-  }
-
-  get attributes() {
-    return this._convertedAttributes;
-  }
+function convertedReadableSpan(
+  original: ReadableSpan,
+  convertedAttributes: Attributes,
+  resource?: Resource,
+): ReadableSpan {
+  return new Proxy(original, {
+    get(target, property) {
+      if (property === "attributes") return convertedAttributes;
+      if (property === "resource") return resource ?? target.resource;
+      const value: unknown = Reflect.get(target, property, target);
+      return typeof value === "function" ? value.bind(target) : value;
+    },
+  });
 }
 
 export interface IntrospectionSpanProcessorOptions {
@@ -366,7 +313,7 @@ export class IntrospectionSpanProcessor implements SpanProcessor {
       }
       this._spanProcessor.onEnd(
         Object.keys(baggageAttrs).length > 0 || infraResource
-          ? new ConvertedReadableSpan(
+          ? convertedReadableSpan(
               span,
               { ...span.attributes, ...baggageAttrs } as Attributes,
               infraResource,
@@ -462,7 +409,7 @@ export class IntrospectionSpanProcessor implements SpanProcessor {
       );
     }
 
-    const processedSpan = new ConvertedReadableSpan(
+    const processedSpan = convertedReadableSpan(
       span,
       attrs as Attributes,
       resource,

@@ -63,6 +63,17 @@ Each PR links the other, and later drift adds commits to both (the live branch m
 
 Review both PRs like any other. To change what Claude may do, edit the two prompts under `.github/`. If a branch is left behind by a closed, unmerged PR, delete the branch, or the next run fails. If only the live-tests job fails, rerun that job from the run page; a new run skips it when the fix PR already covers the drift. Run the workflow by hand with `gh workflow run api-contract-fix.yml`.
 
+### Duplicate code (jscpd)
+
+```bash
+pnpm jscpd           # exact clones
+pnpm jscpd:renamed   # clones that differ only in identifier names
+```
+
+Both run a pinned `jscpd@5.4.1` over `packages/*/src` TypeScript (`.jscpd.json`: weak mode, `dist/` and `*.d.ts` ignored, 53 tokens / 9 lines minimum), and the `Duplicate Code` CI job fails on any clone from either. There is no threshold and no baseline: the count is zero and stays there.
+
+When one fires, extract the shared code: a helper in the package both copies already depend on (`@introspection-sdk/http` for resources, `@introspection-sdk/types` for pure helpers, a subpath such as `@introspection-sdk/types/logs` when the helper needs an OTel import the main entry must not take). Wrap a block in `// jscpd:ignore-start -- <reason>` / `// jscpd:ignore-end` only when it is declarations, not logic: a re-export list, an import list, or interface or field declarations that mirror a wire schema. Never use the markers on code that runs.
+
 ---
 
 ## 4. Repo layout conventions
@@ -250,6 +261,12 @@ d=$(mktemp -d) && cd "$d" && echo '{"name":"@introspection-sdk/<package>","versi
 ```
 
 Mark a package `"private": true` to keep it off npm.
+
+### Package checks
+
+CI runs `pnpm check:packages` after `pnpm build` and fails on any finding. It runs each public package's `check:package` script: `publint --strict`, then `attw --pack . --profile esm-only` (`@arethetypeswrong/cli`). Run it locally after `pnpm build`. A new public package needs the same `check:package` script.
+
+The packages are ESM-only (`"type": "module"`, no CommonJS build). The `esm-only` profile ignores the `node10` and `node16`-from-CJS resolutions, because `require()` and the legacy `moduleResolution: "node"` are unsupported; supporting them would need a dual build. Every other attw problem in `node16`-from-ESM and `bundler` still fails the check.
 
 <!-- BEGIN:turborepo-agent-rules -->
 

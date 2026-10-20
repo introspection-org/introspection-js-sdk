@@ -29,7 +29,9 @@ Write them in the style of the existing suite in `tests/live/live-api.test.ts`:
 
 - Get the client with `liveClient(ctx, credential)`. Use `"serviceAccount"`
   unless the route needs a scope only a member holds (`"member"`, `"session"`).
-  A missing setting skips the test; never read `process.env` directly.
+  Without `INTROSPECTION_LIVE=1` the test skips; with it, a missing setting
+  fails the test. Read settings only through `liveClient` and `setting`, never
+  from `process.env` directly.
 - Name everything with `unique(prefix)`, read listings with `collect(...)`,
   and assert error responses with `expectStatus(promise, ErrorClass, status)`.
 - Each test creates what it reads and deletes it again, in `try`/`finally` when

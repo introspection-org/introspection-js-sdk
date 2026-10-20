@@ -5,9 +5,8 @@ import type {
   FileType,
   FileUpdateParams,
   ListParams,
-  Paginated,
 } from "@introspection-sdk/types";
-import { Paginator, cursorPaginate } from "../pagination.js";
+import { Paginator, paginateGet } from "../pagination.js";
 import { encodeMetadataFilter } from "./metadata-filter.js";
 import type { ResourceHttpClient } from "./types.js";
 
@@ -40,13 +39,10 @@ export class FileVersionsClient {
    * stop early to stop fetching).
    */
   list(fileId: string, params?: ListParams): Paginator<FileResource> {
-    return cursorPaginate(
-      (next) =>
-        this.http.request<Paginated<FileResource>>({
-          method: "GET",
-          path: `/v1/files/${encodeURIComponent(fileId)}/versions`,
-          query: { ...params, next } as Record<string, unknown>,
-        }),
+    return paginateGet<FileResource>(
+      this.http,
+      `/v1/files/${encodeURIComponent(fileId)}/versions`,
+      params,
       params?.next,
     );
   }
@@ -82,16 +78,10 @@ export class FilesClient {
    * stop fetching).
    */
   list(params?: FileListParams): Paginator<FileResource> {
-    return cursorPaginate(
-      (next) =>
-        this.http.request<Paginated<FileResource>>({
-          method: "GET",
-          path: "/v1/files",
-          query: { ...encodeMetadataFilter(params), next } as Record<
-            string,
-            unknown
-          >,
-        }),
+    return paginateGet<FileResource>(
+      this.http,
+      "/v1/files",
+      encodeMetadataFilter(params),
       params?.next,
     );
   }

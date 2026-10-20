@@ -117,6 +117,7 @@ export { AnnotationsApi, attachAnnotations } from "./resources/annotations.js";
 export { TagsApi, attachTags } from "./resources/tags.js";
 
 // REST API wire types
+// jscpd:ignore-start -- re-export list of wire type names
 export type {
   AGUIEvent,
   BaseEvent,
@@ -324,6 +325,7 @@ export type {
   MetricQueryMeta,
   MetricQueryResponse,
 } from "@introspection-sdk/types";
+// jscpd:ignore-end
 export {
   ConversationsMethods,
   IntrospectionEventNames,
