@@ -9,6 +9,7 @@ export type FlowEventType =
   | "booking.quoted"
   | "booking.challenged"
   | "booking.reserved"
+  | "booking.cancelled"
   | "acme.mission_approved"
   | "acme.mission_completed"
   | "acme.approval_requested"

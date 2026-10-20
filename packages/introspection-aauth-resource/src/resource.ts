@@ -108,6 +108,18 @@ export type Authorization =
     }
   | { ok: false; response: Response };
 
+export type Identification =
+  | {
+      ok: true;
+      token: VerifiedToken;
+      /** The person the call is for, as their Person Server names them. */
+      sub: string;
+      /** The person's Person Server. */
+      ps: string;
+      mission_s256?: string;
+    }
+  | { ok: false; response: Response };
+
 export interface AAuthResource {
   readonly issuer: string;
   /** `/.well-known/aauth-resource.json`. */
@@ -136,6 +148,17 @@ export interface AAuthResource {
         ) => AuthorizeRequest | Promise<AuthorizeRequest>),
     options?: { url?: string },
   ): Promise<Authorization>;
+  /**
+   * Admit a call on a person token alone, for an operation that spends nothing
+   * and needs no one's approval, such as undoing the person's own earlier call:
+   * it says who the agent acts for and under which mission, and the resource
+   * checks the call against that. Answers the person-token challenge otherwise.
+   */
+  authenticate(
+    request: Request,
+    body: string,
+    options?: { url?: string },
+  ): Promise<Identification>;
   /** An R3 proposal, to the Person Server it was published for and no one else. */
   serveProposal(request: Request, key: string): Promise<Response>;
   /** Serve this resource's discovery documents and R3 proposals; undefined for other paths. */
@@ -398,6 +421,53 @@ export async function createAAuthResource(
     }
   }
 
+  async function authenticate(
+    request: Request,
+    body: string,
+    { url }: { url?: string } = {},
+  ): Promise<Identification> {
+    try {
+      if (!request.headers.get("signature-key"))
+        return {
+          ok: false,
+          response: challenge(
+            { requirement: "person-token" },
+            "sign the request",
+          ),
+        };
+      const signed = await verifySignature(
+        request,
+        body,
+        url ?? `${issuer}${new URL(request.url).pathname}`,
+      );
+      const token = await verifyPresented(signed, ["agent", "person", "auth"]);
+      if (token.type === "agent")
+        return {
+          ok: false,
+          response: challenge(
+            { requirement: "person-token" },
+            "present a person token from the person's Person Server",
+          ),
+        };
+      return {
+        ok: true,
+        token,
+        sub: token.sub,
+        ps: token.type === "auth" ? token.ps : token.iss,
+        ...("mission_s256" in token && token.mission_s256
+          ? { mission_s256: token.mission_s256 }
+          : {}),
+      };
+    } catch (err) {
+      if (err instanceof AAuthError)
+        return {
+          ok: false,
+          response: problem(err.status, err.error, err.message, err.headers),
+        };
+      throw err;
+    }
+  }
+
   // #region serve-r3
   /** An R3 proposal, to the Person Server it was published for and no one else. */
   async function serveProposal(
@@ -464,6 +534,7 @@ export async function createAAuthResource(
       }
     },
     authorize,
+    authenticate,
     serveProposal,
     async handle(request) {
       const { pathname } = new URL(request.url);
