@@ -46,6 +46,27 @@ jobs:
       - name: Build packages
         run: pnpm build
 
+      # Docs pattern-page snippets (examples/observe, identity, patterns). Left
+      # out: identity-agents, patterns-multi-tenant and patterns-trigger (their
+      # regions hardcode the docs' runtime slugs), patterns-add-to-your-app
+      # and patterns-web-chat (no service-account secrets here), and
+      # patterns-per-user-tools(-connect) (need a Pipedream connector).
+      # examples/browser is typecheck-only.
+      - name: Run pattern examples
+        if: inputs.run_examples
+        working-directory: examples
+        env:
+          INTROSPECTION_TOKEN: ${{ secrets.INTROSPECTION_TOKEN }}
+          INTROSPECTION_BASE_OTEL_URL: ${{ vars.INTROSPECTION_BASE_OTEL_URL }}
+        run: |
+          pnpm observe-feedback-events
+          pnpm identity-sharing
+          pnpm patterns-agent-follow-ups
+          pnpm patterns-approve-outside
+          pnpm patterns-ask-the-user
+          pnpm patterns-files
+          pnpm patterns-structured-output
+
       - name: Run examples
         if: inputs.run_examples
         working-directory: examples/otel

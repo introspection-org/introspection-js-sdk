@@ -74,6 +74,33 @@ adopt it.
 pnpm pi-dual-export               # + a second OTLP backend
 ```
 
+## Docs pattern snippets
+
+`observe/`, `identity/` and `patterns/` back the code blocks on the docs'
+pattern, observe and identity pages, one module per page; `browser/` holds the
+browser side of the web-chat page as its own package (DOM types, typecheck
+only). The docs extract the code between `// #region docs:<id>` and
+`// #endregion docs:<id>` at a pinned release tag; the code around a region
+does the setup the docs leave out. Prettier skips these folders so the regions
+keep the docs' layout.
+
+```bash
+pnpm observe-feedback-events         # IntrospectionLogs feedback + track for a conversation
+pnpm identity-agents                 # Runner for an end user
+pnpm identity-sharing                # Share a conversation
+pnpm patterns-add-to-your-app        # Service-account runner, start, reconnect, feedback
+pnpm patterns-agent-follow-ups       # Time zone on the task
+pnpm patterns-approve-outside        # Steer with a <user_action>
+pnpm patterns-ask-the-user           # Detect an interrupt and resume it
+pnpm patterns-files                  # Upload, attach, download
+pnpm patterns-multi-tenant           # End-user tags + per-task metadata
+pnpm patterns-per-user-tools         # Mint a connector authorize link for an end user
+pnpm patterns-per-user-tools-connect # The end user's own connect button
+pnpm patterns-structured-output      # Read submit_result args from the stream, validate
+pnpm patterns-trigger                # Task per webhook event, batch in waves
+pnpm patterns-web-chat               # Broker route (service account) + federated variant
+```
+
 ## Manual instrumentation
 
 There are no examples for it here — the OTel examples cover Pi only. For

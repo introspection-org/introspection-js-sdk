@@ -1,0 +1,45 @@
+/**
+ * The browser side of a web chat: connect with a session from your broker
+ * route, start a task and stream its text, attach files to a later turn, and
+ * resume the stream after a reload.
+ *
+ * Typecheck only: it needs a page, a signed-in user and the broker route in
+ * `examples/patterns/web-chat.ts`, so it is not run in the examples workflow.
+ */
+
+// #region docs:patterns/web-chat/browser-connect
+import { EventType, IntrospectionApiClient } from "@introspection-sdk/introspection-browser/api";
+
+const session = () => fetch("/api/introspection/session", { method: "POST" }).then((r) => r.json());
+const first = await session();
+const client = new IntrospectionApiClient({
+  dpUrl: first.dpUrl,
+  getToken: async () => (await session()).token, // always mint fresh
+});
+await client.connect();
+
+const handle = await client.tasks.start({ runtime_id: first.runtimeId, prompt: text });
+saveTaskId(handle.run.task_id); // before streaming: it is also the conversation ID
+for await (const event of handle.stream()) {
+  if (event.type === EventType.TEXT_MESSAGE_CONTENT) appendDelta(event.delta ?? "");
+}
+// #endregion docs:patterns/web-chat/browser-connect
+
+// #region docs:patterns/web-chat/attach-files
+const f = await client.files.upload({ file: input.files![0] });
+await client.tasks.runs.create(taskId, { kind: "prompt", prompt: { text }, files: [{ id: f.id }] });
+// #endregion docs:patterns/web-chat/attach-files
+
+// #region docs:patterns/web-chat/resume
+const task = await client.tasks.get(taskId);
+const { active_run_id, latest_run_id } = (task.metadata ?? {}) as Record<string, string>;
+for await (const event of client.tasks.runs.stream(taskId, active_run_id ?? latest_run_id)) render(event);
+// #endregion docs:patterns/web-chat/resume
+
+// Stand-ins for your page.
+declare const text: string;
+declare const input: HTMLInputElement;
+declare const taskId: string;
+declare function saveTaskId(taskId: string): void;
+declare function appendDelta(delta: string): void;
+declare function render(event: { type: string }): void;
