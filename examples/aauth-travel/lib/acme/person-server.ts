@@ -42,7 +42,7 @@ interface Asked {
 /** Keeps missions where the demo page can read them as they change. */
 class AcmeStore extends MemoryStore {
   readonly trips = new Map<string, Mission>();
-  override async insertMission(tenant: string | undefined, mission: Mission) {
+  override async insertMission(tenant: string, mission: Mission) {
     const inserted = await super.insertMission(tenant, mission);
     if (inserted) this.trips.set(mission.s256, mission);
     return inserted;
@@ -160,6 +160,8 @@ export function personServer(): Promise<PersonServer> {
     signingKey: process.env.ACME_PS_SIGNING_KEY,
     subjectSecret: process.env.ACME_PS_SUBJECT_SECRET,
     store: state.store,
+    // Every Acme person is in the acme tenant, whether or not the agent names it.
+    defaultTenant: TENANT,
     directory: {
       person: (hint) => {
         const found = employee(hint);

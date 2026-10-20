@@ -1,5 +1,6 @@
 export {
   createPersonServer,
+  DEFAULT_TENANT,
   type Issued,
   type PersonServer,
   type PersonServerOptions,

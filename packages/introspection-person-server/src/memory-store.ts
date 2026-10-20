@@ -2,19 +2,19 @@ import type { Approval, ApprovalStatus, Mission, Store } from "./types.js";
 
 /** One tenant's records of one kind, by their own identifiers. */
 class Scoped<T> {
-  private readonly byTenant = new Map<string | undefined, Map<string, T>>();
+  private readonly byTenant = new Map<string, Map<string, T>>();
 
-  get(tenant: string | undefined, id: string) {
+  get(tenant: string, id: string) {
     return this.byTenant.get(tenant)?.get(id);
   }
 
-  set(tenant: string | undefined, id: string, value: T) {
+  set(tenant: string, id: string, value: T) {
     let records = this.byTenant.get(tenant);
     if (!records) this.byTenant.set(tenant, (records = new Map()));
     records.set(id, value);
   }
 
-  all(tenant: string | undefined) {
+  all(tenant: string) {
     return [...(this.byTenant.get(tenant)?.values() ?? [])];
   }
 }
@@ -25,29 +25,29 @@ export class MemoryStore implements Store {
   private readonly missionsByHash = new Scoped<Mission>();
   private readonly approvalsById = new Scoped<Approval>();
 
-  async binding(tenant: string | undefined, jkt: string) {
+  async binding(tenant: string, jkt: string) {
     return this.bindings.get(tenant, jkt);
   }
 
-  async bind(tenant: string | undefined, jkt: string, personId: string) {
+  async bind(tenant: string, jkt: string, personId: string) {
     const bound = this.bindings.get(tenant, jkt);
     if (bound) return bound;
     this.bindings.set(tenant, jkt, personId);
     return personId;
   }
 
-  async mission(tenant: string | undefined, s256: string) {
+  async mission(tenant: string, s256: string) {
     return this.missionsByHash.get(tenant, s256);
   }
 
-  async insertMission(tenant: string | undefined, mission: Mission) {
+  async insertMission(tenant: string, mission: Mission) {
     if (this.missionsByHash.get(tenant, mission.s256)) return false;
     this.missionsByHash.set(tenant, mission.s256, mission);
     return true;
   }
 
   async spend(
-    tenant: string | undefined,
+    tenant: string,
     s256: string,
     amount: number,
     withinBudget: boolean,
@@ -70,7 +70,7 @@ export class MemoryStore implements Store {
   }
 
   async logMission(
-    tenant: string | undefined,
+    tenant: string,
     s256: string,
     entry: { at: number; entry: string },
     now: number,
@@ -86,26 +86,26 @@ export class MemoryStore implements Store {
     return true;
   }
 
-  async endMission(tenant: string | undefined, s256: string, at: number) {
+  async endMission(tenant: string, s256: string, at: number) {
     const mission = this.missionsByHash.get(tenant, s256);
     if (mission) mission.completed_at ??= at;
     return mission;
   }
 
-  async missions(tenant: string | undefined) {
+  async missions(tenant: string) {
     return this.missionsByHash.all(tenant);
   }
 
-  async approval(tenant: string | undefined, id: string) {
+  async approval(tenant: string, id: string) {
     return this.approvalsById.get(tenant, id);
   }
 
-  async putApproval(tenant: string | undefined, approval: Approval) {
+  async putApproval(tenant: string, approval: Approval) {
     this.approvalsById.set(tenant, approval.id, approval);
   }
 
   async transitionApproval(
-    tenant: string | undefined,
+    tenant: string,
     expected: ApprovalStatus,
     next: Approval,
   ) {
@@ -115,7 +115,7 @@ export class MemoryStore implements Store {
     return true;
   }
 
-  async approvals(tenant: string | undefined) {
+  async approvals(tenant: string) {
     return this.approvalsById.all(tenant);
   }
 }

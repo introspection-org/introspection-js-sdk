@@ -35,12 +35,16 @@ const ps = await createPersonServer({
 // Any framework: one catch-all route.
 export default { fetch: (request: Request) => ps.handle(request) };
 
-// When the approver answers:
-await ps.decide(approvalId, {
-  status: "approved",
-  budget: { amount: 300_000, unit: "USD", decimals: 2 }, // a mission's budget
-  decided_by: "dana@acme.example",
-});
+// When the approver answers, under the tenant it was asked under:
+await ps.decide(
+  approval.id,
+  {
+    status: "approved",
+    budget: { amount: 300_000, unit: "USD", decimals: 2 }, // a mission's budget
+    decided_by: "dana@acme.example",
+  },
+  approval.tenant,
+);
 ```
 
 ## Run it on its own
@@ -123,13 +127,11 @@ curl -X POST -H "authorization: Bearer $PS_ADMIN_TOKEN" -H "content-type: applic
   "https://ps.acme.example/consent/<approval id>/decision"
 ```
 
-An agent that names a `tenant` names it on every request, `/token` included: the tokens it is given carry that tenant, and an auth token request that names a tenant other than its presented token's is refused.
-
-A person's tenant is the directory's: when `directory.person` returns a person with a `tenant`, a request naming another tenant is refused with `403`, and one naming none is given tokens carrying the directory's. A person returned without a `tenant` takes the one the request named, so a directory that serves several tenants checks the `tenant` it is passed and returns `undefined` for someone outside it.
+Every request is under a tenant: the `tenant` the agent names (in the body of each POST, in the pending URL `/pending/{tenant}/{id}` of each poll), else `defaultTenant` (`"default"` unless set). With `requireTenant: true` there is no default, and a request naming none is answered `400` before anything is recorded. `directory.person` is passed that tenant. A person it returns with a `tenant` is in that tenant alone: a request under any other is refused with `403`, so a directory that stamps one tenant on its people sets `defaultTenant` to it. A person returned without a `tenant` takes the request's, so a directory that serves several tenants checks the `tenant` it is passed and returns `undefined` for someone outside it. Tokens carry the directory's tenant, else the one the agent named, so tokens for a request under the default with no directory tenant carry none. An auth token request is refused unless it is under the tenant its presented token was issued under (a token with no `tenant` was issued under the default).
 
 An Introspection connector uses it once its `person_server_url` names `issuer`.
 
-Keep the signing key and subject secret stable: resources cache your keys, and each person's directed `sub` is derived from the secret. The default store is in memory; implement `Store` for anything that must survive a restart. Every `Store` method takes the request's tenant first (the `tenant` the agent named, `undefined` when it named none), and records are kept apart per tenant: a record is found only under the tenant it was saved with. Pass the same tenant to `ps.decide()`, `ps.mission()` and the other lookups, or `?tenant=` to the management routes. `spend` must check and add in one step, and `transitionApproval` must change an approval only from the status it expects, so each decision and each collection happens once.
+Keep the signing key and subject secret stable: resources cache your keys, and each person's directed `sub` is derived from the secret. The default store is in memory; implement `Store` for anything that must survive a restart. Every `Store` method takes the request's tenant first, always a string, and records are kept apart per tenant: a record is found only under the tenant it was saved with. Each `Approval` and `Mission` records its `tenant`. Pass it to `ps.decide()`, `ps.terminate()`, `ps.mission()` and the other lookups, which all take it, or `?tenant=` to the management routes, which default to `defaultTenant`. `spend` must check and add in one step, and `transitionApproval` must change an approval only from the status it expects, so each decision and each collection happens once.
 
 ## Routes
 

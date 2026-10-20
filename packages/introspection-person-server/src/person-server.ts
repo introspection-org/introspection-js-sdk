@@ -51,6 +51,8 @@ type CryptoKeyLike = CryptoKey | KeyObject;
 
 const ALG = "Ed25519";
 const DWK = "aauth-person.json";
+/** The tenant a request that names none is under, unless `defaultTenant` or `requireTenant` says otherwise. */
+export const DEFAULT_TENANT = "default";
 
 export interface PersonServerOptions {
   /** This Person Server's identifier: `https://host`, no port or path. */
@@ -65,6 +67,10 @@ export interface PersonServerOptions {
   subjectSecret?: string;
   /** Where state is kept; in memory by default. */
   store?: Store;
+  /** The tenant a request that names none is under. Default: `DEFAULT_TENANT`. */
+  defaultTenant?: string;
+  /** Every request names its tenant: there is no default, and one naming none is a `400`. */
+  requireTenant?: boolean;
   /** Where the routes live under the issuer, e.g. `/ps`. Default: the root. */
   basePath?: string;
   /** Called with each new approval, to reach whoever decides. */
@@ -188,6 +194,16 @@ export async function createPersonServer(options: PersonServerOptions) {
   const missionTtl = options.missionTtlSeconds ?? 14 * 24 * 60 * 60;
   const approvalTtl = options.approvalTtlSeconds ?? 24 * 60 * 60;
   const retryAfter = options.retryAfterSeconds ?? 5;
+  const defaultTenant = options.requireTenant
+    ? undefined
+    : options.defaultTenant || DEFAULT_TENANT;
+  /** The tenant a request is under: the one it names, else the default. */
+  const tenantFor = (named: string | undefined): string => {
+    const tenant = named ?? defaultTenant;
+    if (tenant === undefined)
+      throw new AAuthError(400, "invalid_request", "name the tenant");
+    return tenant;
+  };
   const trusted =
     typeof options.trustedAgentProviders === "function"
       ? options.trustedAgentProviders
@@ -202,12 +218,8 @@ export async function createPersonServer(options: PersonServerOptions) {
     token: url("/token"),
     mission: url("/mission"),
     /** Where the agent polls approval `id`, asked under `tenant`. */
-    pending: (id: string, tenant?: string) =>
-      url(
-        tenant
-          ? `/pending/${encodeURIComponent(tenant)}/${id}`
-          : `/pending/${id}`,
-      ),
+    pending: (id: string, tenant: string) =>
+      url(`/pending/${encodeURIComponent(tenant)}/${id}`),
   };
 
   // #region verify-agent
@@ -276,11 +288,15 @@ export async function createPersonServer(options: PersonServerOptions) {
     };
   }
 
-  /** The person the agent acts for. Each agent key is bound to the first person it names. */
+  /**
+   * The person the agent acts for. Each agent key is bound to the first person
+   * it names. Tokens carry the directory's tenant, else the one the agent named.
+   */
   async function personFor(
     agent: Agent,
     loginHint: unknown,
-    tenant: string | undefined,
+    tenant: string,
+    named: string | undefined,
   ): Promise<Person> {
     const hint = typeof loginHint === "string" ? loginHint : undefined;
     const hinted = hint
@@ -294,7 +310,7 @@ export async function createPersonServer(options: PersonServerOptions) {
       );
     if (hinted) {
       // The directory's tenant is the person's; a request cannot move them.
-      if (hinted.tenant && tenant && hinted.tenant !== tenant)
+      if (hinted.tenant && hinted.tenant !== tenant)
         throw new AAuthError(
           403,
           "invalid_request",
@@ -307,7 +323,7 @@ export async function createPersonServer(options: PersonServerOptions) {
           "invalid_request",
           "this agent acts for another person",
         );
-      return hinted.tenant || !tenant ? hinted : { ...hinted, tenant };
+      return hinted.tenant || !named ? hinted : { ...hinted, tenant: named };
     }
     const bound = await store.binding(tenant, agent.jkt);
     if (!bound)
@@ -319,7 +335,7 @@ export async function createPersonServer(options: PersonServerOptions) {
     const person = (await store.approvals(tenant)).find(
       (a) => a.person.id === bound,
     )?.person;
-    return person ?? { id: bound, ...(tenant ? { tenant } : {}) };
+    return person ?? { id: bound, ...(named ? { tenant: named } : {}) };
   }
   // #endregion
 
@@ -421,8 +437,9 @@ export async function createPersonServer(options: PersonServerOptions) {
         "invalid_request",
         "resource is an https origin",
       );
-    const tenant = tenantOf(params);
-    const person = await personFor(agent, params.login_hint, tenant);
+    const named = tenantOf(params);
+    const tenant = tenantFor(named);
+    const person = await personFor(agent, params.login_hint, tenant, named);
     const mission =
       params.mission_s256 === undefined
         ? undefined
@@ -438,7 +455,7 @@ export async function createPersonServer(options: PersonServerOptions) {
   /** The live mission `s256` names, if it is this agent's; the same 404 otherwise. */
   async function liveMission(
     agent: Agent,
-    tenant: string | undefined,
+    tenant: string,
     hash: unknown,
   ): Promise<Mission> {
     const mission =
@@ -463,8 +480,9 @@ export async function createPersonServer(options: PersonServerOptions) {
     const body = await request.text();
     const agent = await verifyAgent(request, body, path);
     const params = readBody(body);
-    const tenant = tenantOf(params);
-    const person = await personFor(agent, params.login_hint, tenant);
+    const named = tenantOf(params);
+    const tenant = tenantFor(named);
+    const person = await personFor(agent, params.login_hint, tenant, named);
     const description = String(params.description ?? "");
     if (!description)
       throw new AAuthError(400, "invalid_request", "describe the mission");
@@ -484,7 +502,7 @@ export async function createPersonServer(options: PersonServerOptions) {
     const body = await request.text();
     const agent = await verifyAgent(request, body, path);
     const params = readBody(body);
-    const tenant = tenantOf(params);
+    const tenant = tenantFor(tenantOf(params));
     const mission = await liveMission(agent, tenant, hash);
     if (params.action === "update") {
       const entry = String(params.description ?? "");
@@ -561,9 +579,11 @@ export async function createPersonServer(options: PersonServerOptions) {
       throw invalid("not a JWT");
     }
     const resource = trim(String(unverified.iss ?? ""));
-    const tenant = tenantOf(params);
-    // Unnamed, the lookups below are scoped to no tenant, so another tenant's token finds nothing.
-    if (tenant !== undefined && presented.tenant !== tenant)
+    const tenant = tenantFor(tenantOf(params));
+    // A token that carries no tenant was issued under the default.
+    const tokenTenant =
+      typeof presented.tenant === "string" ? presented.tenant : defaultTenant;
+    if (tokenTenant !== tenant)
       throw invalid("tenant does not match the presented token");
     // The mission's approved resources are the only issuers whose keys are fetched.
     const mission =
@@ -707,7 +727,7 @@ export async function createPersonServer(options: PersonServerOptions) {
     agent: Agent,
     person: Person,
     description: string,
-    tenant: string | undefined,
+    tenant: string,
     extra: Partial<
       Pick<
         Approval,
@@ -730,7 +750,7 @@ export async function createPersonServer(options: PersonServerOptions) {
       description,
       grant: {},
       ...extra,
-      ...(tenant ? { tenant } : {}),
+      tenant,
       created_at: created,
       expires_at: created + approvalTtl,
     };
@@ -739,7 +759,7 @@ export async function createPersonServer(options: PersonServerOptions) {
     return stillPending(approval.id, tenant);
   }
 
-  const stillPending = (id: string, tenant: string | undefined) =>
+  const stillPending = (id: string, tenant: string) =>
     Response.json(
       { status: "pending" },
       {
@@ -760,7 +780,7 @@ export async function createPersonServer(options: PersonServerOptions) {
   async function pendingState(
     request: Request,
     path: string,
-    tenant: string | undefined,
+    tenant: string,
     id: string,
   ): Promise<Response> {
     const agent = await verifyAgent(request, undefined, path);
@@ -860,7 +880,7 @@ export async function createPersonServer(options: PersonServerOptions) {
   async function decide(
     id: string,
     decision: Decision,
-    tenant?: string,
+    tenant: string,
   ): Promise<Approval> {
     const approval = await store.approval(tenant, id);
     if (!approval) throw new AAuthError(404, "not_found", "no such approval");
@@ -910,7 +930,7 @@ export async function createPersonServer(options: PersonServerOptions) {
           spent: 0,
           log: [],
           expires_at,
-          ...(tenant ? { tenant } : {}),
+          tenant,
         };
         decided.mission_s256 = created.s256;
       } else if (approval.mission_s256) {
@@ -953,7 +973,7 @@ export async function createPersonServer(options: PersonServerOptions) {
       );
   }
 
-  async function terminate(hash: string, tenant?: string): Promise<Mission> {
+  async function terminate(hash: string, tenant: string): Promise<Mission> {
     const ended = await store.endMission(tenant, hash, now());
     if (!ended)
       throw new AAuthError(404, "mission_not_found", "no such mission");
@@ -969,7 +989,7 @@ export async function createPersonServer(options: PersonServerOptions) {
     if (!consent && !mission) return undefined;
     admitted(request);
     const query = new URL(request.url).searchParams;
-    const tenant = query.get("tenant") || undefined;
+    const tenant = tenantFor(query.get("tenant") || undefined);
     if (consent && request.method === "GET" && !consent[1]) {
       const status = query.get("status");
       return Response.json(
@@ -1056,13 +1076,18 @@ export async function createPersonServer(options: PersonServerOptions) {
       (request.method === "GET" || request.method === "DELETE") &&
       pending?.[2]
     ) {
-      let tenant: string | undefined;
+      let named: string | undefined;
       try {
-        tenant = pending[1] && decodeURIComponent(pending[1]);
+        named = pending[1] && decodeURIComponent(pending[1]);
       } catch {
         throw new AAuthError(400, "invalid_request", "not a tenant");
       }
-      return pendingState(request, path, tenant || undefined, pending[2]);
+      return pendingState(
+        request,
+        path,
+        tenantFor(named || undefined),
+        pending[2],
+      );
     }
     return manage(request, path);
   }
@@ -1090,10 +1115,10 @@ export async function createPersonServer(options: PersonServerOptions) {
     route,
     decide,
     terminate,
-    approval: (id: string, tenant?: string) => store.approval(tenant, id),
-    approvals: (tenant?: string) => store.approvals(tenant),
-    missions: (tenant?: string) => store.missions(tenant),
-    mission: (hash: string, tenant?: string) => store.mission(tenant, hash),
+    approval: (id: string, tenant: string) => store.approval(tenant, id),
+    approvals: (tenant: string) => store.approvals(tenant),
+    missions: (tenant: string) => store.missions(tenant),
+    mission: (hash: string, tenant: string) => store.mission(tenant, hash),
     store,
   };
 }

@@ -59,8 +59,8 @@ export interface Approval {
   decided_by?: string;
   /** When it was decided or withdrawn, in seconds since the epoch. */
   decided_at?: number;
-  /** The tenant the agent asked under. */
-  tenant?: string;
+  /** The tenant it was asked under: the one the agent named, else the default. */
+  tenant: string;
   created_at: number;
   expires_at: number;
 }
@@ -77,8 +77,8 @@ export interface Mission {
   log: { at: number; entry: string }[];
   expires_at: number;
   completed_at?: number;
-  /** The tenant the agent asked under. */
-  tenant?: string;
+  /** The tenant it was asked under: the one the agent named, else the default. */
+  tenant: string;
 }
 
 /** What an operator answers. */
@@ -94,7 +94,7 @@ export interface Decision {
  * Where a Person Server keeps its state.
  *
  * Every method takes the request's `tenant`, the AAuth `tenant` the agent
- * named (undefined when it named none), and must keep each tenant's records
+ * named or else the server's default, and must keep each tenant's records
  * apart: a record is found only under the tenant it was saved with. A tenant
  * the store cannot scope, such as one in a format it does not serve, finds
  * nothing.
@@ -107,25 +107,18 @@ export interface Decision {
  * change a mission in place rather than overwriting a concurrent spend.
  */
 export interface Store {
-  binding(tenant: string | undefined, jkt: string): Promise<string | undefined>;
+  binding(tenant: string, jkt: string): Promise<string | undefined>;
   /** Bind a key to a person unless it is bound already; returns the person it is bound to. */
-  bind(
-    tenant: string | undefined,
-    jkt: string,
-    personId: string,
-  ): Promise<string>;
-  mission(
-    tenant: string | undefined,
-    s256: string,
-  ): Promise<Mission | undefined>;
+  bind(tenant: string, jkt: string, personId: string): Promise<string>;
+  mission(tenant: string, s256: string): Promise<Mission | undefined>;
   /** Save a newly approved mission unless one with its hash exists; returns whether it did. */
-  insertMission(tenant: string | undefined, mission: Mission): Promise<boolean>;
+  insertMission(tenant: string, mission: Mission): Promise<boolean>;
   /**
    * Add `amount` to a live mission's spend; with `withinBudget`, only if it
    * fits what is left. Returns the mission, or undefined when it did not.
    */
   spend(
-    tenant: string | undefined,
+    tenant: string,
     s256: string,
     amount: number,
     withinBudget: boolean,
@@ -133,47 +126,45 @@ export interface Store {
   ): Promise<Mission | undefined>;
   /** Append to a live mission's log; returns whether it was live. */
   logMission(
-    tenant: string | undefined,
+    tenant: string,
     s256: string,
     entry: { at: number; entry: string },
     now: number,
   ): Promise<boolean>;
   /** Mark a mission completed at `at` unless it already is; returns it, or undefined if there is none. */
   endMission(
-    tenant: string | undefined,
+    tenant: string,
     s256: string,
     at: number,
   ): Promise<Mission | undefined>;
   /** The tenant's missions. */
-  missions(tenant: string | undefined): Promise<Mission[]>;
-  approval(
-    tenant: string | undefined,
-    id: string,
-  ): Promise<Approval | undefined>;
+  missions(tenant: string): Promise<Mission[]>;
+  approval(tenant: string, id: string): Promise<Approval | undefined>;
   /** Save a new approval. */
-  putApproval(tenant: string | undefined, approval: Approval): Promise<void>;
+  putApproval(tenant: string, approval: Approval): Promise<void>;
   /** Replace approval `next.id` with `next` only if its status is still `expected`; returns whether it did. */
   transitionApproval(
-    tenant: string | undefined,
+    tenant: string,
     expected: ApprovalStatus,
     next: Approval,
   ): Promise<boolean>;
   /** The tenant's approvals. */
-  approvals(tenant: string | undefined): Promise<Approval[]>;
+  approvals(tenant: string): Promise<Approval[]>;
 }
 
 /** Who this Person Server speaks for, and who decides for them. */
 export interface Directory {
   /**
    * The person a `login_hint` names, or undefined if this Person Server does
-   * not speak for them. A person returned with a `tenant` is in that tenant
-   * only: a request naming another is refused. A person returned without one
-   * takes the tenant the request named, so a directory serving several
+   * not speak for them. `tenant` is the one the request is under: the one the
+   * agent named, else the default. A person returned with a `tenant` is in
+   * that tenant alone, and a request under any other is refused. A person
+   * returned without one takes the request's, so a directory serving several
    * tenants checks `tenant` itself and returns undefined for a stranger.
    */
   person(
     loginHint: string,
-    tenant?: string,
+    tenant: string,
   ): Promise<Person | undefined> | Person | undefined;
   /** Who decides a request; the person themself when omitted or undefined. */
   approver?(

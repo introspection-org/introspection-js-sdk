@@ -3,18 +3,20 @@
  * with @hellocoop/httpsig, an agent provider and a resource behind an
  * injected fetch, and an operator deciding approvals.
  */
-import { createHash } from "node:crypto";
+import { createHash, randomUUID as randomId } from "node:crypto";
 
 import { clearMetadataCache } from "@aauth/resource";
 import { fetch as signedFetch } from "@hellocoop/httpsig";
 import {
   createPersonServer,
+  DEFAULT_TENANT,
   MemoryStore,
   type Approval,
   type ApprovalStatus,
   type Mission,
   type Person,
   type PersonServer,
+  type PersonServerOptions,
   type Store,
 } from "@introspection-sdk/person-server";
 import {
@@ -186,8 +188,8 @@ beforeEach(async () => {
   ps = await server();
 });
 
-/** The Person Server under test, over `store` when given. */
-const server = (store?: Store) =>
+/** The Person Server under test, over `store` when given; its people are all acme's, its default tenant. */
+const server = (store?: Store, overrides: Partial<PersonServerOptions> = {}) =>
   createPersonServer({
     issuer: PS,
     basePath: "/ps",
@@ -201,7 +203,9 @@ const server = (store?: Store) =>
     },
     adminToken: "admin",
     fetch: world,
+    defaultTenant: "acme",
     ...(store ? { store } : {}),
+    ...overrides,
   });
 
 const call = async (
@@ -220,11 +224,11 @@ async function approvedTrip(agent: AgentClient, amount = 300_000) {
   expect(proposed.status).toBe(202);
   const pendingPath = new URL(proposed.headers.get("location")!).pathname;
   expect((await call(agent, "GET", pendingPath)).status).toBe(202);
-  await ps.decide(asked.at(-1)!.id, {
-    status: "approved",
-    budget: { amount, ...USD },
-    decided_by: "dana",
-  });
+  await ps.decide(
+    asked.at(-1)!.id,
+    { status: "approved", budget: { amount, ...USD }, decided_by: "dana" },
+    "acme",
+  );
   const approved = await call(agent, "GET", pendingPath);
   expect(approved.status).toBe(200);
   return (await approved.json()) as {
@@ -304,14 +308,14 @@ describe("@introspection-sdk/person-server", () => {
       kind: "auth_token",
       summary: "QT Sydney, 4 nights, $1,680",
     });
-    await ps.decide(asked.at(-1)!.id, { status: "approved" });
+    await ps.decide(asked.at(-1)!.id, { status: "approved" }, "acme");
     const granted = await call(
       agent,
       "GET",
       new URL(hotel.headers.get("location")!).pathname,
     );
     expect(granted.status).toBe(200);
-    expect((await ps.mission(trip.s256))?.spent).toBe(333_000);
+    expect((await ps.mission(trip.s256, "acme"))?.spent).toBe(333_000);
 
     // Completion is the person's to accept; nothing issues under the mission after.
     const done = await call(agent, "POST", `/ps/mission/${trip.s256}`, {
@@ -323,7 +327,7 @@ describe("@introspection-sdk/person-server", () => {
       kind: "completion",
       approver: { id: "sam" },
     });
-    await ps.decide(asked.at(-1)!.id, { status: "approved" });
+    await ps.decide(asked.at(-1)!.id, { status: "approved" }, "acme");
     const again = await call(agent, "POST", "/ps/person-token", {
       resource: RESOURCE,
       mission_s256: trip.s256,
@@ -462,12 +466,12 @@ describe("@introspection-sdk/person-server", () => {
       presented_token: presented,
     });
     expect(over.status).toBe(202);
-    await ps.decide(asked.at(-1)!.id, { status: "approved" });
+    await ps.decide(asked.at(-1)!.id, { status: "approved" }, "acme");
     const pendingPath = new URL(over.headers.get("location")!).pathname;
     expect((await call(agent, "GET", pendingPath)).status).toBe(200);
     for (let i = 0; i < 3; i++)
       expect((await call(agent, "GET", pendingPath)).status).toBe(410);
-    expect((await ps.mission(trip.s256))?.spent).toBe(150_000);
+    expect((await ps.mission(trip.s256, "acme"))?.spent).toBe(150_000);
   });
 
   /** An approved request over a 1,000.00 trip budget, not yet collected. */
@@ -480,8 +484,8 @@ describe("@introspection-sdk/person-server", () => {
     });
     expect(over.status).toBe(202);
     const id = asked.at(-1)!.id;
-    await ps.decide(id, { status: "approved" });
-    expect((await ps.mission(trip.s256))?.spent).toBe(0);
+    await ps.decide(id, { status: "approved" }, "acme");
+    expect((await ps.mission(trip.s256, "acme"))?.spent).toBe(0);
     return {
       trip,
       id,
@@ -494,7 +498,7 @@ describe("@introspection-sdk/person-server", () => {
       gate?: Promise<void>;
       entered?: () => void;
       override async spend(
-        tenant: string | undefined,
+        tenant: string,
         s256: string,
         amount: number,
         withinBudget: boolean,
@@ -522,7 +526,7 @@ describe("@introspection-sdk/person-server", () => {
     await entered;
     expect(settled).toBe(false);
     expect((await call(agent, "GET", pendingPath)).status).toBe(410);
-    expect((await ps.mission(trip.s256))?.spent).toBe(0);
+    expect((await ps.mission(trip.s256, "acme"))?.spent).toBe(0);
     store.gate = undefined;
     release();
     const collected = await first;
@@ -530,7 +534,7 @@ describe("@introspection-sdk/person-server", () => {
     expect(
       ((await collected.json()) as { auth_token?: string }).auth_token,
     ).toBeDefined();
-    expect((await ps.mission(trip.s256))?.spent).toBe(150_000);
+    expect((await ps.mission(trip.s256, "acme"))?.spent).toBe(150_000);
     expect((await call(agent, "GET", pendingPath)).status).toBe(410);
   });
 
@@ -538,7 +542,7 @@ describe("@introspection-sdk/person-server", () => {
     class FailsSpendOnce extends MemoryStore {
       fail = false;
       override async spend(
-        tenant: string | undefined,
+        tenant: string,
         s256: string,
         amount: number,
         withinBudget: boolean,
@@ -559,35 +563,35 @@ describe("@introspection-sdk/person-server", () => {
     const failed = await call(agent, "GET", pendingPath);
     expect(failed.status).toBe(500);
     expect(await failed.json()).not.toHaveProperty("auth_token");
-    expect((await ps.approval(id))?.status).toBe("approved");
-    expect((await ps.mission(trip.s256))?.spent).toBe(0);
+    expect((await ps.approval(id, "acme"))?.status).toBe("approved");
+    expect((await ps.mission(trip.s256, "acme"))?.spent).toBe(0);
     const collected = await call(agent, "GET", pendingPath);
     expect(collected.status).toBe(200);
     expect(
       ((await collected.json()) as { auth_token?: string }).auth_token,
     ).toBeDefined();
-    expect((await ps.mission(trip.s256))?.spent).toBe(150_000);
+    expect((await ps.mission(trip.s256, "acme"))?.spent).toBe(150_000);
     expect((await call(agent, "GET", pendingPath)).status).toBe(410);
   });
 
   it("issues and spends nothing for an approval whose mission has ended", async () => {
     const agent = await AgentClient.create();
     const { trip, id, pendingPath } = await approvedOverBudget(agent);
-    await ps.terminate(trip.s256);
+    await ps.terminate(trip.s256, "acme");
     const poll = await call(agent, "GET", pendingPath);
     expect(poll.status).toBe(403);
     expect(((await poll.json()) as { error: string }).error).toBe(
       "mission_terminated",
     );
-    expect((await ps.approval(id))?.status).toBe("approved");
-    expect((await ps.mission(trip.s256))?.spent).toBe(0);
+    expect((await ps.approval(id, "acme"))?.status).toBe("approved");
+    expect((await ps.mission(trip.s256, "acme"))?.spent).toBe(0);
   });
 
   it("puts an approval back when its mission ends as it is collected", async () => {
     class EndsBeforeSpend extends MemoryStore {
       end = false;
       override async spend(
-        tenant: string | undefined,
+        tenant: string,
         s256: string,
         amount: number,
         withinBudget: boolean,
@@ -607,8 +611,8 @@ describe("@introspection-sdk/person-server", () => {
     expect(((await poll.json()) as { error: string }).error).toBe(
       "mission_terminated",
     );
-    expect((await ps.approval(id))?.status).toBe("approved");
-    expect((await ps.mission(trip.s256))?.spent).toBe(0);
+    expect((await ps.approval(id, "acme"))?.status).toBe("approved");
+    expect((await ps.mission(trip.s256, "acme"))?.spent).toBe(0);
   });
 
   it("decides an approval once, however many answers arrive", async () => {
@@ -620,12 +624,12 @@ describe("@introspection-sdk/person-server", () => {
     });
     const id = asked.at(-1)!.id;
     const results = await Promise.allSettled([
-      ps.decide(id, { status: "approved" }),
-      ps.decide(id, { status: "approved" }),
+      ps.decide(id, { status: "approved" }, "acme"),
+      ps.decide(id, { status: "approved" }, "acme"),
     ]);
     expect(results.filter((r) => r.status === "fulfilled")).toHaveLength(1);
     // A loser that made a mission before losing ends it.
-    const live = (await ps.missions()).filter(
+    const live = (await ps.missions("acme")).filter(
       (m) => m.completed_at === undefined,
     );
     expect(live).toHaveLength(1);
@@ -638,8 +642,12 @@ describe("@introspection-sdk/person-server", () => {
       resources: [RESOURCE],
       login_hint: "sam@acme.example",
     });
-    const decided = await ps.decide(asked.at(-1)!.id, { status: "approved" });
-    await ps.terminate(decided.mission_s256!);
+    const decided = await ps.decide(
+      asked.at(-1)!.id,
+      { status: "approved" },
+      "acme",
+    );
+    await ps.terminate(decided.mission_s256!, "acme");
     const poll = await call(
       agent,
       "GET",
@@ -678,16 +686,18 @@ describe("@introspection-sdk/person-server", () => {
         resources: [RESOURCE],
         login_hint: hint,
       });
-      const decided = await ps.decide(asked.at(-1)!.id, {
-        status: "approved",
-      });
+      const decided = await ps.decide(
+        asked.at(-1)!.id,
+        { status: "approved" },
+        "acme",
+      );
       return decided.mission_s256!;
     };
     const sams = await propose("sam@acme.example");
-    const ended = await ps.terminate(sams);
+    const ended = await ps.terminate(sams, "acme");
     const danas = await propose("dana@acme.example");
     expect(danas).not.toBe(sams);
-    expect(await ps.mission(sams)).toMatchObject({
+    expect(await ps.mission(sams, "acme")).toMatchObject({
       person: { id: "sam" },
       completed_at: ended.completed_at,
     });
@@ -697,6 +707,7 @@ describe("@introspection-sdk/person-server", () => {
     const store = new MemoryStore();
     const mission = (person: string): Mission => ({
       s256: "h",
+      tenant: "acme",
       mission: "{}",
       agent_id: "aauth:travel@agents.example",
       person: { id: person },
@@ -705,10 +716,10 @@ describe("@introspection-sdk/person-server", () => {
       log: [],
       expires_at: Number.MAX_SAFE_INTEGER,
     });
-    expect(await store.insertMission(undefined, mission("sam"))).toBe(true);
-    await store.endMission(undefined, "h", 10);
-    expect(await store.insertMission(undefined, mission("dana"))).toBe(false);
-    expect(await store.mission(undefined, "h")).toMatchObject({
+    expect(await store.insertMission("acme", mission("sam"))).toBe(true);
+    await store.endMission("acme", "h", 10);
+    expect(await store.insertMission("acme", mission("dana"))).toBe(false);
+    expect(await store.mission("acme", "h")).toMatchObject({
       person: { id: "sam" },
       completed_at: 10,
     });
@@ -718,7 +729,7 @@ describe("@introspection-sdk/person-server", () => {
     class LosesNextTransition extends MemoryStore {
       lose = false;
       override async transitionApproval(
-        tenant: string | undefined,
+        tenant: string,
         expected: ApprovalStatus,
         next: Approval,
       ) {
@@ -739,19 +750,22 @@ describe("@introspection-sdk/person-server", () => {
     });
     const id = asked.at(-1)!.id;
     store.lose = true;
-    await expect(ps.decide(id, { status: "approved" })).rejects.toMatchObject({
+    await expect(
+      ps.decide(id, { status: "approved" }, "acme"),
+    ).rejects.toMatchObject({
       status: 409,
     });
-    const missions = await store.missions(undefined);
+    const missions = await store.missions("acme");
     expect(missions).toHaveLength(1);
     expect(missions[0]!.completed_at).toBeDefined();
-    expect((await store.approval(undefined, id))?.status).toBe("pending");
+    expect((await store.approval("acme", id))?.status).toBe("pending");
   });
 
   it("keeps each tenant's records apart in the store", async () => {
     const store = new MemoryStore();
-    const mission = (person: string): Mission => ({
+    const mission = (person: string, tenant: string): Mission => ({
       s256: "h",
+      tenant,
       mission: "{}",
       agent_id: "aauth:travel@agents.example",
       person: { id: person },
@@ -760,16 +774,22 @@ describe("@introspection-sdk/person-server", () => {
       log: [],
       expires_at: Number.MAX_SAFE_INTEGER,
     });
-    expect(await store.insertMission("acme", mission("sam"))).toBe(true);
-    expect(await store.insertMission("globex", mission("dana"))).toBe(true);
-    expect(await store.insertMission(undefined, mission("lee"))).toBe(true);
+    expect(await store.insertMission("acme", mission("sam", "acme"))).toBe(
+      true,
+    );
+    expect(await store.insertMission("globex", mission("dana", "globex"))).toBe(
+      true,
+    );
+    expect(
+      await store.insertMission("default", mission("lee", "default")),
+    ).toBe(true);
     expect(await store.mission("acme", "h")).toMatchObject({
       person: { id: "sam" },
     });
     expect(await store.mission("globex", "h")).toMatchObject({
       person: { id: "dana" },
     });
-    expect(await store.mission(undefined, "h")).toMatchObject({
+    expect(await store.mission("default", "h")).toMatchObject({
       person: { id: "lee" },
     });
     await store.endMission("acme", "h", 10);
@@ -780,7 +800,7 @@ describe("@introspection-sdk/person-server", () => {
     expect(await store.bind("acme", "jkt", "sam")).toBe("sam");
     expect(await store.binding("acme", "jkt")).toBe("sam");
     expect(await store.binding("globex", "jkt")).toBeUndefined();
-    expect(await store.binding(undefined, "jkt")).toBeUndefined();
+    expect(await store.binding("default", "jkt")).toBeUndefined();
     expect(await store.bind("globex", "jkt", "dana")).toBe("dana");
   });
 
@@ -824,9 +844,9 @@ describe("@introspection-sdk/person-server", () => {
     expect(await ps.mission(trip.s256, "acme")).toMatchObject({
       tenant: "acme",
     });
-    expect(await ps.mission(trip.s256)).toBeUndefined();
-    expect(await ps.missions()).toHaveLength(0);
-    for (const tenant of ["globex", undefined])
+    expect(await ps.mission(trip.s256, "globex")).toBeUndefined();
+    expect(await ps.missions("globex")).toHaveLength(0);
+    for (const tenant of ["globex", "default"])
       await expect(
         ps.decide(id, { status: "denied" }, tenant),
       ).rejects.toMatchObject({ status: 404 });
@@ -839,7 +859,9 @@ describe("@introspection-sdk/person-server", () => {
         )
       ).json()) as Mission[];
     expect(await listed("?tenant=acme")).toHaveLength(1);
-    expect(await listed("")).toHaveLength(0);
+    expect(await listed("?tenant=globex")).toHaveLength(0);
+    // Unnamed, the management routes are under the default tenant.
+    expect(await listed("")).toHaveLength(1);
     expect((await call(agent, "GET", `/ps/pending/%E0/${id}`)).status).toBe(
       400,
     );
@@ -887,6 +909,18 @@ describe("@introspection-sdk/person-server", () => {
     const { trip } = await acmeTrip(agent);
     expect(decodeJwt(trip.person_tokens[RESOURCE]!).tenant).toBe("acme");
     expect(await store.binding("acme", jkt)).toBe("sam");
+    // Naming none is being under the default, which is not Sam's tenant either.
+    ps = await server(store, { defaultTenant: "default" });
+    const other = await AgentClient.create();
+    const unnamed = await call(other, "POST", "/ps/mission", {
+      description: "Sydney",
+      resources: [RESOURCE],
+      login_hint: "sam@acme.example",
+    });
+    expect(unnamed.status).toBe(403);
+    expect(
+      await store.binding("default", await thumbprint(other.session.publicJwk)),
+    ).toBeUndefined();
   });
 
   it("refuses an auth token request under another tenant than its presented token's", async () => {
@@ -904,14 +938,11 @@ describe("@introspection-sdk/person-server", () => {
     expect(((await refused.json()) as { error: string }).error).toBe(
       "invalid_resource_token",
     );
-    // An empty tenant names none, and the mission is acme's alone.
-    const unnamed = await request("");
-    expect(unnamed.status).toBe(404);
-    expect(((await unnamed.json()) as { error: string }).error).toBe(
-      "mission_not_found",
-    );
-    expect(await ps.mission(trip.s256)).toBeUndefined();
     expect((await ps.mission(trip.s256, "acme"))?.spent).toBe(0);
+    // An empty tenant names none, so the request is under the default: acme.
+    const unnamed = await request("");
+    expect(unnamed.status).toBe(200);
+    expect((await ps.mission(trip.s256, "acme"))?.spent).toBe(500);
   });
 
   it("issues under a tenant the directory stamps when the agent names none", async () => {
@@ -919,7 +950,8 @@ describe("@introspection-sdk/person-server", () => {
     const trip = await approvedTrip(agent);
     const presented = trip.person_tokens[RESOURCE]!;
     expect(decodeJwt(presented).tenant).toBe("acme");
-    expect(await ps.mission(trip.s256)).toBeDefined();
+    expect(await ps.mission(trip.s256, "acme")).toBeDefined();
+    expect(await ps.mission(trip.s256, "default")).toBeUndefined();
     const booked = await call(agent, "POST", "/ps/token", {
       resource_token: await resourceToken(agent, presented, 1000),
       presented_token: presented,
@@ -930,6 +962,75 @@ describe("@introspection-sdk/person-server", () => {
       aud: RESOURCE,
       tenant: "acme",
     });
-    expect((await ps.mission(trip.s256))?.spent).toBe(1000);
+    expect((await ps.mission(trip.s256, "acme"))?.spent).toBe(1000);
+  });
+
+  it("refuses a request naming no tenant when every request must name one", async () => {
+    const store = new MemoryStore();
+    ps = await server(store, { requireTenant: true });
+    const agent = await AgentClient.create();
+    const jkt = await thumbprint(agent.session.publicJwk);
+    const propose = (tenant?: string) =>
+      call(agent, "POST", "/ps/mission", {
+        description: "Sydney",
+        resources: [RESOURCE],
+        login_hint: "sam@acme.example",
+        ...(tenant !== undefined ? { tenant } : {}),
+      });
+    for (const unnamed of [await propose(), await propose("")]) {
+      expect(unnamed.status).toBe(400);
+      expect(await unnamed.json()).toMatchObject({
+        error: "invalid_request",
+        detail: "name the tenant",
+      });
+    }
+    expect(asked).toHaveLength(0);
+    expect(await store.binding("acme", jkt)).toBeUndefined();
+    expect(await store.binding("default", jkt)).toBeUndefined();
+    expect((await call(agent, "GET", `/ps/pending/${randomId()}`)).status).toBe(
+      400,
+    );
+
+    const named = await propose("acme");
+    expect(named.status).toBe(202);
+    expect(new URL(named.headers.get("location")!).pathname).toContain(
+      "/pending/acme/",
+    );
+    expect(await store.approvals("acme")).toHaveLength(1);
+  });
+
+  it("puts a request naming no tenant under the default tenant", async () => {
+    ps = await createPersonServer({
+      issuer: PS,
+      basePath: "/ps",
+      trustedAgentProviders: [PROVIDER],
+      directory: { person: (hint) => ({ id: hint }) },
+      onApproval: (approval) => {
+        asked.push(approval);
+      },
+      fetch: world,
+    });
+    expect(DEFAULT_TENANT).toBe("default");
+    const agent = await AgentClient.create();
+    const proposed = await call(agent, "POST", "/ps/mission", {
+      description: "Sydney",
+      resources: [RESOURCE],
+      login_hint: "lee",
+    });
+    expect(proposed.status).toBe(202);
+    const pendingPath = new URL(proposed.headers.get("location")!).pathname;
+    expect(pendingPath).toContain("/pending/default/");
+    expect(asked.at(-1)).toMatchObject({ tenant: "default" });
+    // The short pending URL is the default tenant's too.
+    const id = asked.at(-1)!.id;
+    expect((await call(agent, "GET", `/ps/pending/${id}`)).status).toBe(202);
+    await ps.decide(id, { status: "approved" }, "default");
+    const approved = await call(agent, "GET", pendingPath);
+    expect(approved.status).toBe(200);
+    const { person_tokens } = (await approved.json()) as {
+      person_tokens: Record<string, string>;
+    };
+    // A default the agent never named is not a tenant claim.
+    expect(decodeJwt(person_tokens[RESOURCE]!)).not.toHaveProperty("tenant");
   });
 });
