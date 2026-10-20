@@ -40,6 +40,10 @@ export default defineConfig({
         repoRoot,
         "packages/introspection-browser/src/index.ts",
       ),
+      "@introspection-sdk/types/logs": resolve(
+        repoRoot,
+        "packages/introspection-types/src/logs.ts",
+      ),
       "@introspection-sdk/types": resolve(
         repoRoot,
         "packages/introspection-types/src/index.ts",

@@ -1,38 +1,15 @@
 import type {
   Experiment,
   ExperimentListParams,
-  Paginated,
   RunRequest,
   RunnerSpec,
   Uuid,
 } from "@introspection-sdk/types";
+import { toRunRequestBody } from "@introspection-sdk/http";
 import type { HttpClient } from "../http.js";
 import type { IntrospectionClient } from "../client.js";
-import { Paginator, cursorPaginate } from "../pagination.js";
+import { Paginator, paginateGet } from "../pagination.js";
 import { Runner, type RunnerSource } from "../runner.js";
-
-interface ExperimentRunRequestBody {
-  identity?: {
-    user_id?: string;
-    anonymous_id?: string;
-    conversation_id?: string;
-  };
-  caller?: RunRequest["caller"];
-  agent_name?: string;
-  ttl_seconds?: number;
-  scope?: string;
-}
-
-function toRunBody(opts?: RunRequest): ExperimentRunRequestBody | undefined {
-  if (!opts) return undefined;
-  const out: ExperimentRunRequestBody = {};
-  if (opts.identity) out.identity = opts.identity;
-  if (opts.caller) out.caller = opts.caller;
-  if (opts.agent_name !== undefined) out.agent_name = opts.agent_name;
-  if (opts.ttl_seconds !== undefined) out.ttl_seconds = opts.ttl_seconds;
-  if (opts.scope !== undefined) out.scope = opts.scope;
-  return out;
-}
 
 /**
  * CRUD, lifecycle, and execution for `/v1/experiments` on the CP. Create and
@@ -52,13 +29,10 @@ export class ExperimentsApi {
    * cursor; stop early to stop fetching).
    */
   list(params: ExperimentListParams = {}): Paginator<Experiment> {
-    return cursorPaginate(
-      (next) =>
-        this.http.request<Paginated<Experiment>>({
-          method: "GET",
-          path: "/v1/experiments",
-          query: { ...params, next } as unknown as Record<string, unknown>,
-        }),
+    return paginateGet<Experiment>(
+      this.http,
+      "/v1/experiments",
+      params,
       params.next,
     );
   }
@@ -128,7 +102,7 @@ export class ExperimentsApi {
     const spec = await this.http.request<RunnerSpec>({
       method: "POST",
       path: `/v1/experiments/${encodeURIComponent(id)}/run`,
-      body: toRunBody(opts) ?? {},
+      body: toRunRequestBody(opts),
     });
     const source: RunnerSource = {
       kind: "experiment",

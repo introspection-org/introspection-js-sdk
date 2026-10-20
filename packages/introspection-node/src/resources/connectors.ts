@@ -14,11 +14,10 @@ import type {
   ConnectorOAuthDiscoveryResponse,
   ConnectorUpdateParams,
   CursorParams,
-  Paginated,
   Uuid,
 } from "@introspection-sdk/types";
 import type { HttpClient } from "../http.js";
-import { Paginator, cursorPaginate } from "../pagination.js";
+import { Paginator, paginateGet } from "../pagination.js";
 
 /**
  * Connections nested under a connector
@@ -36,13 +35,10 @@ export class ConnectionsApi {
    * (fetched lazily; stop early to stop fetching).
    */
   list(connectorId: Uuid, params: CursorParams = {}): Paginator<Connection> {
-    return cursorPaginate(
-      (next) =>
-        this.http.request<Paginated<Connection>>({
-          method: "GET",
-          path: `/v1/connectors/${encodeURIComponent(connectorId)}/connections`,
-          query: { ...params, next } as Record<string, unknown>,
-        }),
+    return paginateGet<Connection>(
+      this.http,
+      `/v1/connectors/${encodeURIComponent(connectorId)}/connections`,
+      params,
       params.next,
     );
   }
@@ -125,13 +121,10 @@ export class ConnectorsApi {
    * cursor; stop early to stop fetching).
    */
   list(params: ConnectorListParams = {}): Paginator<Connector> {
-    return cursorPaginate(
-      (next) =>
-        this.http.request<Paginated<Connector>>({
-          method: "GET",
-          path: "/v1/connectors",
-          query: { ...params, next } as Record<string, unknown>,
-        }),
+    return paginateGet<Connector>(
+      this.http,
+      "/v1/connectors",
+      params,
       params.next,
     );
   }

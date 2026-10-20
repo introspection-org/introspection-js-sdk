@@ -12,7 +12,7 @@ import {
   type Uuid,
 } from "@introspection-sdk/types";
 import type { HttpClient } from "../http.js";
-import { Paginator, cursorPaginate } from "../pagination.js";
+import { Paginator, cursorPaginate, paginateGet } from "../pagination.js";
 
 interface AnnotationMember {
   id: Uuid;
@@ -159,13 +159,10 @@ export class AnnotationsApi {
     const matches = new Map<string, AnnotationMember[]>();
     for (const email of requested) matches.set(email, []);
 
-    const members = cursorPaginate((next) =>
-      this.cpHttp.request<Paginated<AnnotationMember>>({
-        method: "GET",
-        path: "/v1/members",
-        query: { limit: 1000, member_type: "business", next },
-      }),
-    );
+    const members = paginateGet<AnnotationMember>(this.cpHttp, "/v1/members", {
+      limit: 1000,
+      member_type: "business",
+    });
     for await (const member of members) {
       if (member.is_deactivated || !member.email) continue;
       matches.get(member.email.trim().toLowerCase())?.push(member);

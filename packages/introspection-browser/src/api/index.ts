@@ -81,6 +81,7 @@ export {
 } from "@introspection-sdk/types";
 
 // Re-exported wire types for convenience.
+// jscpd:ignore-start -- re-export list of wire type names
 export type {
   AGUIEvent,
   BaseEvent,
@@ -132,6 +133,7 @@ export type {
   AutomationTriggerResponse,
   AutomationUpdateParams,
 } from "@introspection-sdk/types";
+// jscpd:ignore-end
 export {
   IntrospectionAPIError,
   AuthenticationError,
