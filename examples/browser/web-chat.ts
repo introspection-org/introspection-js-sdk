@@ -7,8 +7,10 @@
  * `examples/patterns/web-chat.ts`, so it is not run in the examples workflow.
  */
 
+import { EventType, type AGUIEvent } from "@introspection-sdk/introspection-browser/api";
+
 // #region docs:patterns/web-chat/browser-connect
-import { EventType, IntrospectionApiClient } from "@introspection-sdk/introspection-browser/api";
+import { IntrospectionApiClient } from "@introspection-sdk/introspection-browser/api";
 
 const session = () => fetch("/api/introspection/session", { method: "POST" }).then((r) => r.json());
 const first = await session();
@@ -20,9 +22,7 @@ await client.connect();
 
 const handle = await client.tasks.start({ runtime_id: first.runtimeId, prompt: text });
 saveTaskId(handle.run.task_id); // before streaming: it is also the conversation ID
-for await (const event of handle.stream()) {
-  if (event.type === EventType.TEXT_MESSAGE_CONTENT) appendDelta(event.delta ?? "");
-}
+for await (const event of handle.stream()) render(event);
 // #endregion docs:patterns/web-chat/browser-connect
 
 // #region docs:patterns/web-chat/attach-files
@@ -36,10 +36,25 @@ const { active_run_id, latest_run_id } = (task.metadata ?? {}) as Record<string,
 for await (const event of client.tasks.runs.stream(taskId, active_run_id ?? latest_run_id)) render(event);
 // #endregion docs:patterns/web-chat/resume
 
+// Renders the answer. A reconnect whose cursor fell out of the replay buffer
+// yields a `MESSAGES_SNAPSHOT` with the run's messages so far: it replaces the
+// rendered text, and later deltas append to it.
+function render(event: AGUIEvent): void {
+  if (event.type === EventType.MESSAGES_SNAPSHOT) {
+    setAnswer(
+      event.messages
+        .map((m) => (m.role === "assistant" && typeof m.content === "string" ? m.content : ""))
+        .join(""),
+    );
+  } else if (event.type === EventType.TEXT_MESSAGE_CONTENT) {
+    appendDelta(event.delta ?? "");
+  }
+}
+
 // Stand-ins for your page.
 declare const text: string;
 declare const input: HTMLInputElement;
 declare const taskId: string;
 declare function saveTaskId(taskId: string): void;
 declare function appendDelta(delta: string): void;
-declare function render(event: { type: string }): void;
+declare function setAnswer(text: string): void;
