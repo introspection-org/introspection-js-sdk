@@ -224,11 +224,11 @@ async function approvedTrip(agent: AgentClient, amount = 300_000) {
   expect(proposed.status).toBe(202);
   const pendingPath = new URL(proposed.headers.get("location")!).pathname;
   expect((await call(agent, "GET", pendingPath)).status).toBe(202);
-  await ps.decide(
-    asked.at(-1)!.id,
-    { status: "approved", budget: { amount, ...USD }, decided_by: "dana" },
-    "acme",
-  );
+  await ps.decide("acme", asked.at(-1)!.id, {
+    status: "approved",
+    budget: { amount, ...USD },
+    decided_by: "dana",
+  });
   const approved = await call(agent, "GET", pendingPath);
   expect(approved.status).toBe(200);
   return (await approved.json()) as {
@@ -308,14 +308,14 @@ describe("@introspection-sdk/person-server", () => {
       kind: "auth_token",
       summary: "QT Sydney, 4 nights, $1,680",
     });
-    await ps.decide(asked.at(-1)!.id, { status: "approved" }, "acme");
+    await ps.decide("acme", asked.at(-1)!.id, { status: "approved" });
     const granted = await call(
       agent,
       "GET",
       new URL(hotel.headers.get("location")!).pathname,
     );
     expect(granted.status).toBe(200);
-    expect((await ps.mission(trip.s256, "acme"))?.spent).toBe(333_000);
+    expect((await ps.mission("acme", trip.s256))?.spent).toBe(333_000);
 
     // Completion is the person's to accept; nothing issues under the mission after.
     const done = await call(agent, "POST", `/ps/mission/${trip.s256}`, {
@@ -327,7 +327,7 @@ describe("@introspection-sdk/person-server", () => {
       kind: "completion",
       approver: { id: "sam" },
     });
-    await ps.decide(asked.at(-1)!.id, { status: "approved" }, "acme");
+    await ps.decide("acme", asked.at(-1)!.id, { status: "approved" });
     const again = await call(agent, "POST", "/ps/person-token", {
       resource: RESOURCE,
       mission_s256: trip.s256,
@@ -466,12 +466,12 @@ describe("@introspection-sdk/person-server", () => {
       presented_token: presented,
     });
     expect(over.status).toBe(202);
-    await ps.decide(asked.at(-1)!.id, { status: "approved" }, "acme");
+    await ps.decide("acme", asked.at(-1)!.id, { status: "approved" });
     const pendingPath = new URL(over.headers.get("location")!).pathname;
     expect((await call(agent, "GET", pendingPath)).status).toBe(200);
     for (let i = 0; i < 3; i++)
       expect((await call(agent, "GET", pendingPath)).status).toBe(410);
-    expect((await ps.mission(trip.s256, "acme"))?.spent).toBe(150_000);
+    expect((await ps.mission("acme", trip.s256))?.spent).toBe(150_000);
   });
 
   /** An approved request over a 1,000.00 trip budget, not yet collected. */
@@ -484,8 +484,8 @@ describe("@introspection-sdk/person-server", () => {
     });
     expect(over.status).toBe(202);
     const id = asked.at(-1)!.id;
-    await ps.decide(id, { status: "approved" }, "acme");
-    expect((await ps.mission(trip.s256, "acme"))?.spent).toBe(0);
+    await ps.decide("acme", id, { status: "approved" });
+    expect((await ps.mission("acme", trip.s256))?.spent).toBe(0);
     return {
       trip,
       id,
@@ -526,7 +526,7 @@ describe("@introspection-sdk/person-server", () => {
     await entered;
     expect(settled).toBe(false);
     expect((await call(agent, "GET", pendingPath)).status).toBe(410);
-    expect((await ps.mission(trip.s256, "acme"))?.spent).toBe(0);
+    expect((await ps.mission("acme", trip.s256))?.spent).toBe(0);
     store.gate = undefined;
     release();
     const collected = await first;
@@ -534,7 +534,7 @@ describe("@introspection-sdk/person-server", () => {
     expect(
       ((await collected.json()) as { auth_token?: string }).auth_token,
     ).toBeDefined();
-    expect((await ps.mission(trip.s256, "acme"))?.spent).toBe(150_000);
+    expect((await ps.mission("acme", trip.s256))?.spent).toBe(150_000);
     expect((await call(agent, "GET", pendingPath)).status).toBe(410);
   });
 
@@ -563,28 +563,28 @@ describe("@introspection-sdk/person-server", () => {
     const failed = await call(agent, "GET", pendingPath);
     expect(failed.status).toBe(500);
     expect(await failed.json()).not.toHaveProperty("auth_token");
-    expect((await ps.approval(id, "acme"))?.status).toBe("approved");
-    expect((await ps.mission(trip.s256, "acme"))?.spent).toBe(0);
+    expect((await ps.approval("acme", id))?.status).toBe("approved");
+    expect((await ps.mission("acme", trip.s256))?.spent).toBe(0);
     const collected = await call(agent, "GET", pendingPath);
     expect(collected.status).toBe(200);
     expect(
       ((await collected.json()) as { auth_token?: string }).auth_token,
     ).toBeDefined();
-    expect((await ps.mission(trip.s256, "acme"))?.spent).toBe(150_000);
+    expect((await ps.mission("acme", trip.s256))?.spent).toBe(150_000);
     expect((await call(agent, "GET", pendingPath)).status).toBe(410);
   });
 
   it("issues and spends nothing for an approval whose mission has ended", async () => {
     const agent = await AgentClient.create();
     const { trip, id, pendingPath } = await approvedOverBudget(agent);
-    await ps.terminate(trip.s256, "acme");
+    await ps.terminate("acme", trip.s256);
     const poll = await call(agent, "GET", pendingPath);
     expect(poll.status).toBe(403);
     expect(((await poll.json()) as { error: string }).error).toBe(
       "mission_terminated",
     );
-    expect((await ps.approval(id, "acme"))?.status).toBe("approved");
-    expect((await ps.mission(trip.s256, "acme"))?.spent).toBe(0);
+    expect((await ps.approval("acme", id))?.status).toBe("approved");
+    expect((await ps.mission("acme", trip.s256))?.spent).toBe(0);
   });
 
   it("puts an approval back when its mission ends as it is collected", async () => {
@@ -611,8 +611,8 @@ describe("@introspection-sdk/person-server", () => {
     expect(((await poll.json()) as { error: string }).error).toBe(
       "mission_terminated",
     );
-    expect((await ps.approval(id, "acme"))?.status).toBe("approved");
-    expect((await ps.mission(trip.s256, "acme"))?.spent).toBe(0);
+    expect((await ps.approval("acme", id))?.status).toBe("approved");
+    expect((await ps.mission("acme", trip.s256))?.spent).toBe(0);
   });
 
   it("decides an approval once, however many answers arrive", async () => {
@@ -624,8 +624,8 @@ describe("@introspection-sdk/person-server", () => {
     });
     const id = asked.at(-1)!.id;
     const results = await Promise.allSettled([
-      ps.decide(id, { status: "approved" }, "acme"),
-      ps.decide(id, { status: "approved" }, "acme"),
+      ps.decide("acme", id, { status: "approved" }),
+      ps.decide("acme", id, { status: "approved" }),
     ]);
     expect(results.filter((r) => r.status === "fulfilled")).toHaveLength(1);
     // A loser that made a mission before losing ends it.
@@ -642,12 +642,10 @@ describe("@introspection-sdk/person-server", () => {
       resources: [RESOURCE],
       login_hint: "sam@acme.example",
     });
-    const decided = await ps.decide(
-      asked.at(-1)!.id,
-      { status: "approved" },
-      "acme",
-    );
-    await ps.terminate(decided.mission_s256!, "acme");
+    const decided = await ps.decide("acme", asked.at(-1)!.id, {
+      status: "approved",
+    });
+    await ps.terminate("acme", decided.mission_s256!);
     const poll = await call(
       agent,
       "GET",
@@ -686,18 +684,16 @@ describe("@introspection-sdk/person-server", () => {
         resources: [RESOURCE],
         login_hint: hint,
       });
-      const decided = await ps.decide(
-        asked.at(-1)!.id,
-        { status: "approved" },
-        "acme",
-      );
+      const decided = await ps.decide("acme", asked.at(-1)!.id, {
+        status: "approved",
+      });
       return decided.mission_s256!;
     };
     const sams = await propose("sam@acme.example");
-    const ended = await ps.terminate(sams, "acme");
+    const ended = await ps.terminate("acme", sams);
     const danas = await propose("dana@acme.example");
     expect(danas).not.toBe(sams);
-    expect(await ps.mission(sams, "acme")).toMatchObject({
+    expect(await ps.mission("acme", sams)).toMatchObject({
       person: { id: "sam" },
       completed_at: ended.completed_at,
     });
@@ -751,7 +747,7 @@ describe("@introspection-sdk/person-server", () => {
     const id = asked.at(-1)!.id;
     store.lose = true;
     await expect(
-      ps.decide(id, { status: "approved" }, "acme"),
+      ps.decide("acme", id, { status: "approved" }),
     ).rejects.toMatchObject({
       status: 409,
     });
@@ -818,11 +814,10 @@ describe("@introspection-sdk/person-server", () => {
     expect((await call(agent, "GET", pendingPath)).status).toBe(202);
     const id = asked.at(-1)!.id;
     expect(asked.at(-1)).toMatchObject({ tenant: "acme" });
-    const decided = await ps.decide(
-      id,
-      { status: "approved", budget: { amount: 1000, ...USD } },
-      "acme",
-    );
+    const decided = await ps.decide("acme", id, {
+      status: "approved",
+      budget: { amount: 1000, ...USD },
+    });
     expect(decided.decided_at).toBeDefined();
     const approved = await call(agent, "GET", pendingPath);
     expect(approved.status).toBe(200);
@@ -841,14 +836,14 @@ describe("@introspection-sdk/person-server", () => {
       mission_s256: trip.s256,
       tenant: "acme",
     });
-    expect(await ps.mission(trip.s256, "acme")).toMatchObject({
+    expect(await ps.mission("acme", trip.s256)).toMatchObject({
       tenant: "acme",
     });
-    expect(await ps.mission(trip.s256, "globex")).toBeUndefined();
+    expect(await ps.mission("globex", trip.s256)).toBeUndefined();
     expect(await ps.missions("globex")).toHaveLength(0);
     for (const tenant of ["globex", "default"])
       await expect(
-        ps.decide(id, { status: "denied" }, tenant),
+        ps.decide(tenant, id, { status: "denied" }),
       ).rejects.toMatchObject({ status: 404 });
 
     const admin = { authorization: "Bearer admin" };
@@ -938,11 +933,11 @@ describe("@introspection-sdk/person-server", () => {
     expect(((await refused.json()) as { error: string }).error).toBe(
       "invalid_resource_token",
     );
-    expect((await ps.mission(trip.s256, "acme"))?.spent).toBe(0);
+    expect((await ps.mission("acme", trip.s256))?.spent).toBe(0);
     // An empty tenant names none, so the request is under the default: acme.
     const unnamed = await request("");
     expect(unnamed.status).toBe(200);
-    expect((await ps.mission(trip.s256, "acme"))?.spent).toBe(500);
+    expect((await ps.mission("acme", trip.s256))?.spent).toBe(500);
   });
 
   it("issues under a tenant the directory stamps when the agent names none", async () => {
@@ -950,8 +945,8 @@ describe("@introspection-sdk/person-server", () => {
     const trip = await approvedTrip(agent);
     const presented = trip.person_tokens[RESOURCE]!;
     expect(decodeJwt(presented).tenant).toBe("acme");
-    expect(await ps.mission(trip.s256, "acme")).toBeDefined();
-    expect(await ps.mission(trip.s256, "default")).toBeUndefined();
+    expect(await ps.mission("acme", trip.s256)).toBeDefined();
+    expect(await ps.mission("default", trip.s256)).toBeUndefined();
     const booked = await call(agent, "POST", "/ps/token", {
       resource_token: await resourceToken(agent, presented, 1000),
       presented_token: presented,
@@ -962,7 +957,7 @@ describe("@introspection-sdk/person-server", () => {
       aud: RESOURCE,
       tenant: "acme",
     });
-    expect((await ps.mission(trip.s256, "acme"))?.spent).toBe(1000);
+    expect((await ps.mission("acme", trip.s256))?.spent).toBe(1000);
   });
 
   it("refuses a request naming no tenant when every request must name one", async () => {
@@ -1024,7 +1019,7 @@ describe("@introspection-sdk/person-server", () => {
     // The short pending URL is the default tenant's too.
     const id = asked.at(-1)!.id;
     expect((await call(agent, "GET", `/ps/pending/${id}`)).status).toBe(202);
-    await ps.decide(id, { status: "approved" }, "default");
+    await ps.decide("default", id, { status: "approved" });
     const approved = await call(agent, "GET", pendingPath);
     expect(approved.status).toBe(200);
     const { person_tokens } = (await approved.json()) as {

@@ -218,7 +218,7 @@ export async function createPersonServer(options: PersonServerOptions) {
     token: url("/token"),
     mission: url("/mission"),
     /** Where the agent polls approval `id`, asked under `tenant`. */
-    pending: (id: string, tenant: string) =>
+    pending: (tenant: string, id: string) =>
       url(`/pending/${encodeURIComponent(tenant)}/${id}`),
   };
 
@@ -293,10 +293,10 @@ export async function createPersonServer(options: PersonServerOptions) {
    * it names. Tokens carry the directory's tenant, else the one the agent named.
    */
   async function personFor(
-    agent: Agent,
-    loginHint: unknown,
     tenant: string,
     named: string | undefined,
+    agent: Agent,
+    loginHint: unknown,
   ): Promise<Person> {
     const hint = typeof loginHint === "string" ? loginHint : undefined;
     const hinted = hint
@@ -439,11 +439,11 @@ export async function createPersonServer(options: PersonServerOptions) {
       );
     const named = tenantOf(params);
     const tenant = tenantFor(named);
-    const person = await personFor(agent, params.login_hint, tenant, named);
+    const person = await personFor(tenant, named, agent, params.login_hint);
     const mission =
       params.mission_s256 === undefined
         ? undefined
-        : await liveMission(agent, tenant, params.mission_s256);
+        : await liveMission(tenant, agent, params.mission_s256);
     if (mission && mission.person.id !== person.id)
       throw new AAuthError(404, "mission_not_found", "no such mission");
     return Response.json(await personToken(agent, person, resource, mission));
@@ -454,8 +454,8 @@ export async function createPersonServer(options: PersonServerOptions) {
   // #region missions
   /** The live mission `s256` names, if it is this agent's; the same 404 otherwise. */
   async function liveMission(
-    agent: Agent,
     tenant: string,
+    agent: Agent,
     hash: unknown,
   ): Promise<Mission> {
     const mission =
@@ -482,14 +482,14 @@ export async function createPersonServer(options: PersonServerOptions) {
     const params = readBody(body);
     const named = tenantOf(params);
     const tenant = tenantFor(named);
-    const person = await personFor(agent, params.login_hint, tenant, named);
+    const person = await personFor(tenant, named, agent, params.login_hint);
     const description = String(params.description ?? "");
     if (!description)
       throw new AAuthError(400, "invalid_request", "describe the mission");
     const resources = (Array.isArray(params.resources) ? params.resources : [])
       .map((r) => trim(String(r)))
       .filter((r) => r.startsWith("https://"));
-    return ask("mission", agent, person, description, tenant, {
+    return ask(tenant, "mission", agent, person, description, {
       grant: { resources },
     });
   }
@@ -503,7 +503,7 @@ export async function createPersonServer(options: PersonServerOptions) {
     const agent = await verifyAgent(request, body, path);
     const params = readBody(body);
     const tenant = tenantFor(tenantOf(params));
-    const mission = await liveMission(agent, tenant, hash);
+    const mission = await liveMission(tenant, agent, hash);
     if (params.action === "update") {
       const entry = String(params.description ?? "");
       if (
@@ -519,11 +519,11 @@ export async function createPersonServer(options: PersonServerOptions) {
     }
     if (params.action === "completion")
       return ask(
+        tenant,
         "completion",
         agent,
         mission.person,
         String(params.summary ?? "The agent says the mission is done"),
-        tenant,
         {
           mission_s256: mission.s256,
         },
@@ -588,7 +588,7 @@ export async function createPersonServer(options: PersonServerOptions) {
     // The mission's approved resources are the only issuers whose keys are fetched.
     const mission =
       typeof unverified.mission_s256 === "string"
-        ? await liveMission(agent, tenant, unverified.mission_s256)
+        ? await liveMission(tenant, agent, unverified.mission_s256)
         : undefined;
     if (!mission)
       throw new AAuthError(
@@ -705,11 +705,11 @@ export async function createPersonServer(options: PersonServerOptions) {
       if (spent) return Response.json(await authToken(agent, spent, grant));
     }
     return ask(
+      tenant,
       "auth_token",
       agent,
       mission.person,
       String(rt.scope ?? "a request"),
-      tenant,
       {
         mission_s256: mission.s256,
         resource,
@@ -723,11 +723,11 @@ export async function createPersonServer(options: PersonServerOptions) {
 
   // #region ask
   async function ask(
+    tenant: string,
     kind: ApprovalKind,
     agent: Agent,
     person: Person,
     description: string,
-    tenant: string,
     extra: Partial<
       Pick<
         Approval,
@@ -756,16 +756,16 @@ export async function createPersonServer(options: PersonServerOptions) {
     };
     await store.putApproval(tenant, approval);
     await options.onApproval?.(approval);
-    return stillPending(approval.id, tenant);
+    return stillPending(tenant, approval.id);
   }
 
-  const stillPending = (id: string, tenant: string) =>
+  const stillPending = (tenant: string, id: string) =>
     Response.json(
       { status: "pending" },
       {
         status: 202,
         headers: {
-          Location: endpoints.pending(id, tenant),
+          Location: endpoints.pending(tenant, id),
           "Retry-After": String(retryAfter),
           "Cache-Control": "no-store",
           "AAuth-Requirement": "requirement=approval",
@@ -806,13 +806,13 @@ export async function createPersonServer(options: PersonServerOptions) {
     if (approval.status === "pending")
       return now() >= approval.expires_at
         ? problem(408, "expired", "nobody answered in time")
-        : stillPending(id, tenant);
+        : stillPending(tenant, id);
     const collected = () =>
       problem(410, "collected", "this approval's token was already collected");
     if (approval.status === "collected") return collected();
     if (approval.kind === "completion") return Response.json({});
     // Nothing is issued under a mission that has ended, whatever was approved.
-    const mission = await liveMission(agent, tenant, approval.mission_s256);
+    const mission = await liveMission(tenant, agent, approval.mission_s256);
     if (approval.kind === "mission") {
       const tokens = await Promise.all(
         mission.resources.map(async (r) => [
@@ -878,9 +878,9 @@ export async function createPersonServer(options: PersonServerOptions) {
    * asked under.
    */
   async function decide(
+    tenant: string,
     id: string,
     decision: Decision,
-    tenant: string,
   ): Promise<Approval> {
     const approval = await store.approval(tenant, id);
     if (!approval) throw new AAuthError(404, "not_found", "no such approval");
@@ -973,7 +973,7 @@ export async function createPersonServer(options: PersonServerOptions) {
       );
   }
 
-  async function terminate(hash: string, tenant: string): Promise<Mission> {
+  async function terminate(tenant: string, hash: string): Promise<Mission> {
     const ended = await store.endMission(tenant, hash, now());
     if (!ended)
       throw new AAuthError(404, "mission_not_found", "no such mission");
@@ -1008,21 +1008,15 @@ export async function createPersonServer(options: PersonServerOptions) {
           "decision is approve or deny",
         );
       return Response.json(
-        await decide(
-          consent[1],
-          {
-            status: String(verdict).startsWith("approve")
-              ? "approved"
-              : "denied",
-            ...(params.budget !== undefined
-              ? { budget: readBudget(params.budget) }
-              : {}),
-            ...(typeof params.decided_by === "string"
-              ? { decided_by: params.decided_by }
-              : {}),
-          },
-          tenant,
-        ),
+        await decide(tenant, consent[1], {
+          status: String(verdict).startsWith("approve") ? "approved" : "denied",
+          ...(params.budget !== undefined
+            ? { budget: readBudget(params.budget) }
+            : {}),
+          ...(typeof params.decided_by === "string"
+            ? { decided_by: params.decided_by }
+            : {}),
+        }),
       );
     }
     if (mission && request.method === "GET") {
@@ -1031,7 +1025,7 @@ export async function createPersonServer(options: PersonServerOptions) {
       return Response.json(found ?? null, { status: found ? 200 : 404 });
     }
     if (mission?.[1] && request.method === "PATCH")
-      return Response.json(await terminate(mission[1], tenant));
+      return Response.json(await terminate(tenant, mission[1]));
     return problem(405, "method_not_allowed");
   }
   // #endregion
@@ -1115,10 +1109,10 @@ export async function createPersonServer(options: PersonServerOptions) {
     route,
     decide,
     terminate,
-    approval: (id: string, tenant: string) => store.approval(tenant, id),
+    approval: (tenant: string, id: string) => store.approval(tenant, id),
     approvals: (tenant: string) => store.approvals(tenant),
     missions: (tenant: string) => store.missions(tenant),
-    mission: (hash: string, tenant: string) => store.mission(tenant, hash),
+    mission: (tenant: string, hash: string) => store.mission(tenant, hash),
     store,
   };
 }

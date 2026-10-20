@@ -494,8 +494,8 @@ Before booking anything, propose_trip posts the trip to person-server.aauth, a n
 ```ts
 /** The live mission `s256` names, if it is this agent's; the same 404 otherwise. */
 async function liveMission(
-  agent: Agent,
   tenant: string,
+  agent: Agent,
   hash: unknown,
 ): Promise<Mission> {
   const mission =
@@ -522,14 +522,14 @@ async function proposeMission(
   const params = readBody(body);
   const named = tenantOf(params);
   const tenant = tenantFor(named);
-  const person = await personFor(agent, params.login_hint, tenant, named);
+  const person = await personFor(tenant, named, agent, params.login_hint);
   const description = String(params.description ?? "");
   if (!description)
     throw new AAuthError(400, "invalid_request", "describe the mission");
   const resources = (Array.isArray(params.resources) ? params.resources : [])
     .map((r) => trim(String(r)))
     .filter((r) => r.startsWith("https://"));
-  return ask("mission", agent, person, description, tenant, {
+  return ask(tenant, "mission", agent, person, description, {
     grant: { resources },
   });
 }
@@ -543,7 +543,7 @@ async function missionAction(
   const agent = await verifyAgent(request, body, path);
   const params = readBody(body);
   const tenant = tenantFor(tenantOf(params));
-  const mission = await liveMission(agent, tenant, hash);
+  const mission = await liveMission(tenant, agent, hash);
   if (params.action === "update") {
     const entry = String(params.description ?? "");
     if (
@@ -559,11 +559,11 @@ async function missionAction(
   }
   if (params.action === "completion")
     return ask(
+      tenant,
       "completion",
       agent,
       mission.person,
       String(params.summary ?? "The agent says the mission is done"),
-      tenant,
       {
         mission_s256: mission.s256,
       },
@@ -655,17 +655,13 @@ export async function decide(
     throw new AAuthError(400, "invalid_request", "set the trip's budget");
   asked.approval = await (
     await personServer()
-  ).decide(
-    id,
-    {
-      status: verdict === "approve" ? "approved" : "denied",
-      ...(verdict === "approve" && trip
-        ? { budget: { amount: budgetCents!, ...USD } }
-        : {}),
-      decided_by: asked.approval.approver.email ?? asked.approval.approver.id,
-    },
-    asked.approval.tenant,
-  );
+  ).decide(asked.approval.tenant, id, {
+    status: verdict === "approve" ? "approved" : "denied",
+    ...(verdict === "approve" && trip
+      ? { budget: { amount: budgetCents!, ...USD } }
+      : {}),
+    decided_by: asked.approval.approver.email ?? asked.approval.approver.id,
+  });
   record(
     "acme.decided",
     `${asked.approval.approver.name} ${asked.approval.status}`,
@@ -776,11 +772,11 @@ async function requestPersonToken(
     throw new AAuthError(400, "invalid_request", "resource is an https origin");
   const named = tenantOf(params);
   const tenant = tenantFor(named);
-  const person = await personFor(agent, params.login_hint, tenant, named);
+  const person = await personFor(tenant, named, agent, params.login_hint);
   const mission =
     params.mission_s256 === undefined
       ? undefined
-      : await liveMission(agent, tenant, params.mission_s256);
+      : await liveMission(tenant, agent, params.mission_s256);
   if (mission && mission.person.id !== person.id)
     throw new AAuthError(404, "mission_not_found", "no such mission");
   return Response.json(await personToken(agent, person, resource, mission));
@@ -1436,10 +1432,10 @@ async function verifyAgent(
  * it names. Tokens carry the directory's tenant, else the one the agent named.
  */
 async function personFor(
-  agent: Agent,
-  loginHint: unknown,
   tenant: string,
   named: string | undefined,
+  agent: Agent,
+  loginHint: unknown,
 ): Promise<Person> {
   const hint = typeof loginHint === "string" ? loginHint : undefined;
   const hinted = hint
@@ -1529,7 +1525,7 @@ async function verifyResourceToken(
   // The mission's approved resources are the only issuers whose keys are fetched.
   const mission =
     typeof unverified.mission_s256 === "string"
-      ? await liveMission(agent, tenant, unverified.mission_s256)
+      ? await liveMission(tenant, agent, unverified.mission_s256)
       : undefined;
   if (!mission)
     throw new AAuthError(
@@ -1645,11 +1641,11 @@ async function requestAuthToken(
     if (spent) return Response.json(await authToken(agent, spent, grant));
   }
   return ask(
+    tenant,
     "auth_token",
     agent,
     mission.person,
     String(rt.scope ?? "a request"),
-    tenant,
     {
       mission_s256: mission.s256,
       resource,
@@ -1808,13 +1804,13 @@ async function pendingState(
   if (approval.status === "pending")
     return now() >= approval.expires_at
       ? problem(408, "expired", "nobody answered in time")
-      : stillPending(id, tenant);
+      : stillPending(tenant, id);
   const collected = () =>
     problem(410, "collected", "this approval's token was already collected");
   if (approval.status === "collected") return collected();
   if (approval.kind === "completion") return Response.json({});
   // Nothing is issued under a mission that has ended, whatever was approved.
-  const mission = await liveMission(agent, tenant, approval.mission_s256);
+  const mission = await liveMission(tenant, agent, approval.mission_s256);
   if (approval.kind === "mission") {
     const tokens = await Promise.all(
       mission.resources.map(async (r) => [
@@ -2269,8 +2265,8 @@ complete_trip proposes the mission complete, with a summary of what was booked. 
 ```ts
 /** The live mission `s256` names, if it is this agent's; the same 404 otherwise. */
 async function liveMission(
-  agent: Agent,
   tenant: string,
+  agent: Agent,
   hash: unknown,
 ): Promise<Mission> {
   const mission =
@@ -2297,14 +2293,14 @@ async function proposeMission(
   const params = readBody(body);
   const named = tenantOf(params);
   const tenant = tenantFor(named);
-  const person = await personFor(agent, params.login_hint, tenant, named);
+  const person = await personFor(tenant, named, agent, params.login_hint);
   const description = String(params.description ?? "");
   if (!description)
     throw new AAuthError(400, "invalid_request", "describe the mission");
   const resources = (Array.isArray(params.resources) ? params.resources : [])
     .map((r) => trim(String(r)))
     .filter((r) => r.startsWith("https://"));
-  return ask("mission", agent, person, description, tenant, {
+  return ask(tenant, "mission", agent, person, description, {
     grant: { resources },
   });
 }
@@ -2318,7 +2314,7 @@ async function missionAction(
   const agent = await verifyAgent(request, body, path);
   const params = readBody(body);
   const tenant = tenantFor(tenantOf(params));
-  const mission = await liveMission(agent, tenant, hash);
+  const mission = await liveMission(tenant, agent, hash);
   if (params.action === "update") {
     const entry = String(params.description ?? "");
     if (
@@ -2334,11 +2330,11 @@ async function missionAction(
   }
   if (params.action === "completion")
     return ask(
+      tenant,
       "completion",
       agent,
       mission.person,
       String(params.summary ?? "The agent says the mission is done"),
-      tenant,
       {
         mission_s256: mission.s256,
       },

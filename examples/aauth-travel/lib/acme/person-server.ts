@@ -233,17 +233,13 @@ export async function decide(
     throw new AAuthError(400, "invalid_request", "set the trip's budget");
   asked.approval = await (
     await personServer()
-  ).decide(
-    id,
-    {
-      status: verdict === "approve" ? "approved" : "denied",
-      ...(verdict === "approve" && trip
-        ? { budget: { amount: budgetCents!, ...USD } }
-        : {}),
-      decided_by: asked.approval.approver.email ?? asked.approval.approver.id,
-    },
-    asked.approval.tenant,
-  );
+  ).decide(asked.approval.tenant, id, {
+    status: verdict === "approve" ? "approved" : "denied",
+    ...(verdict === "approve" && trip
+      ? { budget: { amount: budgetCents!, ...USD } }
+      : {}),
+    decided_by: asked.approval.approver.email ?? asked.approval.approver.id,
+  });
   record(
     "acme.decided",
     `${asked.approval.approver.name} ${asked.approval.status}`,

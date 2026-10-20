@@ -36,15 +36,11 @@ const ps = await createPersonServer({
 export default { fetch: (request: Request) => ps.handle(request) };
 
 // When the approver answers, under the tenant it was asked under:
-await ps.decide(
-  approval.id,
-  {
-    status: "approved",
-    budget: { amount: 300_000, unit: "USD", decimals: 2 }, // a mission's budget
-    decided_by: "dana@acme.example",
-  },
-  approval.tenant,
-);
+await ps.decide(approval.tenant, approval.id, {
+  status: "approved",
+  budget: { amount: 300_000, unit: "USD", decimals: 2 }, // a mission's budget
+  decided_by: "dana@acme.example",
+});
 ```
 
 ## Run it on its own
@@ -131,7 +127,7 @@ Every request is under a tenant: the `tenant` the agent names (in the body of ea
 
 An Introspection connector uses it once its `person_server_url` names `issuer`.
 
-Keep the signing key and subject secret stable: resources cache your keys, and each person's directed `sub` is derived from the secret. The default store is in memory; implement `Store` for anything that must survive a restart. Every `Store` method takes the request's tenant first, always a string, and records are kept apart per tenant: a record is found only under the tenant it was saved with. Each `Approval` and `Mission` records its `tenant`. Pass it to `ps.decide()`, `ps.terminate()`, `ps.mission()` and the other lookups, which all take it, or `?tenant=` to the management routes, which default to `defaultTenant`. `spend` must check and add in one step, and `transitionApproval` must change an approval only from the status it expects, so each decision and each collection happens once.
+Keep the signing key and subject secret stable: resources cache your keys, and each person's directed `sub` is derived from the secret. The default store is in memory; implement `Store` for anything that must survive a restart. Every `Store` method takes the request's tenant first, always a string, and records are kept apart per tenant: a record is found only under the tenant it was saved with. Each `Approval` and `Mission` records its `tenant`. Pass it, first, to `ps.decide()`, `ps.terminate()`, `ps.mission()` and the other lookups, or `?tenant=` to the management routes, which default to `defaultTenant`. `spend` must check and add in one step, and `transitionApproval` must change an approval only from the status it expects, so each decision and each collection happens once.
 
 ## Routes
 
