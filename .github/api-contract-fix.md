@@ -23,9 +23,19 @@ For each item in the drift report:
   `packages/introspection-browser` so they agree with each other.
 - Add or adjust unit tests under `tests/` that cover what you changed.
 
-The reference itself is at `https://docs.introspection.dev/openapi/dataplane.json`
-and `https://docs.introspection.dev/openapi/controlplane.json`; read it with
-`node scripts/check-api-contract.mjs` rather than by fetching it yourself.
+The workflow has downloaded the reference before starting you, and the check
+in this run reads that same copy:
+
+- Data Plane: `.api-contract-fix/reference/dataplane.json`
+  (from `https://docs.introspection.dev/openapi/dataplane.json`)
+- Control Plane: `.api-contract-fix/reference/controlplane.json`
+  (from `https://docs.introspection.dev/openapi/controlplane.json`)
+
+The drift report only names fields. Take each field's type, nullability,
+enum values and description from these files: search them with Grep, read the
+schema under `components.schemas`, or query them with `jq`. Never guess a type
+the reference does not state. You cannot reach the network, so do not try to
+fetch the reference yourself, and do not edit these files.
 
 ## What not to change
 
@@ -55,7 +65,9 @@ Some items should not be fixed by you. Write them as questions instead:
 You are done only when all three of these pass:
 
 ```bash
-node scripts/check-api-contract.mjs
+node scripts/check-api-contract.mjs \
+  --spec .api-contract-fix/reference/dataplane.json \
+  --cp-spec .api-contract-fix/reference/controlplane.json
 pnpm check-types
 pnpm --filter introspection-tests test
 ```
@@ -65,14 +77,17 @@ check that still fails only because of an item you turned into a question is
 acceptable; say so.
 
 Finally, write `.api-contract-fix/pr-notes.md` (the workflow keeps it out of
-the commit and puts it into the PR) with:
+the commit and puts it into the PR) with one `##` heading per part:
 
 1. **Changes**: one line per drift item you fixed, naming the interface and the
    field or parameter.
 2. **Questions for a maintainer**: one line per item you left alone, and why.
    Write "None" if there are none.
-3. **Live tests to add**: one line per SDK operation (client method and
+3. **Live tests to add**, under a heading spelled exactly
+   `## Live tests to add`: one line per SDK operation (client method and
    endpoint) whose parameters or response this fix added or changed, with the
-   fields involved. This is the input for the separate live-test PR. Write
-   "None" if no operation changed.
+   fields involved. The workflow copies this section, and only this section,
+   into a second Claude run that writes the live tests in a stacked PR. Write
+   "None" (the only line in the section) if no operation changed; then no
+   live-test PR is opened.
 4. **Checks**: the result of each of the three commands above.

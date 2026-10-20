@@ -1,12 +1,17 @@
 # When the nightly API Contract check goes red, ask Claude Code to bring the SDK
-# back in sync with the published reference, and keep ONE pull request open for
-# it on the fixed branch bot/api-contract-sync.
+# back in sync with the published reference, and keep two pull requests open
+# for it, each on a fixed branch:
+#   - bot/api-contract-sync (job `sync`): the SDK, its types and its unit tests.
+#     Never tests/live/. Its body lists the "Live tests to add".
+#   - bot/api-contract-live-tests (job `live-tests`), stacked on the first: the
+#     tests/live/ walks for exactly that list. Someone runs it against a stack
+#     before it merges; this workflow has neither a stack nor credentials.
 #
 # Claude only edits files. Every git and PR step is a shell step here, so what
-# lands on the branch is decided by this file and not by the model:
+# lands on a branch is decided by this file and not by the model:
 #   - Claude runs with a read-only token and no git commit/push tools.
-#   - The workflow re-verifies typecheck + tests itself, refuses any diff that
-#     touches the check script or .github/, and only then commits.
+#   - The workflow re-verifies the result itself, refuses any diff outside the
+#     paths the job owns, and only then commits.
 #   - The push and the PR use a GitHub App token (minted after Claude has
 #     finished), so the PR triggers CI — a GITHUB_TOKEN push would not.
 #
@@ -22,8 +27,8 @@ on:
     branches: [main]
   workflow_dispatch:
 
-# One fix job at a time; a second red night queues behind the first instead of
-# racing it onto the same branch.
+# One fix run at a time; a second red night queues behind the first instead of
+# racing it onto the same branches.
 concurrency:
   group: api-contract-fix
   cancel-in-progress: false
@@ -33,6 +38,14 @@ permissions: {}
 env:
   BRANCH: bot/api-contract-sync
   COMMIT_TITLE: "fix(types): sync with API reference"
+  LIVE_BRANCH: bot/api-contract-live-tests
+  LIVE_COMMIT_TITLE: "test(live): cover the API reference sync"
+  # The same references scripts/check-api-contract.mjs reads by default. They
+  # are downloaded once so the check and Claude see the same copy.
+  DP_SPEC_URL: https://docs.introspection.dev/openapi/dataplane.json
+  CP_SPEC_URL: https://docs.introspection.dev/openapi/controlplane.json
+  DP_SPEC: .api-contract-fix/reference/dataplane.json
+  CP_SPEC: .api-contract-fix/reference/controlplane.json
 
 jobs:
   sync:
@@ -54,6 +67,12 @@ jobs:
     permissions:
       contents: read
       pull-requests: read
+    outputs:
+      pushed: ${{ steps.publish.outputs.pushed }}
+      pr_url: ${{ steps.publish.outputs.pr_url }}
+      live_tests: ${{ steps.publish.outputs.live_tests }}
+      live_tests_none: ${{ steps.publish.outputs.live_tests_none }}
+      run_url: ${{ steps.pr.outputs.run_url }}
     steps:
       - name: Find the open sync PR
         id: pr
@@ -95,15 +114,30 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      # Same command as the nightly in api-contract.yml. Run on the PR branch it
-      # answers "is anything still unfixed?", so a night whose drift the open PR
-      # already covers ends here without calling Claude.
+      # Claude has no network tools, and the check prints field names only, so
+      # Claude reads types and docs from this copy. It stays out of the commit.
+      - name: Download the API reference
+        run: |
+          mkdir -p .api-contract-fix/reference
+          echo "/.api-contract-fix/" >> .git/info/exclude
+          for pair in "$DP_SPEC_URL $DP_SPEC" "$CP_SPEC_URL $CP_SPEC"; do
+            read -r url file <<< "$pair"
+            if ! curl -fsSL --retry 3 --max-time 60 -o "$file" "$url"; then
+              # An unreachable reference is not drift; Claude cannot fix it.
+              echo "::error::The API reference at $url could not be fetched."
+              exit 1
+            fi
+          done
+
+      # Same check as the nightly in api-contract.yml, against the downloaded
+      # copy. Run on the PR branch it answers "is anything still unfixed?", so a
+      # night whose drift the open PR already covers ends here without Claude.
       - name: Rerun the contract check
         id: drift
         run: |
           report="$RUNNER_TEMP/api-contract-drift.txt"
           set +e
-          node scripts/check-api-contract.mjs > "$report" 2>&1
+          node scripts/check-api-contract.mjs --spec "$DP_SPEC" --cp-spec "$CP_SPEC" > "$report" 2>&1
           status=$?
           set -e
           cat "$report"
@@ -113,8 +147,7 @@ jobs:
             exit 0
           fi
           if grep -q '^could not read the API reference' "$report"; then
-            # An unreachable reference is not drift; Claude cannot fix it.
-            echo "::error::The API reference could not be fetched; see the log above."
+            echo "::error::The downloaded API reference could not be read; see the log above."
             exit 1
           fi
           {
@@ -132,9 +165,6 @@ jobs:
         env:
           REPORT: ${{ steps.drift.outputs.report }}
         run: |
-          # Claude's notes for the PR go here; keep them out of the commit.
-          mkdir -p .api-contract-fix
-          echo "/.api-contract-fix/" >> .git/info/exclude
           delimiter="EOF_$(openssl rand -hex 16)"
           {
             echo "prompt<<$delimiter"
@@ -157,7 +187,7 @@ jobs:
           claude_args: >-
             --model claude-sonnet-5-5
             --max-turns 40
-            --allowedTools "Read,Edit,Write,Glob,Grep,Bash(node scripts/check-api-contract.mjs),Bash(pnpm install:*),Bash(pnpm build:*),Bash(pnpm check-types:*),Bash(pnpm --filter introspection-tests test:*),Bash(git status:*),Bash(git diff:*),Bash(git log:*)"
+            --allowedTools "Read,Edit,Write,Glob,Grep,Bash(node scripts/check-api-contract.mjs:*),Bash(jq:*),Bash(pnpm install:*),Bash(pnpm build:*),Bash(pnpm check-types:*),Bash(pnpm --filter introspection-tests test:*),Bash(git status:*),Bash(git diff:*),Bash(git log:*)"
             --disallowedTools "Bash(git commit:*),Bash(git push:*),WebFetch,WebSearch"
 
       - name: Check what Claude changed
@@ -173,7 +203,7 @@ jobs:
             exit 1
           fi
           echo "$changed"
-          # Live tests are updated in a separate PR, never by this job.
+          # Live tests belong to the live-tests job, never to this one.
           forbidden=$(echo "$changed" | grep -E '^(scripts/check-api-contract\.mjs|\.github/|tests/live/)' || true)
           if [ -n "$forbidden" ]; then
             echo "::error::Claude edited files it must not touch: $forbidden"
@@ -195,7 +225,7 @@ jobs:
           pnpm build
           pnpm check-types
           pnpm --filter introspection-tests test
-          if node scripts/check-api-contract.mjs > "$RUNNER_TEMP/after.txt" 2>&1; then
+          if node scripts/check-api-contract.mjs --spec "$DP_SPEC" --cp-spec "$CP_SPEC" > "$RUNNER_TEMP/after.txt" 2>&1; then
             echo "contract=passing" >> "$GITHUB_OUTPUT"
           else
             echo "contract=still failing" >> "$GITHUB_OUTPUT"
@@ -230,6 +260,7 @@ jobs:
             "HEAD:refs/heads/$BRANCH"
 
       - name: Open or update the PR
+        id: publish
         if: steps.drift.outputs.found == 'true'
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
@@ -238,23 +269,30 @@ jobs:
           REPORT: ${{ steps.drift.outputs.report }}
           CONTRACT: ${{ steps.verify.outputs.contract }}
         run: |
+          # The live-tests job is built from this section, and only this one.
+          live="$RUNNER_TEMP/live-tests.md"
+          awk '/^#+[[:space:]]*Live tests to add/ {on=1; next} on && /^#/ {exit} on' \
+            .api-contract-fix/pr-notes.md > "$live" 2>/dev/null || true
+          if ! grep -q '[^[:space:]]' "$live"; then
+            echo "_Not listed by Claude; derive them from this PR's diff._" > "$live"
+          fi
           body="$RUNNER_TEMP/pr-body.md"
           {
             echo "The [API Contract check]($RUN_URL) found drift between the SDK and the published API reference. Claude Code edited the SDK; this workflow ran \`pnpm check-types\` and the unit tests on the result (passing). The contract check is now **$CONTRACT**."
             echo
+            echo "This PR changes the SDK, its types and its unit tests only. The live tests for the operations below are added by a second PR from \`$LIVE_BRANCH\`, stacked on this one, which links back here."
+            echo
             if [ -s .api-contract-fix/pr-notes.md ]; then
-              cat .api-contract-fix/pr-notes.md
+              # The section is re-added below in its normalised form.
+              awk '/^#+[[:space:]]*Live tests to add/ {skip=1; next} skip && /^#/ {skip=0} !skip' \
+                .api-contract-fix/pr-notes.md
             else
               echo "_Claude left no notes._"
             fi
-            # The separate live-test PR is built from this section, so it is
-            # always present even when Claude's notes leave it out.
-            if ! grep -qi 'live tests to add' .api-contract-fix/pr-notes.md 2>/dev/null; then
-              echo
-              echo "### Live tests to add"
-              echo
-              echo "_Not listed by Claude; derive them from this PR's diff._"
-            fi
+            echo
+            echo "## Live tests to add"
+            echo
+            cat "$live"
             echo
             echo "<details><summary>Drift report</summary>"
             echo
@@ -267,7 +305,223 @@ jobs:
           } > "$body"
           if [ -n "$PR" ]; then
             gh pr comment "$PR" --repo "$GITHUB_REPOSITORY" --body-file "$body"
+            url=$(gh pr view "$PR" --repo "$GITHUB_REPOSITORY" --json url --jq .url)
           else
-            gh pr create --repo "$GITHUB_REPOSITORY" --base main --head "$BRANCH" \
-              --title "$COMMIT_TITLE" --body-file "$body"
+            url=$(gh pr create --repo "$GITHUB_REPOSITORY" --base main --head "$BRANCH" \
+              --title "$COMMIT_TITLE" --body-file "$body")
+          fi
+          none=false
+          if [ "$(grep '[^[:space:]]' "$live" | sed 's/[[:space:]_*.-]//g' | tr '[:upper:]' '[:lower:]')" = "none" ]; then
+            none=true
+          fi
+          delimiter="EOF_$(openssl rand -hex 16)"
+          {
+            echo "pushed=true"
+            echo "pr_url=$url"
+            echo "live_tests_none=$none"
+            echo "live_tests<<$delimiter"
+            cat "$live"
+            echo "$delimiter"
+          } >> "$GITHUB_OUTPUT"
+
+  live-tests:
+    name: Add live tests for the sync
+    needs: sync
+    if: needs.sync.outputs.pushed == 'true' && needs.sync.outputs.live_tests_none != 'true'
+    runs-on: ubuntu-latest
+    environment: build
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      pull-requests: read
+    env:
+      # No stack and no credentials here: every live test must skip, so
+      # `pnpm test:live` only proves that the suite compiles and collects.
+      INTROSPECTION_LIVE: "0"
+    steps:
+      - name: Find the open live-tests PR
+        id: pr
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          pr=$(gh pr list --repo "$GITHUB_REPOSITORY" --head "$LIVE_BRANCH" \
+            --state open --json number --jq '.[0].number // empty')
+          {
+            echo "number=$pr"
+            echo "ref=${pr:+$LIVE_BRANCH}"
+          } >> "$GITHUB_OUTPUT"
+          if [ -z "$pr" ] && gh api "repos/$GITHUB_REPOSITORY/branches/$LIVE_BRANCH" --silent 2>/dev/null; then
+            echo "::error::$LIVE_BRANCH exists without an open PR. Delete the branch or reopen its PR, then rerun."
+            exit 1
+          fi
+
+      - uses: actions/checkout@v7
+        with:
+          # The open PR's branch, so new commits stack on it; the fix branch
+          # the sync job just pushed otherwise.
+          ref: ${{ steps.pr.outputs.ref || env.BRANCH }}
+          # Every branch, so the fix branch can be merged in below.
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Stack the branch on the fix
+        env:
+          PR: ${{ steps.pr.outputs.number }}
+        run: |
+          if [ -z "$PR" ]; then
+            git switch -c "$LIVE_BRANCH"
+            exit 0
+          fi
+          # Bring this run's fix in with a merge commit, never a rebase: the
+          # push stays a fast-forward.
+          if ! git -c user.name="github-actions[bot]" \
+              -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+              merge --no-edit "origin/$BRANCH"; then
+            echo "::error::origin/$BRANCH does not merge cleanly into $LIVE_BRANCH. Resolve it on the branch, then rerun."
+            exit 1
+          fi
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build the prompt
+        id: prompt
+        env:
+          LIVE_TESTS: ${{ needs.sync.outputs.live_tests }}
+          FIX_PR: ${{ needs.sync.outputs.pr_url }}
+        run: |
+          # Claude's notes for the PR go here; keep them out of the commit.
+          mkdir -p .api-contract-fix
+          echo "/.api-contract-fix/" >> .git/info/exclude
+          delimiter="EOF_$(openssl rand -hex 16)"
+          {
+            echo "prompt<<$delimiter"
+            cat .github/api-contract-live-tests.md
+            printf '\n## Live tests to add\n\nFrom %s:\n\n' "$FIX_PR"
+            printf '%s\n' "$LIVE_TESTS"
+            echo "$delimiter"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Run Claude Code
+        # v1.0.254
+        uses: anthropics/claude-code-action@db77d4d3c98f3f6380e7cd45ffba2342a3dbde3c
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          # Read-only on purpose: Claude edits the working tree, the workflow pushes.
+          github_token: ${{ github.token }}
+          prompt: ${{ steps.prompt.outputs.prompt }}
+          claude_args: >-
+            --model claude-sonnet-5-5
+            --max-turns 40
+            --allowedTools "Read,Edit,Write,Glob,Grep,Bash(pnpm build:*),Bash(pnpm check-types:*),Bash(pnpm exec eslint tests/live:*),Bash(pnpm exec prettier --check tests/live:*),Bash(pnpm exec prettier --write tests/live:*),Bash(pnpm test:live),Bash(git status:*),Bash(git diff:*),Bash(git log:*)"
+            --disallowedTools "Bash(git commit:*),Bash(git push:*),WebFetch,WebSearch"
+
+      - name: Check what Claude changed
+        run: |
+          git add -A
+          changed=$(git diff --cached --name-only)
+          if [ -z "$changed" ]; then
+            echo "Claude made no changes; see its notes below." >> "$GITHUB_STEP_SUMMARY"
+            cat .api-contract-fix/live-notes.md >> "$GITHUB_STEP_SUMMARY" 2>/dev/null || true
+            echo "::error::Claude added no live tests for the listed operations."
+            exit 1
+          fi
+          echo "$changed"
+          # This PR is tests/live/ and nothing else.
+          forbidden=$(echo "$changed" | grep -vE '^tests/live/' || true)
+          if [ -n "$forbidden" ]; then
+            echo "::error::Claude edited files outside tests/live/: $forbidden"
+            exit 1
+          fi
+          deleted_tests=$(git diff --cached --name-only --diff-filter=D -- tests/ || true)
+          if [ -n "$deleted_tests" ]; then
+            echo "::error::Claude deleted tests: $deleted_tests"
+            exit 1
+          fi
+
+      - name: Verify the live tests
+        run: |
+          pnpm build
+          pnpm check-types
+          pnpm exec eslint tests/live
+          pnpm exec prettier --check tests/live
+          pnpm test:live
+
+      - uses: actions/create-github-app-token@v1
+        id: app-token
+        with:
+          app-id: ${{ vars.GH_APP_ID }}
+          private-key: ${{ secrets.GH_APP_PRIVATE_KEY }}
+          owner: introspection-org
+          repositories: introspection-js-sdk
+          permission-contents: write
+          permission-pull-requests: write
+
+      - name: Commit and push
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          APP_SLUG: ${{ steps.app-token.outputs.app-slug }}
+          FIX_PR: ${{ needs.sync.outputs.pr_url }}
+        run: |
+          bot="${APP_SLUG}[bot]"
+          bot_id=$(gh api "/users/${bot}" --jq .id)
+          git -c user.name="$bot" -c user.email="${bot_id}+${bot}@users.noreply.github.com" \
+            commit -m "$LIVE_COMMIT_TITLE" -m "Covers the operations listed in $FIX_PR"
+          # Plain push, never forced: on an existing PR this only adds commits.
+          git -c credential.helper= -c http.https://github.com/.extraheader= \
+            push "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" \
+            "HEAD:refs/heads/$LIVE_BRANCH"
+
+      - name: Open or update the PR and link both
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          PR: ${{ steps.pr.outputs.number }}
+          FIX_PR: ${{ needs.sync.outputs.pr_url }}
+          RUN_URL: ${{ needs.sync.outputs.run_url }}
+          LIVE_TESTS: ${{ needs.sync.outputs.live_tests }}
+        run: |
+          body="$RUNNER_TEMP/pr-body.md"
+          {
+            echo "Live tests for $FIX_PR, which the [API Contract check]($RUN_URL) prompted. Stacked on it: merge that PR first, then this one."
+            echo
+            echo "> [!IMPORTANT]"
+            echo "> Nobody has run these tests against a deployment yet. Before merging, run \`INTROSPECTION_LIVE=1 pnpm test:live\` against a seeded stack (see \`tests/live/live-api.test.ts\` for the settings) and note the result here."
+            echo
+            echo "This workflow ran \`pnpm check-types\`, eslint and prettier on \`tests/live/\`, and \`pnpm test:live\` without \`INTROSPECTION_LIVE\` (the suite compiles and collects; every test skips)."
+            echo
+            echo "## Live tests to add"
+            echo
+            printf '%s\n' "$LIVE_TESTS"
+            echo
+            if [ -s .api-contract-fix/live-notes.md ]; then
+              cat .api-contract-fix/live-notes.md
+            else
+              echo "_Claude left no notes._"
+            fi
+            echo
+            echo "_Opened by [api-contract-fix.yml](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}). Further drift is added to this PR as new commits._"
+          } > "$body"
+          if [ -n "$PR" ]; then
+            gh pr comment "$PR" --repo "$GITHUB_REPOSITORY" --body-file "$body"
+            # Merging the fix PR retargets this one to main; while the fix
+            # branch has an open PR again, stack on it again.
+            gh pr edit "$PR" --repo "$GITHUB_REPOSITORY" --base "$BRANCH"
+            url=$(gh pr view "$PR" --repo "$GITHUB_REPOSITORY" --json url --jq .url)
+          else
+            url=$(gh pr create --repo "$GITHUB_REPOSITORY" --base "$BRANCH" --head "$LIVE_BRANCH" \
+              --title "$LIVE_COMMIT_TITLE" --body-file "$body")
+          fi
+          # Link back from the fix PR, once.
+          fix_body="$RUNNER_TEMP/fix-body.md"
+          gh pr view "$FIX_PR" --repo "$GITHUB_REPOSITORY" --json body --jq .body > "$fix_body"
+          if ! grep -qF "$url" "$fix_body"; then
+            printf '\n**Live tests:** %s (stacked on this PR; run it against a stack before merging).\n' "$url" >> "$fix_body"
+            gh pr edit "$FIX_PR" --repo "$GITHUB_REPOSITORY" --body-file "$fix_body"
           fi

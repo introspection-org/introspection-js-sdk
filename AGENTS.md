@@ -54,9 +54,14 @@ If your branch is intentionally adding code that can't be covered by unit tests 
 
 ### API contract drift
 
-`.github/workflows/api-contract.yml` runs `node scripts/check-api-contract.mjs` nightly against the published API reference. When it goes red on `main`, `.github/workflows/api-contract-fix.yml` reruns the check and, if the drift is real, has Claude Code edit the SDK following `.github/api-contract-fix.md`. The workflow, not Claude, verifies typecheck and tests, commits, and pushes to the fixed branch `bot/api-contract-sync`. It keeps one PR open from that branch: later drift adds commits to it, never a force-push. Breaking public-API changes and possible allowlist entries come back as questions in the PR, not as edits. The PR changes the SDK, its types and its unit tests only, never `tests/live/`. Its "Live tests to add" section lists the operations the fix changed, as input for a separate live-test PR.
+`.github/workflows/api-contract.yml` runs `node scripts/check-api-contract.mjs` nightly against the published API reference. When it goes red on `main`, `.github/workflows/api-contract-fix.yml` downloads the reference, reruns the check against that copy and, if the drift is real, has Claude Code fix it in two stacked PRs. Claude reads field types and docs from the downloaded copy. The workflow, not Claude, verifies each result, commits, and pushes with plain pushes, never a force-push:
 
-Review that PR like any other. To change what Claude may do, edit `.github/api-contract-fix.md`. If the branch is left behind by a closed, unmerged PR, delete the branch, or the next run fails. Run the workflow by hand with `gh workflow run api-contract-fix.yml`.
+- **Fix PR** from `bot/api-contract-sync` into `main`, following `.github/api-contract-fix.md`: the SDK, its types and its unit tests only, never `tests/live/`. The workflow runs typecheck and the unit tests. Breaking public-API changes and possible allowlist entries come back as questions in the PR, not as edits. Its "Live tests to add" section lists the operations the fix changed.
+- **Live-tests PR** from `bot/api-contract-live-tests` into `bot/api-contract-sync`, following `.github/api-contract-live-tests.md`: walks in `tests/live/` for exactly that list, and nothing outside `tests/live/`. The workflow runs typecheck, eslint and prettier on `tests/live/`, and `pnpm test:live` without `INTROSPECTION_LIVE`, which only proves the suite compiles and collects. Someone must run `INTROSPECTION_LIVE=1 pnpm test:live` against a seeded stack before merging it. No live-test PR is opened when the list is "None".
+
+Each PR links the other, and later drift adds commits to both (the live branch merges the fix branch in). Merge the fix PR first; when its branch is deleted, GitHub retargets the live-tests PR to `main`.
+
+Review both PRs like any other. To change what Claude may do, edit the two prompts under `.github/`. If a branch is left behind by a closed, unmerged PR, delete the branch, or the next run fails. If only the live-tests job fails, rerun that job from the run page; a new run skips it when the fix PR already covers the drift. Run the workflow by hand with `gh workflow run api-contract-fix.yml`.
 
 ---
 
