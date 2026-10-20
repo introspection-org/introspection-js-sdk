@@ -28,7 +28,7 @@ export const PERSON_SERVER_URL = trim(
 /**
  * Which Person Server speaks for Acme's people: `acme`, Acme's own (above), or
  * `hosted`, Introspection's hosted one, with Acme deciding approvals through
- * its project's `/v1/approvals`.
+ * its project's `/v1/aauth/approvals`.
  */
 export const PERSON_SERVER_MODE: "acme" | "hosted" =
   process.env.PERSON_SERVER === "hosted" ? "hosted" : "acme";
