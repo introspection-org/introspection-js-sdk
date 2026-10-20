@@ -147,6 +147,28 @@ function withInjectedTraceContext(
   return { ...opts, headers };
 }
 
+/**
+ * The undici package multipart-encodes only its own `FormData`, and sends
+ * Node's global one (what callers build) as the text "[object FormData]".
+ * Encode it here, through the global `Response`, so the boundary in the
+ * content type matches the body.
+ */
+async function withEncodedFormData(
+  opts: Record<string, unknown>,
+): Promise<Record<string, unknown>> {
+  if (typeof FormData === "undefined" || !(opts.body instanceof FormData)) {
+    return opts;
+  }
+  const encoded = new Response(opts.body);
+  const headers = new Headers(opts.headers as HeadersInit | undefined);
+  headers.set("content-type", encoded.headers.get("content-type") as string);
+  return {
+    ...opts,
+    headers,
+    body: new Uint8Array(await encoded.arrayBuffer()),
+  };
+}
+
 /** @internal Used by the lazy installer to preserve the pre-install fetch. */
 export function createProxyFetchWithBase(
   options: ProxyFetchOptions = {},
@@ -227,11 +249,11 @@ export function createProxyFetchWithBase(
       opts.headers = headers;
     }
 
-    const execute = () =>
+    const execute = async () =>
       undiciFetch(
         target as unknown as Parameters<typeof undiciFetch>[0],
         withInjectedTraceContext(
-          opts,
+          await withEncodedFormData(opts),
           options.propagateBaggage ?? false,
         ) as unknown as Parameters<typeof undiciFetch>[1],
       ) as unknown as Promise<Response>;
