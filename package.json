@@ -13,7 +13,8 @@
     "prepare": "husky install",
     "test": "pnpm --filter introspection-tests test",
     "test:replay": "pnpm --filter introspection-tests test:replay",
-    "test:record": "pnpm --filter introspection-tests test:record"
+    "test:record": "pnpm --filter introspection-tests test:record",
+    "test:live": "turbo run test:live --filter=introspection-tests --ui=stream"
   },
   "devDependencies": {
     "husky": "^9.0.0",
