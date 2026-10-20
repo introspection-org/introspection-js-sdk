@@ -190,6 +190,16 @@ upsert_env BROWSERBASE_MCP_URL "$MOCK"
 if [ "$MODE" = acme ]; then upsert_env ACME_PERSON_SERVER_URL "$ACME"; fi
 say "booking provider: $BOOKING"
 
+# The app runs the workspace's own Person Server, resource and client packages
+# from their dist/, so install and build them first: after a pull or a branch
+# switch the source and its dependencies move on, and a stale dist answers in
+# the old shape. Turbo's cache
+# makes this quick when nothing changed.
+say "building the workspace packages the app uses"
+(cd ../.. && pnpm install --frozen-lockfile --prefer-offline --reporter=silent &&
+  pnpm exec turbo run build --filter "introspection-example-aauth-travel^..." --output-logs=errors-only) ||
+  fail "could not build the workspace packages; run \`pnpm build\` at the repository root to see why"
+
 # The app starts first: the runtime's first build reaches the mock it serves.
 # Until setup is done it says so, rather than that the project isn't set up.
 remove_env DEMO_SETUP
