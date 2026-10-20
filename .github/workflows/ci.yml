@@ -51,11 +51,17 @@ jobs:
       - name: Check formatting
         run: pnpm format:check
 
+      - name: Check size limits
+        run: pnpm lint:limits
+
       - name: Run linting
         run: pnpm lint
 
       - name: Run type checking
         run: pnpm check-types
+
+      - name: Check for runtime import cycles
+        run: pnpm check-cycles
 
   knip:
     name: Unused Code (Knip)

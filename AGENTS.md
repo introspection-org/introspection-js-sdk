@@ -67,6 +67,22 @@ When Knip reports an export as unused, first check whether a package entry expor
 
 Don't hide a finding in checked code with an `ignore*` option. Use those options only for code Knip doesn't check (the two Next.js apps) or can't see (a system binary such as `openssl`), and give the reason in the PR.
 
+### Size limits ratchet
+
+`packages/eslint-config/base.js` caps code size for every package that lints with it. Each limit sits at today's worst value across all packages, `introspection-types` included, so the current code passes; the targets are where we're heading:
+
+| Rule                                                     | Limit | Target |
+| -------------------------------------------------------- | ----: | -----: |
+| `complexity`                                             |    65 |     10 |
+| `max-lines` (per file, blank lines and comments skipped) |  1211 |    400 |
+| `max-lines-per-function` (same skips)                    |   856 |     80 |
+| `max-params`                                             |     9 |      4 |
+| `max-depth`                                              |     5 |      4 |
+
+`eslint-plugin-only-warn` turns these into warnings, and every package's `lint` script runs `--max-warnings 0`, so a finding fails `pnpm lint:limits`, `pnpm lint` and the CI "Check size limits" step.
+
+Later PRs lower a limit step by step as they refactor the worst offenders, updating this table in the same PR. **Never raise a limit.** If new code exceeds one, split it.
+
 ### Duplicate code (jscpd)
 
 ```bash
@@ -125,6 +141,13 @@ tests/recordings/<name>/recording.har
 ```
 
 Polly appends a `_<hash>` suffix to the cassette name (`pi-chat_3668022627/`). The files are HAR 1.2 and inspectable in any HAR viewer.
+
+### Import cycles and the browser boundary
+
+CI fails the `Lint & Type Check` job on either of these:
+
+- **Runtime import cycles.** `pnpm check-cycles` runs `madge --circular` over `packages/*/src`. `.madgerc` skips `import type`, so a type-only back-edge (such as `resources/*.ts` importing the `IntrospectionClient` type from `client.ts`) is allowed. To break a runtime cycle, move the shared code into a module both sides import, or make the back-edge `import type`.
+- **Node built-ins in browser-safe packages.** `introspection-browser`, `introspection-http` and `introspection-types` ship to browsers, so their `eslint.config.mjs` forbids importing `node:*` and every bare built-in name (`fs`, `path`, `crypto`, …) through `no-restricted-imports`. Node-only code belongs in `introspection-node`.
 
 ---
 
