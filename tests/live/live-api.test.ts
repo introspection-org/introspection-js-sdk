@@ -14,8 +14,10 @@
  * `INTROSPECTION_PROJECT`) against `INTROSPECTION_BASE_API_URL` (Control
  * Plane), and the Data Plane URL comes from the token response, never from
  * configuration. `INTROSPECTION_MEMBER_TOKEN` and `INTROSPECTION_CP_SESSION`
- * cover the routes whose scopes a service account cannot hold. A test whose
- * settings are missing skips.
+ * cover the routes whose scopes a service account cannot hold. Without
+ * `INTROSPECTION_LIVE=1` every test skips; with it, a missing setting fails
+ * the test rather than skipping it, so a misconfigured run cannot pass as an
+ * all-skipped one.
  *
  * Mirrors the Rust SDK's `tests/live_api_test.rs`.
  *
@@ -39,16 +41,18 @@ type Credential = "serviceAccount" | "session" | "member";
 
 const MAX_RECORDS = 500;
 
+const LIVE = process.env.INTROSPECTION_LIVE === "1";
+
+/** `name`'s value; a live run without it fails, any other run skips. */
 function setting(ctx: TestContext, name: string): string {
+  requireLive(ctx);
   const value = process.env[name];
-  if (!value) ctx.skip(`${name} is not set`);
-  return value as string;
+  if (!value) throw new Error(`INTROSPECTION_LIVE=1 but ${name} is not set`);
+  return value;
 }
 
 function requireLive(ctx: TestContext): void {
-  if (process.env.INTROSPECTION_LIVE !== "1") {
-    ctx.skip("INTROSPECTION_LIVE is not 1");
-  }
+  if (!LIVE) ctx.skip("INTROSPECTION_LIVE is not 1");
 }
 
 let minted: Promise<OAuthToken> | undefined;
@@ -74,8 +78,8 @@ async function discoveredDpUrl(ctx: TestContext): Promise<string> {
 }
 
 /**
- * The run's client for `credential`, or a skip when the run is not live or a
- * setting it needs is missing.
+ * The run's client for `credential`. It skips when the run is not live and
+ * fails when a setting it needs is missing.
  *
  * - `serviceAccount`: the project's service account, the SDK's primary
  *   credential, built by `fromServiceAccount` so the Data Plane URL is
