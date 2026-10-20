@@ -87,6 +87,7 @@ export class IntrospectionClient implements DataPlaneResources {
   /** @internal — HTTP client pointed at the project Data Plane. */
   readonly dpHttp: HttpClient;
   /** @internal — passed through to Runner so it can build its own DP HTTP client. */
+  // jscpd:ignore-start -- field declarations of the resource namespaces
   readonly advancedOptions: AdvancedOptions;
 
   /**
@@ -167,6 +168,7 @@ export class IntrospectionClient implements DataPlaneResources {
    * has no runtime context.
    */
   readonly connections: AppConnectionsApi<Required<AppConnectionCreateParams>>;
+  // jscpd:ignore-end
 
   constructor(options: IntrospectionClientOptions = {}) {
     const token = options.token || process.env.INTROSPECTION_TOKEN || "";

@@ -475,25 +475,30 @@ export function providerCostAttributes(usage: unknown): Record<string, number> {
     attrs[IntrospectionAttr.LLM_COST_USD] = usageRecord.cost;
   }
 
-  const costDetails = usageRecord.cost_details;
-  if (costDetails !== null && typeof costDetails === "object") {
-    const upstreamCost = (costDetails as Record<string, unknown>)
-      .upstream_inference_cost;
-    if (isFiniteNumber(upstreamCost)) {
-      attrs[IntrospectionAttr.LLM_UPSTREAM_COST_USD] = upstreamCost;
-    }
+  const upstreamCost = nestedValue(
+    usageRecord.cost_details,
+    "upstream_inference_cost",
+  );
+  if (isFiniteNumber(upstreamCost)) {
+    attrs[IntrospectionAttr.LLM_UPSTREAM_COST_USD] = upstreamCost;
   }
 
-  const completionDetails = usageRecord.completion_tokens_details;
-  if (completionDetails !== null && typeof completionDetails === "object") {
-    const reasoningTokens = (completionDetails as Record<string, unknown>)
-      .reasoning_tokens;
-    if (isFiniteNumber(reasoningTokens)) {
-      attrs[GenAi.USAGE_REASONING_TOKENS] = reasoningTokens;
-    }
+  const reasoningTokens = nestedValue(
+    usageRecord.completion_tokens_details,
+    "reasoning_tokens",
+  );
+  if (isFiniteNumber(reasoningTokens)) {
+    attrs[GenAi.USAGE_REASONING_TOKENS] = reasoningTokens;
   }
 
   return attrs;
+}
+
+/** `container[key]` when `container` is an object, else `undefined`. */
+function nestedValue(container: unknown, key: string): unknown {
+  return container !== null && typeof container === "object"
+    ? (container as Record<string, unknown>)[key]
+    : undefined;
 }
 
 function isFiniteNumber(value: unknown): value is number {

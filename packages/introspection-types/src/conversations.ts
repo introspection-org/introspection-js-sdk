@@ -228,6 +228,7 @@ export interface GenAiCost {
   [key: string]: unknown;
 }
 
+// jscpd:ignore-start -- interface field list mirroring the semconv tree
 /** The `gen_ai.*` attribute family, nested as the convention names it. */
 export interface GenAiSpanAttributes {
   operation?: GenAiOperation;
@@ -245,6 +246,7 @@ export interface GenAiSpanAttributes {
   system_instructions?: SystemInstruction[];
   [key: string]: unknown;
 }
+// jscpd:ignore-end
 
 // --- introspection.* ------------------------------------------------------
 

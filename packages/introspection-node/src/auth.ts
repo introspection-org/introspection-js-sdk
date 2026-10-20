@@ -40,11 +40,27 @@ function resolveFetch(custom?: typeof fetch): typeof fetch {
   return fetchImpl;
 }
 
+/** Where and how the token endpoint is reached. */
+export interface TokenEndpointOptions {
+  /**
+   * CP API base URL. Defaults to `INTROSPECTION_BASE_API_URL` or
+   * `https://api.introspection.dev`.
+   */
+  baseApiUrl?: string;
+  /** Custom `fetch` (for tests or non-standard runtimes). */
+  fetch?: typeof fetch;
+}
+
+/** POST `fields` (plus `scope`, when set) as a token-endpoint form. */
 async function postTokenForm(
-  baseApiUrl: string,
-  form: URLSearchParams,
-  fetchImpl: typeof fetch,
+  endpoint: TokenEndpointOptions,
+  fields: Record<string, string>,
+  scope?: string,
 ): Promise<OAuthToken> {
+  const form = new URLSearchParams(fields);
+  if (scope) form.set("scope", scope);
+  const fetchImpl = resolveFetch(endpoint.fetch);
+  const baseApiUrl = resolveBaseApiUrl(endpoint.baseApiUrl);
   const res = await fetchImpl(`${baseApiUrl}/v1/oauth/token`, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -87,7 +103,7 @@ export interface OAuthToken {
   member_id?: string | null;
 }
 
-export interface ServiceAccountTokenParams {
+export interface ServiceAccountTokenParams extends TokenEndpointOptions {
   /** Confidential Application client id (`intro_app_…`). */
   clientId: string;
   /** Confidential Application client secret (`intro_sk_…`). */
@@ -103,13 +119,6 @@ export interface ServiceAccountTokenParams {
    * `allowed_scopes`; omit to receive the Application's default scope.
    */
   scope?: string;
-  /**
-   * CP API base URL. Defaults to `INTROSPECTION_BASE_API_URL` or
-   * `https://api.introspection.dev`.
-   */
-  baseApiUrl?: string;
-  /** Custom `fetch` (for tests or non-standard runtimes). */
-  fetch?: typeof fetch;
 }
 
 /**
@@ -135,21 +144,19 @@ export type ServiceAccountToken = OAuthToken;
 export async function serviceAccountToken(
   params: ServiceAccountTokenParams,
 ): Promise<OAuthToken> {
-  const form = new URLSearchParams({
-    grant_type: GRANT_TYPE_CLIENT_CREDENTIALS,
-    client_id: params.clientId,
-    client_secret: params.clientSecret,
-    project: params.project,
-  });
-  if (params.scope) form.set("scope", params.scope);
   return postTokenForm(
-    resolveBaseApiUrl(params.baseApiUrl),
-    form,
-    resolveFetch(params.fetch),
+    params,
+    {
+      grant_type: GRANT_TYPE_CLIENT_CREDENTIALS,
+      client_id: params.clientId,
+      client_secret: params.clientSecret,
+      project: params.project,
+    },
+    params.scope,
   );
 }
 
-export interface AuthorizationCodeParams {
+export interface AuthorizationCodeParams extends TokenEndpointOptions {
   /** The authorization code returned to the redirect URI. */
   code: string;
   /** Public SPA Application `client_id` (PKCE — no secret). */
@@ -158,13 +165,6 @@ export interface AuthorizationCodeParams {
   redirectUri: string;
   /** The PKCE `code_verifier` paired with the authorize-step challenge. */
   codeVerifier: string;
-  /**
-   * CP API base URL. Defaults to `INTROSPECTION_BASE_API_URL` or
-   * `https://api.introspection.dev`.
-   */
-  baseApiUrl?: string;
-  /** Custom `fetch` (for tests or non-standard runtimes). */
-  fetch?: typeof fetch;
 }
 
 /**
@@ -175,21 +175,16 @@ export interface AuthorizationCodeParams {
 export async function authorizationCodeToken(
   params: AuthorizationCodeParams,
 ): Promise<OAuthToken> {
-  const form = new URLSearchParams({
+  return postTokenForm(params, {
     grant_type: GRANT_TYPE_AUTHORIZATION_CODE,
     code: params.code,
     client_id: params.clientId,
     redirect_uri: params.redirectUri,
     code_verifier: params.codeVerifier,
   });
-  return postTokenForm(
-    resolveBaseApiUrl(params.baseApiUrl),
-    form,
-    resolveFetch(params.fetch),
-  );
 }
 
-export interface TokenExchangeParams {
+export interface TokenExchangeParams extends TokenEndpointOptions {
   /** The end user's subject token (e.g. a partner-IdP `id_token`). */
   subjectToken: string;
   /** The federated Application's `client_id` (public client — no secret). */
@@ -203,13 +198,6 @@ export interface TokenExchangeParams {
   subjectTokenType?: string;
   /** Optional space-separated scope, capped server-side. */
   scope?: string;
-  /**
-   * CP API base URL. Defaults to `INTROSPECTION_BASE_API_URL` or
-   * `https://api.introspection.dev`.
-   */
-  baseApiUrl?: string;
-  /** Custom `fetch` (for tests or non-standard runtimes). */
-  fetch?: typeof fetch;
 }
 
 /**
@@ -230,17 +218,16 @@ export interface TokenExchangeParams {
 export async function tokenExchange(
   params: TokenExchangeParams,
 ): Promise<OAuthToken> {
-  const form = new URLSearchParams({
-    grant_type: GRANT_TYPE_TOKEN_EXCHANGE,
-    subject_token: params.subjectToken,
-    subject_token_type: params.subjectTokenType ?? SUBJECT_TOKEN_TYPE_ID_TOKEN,
-    client_id: params.clientId,
-    project: params.project,
-  });
-  if (params.scope) form.set("scope", params.scope);
   return postTokenForm(
-    resolveBaseApiUrl(params.baseApiUrl),
-    form,
-    resolveFetch(params.fetch),
+    params,
+    {
+      grant_type: GRANT_TYPE_TOKEN_EXCHANGE,
+      subject_token: params.subjectToken,
+      subject_token_type:
+        params.subjectTokenType ?? SUBJECT_TOKEN_TYPE_ID_TOKEN,
+      client_id: params.clientId,
+      project: params.project,
+    },
+    params.scope,
   );
 }
