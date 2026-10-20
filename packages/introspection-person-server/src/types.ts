@@ -164,7 +164,13 @@ export interface Store {
 
 /** Who this Person Server speaks for, and who decides for them. */
 export interface Directory {
-  /** The person a `login_hint` names, or undefined if this Person Server does not speak for them. */
+  /**
+   * The person a `login_hint` names, or undefined if this Person Server does
+   * not speak for them. A person returned with a `tenant` is in that tenant
+   * only: a request naming another is refused. A person returned without one
+   * takes the tenant the request named, so a directory serving several
+   * tenants checks `tenant` itself and returns undefined for a stranger.
+   */
   person(
     loginHint: string,
     tenant?: string,

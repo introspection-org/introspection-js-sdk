@@ -125,6 +125,8 @@ curl -X POST -H "authorization: Bearer $PS_ADMIN_TOKEN" -H "content-type: applic
 
 An agent that names a `tenant` names it on every request, `/token` included: the tokens it is given carry that tenant, and an auth token request that names a tenant other than its presented token's is refused.
 
+A person's tenant is the directory's: when `directory.person` returns a person with a `tenant`, a request naming another tenant is refused with `403`, and one naming none is given tokens carrying the directory's. A person returned without a `tenant` takes the one the request named, so a directory that serves several tenants checks the `tenant` it is passed and returns `undefined` for someone outside it.
+
 An Introspection connector uses it once its `person_server_url` names `issuer`.
 
 Keep the signing key and subject secret stable: resources cache your keys, and each person's directed `sub` is derived from the secret. The default store is in memory; implement `Store` for anything that must survive a restart. Every `Store` method takes the request's tenant first (the `tenant` the agent named, `undefined` when it named none), and records are kept apart per tenant: a record is found only under the tenant it was saved with. Pass the same tenant to `ps.decide()`, `ps.mission()` and the other lookups, or `?tenant=` to the management routes. `spend` must check and add in one step, and `transitionApproval` must change an approval only from the status it expects, so each decision and each collection happens once.
@@ -155,7 +157,7 @@ Fixed and small:
 
 - a mission is always put to the approver, who may set its budget;
 - an auth token needs a live mission covering the resource token's issuer, and only those issuers' keys are fetched;
-- a request whose `budget` is in the mission's unit and scale and fits what is left is issued at once and spent; any other budgeted request is put to the approver, and spent when approved;
+- a request whose `budget` is in the mission's unit and scale and fits what is left is issued at once and spent; any other budgeted request is put to the approver, and spent when its approved token is collected, so a token is issued only once its spend has landed;
 - a request with no `budget` is issued within the mission without spending;
 - completing a mission is the person's own decision, and nothing is issued under it afterwards;
 - each agent key is bound to the first person it names.

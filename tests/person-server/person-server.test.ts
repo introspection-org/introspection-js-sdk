@@ -470,6 +470,147 @@ describe("@introspection-sdk/person-server", () => {
     expect((await ps.mission(trip.s256))?.spent).toBe(150_000);
   });
 
+  /** An approved request over a 1,000.00 trip budget, not yet collected. */
+  async function approvedOverBudget(agent: AgentClient) {
+    const trip = await approvedTrip(agent, 100_000);
+    const presented = trip.person_tokens[RESOURCE]!;
+    const over = await call(agent, "POST", "/ps/token", {
+      resource_token: await resourceToken(agent, presented, 150_000),
+      presented_token: presented,
+    });
+    expect(over.status).toBe(202);
+    const id = asked.at(-1)!.id;
+    await ps.decide(id, { status: "approved" });
+    expect((await ps.mission(trip.s256))?.spent).toBe(0);
+    return {
+      trip,
+      id,
+      pendingPath: new URL(over.headers.get("location")!).pathname,
+    };
+  }
+
+  it("issues an approved auth token only once its spend has landed", async () => {
+    class DelaysSpend extends MemoryStore {
+      gate?: Promise<void>;
+      entered?: () => void;
+      override async spend(
+        tenant: string | undefined,
+        s256: string,
+        amount: number,
+        withinBudget: boolean,
+        at: number,
+      ) {
+        if (this.gate) {
+          this.entered?.();
+          await this.gate;
+        }
+        return super.spend(tenant, s256, amount, withinBudget, at);
+      }
+    }
+    const store = new DelaysSpend();
+    ps = await server(store);
+    const agent = await AgentClient.create();
+    const { trip, pendingPath } = await approvedOverBudget(agent);
+    let release!: () => void;
+    store.gate = new Promise((resolve) => (release = resolve));
+    const entered = new Promise<void>((resolve) => (store.entered = resolve));
+    let settled = false;
+    const first = call(agent, "GET", pendingPath).then((r) => {
+      settled = true;
+      return r;
+    });
+    await entered;
+    expect(settled).toBe(false);
+    expect((await call(agent, "GET", pendingPath)).status).toBe(410);
+    expect((await ps.mission(trip.s256))?.spent).toBe(0);
+    store.gate = undefined;
+    release();
+    const collected = await first;
+    expect(collected.status).toBe(200);
+    expect(
+      ((await collected.json()) as { auth_token?: string }).auth_token,
+    ).toBeDefined();
+    expect((await ps.mission(trip.s256))?.spent).toBe(150_000);
+    expect((await call(agent, "GET", pendingPath)).status).toBe(410);
+  });
+
+  it("puts an approval back when its spend fails, and spends it once when collected", async () => {
+    class FailsSpendOnce extends MemoryStore {
+      fail = false;
+      override async spend(
+        tenant: string | undefined,
+        s256: string,
+        amount: number,
+        withinBudget: boolean,
+        at: number,
+      ) {
+        if (this.fail) {
+          this.fail = false;
+          throw new Error("the store is down");
+        }
+        return super.spend(tenant, s256, amount, withinBudget, at);
+      }
+    }
+    const store = new FailsSpendOnce();
+    ps = await server(store);
+    const agent = await AgentClient.create();
+    const { trip, id, pendingPath } = await approvedOverBudget(agent);
+    store.fail = true;
+    const failed = await call(agent, "GET", pendingPath);
+    expect(failed.status).toBe(500);
+    expect(await failed.json()).not.toHaveProperty("auth_token");
+    expect((await ps.approval(id))?.status).toBe("approved");
+    expect((await ps.mission(trip.s256))?.spent).toBe(0);
+    const collected = await call(agent, "GET", pendingPath);
+    expect(collected.status).toBe(200);
+    expect(
+      ((await collected.json()) as { auth_token?: string }).auth_token,
+    ).toBeDefined();
+    expect((await ps.mission(trip.s256))?.spent).toBe(150_000);
+    expect((await call(agent, "GET", pendingPath)).status).toBe(410);
+  });
+
+  it("issues and spends nothing for an approval whose mission has ended", async () => {
+    const agent = await AgentClient.create();
+    const { trip, id, pendingPath } = await approvedOverBudget(agent);
+    await ps.terminate(trip.s256);
+    const poll = await call(agent, "GET", pendingPath);
+    expect(poll.status).toBe(403);
+    expect(((await poll.json()) as { error: string }).error).toBe(
+      "mission_terminated",
+    );
+    expect((await ps.approval(id))?.status).toBe("approved");
+    expect((await ps.mission(trip.s256))?.spent).toBe(0);
+  });
+
+  it("puts an approval back when its mission ends as it is collected", async () => {
+    class EndsBeforeSpend extends MemoryStore {
+      end = false;
+      override async spend(
+        tenant: string | undefined,
+        s256: string,
+        amount: number,
+        withinBudget: boolean,
+        at: number,
+      ) {
+        if (this.end) await this.endMission(tenant, s256, at);
+        return super.spend(tenant, s256, amount, withinBudget, at);
+      }
+    }
+    const store = new EndsBeforeSpend();
+    ps = await server(store);
+    const agent = await AgentClient.create();
+    const { trip, id, pendingPath } = await approvedOverBudget(agent);
+    store.end = true;
+    const poll = await call(agent, "GET", pendingPath);
+    expect(poll.status).toBe(403);
+    expect(((await poll.json()) as { error: string }).error).toBe(
+      "mission_terminated",
+    );
+    expect((await ps.approval(id))?.status).toBe("approved");
+    expect((await ps.mission(trip.s256))?.spent).toBe(0);
+  });
+
   it("decides an approval once, however many answers arrive", async () => {
     const agent = await AgentClient.create();
     await call(agent, "POST", "/ps/mission", {
@@ -712,6 +853,40 @@ describe("@introspection-sdk/person-server", () => {
     expect(
       decodeJwt(((await booked.json()) as { auth_token: string }).auth_token),
     ).toMatchObject({ tenant: "acme" });
+  });
+
+  it("keeps the tenant the directory gives a person", async () => {
+    const store = new MemoryStore();
+    ps = await server(store);
+    const agent = await AgentClient.create();
+    const jkt = await thumbprint(agent.session.publicJwk);
+    const refused = [
+      await call(agent, "POST", "/ps/mission", {
+        description: "Sydney",
+        resources: [RESOURCE],
+        login_hint: "sam@acme.example",
+        tenant: "globex",
+      }),
+      await call(agent, "POST", "/ps/person-token", {
+        resource: RESOURCE,
+        login_hint: "sam@acme.example",
+        tenant: "globex",
+      }),
+    ];
+    for (const response of refused) {
+      expect(response.status).toBe(403);
+      expect(await response.json()).toMatchObject({
+        error: "invalid_request",
+        detail: "this person is not in that tenant",
+      });
+    }
+    expect(asked).toHaveLength(0);
+    expect(await store.approvals("globex")).toHaveLength(0);
+    expect(await store.binding("globex", jkt)).toBeUndefined();
+
+    const { trip } = await acmeTrip(agent);
+    expect(decodeJwt(trip.person_tokens[RESOURCE]!).tenant).toBe("acme");
+    expect(await store.binding("acme", jkt)).toBe("sam");
   });
 
   it("refuses an auth token request under another tenant than its presented token's", async () => {

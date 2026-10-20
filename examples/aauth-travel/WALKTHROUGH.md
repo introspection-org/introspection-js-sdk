@@ -1446,6 +1446,13 @@ async function personFor(
       "not someone this Person Server speaks for",
     );
   if (hinted) {
+    // The directory's tenant is the person's; a request cannot move them.
+    if (hinted.tenant && tenant && hinted.tenant !== tenant)
+      throw new AAuthError(
+        403,
+        "invalid_request",
+        "this person is not in that tenant",
+      );
     const bound = await store.bind(tenant, agent.jkt, hinted.id);
     if (bound !== hinted.id)
       throw new AAuthError(
@@ -1453,8 +1460,7 @@ async function personFor(
         "invalid_request",
         "this agent acts for another person",
       );
-    // Tokens carry the tenant the agent asked under.
-    return tenant ? { ...hinted, tenant } : hinted;
+    return hinted.tenant || !tenant ? hinted : { ...hinted, tenant };
   }
   const bound = await store.binding(tenant, agent.jkt);
   if (!bound)
@@ -1814,15 +1820,42 @@ async function pendingState(
       person_tokens: Object.fromEntries(tokens),
     });
   }
-  // Collected once: an approval spends once, so it mints once.
-  if (
-    !(await store.transitionApproval(tenant, "approved", {
-      ...approval,
-      status: "collected",
-    }))
-  )
+  // Collected once: only the poll that collects it spends, so it spends and mints once.
+  const collecting: Approval = { ...approval, status: "collected" };
+  if (!(await store.transitionApproval(tenant, "approved", collecting)))
     return collected();
-  return Response.json(await authToken(agent, mission, approval.grant));
+  let issuedUnder = mission;
+  // A request in another unit than the mission's budget is approved without spending it.
+  if (
+    approval.budget &&
+    mission.budget &&
+    sameScale(mission.budget, approval.budget)
+  ) {
+    // Put back so a later poll can collect it once a spend lands.
+    const restore = () =>
+      store
+        .transitionApproval(tenant, "collected", approval)
+        .catch(() => false);
+    let spent: Mission | undefined;
+    try {
+      spent = await store.spend(
+        tenant,
+        mission.s256,
+        approval.budget.amount,
+        false,
+        now(),
+      );
+    } catch (error) {
+      await restore();
+      throw error;
+    }
+    if (!spent) {
+      await restore();
+      throw new AAuthError(403, "mission_terminated", "the mission has ended");
+    }
+    issuedUnder = spent;
+  }
+  return Response.json(await authToken(agent, issuedUnder, approval.grant));
 }
 ```
 
