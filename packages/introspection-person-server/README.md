@@ -127,6 +127,19 @@ Every request is under a tenant: the `tenant` the agent names (in the body of ea
 
 An Introspection connector uses it once its `person_server_url` names `issuer`.
 
+## Run the example
+
+`examples/server.ts` in this repository is a runnable server: it speaks for anyone whose login hint is `user:<email>`, prints each approval, and is decided through the management routes. From this package, with Node 22.18 or later (which runs TypeScript as is):
+
+```bash
+pnpm build
+node examples/server.ts --help
+PS_ADMIN_TOKEN=secret PS_SIGNING_KEY="$(cat ps-signing-key.pem)" PS_SUBJECT_SECRET="$(cat ps-subject-secret)" \
+  node examples/server.ts --issuer https://ps.acme.example --default-tenant acme --approver dana@acme.example
+```
+
+Every flag defaults to an environment variable (`--issuer` to `PS_ISSUER`, and so on). The signing key, subject secret and admin token are read from the environment only, never flags, since a process's arguments are visible to anything on the host that can list processes.
+
 Keep the signing key and subject secret stable: resources cache your keys, and each person's directed `sub` is derived from the secret. The default store is in memory; implement `Store` for anything that must survive a restart. Every `Store` method takes the request's tenant first, always a string, and records are kept apart per tenant: a record is found only under the tenant it was saved with. Each `Approval` and `Mission` records its `tenant`. Pass it, first, to `ps.decide()`, `ps.terminate()`, `ps.mission()` and the other lookups, or `?tenant=` to the management routes, which default to `defaultTenant`. `spend` must check and add in one step, and `transitionApproval` must change an approval only from the status it expects, so each decision and each collection happens once.
 
 ## Routes
