@@ -82,6 +82,9 @@ jobs:
       - name: Build packages
         run: pnpm build
 
+      - name: Check published packages (publint + attw)
+        run: pnpm check:packages
+
       - name: Run tests with coverage
         run: pnpm --filter introspection-tests test:cov
         env:

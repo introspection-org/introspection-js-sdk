@@ -26,7 +26,8 @@
   "scripts": {
     "build": "rm -rf dist && tsc",
     "clean": "rm -rf dist",
-    "prepare": "rm -rf dist && tsc"
+    "prepare": "rm -rf dist && tsc",
+    "check:package": "publint --strict && attw --pack . --profile esm-only"
   },
   "dependencies": {
     "@ag-ui/core": "0.0.59"
