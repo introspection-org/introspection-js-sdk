@@ -63,7 +63,7 @@ interface Budget {
   decimals: number;
 }
 
-/** A platform approval, as `GET /v1/approvals` returns it. */
+/** A platform approval, as `GET /v1/aauth/approvals` returns it. */
 interface Approval {
   id: string;
   kind: "mission" | "auth_token" | "completion";
@@ -200,9 +200,9 @@ async function sync(): Promise<void> {
   const [pending, missions] = await Promise.all([
     api<{ records: Approval[] }>(
       "GET",
-      "/v1/approvals?status=pending&limit=50",
+      "/v1/aauth/approvals?status=pending&limit=50",
     ),
-    api<{ records: Mission[] }>("GET", "/v1/missions?limit=50"),
+    api<{ records: Mission[] }>("GET", "/v1/aauth/missions?limit=50"),
   ]);
   state.missions = missions.records;
   for (const approval of pending.records) {
@@ -293,7 +293,7 @@ export async function decide(
     !(Number.isInteger(budgetCents) && budgetCents! > 0)
   )
     throw new AAuthError(400, "invalid_request", "set the trip's budget");
-  asked.approval = await api<Approval>("PATCH", `/v1/approvals/${id}`, {
+  asked.approval = await api<Approval>("PATCH", `/v1/aauth/approvals/${id}`, {
     status: verdict === "approve" ? "approved" : "denied",
     ...(verdict === "approve" && mission
       ? { budget: { amount: budgetCents, ...USD } }
