@@ -13,6 +13,7 @@ import {
   MetricsApi,
   SharesApi,
   TasksApi,
+  toRunRequestBody,
 } from "@introspection-sdk/http";
 import { HttpClient } from "./http.js";
 import { AutomationsApi } from "./resources/automations.js";
@@ -212,7 +213,7 @@ export class Runner implements DataPlaneResources {
 
   private async requestFreshSpec(): Promise<RunnerSpec> {
     const http = this.client.cpHttp;
-    const body = toRunBody(this.source.options);
+    const body = toRunRequestBody(this.source.options);
     if (this.source.kind === "runtime") {
       return await http.request<RunnerSpec>({
         method: "POST",
@@ -226,15 +227,4 @@ export class Runner implements DataPlaneResources {
       body,
     });
   }
-}
-
-function toRunBody(opts?: RunRequest): Record<string, unknown> {
-  if (!opts) return {};
-  const out: Record<string, unknown> = {};
-  if (opts.identity) out.identity = opts.identity;
-  if (opts.caller) out.caller = opts.caller;
-  if (opts.agent_name !== undefined) out.agent_name = opts.agent_name;
-  if (opts.ttl_seconds !== undefined) out.ttl_seconds = opts.ttl_seconds;
-  if (opts.scope !== undefined) out.scope = opts.scope;
-  return out;
 }

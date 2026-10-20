@@ -57,6 +57,29 @@ jobs:
       - name: Run type checking
         run: pnpm check-types
 
+  duplication:
+    name: Duplicate Code
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+
+      # Both profiles scan .jscpd.json's scope; either fails the job on any
+      # clone. No install needed: the scripts run a pinned jscpd through npx.
+      - name: Exact clones
+        run: pnpm jscpd
+
+      - name: Renamed clones
+        if: ${{ !cancelled() }}
+        run: pnpm jscpd:renamed
+
   test:
     name: Unit Tests
     needs: lint

@@ -3,12 +3,11 @@ import type {
   MemberCreateParams,
   MemberListParams,
   MemberUpdateParams,
-  Paginated,
   Uuid,
 } from "@introspection-sdk/types";
 import { encodeMetadataFilter } from "@introspection-sdk/http";
 import type { HttpClient } from "../http.js";
-import { Paginator, cursorPaginate } from "../pagination.js";
+import { Paginator, paginateGet } from "../pagination.js";
 
 /**
  * List, read, create and update on `/v1/members` (Control Plane).
@@ -29,16 +28,10 @@ export class MembersApi {
    * stop early to stop fetching).
    */
   list(params: MemberListParams = {}): Paginator<Member> {
-    return cursorPaginate(
-      (next) =>
-        this.http.request<Paginated<Member>>({
-          method: "GET",
-          path: "/v1/members",
-          query: { ...encodeMetadataFilter(params), next } as Record<
-            string,
-            unknown
-          >,
-        }),
+    return paginateGet<Member>(
+      this.http,
+      "/v1/members",
+      encodeMetadataFilter(params),
       params.next,
     );
   }

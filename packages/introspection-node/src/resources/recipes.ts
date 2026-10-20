@@ -1,11 +1,8 @@
-import type {
-  Paginated,
-  Recipe,
-  RecipeListParams,
-  Uuid,
-} from "@introspection-sdk/types";
+// jscpd:ignore-start -- import list: the same names as every resource client's
+import type { Recipe, RecipeListParams, Uuid } from "@introspection-sdk/types";
 import type { HttpClient } from "../http.js";
-import { Paginator, cursorPaginate } from "../pagination.js";
+import { Paginator, paginateGet } from "../pagination.js";
+// jscpd:ignore-end
 
 /**
  * Read access to `/v1/recipes` on the CP.
@@ -27,15 +24,7 @@ export class RecipesApi {
    * early to stop fetching).
    */
   list(params: RecipeListParams = {}): Paginator<Recipe> {
-    return cursorPaginate(
-      (next) =>
-        this.http.request<Paginated<Recipe>>({
-          method: "GET",
-          path: "/v1/recipes",
-          query: { ...params, next } as unknown as Record<string, unknown>,
-        }),
-      params.next,
-    );
+    return paginateGet<Recipe>(this.http, "/v1/recipes", params, params.next);
   }
 
   get(id: Uuid): Promise<Recipe> {

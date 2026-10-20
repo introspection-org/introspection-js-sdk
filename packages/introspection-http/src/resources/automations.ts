@@ -4,10 +4,9 @@ import type {
   AutomationListParams,
   AutomationTriggerResponse,
   AutomationUpdateParams,
-  Paginated,
   Uuid,
 } from "@introspection-sdk/types";
-import { Paginator, cursorPaginate } from "../pagination.js";
+import { Paginator, paginateGet } from "../pagination.js";
 import type { ResourceHttpClient } from "./types.js";
 
 /** The fields of `params` that are set, so a PATCH never sends an absent one. */
@@ -39,13 +38,10 @@ export class AutomationsClient {
    */
   list(params: AutomationListParams = {}): Paginator<Automation> {
     const { next: start, ...filters } = params;
-    return cursorPaginate(
-      (next) =>
-        this.http.request<Paginated<Automation>>({
-          method: "GET",
-          path: "/v1/automations",
-          query: { ...filters, next } as Record<string, unknown>,
-        }),
+    return paginateGet<Automation>(
+      this.http,
+      "/v1/automations",
+      filters,
       start,
     );
   }
