@@ -86,5 +86,3 @@ export interface ExperimentListParams extends CursorParams {
   environment?: Environment;
   status?: ExperimentStatus;
 }
-
-/** What kind of principal a member row is. */

@@ -1,3 +1,11 @@
+/**
+ * Shared primitives of the public REST API types for the Introspection DP
+ * `/v1` surface (see the `../api.ts` barrel).
+ *
+ * Field names are kept on-the-wire (snake_case) to match the server
+ * models verbatim.
+ */
+
 export type Uuid = string;
 export type IsoDate = string;
 

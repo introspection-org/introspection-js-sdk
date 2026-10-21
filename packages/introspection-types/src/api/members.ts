@@ -1,5 +1,6 @@
 import type { CursorParams, IsoDate, Uuid } from "./common.js";
 
+/** What kind of principal a member row is. */
 export type MemberType = "business" | "agent" | "customer";
 
 /**
