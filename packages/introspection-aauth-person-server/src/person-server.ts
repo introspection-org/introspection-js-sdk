@@ -675,6 +675,17 @@ export async function createPersonServer(options: PersonServerOptions) {
       ...(budget ? { budget } : {}),
       grant,
     };
+    // The spec passes these through to the AS only once the PS has verified them; this one
+    // supports neither sub-agents nor call chaining.
+    if (
+      accessServer &&
+      ("subagent_token" in params || "upstream_token" in params)
+    )
+      throw new AAuthError(
+        400,
+        "invalid_request",
+        "this Person Server does not pass on subagent_token or upstream_token",
+      );
     if (accessServer)
       return access.request(tenant, agent, mission, rt, asked, {
         access_server: accessServer,
@@ -844,7 +855,7 @@ export async function createPersonServer(options: PersonServerOptions) {
   }
 
   const collected = () =>
-    problem(410, "collected", "this approval's token was already collected");
+    problem(410, "invalid_code", "this approval's token was already collected");
 
   // #endregion
 

@@ -86,8 +86,8 @@ export function federatedAccess(ctx: FederatedContext) {
     mission: Mission,
     withinBudget: boolean,
     collected: boolean,
+    budget: Budget | undefined = approval.budget,
   ): Promise<Mission | undefined> {
-    const { budget } = approval;
     if (!budget || !mission.budget || !sameScale(mission.budget, budget))
       return mission;
     const restore = async () => {
@@ -121,14 +121,15 @@ export function federatedAccess(ctx: FederatedContext) {
     mission: Mission,
     rt: JWTPayload,
     asked: Pick<Approval, "mission_s256" | "resource" | "budget" | "grant">,
-    tokens: Omit<Federation, "within_budget">,
+    tokens: Omit<Federation, "within_budget" | "budget">,
   ): Promise<Response> {
     const description = String(rt.scope ?? "a request");
+    const sent = asked.budget ? { budget: asked.budget } : {};
     if (!fits(mission, asked.budget))
       return ctx.ask(tenant, "auth_token", agent, mission.person, description, {
         ...asked,
         summary: await ctx.proposalSummary(rt),
-        federation: { ...tokens, within_budget: false },
+        federation: { ...tokens, ...sent, within_budget: false },
       });
     const approval = await ctx.newApproval(
       tenant,
@@ -146,7 +147,7 @@ export function federatedAccess(ctx: FederatedContext) {
         ...approval,
         status: "approved",
         decided_at: now(),
-        federation: { ...tokens, within_budget: true },
+        federation: { ...tokens, ...sent, within_budget: true },
       },
       false,
     );
@@ -189,12 +190,15 @@ export function federatedAccess(ctx: FederatedContext) {
       }))
     )
       return ctx.collected();
+    // What the AS granted is what is spent; it may be less than was asked.
+    const budget = answer.granted ?? approval.budget;
     const spent = await spendApproved(
       tenant,
       approval,
       mission,
       federation.within_budget,
       stored,
+      budget,
     );
     if (!spent) return reask(tenant, approval, stored);
     await ctx.onIssued?.({
@@ -203,7 +207,7 @@ export function federatedAccess(ctx: FederatedContext) {
       person: spent.person,
       resource: String(approval.resource),
       mission: spent,
-      ...(approval.budget ? { budget: approval.budget } : {}),
+      ...(budget ? { budget } : {}),
       access_server: federation.access_server,
     });
     return Response.json({
@@ -243,8 +247,13 @@ export function federatedAccess(ctx: FederatedContext) {
     approval: Approval & { federation: Federation },
     stored: boolean,
   ): Promise<Response> {
-    const { access_server, resource_token, agent_token, presented_token } =
-      approval.federation;
+    const {
+      access_server,
+      resource_token,
+      agent_token,
+      presented_token,
+      budget,
+    } = approval.federation;
     const asking: Approval = {
       ...approval,
       status: "pending",
@@ -256,6 +265,7 @@ export function federatedAccess(ctx: FederatedContext) {
         resource_token,
         agent_token,
         presented_token,
+        ...(budget ? { budget } : {}),
         within_budget: false,
       },
     };

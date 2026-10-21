@@ -110,7 +110,7 @@ function readTokens(body: string) {
   } catch {
     // answered below
   }
-  const { resource_token, agent_token, presented_token } = params;
+  const { resource_token, agent_token, presented_token, budget } = params;
   if (
     typeof resource_token !== "string" ||
     typeof agent_token !== "string" ||
@@ -121,7 +121,48 @@ function readTokens(body: string) {
       "invalid_request",
       "resource_token, agent_token and presented_token are required",
     );
-  return { resource_token, agent_token, presented_token };
+  const sent = budget === undefined ? undefined : readBudget(budget);
+  if (budget !== undefined && !sent)
+    throw new AAuthError(
+      400,
+      "invalid_request",
+      "budget is not a budget object",
+    );
+  return { resource_token, agent_token, presented_token, budget: sent };
+}
+
+const sameScale = (a: Budget, b: Budget) =>
+  a.unit === b.unit && a.decimals === b.decimals;
+
+/**
+ * What this request may spend (draft-hardt-aauth-budgets #as-token-endpoint):
+ * the budget the Person Server sent, which may not exceed the resource token's.
+ */
+function bounded(sent: Budget | undefined, asked: Budget | undefined) {
+  if (!sent || !asked) return sent;
+  if (!sameScale(sent, asked))
+    throw new AAuthError(
+      400,
+      "invalid_request",
+      "the budget is not in the resource token's unit",
+    );
+  return sent.amount <= asked.amount ? sent : asked;
+}
+
+/** The grant with the policy's lower budget, which may not exceed what may be spent. */
+function lowered(
+  grant: Record<string, unknown>,
+  bound: Budget | undefined,
+  lower: Budget | undefined,
+): Record<string, unknown> {
+  if (!lower) return grant;
+  if (!bound || !sameScale(lower, bound) || lower.amount > bound.amount)
+    throw new AAuthError(
+      500,
+      "server_error",
+      "the policy granted a budget above what was asked",
+    );
+  return { ...grant, budget: lower };
 }
 
 /** The claims an auth token for `rt` carries besides its own, copied from the resource token. */
@@ -220,7 +261,7 @@ export async function createAccessServer(options: AccessServerOptions) {
       signer,
       fetch: fetchLike,
     });
-    const budget = readBudget(rt.budget);
+    const budget = bounded(tokens.budget, readBudget(rt.budget));
     const request: AccessRequest = {
       resource: String(rt.iss),
       ps,
@@ -241,7 +282,7 @@ export async function createAccessServer(options: AccessServerOptions) {
     };
     return {
       request,
-      grant: grantFor(rt),
+      grant: { ...grantFor(rt), ...(budget ? { budget } : {}) },
       jwk: agent.cnf.jwk as JWK,
       not_after: Math.min(agent.exp, presented.exp),
     };
@@ -302,7 +343,13 @@ export async function createAccessServer(options: AccessServerOptions) {
     const asked = await readRequest(ps, body);
     const verdict = await options.policy(asked.request);
     if (verdict.decision === "allow")
-      return issue(asked, narrowed(asked.request.scope, verdict.scope));
+      return issue(
+        {
+          ...asked,
+          grant: lowered(asked.grant, asked.request.budget, verdict.budget),
+        },
+        narrowed(asked.request.scope, verdict.scope),
+      );
     if (verdict.decision === "deny")
       return problem(
         403,
@@ -335,11 +382,7 @@ export async function createAccessServer(options: AccessServerOptions) {
     if (record.status === "denied")
       return problem(403, "denied", "this resource's policy refuses it");
     if (record.status === "collected")
-      return problem(
-        410,
-        "invalid_request",
-        "its auth token was issued already",
-      );
+      return problem(410, "invalid_code", "its auth token was issued already");
     if (now() >= record.expires_at)
       return problem(408, "expired", "nobody decided in time");
     if (record.status === "pending") return waiting(record);

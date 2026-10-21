@@ -18,11 +18,16 @@ import {
 } from "jose";
 import { AAuthError, type Signer } from "@introspection-sdk/aauth-protocol";
 
-import type { Federation } from "./types.js";
+import type { Budget, Federation } from "./types.js";
 
 type FetchLike = (input: string, init?: RequestInit) => Promise<Response>;
 
 const ACCESS_DWK = "aauth-access.json";
+const MAX_AUTH_TOKEN_LIFETIME = 60 * 60;
+/** Requirements an Access Server may wait on that this Person Server relays to the agent. */
+const SERVED = new Set(["approval", "interaction"]);
+/** Requirements it would answer for the person, which it does not yet. */
+const DEFERRED = new Set(["claims", "clarification"]);
 
 /** What a Person Server federates as. */
 export interface FederationContext {
@@ -34,7 +39,13 @@ export interface FederationContext {
 
 /** What the Access Server answered, once it answered with something the Person Server acts on. */
 export type AccessOutcome =
-  | { status: "issued"; auth_token: string; expires_in: number }
+  | {
+      status: "issued";
+      auth_token: string;
+      expires_in: number;
+      /** The budget the AS granted, no more than the one sent; spent in its place. */
+      granted?: Budget;
+    }
   | {
       status: "pending";
       location: string;
@@ -120,14 +131,38 @@ async function send(
 const scopes = (value: unknown) =>
   new Set(typeof value === "string" ? value.split(" ").filter(Boolean) : []);
 
-/** #auth-token-delivery: the AS's auth token, checked before the agent gets it. */
+function readBudget(value: unknown): Budget | undefined | null {
+  if (value === undefined) return undefined;
+  const { amount, unit, decimals } = (value ?? {}) as Partial<Budget>;
+  return typeof amount === "number" &&
+    typeof unit === "string" &&
+    typeof decimals === "number"
+    ? { amount, unit, decimals }
+    : null;
+}
+
+/** Whether the AS granted no more than was sent (draft-hardt-aauth-budgets #as-token-endpoint). */
+const withinSent = (
+  granted: Budget | undefined,
+  sent: Budget | undefined,
+): boolean =>
+  !granted || !sent
+    ? !granted && !sent
+    : granted.unit === sent.unit &&
+      granted.decimals === sent.decimals &&
+      granted.amount <= sent.amount;
+
+/**
+ * #auth-token-delivery, and the budget check of draft-hardt-aauth-budgets
+ * #as-token-endpoint: the AS's auth token, checked before the agent gets it.
+ */
 async function verifyDelivered(
   token: string,
   federation: Federation,
   agentJkt: string,
   metadata: AccessMetadata,
   ctx: FederationContext,
-): Promise<number> {
+): Promise<{ expires_in: number; granted?: Budget }> {
   const rt = decodeJwt(federation.resource_token);
   const presented = decodeJwt(federation.presented_token);
   let claims;
@@ -150,6 +185,7 @@ async function verifyDelivered(
   const cnf = (claims.cnf as { jwk?: JWK } | undefined)?.jwk;
   const granted = scopes(claims.scope);
   const asked = scopes(rt.scope);
+  const budget = readBudget(claims.budget);
   const problems = [
     claims.dwk !== ACCESS_DWK && "dwk",
     claims.ps !== ctx.issuer && "ps",
@@ -158,11 +194,19 @@ async function verifyDelivered(
     [...granted].some((s) => !asked.has(s)) && "scope",
     (typeof claims.exp !== "number" || claims.exp > Number(presented.exp)) &&
       "exp",
+    (typeof claims.iat !== "number" ||
+      Number(claims.exp) - claims.iat > MAX_AUTH_TOKEN_LIFETIME) &&
+      "lifetime",
+    (budget === null || !withinSent(budget ?? undefined, federation.budget)) &&
+      "budget",
     (!cnf || (await calculateJwkThumbprint(cnf)) !== agentJkt) && "cnf",
   ].filter(Boolean);
   if (problems.length)
     throw unreachable(`its auth token has the wrong ${problems.join(", ")}`);
-  return Number(claims.exp) - ctx.now();
+  return {
+    expires_in: Number(claims.exp) - ctx.now(),
+    ...(budget ? { granted: budget } : {}),
+  };
 }
 
 /** Act on the AS's answer: an auth token, a wait, or a refusal relayed with its reason. */
@@ -178,14 +222,14 @@ async function outcome(
     const { auth_token } = await readJson(response);
     if (typeof auth_token !== "string")
       throw unreachable("it answered 200 without an auth_token");
-    const expires_in = await verifyDelivered(
+    const delivered = await verifyDelivered(
       auth_token,
       federation,
       agentJkt,
       metadata,
       ctx,
     );
-    return { status: "issued", auth_token, expires_in };
+    return { status: "issued", auth_token, ...delivered };
   }
   if (response.status === 202) {
     const header = response.headers.get("aauth-requirement");
@@ -197,9 +241,9 @@ async function outcome(
         throw unreachable(`its AAuth-Requirement is malformed`);
       requirement = err.value;
     }
-    if (requirement !== "approval" && requirement !== "interaction")
+    if (DEFERRED.has(requirement))
       throw refused(
-        `the Access Server asks for requirement=${requirement}, which this Person Server does not serve`,
+        `the Access Server asks for requirement=${requirement}, not served here yet`,
       );
     const location = response.headers.get("location");
     const pending = location ? new URL(location, requested) : undefined;
@@ -208,13 +252,25 @@ async function outcome(
     return {
       status: "pending",
       location: pending.href,
-      requirement: header ?? "requirement=approval",
+      // An unrecognised requirement is polled through, and relayed as approval (#requirement-values).
+      requirement:
+        header && SERVED.has(requirement) ? header : "requirement=approval",
     };
   }
   if (response.status === 402)
     throw refused(
       "the Access Server asks for payment, which this Person Server does not make",
     );
+  // #deferred-responses: a busy AS is polled again later, at the same Location.
+  if (
+    (response.status === 429 || response.status === 503) &&
+    requested !== metadata.auth_token_endpoint
+  )
+    return {
+      status: "pending",
+      location: requested,
+      requirement: federation.requirement ?? "requirement=approval",
+    };
   const { error, detail } = await readJson(response);
   if (
     response.status >= 400 &&
@@ -250,6 +306,7 @@ export async function federate(
           resource_token: federation.resource_token,
           agent_token: federation.agent_token,
           presented_token: federation.presented_token,
+          ...(federation.budget ? { budget: federation.budget } : {}),
         }),
   );
   return outcome(response, url, federation, agentJkt, metadata, ctx);

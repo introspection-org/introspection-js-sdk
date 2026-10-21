@@ -51,6 +51,8 @@ export interface Federation {
    * is spent: true when the mission covered it, false once a person approved it.
    */
   within_budget: boolean;
+  /** The `budget` sent to the AS (draft-hardt-aauth-budgets #as-token-endpoint): the resource token's. */
+  budget?: Budget;
   /** Where the Access Server said to poll, once it answered `202`. */
   location?: string;
   /** The Access Server's `AAuth-Requirement` while it decides, relayed to the agent. */

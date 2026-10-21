@@ -23,7 +23,7 @@ export interface AccessRequest {
   /** The scopes asked for, space-separated. */
   scope?: string;
   mission_s256?: string;
-  /** What the call costs, from the resource token. */
+  /** What it may spend: the budget the Person Server sent, no more than the resource token's. */
   budget?: Budget;
   /** The resource's one-line description of the call, from its R3 proposal, when it has one this server may read. */
   summary?: string;
@@ -45,8 +45,11 @@ export interface AccessRequest {
 
 /** The resource's policy, answering each request. */
 export type Verdict =
-  /** Issue the auth token, for `scope` when given (no broader than asked), else what was asked. */
-  | { decision: "allow"; scope?: string }
+  /**
+   * Issue the auth token, for `scope` when given (no broader than asked), else
+   * what was asked; and for `budget` when given (no more than may be spent).
+   */
+  | { decision: "allow"; scope?: string; budget?: Budget }
   /** Refuse: the Person Server relays `403 denied` with `detail`. */
   | { decision: "deny"; detail?: string }
   /** Wait on someone's approval, without the person's involvement; settle it with `decide()`. */

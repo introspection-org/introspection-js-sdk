@@ -88,6 +88,11 @@ let asked: Approval[];
 let policy: (request: AccessRequest) => Verdict;
 let decided: AccessRequest[];
 let calls: string[];
+/** Answers the AS's token and pending routes in place of the real one, when a test sets it. */
+type Scripted = (
+  request: Request,
+) => Response | undefined | Promise<Response | undefined>;
+let asAnswer: Scripted | undefined;
 
 /** The booking resource's one paid call. */
 async function reserve(request: Request): Promise<Response> {
@@ -128,6 +133,10 @@ async function world(
   const document = documents[`${origin}${pathname}`];
   if (document) return Response.json(document);
   if (origin === PS) return ps.handle(request);
+  if (origin === AS && !pathname.startsWith("/.well-known/")) {
+    const scripted = await asAnswer?.(request);
+    if (scripted) return scripted;
+  }
   if (origin === AS) return as.handle(request);
   if (origin === RESOURCE && pathname === "/reserve") return reserve(request);
   if (origin === RESOURCE)
@@ -213,6 +222,7 @@ beforeEach(async () => {
   asked = [];
   decided = [];
   calls = [];
+  asAnswer = undefined;
   policy = (request) =>
     request.tenant === "acme"
       ? { decision: "allow" }
@@ -350,6 +360,7 @@ describe("@introspection-sdk/aauth-access-server federation", () => {
       cnf: { jwk: { x: agent.session.publicJwk.x } },
     });
     expect(Number(claims.exp) - Number(claims.iat)).toBeLessThanOrEqual(3600);
+    expect(claims.budget).toEqual({ amount: 165_000, ...USD });
     expect(decided[0]).toMatchObject({
       resource: RESOURCE,
       ps: PS,
@@ -480,7 +491,9 @@ describe("@introspection-sdk/aauth-access-server federation", () => {
     const { auth_token } = (await collected.json()) as { auth_token: string };
     expect(decodeJwt(auth_token)).toMatchObject({ iss: AS, aud: RESOURCE });
     expect(await spent(trip.s256)).toBe(120_000);
-    expect((await agent.send("GET", location)).status).toBe(410);
+    const again = await agent.send("GET", location);
+    expect(again.status).toBe(410);
+    expect(await again.json()).toMatchObject({ error: "invalid_code" });
   });
 
   it("relays the Access Server's interaction to the agent, and its denial", async () => {
@@ -531,6 +544,140 @@ describe("@introspection-sdk/aauth-access-server federation", () => {
     const collected = await agent.send("GET", waiting.headers.get("location")!);
     expect(collected.status).toBe(200);
     expect(await spent(trip.s256)).toBe(150_000);
+  });
+
+  it("sends the Access Server the budget, which may grant less, and only that is spent", async () => {
+    const agent = await AgentClient.create();
+    const trip = await approvedTrip(agent);
+    policy = () => ({ decision: "allow", budget: { amount: 90_000, ...USD } });
+    const sent: unknown[] = [];
+    asAnswer = async (request) => {
+      if (request.method === "POST")
+        sent.push(
+          (JSON.parse(await request.clone().text()) as { budget?: unknown })
+            .budget,
+        );
+      return undefined;
+    };
+    const resourceToken = await challenge(agent, trip.personToken, 120_000);
+    const issued = await agent.send("POST", `${PS}/ps/token`, {
+      resource_token: resourceToken,
+      presented_token: trip.personToken,
+    });
+    expect(issued.status).toBe(200);
+    expect(sent).toEqual([{ amount: 120_000, ...USD }]);
+    const { auth_token } = (await issued.json()) as { auth_token: string };
+    expect(decodeJwt(auth_token).budget).toEqual({ amount: 90_000, ...USD });
+    expect(await spent(trip.s256)).toBe(90_000);
+  });
+
+  it("refuses an auth token whose budget exceeds the one sent, or that lives over an hour", async () => {
+    const agent = await AgentClient.create();
+    const trip = await approvedTrip(agent);
+    const kid = as.jwks().keys[0]!.kid as string;
+    const forged = await party(kid, AS_KEY);
+    for (const [claims, wrong] of [
+      [{ budget: { amount: 130_000, ...USD } }, "budget"],
+      [
+        {
+          budget: { amount: 100_000, ...USD },
+          exp: Math.floor(Date.now() / 1000) + 7200,
+        },
+        "lifetime",
+      ],
+    ] as const) {
+      const resourceToken = await challenge(agent, trip.personToken, 100_000);
+      const rt = decodeJwt(resourceToken);
+      asAnswer = async () =>
+        Response.json({
+          auth_token: await forged.sign(
+            {
+              iss: AS,
+              dwk: "aauth-access.json",
+              aud: RESOURCE,
+              ps: PS,
+              sub: rt.sub,
+              mission_s256: trip.s256,
+              scope: "booking.reserve",
+              cnf: { jwk: agent.session.publicJwk },
+              ...claims,
+            },
+            "aa-auth+jwt",
+          ),
+        });
+      const answered = await agent.send("POST", `${PS}/ps/token`, {
+        resource_token: resourceToken,
+        presented_token: trip.personToken,
+      });
+      expect(answered.status).toBe(502);
+      expect(await answered.json()).toMatchObject({
+        error: "as_unreachable",
+        detail: expect.stringContaining(wrong),
+      });
+    }
+    expect(await spent(trip.s256)).toBe(0);
+  });
+
+  it("polls through a requirement it does not know as approval, and refuses one it does not serve", async () => {
+    const agent = await AgentClient.create();
+    const trip = await approvedTrip(agent);
+    const pendingAt = (requirement: string) => () =>
+      new Response(null, {
+        status: 202,
+        headers: {
+          Location: `${AS}/pending/scripted`,
+          "AAuth-Requirement": `requirement=${requirement}`,
+        },
+      });
+    asAnswer = pendingAt("something-new");
+    const unknown = await agent.send("POST", `${PS}/ps/token`, {
+      resource_token: await challenge(agent, trip.personToken, 50_000),
+      presented_token: trip.personToken,
+    });
+    expect(unknown.status).toBe(202);
+    expect(unknown.headers.get("aauth-requirement")).toBe(
+      "requirement=approval",
+    );
+
+    asAnswer = pendingAt("claims");
+    const claims = await agent.send("POST", `${PS}/ps/token`, {
+      resource_token: await challenge(agent, trip.personToken, 50_000),
+      presented_token: trip.personToken,
+    });
+    expect(claims.status).toBe(403);
+    expect(await claims.json()).toMatchObject({ error: "denied" });
+  });
+
+  it("keeps waiting while the Access Server is busy", async () => {
+    const agent = await AgentClient.create();
+    const trip = await approvedTrip(agent);
+    policy = () => ({ decision: "approval" });
+    const waiting = await agent.send("POST", `${PS}/ps/token`, {
+      resource_token: await challenge(agent, trip.personToken, 60_000),
+      presented_token: trip.personToken,
+    });
+    const location = waiting.headers.get("location")!;
+    asAnswer = (request) =>
+      request.method === "GET"
+        ? new Response(null, { status: 503, headers: { "Retry-After": "3" } })
+        : undefined;
+    expect((await agent.send("GET", location)).status).toBe(202);
+    asAnswer = undefined;
+    as.decide(as.pendings()[0]!.id, { status: "approved" });
+    expect((await agent.send("GET", location)).status).toBe(200);
+  });
+
+  it("refuses to pass on a subagent_token or upstream_token", async () => {
+    const agent = await AgentClient.create();
+    const trip = await approvedTrip(agent);
+    const refused = await agent.send("POST", `${PS}/ps/token`, {
+      resource_token: await challenge(agent, trip.personToken, 10_000),
+      presented_token: trip.personToken,
+      upstream_token: "eyJ.upstream",
+    });
+    expect(refused.status).toBe(400);
+    expect(await refused.json()).toMatchObject({ error: "invalid_request" });
+    expect(calls.some((c) => c.startsWith(`POST ${AS}`))).toBe(false);
   });
 
   it("a resource with an AS refuses a PS-issued auth token", async () => {
