@@ -3,7 +3,9 @@
  * service account, start a task and save its ID, reconnect to its stream after
  * a reload, and record the user's feedback.
  *
- * The order store and browser push are in-memory stand-ins for your app.
+ * The order store and browser push are in-memory stand-ins for your app,
+ * shown in the regions that call them; the reconnect region sits in a block
+ * so it can show its own.
  * Not run in the examples workflow: it needs service-account credentials the
  * job has no secret for.
  *
@@ -18,8 +20,6 @@
  *   INTROSPECTION_BASE_API_URL  - CP API host
  */
 
-type Binding = { taskId: string; userId: string };
-
 for (const name of [
   "INTROSPECTION_SERVICE_ACCOUNT_CLIENT_ID",
   "INTROSPECTION_SERVICE_ACCOUNT_CLIENT_SECRET",
@@ -27,15 +27,6 @@ for (const name of [
   "INTROSPECTION_API_KEY",
 ]) {
   if (!process.env[name]) throw new Error(`Set ${name}.`);
-}
-const bindings = new Map<string, Binding>();
-const orders = {
-  async saveAgentBinding(orderId: string, binding: Binding) {
-    bindings.set(orderId, binding);
-  },
-};
-async function sendEventToBrowser(event: { type: string }) {
-  console.log(`[${event.type}]`);
 }
 const session = { user: { id: "user-4821" } };
 const order = { id: "1842" };
@@ -59,6 +50,17 @@ const runner = await client.runtimes("refund-agent").run({
 // #endregion docs:patterns/add-to-your-app/open-runner
 
 // #region docs:patterns/add-to-your-app/start-task
+// Your app's code: the order store and the push to the browser.
+const bindings = new Map<string, { taskId: string; userId: string }>();
+const orders = {
+  async saveAgentBinding(orderId: string, binding: { taskId: string; userId: string }) {
+    bindings.set(orderId, binding);
+  },
+};
+async function sendEventToBrowser(event: { type: string }) {
+  console.log(`[${event.type}]`);
+}
+
 const handle = await runner.tasks.start({
   prompt: "Review order 1842 against the refund policy and draft the next response.",
   metadata: { order_id: "1842" },
@@ -73,13 +75,20 @@ for await (const event of handle.stream()) {
 // After a reload, the binding comes back from your store.
 const binding = bindings.get(order.id)!;
 
+{
 // #region docs:patterns/add-to-your-app/reconnect
-const task = await runner.tasks.get(binding.taskId);
-const runId = (task.metadata?.active_run_id ?? task.metadata?.latest_run_id) as string;
-for await (const event of runner.tasks.runs.stream(binding.taskId, runId)) {
-  await sendEventToBrowser(event);
-}
+  // Your app's code: push the event to the browser.
+  async function sendEventToBrowser(event: { type: string }) {
+    console.log(`[${event.type}]`);
+  }
+
+  const task = await runner.tasks.get(binding.taskId);
+  const runId = (task.metadata?.active_run_id ?? task.metadata?.latest_run_id) as string;
+  for await (const event of runner.tasks.runs.stream(binding.taskId, runId)) {
+    await sendEventToBrowser(event);
+  }
 // #endregion docs:patterns/add-to-your-app/reconnect
+}
 
 // #region docs:patterns/add-to-your-app/feedback
 const latest = await runner.tasks.get(binding.taskId);

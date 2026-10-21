@@ -30,12 +30,13 @@ import {
   type Runner,
 } from "@introspection-sdk/introspection-node";
 
-function render(event: AGUIEvent): void {
-  console.log(`[${event.type}]`);
-}
-
 async function reattach(runner: Runner, taskId: string): Promise<void> {
 // #region docs:reference/javascript/reattach
+  // Your app's code: show the event in your UI.
+  function render(event: AGUIEvent): void {
+    console.log(`[${event.type}]`);
+  }
+
   const task = await runner.tasks.get(taskId);
   const metadata = task.metadata ?? {};
   const runId = String(metadata.active_run_id ?? metadata.latest_run_id);

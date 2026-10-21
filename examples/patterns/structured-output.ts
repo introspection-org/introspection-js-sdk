@@ -41,18 +41,6 @@ const client = new IntrospectionClient();
 const runner = await client.runtimes(runtime).run();
 
 // #region docs:patterns/structured-output/read-stream
-const handle = await runner.tasks.start({ prompt: "Triage ticket 4411: ..." });
-const args = new Map<string, string>();
-let submitId: string | undefined;
-
-for await (const e of handle.stream()) {
-  if (e.type === EventType.MESSAGES_SNAPSHOT) submitId = fromSnapshot(e, args);
-  if ((e.type === EventType.TOOL_CALL_START || e.type === EventType.TOOL_CALL_CHUNK) && e.toolCallId && e.toolCallName === "submit_result") submitId = e.toolCallId;
-  if ((e.type === EventType.TOOL_CALL_ARGS || e.type === EventType.TOOL_CALL_CHUNK) && e.toolCallId) args.set(e.toolCallId, (args.get(e.toolCallId) ?? "") + (e.delta ?? ""));
-}
-const raw = submitId ? args.get(submitId) : undefined;
-// #endregion docs:patterns/structured-output/read-stream
-
 // A reconnect past the replay buffer yields a `MESSAGES_SNAPSHOT` with the
 // run's messages so far: its tool calls replace the arguments read, and later
 // deltas append to them.
@@ -71,6 +59,18 @@ function fromSnapshot(
   }
   return id;
 }
+
+const handle = await runner.tasks.start({ prompt: "Triage ticket 4411: ..." });
+const args = new Map<string, string>();
+let submitId: string | undefined;
+
+for await (const e of handle.stream()) {
+  if (e.type === EventType.MESSAGES_SNAPSHOT) submitId = fromSnapshot(e, args);
+  if ((e.type === EventType.TOOL_CALL_START || e.type === EventType.TOOL_CALL_CHUNK) && e.toolCallId && e.toolCallName === "submit_result") submitId = e.toolCallId;
+  if ((e.type === EventType.TOOL_CALL_ARGS || e.type === EventType.TOOL_CALL_CHUNK) && e.toolCallId) args.set(e.toolCallId, (args.get(e.toolCallId) ?? "") + (e.delta ?? ""));
+}
+const raw = submitId ? args.get(submitId) : undefined;
+// #endregion docs:patterns/structured-output/read-stream
 
 const taskId = handle.run.task_id;
 

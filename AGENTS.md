@@ -119,6 +119,8 @@ Examples:
 Example folders are top-level peers under `otel/`. Do not nest one under
 another.
 
+A docs region (`// #region docs:<id>`) must show every helper it calls that is defined in its example file: put SDK-work helpers inside the region before their first use, and stand-ins for the reader's own code as a minimal stub inside the region with a one-line "your app's code" comment.
+
 ### Tests folder layout
 
 ```
