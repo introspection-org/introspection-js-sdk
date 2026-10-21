@@ -29,7 +29,7 @@ import {
   generateKeyPair,
   jwtVerify,
 } from "jose";
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const PS = "https://ps.acme.example";
 const PROVIDER = "https://agents.example";
@@ -378,6 +378,37 @@ describe("@introspection-sdk/aauth-person-server", () => {
       new URL(proposed.headers.get("location")!).pathname,
     );
     expect(peek.status).toBe(404);
+  });
+
+  it("fetches nothing for a Signature-Key scheme other than jwt", async () => {
+    const fetched: string[] = [];
+    vi.stubGlobal("fetch", async (input: string | URL | Request) => {
+      fetched.push(String(input instanceof Request ? input.url : input));
+      return new Response("{}");
+    });
+    try {
+      const response = await ps.handle(
+        new Request(`${PS}/ps/token`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Signature-Input":
+              'sig=("@method" "@authority" "@path" "signature-key");created=1',
+            Signature: "sig=:AAAA:",
+            "Signature-Key":
+              'sig=jwks_uri;id="http://169.254.169.254/latest";kid="k";dwk="x"',
+          },
+          body: "{}",
+        }),
+      );
+      expect(response.status).toBe(401);
+      expect(response.headers.get("signature-error")).toContain(
+        "unsupported_scheme",
+      );
+      expect(fetched).toEqual([]);
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 
   it("refuses an untrusted provider and a tampered body", async () => {

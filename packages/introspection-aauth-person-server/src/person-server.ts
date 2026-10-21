@@ -112,6 +112,14 @@ export interface Issued {
 const s256 = (bytes: string | Buffer) =>
   createHash("sha256").update(bytes).digest("base64url");
 const trim = (url: string) => url.replace(/\/+$/, "");
+/** Whether every member of a `Signature-Key` header uses the `jwt` scheme (draft-hardt-httpbis-signature-key). */
+const signsWithJwt = (header: string | null): boolean => {
+  const schemes = [
+    ...(header ?? "").matchAll(/(?:^|,)\s*[a-z*][a-z0-9_.*-]*=([a-z][a-z0-9_-]*)/g),
+  ].map((m) => m[1]);
+  return schemes.length > 0 && schemes.every((scheme) => scheme === "jwt");
+};
+
 /** The tenant a request body names; an empty one names none. */
 const tenantOf = (params: Record<string, unknown>) =>
   typeof params.tenant === "string" && params.tenant
@@ -199,6 +207,10 @@ export async function createPersonServer(options: PersonServerOptions) {
     body: string | undefined,
     path: string,
   ): Promise<{ agent: Agent; agentToken: string }> {
+    // Checked before verifying: verifying a `jwks_uri` or other scheme fetches keys from where the
+    // header says, and an agent only ever signs with `sig=jwt`.
+    if (!signsWithJwt(request.headers.get("signature-key")))
+      throw signatureError("unsupported_scheme", "sign with sig=jwt");
     const signed = await verifySignature(
       request,
       body,
