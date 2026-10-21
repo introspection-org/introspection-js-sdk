@@ -111,6 +111,21 @@ else
 fi
 [ -n "${FLIGHTSECTOR_NO_SETUP:-}" ] || say "$(introspection --version)"
 
+# A session that answers, not only one on file: `whoami` reads the stored
+# credentials, so an expired session still reads as logged in. Run once more
+# after signing in, on the stack the last session was on.
+session_works() {
+  introspection runtimes list -o json >/dev/null 2>&1
+}
+
+if [ -z "${FLIGHTSECTOR_NO_SETUP:-}" ] && ! session_works; then
+  STACK="$(introspection whoami 2>/dev/null | json 'v.cp_url' 2>/dev/null || true)"
+  STACK="${STACK:-$(read_env INTROSPECTION_BASE_API_URL)}"
+  say "your Introspection session does not answer; signing in${STACK:+ to $STACK}"
+  introspection login ${STACK:+--url "$STACK"} || fail "could not sign in: run \`introspection login\`, then pnpm dev"
+  session_works || fail "signed in, but the session still does not answer: run \`introspection whoami\`"
+fi
+
 # ---------------------------------------------------------------------------
 # Public URLs
 # ---------------------------------------------------------------------------
@@ -484,8 +499,7 @@ if [ -n "${FLIGHTSECTOR_NO_SETUP:-}" ]; then
 elif connect; then
   say "demo: http://localhost:$PORT"
 else
-  say "not connected to Introspection: run \`introspection login\`, then restart pnpm dev."
-  say "meanwhile: http://localhost:$PORT/walkthrough; pnpm e2e plays the agent without Introspection."
+  fail "not connected to Introspection: run \`introspection login\`, then restart pnpm dev (pnpm e2e plays the agent without Introspection)"
 fi
 remove_env DEMO_SETUP
 wait "$APP"
