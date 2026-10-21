@@ -37,17 +37,21 @@ import {
   jwtVerify,
 } from "jose";
 
-import { AAuthError, problem } from "@introspection-sdk/aauth-protocol";
+import {
+  AAuthError,
+  type Budget,
+  type FetchLike,
+  httpsOnly,
+  parseBudget,
+  problem,
+  sameScale,
+} from "@introspection-sdk/aauth-protocol";
 
 /** RFC 9864's fully-specified identifier; the polymorphic `EdDSA` is not used. */
 const ALG = "Ed25519";
 
 /** draft-hardt-aauth-budgets: an amount in a unit's smallest denomination. */
-export interface Budget {
-  amount: number;
-  unit: string;
-  decimals: number;
-}
+export type { Budget };
 
 export interface AAuthResourceOptions {
   /** This resource's identifier: `https://host`, the origin agents call. */
@@ -76,6 +80,8 @@ export interface AAuthResourceOptions {
    */
   accessServer?: string;
   /** A PKCS#8 PEM to keep the key across restarts; a fresh key otherwise. */
+  /** For fetching the keys of the tokens it verifies; global fetch by default. Only `https`, never redirected. */
+  fetch?: FetchLike;
   signingKey?: string;
   kid?: string;
   /** Where proposals live until their Person Server reads them; in memory by default. */
@@ -271,6 +277,9 @@ export async function createAAuthResource(
       .setProtectedHeader({ ...header, alg: ALG, kid } as { alg: string })
       .sign(privateKey);
   const accessServer = options.accessServer?.replace(/\/+$/, "");
+  const keysFetch = httpsOnly(
+    options.fetch ?? ((input, init) => fetch(input, init)),
+  );
   if (accessServer !== undefined && !accessServer.startsWith("https://"))
     throw new Error("accessServer must be an https origin");
   const issuers: Record<TokenKind, readonly string[]> = {
@@ -303,6 +312,7 @@ export async function createAAuthResource(
       httpSignatureThumbprint: signed.thumbprint,
       resource: issuer,
       accept,
+      fetch: keysFetch,
     }).catch((err: Error) => {
       const code = err instanceof AAuthTokenError ? err.code : "invalid_jwt";
       throw signatureError(
@@ -450,7 +460,7 @@ export async function createAAuthResource(
       if ("challenge" in call) return { ok: false, response: call.challenge };
       const { signed, token } = call;
       const ask = typeof asked === "function" ? await asked(token) : asked;
-      if (token.type === "auth" && token.r3_s256) {
+      if (token.type === "auth" && token.r3_s256 && grants(token, ask)) {
         const approved = await verifyProposalParameters({
           store: r3,
           r3_s256: token.r3_s256,
@@ -472,6 +482,40 @@ export async function createAAuthResource(
         response: await propose(token, signed.thumbprint, ask),
       };
     });
+  }
+
+  /**
+   * Whether an auth token grants this call, whoever issued it: its `scope`
+   * covers the call's, and its `budget`, in the call's unit and scale, covers
+   * the call's price (draft-hardt-aauth-budgets #resource-enforces). An Access
+   * Server may grant less than was asked; a token that does not cover the call
+   * is answered with a fresh challenge, as for no token at all.
+   */
+  function grants(token: VerifiedToken, ask: AuthorizeRequest): boolean {
+    const granted = new Set(
+      String(token.claims.scope ?? "")
+        .split(" ")
+        .filter(Boolean),
+    );
+    if (
+      !ask.scope
+        .split(" ")
+        .filter(Boolean)
+        .every((s) => granted.has(s))
+    )
+      return false;
+    if (!ask.budget) return true;
+    let budget: Budget | undefined;
+    try {
+      budget = parseBudget(token.claims.budget);
+    } catch {
+      return false;
+    }
+    return (
+      !!budget &&
+      sameScale(budget, ask.budget) &&
+      budget.amount >= ask.budget.amount
+    );
   }
 
   async function authenticate(

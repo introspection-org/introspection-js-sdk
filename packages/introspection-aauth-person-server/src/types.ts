@@ -1,11 +1,8 @@
 import type { JWK } from "jose";
 
-/** A draft-hardt-aauth-budgets budget: `amount / 10 ** decimals` in `unit`. */
-export interface Budget {
-  amount: number;
-  unit: string;
-  decimals: number;
-}
+import type { Budget } from "@introspection-sdk/aauth-protocol";
+
+export type { Budget };
 
 /** Someone this Person Server speaks for. */
 export interface Person {

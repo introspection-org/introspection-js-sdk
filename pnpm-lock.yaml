@@ -677,6 +677,9 @@ importers:
       '@introspection-sdk/aauth-person-server':
         specifier: workspace:*
         version: link:../packages/introspection-aauth-person-server
+      '@introspection-sdk/aauth-protocol':
+        specifier: workspace:*
+        version: link:../packages/introspection-aauth-protocol
       '@introspection-sdk/aauth-resource':
         specifier: workspace:*
         version: link:../packages/introspection-aauth-resource

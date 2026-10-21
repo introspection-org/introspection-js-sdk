@@ -1,4 +1,6 @@
 export { AAuthError, problem } from "./errors.js";
+export { type Budget, parseBudget, sameScale } from "./budget.js";
+export { type FetchLike, httpsOnly } from "./fetch.js";
 export { loadSigner, type Signer } from "./signer.js";
 export {
   answer,

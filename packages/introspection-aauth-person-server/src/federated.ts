@@ -4,7 +4,7 @@
  * covers is redeemed at the AS. A spend lands only once the AS issues.
  */
 import { type JWTPayload, decodeJwt } from "jose";
-import { AAuthError } from "@introspection-sdk/aauth-protocol";
+import { AAuthError, sameScale } from "@introspection-sdk/aauth-protocol";
 
 import {
   type AccessOutcome,
@@ -59,9 +59,6 @@ export interface FederatedContext {
     access_server: string;
   }) => void | Promise<void>;
 }
-
-const sameScale = (a: Budget, b: Budget) =>
-  a.unit === b.unit && a.decimals === b.decimals;
 
 /** Whether a request fits what is left of its mission's budget. */
 const fits = (mission: Mission, budget: Budget | undefined) =>

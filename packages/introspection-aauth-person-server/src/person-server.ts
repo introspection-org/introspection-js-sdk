@@ -28,9 +28,12 @@ import {
   answer,
   beneath,
   discovery,
+  httpsOnly,
   loadSigner,
+  parseBudget,
   problem,
   readProposalSummary,
+  sameScale,
   signatureError,
   verifySignature,
 } from "@introspection-sdk/aauth-protocol";
@@ -126,29 +129,6 @@ function readBody(body: string): Record<string, unknown> {
   throw new AAuthError(400, "invalid_request", "body must be a JSON object");
 }
 
-function readBudget(value: unknown): Budget | undefined {
-  if (value === undefined || value === null) return undefined;
-  const { amount, unit, decimals } = value as Partial<Budget>;
-  if (
-    typeof amount !== "number" ||
-    !Number.isSafeInteger(amount) ||
-    amount < 0 ||
-    typeof unit !== "string" ||
-    typeof decimals !== "number" ||
-    !Number.isInteger(decimals) ||
-    decimals < 0
-  )
-    throw new AAuthError(
-      400,
-      "invalid_request",
-      "budget is {amount, unit, decimals}",
-    );
-  return { amount, unit, decimals };
-}
-
-const sameScale = (a: Budget, b: Budget) =>
-  a.unit === b.unit && a.decimals === b.decimals;
-
 /** `202`: the agent polls `location` until it is decided. */
 const pendingResponse = (
   location: string,
@@ -176,8 +156,9 @@ export async function createPersonServer(options: PersonServerOptions) {
   const store = options.store ?? new MemoryStore();
   const signer = await loadSigner(options.signingKey);
   const secret = options.subjectSecret ?? randomBytes(32).toString("hex");
-  const fetchLike: FetchLike =
-    options.fetch ?? ((input, init) => fetch(input, init));
+  const fetchLike: FetchLike = httpsOnly(
+    options.fetch ?? ((input, init) => fetch(input, init)),
+  );
   const now = options.now ?? (() => Math.floor(Date.now() / 1000));
   const tokenTtl = options.tokenTtlSeconds ?? 60 * 60;
   const missionTtl = options.missionTtlSeconds ?? 14 * 24 * 60 * 60;
@@ -650,7 +631,7 @@ export async function createPersonServer(options: PersonServerOptions) {
       await verifyResourceToken(agent, params);
     const budget = (() => {
       try {
-        return readBudget(rt.budget);
+        return parseBudget(rt.budget);
       } catch {
         throw new AAuthError(
           400,
@@ -884,7 +865,7 @@ export async function createPersonServer(options: PersonServerOptions) {
         "invalid_request",
         "only a mission takes a budget",
       );
-    const budget = readBudget(decision.budget);
+    const budget = parseBudget(decision.budget);
     const decided: Approval = {
       ...approval,
       status: decision.status,
@@ -1000,7 +981,7 @@ export async function createPersonServer(options: PersonServerOptions) {
         await decide(tenant, consent[1], {
           status: String(verdict).startsWith("approve") ? "approved" : "denied",
           ...(params.budget !== undefined
-            ? { budget: readBudget(params.budget) }
+            ? { budget: parseBudget(params.budget) }
             : {}),
           ...(typeof params.decided_by === "string"
             ? { decided_by: params.decided_by }

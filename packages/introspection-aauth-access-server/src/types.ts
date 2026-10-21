@@ -1,11 +1,7 @@
 import type { JWK, JWTPayload } from "jose";
+import type { Budget } from "@introspection-sdk/aauth-protocol";
 
-/** A draft-hardt-aauth-budgets budget: `amount / 10 ** decimals` in `unit`. */
-export interface Budget {
-  amount: number;
-  unit: string;
-  decimals: number;
-}
+export type { Budget };
 
 /**
  * A Person Server's token request, once its signature and all three tokens

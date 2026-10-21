@@ -93,6 +93,8 @@ type Scripted = (
   request: Request,
 ) => Response | undefined | Promise<Response | undefined>;
 let asAnswer: Scripted | undefined;
+/** The AS's metadata in place of its own, when a test sets it. */
+let asMetadata: Record<string, unknown> | undefined;
 
 /** The booking resource's one paid call. */
 async function reserve(request: Request): Promise<Response> {
@@ -133,6 +135,12 @@ async function world(
   const document = documents[`${origin}${pathname}`];
   if (document) return Response.json(document);
   if (origin === PS) return ps.handle(request);
+  if (
+    origin === AS &&
+    pathname === "/.well-known/aauth-access.json" &&
+    asMetadata
+  )
+    return Response.json(asMetadata);
   if (origin === AS && !pathname.startsWith("/.well-known/")) {
     const scripted = await asAnswer?.(request);
     if (scripted) return scripted;
@@ -223,6 +231,7 @@ beforeEach(async () => {
   decided = [];
   calls = [];
   asAnswer = undefined;
+  asMetadata = undefined;
   policy = (request) =>
     request.tenant === "acme"
       ? { decision: "allow" }
@@ -678,6 +687,114 @@ describe("@introspection-sdk/aauth-access-server federation", () => {
     expect(refused.status).toBe(400);
     expect(await refused.json()).toMatchObject({ error: "invalid_request" });
     expect(calls.some((c) => c.startsWith(`POST ${AS}`))).toBe(false);
+  });
+
+  it("refuses a negative grant from the Access Server, and spends nothing", async () => {
+    const agent = await AgentClient.create();
+    const trip = await approvedTrip(agent);
+    const kid = as.jwks().keys[0]!.kid as string;
+    const forged = await party(kid, AS_KEY);
+    const resourceToken = await challenge(agent, trip.personToken, 50_000);
+    const rt = decodeJwt(resourceToken);
+    asAnswer = async () =>
+      Response.json({
+        auth_token: await forged.sign(
+          {
+            iss: AS,
+            dwk: "aauth-access.json",
+            aud: RESOURCE,
+            ps: PS,
+            sub: rt.sub,
+            mission_s256: trip.s256,
+            scope: "booking.reserve",
+            budget: { amount: -50_000, ...USD },
+            cnf: { jwk: agent.session.publicJwk },
+          },
+          "aa-auth+jwt",
+        ),
+      });
+    const answered = await agent.send("POST", `${PS}/ps/token`, {
+      resource_token: resourceToken,
+      presented_token: trip.personToken,
+    });
+    expect(answered.status).toBe(502);
+    expect(await answered.json()).toMatchObject({
+      error: "as_unreachable",
+      detail: expect.stringContaining("budget"),
+    });
+    expect(await spent(trip.s256)).toBe(0);
+  });
+
+  it("refuses a negative budget from its own policy", async () => {
+    const agent = await AgentClient.create();
+    const trip = await approvedTrip(agent);
+    policy = () => ({ decision: "allow", budget: { amount: -1, ...USD } });
+    const answered = await agent.send("POST", `${PS}/ps/token`, {
+      resource_token: await challenge(agent, trip.personToken, 50_000),
+      presented_token: trip.personToken,
+    });
+    expect(answered.status).toBe(502);
+    expect(await spent(trip.s256)).toBe(0);
+  });
+
+  it("the resource refuses an auth token whose budget does not cover the call", async () => {
+    const agent = await AgentClient.create();
+    const trip = await approvedTrip(agent);
+    policy = () => ({ decision: "allow", budget: { amount: 1, ...USD } });
+    const resourceToken = await challenge(agent, trip.personToken, 100_000);
+    const issued = await agent.send("POST", `${PS}/ps/token`, {
+      resource_token: resourceToken,
+      presented_token: trip.personToken,
+    });
+    expect(issued.status).toBe(200);
+    const { auth_token } = (await issued.json()) as { auth_token: string };
+    expect(decodeJwt(auth_token).budget).toEqual({ amount: 1, ...USD });
+    const booked = await agent.send(
+      "POST",
+      `${RESOURCE}/reserve`,
+      { amount: 100_000 },
+      auth_token,
+    );
+    expect(booked.status).toBe(401);
+    expect(booked.headers.get("aauth-requirement")).toContain("auth-token");
+  });
+
+  it("the resource refuses an auth token without the call's scope", async () => {
+    const agent = await AgentClient.create();
+    const trip = await approvedTrip(agent);
+    policy = () => ({ decision: "allow", scope: "" });
+    const resourceToken = await challenge(agent, trip.personToken, 20_000);
+    const issued = await agent.send("POST", `${PS}/ps/token`, {
+      resource_token: resourceToken,
+      presented_token: trip.personToken,
+    });
+    expect(issued.status).toBe(200);
+    const { auth_token } = (await issued.json()) as { auth_token: string };
+    expect(decodeJwt(auth_token).scope).toBeUndefined();
+    const booked = await agent.send(
+      "POST",
+      `${RESOURCE}/reserve`,
+      { amount: 20_000 },
+      auth_token,
+    );
+    expect(booked.status).toBe(401);
+  });
+
+  it("sends no token to an Access Server whose metadata is not https", async () => {
+    const agent = await AgentClient.create();
+    const trip = await approvedTrip(agent);
+    asMetadata = {
+      issuer: AS,
+      jwks_uri: `${AS}/.well-known/jwks.json`,
+      auth_token_endpoint: "http://as.flightsector.example/token",
+    };
+    const answered = await agent.send("POST", `${PS}/ps/token`, {
+      resource_token: await challenge(agent, trip.personToken, 10_000),
+      presented_token: trip.personToken,
+    });
+    expect(answered.status).toBe(502);
+    expect(await answered.json()).toMatchObject({ error: "as_unreachable" });
+    expect(calls.some((c) => c.startsWith("POST http://"))).toBe(false);
   });
 
   it("a resource with an AS refuses a PS-issued auth token", async () => {

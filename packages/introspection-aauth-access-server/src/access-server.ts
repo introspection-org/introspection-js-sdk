@@ -16,9 +16,12 @@ import {
   answer,
   beneath,
   discovery,
+  httpsOnly,
   loadSigner,
+  parseBudget,
   problem,
   readProposalSummary,
+  sameScale,
   signatureError,
   verifySignature,
 } from "@introspection-sdk/aauth-protocol";
@@ -94,15 +97,6 @@ function narrowed(asked: unknown, scope: string | undefined) {
   return scope;
 }
 
-function readBudget(value: unknown): Budget | undefined {
-  const { amount, unit, decimals } = (value ?? {}) as Partial<Budget>;
-  return typeof amount === "number" &&
-    typeof unit === "string" &&
-    typeof decimals === "number"
-    ? { amount, unit, decimals }
-    : undefined;
-}
-
 function readTokens(body: string) {
   let params: Record<string, unknown> = {};
   try {
@@ -121,18 +115,13 @@ function readTokens(body: string) {
       "invalid_request",
       "resource_token, agent_token and presented_token are required",
     );
-  const sent = budget === undefined ? undefined : readBudget(budget);
-  if (budget !== undefined && !sent)
-    throw new AAuthError(
-      400,
-      "invalid_request",
-      "budget is not a budget object",
-    );
-  return { resource_token, agent_token, presented_token, budget: sent };
+  return {
+    resource_token,
+    agent_token,
+    presented_token,
+    budget: parseBudget(budget),
+  };
 }
-
-const sameScale = (a: Budget, b: Budget) =>
-  a.unit === b.unit && a.decimals === b.decimals;
 
 /**
  * What this request may spend (draft-hardt-aauth-budgets #as-token-endpoint):
@@ -156,13 +145,24 @@ function lowered(
   lower: Budget | undefined,
 ): Record<string, unknown> {
   if (!lower) return grant;
-  if (!bound || !sameScale(lower, bound) || lower.amount > bound.amount)
+  let checked: Budget | undefined;
+  try {
+    checked = parseBudget(lower);
+  } catch {
+    checked = undefined;
+  }
+  if (
+    !checked ||
+    !bound ||
+    !sameScale(checked, bound) ||
+    checked.amount > bound.amount
+  )
     throw new AAuthError(
       500,
       "server_error",
       "the policy granted a budget above what was asked",
     );
-  return { ...grant, budget: lower };
+  return { ...grant, budget: checked };
 }
 
 /** The claims an auth token for `rt` carries besides its own, copied from the resource token. */
@@ -187,8 +187,9 @@ export async function createAccessServer(options: AccessServerOptions) {
     throw new Error("issuer must be an https origin");
   const base = trim(options.basePath ?? "");
   const signer = await loadSigner(options.signingKey, options.kid);
-  const fetchLike: FetchLike =
-    options.fetch ?? ((input, init) => fetch(input, init));
+  const fetchLike: FetchLike = httpsOnly(
+    options.fetch ?? ((input, init) => fetch(input, init)),
+  );
   const now = options.now ?? (() => Math.floor(Date.now() / 1000));
   const tokenTtl = Math.min(
     options.tokenTtlSeconds ?? MAX_TOKEN_TTL,
@@ -261,7 +262,17 @@ export async function createAccessServer(options: AccessServerOptions) {
       signer,
       fetch: fetchLike,
     });
-    const budget = bounded(tokens.budget, readBudget(rt.budget));
+    let asked: Budget | undefined;
+    try {
+      asked = parseBudget(rt.budget);
+    } catch {
+      throw new AAuthError(
+        400,
+        "invalid_resource_token",
+        "its budget is not a budget",
+      );
+    }
+    const budget = bounded(tokens.budget, asked);
     const request: AccessRequest = {
       resource: String(rt.iss),
       ps,

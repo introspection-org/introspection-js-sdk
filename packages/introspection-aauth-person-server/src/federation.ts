@@ -16,7 +16,12 @@ import {
   decodeJwt,
   jwtVerify,
 } from "jose";
-import { AAuthError, type Signer } from "@introspection-sdk/aauth-protocol";
+import {
+  AAuthError,
+  parseBudget,
+  sameScale,
+  type Signer,
+} from "@introspection-sdk/aauth-protocol";
 
 import type { Budget, Federation } from "./types.js";
 
@@ -87,12 +92,16 @@ async function accessMetadata(
   });
   if (!response.ok) throw unreachable(`${url} answered ${response.status}`);
   const doc = await readJson(response);
+  const https = (value: unknown) =>
+    typeof value === "string" && value.startsWith("https://");
   if (
     doc.issuer !== accessServer ||
-    typeof doc.jwks_uri !== "string" ||
-    typeof doc.auth_token_endpoint !== "string"
+    !https(doc.jwks_uri) ||
+    !https(doc.auth_token_endpoint)
   )
-    throw unreachable(`${url} is not this Access Server's metadata`);
+    throw unreachable(
+      `${url} is not this Access Server's metadata, with https endpoints`,
+    );
   return doc as unknown as AccessMetadata;
 }
 
@@ -131,14 +140,13 @@ async function send(
 const scopes = (value: unknown) =>
   new Set(typeof value === "string" ? value.split(" ").filter(Boolean) : []);
 
+/** The AS's budget claim, or `null` when it is not a budget. */
 function readBudget(value: unknown): Budget | undefined | null {
-  if (value === undefined) return undefined;
-  const { amount, unit, decimals } = (value ?? {}) as Partial<Budget>;
-  return typeof amount === "number" &&
-    typeof unit === "string" &&
-    typeof decimals === "number"
-    ? { amount, unit, decimals }
-    : null;
+  try {
+    return parseBudget(value);
+  } catch {
+    return null;
+  }
 }
 
 /** Whether the AS granted no more than was sent (draft-hardt-aauth-budgets #as-token-endpoint). */
@@ -148,9 +156,7 @@ const withinSent = (
 ): boolean =>
   !granted || !sent
     ? !granted && !sent
-    : granted.unit === sent.unit &&
-      granted.decimals === sent.decimals &&
-      granted.amount <= sent.amount;
+    : sameScale(granted, sent) && granted.amount <= sent.amount;
 
 /**
  * #auth-token-delivery, and the budget check of draft-hardt-aauth-budgets
