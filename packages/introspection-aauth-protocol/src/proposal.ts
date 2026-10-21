@@ -19,12 +19,30 @@ export interface ProposalReader {
  * resource token names; undefined if it names none, or the proposal cannot be
  * read or does not match its hash.
  */
+/** Whether `url` is on the https origin of `issuer`, and carries no credentials. */
+function onOrigin(url: string, issuer: unknown): boolean {
+  try {
+    const at = new URL(url);
+    return (
+      typeof issuer === "string" &&
+      at.protocol === "https:" &&
+      !at.username &&
+      !at.password &&
+      at.origin === new URL(issuer).origin
+    );
+  } catch {
+    return false;
+  }
+}
+
 export async function readProposalSummary(
   rt: JWTPayload,
   reader: ProposalReader,
 ): Promise<string | undefined> {
   if (typeof rt.r3_uri !== "string" || typeof rt.r3_s256 !== "string")
     return undefined;
+  // Read only from the resource that signed the token, so a resource token cannot send this server elsewhere.
+  if (!onOrigin(rt.r3_uri, rt.iss)) return undefined;
   try {
     const { headers } = await signedFetch(rt.r3_uri, {
       method: "GET",

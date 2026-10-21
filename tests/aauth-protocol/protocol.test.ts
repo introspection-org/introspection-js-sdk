@@ -1,5 +1,10 @@
 /** @introspection-sdk/aauth-protocol's budget parser and https-only fetch. */
-import { httpsOnly, parseBudget } from "@introspection-sdk/aauth-protocol";
+import {
+  httpsOnly,
+  loadSigner,
+  parseBudget,
+  readProposalSummary,
+} from "@introspection-sdk/aauth-protocol";
 import { describe, expect, it } from "vitest";
 
 describe("@introspection-sdk/aauth-protocol", () => {
@@ -33,5 +38,34 @@ describe("@introspection-sdk/aauth-protocol", () => {
     expect(seen).toHaveLength(0);
     await guarded("https://as.example/token", { method: "POST" });
     expect(seen[0]).toMatchObject({ method: "POST", redirect: "error" });
+  });
+});
+
+describe("readProposalSummary", () => {
+  it("reads a proposal only from the resource's own https origin", async () => {
+    const signer = await loadSigner(undefined, "ps-1");
+    const fetched: string[] = [];
+    const reader = {
+      issuer: "https://ps.example",
+      dwk: "aauth-person.json",
+      signer,
+      fetch: async (input: string) => {
+        fetched.push(input);
+        return new Response("{}");
+      },
+    };
+    for (const r3_uri of [
+      "https://internal.cluster.local/r3/1",
+      "http://booking.example/r3/1",
+      "https://user:pass@booking.example/r3/1",
+      "https://10.0.0.5/r3/1",
+    ])
+      expect(
+        await readProposalSummary(
+          { iss: "https://booking.example", r3_uri, r3_s256: "x" },
+          reader,
+        ),
+      ).toBeUndefined();
+    expect(fetched).toHaveLength(0);
   });
 });
