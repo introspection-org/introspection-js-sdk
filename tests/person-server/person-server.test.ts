@@ -1183,7 +1183,7 @@ describe("@introspection-sdk/aauth-person-server token shape and lifetimes", () 
     expect(decodeJwt(auth_token)).toMatchObject({ account: "acct-7" });
   });
 
-  it("mints the mission's person tokens again on each poll", async () => {
+  it("answers each decision once, and 410 after", async () => {
     const agent = await AgentClient.create();
     const proposed = await call(agent, "POST", "/ps/mission", {
       description: "Sydney",
@@ -1192,15 +1192,52 @@ describe("@introspection-sdk/aauth-person-server token shape and lifetimes", () 
     });
     await ps.decide("acme", asked.at(-1)!.id, { status: "approved" });
     const path = new URL(proposed.headers.get("location")!).pathname;
-    const poll = async () =>
-      (
-        (await (await call(agent, "GET", path)).json()) as {
-          person_tokens: Record<string, string>;
-        }
-      ).person_tokens[RESOURCE]!;
-    const first = decodeJwt(await poll());
-    const second = decodeJwt(await poll());
-    expect(second.jti).not.toBe(first.jti);
-    expect(second.sub).toBe(first.sub);
+    const approved = await call(agent, "GET", path);
+    expect(approved.status).toBe(200);
+    const { s256 } = (await approved.json()) as { s256: string };
+    const again = await call(agent, "GET", path);
+    expect(again.status).toBe(410);
+    expect(await again.json()).toMatchObject({ error: "invalid_code" });
+
+    const done = await call(agent, "POST", `/ps/mission/${s256}`, {
+      action: "completion",
+    });
+    await ps.decide("acme", asked.at(-1)!.id, { status: "approved" });
+    const donePath = new URL(done.headers.get("location")!).pathname;
+    expect((await call(agent, "GET", donePath)).status).toBe(200);
+    expect((await call(agent, "GET", donePath)).status).toBe(410);
+
+    const refused = await call(agent, "POST", "/ps/mission", {
+      description: "Paris",
+      resources: [RESOURCE],
+    });
+    await ps.decide("acme", asked.at(-1)!.id, { status: "denied" });
+    const refusedPath = new URL(refused.headers.get("location")!).pathname;
+    expect((await call(agent, "GET", refusedPath)).status).toBe(403);
+    expect((await call(agent, "GET", refusedPath)).status).toBe(410);
+  });
+
+  it("verifies a poll for a tenant that needs percent-encoding as it was addressed", async () => {
+    const tenant = "org:project";
+    ps = await server(undefined, {
+      directory: {
+        person: (hint) =>
+          hint === "sam@acme.example" ? { id: "sam", name: "Sam" } : undefined,
+      },
+    });
+    const agent = await AgentClient.create();
+    const proposed = await call(agent, "POST", "/ps/mission", {
+      description: "Sydney",
+      resources: [RESOURCE],
+      login_hint: "sam@acme.example",
+      tenant,
+    });
+    expect(proposed.status).toBe(202);
+    const location = proposed.headers.get("location")!;
+    expect(location).toContain("org%3Aproject");
+    const path = new URL(location).pathname;
+    expect((await call(agent, "GET", path)).status).toBe(202);
+    await ps.decide(tenant, asked.at(-1)!.id, { status: "approved" });
+    expect((await call(agent, "GET", path)).status).toBe(200);
   });
 });

@@ -403,16 +403,22 @@ export async function createAccessServer(options: AccessServerOptions) {
     return waiting(record);
   }
 
-  /** The Person Server polls a pending request with a signed GET; only the one that asked may. */
+  /**
+   * The Person Server polls a pending request with a signed GET; only the one
+   * that asked may. A decision is answered once; the URL is `410` after
+   * (#pending-url-security).
+   */
   async function poll(request: Request, path: string, id: string) {
     const ps = await personServer(request, undefined, path);
     const record = pending.get(id);
     if (!record || record.request.ps !== ps)
       return problem(404, "not_found", "no such pending request");
-    if (record.status === "denied")
-      return problem(403, "denied", "this resource's policy refuses it");
     if (record.status === "collected")
-      return problem(410, "invalid_code", "its auth token was issued already");
+      return problem(410, "invalid_code", "this request was answered already");
+    if (record.status === "denied") {
+      record.status = "collected";
+      return problem(403, "denied", "this resource's policy refuses it");
+    }
     if (now() >= record.expires_at)
       return problem(408, "expired", "nobody decided in time");
     if (record.status === "pending") return waiting(record);

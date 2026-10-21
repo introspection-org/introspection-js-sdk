@@ -206,6 +206,23 @@ class AgentClient {
   }
 }
 
+/** A signed GET of the AS's pending `url`, as the Person Server. */
+async function pollAsPersonServer(url: string) {
+  const key = await party(ps.jwks().keys[0]!.kid!, PS_KEY);
+  const { headers } = await signedFetch(url, {
+    method: "GET",
+    signingKey: key.jwk as JsonWebKey,
+    signatureKey: {
+      type: "jwks_uri",
+      id: PS,
+      kid: String(key.jwk.kid),
+      dwk: "aauth-person.json",
+    },
+    dryRun: true,
+  });
+  return as.handle(new Request(url, { headers }));
+}
+
 /** A request to the AS signed as a Person Server with `key`. */
 async function asPersonServer(
   id: string,
@@ -546,7 +563,7 @@ describe("@introspection-sdk/aauth-access-server federation", () => {
     const location = waiting.headers.get("location")!;
     const denied = await agent.send("GET", location);
     expect(denied.status).toBe(403);
-    expect((await agent.send("GET", location)).status).toBe(403);
+    expect((await agent.send("GET", location)).status).toBe(410);
     expect(await spent(trip.s256)).toBe(0);
   });
 
@@ -1082,6 +1099,48 @@ describe("@introspection-sdk/aauth-access-server federation", () => {
       );
       expect(response.status).toBe(401);
       expect(response.headers.get("signature-error")).toContain("invalid_jwt");
+    }
+  });
+  it("answers a denied pending request once, and 410 after", async () => {
+    const agent = await AgentClient.create();
+    const trip = await approvedTrip(agent);
+    policy = () => ({ decision: "approval" });
+    let location = "";
+    asAnswer = async (request) => {
+      if (request.method !== "POST") return undefined;
+      const answered = await as.handle(request);
+      location = answered.headers.get("location") ?? "";
+      return answered;
+    };
+    await agent.send("POST", `${PS}/ps/token`, {
+      resource_token: await challenge(agent, trip.personToken, 10_000),
+      presented_token: trip.personToken,
+    });
+    as.decide(as.pendings()[0]!.id, { status: "denied" });
+    expect((await pollAsPersonServer(location)).status).toBe(403);
+    expect((await pollAsPersonServer(location)).status).toBe(410);
+  });
+
+  it("sends no token to an Access Server whose endpoints are on another origin", async () => {
+    const agent = await AgentClient.create();
+    const trip = await approvedTrip(agent);
+    for (const moved of [
+      { auth_token_endpoint: "https://collector.example/token" },
+      { jwks_uri: "https://collector.example/jwks.json" },
+    ]) {
+      asMetadata = {
+        issuer: AS,
+        jwks_uri: `${AS}/.well-known/jwks.json`,
+        auth_token_endpoint: `${AS}/token`,
+        ...moved,
+      };
+      calls = [];
+      const answered = await agent.send("POST", `${PS}/ps/token`, {
+        resource_token: await challenge(agent, trip.personToken, 10_000),
+        presented_token: trip.personToken,
+      });
+      expect(answered.status).toBe(502);
+      expect(calls.some((c) => c.includes("collector.example"))).toBe(false);
     }
   });
 });

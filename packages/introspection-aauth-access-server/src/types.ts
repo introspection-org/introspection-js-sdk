@@ -63,7 +63,7 @@ export type Verdict =
 
 export type Policy = (request: AccessRequest) => Verdict | Promise<Verdict>;
 
-/** `collected`: approved, and its auth token handed out. An auth token is collected once. */
+/** `collected`: decided, and the decision handed to the Person Server, which its pending URL does once. */
 export type PendingStatus = "pending" | "approved" | "denied" | "collected";
 
 /** A request this Access Server's policy is waiting on. */

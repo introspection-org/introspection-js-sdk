@@ -778,7 +778,11 @@ export async function createPersonServer(options: PersonServerOptions) {
   });
 
   // #region pending
-  /** The agent polls with a signed GET; only the key that asked may read it. Results are minted now. */
+  /**
+   * The agent polls with a signed GET; only the key that asked may read it.
+   * A decision is answered once, and minted then; the URL is `410` after
+   * (#pending-url-security).
+   */
   async function pendingState(
     tenant: string,
     request: Request,
@@ -799,21 +803,26 @@ export async function createPersonServer(options: PersonServerOptions) {
         });
       return new Response(null, { status: 204 });
     }
-    if (approval.status === "denied")
-      return problem(
-        403,
-        "denied",
-        `${approval.decided_by === approval.federation?.access_server ? "The resource's Access Server" : (approval.approver.name ?? "The approver")} declined`,
-      );
     if (approval.status === "pending")
       return now() >= approval.expires_at
         ? problem(408, "expired", "nobody answered in time")
         : stillPending(tenant, id);
     if (approval.status === "collected") return collected();
-    if (approval.kind === "completion") return Response.json({});
+    const answered: Approval = { ...approval, status: "collected" };
+    const declined = `${approval.approver.name ?? "The approver"} declined`;
+    if (approval.status === "denied")
+      return (await store.transitionApproval(tenant, "denied", answered))
+        ? problem(403, "denied", declined)
+        : collected();
+    if (approval.kind === "completion")
+      return (await store.transitionApproval(tenant, "approved", answered))
+        ? Response.json({})
+        : collected();
     // Nothing is issued under a mission that has ended, whatever was approved.
     const mission = await liveMission(tenant, agent, approval.mission_s256);
     if (approval.kind === "mission") {
+      if (!(await store.transitionApproval(tenant, "approved", answered)))
+        return collected();
       const tokens = await Promise.all(
         mission.resources.map(async (r) => [
           r,
@@ -836,8 +845,7 @@ export async function createPersonServer(options: PersonServerOptions) {
         true,
       );
     // Collected once: only the poll that collects it spends, so it spends and mints once.
-    const collecting: Approval = { ...approval, status: "collected" };
-    if (!(await store.transitionApproval(tenant, "approved", collecting)))
+    if (!(await store.transitionApproval(tenant, "approved", answered)))
       return collected();
     const issuedUnder = await access.spendApproved(
       tenant,
@@ -852,7 +860,7 @@ export async function createPersonServer(options: PersonServerOptions) {
   }
 
   const collected = () =>
-    problem(410, "invalid_code", "this approval's token was already collected");
+    problem(410, "invalid_code", "this pending request was answered already");
 
   // #endregion
 

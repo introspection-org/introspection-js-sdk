@@ -29,7 +29,7 @@ export interface Agent {
 }
 
 export type ApprovalKind = "mission" | "auth_token" | "completion";
-/** `collected`: approved, and its auth token handed out. An auth token is collected once. */
+/** `collected`: decided, and the decision handed to the agent, which its pending URL does once. */
 export type ApprovalStatus = "pending" | "approved" | "denied" | "collected";
 
 /**

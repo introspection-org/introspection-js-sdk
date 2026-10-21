@@ -159,8 +159,9 @@ export function federatedAccess(ctx: FederatedContext) {
    * Redeem an approved request at its Access Server: its auth token, once the
    * spend lands, or a wait while the AS decides or is busy. `stored` is
    * whether the approval is saved already; one that is not is saved only if it
-   * must wait. Only the AS's own refusal ends a saved approval as its denial:
-   * one that could not be reached is asked again on the agent's next poll.
+   * must wait. Only the AS's own refusal ends a saved approval, answered then
+   * as its denial: one that could not be reached is asked again on the
+   * agent's next poll.
    */
   async function redeem(
     tenant: string,
@@ -183,7 +184,7 @@ export function federatedAccess(ctx: FederatedContext) {
       )
         await store.transitionApproval(tenant, "approved", {
           ...approval,
-          status: "denied",
+          status: "collected",
           decided_by: federation.access_server,
           decided_at: now(),
         });

@@ -119,14 +119,26 @@ async function accessMetadata(
   const issuer = member(doc, "issuer");
   const jwks_uri = member(doc, "jwks_uri");
   const auth_token_endpoint = member(doc, "auth_token_endpoint");
+  const origin = new URL(accessServer).origin;
+  const own = (endpoint: string | undefined): endpoint is string => {
+    try {
+      return (
+        endpoint !== undefined &&
+        new URL(endpoint).protocol === "https:" &&
+        new URL(endpoint).origin === origin
+      );
+    } catch {
+      return false;
+    }
+  };
   if (
     issuer === undefined ||
     trimIdentifier(issuer) !== trimIdentifier(accessServer) ||
-    !jwks_uri?.startsWith("https://") ||
-    !auth_token_endpoint?.startsWith("https://")
+    !own(jwks_uri) ||
+    !own(auth_token_endpoint)
   )
     throw unreachable(
-      `${url} is not this Access Server's metadata, with https endpoints`,
+      `${url} is not this Access Server's metadata, with endpoints on its own https origin`,
     );
   return { issuer: accessServer, jwks_uri, auth_token_endpoint };
 }
