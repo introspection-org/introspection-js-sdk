@@ -4,8 +4,8 @@
  * covers is redeemed at the AS. A spend lands only once the AS issues.
  */
 import { type JWTPayload, decodeJwt } from "jose";
+import { AAuthError } from "@introspection-sdk/aauth-protocol";
 
-import { AAuthError } from "./errors.js";
 import {
   type AccessOutcome,
   type FederationContext,

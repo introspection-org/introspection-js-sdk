@@ -195,4 +195,4 @@ The approval for such a request carries `federation` (the AS, the three tokens, 
 
 ## Building blocks
 
-The pieces this server and `@introspection-sdk/aauth-access-server` share are exported too: `loadSigner`, `readProposalSummary`, `verifySignature`, `signatureError`, `discovery`, `beneath` and `answer`.
+The pieces this server, `@introspection-sdk/aauth-access-server` and `@introspection-sdk/aauth-resource` share live in [`@introspection-sdk/aauth-protocol`](../introspection-aauth-protocol): `loadSigner`, `readProposalSummary`, `verifySignature`, `signatureError`, `discovery`, `beneath` and `answer`. `AAuthError` and `problem` are exported here too.

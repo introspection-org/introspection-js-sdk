@@ -33,7 +33,7 @@
   },
   "dependencies": {
     "@aauth/resource": "^3.0.0",
-    "@introspection-sdk/aauth-person-server": "workspace:*",
+    "@introspection-sdk/aauth-protocol": "workspace:*",
     "jose": "^6.2.12"
   },
   "devDependencies": {

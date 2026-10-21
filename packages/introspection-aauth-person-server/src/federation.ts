@@ -16,9 +16,8 @@ import {
   decodeJwt,
   jwtVerify,
 } from "jose";
+import { AAuthError, type Signer } from "@introspection-sdk/aauth-protocol";
 
-import { AAuthError } from "./errors.js";
-import type { Signer } from "./signer.js";
 import type { Federation } from "./types.js";
 
 type FetchLike = (input: string, init?: RequestInit) => Promise<Response>;

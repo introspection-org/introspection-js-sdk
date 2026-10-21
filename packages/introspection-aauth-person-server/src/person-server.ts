@@ -23,19 +23,20 @@ import {
   decodeProtectedHeader,
   jwtVerify,
 } from "jose";
-
-import { AAuthError, problem } from "./errors.js";
-import { federatedAccess } from "./federated.js";
-import { MemoryStore } from "./memory-store.js";
-import { readProposalSummary } from "./proposal.js";
 import {
+  AAuthError,
   answer,
   beneath,
   discovery,
+  loadSigner,
+  problem,
+  readProposalSummary,
   signatureError,
   verifySignature,
-} from "./server.js";
-import { loadSigner } from "./signer.js";
+} from "@introspection-sdk/aauth-protocol";
+
+import { federatedAccess } from "./federated.js";
+import { MemoryStore } from "./memory-store.js";
 import type {
   Agent,
   Approval,

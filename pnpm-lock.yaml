@@ -265,9 +265,9 @@ importers:
       '@aauth/resource':
         specifier: ^3.0.0
         version: 3.0.0
-      '@introspection-sdk/aauth-person-server':
+      '@introspection-sdk/aauth-protocol':
         specifier: workspace:*
-        version: link:../introspection-aauth-person-server
+        version: link:../introspection-aauth-protocol
       jose:
         specifier: ^6.2.12
         version: 6.2.12
@@ -289,6 +289,37 @@ importers:
         version: 5.9.3
 
   packages/introspection-aauth-person-server:
+    dependencies:
+      '@aauth/resource':
+        specifier: ^3.0.0
+        version: 3.0.0
+      '@hellocoop/httpsig':
+        specifier: ^2.6.0
+        version: 2.6.0
+      '@introspection-sdk/aauth-protocol':
+        specifier: workspace:*
+        version: link:../introspection-aauth-protocol
+      jose:
+        specifier: ^6.2.12
+        version: 6.2.12
+    devDependencies:
+      '@repo/eslint-config':
+        specifier: workspace:*
+        version: link:../eslint-config
+      '@repo/typescript-config':
+        specifier: workspace:*
+        version: link:../typescript-config
+      '@types/node':
+        specifier: ^22.20.5
+        version: 22.20.5
+      eslint:
+        specifier: ^9.39.5
+        version: 9.39.5(jiti@2.7.0)
+      typescript:
+        specifier: 5.9.3
+        version: 5.9.3
+
+  packages/introspection-aauth-protocol:
     dependencies:
       '@aauth/resource':
         specifier: ^3.0.0
@@ -324,9 +355,9 @@ importers:
       '@hellocoop/httpsig':
         specifier: ^2.6.0
         version: 2.6.0
-      '@introspection-sdk/aauth-person-server':
+      '@introspection-sdk/aauth-protocol':
         specifier: workspace:*
-        version: link:../introspection-aauth-person-server
+        version: link:../introspection-aauth-protocol
       jose:
         specifier: ^6.2.12
         version: 6.2.12

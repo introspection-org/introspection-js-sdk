@@ -37,7 +37,7 @@ import {
   jwtVerify,
 } from "jose";
 
-import { AAuthError, problem } from "@introspection-sdk/aauth-person-server";
+import { AAuthError, problem } from "@introspection-sdk/aauth-protocol";
 
 /** RFC 9864's fully-specified identifier; the polymorphic `EdDSA` is not used. */
 const ALG = "Ed25519";
