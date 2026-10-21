@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
   EventType,
+  IntrospectionAPIError,
   RateLimitError,
+  StreamIncompleteError,
   TaskRunsApi,
   type StreamOptions,
 } from "@introspection-sdk/introspection-node";
@@ -84,6 +86,13 @@ function rateLimited(retryAfterS: number | null): () => never {
       body: { status: "provisioning" },
       retryAfter: retryAfterS,
     });
+  };
+}
+
+/** An attach the DP refuses with a non-429 HTTP error. */
+function refused(status: number): () => never {
+  return () => {
+    throw new IntrospectionAPIError({ message: `HTTP ${status}`, status });
   };
 }
 
@@ -224,5 +233,64 @@ describe("stream (transparent resume)", () => {
       "d",
     ]);
     expect(http.streamCalls).toBe(4);
+  });
+});
+
+describe("stream (connect errors and reconnect events)", () => {
+  it("410 → throws StreamIncompleteError without reconnecting", async () => {
+    const http = new FakeHttp([refused(410), clean(FINISH)]);
+    await expect(deltas(http, FAST)).rejects.toBeInstanceOf(
+      StreamIncompleteError,
+    );
+    expect(http.streamCalls).toBe(1);
+  });
+
+  it("other 4xx → rethrows the API error without reconnecting", async () => {
+    const http = new FakeHttp([refused(403), clean(FINISH)]);
+    await expect(deltas(http, FAST)).rejects.toMatchObject({ status: 403 });
+    expect(http.streamCalls).toBe(1);
+  });
+
+  it("an already-aborted signal throws before attaching", async () => {
+    const controller = new AbortController();
+    controller.abort();
+    const http = new FakeHttp([clean(FINISH)]);
+    await expect(
+      deltas(http, { ...FAST, signal: controller.signal }),
+    ).rejects.toMatchObject({ name: "AbortError" });
+    expect(http.streamCalls).toBe(0);
+  });
+
+  it("emits one reconnect event per recovery, naming its reason", async () => {
+    const http = new FakeHttp([
+      severed(content("1", "a")),
+      refused(503),
+      clean(content("2", "b"), FINISH),
+    ]);
+    const reconnects: unknown[] = [];
+    const out: string[] = [];
+    const api = new TaskRunsApi(http as never);
+    for await (const ev of api.stream("task-1", "run-1", {
+      ...FAST,
+      emitReconnectEvents: true,
+    })) {
+      const e = ev as AGUIEvent & { name?: string; value?: unknown };
+      if (e.name === "introspection.reconnect") reconnects.push(e.value);
+      if (e.type === EventType.TEXT_MESSAGE_CONTENT)
+        out.push((e as { delta: string }).delta);
+    }
+    expect(out).toEqual(["a", "b"]);
+    expect(reconnects).toEqual([
+      // The severed attach delivered new content, so its budget resets to 0.
+      { reason: "severed", attempt: 0, lastEventId: "1" },
+      {
+        reason: "connect_error",
+        attempt: 1,
+        lastEventId: "1",
+        phase: null,
+        retryAfterMs: null,
+      },
+    ]);
+    expect(http.lastEventIds).toEqual(["0", "1", "1"]);
   });
 });

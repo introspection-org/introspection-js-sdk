@@ -328,6 +328,25 @@ function lifecycleBoundary(
   }
 }
 
+/**
+ * Walk back from `latest` to the earliest boundary of the same turn. `prior`
+ * is true when an earlier turn's boundary precedes it in `boundaries`.
+ */
+function firstBoundaryOfTurn(
+  boundaries: TurnBoundary[],
+  latest: TurnBoundary,
+): { first: TurnBoundary; prior: boolean } {
+  let first = latest;
+  for (let index = boundaries.length - 2; index >= 0; index -= 1) {
+    const candidate = boundaries[index]!;
+    if (candidate.nativeTurnKey !== latest.nativeTurnKey) {
+      return { first, prior: true };
+    }
+    first = candidate;
+  }
+  return { first, prior: false };
+}
+
 async function currentTurnBoundary(
   host: CaptureHost,
   path: string,
@@ -361,16 +380,7 @@ async function currentTurnBoundary(
           return undefined;
         }
         if (host === "claude-code") return latest;
-        let first = latest;
-        let prior = false;
-        for (let index = boundaries.length - 2; index >= 0; index -= 1) {
-          const candidate = boundaries[index]!;
-          if (candidate.nativeTurnKey !== latest.nativeTurnKey) {
-            prior = true;
-            break;
-          }
-          first = candidate;
-        }
+        const { first, prior } = firstBoundaryOfTurn(boundaries, latest);
         if (prior || start === 0) return first;
       }
       if (start === 0) return undefined;

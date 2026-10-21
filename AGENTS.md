@@ -73,11 +73,11 @@ Don't hide a finding in checked code with an `ignore*` option. Use those options
 
 | Rule                                                     | Limit | Target |
 | -------------------------------------------------------- | ----: | -----: |
-| `complexity`                                             |    65 |     10 |
+| `complexity`                                             |    45 |     10 |
 | `max-lines` (per file, blank lines and comments skipped) |  1211 |    400 |
 | `max-lines-per-function` (same skips)                    |   856 |     80 |
-| `max-params`                                             |     9 |      4 |
-| `max-depth`                                              |     5 |      4 |
+| `max-params`                                             |     6 |      4 |
+| `max-depth`                                              |     4 |      4 |
 
 `eslint-plugin-only-warn` turns these into warnings, and every package's `lint` script runs `--max-warnings 0`, so a finding fails `pnpm lint:limits`, `pnpm lint` and the CI "Check size limits" step.
 
