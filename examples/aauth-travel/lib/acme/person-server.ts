@@ -1,6 +1,6 @@
 /**
  * Acme's own Person Server (AAuth -11, three-party), as a Business that brings
- * its own runs it: @introspection-sdk/person-server, configured with Acme's
+ * its own runs it: @introspection-sdk/aauth-person-server, configured with Acme's
  * people and Acme's way of asking. A trip is a mission the traveller's manager
  * approves once, budget and all; each booking whose price fits what is left is
  * authorized at once, and anything over goes back to the manager. Approvers
@@ -18,7 +18,7 @@ import {
   type Mission,
   type Person,
   type PersonServer,
-} from "@introspection-sdk/person-server";
+} from "@introspection-sdk/aauth-person-server";
 
 import { record } from "../events";
 import { agentProviders, PERSON_SERVER_URL } from "../origins";

@@ -40,7 +40,7 @@ The platform's egress and Person Server call the booking provider and the Browse
 
 ### Options
 
-- `PERSON_SERVER=acme pnpm dev` has Acme run its own Person Server here, built on [`@introspection-sdk/person-server`](../../packages/introspection-person-server), instead of Introspection's hosted one.
+- `PERSON_SERVER=acme pnpm dev` has Acme run its own Person Server here, built on [`@introspection-sdk/aauth-person-server`](../../packages/introspection-aauth-person-server), instead of Introspection's hosted one.
 - `BROWSERBASE_API_KEY=… pnpm dev` searches real flights through Browserbase's hosted MCP instead of the mock.
 
 [HOW-IT-WORKS.md](./HOW-IT-WORKS.md) covers the parties and the flow; [WALKTHROUGH.md](./WALKTHROUGH.md) steps through the code.

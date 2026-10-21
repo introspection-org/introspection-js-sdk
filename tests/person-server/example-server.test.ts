@@ -1,7 +1,7 @@
 /** The example server's flag and environment parsing. */
 import { describe, expect, it } from "vitest";
 
-import { parse } from "../../packages/introspection-person-server/examples/server";
+import { parse } from "../../packages/introspection-aauth-person-server/examples/server";
 
 describe("example server parse", () => {
   it("defaults", () => {
