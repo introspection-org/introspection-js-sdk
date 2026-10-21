@@ -48,9 +48,9 @@ export default defineConfig({
         repoRoot,
         "packages/introspection-types/src/index.ts",
       ),
-      "@introspection-sdk/person-server": resolve(
+      "@introspection-sdk/aauth-person-server": resolve(
         repoRoot,
-        "packages/introspection-person-server/src/index.ts",
+        "packages/introspection-aauth-person-server/src/index.ts",
       ),
       "@introspection-sdk/http": resolve(
         repoRoot,

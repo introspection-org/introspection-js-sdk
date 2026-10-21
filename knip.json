@@ -9,7 +9,7 @@
     "packages/introspection-*": {
       "project": ["src/**/*.ts!"]
     },
-    "packages/introspection-person-server": {
+    "packages/introspection-aauth-person-server": {
       "entry": ["examples/*.ts"],
       "project": ["src/**/*.ts!", "examples/**/*.ts"]
     },

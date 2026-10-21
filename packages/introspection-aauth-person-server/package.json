@@ -1,11 +1,11 @@
 {
-  "name": "@introspection-sdk/person-server",
+  "name": "@introspection-sdk/aauth-person-server",
   "version": "0.1.0",
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/introspection-org/introspection-js-sdk.git",
-    "directory": "packages/introspection-person-server"
+    "directory": "packages/introspection-aauth-person-server"
   },
   "description": "An AAuth Person Server (draft-hardt-oauth-aauth-protocol -11): missions, person and auth tokens, budgets and approvals, as Request → Response handlers",
   "engines": {

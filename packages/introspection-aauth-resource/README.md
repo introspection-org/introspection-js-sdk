@@ -1,6 +1,6 @@
 # @introspection-sdk/aauth-resource
 
-Make an HTTP API a native AAuth resource ([draft-hardt-oauth-aauth-protocol](https://github.com/dickhardt/AAuth) `-11`, three-party): the resource side of what [`@introspection-sdk/person-server`](../introspection-person-server) is to the person's side. Handlers take a Web `Request` and return a `Response`.
+Make an HTTP API a native AAuth resource ([draft-hardt-oauth-aauth-protocol](https://github.com/dickhardt/AAuth) `-11`, three-party): the resource side of what [`@introspection-sdk/aauth-person-server`](../introspection-aauth-person-server) is to the person's side. Handlers take a Web `Request` and return a `Response`.
 
 - **Discovery:** `/.well-known/aauth-resource.json` and its JWKS.
 - **Signed facts:** `sign()` a quote or an offer, `verifySigned()` it when it comes back, so the price a Person Server weighs is the resource's, not the agent's.
