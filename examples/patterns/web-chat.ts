@@ -22,6 +22,12 @@
 // #region docs:patterns/web-chat/broker-route
 import { IntrospectionClient } from "@introspection-sdk/introspection-node";
 
+// Your app's code: your session check.
+async function requireSignedInUser(req: Request) {
+  if (!req.headers.get("cookie")) throw new Error("not signed in");
+  return { id: "user-4821" };
+}
+
 export async function POST(req: Request) {
   const user = await requireSignedInUser(req); // your auth and rate limit
   // Service-account tokens last 60 minutes and never refresh: cache below that.
@@ -51,12 +57,6 @@ export async function federatedSession(idToken: string, runtimeId: string) {
   return Response.json({ token: access_token, runtimeId, dpUrl: dp_url });
 }
 // #endregion docs:patterns/web-chat/federated-broker
-
-// Stand-in for your app's session check.
-async function requireSignedInUser(req: Request) {
-  if (!req.headers.get("cookie")) throw new Error("not signed in");
-  return { id: "user-4821" };
-}
 
 for (const name of [
   "INTROSPECTION_SERVICE_ACCOUNT_CLIENT_ID",
