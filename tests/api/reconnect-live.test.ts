@@ -4,6 +4,7 @@ import type { AddressInfo } from "node:net";
 import {
   EventType,
   HttpClient,
+  StreamIncompleteError,
   TaskRunsApi,
 } from "@introspection-sdk/introspection-node";
 import type { AGUIEvent } from "@introspection-sdk/types";
@@ -129,6 +130,137 @@ describe("resilient stream — real connection drop (integration)", () => {
           .map((e) => (e as AGUIEvent & { delta?: string }).delta),
       ).toEqual(["a", "b", "c"]); // still gap-free
       expect(events.some((e) => e.type === EventType.CUSTOM)).toBe(false);
+    } finally {
+      await srv.close();
+    }
+  });
+});
+
+/** What the scripted server does on one attach. */
+type Attach =
+  | { status: number } // refuse with this HTTP status and a JSON error body
+  | { drop: string } // stream these frames, then RST the socket
+  | { end: string }; // stream these frames, then close cleanly
+
+/**
+ * Start a server that answers the n-th attach with `script[n]`, so each
+ * recovery branch runs on a real response converted by the real `HttpClient`.
+ */
+async function startScriptedServer(script: Attach[]): Promise<Harness> {
+  const lastEventIds: (string | null)[] = [];
+  const server: Server = createServer((req, res) => {
+    lastEventIds.push((req.headers["last-event-id"] as string) ?? null);
+    const step = script[lastEventIds.length - 1] ?? { status: 500 };
+    if ("status" in step) {
+      res.writeHead(step.status, { "content-type": "application/json" });
+      res.end(JSON.stringify({ error: { message: `HTTP ${step.status}` } }));
+      return;
+    }
+    res.writeHead(200, { "content-type": "text/event-stream" });
+    if ("drop" in step) {
+      res.write(step.drop, () => res.socket?.destroy());
+    } else {
+      res.end(step.end);
+    }
+  });
+  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const { port } = server.address() as AddressInfo;
+  return {
+    url: `http://127.0.0.1:${port}`,
+    lastEventIds,
+    close: () =>
+      new Promise<void>((resolve, reject) =>
+        server.close((err) => (err ? reject(err) : resolve())),
+      ),
+  };
+}
+
+async function collect(
+  srv: Harness,
+  opts: { signal?: AbortSignal } = {},
+): Promise<AGUIEvent[]> {
+  const api = new TaskRunsApi(
+    new HttpClient({ apiUrl: srv.url, token: "test-token" }),
+  );
+  const events: AGUIEvent[] = [];
+  for await (const ev of api.stream("task-1", "run-1", {
+    ...opts,
+    emitReconnectEvents: true,
+    backoffMs: 1,
+  })) {
+    events.push(ev);
+  }
+  return events;
+}
+
+describe("resilient stream — real connect errors (integration)", () => {
+  it("410 → throws StreamIncompleteError without reconnecting", async () => {
+    const srv = await startScriptedServer([{ status: 410 }, { end: FINISH }]);
+    try {
+      await expect(collect(srv)).rejects.toBeInstanceOf(StreamIncompleteError);
+      expect(srv.lastEventIds).toEqual(["0"]);
+    } finally {
+      await srv.close();
+    }
+  });
+
+  it("other 4xx → rethrows the API error without reconnecting", async () => {
+    const srv = await startScriptedServer([{ status: 403 }, { end: FINISH }]);
+    try {
+      await expect(collect(srv)).rejects.toMatchObject({ status: 403 });
+      expect(srv.lastEventIds).toEqual(["0"]);
+    } finally {
+      await srv.close();
+    }
+  });
+
+  it("an already-aborted signal throws before attaching", async () => {
+    const srv = await startScriptedServer([{ end: FINISH }]);
+    try {
+      const controller = new AbortController();
+      controller.abort();
+      await expect(
+        collect(srv, { signal: controller.signal }),
+      ).rejects.toMatchObject({ name: "AbortError" });
+      expect(srv.lastEventIds).toEqual([]);
+    } finally {
+      await srv.close();
+    }
+  });
+
+  it("emits one reconnect event per recovery, naming its reason", async () => {
+    const srv = await startScriptedServer([
+      { drop: frame("1", "a") },
+      { status: 503 },
+      { end: frame("2", "b") + FINISH },
+    ]);
+    try {
+      const events = await collect(srv);
+      expect(
+        events
+          .filter((e) => e.type === EventType.TEXT_MESSAGE_CONTENT)
+          .map((e) => (e as AGUIEvent & { delta?: string }).delta),
+      ).toEqual(["a", "b"]);
+      expect(
+        events
+          .filter(
+            (e) =>
+              (e as AGUIEvent & { name?: string }).name ===
+              "introspection.reconnect",
+          )
+          .map((e) => (e as AGUIEvent & { value?: unknown }).value),
+      ).toEqual([
+        // The severed attach delivered new content, so its budget resets to 0.
+        { reason: "severed", attempt: 0, lastEventId: "1" },
+        {
+          reason: "connect_error",
+          attempt: 1,
+          lastEventId: "1",
+          phase: null,
+          retryAfterMs: null,
+        },
+      ]);
+      expect(srv.lastEventIds).toEqual(["0", "1", "1"]);
     } finally {
       await srv.close();
     }
