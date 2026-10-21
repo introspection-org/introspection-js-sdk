@@ -8,7 +8,7 @@
  *
  * Run with:
  *   INTROSPECTION_TOKEN=intro_xxx
- *   pnpm reference-javascript-run-task
+ *   node --import tsx reference/javascript-run-task.ts
  *
  * Optional env:
  *   INTROSPECTION_BASE_API_URL  - CP API host (default https://api.introspection.dev)
