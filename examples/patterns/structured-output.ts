@@ -18,6 +18,7 @@
 import {
   EventType,
   IntrospectionClient,
+  type RunHandle,
   type AGUIEvent,
 } from "@introspection-sdk/introspection-node";
 import { Type } from "typebox";
@@ -82,12 +83,38 @@ try {
 } catch {
   result = undefined; // malformed arguments count as invalid
 }
-if (!Value.Check(Triage, result)) {
-  await runner.tasks.runs.create(taskId, {
-    kind: "prompt",
-    prompt: { text: "You did not call submit_result with a valid triage. Call it now." },
-  });
-}
+const retry = Value.Check(Triage, result)
+  ? undefined
+  : await runner.tasks.runs.create(taskId, {
+      kind: "prompt",
+      prompt: { text: "You did not call submit_result with a valid triage. Call it now." },
+    });
+// Read and validate retry's stream as in step 3.
 // #endregion docs:patterns/structured-output/validate
 
-console.log(`triage for task ${taskId}: ${raw ?? "(none submitted)"}`);
+// The corrective run's submission, read with the same reader as the first run.
+async function readSubmit(run: RunHandle): Promise<string | undefined> {
+  const args = new Map<string, string>();
+  let submitId: string | undefined;
+  for await (const e of run.stream()) {
+    if (e.type === EventType.MESSAGES_SNAPSHOT) submitId = fromSnapshot(e, args);
+    if ((e.type === EventType.TOOL_CALL_START || e.type === EventType.TOOL_CALL_CHUNK) && e.toolCallId && e.toolCallName === "submit_result") submitId = e.toolCallId;
+    if ((e.type === EventType.TOOL_CALL_ARGS || e.type === EventType.TOOL_CALL_CHUNK) && e.toolCallId) args.set(e.toolCallId, (args.get(e.toolCallId) ?? "") + (e.delta ?? ""));
+  }
+  return submitId ? args.get(submitId) : undefined;
+}
+
+let final = raw;
+if (retry) {
+  final = await readSubmit(retry);
+  try {
+    result = final ? JSON.parse(final) : undefined;
+  } catch {
+    result = undefined;
+  }
+}
+console.log(
+  Value.Check(Triage, result)
+    ? `triage for task ${taskId}: ${final}`
+    : `triage for task ${taskId} is still invalid: ${final ?? "(none submitted)"}`,
+);
