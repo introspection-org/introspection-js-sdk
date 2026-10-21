@@ -74,7 +74,7 @@ Don't hide a finding in checked code with an `ignore*` option. Use those options
 | Rule                                                     | Limit | Target |
 | -------------------------------------------------------- | ----: | -----: |
 | `complexity`                                             |    45 |     10 |
-| `max-lines` (per file, blank lines and comments skipped) |  1211 |    400 |
+| `max-lines` (per file, blank lines and comments skipped) |   993 |    400 |
 | `max-lines-per-function` (same skips)                    |   856 |     80 |
 | `max-params`                                             |     6 |      4 |
 | `max-depth`                                              |     4 |      4 |
