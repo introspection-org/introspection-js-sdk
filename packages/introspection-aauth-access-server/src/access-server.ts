@@ -21,7 +21,7 @@ import {
   readProposalSummary,
   signatureError,
   verifySignature,
-} from "@introspection-sdk/person-server";
+} from "@introspection-sdk/aauth-person-server";
 import type { JWK, JWTPayload } from "jose";
 
 import type {

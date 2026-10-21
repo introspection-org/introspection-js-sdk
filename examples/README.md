@@ -27,6 +27,14 @@ pnpm api-connectors-pipedream     # Create a Pipedream connector and authorize o
 pnpm api-connectors-custom-app    # Registry search + OAuth discovery for a custom MCP app (Linear)
 ```
 
+## Docs snippets
+
+`reference/`, `observe/`, `identity/`, `patterns/` and `browser/` back the
+code blocks in the docs. The docs extract the code between
+`// #region docs:<id>` and `// #endregion docs:<id>` at a pinned release tag.
+Prettier skips these folders, and `pnpm check:doc-regions` (repo root) checks
+the markers. Run any file from `examples/` with `node --import tsx <file>`.
+
 ## Egress Proxy
 
 Route third-party API calls through the Introspection egress (reverse) proxy so

@@ -1,5 +1,5 @@
 /**
- * @introspection-sdk/person-server end to end, in process: an agent signing
+ * @introspection-sdk/aauth-person-server end to end, in process: an agent signing
  * with @hellocoop/httpsig, an agent provider and a resource behind an
  * injected fetch, and an operator deciding approvals.
  */
@@ -18,7 +18,7 @@ import {
   type PersonServer,
   type PersonServerOptions,
   type Store,
-} from "@introspection-sdk/person-server";
+} from "@introspection-sdk/aauth-person-server";
 import {
   type JWK,
   type JWTPayload,
@@ -238,7 +238,7 @@ async function approvedTrip(agent: AgentClient, amount = 300_000) {
   };
 }
 
-describe("@introspection-sdk/person-server", () => {
+describe("@introspection-sdk/aauth-person-server", () => {
   it("publishes its metadata and keys", async () => {
     const metadata = await (
       await ps.handle(new Request(`${PS}/.well-known/aauth-person.json`))

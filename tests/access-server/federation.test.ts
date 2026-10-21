@@ -15,7 +15,7 @@ import {
   type AccessServer,
   type Verdict,
   createAccessServer,
-} from "@introspection-sdk/access-server";
+} from "@introspection-sdk/aauth-access-server";
 import {
   type AAuthResource,
   createAAuthResource,
@@ -24,7 +24,7 @@ import {
   type Approval,
   type PersonServer,
   createPersonServer,
-} from "@introspection-sdk/person-server";
+} from "@introspection-sdk/aauth-person-server";
 import {
   type JWK,
   type JWTPayload,
@@ -312,7 +312,7 @@ async function challenge(agent: AgentClient, token: string, amount: number) {
 
 const spent = async (s256: string) => (await ps.mission("acme", s256))?.spent;
 
-describe("@introspection-sdk/access-server federation", () => {
+describe("@introspection-sdk/aauth-access-server federation", () => {
   it("publishes its metadata and keys", async () => {
     const metadata = await (
       await as.handle(new Request(`${AS}/.well-known/aauth-access.json`))

@@ -376,20 +376,8 @@ export function inputMessagesToMessages(
       // from the hydrated history.
       const content: (TextContent | ImageContent)[] = [];
       for (const part of parts) {
-        if (isTextPart(part)) {
-          if (part.content) content.push({ type: "text", text: part.content });
-        } else if (isCompactionPart(part)) {
-          content.push({
-            type: "text",
-            text: renderCompactionSummary(part.content),
-          });
-        } else if (isImageBlobPart(part)) {
-          content.push({
-            type: "image",
-            data: part.content,
-            mimeType: part.mime_type ?? "image/png",
-          });
-        }
+        const block = partToUserBlock(part);
+        if (block) content.push(block);
       }
       if (content.length === 0) continue;
       // A text-only message round-trips to the string form Pi itself uses.
@@ -446,6 +434,23 @@ export function inputMessagesToMessages(
   }
 
   return sanitizeToolPairing(result);
+}
+
+function partToUserBlock(part: MessagePart): TextContent | ImageContent | null {
+  if (isTextPart(part)) {
+    return part.content ? { type: "text", text: part.content } : null;
+  }
+  if (isCompactionPart(part)) {
+    return { type: "text", text: renderCompactionSummary(part.content) };
+  }
+  if (isImageBlobPart(part)) {
+    return {
+      type: "image",
+      data: part.content,
+      mimeType: part.mime_type ?? "image/png",
+    };
+  }
+  return null;
 }
 
 function partToAssistantBlock(

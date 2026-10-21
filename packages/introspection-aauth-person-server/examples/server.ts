@@ -10,7 +10,7 @@ import {
   createPersonServer,
   DEFAULT_TENANT,
   type Approval,
-} from "@introspection-sdk/person-server";
+} from "@introspection-sdk/aauth-person-server";
 
 const MAX_BODY = 256 * 1024;
 

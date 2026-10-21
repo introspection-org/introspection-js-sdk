@@ -1,13 +1,13 @@
 {
-  "name": "@introspection-sdk/person-server",
+  "name": "@introspection-sdk/aauth-access-server",
   "version": "0.1.0",
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/introspection-org/introspection-js-sdk.git",
-    "directory": "packages/introspection-person-server"
+    "directory": "packages/introspection-aauth-access-server"
   },
-  "description": "An AAuth Person Server (draft-hardt-oauth-aauth-protocol -11): missions, person and auth tokens, budgets and approvals, as Request → Response handlers",
+  "description": "An AAuth Access Server (draft-hardt-oauth-aauth-protocol -11, four-party): a resource's own policy over the auth tokens Person Servers redeem for it, as Request \u2192 Response handlers",
   "engines": {
     "node": ">=22"
   },
@@ -33,7 +33,7 @@
   },
   "dependencies": {
     "@aauth/resource": "^3.0.0",
-    "@hellocoop/httpsig": "^2.6.0",
+    "@introspection-sdk/aauth-person-server": "workspace:*",
     "jose": "^6.2.12"
   },
   "devDependencies": {

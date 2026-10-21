@@ -1,6 +1,6 @@
 /**
  * Flight Sector's own Access Server (AAuth -11 four-party), run with
- * `FLIGHTSECTOR_FEDERATED=1` on @introspection-sdk/access-server. The booking
+ * `FLIGHTSECTOR_FEDERATED=1` on @introspection-sdk/aauth-access-server. The booking
  * provider names it as the `aud` of its resource tokens, so the traveller's
  * Person Server, having weighed the booking against the trip, asks it for the
  * auth token. Its policy is Flight Sector's: it books only for a company that
@@ -12,7 +12,7 @@ import "server-only";
 import {
   type AccessServer,
   createAccessServer,
-} from "@introspection-sdk/access-server";
+} from "@introspection-sdk/aauth-access-server";
 
 import { record } from "./events";
 import {

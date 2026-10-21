@@ -11,7 +11,7 @@ import {
   discoverJwks,
   verifyToken,
 } from "@aauth/resource";
-import { AAuthError } from "@introspection-sdk/person-server";
+import { AAuthError } from "@introspection-sdk/aauth-person-server";
 import {
   type JWTPayload,
   createLocalJWKSet,

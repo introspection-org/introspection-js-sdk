@@ -40,7 +40,7 @@ The platform's egress and Person Server call the booking provider and the Browse
 
 ### Options
 
-- `PERSON_SERVER=acme pnpm dev` has Acme run its own Person Server here, built on [`@introspection-sdk/person-server`](../../packages/introspection-person-server), instead of Introspection's hosted one.
+- `PERSON_SERVER=acme pnpm dev` has Acme run its own Person Server here, built on [`@introspection-sdk/aauth-person-server`](../../packages/introspection-aauth-person-server), instead of Introspection's hosted one.
 - `BROWSERBASE_API_KEY=… pnpm dev` searches real flights through Browserbase's hosted MCP instead of the mock.
 - `FLIGHTSECTOR_FEDERATED=1 PERSON_SERVER=acme pnpm dev` gives Flight Sector its own Access Server: see [below](#flight-sectors-own-access-server).
 
@@ -48,7 +48,7 @@ The platform's egress and Person Server call the booking provider and the Browse
 
 By default the booking provider leaves every decision to the traveller's Person Server (AAuth three-party). With `FLIGHTSECTOR_FEDERATED=1`, Flight Sector keeps a say of its own, as AAuth `-11` four-party access ([#access-server-federation](https://github.com/dickhardt/AAuth)):
 
-- Flight Sector runs an **Access Server** in this app ([`lib/flightsector-as.ts`](./lib/flightsector-as.ts), on [`@introspection-sdk/access-server`](../../packages/introspection-access-server)), on a host of its own: another quick tunnel, or `flightsector-as.<domain>` with `FLIGHTSECTOR_DOMAIN`.
+- Flight Sector runs an **Access Server** in this app ([`lib/flightsector-as.ts`](./lib/flightsector-as.ts), on [`@introspection-sdk/aauth-access-server`](../../packages/introspection-aauth-access-server)), on a host of its own: another quick tunnel, or `flightsector-as.<domain>` with `FLIGHTSECTOR_DOMAIN`.
 - The booking provider names it (`accessServer`), so its resource tokens carry `aud` = the Access Server rather than Acme's Person Server.
 - Acme's Person Server weighs each booking against the trip exactly as before, then redeems it at Flight Sector's Access Server, signed with Acme's key. A booking over what is left still goes to Dana first.
 - The Access Server's policy books only for a company with a Flight Sector account, named by the traveller's `tenant` at their Person Server (`FLIGHTSECTOR_ACCOUNTS`, `tenant@person-server`, comma-separated; Acme at its own Person Server by default). Anyone else is refused, and Acme relays the refusal; nothing is spent.

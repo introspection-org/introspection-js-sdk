@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.38.1](https://github.com/introspection-org/introspection-js-sdk/compare/v0.38.0...v0.38.1) (2026-10-21)
+
+
+### Bug Fixes
+
+* **examples:** show the helpers each docs region calls ([#513](https://github.com/introspection-org/introspection-js-sdk/issues/513)) ([023ef77](https://github.com/introspection-org/introspection-js-sdk/commit/023ef77b5c09dac93ffa86c8fc100950bdb97195))
+
+## [0.38.0](https://github.com/introspection-org/introspection-js-sdk/compare/v0.37.0...v0.38.0) (2026-10-21)
+
+
+### Features
+
+* **examples:** docs reference snippet regions and a region check ([#500](https://github.com/introspection-org/introspection-js-sdk/issues/500)) ([a3cb0ca](https://github.com/introspection-org/introspection-js-sdk/commit/a3cb0ca916636b6d2e784da3000c471af3ec3b5e))
+* **examples:** docs snippet regions for the pattern, observe and identity pages ([#501](https://github.com/introspection-org/introspection-js-sdk/issues/501)) ([4aef725](https://github.com/introspection-org/introspection-js-sdk/commit/4aef7257a054b979b85bd100c258851d62c51245))
+
 ## [0.37.0](https://github.com/introspection-org/introspection-js-sdk/compare/v0.36.0...v0.37.0) (2026-10-20)
 
 

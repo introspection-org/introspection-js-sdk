@@ -1,4 +1,4 @@
-# @introspection-sdk/access-server
+# @introspection-sdk/aauth-access-server
 
 An AAuth Access Server ([draft-hardt-oauth-aauth-protocol](https://github.com/dickhardt/AAuth) `-11`, four-party): a resource's own policy over the auth tokens issued for it. Handlers take a Web `Request` and return a `Response`.
 
@@ -9,12 +9,12 @@ In three-party AAuth the person's Person Server issues a resource's auth tokens.
 - **Auth tokens:** `iss` this server, `dwk` `aauth-access.json`, `aud` the resource, `ps` the Person Server, the directed `sub`, `cnf.jwk` the agent's key, and `mission_s256`, `tenant`, `account` and the R3 claims copied from the resource token; for at most an hour, and never past the agent token or the presented token.
 - **Waiting:** a policy may wait on an approval, or on the person at an interaction URL. The Person Server is answered `202` with `AAuth-Requirement` and a `Location` it polls with signed `GET`s, and you settle the request with `decide()`.
 
-Pair it with [`@introspection-sdk/aauth-resource`](../introspection-aauth-resource)'s `accessServer` option on the resource side; [`@introspection-sdk/person-server`](../introspection-person-server) federates with it on the person's side.
+Pair it with [`@introspection-sdk/aauth-resource`](../introspection-aauth-resource)'s `accessServer` option on the resource side; [`@introspection-sdk/aauth-person-server`](../introspection-aauth-person-server) federates with it on the person's side.
 
 ## Use
 
 ```ts
-import { createAccessServer } from "@introspection-sdk/access-server";
+import { createAccessServer } from "@introspection-sdk/aauth-access-server";
 
 const as = await createAccessServer({
   issuer: "https://as.works.example", // https://host, no port or path

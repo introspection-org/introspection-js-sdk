@@ -1,4 +1,4 @@
-# @introspection-sdk/person-server
+# @introspection-sdk/aauth-person-server
 
 An AAuth Person Server ([draft-hardt-oauth-aauth-protocol](https://github.com/dickhardt/AAuth) `-11`, three-party) you can run instead of building one. It speaks for your people when agents want to act for them:
 
@@ -15,7 +15,7 @@ Introspection runs the same protocol as a hosted Person Server in its data plane
 ## Use
 
 ```ts
-import { createPersonServer } from "@introspection-sdk/person-server";
+import { createPersonServer } from "@introspection-sdk/aauth-person-server";
 
 const ps = await createPersonServer({
   issuer: "https://ps.acme.example", // https://host, no port or path
@@ -47,7 +47,7 @@ await ps.decide(approval.tenant, approval.id, {
 ## Run it on its own
 
 ```bash
-npm install @introspection-sdk/person-server
+npm install @introspection-sdk/aauth-person-server
 # A stable Ed25519 signing key and subject secret, generated once:
 node -e 'const c=require("node:crypto");process.stdout.write(c.generateKeyPairSync("ed25519").privateKey.export({type:"pkcs8",format:"pem"}))' > ps-signing-key.pem
 node -e 'process.stdout.write(require("node:crypto").randomBytes(32).toString("hex"))' > ps-subject-secret
@@ -61,7 +61,7 @@ import { readFileSync } from "node:fs";
 import { createServer } from "node:http";
 import { Readable } from "node:stream";
 
-import { createPersonServer } from "@introspection-sdk/person-server";
+import { createPersonServer } from "@introspection-sdk/aauth-person-server";
 
 const issuer = "https://ps.acme.example";
 const people = {
@@ -187,7 +187,7 @@ A resource that keeps its own policy names its Access Server (AS) as the `aud` o
 
 The approval for such a request carries `federation` (the AS, the three tokens, and where the AS said to poll), and is `approved` while the AS decides, so `decide()` cannot settle it. `requirement=claims`, `clarification` and `402` are refused with the AS's reason; revocation at the AS is not done yet.
 
-[`@introspection-sdk/access-server`](../introspection-access-server) is the other side.
+[`@introspection-sdk/aauth-access-server`](../introspection-aauth-access-server) is the other side.
 
 ## Hooks
 
@@ -195,4 +195,4 @@ The approval for such a request carries `federation` (the AS, the three tokens, 
 
 ## Building blocks
 
-The pieces this server and `@introspection-sdk/access-server` share are exported too: `loadSigner`, `readProposalSummary`, `verifySignature`, `signatureError`, `discovery`, `beneath` and `answer`.
+The pieces this server and `@introspection-sdk/aauth-access-server` share are exported too: `loadSigner`, `readProposalSummary`, `verifySignature`, `signatureError`, `discovery`, `beneath` and `answer`.

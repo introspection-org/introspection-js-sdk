@@ -129,19 +129,18 @@ export function instrumentAgent(
   const wrappedTools = new Map<AgentTool, ToolExecute>();
   const metrics = opts.meter ? genAiMetrics(opts.meter) : undefined;
   const state: { run: ActiveRun | undefined } = { run: undefined };
+  const ctx: AgentEventContext = {
+    agent,
+    opts,
+    activeSpans,
+    state,
+    metrics,
+    buildSpanName,
+    wrappedTools,
+  };
 
   const unsubscribe = agent.subscribe((event, signal) => {
-    handleEvent(
-      event,
-      agent,
-      opts,
-      activeSpans,
-      state,
-      metrics,
-      buildSpanName,
-      wrappedTools,
-      signal,
-    );
+    handleEvent(event, ctx, signal);
   });
 
   return {
@@ -164,17 +163,31 @@ export function instrumentAgent(
   };
 }
 
+/** The per-subscription state {@link handleEvent} reads and updates. */
+interface AgentEventContext {
+  agent: Agent;
+  opts: InstrumentAgentOptions;
+  activeSpans: Map<string, ActiveToolSpan>;
+  state: { run: ActiveRun | undefined };
+  metrics: GenAiMetrics | undefined;
+  buildSpanName: (toolName: string) => string;
+  wrappedTools: Map<AgentTool, ToolExecute>;
+}
+
 function handleEvent(
   event: AgentEvent,
-  agent: Agent,
-  opts: InstrumentAgentOptions,
-  activeSpans: Map<string, ActiveToolSpan>,
-  state: { run: ActiveRun | undefined },
-  metrics: GenAiMetrics | undefined,
-  buildSpanName: (toolName: string) => string,
-  wrappedTools: Map<AgentTool, ToolExecute>,
+  ctx: AgentEventContext,
   signal?: AbortSignal,
 ): void {
+  const {
+    agent,
+    opts,
+    activeSpans,
+    state,
+    metrics,
+    buildSpanName,
+    wrappedTools,
+  } = ctx;
   switch (event.type) {
     case "agent_start": {
       if (!opts.runSpans) return;

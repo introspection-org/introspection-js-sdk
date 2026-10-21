@@ -94,6 +94,9 @@ importers:
       tsx:
         specifier: ^4.23.15
         version: 4.23.15
+      typebox:
+        specifier: ^1.3.27
+        version: 1.3.27
       typescript:
         specifier: ^5.9.3
         version: 5.9.3
@@ -109,18 +112,18 @@ importers:
       '@hellocoop/httpsig':
         specifier: ^2.6.0
         version: 2.6.0
+      '@introspection-sdk/aauth-access-server':
+        specifier: workspace:*
+        version: link:../../packages/introspection-aauth-access-server
+      '@introspection-sdk/aauth-person-server':
+        specifier: workspace:*
+        version: link:../../packages/introspection-aauth-person-server
       '@introspection-sdk/aauth-resource':
         specifier: workspace:*
         version: link:../../packages/introspection-aauth-resource
-      '@introspection-sdk/access-server':
-        specifier: workspace:*
-        version: link:../../packages/introspection-access-server
       '@introspection-sdk/introspection-node':
         specifier: workspace:*
         version: link:../../packages/introspection-node
-      '@introspection-sdk/person-server':
-        specifier: workspace:*
-        version: link:../../packages/introspection-person-server
       jose:
         specifier: ^6.2.12
         version: 6.2.12
@@ -214,6 +217,16 @@ importers:
         specifier: ^5.7.2
         version: 5.9.3
 
+  examples/browser:
+    dependencies:
+      '@introspection-sdk/introspection-browser':
+        specifier: workspace:*
+        version: link:../../packages/introspection-browser
+    devDependencies:
+      typescript:
+        specifier: 5.9.3
+        version: 5.9.3
+
   packages/eslint-config:
     devDependencies:
       '@eslint/js':
@@ -250,17 +263,14 @@ importers:
         specifier: ^8.71.2
         version: 8.71.2(eslint@9.39.5(jiti@2.7.0))(typescript@5.9.3)
 
-  packages/introspection-aauth-resource:
+  packages/introspection-aauth-access-server:
     dependencies:
       '@aauth/resource':
         specifier: ^3.0.0
         version: 3.0.0
-      '@hellocoop/httpsig':
-        specifier: ^2.6.0
-        version: 2.6.0
-      '@introspection-sdk/person-server':
+      '@introspection-sdk/aauth-person-server':
         specifier: workspace:*
-        version: link:../introspection-person-server
+        version: link:../introspection-aauth-person-server
       jose:
         specifier: ^6.2.12
         version: 6.2.12
@@ -281,14 +291,45 @@ importers:
         specifier: 5.9.3
         version: 5.9.3
 
-  packages/introspection-access-server:
+  packages/introspection-aauth-person-server:
     dependencies:
       '@aauth/resource':
         specifier: ^3.0.0
         version: 3.0.0
-      '@introspection-sdk/person-server':
+      '@hellocoop/httpsig':
+        specifier: ^2.6.0
+        version: 2.6.0
+      jose:
+        specifier: ^6.2.12
+        version: 6.2.12
+    devDependencies:
+      '@repo/eslint-config':
         specifier: workspace:*
-        version: link:../introspection-person-server
+        version: link:../eslint-config
+      '@repo/typescript-config':
+        specifier: workspace:*
+        version: link:../typescript-config
+      '@types/node':
+        specifier: ^22.20.5
+        version: 22.20.5
+      eslint:
+        specifier: ^9.39.5
+        version: 9.39.5(jiti@2.7.0)
+      typescript:
+        specifier: 5.9.3
+        version: 5.9.3
+
+  packages/introspection-aauth-resource:
+    dependencies:
+      '@aauth/resource':
+        specifier: ^3.0.0
+        version: 3.0.0
+      '@hellocoop/httpsig':
+        specifier: ^2.6.0
+        version: 2.6.0
+      '@introspection-sdk/aauth-person-server':
+        specifier: workspace:*
+        version: link:../introspection-aauth-person-server
       jose:
         specifier: ^6.2.12
         version: 6.2.12
@@ -490,34 +531,6 @@ importers:
         specifier: 5.9.3
         version: 5.9.3
 
-  packages/introspection-person-server:
-    dependencies:
-      '@aauth/resource':
-        specifier: ^3.0.0
-        version: 3.0.0
-      '@hellocoop/httpsig':
-        specifier: ^2.6.0
-        version: 2.6.0
-      jose:
-        specifier: ^6.2.12
-        version: 6.2.12
-    devDependencies:
-      '@repo/eslint-config':
-        specifier: workspace:*
-        version: link:../eslint-config
-      '@repo/typescript-config':
-        specifier: workspace:*
-        version: link:../typescript-config
-      '@types/node':
-        specifier: ^22.20.5
-        version: 22.20.5
-      eslint:
-        specifier: ^9.39.5
-        version: 9.39.5(jiti@2.7.0)
-      typescript:
-        specifier: 5.9.3
-        version: 5.9.3
-
   packages/introspection-pi:
     dependencies:
       '@introspection-sdk/types':
@@ -630,21 +643,21 @@ importers:
       '@hellocoop/httpsig':
         specifier: ^2.6.0
         version: 2.6.0
+      '@introspection-sdk/aauth-access-server':
+        specifier: workspace:*
+        version: link:../packages/introspection-aauth-access-server
+      '@introspection-sdk/aauth-person-server':
+        specifier: workspace:*
+        version: link:../packages/introspection-aauth-person-server
       '@introspection-sdk/aauth-resource':
         specifier: workspace:*
         version: link:../packages/introspection-aauth-resource
-      '@introspection-sdk/access-server':
-        specifier: workspace:*
-        version: link:../packages/introspection-access-server
       '@introspection-sdk/introspection-node':
         specifier: workspace:*
         version: link:../packages/introspection-node
       '@introspection-sdk/introspection-pi':
         specifier: workspace:*
         version: link:../packages/introspection-pi
-      '@introspection-sdk/person-server':
-        specifier: workspace:*
-        version: link:../packages/introspection-person-server
       '@opentelemetry/api':
         specifier: ^1.9.1
         version: 1.9.1

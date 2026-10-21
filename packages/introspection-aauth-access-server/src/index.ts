@@ -13,4 +13,4 @@ export type {
   Policy,
   Verdict,
 } from "./types.js";
-export { AAuthError, problem } from "@introspection-sdk/person-server";
+export { AAuthError, problem } from "@introspection-sdk/aauth-person-server";
