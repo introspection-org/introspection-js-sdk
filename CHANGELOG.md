@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.38.1](https://github.com/introspection-org/introspection-js-sdk/compare/v0.38.0...v0.38.1) (2026-10-21)
+
+
+### Bug Fixes
+
+* **examples:** show the helpers each docs region calls ([#513](https://github.com/introspection-org/introspection-js-sdk/issues/513)) ([023ef77](https://github.com/introspection-org/introspection-js-sdk/commit/023ef77b5c09dac93ffa86c8fc100950bdb97195))
+
 ## [0.38.0](https://github.com/introspection-org/introspection-js-sdk/compare/v0.37.0...v0.38.0) (2026-10-21)
 
 
