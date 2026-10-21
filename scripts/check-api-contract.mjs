@@ -562,6 +562,8 @@ const PLANE_NAMES = { dp: "dataplane", cp: "controlplane" };
 const HTTP_METHODS = ["get", "post", "put", "patch", "delete"];
 /** Helpers that take a route as an argument and always send it as a GET. */
 const GET_HELPERS = new Set(["paginateGet", "listRead", "arrowRead"]);
+/** Direct fetch calls, such as the OAuth routes that bypass the HTTP client. */
+const FETCH_CALLEES = new Set(["fetch", "fetchImpl"]);
 
 /** Path parameters compare by position, not by name. */
 const templateKey = (path) => path.replace(/\{[^}]*\}/g, "{}");
@@ -581,8 +583,12 @@ function sourceFiles(dir) {
  *
  * `aliases` maps a local `const` or helper function to the routes it holds,
  * so `path: tagPath(kind, name)` and `${runPath}/stream` resolve too.
+ *
+ * With `url`, the expression is a whole URL: a leading `${...}` before the
+ * `/v1/` route is the base URL (`${baseApiUrl}/v1/oauth/token`), not a
+ * parameter.
  */
-function routesOf(node, aliases) {
+function routesOf(node, aliases, url = false) {
   if (!node) return [];
   if (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)) {
     return node.text.startsWith("/v1/") ? [node.text] : [];
@@ -612,7 +618,9 @@ function routesOf(node, aliases) {
       ? base.map((b) => b + span.literal.text)
       : prefixes.map((p) => `${p}{}${span.literal.text}`);
   });
-  return prefixes.filter((p) => p.startsWith("/v1/"));
+  return prefixes
+    .map((p) => (url && p.startsWith("{}/v1/") ? p.slice(2) : p))
+    .filter((p) => p.startsWith("/v1/"));
 }
 
 /** `const x = <route>` and functions returning a route, in one file. */
@@ -657,7 +665,8 @@ const calleeName = (call) =>
 /**
  * Every route this SDK sends, as `{ method, path, at }`. A route is sent where
  * it is the `path` of a request object (`{ method, path }`, or a `stream()`
- * call, which is always a GET) or an argument of a GET-only helper. A route in
+ * call, which is always a GET), an argument of a GET-only helper, or the URL of
+ * a direct `fetch(url, { method })` call (a GET without `method`). A route in
  * any other position, such as a comparison or a doc comment, is not a call.
  */
 function sdkCalls() {
@@ -712,6 +721,30 @@ function sdkCalls() {
           for (const path of routesOf(arg, aliases)) {
             calls.push({ method: "GET", path, at: at(arg) });
           }
+        }
+      }
+      if (ts.isCallExpression(node) && FETCH_CALLEES.has(calleeName(node))) {
+        const [input, init] = node.arguments;
+        const methodProp =
+          init && ts.isObjectLiteralExpression(init)
+            ? init.properties.find(
+                (p) =>
+                  ts.isPropertyAssignment(p) &&
+                  p.name.getText(source) === "method",
+              )
+            : undefined;
+        let method;
+        if (methodProp && ts.isStringLiteralLike(methodProp.initializer)) {
+          method = methodProp.initializer.text;
+        } else if (
+          !methodProp &&
+          (!init || ts.isObjectLiteralExpression(init))
+        ) {
+          method = "GET";
+        }
+        for (const path of routesOf(input, aliases, true)) {
+          if (method) calls.push({ method, path, at: at(input) });
+          else unknownMethod.push(`${path} (${at(input)})`);
         }
       }
       ts.forEachChild(node, visit);
