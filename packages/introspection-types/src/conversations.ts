@@ -38,7 +38,6 @@
 import type { CursorParams, IsoDate, ReadWindowParams, Uuid } from "./api.js";
 import type {
   InputMessage,
-  MessagePart,
   OutputMessage,
   SystemInstruction,
   ToolDefinition,
@@ -389,6 +388,27 @@ export interface IntrospectionSpanAttributes {
   environment?: string;
   conversation?: IntrospectionConversation;
   agent?: IntrospectionAgent;
+  content?: IntrospectionContent;
+  [key: string]: unknown;
+}
+
+/**
+ * `introspection.content.*` — the processor's plaintext summary of a chat
+ * span's sealed content, stamped at seal time: counts and tool names only.
+ * Absent on a span written before the summary existed and on non-chat spans;
+ * what `ConversationItemListParams.content` selects on.
+ */
+export interface IntrospectionContent {
+  /** Summary schema version. */
+  version?: number;
+  /** User-role text parts in the span's new-input delta. */
+  user_text?: number;
+  /** Assistant-role text parts in the span's output. */
+  assistant_text?: number;
+  /** Distinct tool names the output calls. */
+  tool_calls?: string[];
+  /** Distinct tool names whose results the new-input delta carries. */
+  tool_results?: string[];
   [key: string]: unknown;
 }
 
@@ -649,8 +669,30 @@ export interface ConversationItemListParams {
   agent?: string;
   /** Filter items by service name (exact match). */
   service_name?: string;
-  /** Filter items by operation name (exact match). */
-  operation_name?: string;
+  /**
+   * Filter items by operation name (exact match). Several values match any
+   * of them: `["chat", "execute_tool"]` leaves out the plumbing spans.
+   */
+  operation_name?: string | string[];
+  /**
+   * Return only the items carrying these content classes, selected on the
+   * server before anything is decrypted; values match any of them.
+   * `user_text` and `assistant_text` select a chat item by the text parts
+   * of its new input or output, `tool_call:<name>` and `tool_result:<name>`
+   * a chat item whose output calls the tool or whose new input carries its
+   * result, `tool:<name>` the `execute_tool` item itself, and `delegation`
+   * an `invoke_agent` / `create_agent` wrapper. A chat item written before
+   * the content summary existed matches whole. A chat client passes the
+   * classes it renders:
+   *
+   * ```ts
+   * client.conversations.items.list(id, {
+   *   agent: "root",
+   *   content: ["user_text", "tool:message_user", "tool:ask_user"],
+   * });
+   * ```
+   */
+  content?: ConversationContentClass[];
   /** Lower bound on item start time (RFC 3339). */
   start_date?: string;
   /** Upper bound on item start time (RFC 3339). */
@@ -659,81 +701,14 @@ export interface ConversationItemListParams {
   lookback_days?: number;
 }
 
-/** A message of a turn: what the person said or the agent answered. */
-export interface ConversationTurnMessage {
-  /** Stable message identifier. */
-  id: string;
-  /** Who spoke. */
-  role: "user" | "assistant";
-  /** The message's parts; text parts carry `content`. */
-  parts: MessagePart[];
-  /** Why the model stopped, on assistant messages. */
-  finish_reason?: string;
-  /** Span carrying this message. */
-  source_span_id: string;
-  /** When the message was recorded. */
-  created_at: IsoDate;
-  /** The client's own id for a message it sent. */
-  client_message_id?: string;
-  /** The model response that produced it. */
-  response_id?: string;
-}
-
-/** One turn of a conversation: a person's message and the agent's answer. */
-export interface ConversationTurn {
-  /** Discriminator — always `"conversation.turn"`. */
-  object: "conversation.turn";
-  id: string;
-  trace_id: string;
-  /** One-based position within this agent's transcript. */
-  ordinal: number;
-  agent_id?: string;
-  agent_name?: string;
-  started_at: IsoDate;
-  ended_at: IsoDate;
-  status: string;
-  messages: ConversationTurnMessage[];
-  response_ids: string[];
-  has_steps: boolean;
-  item_count: number;
-  tool_use_count: number;
-  failed_tool_use_count: number;
-  error_count: number;
-  input_tokens: number;
-  output_tokens: number;
-  cost_usd: number;
-  duration_ms: number;
-}
-
-/** List envelope for a conversation's turns, newest first. */
-export interface ConversationTurnList {
-  /** Discriminator — always `"list"`. */
-  object: "list";
-  data: ConversationTurn[];
-  first_id: string | null;
-  last_id: string | null;
-  has_more: boolean;
-  /** Opaque cursor for the next older page, or null when exhausted. */
-  next: string | null;
-}
-
-/**
- * Query params for `GET /v1/conversations/{id}/turns`.
- */
-export interface ConversationTurnListParams {
-  /** Maximum turns per page (1-100, server default 25). */
-  limit?: number;
-  /** Opaque cursor returned by the previous page. */
-  next?: string;
-  /** Agent selector, as on items. */
-  agent?: string;
-  /** Only the turn of this trace. */
-  trace_id?: string;
-  /** Only turns before this trace. */
-  before_trace_id?: string;
-  /** Relative window in days (1-365). */
-  lookback_days?: number;
-}
+/** One value of {@link ConversationItemListParams.content}. */
+export type ConversationContentClass =
+  | "user_text"
+  | "assistant_text"
+  | "delegation"
+  | `tool:${string}`
+  | `tool_call:${string}`
+  | `tool_result:${string}`;
 
 /**
  * Query params for `GET /v1/conversations/{id}/export`.

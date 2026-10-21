@@ -4,9 +4,6 @@ import type {
   ConversationItemInclude,
   ConversationItemListParams,
   ConversationListParams,
-  ConversationTurn,
-  ConversationTurnList,
-  ConversationTurnListParams,
   GenAiSpan,
   GenAiSpanList,
   MessagePart,
@@ -114,30 +111,6 @@ export class ConversationsClient {
   }
 
   /**
-   * List a conversation's turns: each person's message and the agent's
-   * answer. `await` for the first page, or `for await` every turn across
-   * pages. Turns come newest-first; reverse them to read forwards.
-   */
-  turns(
-    conversationId: string,
-    params?: ConversationTurnListParams,
-  ): Paginator<ConversationTurn, ConversationTurnList> {
-    return new Paginator(
-      {
-        fetch: (next) =>
-          this.http.request<ConversationTurnList>({
-            method: "GET",
-            path: `/v1/conversations/${encodeURIComponent(conversationId)}/turns`,
-            query: { ...params, next } as Record<string, unknown>,
-          }),
-        items: (page) => page.data,
-        next: (page) => page.next ?? undefined,
-      },
-      params?.next,
-    );
-  }
-
-  /**
    * List conversation summaries matching `params`. `await` the result for
    * the first page, or `for await` it to stream every summary across
    * pages (fetched lazily — `limit` sets the page size, `next` the
@@ -150,11 +123,8 @@ export class ConversationsClient {
    * `ValidationError` before any request is sent.
    */
   list(params?: ConversationListParams): Paginator<Conversation> {
-    return listRead<Conversation>(
-      this.http,
-      "/v1/conversations",
-      encodeMetadataFilter(params),
-    );
+    const query = encodeMetadataFilter(params);
+    return listRead<Conversation>(this.http, "/v1/conversations", query);
   }
 
   /** Fetch one conversation summary with its complete agent index. */
