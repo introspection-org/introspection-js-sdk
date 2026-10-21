@@ -96,6 +96,217 @@ function reconnectEvent(value: Record<string, unknown>): AGUIEvent {
   } as unknown);
 }
 
+/** The fixed inputs of one {@link streamResumable} call. */
+interface ResumeConfig {
+  http: ResourceHttpClient;
+  runPath: string;
+  maxReconnects: number;
+  baseMs: number;
+  timeoutMs: number;
+  opts: StreamOptions;
+}
+
+/** The recovery state carried across attaches. */
+interface ResumeState {
+  // The last *content*-frame id, replayed via `Last-Event-ID` on reconnect.
+  // Control frames (RUN_* lifecycle, heartbeats) carry a non-numeric `c-…` id
+  // that is not a valid resume cursor, so only numeric ids advance it.
+  lastEventId: string;
+  deadline: number;
+  reconnects: number;
+  // Readiness waits are counted separately from reconnects: a 429 means the
+  // run is not attachable yet, which is not a failed attempt. It still needs
+  // its own counter, though -- feeding a pinned 0 to `backoffMs` left the
+  // delay at a flat 0-500ms for the whole window, roughly 1200 attach
+  // attempts against an endpoint that had just asked us to back off.
+  readinessWaits: number;
+}
+
+/** How one attach ended when it did not settle the run. */
+interface AttachOutcome {
+  settled: boolean;
+  progressed: boolean;
+  interruption: unknown;
+}
+
+function throwIfAborted(signal: AbortSignal | undefined): void {
+  if (signal?.aborted) {
+    throw signal.reason ?? new DOMException("Aborted", "AbortError");
+  }
+}
+
+/** Throw the connect errors no reconnect can recover from. */
+function throwIfUnrecoverable(err: unknown): void {
+  // 410: the runtime holds neither the frames after this cursor nor a
+  // snapshot covering them, so no reconnect can complete the stream.
+  if (err instanceof IntrospectionAPIError && err.status === 410)
+    throw new StreamIncompleteError(
+      "The stream history is no longer available; read the conversation transcript",
+    );
+  if (
+    err instanceof IntrospectionAPIError &&
+    err.status >= 400 &&
+    err.status < 500 &&
+    err.status !== 429 &&
+    err.status !== 409
+  )
+    throw err;
+}
+
+/**
+ * Handle a failed attach: throw when it cannot be retried, otherwise wait
+ * (emitting the opt-in reconnect event) before the next attempt.
+ */
+async function* retryAfterConnectError(
+  err: unknown,
+  cfg: ResumeConfig,
+  st: ResumeState,
+): AsyncGenerator<AGUIEvent, void> {
+  const { opts } = cfg;
+  if (opts.signal?.aborted) throw opts.signal.reason ?? err;
+  throwIfUnrecoverable(err);
+  const isRateLimit = err instanceof RateLimitError;
+  const retryAfterMs =
+    isRateLimit && err.retryAfter != null ? err.retryAfter * 1000 : null;
+  // A 429 (not attachable yet) is a readiness wait, not a failed attempt;
+  // any other connect error counts toward the no-progress reconnect budget.
+  if (isRateLimit) st.readinessWaits += 1;
+  else st.reconnects += 1;
+  if (st.reconnects > cfg.maxReconnects || Date.now() >= st.deadline) throw err;
+  const attempt = isRateLimit ? st.readinessWaits : st.reconnects;
+  if (opts.emitReconnectEvents) {
+    yield reconnectEvent({
+      reason: isRateLimit ? "readiness" : "connect_error",
+      attempt,
+      lastEventId: st.lastEventId,
+      phase: isRateLimit ? phaseOf(err.body) : null,
+      retryAfterMs,
+    });
+  }
+  await sleep(
+    Math.min(
+      backoffMs(attempt, retryAfterMs, cfg.baseMs),
+      st.deadline - Date.now(),
+    ),
+    opts.signal,
+  );
+}
+
+/** The resume cursor a frame carries: numeric ids of content events only. */
+function contentCursor(
+  frameId: string | undefined,
+  event: AGUIEvent,
+): string | undefined {
+  const control =
+    event.type === EventType.RUN_STARTED ||
+    event.type === EventType.RUN_FINISHED ||
+    event.type === EventType.RUN_ERROR;
+  if (control || !frameId || !/^[0-9]+$/.test(frameId)) return undefined;
+  return frameId;
+}
+
+/**
+ * Forward one attach's AG-UI events, skipping replayed content and the
+ * attach-ending `stream_close`. Returns `settled` once a settling
+ * `RUN_FINISHED` or `RUN_ERROR` has been yielded; a transport failure is
+ * returned as the `interruption`, while a decode failure throws.
+ */
+async function* forwardAttach(
+  res: Response,
+  cfg: ResumeConfig,
+  st: ResumeState,
+): AsyncGenerator<AGUIEvent, AttachOutcome> {
+  let progressed = false;
+  let decoding = false;
+  try {
+    for await (const frame of parseStreamFrames(res)) {
+      if (frame.name !== "ag_ui") continue;
+      decoding = true;
+      const event = EventSchemas.parse(JSON.parse(frame.data) as unknown);
+      decoding = false;
+      const cursor = contentCursor(frame.id, event);
+      if (cursor !== undefined) {
+        if (BigInt(cursor) <= BigInt(st.lastEventId)) continue;
+        st.lastEventId = cursor;
+        st.deadline = Date.now() + cfg.timeoutMs;
+        progressed = true;
+      }
+      if (
+        event.type === EventType.RUN_FINISHED &&
+        event.result?.reason === "stream_close"
+      )
+        continue;
+      yield event;
+      if (
+        event.type === EventType.RUN_FINISHED ||
+        event.type === EventType.RUN_ERROR
+      )
+        return { settled: true, progressed, interruption: undefined };
+    }
+  } catch (err) {
+    if (decoding || cfg.opts.signal?.aborted) throw err;
+    return { settled: false, progressed, interruption: err };
+  }
+  return { settled: false, progressed, interruption: undefined };
+}
+
+/**
+ * After a clean close without a settling event, read the run's status and
+ * throw when the run has already ended; a failed read is ignored.
+ */
+async function throwIfRunEnded(cfg: ResumeConfig): Promise<void> {
+  let state: TaskRun | undefined;
+  try {
+    state = await cfg.http.request<TaskRun>({
+      method: "GET",
+      path: cfg.runPath,
+      signal: cfg.opts.signal,
+    });
+  } catch (err) {
+    if (cfg.opts.signal?.aborted) throw err;
+  }
+  if (state?.status === "failed" || state?.status === "cancelled") {
+    throw new RunFailedError(`The run ended with status ${state.status}`);
+  }
+  if (state && ["idle", "completed", "awaiting_user"].includes(state.status)) {
+    throw new StreamIncompleteError(
+      "The run settled without a complete stream; read the conversation transcript",
+    );
+  }
+}
+
+/**
+ * Charge an unsettled attach to the reconnect budget, then wait (emitting the
+ * opt-in reconnect event) before reattaching.
+ */
+async function* retryAfterAttach(
+  attach: AttachOutcome,
+  cfg: ResumeConfig,
+  st: ResumeState,
+): AsyncGenerator<AGUIEvent, void> {
+  st.reconnects = attach.progressed ? 0 : st.reconnects + 1;
+  if (st.reconnects > cfg.maxReconnects || Date.now() >= st.deadline) {
+    throw (
+      attach.interruption ??
+      new StreamIncompleteError("The stream ended before the run settled")
+    );
+  }
+  if (cfg.opts.emitReconnectEvents) {
+    yield reconnectEvent({
+      reason: attach.interruption === undefined ? "stream_close" : "severed",
+      attempt: st.reconnects,
+      lastEventId: st.lastEventId,
+    });
+  }
+  await sleep(
+    Math.min(
+      backoffMs(st.reconnects, null, cfg.baseMs),
+      st.deadline - Date.now(),
+    ),
+    cfg.opts.signal,
+  );
+}
+
 /**
  * Consume a run's SSE stream as a resumable `AGUIEvent` sequence,
  * reconnecting transparently on a mid-turn disconnect via `Last-Event-ID`.
@@ -110,156 +321,41 @@ export async function* streamResumable(
 ): AsyncIterable<AGUIEvent> {
   const runPath = `/v1/tasks/${encodeURIComponent(taskId)}/runs/${encodeURIComponent(runId)}`;
   const path = `${runPath}/stream`;
-  const maxReconnects = opts.maxReconnects ?? 5;
-  const baseMs = opts.backoffMs ?? 500;
-  const timeoutMs = opts.timeoutMs ?? 300000;
-  let deadline = Date.now() + timeoutMs;
-  // The last *content*-frame id, replayed via `Last-Event-ID` on reconnect.
-  // Control frames (RUN_* lifecycle, heartbeats) carry a non-numeric `c-…` id
-  // that is not a valid resume cursor, so only numeric ids advance it.
-  let lastEventId = "0";
-  let reconnects = 0;
-  // Readiness waits are counted separately from reconnects: a 429 means the
-  // run is not attachable yet, which is not a failed attempt. It still needs
-  // its own counter, though -- feeding a pinned 0 to `backoffMs` left the
-  // delay at a flat 0-500ms for the whole window, roughly 1200 attach
-  // attempts against an endpoint that had just asked us to back off.
-  let readinessWaits = 0;
+  const cfg: ResumeConfig = {
+    http,
+    runPath,
+    maxReconnects: opts.maxReconnects ?? 5,
+    baseMs: opts.backoffMs ?? 500,
+    timeoutMs: opts.timeoutMs ?? 300000,
+    opts,
+  };
+  const st: ResumeState = {
+    lastEventId: "0",
+    deadline: Date.now() + cfg.timeoutMs,
+    reconnects: 0,
+    readinessWaits: 0,
+  };
 
   for (;;) {
-    if (opts.signal?.aborted) {
-      throw opts.signal.reason ?? new DOMException("Aborted", "AbortError");
-    }
+    throwIfAborted(opts.signal);
 
     // --- attach (honouring the 429 readiness contract) ---
     let res: Response;
     try {
       res = await http.stream({
         path,
-        headers: { "Last-Event-ID": lastEventId },
+        headers: { "Last-Event-ID": st.lastEventId },
         signal: opts.signal,
       });
     } catch (err) {
-      if (opts.signal?.aborted) throw opts.signal.reason ?? err;
-      // 410: the runtime holds neither the frames after this cursor nor a
-      // snapshot covering them, so no reconnect can complete the stream.
-      if (err instanceof IntrospectionAPIError && err.status === 410)
-        throw new StreamIncompleteError(
-          "The stream history is no longer available; read the conversation transcript",
-        );
-      if (
-        err instanceof IntrospectionAPIError &&
-        err.status >= 400 &&
-        err.status < 500 &&
-        err.status !== 429 &&
-        err.status !== 409
-      )
-        throw err;
-      const isRateLimit = err instanceof RateLimitError;
-      const retryAfterMs =
-        isRateLimit && err.retryAfter != null ? err.retryAfter * 1000 : null;
-      // A 429 (not attachable yet) is a readiness wait, not a failed attempt;
-      // any other connect error counts toward the no-progress reconnect budget.
-      if (isRateLimit) readinessWaits += 1;
-      else reconnects += 1;
-      if (reconnects > maxReconnects || Date.now() >= deadline) throw err;
-      const attempt = isRateLimit ? readinessWaits : reconnects;
-      if (opts.emitReconnectEvents) {
-        yield reconnectEvent({
-          reason: isRateLimit ? "readiness" : "connect_error",
-          attempt,
-          lastEventId,
-          phase: isRateLimit ? phaseOf(err.body) : null,
-          retryAfterMs,
-        });
-      }
-      await sleep(
-        Math.min(
-          backoffMs(attempt, retryAfterMs, baseMs),
-          deadline - Date.now(),
-        ),
-        opts.signal,
-      );
+      yield* retryAfterConnectError(err, cfg, st);
       continue;
     }
 
-    let progressed = false;
-    let interruption: unknown;
-    let decoding = false;
-    try {
-      for await (const frame of parseStreamFrames(res)) {
-        if (frame.name !== "ag_ui") continue;
-        decoding = true;
-        const event = EventSchemas.parse(JSON.parse(frame.data) as unknown);
-        decoding = false;
-        const control =
-          event.type === EventType.RUN_STARTED ||
-          event.type === EventType.RUN_FINISHED ||
-          event.type === EventType.RUN_ERROR;
-        if (!control && frame.id && /^[0-9]+$/.test(frame.id)) {
-          if (BigInt(frame.id) <= BigInt(lastEventId)) continue;
-          lastEventId = frame.id;
-          deadline = Date.now() + timeoutMs;
-          progressed = true;
-        }
-        if (
-          event.type === EventType.RUN_FINISHED &&
-          event.result?.reason === "stream_close"
-        )
-          continue;
-        yield event;
-        if (
-          event.type === EventType.RUN_FINISHED ||
-          event.type === EventType.RUN_ERROR
-        )
-          return;
-      }
-    } catch (err) {
-      if (decoding || opts.signal?.aborted) throw err;
-      interruption = err;
-    }
-    if (opts.signal?.aborted)
-      throw opts.signal.reason ?? new DOMException("Aborted", "AbortError");
-    if (interruption === undefined) {
-      let state: TaskRun | undefined;
-      try {
-        state = await http.request<TaskRun>({
-          method: "GET",
-          path: runPath,
-          signal: opts.signal,
-        });
-      } catch (err) {
-        if (opts.signal?.aborted) throw err;
-      }
-      if (state?.status === "failed" || state?.status === "cancelled") {
-        throw new RunFailedError(`The run ended with status ${state.status}`);
-      }
-      if (
-        state &&
-        ["idle", "completed", "awaiting_user"].includes(state.status)
-      ) {
-        throw new StreamIncompleteError(
-          "The run settled without a complete stream; read the conversation transcript",
-        );
-      }
-    }
-    reconnects = progressed ? 0 : reconnects + 1;
-    if (reconnects > maxReconnects || Date.now() >= deadline) {
-      throw (
-        interruption ??
-        new StreamIncompleteError("The stream ended before the run settled")
-      );
-    }
-    if (opts.emitReconnectEvents) {
-      yield reconnectEvent({
-        reason: interruption === undefined ? "stream_close" : "severed",
-        attempt: reconnects,
-        lastEventId,
-      });
-    }
-    await sleep(
-      Math.min(backoffMs(reconnects, null, baseMs), deadline - Date.now()),
-      opts.signal,
-    );
+    const attach = yield* forwardAttach(res, cfg, st);
+    if (attach.settled) return;
+    throwIfAborted(opts.signal);
+    if (attach.interruption === undefined) await throwIfRunEnded(cfg);
+    yield* retryAfterAttach(attach, cfg, st);
   }
 }
