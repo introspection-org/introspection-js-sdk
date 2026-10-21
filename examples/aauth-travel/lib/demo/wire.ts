@@ -7,15 +7,12 @@
  */
 import "server-only";
 
-import { FLIGHTSECTOR_AS_URL } from "../origins";
-
 export type Party =
   | "Agent"
   | "Acme"
   | "Booking provider"
   | "Browserbase"
   | "Dana"
-  | "Flight Sector AS"
   | "Sam"
   | "Tools";
 
@@ -125,12 +122,7 @@ function label(
       return "Cancel → asks for a person token";
     return status === 200 ? "Cancel → cancelled" : "Cancel";
   }
-  if (path.startsWith("/r3/")) return "Read the booking proposal";
-  if (path === "/token") return "Ask Flight Sector for the auth token";
-  if (path.startsWith("/pending/"))
-    return status === 202
-      ? "Poll Flight Sector: still waiting"
-      : "Poll Flight Sector: decided";
+  if (path.startsWith("/r3/")) return "Acme reads the booking proposal";
   if (path === "/ps/mission") return "Propose the trip";
   if (path.startsWith("/ps/mission/")) return "Propose the trip complete";
   if (path === "/ps/person-token") return "Ask for a person token";
@@ -207,13 +199,8 @@ export function body(text: string) {
   }
 }
 
-function sender(to: Party, path: string, headers: Headers): Party {
-  if (path.startsWith("/r3/"))
-    return headers.get("signature-key")?.includes(FLIGHTSECTOR_AS_URL)
-      ? "Flight Sector AS"
-      : "Acme";
-  // Only a Person Server calls an Access Server.
-  if (to === "Flight Sector AS") return "Acme";
+function sender(path: string, headers: Headers): Party {
+  if (path.startsWith("/r3/")) return "Acme";
   const actor = headers.get(ACTOR_HEADER);
   if (actor === "Dana" || actor === "Sam") return actor;
   return "Agent";
@@ -232,10 +219,7 @@ export async function recorded(
   const copy = request.clone();
   const response = await serve();
   const url = new URL(copy.url);
-  const path = url.pathname.replace(
-    /^\/(booking|acme|browserbase|flightsector-as)(?=\/)/,
-    "",
-  );
+  const path = url.pathname.replace(/^\/(booking|acme|browserbase)(?=\/)/, "");
   if (
     path.startsWith("/.well-known/") ||
     path.endsWith("jwks.json") ||
@@ -258,7 +242,7 @@ export async function recorded(
         .catch(() => ""),
     ),
   ].join("\n");
-  const from = sender(to, path, copy.headers);
+  const from = sender(path, copy.headers);
   const entry = {
     from,
     to,

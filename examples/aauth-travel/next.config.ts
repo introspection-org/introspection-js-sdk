@@ -4,8 +4,6 @@ import {
   APP_URL,
   BOOKING_ISSUER,
   BROWSERBASE_MCP_URL,
-  FLIGHTSECTOR_AS_URL,
-  FLIGHTSECTOR_FEDERATED,
   PERSON_SERVER_MODE,
   PERSON_SERVER_URL,
 } from "./lib/origins";
@@ -16,21 +14,13 @@ import {
 // and every prefix stays reachable on every host, so one public tunnel can carry
 // the booking provider and the Browserbase mock.
 const appHost = new URL(APP_URL).hostname;
-const prefixes = ["booking", "acme", "browserbase", "flightsector-as"];
+const prefixes = ["booking", "acme", "browserbase"];
 const hosts = [
   { host: new URL(BOOKING_ISSUER).hostname, prefix: "booking" },
   ...(PERSON_SERVER_MODE === "acme"
     ? [{ host: new URL(PERSON_SERVER_URL).hostname, prefix: "acme" }]
     : []),
   { host: new URL(BROWSERBASE_MCP_URL).hostname, prefix: "browserbase" },
-  ...(FLIGHTSECTOR_FEDERATED
-    ? [
-        {
-          host: new URL(FLIGHTSECTOR_AS_URL).hostname,
-          prefix: "flightsector-as",
-        },
-      ]
-    : []),
   // The names a local Introspection stack's egress sends these as.
   { host: "booking.flightsector.localhost", prefix: "booking" },
   { host: "browserbase.flightsector.localhost", prefix: "browserbase" },

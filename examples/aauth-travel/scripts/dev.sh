@@ -30,9 +30,6 @@
 #   PERSON_SERVER        hosted (default): Introspection's hosted Person Server
 #                        speaks for Acme. acme: Acme's own, served by this app.
 #   BROWSERBASE_API_KEY  real flight searches through Browserbase's hosted MCP
-#   FLIGHTSECTOR_FEDERATED=1  Flight Sector runs its own AAuth Access Server, on
-#                        a host of its own, and the booking provider names it
-#                        (four-party); needs PERSON_SERVER=acme
 #   FLIGHTSECTOR_DOMAIN  a domain in your Cloudflare account, for stable URLs
 #   FLIGHTSECTOR_HOST_PREFIX  prefixes those hosts, e.g. smoke- for an automated
 #                        run that must not take over a presenter's hosts
@@ -123,11 +120,6 @@ FLIGHTSECTOR_DOMAIN="${FLIGHTSECTOR_DOMAIN:-$(read_env FLIGHTSECTOR_DOMAIN)}"
 MODE="${PERSON_SERVER:-$(read_env PERSON_SERVER)}"
 MODE="${MODE:-hosted}"
 case "$MODE" in hosted | acme) ;; *) fail "PERSON_SERVER is hosted or acme" ;; esac
-FEDERATED="${FLIGHTSECTOR_FEDERATED:-$(read_env FLIGHTSECTOR_FEDERATED)}"
-case "$FEDERATED" in "" | 0) FEDERATED="" ;; 1) ;; *) fail "FLIGHTSECTOR_FEDERATED is 1 or unset" ;; esac
-if [ -n "$FEDERATED" ] && [ "$MODE" = hosted ]; then
-  fail "FLIGHTSECTOR_FEDERATED=1 needs PERSON_SERVER=acme: the hosted Person Server does not federate yet"
-fi
 
 PIDS=()
 trap 'kill "${PIDS[@]}" 2>/dev/null || true' EXIT
@@ -163,9 +155,7 @@ if [ -n "${FLIGHTSECTOR_DOMAIN:-}" ]; then
   BOOKING="https://${PREFIX}flightsector-booking.${FLIGHTSECTOR_DOMAIN}"
   MOCK="https://${PREFIX}flightsector-browserbase.${FLIGHTSECTOR_DOMAIN}"
   ACME="https://${PREFIX}flightsector-ps.${FLIGHTSECTOR_DOMAIN}"
-  AS="https://${PREFIX}flightsector-as.${FLIGHTSECTOR_DOMAIN}"
   ROUTES=("$BOOKING=$PORT" "$MOCK=$PORT" "$ACME=$PORT")
-  if [ -n "$FEDERATED" ]; then ROUTES+=("$AS=$PORT"); fi
   # A local Introspection stack's Agent Provider and Person Server are named by
   # their public URLs, so they get hosts here too: ones that outlive a restart.
   if [ "$(introspection whoami 2>/dev/null | json 'v.cp_url' 2>/dev/null)" = "http://localhost:8000" ]; then
@@ -192,22 +182,12 @@ else
   quick_tunnel MOCK
   ACME=""
   if [ "$MODE" = acme ]; then quick_tunnel ACME; fi
-  AS=""
-  if [ -n "$FEDERATED" ]; then quick_tunnel AS; fi
 fi
 
 upsert_env APP_URL "http://localhost:$PORT"
 upsert_env BOOKING_ISSUER "$BOOKING"
 upsert_env BROWSERBASE_MCP_URL "$MOCK"
 if [ "$MODE" = acme ]; then upsert_env ACME_PERSON_SERVER_URL "$ACME"; fi
-if [ -n "$FEDERATED" ]; then
-  upsert_env FLIGHTSECTOR_FEDERATED 1
-  upsert_env FLIGHTSECTOR_AS_URL "$AS"
-  say "Flight Sector's Access Server: $AS"
-else
-  remove_env FLIGHTSECTOR_FEDERATED
-  remove_env FLIGHTSECTOR_AS_URL
-fi
 say "booking provider: $BOOKING"
 
 # The booking provider and Acme's Person Server sign with keys made here once
@@ -229,9 +209,6 @@ secret() {
 export BOOKING_SIGNING_KEY="${BOOKING_SIGNING_KEY:-$(pem booking.pem)}"
 export ACME_PS_SIGNING_KEY="${ACME_PS_SIGNING_KEY:-$(pem acme-ps.pem)}"
 export ACME_PS_SUBJECT_SECRET="${ACME_PS_SUBJECT_SECRET:-$(secret acme-ps-subject)}"
-if [ -n "$FEDERATED" ]; then
-  export FLIGHTSECTOR_AS_SIGNING_KEY="${FLIGHTSECTOR_AS_SIGNING_KEY:-$(pem flightsector-as.pem)}"
-fi
 
 # The app runs the workspace's own Person Server, resource and client packages
 # from their dist/, so install and build them first: after a pull or a branch

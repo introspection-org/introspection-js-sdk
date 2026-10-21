@@ -112,9 +112,6 @@ importers:
       '@hellocoop/httpsig':
         specifier: ^2.6.0
         version: 2.6.0
-      '@introspection-sdk/aauth-access-server':
-        specifier: workspace:*
-        version: link:../../packages/introspection-aauth-access-server
       '@introspection-sdk/aauth-person-server':
         specifier: workspace:*
         version: link:../../packages/introspection-aauth-person-server

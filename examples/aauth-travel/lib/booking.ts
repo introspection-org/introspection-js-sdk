@@ -22,8 +22,6 @@ import { HttpError } from "./http";
 import {
   agentProviders,
   BOOKING_ISSUER,
-  FLIGHTSECTOR_AS_URL,
-  FLIGHTSECTOR_FEDERATED,
   HOSTED_PERSON_SERVER_URL,
   PERSON_SERVER_URL,
 } from "./origins";
@@ -72,8 +70,6 @@ export const bookingResource = () =>
     budgetUnits: [{ unit: BUDGET_UNIT.unit, decimals: BUDGET_UNIT.decimals }],
     personServers: PERSON_SERVERS,
     agentProviders: agentProviders(),
-    // Federated, its resource tokens name Flight Sector's own Access Server, which issues its auth tokens.
-    ...(FLIGHTSECTOR_FEDERATED ? { accessServer: FLIGHTSECTOR_AS_URL } : {}),
     // Set a PEM to keep the key across restarts; otherwise each process makes its own.
     signingKey: process.env.BOOKING_SIGNING_KEY,
     kid: "flightsector-booking-1",
