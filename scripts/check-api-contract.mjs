@@ -141,6 +141,41 @@ const queryParameters = (spec, path, method) => {
   return new Set(params.filter((p) => p.in === "query").map((p) => p.name));
 };
 
+// Builders for the project-administration and eval surfaces below, which all
+// say the same three things about a read model, a body and a query.
+const readModel = (name, schema, where, plane = "dp") => ({
+  name,
+  where,
+  plane,
+  sdk: () => apiMembers(name),
+  server: (spec) => schemaProperties(spec, schema),
+  extraMeans:
+    "declared here but not returned by the API (the SDK describes a response that no longer exists)",
+  missingMeans: "returned by the API but not surfaced by this SDK",
+});
+const requestBody = (name, schema, where, plane = "dp") => ({
+  name,
+  where,
+  plane,
+  sdk: () => apiMembers(name),
+  server: (spec) => schemaProperties(spec, schema),
+  extraMeans: "declared here but not accepted by the API",
+  missingMeans: "accepted by the API but unavailable to callers of this SDK",
+});
+const queryParams = (name, path, method, where, plane = "dp", exempt = []) => ({
+  name,
+  where,
+  plane,
+  sdk: () => apiMembers(name),
+  server: (spec) => queryParameters(spec, path, method),
+  exempt,
+  extraMeans: "sent as a query parameter the API does not accept",
+  missingMeans: "accepted by the API but not exposed here",
+});
+// A browser session's lane and project selectors; an SDK credential carries
+// its own.
+const BROWSER_SELECTORS = ["lane", "project_id"];
+
 const SURFACES = [
   {
     name: "TaskCreateParams",
@@ -547,6 +582,242 @@ const SURFACES = [
     extraMeans: "declared here but not accepted by the API",
     missingMeans: "accepted by the API but unavailable to callers of this SDK",
   },
+  // --- project administration (CP) ----------------------------------------
+  readModel("Project", "ProjectResponse", "the project read model", "cp"),
+  queryParams(
+    "ProjectListParams",
+    "/v1/projects",
+    "get",
+    "GET /v1/projects query parameters",
+    "cp",
+  ),
+  readModel("ApiKey", "APIKey", "the API key read model", "cp"),
+  readModel(
+    "ApiKeyCreated",
+    "APIKeyResponse",
+    "POST /v1/api-keys response",
+    "cp",
+  ),
+  queryParams(
+    "ApiKeyListParams",
+    "/v1/api-keys",
+    "get",
+    "GET /v1/api-keys query parameters",
+    "cp",
+  ),
+  requestBody(
+    "ApiKeyCreateParams",
+    "ApiKeyCreateRequest",
+    "POST /v1/api-keys body",
+    "cp",
+  ),
+  requestBody(
+    "ApiKeyUpdateParams",
+    "ApiKeyUpdateRequest",
+    "PATCH /v1/api-keys/{id} body",
+    "cp",
+  ),
+  queryParams(
+    "ApiKeyDeleteParams",
+    "/v1/api-keys/{api_key_id}",
+    "delete",
+    "DELETE /v1/api-keys/{id} query parameters",
+    "cp",
+  ),
+  readModel("Application", "Application", "the application read model", "cp"),
+  queryParams(
+    "ApplicationListParams",
+    "/v1/applications",
+    "get",
+    "GET /v1/applications query parameters",
+    "cp",
+  ),
+  requestBody(
+    "ApplicationCreateParams",
+    "ApplicationCreate",
+    "POST /v1/applications body",
+    "cp",
+  ),
+  requestBody(
+    "ApplicationUpdateParams",
+    "ApplicationUpdate",
+    "PATCH /v1/applications/{id} body",
+    "cp",
+  ),
+  readModel(
+    "ApplicationIdp",
+    "ApplicationIdp",
+    "the application IdP read model",
+    "cp",
+  ),
+  requestBody(
+    "ApplicationIdpCreateParams",
+    "BrokeredIdpConfig",
+    "POST /v1/applications/{id}/idps body",
+    "cp",
+  ),
+  readModel(
+    "ApplicationSecret",
+    "ApplicationSecretResponse",
+    "the application secret read model",
+    "cp",
+  ),
+  requestBody(
+    "ApplicationSecretCreateParams",
+    "ApplicationSecretCreate",
+    "POST /v1/applications/{id}/secrets body",
+    "cp",
+  ),
+  readModel(
+    "ApplicationKey",
+    "ApplicationKeyResponse",
+    "the application key read model",
+    "cp",
+  ),
+  readModel(
+    "Credential",
+    "CredentialResponse",
+    "the credential read model",
+    "cp",
+  ),
+  {
+    ...queryParams(
+      "RuntimeSettingListParams",
+      "/v1/credentials",
+      "get",
+      "GET /v1/credentials query parameters",
+      "cp",
+    ),
+    name: "RuntimeSettingListParams (credentials)",
+    sdk: () => apiMembers("RuntimeSettingListParams"),
+  },
+  requestBody(
+    "CredentialCreateParams",
+    "CredentialCreate",
+    "POST /v1/credentials body",
+    "cp",
+  ),
+  requestBody(
+    "CredentialUpdateParams",
+    "CredentialUpdate",
+    "PATCH /v1/credentials/{id} body",
+    "cp",
+  ),
+  readModel("Variable", "VariableResponse", "the variable read model", "cp"),
+  {
+    ...queryParams(
+      "RuntimeSettingListParams",
+      "/v1/variables",
+      "get",
+      "GET /v1/variables query parameters",
+      "cp",
+    ),
+    name: "RuntimeSettingListParams (variables)",
+    sdk: () => apiMembers("RuntimeSettingListParams"),
+  },
+  requestBody(
+    "VariableCreateParams",
+    "VariableCreate",
+    "POST /v1/variables body",
+    "cp",
+  ),
+  requestBody(
+    "VariableUpdateParams",
+    "VariableUpdate",
+    "PATCH /v1/variables/{id} body",
+    "cp",
+  ),
+  readModel(
+    "Integration",
+    "IntegrationResponse",
+    "the integration read model",
+    "cp",
+  ),
+  requestBody(
+    "IntegrationCreateParams",
+    "IntegrationCreate",
+    "POST /v1/integrations body",
+    "cp",
+  ),
+  requestBody(
+    "IntegrationUpdateParams",
+    "IntegrationUpdate",
+    "PATCH /v1/integrations/{id} body",
+    "cp",
+  ),
+  readModel("Judge", "Judge", "the judge read model", "cp"),
+  queryParams(
+    "JudgeListParams",
+    "/v1/judges",
+    "get",
+    "GET /v1/judges query parameters",
+    "cp",
+  ),
+  requestBody(
+    "JudgeUpdateParams",
+    "JudgeOperationalUpdate",
+    "PATCH /v1/judges/{id} body",
+    "cp",
+  ),
+  readModel("OidcMe", "OIDCMeResponse", "GET /v1/oidc/me response", "cp"),
+  // --- images and task commands (DP) --------------------------------------
+  readModel("Image", "Image", "the image read model"),
+  queryParams(
+    "ImageListParams",
+    "/v1/images",
+    "get",
+    "GET /v1/images query parameters",
+    "dp",
+    BROWSER_SELECTORS,
+  ),
+  requestBody("ImageCreateParams", "ImageCreate", "POST /v1/images body"),
+  requestBody(
+    "ContextImageSource",
+    "ContextImageSource",
+    "POST /v1/images body.source, kind context",
+  ),
+  requestBody(
+    "MirrorImageSource",
+    "MirrorImageSource",
+    "POST /v1/images body.source, kind mirror",
+  ),
+  requestBody(
+    "ImageProvenance",
+    "ImageProvenance",
+    "POST /v1/images body.provenance",
+  ),
+  requestBody(
+    "ExecTaskCommand",
+    "ExecCommand",
+    "POST /v1/tasks/{id}/commands body, kind exec",
+  ),
+  requestBody(
+    "UploadTaskCommand",
+    "UploadCommand",
+    "POST /v1/tasks/{id}/commands body, kind upload",
+  ),
+  requestBody(
+    "DownloadTaskCommand",
+    "DownloadCommand",
+    "POST /v1/tasks/{id}/commands body, kind download",
+  ),
+  readModel("TaskCommand", "TaskCommand", "the task command read model"),
+  queryParams(
+    "TaskCommandListParams",
+    "/v1/tasks/{task_id}/commands",
+    "get",
+    "GET /v1/tasks/{id}/commands query parameters",
+    "dp",
+    BROWSER_SELECTORS,
+  ),
+  queryParams(
+    "TaskCommandGetOptions",
+    "/v1/tasks/{task_id}/commands/{command_id}",
+    "get",
+    "GET /v1/tasks/{id}/commands/{command_id} query parameters",
+    "dp",
+    BROWSER_SELECTORS,
+  ),
 ];
 
 const difference = (a, b) => new Set([...a].filter((x) => !b.has(x)));

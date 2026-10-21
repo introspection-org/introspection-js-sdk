@@ -30,6 +30,7 @@ import { randomUUID } from "node:crypto";
 import { describe, expect, it, type TestContext } from "vitest";
 import {
   AuthenticationError,
+  IntrospectionAPIError,
   IntrospectionClient,
   NotFoundError,
   serviceAccountToken,
@@ -149,6 +150,23 @@ async function expectStatus<E extends abstract new (...args: never) => Error>(
   );
   expect(err).toBeInstanceOf(errorClass);
   expect((err as { status: number }).status).toBe(status);
+}
+
+/** The HTTP status `promise` rejects with; fails if it resolves. */
+async function rejectionStatus(promise: Promise<unknown>): Promise<number> {
+  const err = await promise.then(
+    (value) => {
+      throw new Error(`expected an error, got ${JSON.stringify(value)}`);
+    },
+    (error: unknown) => error,
+  );
+  expect(err).toBeInstanceOf(IntrospectionAPIError);
+  return (err as IntrospectionAPIError).status;
+}
+
+/** A setting name no other run shares, in the API's `[A-Z0-9_]` shape. */
+function uniqueSettingName(): string {
+  return `SDK_${randomUUID().replaceAll("-", "")}`.toUpperCase();
 }
 
 describe("live API", () => {
@@ -314,6 +332,257 @@ describe("live API", () => {
     const first = members[0];
     expect(first, "the seeded org has members").toBeDefined();
     await client.members.get(first.id);
+  });
+
+  // --- project administration: an org credential (the CP session) --------
+
+  it("oidc.me with a Control Plane session", async (ctx) => {
+    const client = await liveClient(ctx, "session");
+    const me = await client.oidc.me();
+    expect(me.authenticated).toBe(true);
+    expect(me.member_id, "a member session names its member").toBeTruthy();
+    expect(me.org_id).toBeTruthy();
+  });
+
+  it("projects reads", async (ctx) => {
+    // Read-only: no SDK credential carries projects:write / projects:delete.
+    const client = await liveClient(ctx, "session");
+    const slug = setting(ctx, "INTROSPECTION_PROJECT");
+    const seeded = await client.projects.get(slug);
+    const listed = await collect(client.projects.list());
+    expect(listed.some((p) => p.id === seeded.id)).toBe(true);
+    await expectStatus(client.projects.get(randomUUID()), NotFoundError, 404);
+  });
+
+  it("api keys CRUD walk", async (ctx) => {
+    const keys = (await liveClient(ctx, "session")).apiKeys;
+    const project = setting(ctx, "INTROSPECTION_PROJECT");
+
+    const created = await keys.create(
+      { name: unique("key"), environment: "development" },
+      project,
+    );
+    try {
+      expect(created.api_key, "the plaintext rides the create").toBeTruthy();
+      expect((await keys.acknowledge(created.id, project)).acknowledged).toBe(
+        true,
+      );
+      await expectStatus(
+        keys.acknowledge(created.id, project),
+        NotFoundError,
+        404,
+      );
+      const listed = await keys.list({ project });
+      expect(listed.some((k) => k.id === created.id)).toBe(true);
+      const renamed = unique("key-renamed");
+      const updated = await keys.update(created.id, { name: renamed }, project);
+      expect(updated.name).toBe(renamed);
+    } finally {
+      await keys.delete(created.id, { project });
+    }
+    const listed = await keys.list({ project });
+    expect(
+      listed.some((k) => k.id === created.id && k.status === "active"),
+    ).toBe(false);
+  });
+
+  it("applications CRUD walk", async (ctx) => {
+    const applications = (await liveClient(ctx, "session")).applications;
+    const project = setting(ctx, "INTROSPECTION_PROJECT");
+
+    // Every plan may create a service account; browser and federated types
+    // are plan-gated.
+    const created = await applications.create(
+      { name: unique("app"), application_type: "service_account" },
+      project,
+    );
+    const appId = created.id;
+    try {
+      await applications.get(appId, project);
+      const listed = await collect(applications.list({ project }));
+      expect(listed.some((a) => a.id === appId)).toBe(true);
+      const renamed = unique("app-renamed");
+      const updated = await applications.update(
+        appId,
+        { name: renamed },
+        project,
+      );
+      expect(updated.name).toBe(renamed);
+
+      const secret = await applications.secrets.create(appId, {
+        name: unique("secret"),
+      });
+      expect(secret.secret, "the plaintext rides the create").toBeTruthy();
+      const secrets = await collect(applications.secrets.list(appId));
+      expect(secrets.some((s) => s.id === secret.id)).toBe(true);
+      await applications.secrets.delete(appId, secret.id);
+
+      const key = await applications.keys.create(appId);
+      const keys = await applications.keys.list(appId);
+      expect(keys.some((k) => k.id === key.id)).toBe(true);
+      await applications.keys.delete(appId, key.id);
+
+      expect(await collect(applications.idps.list(appId))).toEqual([]);
+      // A service account federates no end users, so the attach is refused;
+      // reaching that refusal is what pins the route and body.
+      const status = await rejectionStatus(
+        applications.idps.create(appId, { issuer: "https://idp.example.com" }),
+      );
+      expect([400, 403]).toContain(status);
+    } finally {
+      await applications.delete(appId, project);
+    }
+    await expectStatus(applications.get(appId, project), NotFoundError, 404);
+  });
+
+  it("credentials CRUD walk", async (ctx) => {
+    const credentials = (await liveClient(ctx, "session")).credentials;
+    const project = setting(ctx, "INTROSPECTION_PROJECT");
+    const name = uniqueSettingName();
+
+    const created = await credentials.create(
+      { name, secret: "sk-live-suite" },
+      project,
+    );
+    try {
+      expect(created.has_secret).toBe(true);
+      expect((await credentials.get(created.id, project)).name).toBe(name);
+      const listed = await collect(credentials.list({ project }));
+      expect(listed.some((c) => c.id === created.id)).toBe(true);
+      await credentials.update(created.id, { secret: "sk-rotated" }, project);
+    } finally {
+      await credentials.delete(created.id, project);
+    }
+    await expectStatus(
+      credentials.get(created.id, project),
+      NotFoundError,
+      404,
+    );
+  });
+
+  it("variables CRUD walk", async (ctx) => {
+    const variables = (await liveClient(ctx, "session")).variables;
+    const project = setting(ctx, "INTROSPECTION_PROJECT");
+
+    const created = await variables.create(
+      { name: uniqueSettingName(), value: "one" },
+      project,
+    );
+    try {
+      expect(created.value).toBe("one");
+      const updated = await variables.update(
+        created.id,
+        { value: "two" },
+        project,
+      );
+      expect(updated.value).toBe("two");
+      const listed = await collect(variables.list({ project }));
+      expect(listed.some((v) => v.id === created.id)).toBe(true);
+    } finally {
+      await variables.delete(created.id, project);
+    }
+    const listed = await collect(variables.list({ project }));
+    expect(listed.some((v) => v.id === created.id)).toBe(false);
+  });
+
+  it("integrations CRUD walk", async (ctx) => {
+    const integrations = (await liveClient(ctx, "session")).integrations;
+
+    // One live integration per type per org: a create returns the pending
+    // one if it exists, and 409s on an active one.
+    let created;
+    try {
+      created = await integrations.create({
+        type: "custom",
+        name: unique("integration"),
+      });
+    } catch (error) {
+      if (error instanceof IntrospectionAPIError && error.status === 409) {
+        ctx.skip("the org already has an active custom integration");
+      }
+      throw error;
+    }
+    try {
+      expect(created.status).toBe("pending");
+      await integrations.get(created.id);
+      const listed = await collect(integrations.list());
+      expect(listed.some((i) => i.id === created.id)).toBe(true);
+      const renamed = unique("integration-renamed");
+      const updated = await integrations.update(created.id, { name: renamed });
+      expect(updated.name).toBe(renamed);
+    } finally {
+      await integrations.delete(created.id);
+    }
+    await expectStatus(integrations.get(created.id), NotFoundError, 404);
+  });
+
+  it("judges read and update walk", async (ctx) => {
+    const judges = (await liveClient(ctx, "session")).judges;
+    const project = setting(ctx, "INTROSPECTION_PROJECT");
+
+    const listed = await collect(judges.list({ project }));
+    await expectStatus(judges.get(randomUUID(), project), NotFoundError, 404);
+    // Judges are published with a Recipe, so a project without one has none
+    // to read; the update writes back the judge's own values.
+    const judge = listed[0];
+    if (!judge) ctx.skip("the project has no judges");
+    const fetched = await judges.get(judge.id, project);
+    const updated = await judges.update(
+      judge.id,
+      { enabled: fetched.enabled, sample_rate: fetched.sample_rate },
+      project,
+    );
+    expect(updated.enabled).toBe(fetched.enabled);
+  });
+
+  // --- eval resources: a member's Data Plane token (images:*, tasks:exec) --
+
+  it("images CRUD walk", async (ctx) => {
+    const images = (await liveClient(ctx, "member")).images;
+
+    await collect(images.list());
+    await expectStatus(images.get(randomUUID()), NotFoundError, 404);
+
+    // A digest no registry serves: the create only records intent, and the
+    // build it sends fails on the row without touching anything else.
+    let created;
+    try {
+      created = await images.create({
+        name: unique("image"),
+        source: {
+          kind: "mirror",
+          reference: `registry.invalid/sdk/live@sha256:${"0".repeat(64)}`,
+        },
+      });
+    } catch (error) {
+      if (error instanceof ValidationError && error.status === 422) {
+        ctx.skip("evals are not enabled on this plane");
+      }
+      throw error;
+    }
+    expect(created.kind).toBe("service");
+    await images.get(created.id);
+    await images.delete(created.id);
+    await expectStatus(images.get(created.id), NotFoundError, 404);
+  });
+
+  it("task commands reads", async (ctx) => {
+    const commands = (await liveClient(ctx, "member")).tasks.commands;
+    const taskId = randomUUID();
+
+    // A command needs an eval task with a live sandbox, which the seed does
+    // not run; these pin the routes, the credential and the error shapes.
+    expect(await collect(commands.list(taskId))).toEqual([]);
+    await expectStatus(
+      commands.get(taskId, randomUUID(), { wait_seconds: 1 }),
+      NotFoundError,
+      404,
+    );
+    // 404 for the missing task, or 422 on a plane without evals.
+    const status = await rejectionStatus(
+      commands.create(taskId, { kind: "exec", command: ["true"] }),
+    );
+    expect([404, 422]).toContain(status);
   });
 
   it("rejected credentials are typed", async (ctx) => {

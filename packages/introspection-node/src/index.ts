@@ -59,9 +59,12 @@ export {
   EventsApi,
   FileVersionsApi,
   FilesApi,
+  ImagesApi,
+  MAX_COMMAND_WAIT_SECONDS,
   MetricsApi,
   RunHandle,
   SharesApi,
+  TaskCommandsApi,
   TaskRunsApi,
   TasksApi,
 } from "@introspection-sdk/http";
@@ -116,6 +119,22 @@ export {
 export type { RepositoryContentsApi } from "./resources/repositories.js";
 export { AnnotationsApi, attachAnnotations } from "./resources/annotations.js";
 export { TagsApi, attachTags } from "./resources/tags.js";
+export { ProjectsApi } from "./resources/projects.js";
+export { ApiKeysApi } from "./resources/api-keys.js";
+export {
+  ApplicationIdpsApi,
+  ApplicationKeysApi,
+  ApplicationSecretsApi,
+  ApplicationsApi,
+} from "./resources/applications.js";
+export { CredentialsApi, VariablesApi } from "./resources/runtime-settings.js";
+export {
+  ProjectScopedCollection,
+  ProjectScopedResource,
+} from "./resources/project-scoped.js";
+export { IntegrationsApi } from "./resources/integrations.js";
+export { JudgesApi } from "./resources/judges.js";
+export { OidcApi } from "./resources/oidc.js";
 
 // REST API wire types
 // jscpd:ignore-start -- re-export list of wire type names
@@ -325,6 +344,70 @@ export type {
   MetricEffectiveWindow,
   MetricQueryMeta,
   MetricQueryResponse,
+  ProjectRef,
+  Project,
+  ProjectListParams,
+  ApiKey,
+  ApiKeyCapability,
+  ApiKeyStatus,
+  ApiKeyCreated,
+  ApiKeyListParams,
+  ApiKeyCreateParams,
+  ApiKeyUpdateParams,
+  ApiKeyDeleteParams,
+  ApiKeyAcknowledgement,
+  Application,
+  ApplicationType,
+  ApplicationGrant,
+  ApplicationListParams,
+  ApplicationCreateParams,
+  ApplicationUpdateParams,
+  ApplicationIdp,
+  ApplicationIdpProvider,
+  ApplicationIdpStatus,
+  ApplicationIdpCreateParams,
+  ApplicationSecret,
+  ApplicationSecretStatus,
+  ApplicationSecretCreateParams,
+  ApplicationKey,
+  RuntimeSettingListParams,
+  Credential,
+  CredentialCreateParams,
+  CredentialUpdateParams,
+  Variable,
+  VariableKind,
+  VariableCreateParams,
+  VariableUpdateParams,
+  Integration,
+  IntegrationType,
+  IntegrationStatus,
+  IntegrationCreateParams,
+  IntegrationUpdateParams,
+  Judge,
+  JudgeListParams,
+  JudgeUpdateParams,
+  FeatureFlagValue,
+  OidcMe,
+  Image,
+  ImageKind,
+  ImageStatus,
+  ImageScanStatus,
+  ImageSourceKind,
+  ImageListParams,
+  ImageSource,
+  ContextImageSource,
+  MirrorImageSource,
+  ImageProvenance,
+  ImageCreateParams,
+  TaskCommandKind,
+  TaskCommandStatus,
+  ExecTaskCommand,
+  UploadTaskCommand,
+  DownloadTaskCommand,
+  TaskCommandSpec,
+  TaskCommand,
+  TaskCommandListParams,
+  TaskCommandGetOptions,
 } from "@introspection-sdk/types";
 // jscpd:ignore-end
 export {

@@ -10,6 +10,7 @@ import {
   ConversationsApi,
   EventsApi,
   FilesApi,
+  ImagesApi,
   MetricsApi,
   SharesApi,
   TasksApi,
@@ -34,8 +35,8 @@ export type RunnerSource =
  * Live handle to a Data Plane sandbox. Holds the bearer JWT, the DP
  * endpoint URL, and the runtime/experiment context, and exposes the
  * runner-bound Data Plane namespaces ({@link DataPlaneResources}: `tasks`,
- * `files`, `conversations`, `events`, `metrics`, `shares`, `automations`
- * and `connections`), which send the runner's bearer and use its
+ * `files`, `conversations`, `events`, `metrics`, `shares`, `automations`,
+ * `images` and `connections`), which send the runner's bearer and use its
  * runtime context.
  *
  * A runner a member opens for themself carries `automations:read` and
@@ -61,6 +62,8 @@ export class Runner implements DataPlaneResources {
   readonly shares: SharesApi;
   /** CRUD on `/v1/automations` plus `trigger(id)`, on the runner's token. */
   readonly automations: AutomationsApi;
+  /** `/v1/images`, on the runner's token. */
+  readonly images: ImagesApi;
   /**
    * CRUD on `/v1/connections`. `create` defaults `runtime` to this runner's
    * runtime group.
@@ -81,6 +84,7 @@ export class Runner implements DataPlaneResources {
     this.metrics = new MetricsApi(this.guardedHttp());
     this.shares = new SharesApi(this.guardedHttp());
     this.automations = new AutomationsApi(this.guardedHttp());
+    this.images = new ImagesApi(this.guardedHttp());
     this.connections = new AppConnectionsApi(
       this.guardedHttp(),
       () => this.spec.runtime_context?.runtime_group_id,

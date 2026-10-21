@@ -73,6 +73,24 @@ describe("public export barrels", () => {
     expect(mod.foldAgui).toBeTypeOf("function");
     expect(mod.mergeTranscripts).toBeTypeOf("function");
     expect(mod.TranscriptAccumulator).toBeTypeOf("function");
+    for (const name of [
+      "ProjectsApi",
+      "ApiKeysApi",
+      "ApplicationsApi",
+      "ApplicationIdpsApi",
+      "ApplicationSecretsApi",
+      "ApplicationKeysApi",
+      "CredentialsApi",
+      "VariablesApi",
+      "IntegrationsApi",
+      "JudgesApi",
+      "OidcApi",
+      "ImagesApi",
+      "TaskCommandsApi",
+    ] as const) {
+      expect(mod[name], name).toBeTypeOf("function");
+    }
+    expect(mod.MAX_COMMAND_WAIT_SECONDS).toBe(60);
   });
 
   it("@introspection-sdk/introspection-node/otel (traces surface)", async () => {

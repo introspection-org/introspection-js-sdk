@@ -160,6 +160,13 @@ const NAMESPACES: NamespaceCall[] = [
     "GET",
     `/v1/connections/${CONNECTION_ID}`,
   ],
+  ["images", (dp) => dp.images.get("image-1"), "GET", "/v1/images/image-1"],
+  [
+    "tasks.commands",
+    (dp) => dp.tasks.commands.get(TASK_ID, "command-1"),
+    "GET",
+    `/v1/tasks/${TASK_ID}/commands/command-1`,
+  ],
 ];
 
 describe("DataPlaneResources", () => {

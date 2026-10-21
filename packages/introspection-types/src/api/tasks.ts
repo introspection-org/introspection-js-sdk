@@ -1,5 +1,5 @@
 import type { ResumeEntry } from "@ag-ui/core";
-import type { IsoDate, ListParams, Uuid } from "./common.js";
+import type { CursorParams, IsoDate, ListParams, Uuid } from "./common.js";
 
 /**
  * The execution shape of a task.
@@ -104,6 +104,14 @@ export interface TaskRepoRequest {
 export interface TaskCreateParams {
   title?: string;
   prompt?: string;
+  /**
+   * Omit for an agent task. `eval` needs the `evals` capability and is the
+   * only kind that takes {@link TaskCreateParams.commands}; `process` is
+   * internal and refused.
+   */
+  kind?: Exclude<TaskKind, "process">;
+  /** Consent to `tasks.commands` against the live sandbox; eval tasks only. */
+  commands?: boolean;
   /** Recipe agent to run; omit for the recipe default (`agents/agent.yaml`). */
   agent_name?: string;
   /**
@@ -259,4 +267,78 @@ export interface TaskCancelOptions {
   mode?: "abort" | "drain";
   /** Drain only: force teardown after this many seconds. */
   drain_within_seconds?: number;
+}
+
+export type TaskCommandKind = "exec" | "upload" | "download";
+
+/** `completed` and `failed` are terminal. */
+export type TaskCommandStatus = "queued" | "running" | "completed" | "failed";
+
+/**
+ * Run an argv (never a shell string) and record its exit code and output.
+ * `service` names a compose service; omit it (or `main`) for the agent's own
+ * container.
+ */
+export interface ExecTaskCommand {
+  kind: "exec";
+  command: string[];
+  cwd?: string;
+  /** Defaults to 300. */
+  timeout_seconds?: number;
+  service?: string;
+}
+
+/** Copy a Files API object to an absolute `path` inside the sandbox. */
+export interface UploadTaskCommand {
+  kind: "upload";
+  file_id: Uuid;
+  path: string;
+}
+
+/**
+ * Copy the file at an absolute `path` out into a new Files API object,
+ * reported as {@link TaskCommand.output_file_id}.
+ */
+export interface DownloadTaskCommand {
+  kind: "download";
+  path: string;
+  service?: string;
+}
+
+/** `POST /v1/tasks/{id}/commands` body, tagged by `kind`. */
+export type TaskCommandSpec =
+  ExecTaskCommand | UploadTaskCommand | DownloadTaskCommand;
+
+/** A recorded task command and, once terminal, its outcome. */
+export interface TaskCommand {
+  id: Uuid;
+  task_id: Uuid;
+  kind: TaskCommandKind;
+  /** The spec as the API normalized it. */
+  spec: Record<string, unknown>;
+  status: TaskCommandStatus;
+  exit_code?: number | null;
+  stdout?: string | null;
+  stderr?: string | null;
+  output_file_id?: Uuid | null;
+  error?: string | null;
+  created_at: IsoDate;
+  updated_at: IsoDate;
+  started_at?: IsoDate | null;
+  finished_at?: IsoDate | null;
+}
+
+/** `GET /v1/tasks/{id}/commands` filters. */
+export interface TaskCommandListParams extends CursorParams {
+  status?: TaskCommandStatus;
+}
+
+/** `GET /v1/tasks/{id}/commands/{command_id}` options. */
+export interface TaskCommandGetOptions {
+  /**
+   * Hold the read until the command finishes or this many seconds pass, and
+   * return it in whatever state it is then. Capped at
+   * `MAX_COMMAND_WAIT_SECONDS`; call again to wait longer.
+   */
+  wait_seconds?: number;
 }

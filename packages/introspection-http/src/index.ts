@@ -36,7 +36,10 @@ export {
 export type { ResourceHttpClient } from "./resources/types.js";
 export { encodeMetadataFilter } from "./resources/metadata-filter.js";
 export {
+  MAX_COMMAND_WAIT_SECONDS,
   RunHandle,
+  TaskCommandsApi,
+  TaskCommandsClient,
   TaskRunsApi,
   TaskRunsClient,
   TasksApi,
@@ -72,6 +75,8 @@ export {
 } from "./resources/reads.js";
 export type { ListReadParams } from "./resources/reads.js";
 export { SharesApi, SharesClient } from "./resources/shares.js";
+export { CollectionClient } from "./resources/collection.js";
+export { ImagesApi, ImagesClient } from "./resources/images.js";
 export { AutomationsApi, AutomationsClient } from "./resources/automations.js";
 export {
   RuntimeHandle,
