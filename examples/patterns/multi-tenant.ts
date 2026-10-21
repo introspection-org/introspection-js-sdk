@@ -4,7 +4,7 @@
  *
  * Run with:
  *   INTROSPECTION_TOKEN=intro_xxx
- *   pnpm patterns-multi-tenant
+ *   node --import tsx patterns/multi-tenant.ts
  *
  * Optional env:
  *   INTROSPECTION_BASE_API_URL  - CP API host

@@ -7,7 +7,7 @@
  *
  * Run with:
  *   INTROSPECTION_TOKEN=intro_xxx
- *   pnpm patterns-agent-follow-ups
+ *   node --import tsx patterns/agent-follow-ups.ts
  *
  * Optional env:
  *   INTROSPECTION_RUNTIME       - runtime slug or ID (default customer-agent)

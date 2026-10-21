@@ -8,7 +8,7 @@
  *
  * Run with:
  *   INTROSPECTION_TOKEN=intro_xxx
- *   pnpm reference-javascript-feedback
+ *   node --import tsx reference/javascript-feedback.ts
  *
  * Optional env:
  *   INTROSPECTION_TASK_ID       - conversation to attach the feedback to

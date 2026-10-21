@@ -27,24 +27,13 @@ pnpm api-connectors-pipedream     # Create a Pipedream connector and authorize o
 pnpm api-connectors-custom-app    # Registry search + OAuth discovery for a custom MCP app (Linear)
 ```
 
-## Docs reference snippets
+## Docs snippets
 
-`reference/` backs the code blocks on the docs' JavaScript SDK and
-Authentication pages. The docs extract the code between
-`// #region docs:<id>` and `// #endregion docs:<id>` at a pinned release tag;
-the code around a region does the setup the docs leave out. Regions inside a
-function are indented one level, so the extractor dedents them. Prettier skips
-`reference/` so the regions keep the docs' layout, and
-`pnpm check:doc-regions` (repo root) checks the markers.
-
-```bash
-pnpm reference-javascript          # Reattach, files, reads, warm task on one runner
-pnpm reference-javascript-run-task # Run a task on the support-agent runtime
-pnpm reference-javascript-feedback # IntrospectionLogs feedback + track
-pnpm reference-auth-api-key        # API-key client, implicit and explicit
-pnpm reference-auth-service-account # client_credentials service account
-pnpm reference-auth-hosted-login <code> <redirect-uri> <code-verifier>
-```
+`reference/`, `observe/`, `identity/`, `patterns/` and `browser/` back the
+code blocks in the docs. The docs extract the code between
+`// #region docs:<id>` and `// #endregion docs:<id>` at a pinned release tag.
+Prettier skips these folders, and `pnpm check:doc-regions` (repo root) checks
+the markers. Run any file from `examples/` with `node --import tsx <file>`.
 
 ## Egress Proxy
 
@@ -91,33 +80,6 @@ adopt it.
 
 ```bash
 pnpm pi-dual-export               # + a second OTLP backend
-```
-
-## Docs pattern snippets
-
-`observe/`, `identity/` and `patterns/` back the code blocks on the docs'
-pattern, observe and identity pages, one module per page; `browser/` holds the
-browser side of the web-chat page as its own package (DOM types, typecheck
-only). The docs extract the code between `// #region docs:<id>` and
-`// #endregion docs:<id>` at a pinned release tag; the code around a region
-does the setup the docs leave out. Prettier skips these folders so the regions
-keep the docs' layout.
-
-```bash
-pnpm observe-feedback-events         # IntrospectionLogs feedback + track for a conversation
-pnpm identity-agents                 # Runner for an end user
-pnpm identity-sharing                # Share a conversation
-pnpm patterns-add-to-your-app        # Service-account runner, start, reconnect, feedback
-pnpm patterns-agent-follow-ups       # Time zone on the task
-pnpm patterns-approve-outside        # Steer with a <user_action>
-pnpm patterns-ask-the-user           # Detect an interrupt and resume it
-pnpm patterns-files                  # Upload, attach, download
-pnpm patterns-multi-tenant           # End-user tags + per-task metadata
-pnpm patterns-per-user-tools         # Mint a connector authorize link for an end user
-pnpm patterns-per-user-tools-connect # The end user's own connect button
-pnpm patterns-structured-output      # Read submit_result args from the stream, validate
-pnpm patterns-trigger                # Task per webhook event, batch in waves
-pnpm patterns-web-chat               # Broker route (service account) + federated variant
 ```
 
 ## Manual instrumentation

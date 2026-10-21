@@ -5,7 +5,7 @@
  * Run with a token for the end user (a runner or member token):
  *   INTROSPECTION_TOKEN=intro_xxx
  *   INTROSPECTION_APP=<app slug, e.g. slack>
- *   pnpm patterns-per-user-tools-connect
+ *   node --import tsx patterns/per-user-tools-connect.ts
  *
  * Not run in the examples workflow: the app must be served through a
  * Pipedream connector the job's project does not have.

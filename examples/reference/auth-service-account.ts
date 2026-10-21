@@ -9,7 +9,7 @@
  *   INTROSPECTION_SERVICE_ACCOUNT_CLIENT_ID=intro_app_xxx
  *   INTROSPECTION_SERVICE_ACCOUNT_CLIENT_SECRET=intro_sk_xxx
  *   INTROSPECTION_PROJECT=<project slug or ID>
- *   pnpm reference-auth-service-account
+ *   node --import tsx reference/auth-service-account.ts
  *
  * Optional env:
  *   INTROSPECTION_BASE_API_URL  - CP API host (default https://api.introspection.dev)

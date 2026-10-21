@@ -7,7 +7,7 @@
  *
  * Run with:
  *   INTROSPECTION_TOKEN=intro_xxx
- *   pnpm observe-feedback-events
+ *   node --import tsx observe/feedback-events.ts
  *
  * Optional env:
  *   INTROSPECTION_RUNTIME       - runtime slug or ID (default customer-agent)

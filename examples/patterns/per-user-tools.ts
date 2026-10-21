@@ -10,7 +10,7 @@
  *   INTROSPECTION_TOKEN=intro_xxx
  *   INTROSPECTION_CONNECTOR_ID=<pipedream connector id>
  *   INTROSPECTION_APP=<app slug, e.g. slack>
- *   pnpm patterns-per-user-tools
+ *   node --import tsx patterns/per-user-tools.ts
  *
  * Optional env:
  *   INTROSPECTION_BASE_API_URL  - CP API host

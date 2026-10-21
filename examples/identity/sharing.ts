@@ -7,7 +7,7 @@
  *
  * Run with:
  *   INTROSPECTION_TOKEN=intro_xxx
- *   pnpm identity-sharing
+ *   node --import tsx identity/sharing.ts
  *
  * Optional env:
  *   INTROSPECTION_GRANTEE_MEMBER_ID  - member to share with (default: project)

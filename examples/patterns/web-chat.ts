@@ -13,7 +13,7 @@
  *   INTROSPECTION_SERVICE_ACCOUNT_CLIENT_ID=...
  *   INTROSPECTION_SERVICE_ACCOUNT_CLIENT_SECRET=...
  *   INTROSPECTION_PROJECT=<project id>
- *   pnpm patterns-web-chat
+ *   node --import tsx patterns/web-chat.ts
  *
  * Optional env:
  *   INTROSPECTION_BASE_API_URL  - CP API host

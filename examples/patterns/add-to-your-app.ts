@@ -12,7 +12,7 @@
  *   INTROSPECTION_SERVICE_ACCOUNT_CLIENT_SECRET=...
  *   INTROSPECTION_PROJECT=<project id>
  *   INTROSPECTION_API_KEY=intro_xxx
- *   pnpm patterns-add-to-your-app
+ *   node --import tsx patterns/add-to-your-app.ts
  *
  * Optional env:
  *   INTROSPECTION_BASE_API_URL  - CP API host

@@ -8,7 +8,7 @@
  *
  * Run with:
  *   INTROSPECTION_TOKEN=intro_xxx
- *   pnpm patterns-structured-output
+ *   node --import tsx patterns/structured-output.ts
  *
  * Optional env:
  *   INTROSPECTION_RUNTIME       - runtime slug or ID (default customer-agent)

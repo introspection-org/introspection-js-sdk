@@ -7,7 +7,7 @@
  *
  * Run with:
  *   INTROSPECTION_TOKEN=intro_xxx
- *   pnpm patterns-ask-the-user
+ *   node --import tsx patterns/ask-the-user.ts
  *
  * Optional env:
  *   INTROSPECTION_RUNTIME       - runtime slug or ID (default customer-agent)

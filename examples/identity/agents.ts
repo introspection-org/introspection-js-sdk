@@ -4,7 +4,7 @@
  *
  * Run with:
  *   INTROSPECTION_TOKEN=intro_xxx
- *   pnpm identity-agents
+ *   node --import tsx identity/agents.ts
  *
  * Optional env:
  *   INTROSPECTION_BASE_API_URL  - CP API host

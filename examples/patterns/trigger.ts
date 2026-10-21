@@ -8,7 +8,7 @@
  *
  * Run with:
  *   INTROSPECTION_TOKEN=intro_xxx
- *   pnpm patterns-trigger
+ *   node --import tsx patterns/trigger.ts
  *
  * Optional env:
  *   INTROSPECTION_BASE_API_URL  - CP API host
