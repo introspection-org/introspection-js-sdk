@@ -73,7 +73,7 @@ export const flow = {
         {
           kind: "package",
           package: "@introspection-sdk/person-server",
-          path: "src/person-server.ts",
+          path: "src/missions.ts",
           region: "missions",
           label: "Acme: missions",
         },
@@ -101,7 +101,7 @@ export const flow = {
         {
           kind: "package",
           package: "@introspection-sdk/person-server",
-          path: "src/person-server.ts",
+          path: "src/person-token.ts",
           region: "person-token",
           label: "Acme: person tokens under the mission",
         },
@@ -220,14 +220,14 @@ export const flow = {
         {
           kind: "package",
           package: "@introspection-sdk/person-server",
-          path: "src/person-server.ts",
+          path: "src/verify-agent.ts",
           region: "verify-agent",
           label: "Acme: verify the agent",
         },
         {
           kind: "package",
           package: "@introspection-sdk/person-server",
-          path: "src/person-server.ts",
+          path: "src/auth-token.ts",
           region: "auth-token",
           label: "Acme: verify the request, weigh the budget",
         },
@@ -277,7 +277,7 @@ export const flow = {
         {
           kind: "package",
           package: "@introspection-sdk/person-server",
-          path: "src/person-server.ts",
+          path: "src/pending.ts",
           region: "pending",
           label: "Acme: the pending URL",
         },
@@ -316,7 +316,7 @@ export const flow = {
         {
           kind: "package",
           package: "@introspection-sdk/person-server",
-          path: "src/person-server.ts",
+          path: "src/missions.ts",
           region: "missions",
           label: "Acme: missions",
         },
