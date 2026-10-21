@@ -29,8 +29,11 @@ export interface Agent {
 }
 
 export type ApprovalKind = "mission" | "auth_token" | "completion";
-/** `collected`: decided, and the decision handed to the agent, which its pending URL does once. */
-export type ApprovalStatus = "pending" | "approved" | "denied" | "collected";
+/** What was decided. Whether the agent has the answer is `answered_at`. */
+export type ApprovalStatus = "pending" | "approved" | "denied";
+
+/** The state a transition expects an approval still to be in: its decision, and whether it was answered. */
+export type ApprovalState = Pick<Approval, "status" | "answered_at">;
 
 /**
  * An auth token request the resource's own Access Server decides too (draft
@@ -84,6 +87,11 @@ export interface Approval {
   decided_by?: string;
   /** When it was decided or withdrawn, in seconds since the epoch. */
   decided_at?: number;
+  /**
+   * When its pending URL gave the agent the decision (#pending-url-security):
+   * a decision is answered once, and an auth token is minted then.
+   */
+  answered_at?: number;
   /** The tenant it was asked under: the one the agent named, else the default. */
   tenant: string;
   created_at: number;
@@ -126,8 +134,8 @@ export interface Decision {
  *
  * Three methods must be atomic, since concurrent requests race on them:
  * `spend` checks and spends in one step, so two bookings cannot both fit in
- * what is left; `transitionApproval` changes an approval only from the status
- * it was read in, so a decision, a withdrawal or a collection happens once;
+ * what is left; `transitionApproval` changes an approval only from the state
+ * it was read in, so a decision, a withdrawal or an answer happens once;
  * and `insertMission` never replaces a mission. `logMission` and `endMission`
  * change a mission in place rather than overwriting a concurrent spend.
  */
@@ -168,10 +176,14 @@ export interface Store {
   approval(tenant: string, id: string): Promise<Approval | undefined>;
   /** Save a new approval. */
   insertApproval(tenant: string, approval: Approval): Promise<void>;
-  /** Replace approval `next.id` with `next` only if its status is still `expected`; returns whether it did. */
+  /**
+   * Replace approval `next.id` with `next` only if its `status` and
+   * `answered_at` are still `expected`'s (an absent `answered_at` matches only
+   * an absent one); returns whether it did.
+   */
   transitionApproval(
     tenant: string,
-    expected: ApprovalStatus,
+    expected: ApprovalState,
     next: Approval,
   ): Promise<boolean>;
   /** The tenant's approvals. */

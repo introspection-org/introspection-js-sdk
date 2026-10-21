@@ -537,6 +537,15 @@ describe("@introspection-sdk/aauth-access-server federation", () => {
     const again = await agent.send("GET", location);
     expect(again.status).toBe(410);
     expect(await again.json()).toMatchObject({ error: "invalid_code" });
+    expect(as.pendings()[0]).toMatchObject({ status: "approved" });
+    const stored = (await ps.approvals("acme")).find(
+      (a) => a.kind === "auth_token",
+    );
+    expect(stored).toMatchObject({
+      kind: "auth_token",
+      status: "approved",
+      answered_at: expect.any(Number),
+    });
   });
 
   it("relays the Access Server's interaction to the agent, and its denial", async () => {
@@ -564,6 +573,9 @@ describe("@introspection-sdk/aauth-access-server federation", () => {
     const denied = await agent.send("GET", location);
     expect(denied.status).toBe(403);
     expect((await agent.send("GET", location)).status).toBe(410);
+    expect(
+      (await ps.approvals("acme")).find((a) => a.kind === "auth_token"),
+    ).toMatchObject({ status: "denied", decided_by: AS });
     expect(await spent(trip.s256)).toBe(0);
   });
 
@@ -1119,6 +1131,10 @@ describe("@introspection-sdk/aauth-access-server federation", () => {
     as.decide(as.pendings()[0]!.id, { status: "denied" });
     expect((await pollAsPersonServer(location)).status).toBe(403);
     expect((await pollAsPersonServer(location)).status).toBe(410);
+    expect(as.pendings()[0]).toMatchObject({
+      status: "denied",
+      answered_at: expect.any(Number),
+    });
   });
 
   it("sends no token to an Access Server whose endpoints are on another origin", async () => {

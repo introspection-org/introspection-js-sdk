@@ -413,17 +413,17 @@ export async function createAccessServer(options: AccessServerOptions) {
     const record = pending.get(id);
     if (!record || record.request.ps !== ps)
       return problem(404, "not_found", "no such pending request");
-    if (record.status === "collected")
+    if (record.answered_at !== undefined)
       return problem(410, "invalid_code", "this request was answered already");
     if (record.status === "denied") {
-      record.status = "collected";
+      record.answered_at = now();
       return problem(403, "denied", "this resource's policy refuses it");
     }
     if (now() >= record.expires_at)
       return problem(408, "expired", "nobody decided in time");
     if (record.status === "pending") return waiting(record);
-    // Issued once: the poll that collects it mints it.
-    record.status = "collected";
+    // Issued once: the poll that answers it mints it.
+    record.answered_at = now();
     return issue(record, narrowed(record.request.scope, record.scope));
   }
 

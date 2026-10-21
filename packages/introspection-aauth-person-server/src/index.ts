@@ -11,6 +11,7 @@ export type {
   Agent,
   Approval,
   ApprovalKind,
+  ApprovalState,
   ApprovalStatus,
   AuthGrant,
   Budget,

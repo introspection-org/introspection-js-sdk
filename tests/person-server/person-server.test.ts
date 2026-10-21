@@ -16,6 +16,7 @@ import {
   DEFAULT_TENANT,
   MemoryStore,
   type Approval,
+  type ApprovalState,
   type ApprovalStatus,
   type Mission,
   type Person,
@@ -768,7 +769,7 @@ describe("@introspection-sdk/aauth-person-server", () => {
       lose = false;
       override async transitionApproval(
         tenant: string,
-        expected: ApprovalStatus,
+        expected: ApprovalState,
         next: Approval,
       ) {
         if (this.lose) {
@@ -1215,6 +1216,16 @@ describe("@introspection-sdk/aauth-person-server token shape and lifetimes", () 
     const refusedPath = new URL(refused.headers.get("location")!).pathname;
     expect((await call(agent, "GET", refusedPath)).status).toBe(403);
     expect((await call(agent, "GET", refusedPath)).status).toBe(410);
+
+    const byStatus = async (status: string) =>
+      (await ps.approvals("acme"))
+        .filter((a) => a.status === status)
+        .map((a) => a.kind);
+    expect(await byStatus("approved")).toEqual(["mission", "completion"]);
+    expect(await byStatus("denied")).toEqual(["mission"]);
+    expect(
+      (await ps.approvals("acme")).every((a) => a.answered_at !== undefined),
+    ).toBe(true);
   });
 
   it("verifies a poll for a tenant that needs percent-encoding as it was addressed", async () => {

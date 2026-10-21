@@ -63,8 +63,8 @@ export type Verdict =
 
 export type Policy = (request: AccessRequest) => Verdict | Promise<Verdict>;
 
-/** `collected`: decided, and the decision handed to the Person Server, which its pending URL does once. */
-export type PendingStatus = "pending" | "approved" | "denied" | "collected";
+/** What was decided. Whether the Person Server has the answer is `answered_at`. */
+export type PendingStatus = "pending" | "approved" | "denied";
 
 /** A request this Access Server's policy is waiting on. */
 export interface PendingAccess {
@@ -82,6 +82,8 @@ export interface PendingAccess {
   /** Narrowed by `decide()`, when it approves for less than was asked. */
   scope?: string;
   decided_by?: string;
+  /** When its pending URL gave the Person Server the decision: once, and an auth token is minted then. */
+  answered_at?: number;
   created_at: number;
   expires_at: number;
 }

@@ -795,7 +795,7 @@ export async function createPersonServer(options: PersonServerOptions) {
       return problem(404, "not_found", "no such pending request");
     if (request.method === "DELETE") {
       if (approval.status === "pending")
-        await store.transitionApproval(tenant, "pending", {
+        await store.transitionApproval(tenant, approval, {
           ...approval,
           status: "denied",
           decided_by: "agent",
@@ -807,21 +807,21 @@ export async function createPersonServer(options: PersonServerOptions) {
       return now() >= approval.expires_at
         ? problem(408, "expired", "nobody answered in time")
         : stillPending(tenant, id);
-    if (approval.status === "collected") return collected();
-    const answered: Approval = { ...approval, status: "collected" };
+    if (approval.answered_at !== undefined) return collected();
+    const answered: Approval = { ...approval, answered_at: now() };
     const declined = `${approval.approver.name ?? "The approver"} declined`;
     if (approval.status === "denied")
-      return (await store.transitionApproval(tenant, "denied", answered))
+      return (await store.transitionApproval(tenant, approval, answered))
         ? problem(403, "denied", declined)
         : collected();
     if (approval.kind === "completion")
-      return (await store.transitionApproval(tenant, "approved", answered))
+      return (await store.transitionApproval(tenant, approval, answered))
         ? Response.json({})
         : collected();
     // Nothing is issued under a mission that has ended, whatever was approved.
     const mission = await liveMission(tenant, agent, approval.mission_s256);
     if (approval.kind === "mission") {
-      if (!(await store.transitionApproval(tenant, "approved", answered)))
+      if (!(await store.transitionApproval(tenant, approval, answered)))
         return collected();
       const tokens = await Promise.all(
         mission.resources.map(async (r) => [
@@ -844,15 +844,15 @@ export async function createPersonServer(options: PersonServerOptions) {
         { ...approval, federation: federated },
         true,
       );
-    // Collected once: only the poll that collects it spends, so it spends and mints once.
-    if (!(await store.transitionApproval(tenant, "approved", answered)))
+    // Answered once: only the poll that answers it spends, so it spends and mints once.
+    if (!(await store.transitionApproval(tenant, approval, answered)))
       return collected();
     const issuedUnder = await access.spendApproved(
       tenant,
       approval,
       mission,
       false,
-      true,
+      answered.answered_at,
     );
     if (!approval.grant)
       throw new AAuthError(500, "server_error", "this approval grants nothing");
@@ -867,7 +867,7 @@ export async function createPersonServer(options: PersonServerOptions) {
   // #region decide
   /**
    * Record a decision. Approving does what was asked: creates the mission or
-   * completes it; an approved request is spent when its token is collected. A decision is made once: a
+   * completes it; an approved request is spent when its token is answered. A decision is made once: a
    * second, even a concurrent one, is a 409. `tenant` is the one the agent
    * asked under.
    */
@@ -944,7 +944,7 @@ export async function createPersonServer(options: PersonServerOptions) {
     // The mission goes in first, so a decision never points at a mission it did not create.
     if (created && !(await store.insertMission(tenant, created)))
       throw already();
-    if (!(await store.transitionApproval(tenant, "pending", decided))) {
+    if (!(await store.transitionApproval(tenant, approval, decided))) {
       if (created) await store.endMission(tenant, created.s256, now());
       throw already();
     }

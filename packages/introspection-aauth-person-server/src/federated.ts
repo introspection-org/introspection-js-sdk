@@ -79,23 +79,27 @@ export function federatedAccess(ctx: FederatedContext) {
    * Spend an approval's budget on its mission, returning the mission it was
    * spent under; undefined when `withinBudget` and it no longer fits. A request
    * in another unit than the mission's budget is approved without spending it.
-   * `collected` puts the collected approval back if the spend does not land, so
-   * a later poll can collect it.
+   * `answeredAt`, when the approval was answered for this spend, puts it back
+   * unanswered if the spend does not land, so a later poll can answer it.
    */
   async function spendApproved(
     tenant: string,
     approval: Approval,
     mission: Mission,
     withinBudget: boolean,
-    collected: boolean,
+    answeredAt: number | undefined,
     budget: Budget | undefined = approval.budget,
   ): Promise<Mission | undefined> {
     if (!budget || !mission.budget || !sameScale(mission.budget, budget))
       return mission;
     const restore = async () => {
-      if (collected)
+      if (answeredAt !== undefined)
         await store
-          .transitionApproval(tenant, "collected", approval)
+          .transitionApproval(
+            tenant,
+            { status: approval.status, answered_at: answeredAt },
+            approval,
+          )
           .catch(() => false);
     };
     let spent: Mission | undefined;
@@ -182,9 +186,10 @@ export function federatedAccess(ctx: FederatedContext) {
         err.status < 500 &&
         err.status !== 429
       )
-        await store.transitionApproval(tenant, "approved", {
+        await store.transitionApproval(tenant, approval, {
           ...approval,
-          status: "collected",
+          status: "denied",
+          answered_at: now(),
           decided_by: federation.access_server,
           decided_at: now(),
         });
@@ -192,11 +197,12 @@ export function federatedAccess(ctx: FederatedContext) {
     }
     if (answer.status !== "issued")
       return wait(tenant, approval, answer, stored);
+    const answeredAt = stored ? now() : undefined;
     if (
-      stored &&
-      !(await store.transitionApproval(tenant, "approved", {
+      answeredAt !== undefined &&
+      !(await store.transitionApproval(tenant, approval, {
         ...approval,
-        status: "collected",
+        answered_at: answeredAt,
       }))
     )
       return ctx.collected();
@@ -207,10 +213,10 @@ export function federatedAccess(ctx: FederatedContext) {
       approval,
       mission,
       federation.within_budget,
-      stored,
+      answeredAt,
       budget,
     );
-    if (!spent) return reask(tenant, approval, stored);
+    if (!spent) return reask(tenant, approval, answeredAt);
     await ctx.onIssued?.({
       type: "auth_token",
       agent,
@@ -254,7 +260,7 @@ export function federatedAccess(ctx: FederatedContext) {
       waiting.federation.location !== federation.location ||
       waiting.federation.requirement !== federation.requirement
     )
-      await store.transitionApproval(tenant, "approved", waiting);
+      await store.transitionApproval(tenant, approval, waiting);
     return ctx.stillPending(
       tenant,
       approval.id,
@@ -267,7 +273,7 @@ export function federatedAccess(ctx: FederatedContext) {
   async function reask(
     tenant: string,
     approval: Approval & { federation: Federation },
-    stored: boolean,
+    answeredAt: number | undefined,
   ): Promise<Response> {
     const {
       access_server,
@@ -292,8 +298,14 @@ export function federatedAccess(ctx: FederatedContext) {
       },
     };
     delete asking.decided_at;
-    if (!stored) await store.insertApproval(tenant, asking);
-    else if (!(await store.transitionApproval(tenant, "collected", asking)))
+    if (answeredAt === undefined) await store.insertApproval(tenant, asking);
+    else if (
+      !(await store.transitionApproval(
+        tenant,
+        { status: approval.status, answered_at: answeredAt },
+        asking,
+      ))
+    )
       return ctx.collected();
     await ctx.onApproval?.(asking);
     return ctx.stillPending(tenant, asking.id);

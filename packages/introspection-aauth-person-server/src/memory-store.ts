@@ -1,6 +1,6 @@
 import type {
   Approval,
-  ApprovalStatus,
+  ApprovalState,
   Mission,
   Person,
   Store,
@@ -112,10 +112,14 @@ export class MemoryStore implements Store {
 
   async transitionApproval(
     tenant: string,
-    expected: ApprovalStatus,
+    expected: ApprovalState,
     next: Approval,
   ) {
-    if (this.approvalsById.get(tenant, next.id)?.status !== expected)
+    const current = this.approvalsById.get(tenant, next.id);
+    if (
+      current?.status !== expected.status ||
+      current.answered_at !== expected.answered_at
+    )
       return false;
     this.approvalsById.set(tenant, next.id, next);
     return true;
