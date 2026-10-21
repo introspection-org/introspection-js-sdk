@@ -52,6 +52,10 @@ If your branch is intentionally adding code that can't be covered by unit tests 
 
 `.github/workflows/ci.yml` runs the same coverage check on every PR and uploads the HTML report as a downloadable artifact. CI is the source of truth — if your local hook passes but CI fails, CI wins (your local has stale builds or stale deps).
 
+The `main` ruleset (id 15042184) has no required status checks, only the `deletion`, `non_fast_forward` and `pull_request` rules. A "blocking" CI job means the job fails, not that GitHub blocks the merge: reviewers must check the run before merging.
+
+A workflow that needs a GitHub App token follows `release-please.yml`: `actions/create-github-app-token` with `app-id: ${{ vars.GH_APP_ID }}` (a variable, not a secret) and `private-key: ${{ secrets.GH_APP_PRIVATE_KEY }}`.
+
 ### Unused code (Knip)
 
 The `knip` job in `ci.yml` runs `knip` and `knip --production` and fails on any finding. Run them locally with `pnpm knip` and `pnpm knip:production`. `knip.json` sets what counts as used:
@@ -93,6 +97,10 @@ pnpm jscpd:renamed   # clones that differ only in identifier names
 Both run a pinned `jscpd@5.4.1` over `packages/*/src` TypeScript (`.jscpd.json`: weak mode, `dist/` and `*.d.ts` ignored, 53 tokens / 9 lines minimum), and the `Duplicate Code` CI job fails on any clone from either. There is no threshold and no baseline: the count is zero and stays there.
 
 When one fires, extract the shared code: a helper in the package both copies already depend on (`@introspection-sdk/http` for resources, `@introspection-sdk/types` for pure helpers, a subpath such as `@introspection-sdk/types/logs` when the helper needs an OTel import the main entry must not take). Wrap a block in `// jscpd:ignore-start -- <reason>` / `// jscpd:ignore-end` only when it is declarations, not logic: a re-export list, an import list, or interface or field declarations that mirror a wire schema. Never use the markers on code that runs.
+
+### Other people's PRs
+
+PRs authored by `brightsparc` are theirs. Agents read them only: never comment on them or push to their branches.
 
 ---
 
@@ -237,6 +245,12 @@ If you reach for a mock, leave a one-line comment in the test header explaining 
 ### Use the right base URL in tests
 
 Tests should pass the base URL explicitly via the `pollyEndpoints` constants in `tests/polly-setup.ts`, not rely on `ANTHROPIC_BASE_URL`. Host shells pre-set it and it breaks Polly URL matching across record and replay.
+
+### Live suite
+
+`tests/live` runs CRUD walks against a real deployment with `INTROSPECTION_LIVE=1 pnpm test:live`; the header of `tests/live/live-api.test.ts` lists the settings it needs.
+
+Never stop, migrate or seed the local stack served from the `introspection-cloud` main checkout. Run an isolated stack in your own `introspection-cloud` worktree instead: its own `COMPOSE_PROJECT_NAME` and other ports, set through local, uncommitted compose/Makefile/envoy overrides. Tear it down with `docker compose down -v` afterwards. If that isn't possible, the fallback is an additive seed into the main stack.
 
 ---
 
