@@ -15,15 +15,20 @@
  * read with the TypeScript compiler API — which means this checks the source of
  * truth developers actually edit, including inherited members through `extends`.
  *
+ * Beyond fields, every operation in both references must be classified in
+ * scripts/api-contract/operations.json as called by this SDK ("sdk") or
+ * excluded with a reason, and the classification must agree with the route
+ * literals in each package's `src` (see "operations" below).
+ *
  * Deliberately NOT a unit test and NOT a pull-request gate. It reaches the
  * network and it goes red when the API changes, which is a fact about the world
  * and not about the commit under review — gating PRs on that trains people to
  * ignore it, and being ignorable is how the last one survived.
  *
- * Run: node scripts/check-api-contract.mjs [--spec URL|PATH]
+ * Run: node scripts/check-api-contract.mjs [--spec URL|PATH] [--cp-spec URL|PATH]
  */
-import { readFileSync } from "node:fs";
-import { dirname, resolve } from "node:path";
+import { readdirSync, readFileSync } from "node:fs";
+import { dirname, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import ts from "typescript";
@@ -544,6 +549,276 @@ const listing = (fields) =>
     .map((f) => `\n      ${f}`)
     .join("");
 
+// --- operations -------------------------------------------------------------
+// The surfaces above compare fields of routes someone already thought to list.
+// A route nobody listed was invisible: a whole resource could ship, drift or
+// disappear with nothing here noticing. So every operation in both references
+// is classified in operations.json, either as called by this SDK or as excluded
+// with a reason, and the classification is checked against the call sites.
+
+const OPERATIONS = resolve(ROOT, "scripts/api-contract/operations.json");
+const PACKAGES = resolve(ROOT, "packages");
+const PLANE_NAMES = { dp: "dataplane", cp: "controlplane" };
+const HTTP_METHODS = ["get", "post", "put", "patch", "delete"];
+/** Helpers that take a route as an argument and always send it as a GET. */
+const GET_HELPERS = new Set(["paginateGet", "listRead", "arrowRead"]);
+
+/** Path parameters compare by position, not by name. */
+const templateKey = (path) => path.replace(/\{[^}]*\}/g, "{}");
+
+function sourceFiles(dir) {
+  return readdirSync(dir, { recursive: true })
+    .filter((f) => /(^|\/)src\//.test(f) && f.endsWith(".ts"))
+    .filter((f) => !f.endsWith(".d.ts") && !f.endsWith(".test.ts"))
+    .filter((f) => !f.split("/").includes("node_modules"))
+    .map((f) => resolve(dir, f));
+}
+
+/**
+ * The route templates an expression can evaluate to, with every `${...}`
+ * that is not a known route prefix read as a path parameter. Empty when the
+ * expression is not a route.
+ *
+ * `aliases` maps a local `const` or helper function to the routes it holds,
+ * so `path: tagPath(kind, name)` and `${runPath}/stream` resolve too.
+ */
+function routesOf(node, aliases) {
+  if (!node) return [];
+  if (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)) {
+    return node.text.startsWith("/v1/") ? [node.text] : [];
+  }
+  if (ts.isIdentifier(node)) return aliases.get(node.text) ?? [];
+  if (ts.isCallExpression(node) && ts.isIdentifier(node.expression)) {
+    return aliases.get(node.expression.text) ?? [];
+  }
+  if (ts.isConditionalExpression(node)) {
+    return [
+      ...routesOf(node.whenTrue, aliases),
+      ...routesOf(node.whenFalse, aliases),
+    ];
+  }
+  if (ts.isParenthesizedExpression(node)) {
+    return routesOf(node.expression, aliases);
+  }
+  if (!ts.isTemplateExpression(node)) return [];
+
+  let prefixes = [node.head.text];
+  node.templateSpans.forEach((span, i) => {
+    const base =
+      i === 0 && node.head.text === ""
+        ? routesOf(span.expression, aliases)
+        : [];
+    prefixes = base.length
+      ? base.map((b) => b + span.literal.text)
+      : prefixes.map((p) => `${p}{}${span.literal.text}`);
+  });
+  return prefixes.filter((p) => p.startsWith("/v1/"));
+}
+
+/** `const x = <route>` and functions returning a route, in one file. */
+function collectAliases(source) {
+  const aliases = new Map();
+  // Post-order, so a helper's own `const base = ...` is known before its
+  // returns are read.
+  const visit = (node) => {
+    ts.forEachChild(node, visit);
+    if (
+      ts.isVariableDeclaration(node) &&
+      ts.isIdentifier(node.name) &&
+      node.initializer
+    ) {
+      const routes = routesOf(node.initializer, aliases);
+      if (routes.length) aliases.set(node.name.text, routes);
+    }
+    if (ts.isFunctionDeclaration(node) && node.name && node.body) {
+      const routes = [];
+      const returns = (inner) => {
+        if (ts.isFunctionLike(inner)) return;
+        if (ts.isReturnStatement(inner)) {
+          routes.push(...routesOf(inner.expression, aliases));
+        }
+        ts.forEachChild(inner, returns);
+      };
+      ts.forEachChild(node.body, returns);
+      if (routes.length) aliases.set(node.name.text, routes);
+    }
+  };
+  visit(source);
+  return aliases;
+}
+
+const calleeName = (call) =>
+  ts.isPropertyAccessExpression(call.expression)
+    ? call.expression.name.text
+    : ts.isIdentifier(call.expression)
+      ? call.expression.text
+      : undefined;
+
+/**
+ * Every route this SDK sends, as `{ method, path, at }`. A route is sent where
+ * it is the `path` of a request object (`{ method, path }`, or a `stream()`
+ * call, which is always a GET) or an argument of a GET-only helper. A route in
+ * any other position, such as a comparison or a doc comment, is not a call.
+ */
+function sdkCalls() {
+  const calls = [];
+  const unknownMethod = [];
+
+  for (const file of sourceFiles(PACKAGES)) {
+    const text = readFileSync(file, "utf8");
+    if (!text.includes("/v1/")) continue;
+    const source = ts.createSourceFile(
+      file,
+      text,
+      ts.ScriptTarget.Latest,
+      true,
+    );
+    const aliases = collectAliases(source);
+    const at = (node) =>
+      `${relative(ROOT, file)}:${source.getLineAndCharacterOfPosition(node.getStart(source)).line + 1}`;
+
+    const visit = (node) => {
+      if (
+        (ts.isPropertyAssignment(node) ||
+          ts.isShorthandPropertyAssignment(node)) &&
+        node.name.getText(source) === "path" &&
+        ts.isObjectLiteralExpression(node.parent)
+      ) {
+        const routes = routesOf(node.initializer ?? node.name, aliases);
+        if (routes.length) {
+          const methodProp = node.parent.properties.find(
+            (p) =>
+              ts.isPropertyAssignment(p) && p.name.getText(source) === "method",
+          );
+          const call = node.parent.parent;
+          let method;
+          if (methodProp && ts.isStringLiteralLike(methodProp.initializer)) {
+            method = methodProp.initializer.text;
+          } else if (
+            !methodProp &&
+            ts.isCallExpression(call) &&
+            calleeName(call) === "stream"
+          ) {
+            method = "GET";
+          }
+          for (const path of routes) {
+            if (method) calls.push({ method, path, at: at(node) });
+            else unknownMethod.push(`${path} (${at(node)})`);
+          }
+        }
+      }
+      if (ts.isCallExpression(node) && GET_HELPERS.has(calleeName(node))) {
+        for (const arg of node.arguments) {
+          for (const path of routesOf(arg, aliases)) {
+            calls.push({ method: "GET", path, at: at(arg) });
+          }
+        }
+      }
+      ts.forEachChild(node, visit);
+    };
+    visit(source);
+  }
+  return { calls, unknownMethod };
+}
+
+/** `{ "<METHOD> <path>": plane }` for every operation in both references. */
+function specOperations(specs) {
+  const operations = new Map();
+  for (const [plane, spec] of Object.entries(specs)) {
+    for (const [path, item] of Object.entries(spec.paths ?? {})) {
+      for (const method of HTTP_METHODS) {
+        if (item[method])
+          operations.set(`${method.toUpperCase()} ${path}`, plane);
+      }
+    }
+  }
+  return operations;
+}
+
+function checkOperations(specs) {
+  const problems = [];
+  const classified = JSON.parse(readFileSync(OPERATIONS, "utf8"));
+  const operations = specOperations(specs);
+
+  // The spec operation each normalized `<METHOD> <template>` names.
+  const byKey = new Map();
+  for (const op of operations.keys()) {
+    const [method, path] = op.split(" ");
+    byKey.set(`${method} ${templateKey(path)}`, op);
+  }
+
+  const { calls, unknownMethod } = sdkCalls();
+  const called = new Map();
+  const dead = [];
+  for (const call of calls) {
+    const op = byKey.get(`${call.method} ${templateKey(call.path)}`);
+    if (!op) {
+      dead.push(`${call.method} ${call.path} (${call.at})`);
+      continue;
+    }
+    if (!called.has(op)) called.set(op, []);
+    called.get(op).push(call.at);
+  }
+
+  const unclassified = [];
+  const stale = [];
+  const sdkUncalled = [];
+  const excludedCalled = [];
+  for (const [plane, name] of Object.entries(PLANE_NAMES)) {
+    const entries = classified[name] ?? {};
+    for (const [op, opPlane] of operations) {
+      if (opPlane === plane && !(op in entries))
+        unclassified.push(`${name}: ${op}`);
+    }
+    for (const [op, entry] of Object.entries(entries)) {
+      if (operations.get(op) !== plane) {
+        stale.push(`${name}: ${op}`);
+      } else if (entry === "sdk") {
+        if (!called.has(op)) sdkUncalled.push(`${name}: ${op}`);
+      } else if (
+        typeof entry?.excluded !== "string" ||
+        !entry.excluded.trim()
+      ) {
+        problems.push(
+          `operations.json — ${name}: ${op}\n  must be "sdk" or { "excluded": "<reason>" }`,
+        );
+      } else if (called.has(op)) {
+        excludedCalled.push(`${name}: ${op} (${called.get(op).join(", ")})`);
+      }
+    }
+  }
+
+  const report = (items, means) => {
+    if (items.length) problems.push(`operations — ${means}:${listing(items)}`);
+  };
+  report(
+    unclassified,
+    'in the API reference but not classified in operations.json (add it as "sdk" or excluded with a reason)',
+  );
+  report(
+    dead,
+    "called by this SDK but not in the API reference (the SDK calls a route that does not exist)",
+  );
+  report(
+    stale,
+    "classified in operations.json but no longer in the API reference (drop the entry)",
+  );
+  report(
+    sdkUncalled,
+    'classified "sdk" but no call site in packages/*/src sends it',
+  );
+  report(
+    excludedCalled,
+    'classified as excluded but called by this SDK (classify it "sdk")',
+  );
+  report(
+    unknownMethod,
+    "a route sent without a literal `method`, so it cannot be classified",
+  );
+
+  return { problems, count: operations.size };
+}
+
 async function loadSpec(source) {
   if (source.startsWith("http://") || source.startsWith("https://")) {
     const response = await fetch(source, {
@@ -632,6 +907,9 @@ async function main() {
       problems.push(`${surface.name} — ${surface.where}\n${lines.join("\n")}`);
   }
 
+  const operations = checkOperations(specs);
+  problems.push(...operations.problems);
+
   if (problems.length) {
     console.error(problems.join("\n\n"));
     console.error(`\nreference: ${specSource} + ${cpSpecSource}`);
@@ -639,7 +917,7 @@ async function main() {
   }
 
   console.log(
-    `✓ SDK surface matches the published reference (${SURFACES.length} surfaces)`,
+    `✓ SDK surface matches the published reference (${SURFACES.length} surfaces, ${operations.count} operations)`,
   );
   return 0;
 }
