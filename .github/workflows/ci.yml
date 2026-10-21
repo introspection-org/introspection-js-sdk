@@ -60,6 +60,9 @@ jobs:
       - name: Run type checking
         run: pnpm check-types
 
+      - name: Check docs snippet regions
+        run: pnpm check:doc-regions
+
       - name: Check for runtime import cycles
         run: pnpm check-cycles
 

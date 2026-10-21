@@ -18,7 +18,13 @@
     "proxy-supabase-manual": "node --import tsx proxy/supabase-manual.ts",
     "proxy-typesense": "node --import tsx proxy/typesense.ts",
     "proxy-deepwiki": "node --import tsx proxy/deepwiki-mcp.ts",
-    "proxy-deepwiki-mcporter": "node --import tsx proxy/deepwiki-mcporter.ts"
+    "proxy-deepwiki-mcporter": "node --import tsx proxy/deepwiki-mcporter.ts",
+    "reference-javascript-run-task": "node --import tsx reference/javascript-run-task.ts",
+    "reference-javascript": "node --import tsx reference/javascript.ts",
+    "reference-javascript-feedback": "node --import tsx reference/javascript-feedback.ts",
+    "reference-auth-api-key": "node --import tsx reference/auth-api-key.ts",
+    "reference-auth-service-account": "node --import tsx reference/auth-service-account.ts",
+    "reference-auth-hosted-login": "node --import tsx reference/auth-hosted-login.ts"
   },
   "dependencies": {
     "@introspection-sdk/introspection-node": "workspace:*",

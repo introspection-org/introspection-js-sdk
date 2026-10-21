@@ -57,3 +57,19 @@ jobs:
           OTEL_EXPORTER_OTLP_ENDPOINT: ${{ vars.OTEL_EXPORTER_OTLP_ENDPOINT }}
           OTEL_EXPORTER_OTLP_HEADERS: ${{ secrets.OTEL_EXPORTER_OTLP_HEADERS }}
         run: ./run_all.sh
+
+      # Docs reference snippets (examples/reference). Left out:
+      # reference-javascript-run-task (its region hardcodes the support-agent
+      # runtime slug), reference-auth-service-account (no service-account
+      # secrets here) and reference-auth-hosted-login (needs a code from a
+      # live browser redirect).
+      - name: Run reference examples
+        if: inputs.run_examples
+        working-directory: examples
+        env:
+          INTROSPECTION_TOKEN: ${{ secrets.INTROSPECTION_TOKEN }}
+          INTROSPECTION_BASE_OTEL_URL: ${{ vars.INTROSPECTION_BASE_OTEL_URL }}
+        run: |
+          pnpm reference-auth-api-key
+          pnpm reference-javascript
+          pnpm reference-javascript-feedback
