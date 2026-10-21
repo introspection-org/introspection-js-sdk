@@ -92,17 +92,18 @@ async function accessMetadata(
   });
   if (!response.ok) throw unreachable(`${url} answered ${response.status}`);
   const doc = await readJson(response);
-  const https = (value: unknown) =>
+  const https = (value: unknown): value is string =>
     typeof value === "string" && value.startsWith("https://");
+  const { issuer, jwks_uri, auth_token_endpoint } = doc;
   if (
-    doc.issuer !== accessServer ||
-    !https(doc.jwks_uri) ||
-    !https(doc.auth_token_endpoint)
+    issuer !== accessServer ||
+    !https(jwks_uri) ||
+    !https(auth_token_endpoint)
   )
     throw unreachable(
       `${url} is not this Access Server's metadata, with https endpoints`,
     );
-  return doc as unknown as AccessMetadata;
+  return { issuer: accessServer, jwks_uri, auth_token_endpoint };
 }
 
 /** A request signed with this Person Server's key, `sig=jwks_uri`. */
