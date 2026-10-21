@@ -46,7 +46,10 @@ function render(event: AGUIEvent): void {
         .map((m) => (m.role === "assistant" && typeof m.content === "string" ? m.content : ""))
         .join(""),
     );
-  } else if (event.type === EventType.TEXT_MESSAGE_CONTENT) {
+  } else if (
+    event.type === EventType.TEXT_MESSAGE_CONTENT ||
+    event.type === EventType.TEXT_MESSAGE_CHUNK
+  ) {
     appendDelta(event.delta ?? "");
   }
 }
