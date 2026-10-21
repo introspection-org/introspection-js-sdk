@@ -1,10 +1,10 @@
 import { AAuthDemo } from "@/components/demo/aauth-demo";
-import { SCENARIOS } from "@/lib/demo/run";
+import { scenarios } from "@/lib/demo/run";
 
 import "./demo.css";
 
 export const dynamic = "force-dynamic";
 
 export default function Page() {
-  return <AAuthDemo scenarios={SCENARIOS.map((s) => ({ ...s }))} />;
+  return <AAuthDemo scenarios={scenarios()} />;
 }

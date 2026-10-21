@@ -1,0 +1,32 @@
+{
+  "$schema": "https://unpkg.com/knip@6/schema.json",
+  "ignoreBinaries": ["openssl"],
+  "ignoreWorkspaces": ["examples/auth", "examples/aauth-travel"],
+  "workspaces": {
+    ".": {
+      "entry": ["scripts/*.mjs!"]
+    },
+    "packages/introspection-*": {
+      "project": ["src/**/*.ts!"]
+    },
+    "packages/introspection-person-server": {
+      "entry": ["examples/*.ts"],
+      "project": ["src/**/*.ts!", "examples/**/*.ts"]
+    },
+    "tests": {
+      "vitest": {
+        "config": ["vitest.config.ts", "vitest.live.config.ts"]
+      },
+      "entry": ["fixtures/*.mjs"],
+      "project": ["**/*.{ts,mjs}"]
+    },
+    "examples": {
+      "entry": ["{api,otel,proxy,identity,observe,patterns}/**/*.ts!"],
+      "project": ["{api,otel,proxy,identity,observe,patterns}/**/*.ts!"]
+    },
+    "examples/browser": {
+      "entry": ["web-chat.ts!"],
+      "project": ["*.ts!"]
+    }
+  }
+}

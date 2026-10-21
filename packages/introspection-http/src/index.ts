@@ -17,11 +17,17 @@ export {
   foldAgui,
   foldSpans,
   mergeTranscripts,
+  type TranscriptAccumulatorOptions,
 } from "./transcript.js";
 export type { StreamOptions } from "./resumable.js";
 export { EventType } from "@ag-ui/core";
 export type { AGUIEvent, BaseEvent } from "@ag-ui/core";
-export { Paginator, cursorPaginate, type PageSource } from "./pagination.js";
+export {
+  Paginator,
+  cursorPaginate,
+  paginateGet,
+  type PageSource,
+} from "./pagination.js";
 export {
   BaseHttpClient,
   type BaseHttpConfig,
@@ -72,6 +78,7 @@ export {
   RuntimesApi,
   RuntimesClient,
   attachRuntimes,
+  toRunRequestBody,
 } from "./resources/runtimes.js";
 export type {
   RuntimeHandleFactory,

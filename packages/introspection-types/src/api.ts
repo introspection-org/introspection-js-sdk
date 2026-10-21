@@ -1118,6 +1118,7 @@ export interface RunIdentityInput {
   metadata?: Record<string, string>;
 }
 
+// jscpd:ignore-start -- interface field lists mirroring the wire schema
 /**
  * Optional segment.io-style observability payload on a {@link RunRequest}.
  *
@@ -1152,6 +1153,7 @@ export interface RunCallerPage {
   url?: string;
   [key: string]: unknown;
 }
+// jscpd:ignore-end
 
 /**
  * Input body for the CP `/v1/runtimes/{id}/run` and
@@ -1890,6 +1892,7 @@ export interface ObservationPayload {
   metadata?: Record<string, unknown> | null;
 }
 
+// jscpd:ignore-start -- interface field list mirroring the wire schema
 /**
  * One folded pattern catalog row — the pattern *as it currently is*
  * (latest lifecycle action + fold timestamps).
@@ -1913,6 +1916,7 @@ export interface PatternPayload {
   derived_from_pattern_id?: string | null;
   run_id?: string | null;
 }
+// jscpd:ignore-end
 
 /** One observation → pattern assignment event. */
 export interface PatternAssignmentPayload {
@@ -2021,6 +2025,7 @@ export interface AutomationSkippedPayload {
 
 // --- whole-event members: envelope + typed payload, literal discriminator ---
 
+// jscpd:ignore-start -- one envelope interface per event family
 export interface ObservationEvent extends IntrospectionEventEnvelope {
   event_name: typeof IntrospectionEventNames.OBSERVATION;
   payload: ObservationPayload;
@@ -2065,6 +2070,7 @@ export interface AutomationSkippedEvent extends IntrospectionEventEnvelope {
   event_name: typeof IntrospectionEventNames.AUTOMATION_SKIPPED;
   payload: AutomationSkippedPayload;
 }
+// jscpd:ignore-end
 
 /**
  * The discriminated union of the canonical families. Narrow on the

@@ -28,7 +28,8 @@
     "check-types": "tsc --noEmit",
     "lint": "eslint . --max-warnings 0",
     "prepare": "rm -rf dist && tsc",
-    "clean": "rm -rf dist"
+    "clean": "rm -rf dist",
+    "check:package": "publint --strict && attw --pack . --profile esm-only"
   },
   "dependencies": {
     "@introspection-sdk/types": "workspace:*",

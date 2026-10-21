@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.37.0](https://github.com/introspection-org/introspection-js-sdk/compare/v0.36.0...v0.37.0) (2026-10-20)
+
+
+### ⚠ BREAKING CHANGES
+
+* **person-server:** every Store method takes `tenant: string | undefined` as its first parameter.
+
+### Features
+
+* **aauth-travel:** cancel a booking, on the person token of the agent that made it ([#503](https://github.com/introspection-org/introspection-js-sdk/issues/503)) ([f5df993](https://github.com/introspection-org/introspection-js-sdk/commit/f5df993a7ce661c44a1d2cd3db12e5d33fbe6085))
+
+
+### Bug Fixes
+
+* **aauth-travel:** name the approver as an identity when deciding on the hosted Person Server ([#502](https://github.com/introspection-org/introspection-js-sdk/issues/502)) ([a356844](https://github.com/introspection-org/introspection-js-sdk/commit/a356844280f356be2aab6a14b195a1d95d2d91a3))
+* fail live runs on missing settings and multipart-encode FormData through the proxy ([#499](https://github.com/introspection-org/introspection-js-sdk/issues/499)) ([946c665](https://github.com/introspection-org/introspection-js-sdk/commit/946c665f94efd650b1039a6e0a308d17e92c7645))
+* **person-server:** stop approval reuse, issuing under ended missions, and mission hash collisions ([#491](https://github.com/introspection-org/introspection-js-sdk/issues/491)) ([b713975](https://github.com/introspection-org/introspection-js-sdk/commit/b7139759579751a8b0ace9012e9c5f4d94c44733))
+
 ## [0.36.0](https://github.com/introspection-org/introspection-js-sdk/compare/v0.35.1...v0.36.0) (2026-10-19)
 
 
