@@ -117,6 +117,11 @@ function label(
       return "Reserve → asks for an auth token";
     return status === 200 ? "Reserve → booked" : "Reserve";
   }
+  if (path === "/v1/cancel") {
+    if (status === 401 && requirement?.includes("person-token"))
+      return "Cancel → asks for a person token";
+    return status === 200 ? "Cancel → cancelled" : "Cancel";
+  }
   if (path.startsWith("/r3/")) return "Acme reads the booking proposal";
   if (path === "/ps/mission") return "Propose the trip";
   if (path.startsWith("/ps/mission/")) return "Propose the trip complete";

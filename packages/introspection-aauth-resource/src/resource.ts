@@ -108,6 +108,18 @@ export type Authorization =
     }
   | { ok: false; response: Response };
 
+export type Identification =
+  | {
+      ok: true;
+      token: VerifiedToken;
+      /** The person the call is for, as their Person Server names them. */
+      sub: string;
+      /** The person's Person Server. */
+      ps: string;
+      mission_s256?: string;
+    }
+  | { ok: false; response: Response };
+
 export interface AAuthResource {
   readonly issuer: string;
   /** `/.well-known/aauth-resource.json`. */
@@ -136,6 +148,17 @@ export interface AAuthResource {
         ) => AuthorizeRequest | Promise<AuthorizeRequest>),
     options?: { url?: string },
   ): Promise<Authorization>;
+  /**
+   * Admit a call on a person token alone, for an operation that spends nothing
+   * and needs no one's approval, such as undoing the person's own earlier call:
+   * it says who the agent acts for and under which mission, and the resource
+   * checks the call against that. Answers the person-token challenge otherwise.
+   */
+  authenticate(
+    request: Request,
+    body: string,
+    options?: { url?: string },
+  ): Promise<Identification>;
   /** An R3 proposal, to the Person Server it was published for and no one else. */
   serveProposal(request: Request, key: string): Promise<Response>;
   /** Serve this resource's discovery documents and R3 proposals; undefined for other paths. */
@@ -328,6 +351,66 @@ export async function createAAuthResource(
   }
   // #endregion
 
+  /**
+   * The person or auth token a signed call presents, with the signed request,
+   * or the challenge for a person token when it presents none.
+   */
+  async function presented(
+    request: Request,
+    body: string,
+    url: string | undefined,
+  ): Promise<
+    { signed: SignedRequest; token: VerifiedToken } | { challenge: Response }
+  > {
+    if (!request.headers.get("signature-key"))
+      return {
+        challenge: challenge(
+          { requirement: "person-token" },
+          "sign the request",
+        ),
+      };
+    const signed = await verifySignature(
+      request,
+      body,
+      url ?? `${issuer}${new URL(request.url).pathname}`,
+    );
+    const token = await verifyPresented(signed, ["agent", "person", "auth"]);
+    if (token.type === "agent")
+      return {
+        challenge: challenge(
+          { requirement: "person-token" },
+          "present a person token from the person's Person Server",
+        ),
+      };
+    return { signed, token };
+  }
+
+  /** Who a verified token is for, and under which mission. */
+  const caller = (token: VerifiedToken) => ({
+    token,
+    sub: token.sub,
+    ps: token.type === "auth" ? token.ps : token.iss,
+    ...("mission_s256" in token && token.mission_s256
+      ? { mission_s256: token.mission_s256 }
+      : {}),
+  });
+
+  /** Run `admit`, answering an AAuthError as its problem response. */
+  async function admitting<T extends { ok: boolean }>(
+    admit: () => Promise<T>,
+  ): Promise<T | { ok: false; response: Response }> {
+    try {
+      return await admit();
+    } catch (err) {
+      if (err instanceof AAuthError)
+        return {
+          ok: false,
+          response: problem(err.status, err.error, err.message, err.headers),
+        };
+      throw err;
+    }
+  }
+
   async function authorize(
     request: Request,
     body: string,
@@ -338,29 +421,10 @@ export async function createAAuthResource(
         ) => AuthorizeRequest | Promise<AuthorizeRequest>),
     { url }: { url?: string } = {},
   ): Promise<Authorization> {
-    try {
-      if (!request.headers.get("signature-key"))
-        return {
-          ok: false,
-          response: challenge(
-            { requirement: "person-token" },
-            "sign the request",
-          ),
-        };
-      const signed = await verifySignature(
-        request,
-        body,
-        url ?? `${issuer}${new URL(request.url).pathname}`,
-      );
-      const token = await verifyPresented(signed, ["agent", "person", "auth"]);
-      if (token.type === "agent")
-        return {
-          ok: false,
-          response: challenge(
-            { requirement: "person-token" },
-            "present a person token from the person's Person Server",
-          ),
-        };
+    return admitting(async (): Promise<Authorization> => {
+      const call = await presented(request, body, url);
+      if ("challenge" in call) return { ok: false, response: call.challenge };
+      const { signed, token } = call;
       const ask = typeof asked === "function" ? await asked(token) : asked;
       if (token.type === "auth" && token.r3_s256) {
         const approved = await verifyProposalParameters({
@@ -375,27 +439,27 @@ export async function createAAuthResource(
         if (approved)
           return {
             ok: true,
-            token,
-            sub: token.sub,
-            ps: token.ps,
+            ...caller(token),
             jti: String(token.claims.jti),
-            ...("mission_s256" in token && token.mission_s256
-              ? { mission_s256: token.mission_s256 }
-              : {}),
           };
       }
       return {
         ok: false,
         response: await propose(token, signed.thumbprint, ask),
       };
-    } catch (err) {
-      if (err instanceof AAuthError)
-        return {
-          ok: false,
-          response: problem(err.status, err.error, err.message, err.headers),
-        };
-      throw err;
-    }
+    });
+  }
+
+  async function authenticate(
+    request: Request,
+    body: string,
+    { url }: { url?: string } = {},
+  ): Promise<Identification> {
+    return admitting(async (): Promise<Identification> => {
+      const call = await presented(request, body, url);
+      if ("challenge" in call) return { ok: false, response: call.challenge };
+      return { ok: true, ...caller(call.token) };
+    });
   }
 
   // #region serve-r3
@@ -464,6 +528,7 @@ export async function createAAuthResource(
       }
     },
     authorize,
+    authenticate,
     serveProposal,
     async handle(request) {
       const { pathname } = new URL(request.url);

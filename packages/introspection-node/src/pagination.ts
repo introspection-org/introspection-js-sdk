@@ -7,5 +7,4 @@ export {
   Paginator,
   cursorPaginate,
   paginateGet,
-  type PageSource,
 } from "@introspection-sdk/http";

@@ -190,6 +190,36 @@ upsert_env BROWSERBASE_MCP_URL "$MOCK"
 if [ "$MODE" = acme ]; then upsert_env ACME_PERSON_SERVER_URL "$ACME"; fi
 say "booking provider: $BOOKING"
 
+# The booking provider and Acme's Person Server sign with keys made here once
+# and kept in .keys/, so a restart keeps them: a Person Server that cached the
+# provider's keys would otherwise reject its tokens until that cache expires.
+# They reach the app in its environment, never on a command line.
+mkdir -p .keys
+pem() {
+  [ -s ".keys/$1" ] || (umask 077 && node -e '
+    const { generateKeyPairSync } = require("node:crypto");
+    process.stdout.write(generateKeyPairSync("ed25519").privateKey.export({ type: "pkcs8", format: "pem" }));
+  ' >".keys/$1")
+  cat ".keys/$1"
+}
+secret() {
+  [ -s ".keys/$1" ] || (umask 077 && openssl rand -hex 32 >".keys/$1")
+  cat ".keys/$1"
+}
+export BOOKING_SIGNING_KEY="${BOOKING_SIGNING_KEY:-$(pem booking.pem)}"
+export ACME_PS_SIGNING_KEY="${ACME_PS_SIGNING_KEY:-$(pem acme-ps.pem)}"
+export ACME_PS_SUBJECT_SECRET="${ACME_PS_SUBJECT_SECRET:-$(secret acme-ps-subject)}"
+
+# The app runs the workspace's own Person Server, resource and client packages
+# from their dist/, so install and build them first: after a pull or a branch
+# switch the source and its dependencies move on, and a stale dist answers in
+# the old shape. Turbo's cache
+# makes this quick when nothing changed.
+say "building the workspace packages the app uses"
+(cd ../.. && pnpm install --frozen-lockfile --prefer-offline --reporter=silent &&
+  pnpm exec turbo run build --filter "introspection-example-aauth-travel^..." --output-logs=errors-only) ||
+  fail "could not build the workspace packages; run \`pnpm build\` at the repository root to see why"
+
 # The app starts first: the runtime's first build reaches the mock it serves.
 # Until setup is done it says so, rather than that the project isn't set up.
 remove_env DEMO_SETUP
@@ -266,6 +296,29 @@ mint_secret() {
   json 'v.secret' <<<"$out"
 }
 
+# Acme's approval app, on the built-in Person Server, is an application of
+# its own that may only read and answer approvals: the agent's may not. Run on
+# every start, so a secret missing from .env.local is minted again.
+ensure_acme_app() {
+  local project_id="$1"
+  local acme_name="Acme approvals" acme acme_id
+  acme="$(introspection applications list -o json | json "(v.records ?? v).find((a) => a.name === '$acme_name')")"
+  if [ -z "$acme" ]; then
+    acme="$(introspection applications create --type service-account --name "$acme_name" \
+      --allowed-scope "approvals:read approvals:write" -o json | json 'v.application ?? v')"
+  fi
+  acme_id="$(json 'v.id' <<<"$acme")"
+  [ -n "$acme_id" ] || fail "could not create the $acme_name application"
+  if [ -z "$(read_env ACME_CLIENT_SECRET)" ]; then
+    local acme_secret
+    acme_secret="$(mint_secret "$acme_id" "Acme approvals")"
+    [ -n "$acme_secret" ] || fail "could not create a client secret for the $acme_name application"
+    upsert_env ACME_CLIENT_SECRET "$acme_secret"
+  fi
+  upsert_env ACME_CLIENT_ID "$(json 'v.client_id' <<<"$acme")"
+  upsert_env ACME_PROJECT "$project_id"
+}
+
 full_setup() {
   mkdir -p "$WORK"
 
@@ -326,26 +379,7 @@ full_setup() {
   fi
   upsert_env INTROSPECTION_CLIENT_ID "$client_id"
   upsert_env INTROSPECTION_PROJECT "$project_id"
-  # Acme's approval app, on the built-in Person Server, is an application of
-  # its own that may only read and answer approvals: the agent's may not.
-  if [ "$MODE" = hosted ]; then
-    local acme_name="Acme approvals" acme acme_id
-    acme="$(introspection applications list -o json | json "(v.records ?? v).find((a) => a.name === '$acme_name')")"
-    if [ -z "$acme" ]; then
-      acme="$(introspection applications create --type service-account --name "$acme_name" \
-        --allowed-scope "approvals:read approvals:write" -o json | json 'v.application ?? v')"
-    fi
-    acme_id="$(json 'v.id' <<<"$acme")"
-    [ -n "$acme_id" ] || fail "could not create the $acme_name application"
-    if [ -z "$(read_env ACME_CLIENT_SECRET)" ]; then
-      local acme_secret
-      acme_secret="$(mint_secret "$acme_id" "Acme approvals")"
-      [ -n "$acme_secret" ] || fail "could not create a client secret for the $acme_name application"
-      upsert_env ACME_CLIENT_SECRET "$acme_secret"
-    fi
-    upsert_env ACME_CLIENT_ID "$(json 'v.client_id' <<<"$acme")"
-    upsert_env ACME_PROJECT "$project_id"
-  fi
+  if [ "$MODE" = hosted ]; then ensure_acme_app "$project_id"; fi
   upsert_env INTROSPECTION_BASE_API_URL "$CP_URL"
   upsert_env INTROSPECTION_RUNTIME "$RUNTIME"
   upsert_env DEMO_SAM_USER_ID "$SAM_USER_ID"
@@ -436,6 +470,7 @@ connect() {
     introspection applications list -o json | json "(v.records ?? v).some((a) => a.id === '$app_id')" | grep -q true; then
     apply_connector
     bind_flight_search
+    if [ "$MODE" = hosted ]; then ensure_acme_app "$(read_env INTROSPECTION_PROJECT)"; fi
   else
     say "setting up your project on $CP_URL"
     for key in INTROSPECTION_TOKEN INTROSPECTION_CLIENT_SECRET ACME_INTROSPECTION_TOKEN ACME_CLIENT_SECRET AGENT_APPLICATION_ID; do remove_env "$key"; done

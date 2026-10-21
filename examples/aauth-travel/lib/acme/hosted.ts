@@ -38,16 +38,24 @@ const account = () => {
     : null;
 };
 const minted = ((
-  globalThis as unknown as { __acmeToken?: { token: string; until: number } }
-).__acmeToken ??= { token: "", until: 0 });
+  globalThis as unknown as {
+    __acmeToken?: { token: string; until: number; for: string };
+  }
+).__acmeToken ??= { token: "", until: 0, for: "" });
 
-/** A token for Acme's application, minted again a minute before it expires. */
+/**
+ * A token for Acme's application, minted again a minute before it expires, or
+ * when `pnpm dev` has since rewritten the credentials for another stack.
+ */
 async function token(): Promise<string> {
   const credentials = account();
   if (!credentials) return "";
-  if (minted.token && Date.now() < minted.until) return minted.token;
+  const key = `${credentials.clientId}@${credentials.baseApiUrl ?? ""}`;
+  if (minted.token && minted.for === key && Date.now() < minted.until)
+    return minted.token;
   const { access_token, expires_in } = await serviceAccountToken(credentials);
   minted.token = access_token;
+  minted.for = key;
   minted.until = Date.now() + Math.max(expires_in - 60, 30) * 1000;
   return minted.token;
 }
@@ -63,7 +71,7 @@ interface Budget {
   decimals: number;
 }
 
-/** A platform approval, as `GET /v1/approvals` returns it. */
+/** A platform approval, as `GET /v1/aauth/approvals` returns it. */
 interface Approval {
   id: string;
   kind: "mission" | "auth_token" | "completion";
@@ -117,6 +125,7 @@ async function api<T>(
     },
     ...(body ? { body: JSON.stringify(body) } : {}),
   });
+  if (response.status === 401) minted.token = "";
   if (!response.ok)
     throw new AAuthError(
       response.status,
@@ -151,6 +160,12 @@ const personOf = (member: string): Person =>
     email: "you@acme.example",
     manager: people.find((p) => p.name === "Dana Park")!.external_user_id,
   };
+
+/** Who decided, as the platform names a member: the identity it knows them by, or their member id. */
+const approverOf = (person: Person) =>
+  person.external_user_id.startsWith("member:")
+    ? { member_id: person.external_user_id.slice("member:".length) }
+    : { identity: { user_id: person.email } };
 
 const managerOf = (person: Person) =>
   people.find((p) => p.external_user_id === person.manager);
@@ -194,9 +209,9 @@ async function sync(): Promise<void> {
   const [pending, missions] = await Promise.all([
     api<{ records: Approval[] }>(
       "GET",
-      "/v1/approvals?status=pending&limit=50",
+      "/v1/aauth/approvals?status=pending&limit=50",
     ),
-    api<{ records: Mission[] }>("GET", "/v1/missions?limit=50"),
+    api<{ records: Mission[] }>("GET", "/v1/aauth/missions?limit=50"),
   ]);
   state.missions = missions.records;
   for (const approval of pending.records) {
@@ -239,10 +254,14 @@ async function sync(): Promise<void> {
 export function start(): void {
   if (state.started) return;
   state.started = true;
-  // `pnpm dev` writes Acme's credentials after the app boots, so until they
-  // appear each tick waits for them rather than giving up.
+  // `pnpm dev` writes Acme's credentials after the app boots, and a stack
+  // switch leaves the last stack's in place until then, so each tick waits for
+  // setup to finish rather than polling with them.
   const tick = () =>
-    (account() ? sync() : Promise.resolve())
+    (account() && process.env.DEMO_SETUP !== "pending"
+      ? sync()
+      : Promise.resolve()
+    )
       .catch((err: Error) =>
         console.error(`[acme] approvals sync: ${err.message}`),
       )
@@ -287,12 +306,12 @@ export async function decide(
     !(Number.isInteger(budgetCents) && budgetCents! > 0)
   )
     throw new AAuthError(400, "invalid_request", "set the trip's budget");
-  asked.approval = await api<Approval>("PATCH", `/v1/approvals/${id}`, {
+  asked.approval = await api<Approval>("PATCH", `/v1/aauth/approvals/${id}`, {
     status: verdict === "approve" ? "approved" : "denied",
     ...(verdict === "approve" && mission
       ? { budget: { amount: budgetCents, ...USD } }
       : {}),
-    decided_by: asked.approver.email,
+    decided_by: approverOf(asked.approver),
   });
   record("acme.decided", `${asked.approver.name} ${asked.approval.status}`, {
     pending: id,

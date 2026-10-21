@@ -16,7 +16,7 @@ This example is the **Flight Sector side and the Acme side** of the demo, and th
 
 - **Booking provider** (`https://booking.flightsector.localhost`) is a native three-party AAuth resource on [`@aauth/resource`](https://www.npmjs.com/package/@aauth/resource). Search is open and every offer carries a quote it signs. A reservation presenting an agent token gets `401 requirement=person-token`; one presenting a person token gets `401 requirement=auth-token` and a resource token for an R3 proposal only the person's Person Server can read; one presenting an auth token for that proposal is booked.
 - **Acme's Person Server** is Acme's system, not Flight Sector's, and it runs one of two ways (`PERSON_SERVER`):
-  - `hosted`: Introspection's hosted Person Server runs the protocol, the missions and their budgets, with Acme as its own tenant. Acme keeps the human side: its approval app (`lib/acme/hosted.ts`) lists what is waiting at `/v1/approvals` with its project's key, emails the approver a code, and records the answer.
+  - `hosted`: Introspection's hosted Person Server runs the protocol, the missions and their budgets, with Acme as its own tenant. Acme keeps the human side: its approval app (`lib/acme/hosted.ts`) lists what is waiting at `/v1/aauth/approvals` with its project's key, emails the approver a code, and records the answer.
   - `acme`: Acme runs its own (`https://ps.acme.localhost`, `lib/acme/person-server.ts`), as a Business that brings its own Person Server would.
 
   Either way the trip's manager approves it, budget and all, by a six-digit emailed code (page at `/approve/{id}`). Within the trip, an auth token is issued for each booking whose price (the resource token's `budget`) fits what is left, and anything over goes back to the manager. Nothing books outside a mission.
@@ -27,7 +27,7 @@ The agent itself is the public [travel-agent recipe](https://github.com/introspe
 
 ## The flow
 
-Sam's trip is "Flights and a hotel for Sam, 19 to 23 October, up to $3,000."
+Sam's trip is "Flights and a hotel for Sam, Monday to Friday next week, up to $3,000."
 
 | Sam asks for                      | What happens                                                                                    |
 | --------------------------------- | ----------------------------------------------------------------------------------------------- |
@@ -50,7 +50,7 @@ sequenceDiagram
     participant Acme as Acme's Person Server
     participant Dana as Dana (Sam's manager)
 
-    Sam->>Agent: Sydney, 19 to 23 Oct, economy and the QT, up to $3,000
+    Sam->>Agent: Sydney, Mon to Fri next week, economy and the QT, up to $3,000
     Agent->>Acme: POST /ps/mission (the trip, login_hint Sam)
     Acme-->>Agent: 202 + Location (pending)
     Acme->>Dana: email with a six-digit code
