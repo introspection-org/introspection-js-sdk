@@ -8,7 +8,7 @@
  *
  * Run with:
  *   INTROSPECTION_TOKEN=intro_xxx
- *   pnpm reference-auth-api-key
+ *   node --import tsx reference/auth-api-key.ts
  *
  * Optional env:
  *   INTROSPECTION_BASE_API_URL  - CP API host (default https://api.introspection.dev)

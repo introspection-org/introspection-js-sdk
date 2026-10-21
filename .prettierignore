@@ -1,4 +1,9 @@
 dist
+# Docs snippet regions keep the docs' line layout, not prettier's.
+examples/browser/
+examples/identity/
+examples/observe/
+examples/patterns/
 node_modules
 vendor
 coverage

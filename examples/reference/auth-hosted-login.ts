@@ -10,7 +10,7 @@
  *
  * Run with:
  *   INTROSPECTION_SPA_CLIENT_ID=intro_app_xxx
- *   pnpm reference-auth-hosted-login <code> <redirect-uri> <code-verifier>
+ *   node --import tsx reference/auth-hosted-login.ts <code> <redirect-uri> <code-verifier>
  *
  * Optional env:
  *   INTROSPECTION_BASE_API_URL  - CP API host (default https://api.introspection.dev)
@@ -19,7 +19,7 @@
 const [code, redirectUri, codeVerifier] = process.argv.slice(2);
 if (!code || !redirectUri || !codeVerifier || !process.env.INTROSPECTION_SPA_CLIENT_ID) {
   console.error(
-    "usage: INTROSPECTION_SPA_CLIENT_ID=... pnpm reference-auth-hosted-login <code> <redirect-uri> <code-verifier>",
+    "usage: INTROSPECTION_SPA_CLIENT_ID=... node --import tsx reference/auth-hosted-login.ts <code> <redirect-uri> <code-verifier>",
   );
   process.exit(1);
 }
