@@ -46,8 +46,8 @@ let submitId: string | undefined;
 
 for await (const e of handle.stream()) {
   if (e.type === EventType.MESSAGES_SNAPSHOT) submitId = fromSnapshot(e, args);
-  if (e.type === EventType.TOOL_CALL_START && e.toolCallName === "submit_result") submitId = e.toolCallId;
-  if (e.type === EventType.TOOL_CALL_ARGS) args.set(e.toolCallId, (args.get(e.toolCallId) ?? "") + e.delta);
+  if ((e.type === EventType.TOOL_CALL_START || e.type === EventType.TOOL_CALL_CHUNK) && e.toolCallId && e.toolCallName === "submit_result") submitId = e.toolCallId;
+  if ((e.type === EventType.TOOL_CALL_ARGS || e.type === EventType.TOOL_CALL_CHUNK) && e.toolCallId) args.set(e.toolCallId, (args.get(e.toolCallId) ?? "") + (e.delta ?? ""));
 }
 const raw = submitId ? args.get(submitId) : undefined;
 // #endregion docs:patterns/structured-output/read-stream
