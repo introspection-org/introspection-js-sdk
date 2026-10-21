@@ -489,7 +489,7 @@ Before booking anything, propose_trip posts the trip to person-server.aauth, a n
 }
 ```
 
-**Acme: missions** · `@introspection-sdk/person-server/src/missions.ts`
+**Acme: missions** · `@introspection-sdk/person-server/src/person-server.ts`
 
 ```ts
 /** The live mission `s256` names, if it is this agent's; the same 404 otherwise. */
@@ -674,7 +674,7 @@ export async function decide(
 }
 ```
 
-**Acme: person tokens under the mission** · `@introspection-sdk/person-server/src/person-token.ts`
+**Acme: person tokens under the mission** · `@introspection-sdk/person-server/src/person-server.ts`
 
 ```ts
 /** The person's identifier at one audience: no two audiences can correlate it. */
@@ -1359,7 +1359,7 @@ The egress proxy holds the request and calls Acme's token endpoint, signed with 
 }
 ```
 
-**Acme: verify the agent** · `@introspection-sdk/person-server/src/verify-agent.ts`
+**Acme: verify the agent** · `@introspection-sdk/person-server/src/person-server.ts`
 
 ```ts
 /** The request's signature, and the agent token it presents, from a trusted agent provider. */
@@ -1474,7 +1474,7 @@ async function personFor(
 }
 ```
 
-**Acme: verify the request, weigh the budget** · `@introspection-sdk/person-server/src/auth-token.ts`
+**Acme: verify the request, weigh the budget** · `@introspection-sdk/person-server/src/person-server.ts`
 
 ```ts
 /** A resource token, verified against its issuer's keys, binding a token this Person Server issued. */
@@ -1771,7 +1771,7 @@ _Acme → Platform → Agent_
 
 Dana declines. The data plane has been polling the pending URL, signed with the session key; only the agent that asked may read it. It now answers 403, and the platform posts a turn into Sam's conversation saying the QT was declined. The recipe tells the agent to say so and not go looking for alternatives on its own: the flight stays booked, and it asks Sam what he'd like to do about the hotel.
 
-**Acme: the pending URL** · `@introspection-sdk/person-server/src/pending.ts`
+**Acme: the pending URL** · `@introspection-sdk/person-server/src/person-server.ts`
 
 ```ts
 /** The agent polls with a signed GET; only the key that asked may read it. Results are minted now. */
@@ -2260,7 +2260,7 @@ _Agent → Acme → Sam_
 
 complete_trip proposes the mission complete, with a summary of what was booked. Sam accepts it, and Acme ends the mission: a person token or auth token under it is refused from then on, so nothing more can be booked against this trip.
 
-**Acme: missions** · `@introspection-sdk/person-server/src/missions.ts`
+**Acme: missions** · `@introspection-sdk/person-server/src/person-server.ts`
 
 ```ts
 /** The live mission `s256` names, if it is this agent's; the same 404 otherwise. */
