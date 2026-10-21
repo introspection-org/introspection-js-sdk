@@ -740,7 +740,7 @@ export async function createPersonServer(options: PersonServerOptions) {
     ...args: Parameters<typeof newApproval>
   ): Promise<Response> {
     const approval = await newApproval(...args);
-    await store.putApproval(approval.tenant, approval);
+    await store.insertApproval(approval.tenant, approval);
     await options.onApproval?.(approval);
     return stillPending(approval.tenant, approval.id);
   }

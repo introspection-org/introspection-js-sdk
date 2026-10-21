@@ -106,7 +106,7 @@ export class MemoryStore implements Store {
     return this.approvalsById.get(tenant, id);
   }
 
-  async putApproval(tenant: string, approval: Approval) {
+  async insertApproval(tenant: string, approval: Approval) {
     this.approvalsById.set(tenant, approval.id, approval);
   }
 

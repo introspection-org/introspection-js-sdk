@@ -229,7 +229,7 @@ export function federatedAccess(ctx: FederatedContext) {
         requirement: answer.requirement,
       },
     };
-    if (!stored) await store.putApproval(tenant, waiting);
+    if (!stored) await store.insertApproval(tenant, waiting);
     else if (
       answer.location !== federation.location ||
       answer.requirement !== federation.requirement
@@ -267,7 +267,7 @@ export function federatedAccess(ctx: FederatedContext) {
       },
     };
     delete asking.decided_at;
-    if (!stored) await store.putApproval(tenant, asking);
+    if (!stored) await store.insertApproval(tenant, asking);
     else if (!(await store.transitionApproval(tenant, "collected", asking)))
       return ctx.collected();
     await ctx.onApproval?.(asking);

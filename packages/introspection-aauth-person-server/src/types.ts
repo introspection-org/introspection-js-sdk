@@ -165,7 +165,7 @@ export interface Store {
   missions(tenant: string): Promise<Mission[]>;
   approval(tenant: string, id: string): Promise<Approval | undefined>;
   /** Save a new approval. */
-  putApproval(tenant: string, approval: Approval): Promise<void>;
+  insertApproval(tenant: string, approval: Approval): Promise<void>;
   /** Replace approval `next.id` with `next` only if its status is still `expected`; returns whether it did. */
   transitionApproval(
     tenant: string,
