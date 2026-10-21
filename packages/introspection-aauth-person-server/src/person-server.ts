@@ -25,16 +25,23 @@ import {
 } from "jose";
 import {
   AAuthError,
+  type AuthGrant,
   answer,
+  authGrant,
   beneath,
   discovery,
   httpsOnly,
   loadSigner,
+  MAX_TOKEN_LIFETIME,
   parseBudget,
   problem,
+  readJsonObject,
   readProposalSummary,
   sameScale,
   signatureError,
+  tokenLifetime,
+  tokenProblem,
+  trimIdentifier,
   verifySignature,
 } from "@introspection-sdk/aauth-protocol";
 
@@ -111,11 +118,12 @@ export interface Issued {
 
 const s256 = (bytes: string | Buffer) =>
   createHash("sha256").update(bytes).digest("base64url");
-const trim = (url: string) => url.replace(/\/+$/, "");
 /** Whether every member of a `Signature-Key` header uses the `jwt` scheme (draft-hardt-httpbis-signature-key). */
 const signsWithJwt = (header: string | null): boolean => {
   const schemes = [
-    ...(header ?? "").matchAll(/(?:^|,)\s*[a-z*][a-z0-9_.*-]*=([a-z][a-z0-9_-]*)/g),
+    ...(header ?? "").matchAll(
+      /(?:^|,)\s*[a-z*][a-z0-9_.*-]*=([a-z][a-z0-9_-]*)/g,
+    ),
   ].map((m) => m[1]);
   return schemes.length > 0 && schemes.every((scheme) => scheme === "jwt");
 };
@@ -125,17 +133,6 @@ const tenantOf = (params: Record<string, unknown>) =>
   typeof params.tenant === "string" && params.tenant
     ? params.tenant
     : undefined;
-
-function readBody(body: string): Record<string, unknown> {
-  try {
-    const parsed: unknown = JSON.parse(body);
-    if (parsed && typeof parsed === "object" && !Array.isArray(parsed))
-      return parsed as Record<string, unknown>;
-  } catch {
-    // fall through
-  }
-  throw new AAuthError(400, "invalid_request", "body must be a JSON object");
-}
 
 /** `202`: the agent polls `location` until it is decided. */
 const pendingResponse = (
@@ -159,8 +156,8 @@ const pendingResponse = (
 export type PersonServer = Awaited<ReturnType<typeof createPersonServer>>;
 
 export async function createPersonServer(options: PersonServerOptions) {
-  const issuer = trim(options.issuer);
-  const base = trim(options.basePath ?? "");
+  const issuer = trimIdentifier(options.issuer);
+  const base = trimIdentifier(options.basePath ?? "");
   const store = options.store ?? new MemoryStore();
   const signer = await loadSigner(options.signingKey);
   const secret = options.subjectSecret ?? randomBytes(32).toString("hex");
@@ -168,7 +165,7 @@ export async function createPersonServer(options: PersonServerOptions) {
     options.fetch ?? ((input, init) => fetch(input, init)),
   );
   const now = options.now ?? (() => Math.floor(Date.now() / 1000));
-  const tokenTtl = options.tokenTtlSeconds ?? 60 * 60;
+  const tokenTtl = tokenLifetime(options.tokenTtlSeconds);
   const missionTtl = options.missionTtlSeconds ?? 14 * 24 * 60 * 60;
   const approvalTtl = options.approvalTtlSeconds ?? 24 * 60 * 60;
   const retryAfter = options.retryAfterSeconds ?? 5;
@@ -187,7 +184,7 @@ export async function createPersonServer(options: PersonServerOptions) {
       ? options.trustedAgentProviders
       : (iss: string) =>
           (options.trustedAgentProviders as readonly string[])
-            .map(trim)
+            .map(trimIdentifier)
             .includes(iss);
 
   const url = (path: string) => `${issuer}${base}${path}`;
@@ -226,7 +223,7 @@ export async function createPersonServer(options: PersonServerOptions) {
         throw signatureError("invalid_jwt", "not a JWT");
       }
     })();
-    const provider = trim(String(claims.iss ?? ""));
+    const provider = trimIdentifier(String(claims.iss ?? ""));
     if (!trusted(provider))
       throw signatureError("invalid_jwt", `${provider} is not trusted here`);
     const token = await verifyToken({
@@ -245,7 +242,9 @@ export async function createPersonServer(options: PersonServerOptions) {
     });
     if (token.type !== "agent")
       throw signatureError("invalid_jwt", "present an agent token");
-    if (token.ps !== undefined && trim(token.ps) !== issuer)
+    const shape = tokenProblem(token.claims, {});
+    if (shape) throw signatureError("invalid_jwt", `the agent token ${shape}`);
+    if (token.ps !== undefined && trimIdentifier(token.ps) !== issuer)
       throw new AAuthError(
         403,
         "invalid_request",
@@ -275,7 +274,7 @@ export async function createPersonServer(options: PersonServerOptions) {
     const body = await request.text();
     return {
       ...(await verifyAgent(request, body, path)),
-      params: readBody(body),
+      params: readJsonObject(body),
     };
   }
 
@@ -394,11 +393,7 @@ export async function createPersonServer(options: PersonServerOptions) {
     return { person_token: token, expires_in };
   }
 
-  async function authToken(
-    agent: Agent,
-    mission: Mission,
-    grant: Record<string, unknown>,
-  ) {
+  async function authToken(agent: Agent, mission: Mission, grant: AuthGrant) {
     const { token, expires_in } = await issue(
       "aa-auth+jwt",
       {
@@ -414,9 +409,9 @@ export async function createPersonServer(options: PersonServerOptions) {
       type: "auth_token",
       agent,
       person: mission.person,
-      resource: String(grant.aud),
+      resource: grant.aud,
       mission,
-      ...(grant.budget ? { budget: grant.budget as Budget } : {}),
+      ...(grant.budget ? { budget: grant.budget } : {}),
     });
     return { auth_token: token, expires_in };
   }
@@ -426,7 +421,7 @@ export async function createPersonServer(options: PersonServerOptions) {
     path: string,
   ): Promise<Response> {
     const { agent, params } = await readSigned(request, path);
-    const resource = trim(String(params.resource ?? ""));
+    const resource = trimIdentifier(String(params.resource ?? ""));
     if (!resource.startsWith("https://"))
       throw new AAuthError(
         400,
@@ -477,11 +472,9 @@ export async function createPersonServer(options: PersonServerOptions) {
     if (!description)
       throw new AAuthError(400, "invalid_request", "describe the mission");
     const resources = (Array.isArray(params.resources) ? params.resources : [])
-      .map((r) => trim(String(r)))
+      .map((r) => trimIdentifier(String(r)))
       .filter((r) => r.startsWith("https://"));
-    return ask(tenant, "mission", agent, person, description, {
-      grant: { resources },
-    });
+    return ask(tenant, "mission", agent, person, description, { resources });
   }
 
   async function missionAction(
@@ -545,9 +538,20 @@ export async function createPersonServer(options: PersonServerOptions) {
     const presented = await jwtVerify(
       presented_token,
       createLocalJWKSet(signer.jwks),
-      { issuer },
+      { issuer, currentDate: new Date(now() * 1000) },
     )
-      .then((r) => r.payload)
+      .then(({ payload, protectedHeader }) => {
+        const shape =
+          protectedHeader.typ === "aa-person+jwt" ||
+          protectedHeader.typ === "aa-auth+jwt"
+            ? tokenProblem(payload, {
+                dwk: DWK,
+                maxLifetime: MAX_TOKEN_LIFETIME,
+              })
+            : "is neither a person token nor an auth token";
+        if (shape) throw new Error(shape);
+        return payload;
+      })
       .catch((err: Error) => {
         throw new AAuthError(
           400,
@@ -566,7 +570,7 @@ export async function createPersonServer(options: PersonServerOptions) {
       if (err instanceof AAuthError) throw err;
       throw invalid("not a JWT");
     }
-    const resource = trim(String(unverified.iss ?? ""));
+    const resource = trimIdentifier(String(unverified.iss ?? ""));
     const tenant = tenantFor(tenantOf(params));
     // A token that carries no tenant was issued under the default.
     const tokenTenant =
@@ -598,18 +602,21 @@ export async function createPersonServer(options: PersonServerOptions) {
       .then((jwks) =>
         jwtVerify(resource_token, createLocalJWKSet(jwks), {
           typ: "aa-resource+jwt",
-          issuer: resource,
+          issuer: String(unverified.iss),
           algorithms: ["Ed25519", "ES256"],
+          currentDate: new Date(now() * 1000),
         }),
       )
       .then((r) => r.payload)
       .catch((err: Error) => {
         throw invalid(err.message);
       });
-    if (trim(String(rt.ps ?? "")) !== issuer)
+    const shape = tokenProblem(rt, { dwk: "aauth-resource.json" });
+    if (shape) throw invalid(`it ${shape}`);
+    if (trimIdentifier(String(rt.ps ?? "")) !== issuer)
       throw invalid("not for this Person Server");
     // An `aud` other than this Person Server is the resource's Access Server (four-party).
-    const audience = typeof rt.aud === "string" ? trim(rt.aud) : "";
+    const audience = typeof rt.aud === "string" ? trimIdentifier(rt.aud) : "";
     if (audience !== issuer && !isServerIdentifier(audience))
       throw invalid("aud is neither this Person Server nor an Access Server");
     if (rt.agent_jkt !== agent.jkt)
@@ -619,7 +626,7 @@ export async function createPersonServer(options: PersonServerOptions) {
       presented.sub !== rt.sub ||
       presented.mission_s256 !== rt.mission_s256 ||
       presented.tenant !== rt.tenant ||
-      presented.aud !== resource
+      trimIdentifier(String(presented.aud)) !== resource
     )
       throw invalid("does not match the presented token");
     return {
@@ -652,16 +659,7 @@ export async function createPersonServer(options: PersonServerOptions) {
         );
       }
     })();
-    const grant: Record<string, unknown> = {
-      aud: resource,
-      sub: rt.sub,
-      ...Object.fromEntries(
-        (["scope", "r3_uri", "r3_s256"] as const)
-          .filter((k) => k in rt)
-          .map((k) => [k, rt[k]]),
-      ),
-      ...(budget ? { budget } : {}),
-    };
+    const grant = authGrant(rt, resource, budget);
     const asked = {
       mission_s256: mission.s256,
       resource,
@@ -722,6 +720,7 @@ export async function createPersonServer(options: PersonServerOptions) {
         | "resource"
         | "budget"
         | "grant"
+        | "resources"
         | "summary"
         | "federation"
       >
@@ -741,7 +740,6 @@ export async function createPersonServer(options: PersonServerOptions) {
       person,
       approver,
       description,
-      grant: {},
       ...extra,
       created_at: created,
       expires_at: created + approvalTtl,
@@ -757,8 +755,12 @@ export async function createPersonServer(options: PersonServerOptions) {
     return stillPending(approval.tenant, approval.id);
   }
 
-  const stillPending = (tenant: string, id: string, requirement?: string) =>
-    pendingResponse(endpoints.pending(tenant, id), retryAfter, requirement);
+  const stillPending = (
+    tenant: string,
+    id: string,
+    requirement?: string,
+    wait = retryAfter,
+  ) => pendingResponse(endpoints.pending(tenant, id), wait, requirement);
 
   // #endregion
 
@@ -844,6 +846,8 @@ export async function createPersonServer(options: PersonServerOptions) {
       false,
       true,
     );
+    if (!approval.grant)
+      throw new AAuthError(500, "server_error", "this approval grants nothing");
     return Response.json(await authToken(agent, issuedUnder!, approval.grant));
   }
 
@@ -889,8 +893,7 @@ export async function createPersonServer(options: PersonServerOptions) {
     let existing: Mission | undefined;
     if (decision.status === "approved") {
       if (approval.kind === "mission") {
-        const resources =
-          (approval.grant.resources as string[] | undefined) ?? [];
+        const resources = approval.resources ?? [];
         const expires_at = now() + missionTtl;
         // The approval's id makes each mission's hash its own.
         const bytes = JSON.stringify({
@@ -981,7 +984,7 @@ export async function createPersonServer(options: PersonServerOptions) {
       );
     }
     if (consent?.[1] && request.method === "POST") {
-      const params = readBody(await request.text());
+      const params = readJsonObject(await request.text());
       const verdict = params.decision ?? params.status;
       if (!["approve", "approved", "deny", "denied"].includes(String(verdict)))
         throw new AAuthError(

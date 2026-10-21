@@ -1,9 +1,15 @@
 /** @introspection-sdk/aauth-protocol's budget parser and https-only fetch. */
 import {
+  authGrant,
   httpsOnly,
   loadSigner,
+  MAX_TOKEN_LIFETIME,
   parseBudget,
+  readJsonObject,
   readProposalSummary,
+  signatureError,
+  tokenProblem,
+  trimIdentifier,
 } from "@introspection-sdk/aauth-protocol";
 import { describe, expect, it } from "vitest";
 
@@ -67,5 +73,84 @@ describe("readProposalSummary", () => {
         ),
       ).toBeUndefined();
     expect(fetched).toHaveLength(0);
+  });
+});
+
+describe("token shapes", () => {
+  const sound = { jti: "1", dwk: "aauth-person.json", iat: 0, exp: 3600 };
+
+  it("takes a token with a jti, its dwk, and a lifetime within the bound", () => {
+    expect(
+      tokenProblem(sound, {
+        dwk: "aauth-person.json",
+        maxLifetime: MAX_TOKEN_LIFETIME,
+      }),
+    ).toBeUndefined();
+    expect(tokenProblem({ jti: "1", iat: 0, exp: 86_400 }, {})).toBeUndefined();
+  });
+
+  it("names what is wrong with one that is not", () => {
+    const expected = {
+      dwk: "aauth-person.json",
+      maxLifetime: MAX_TOKEN_LIFETIME,
+    };
+    expect(tokenProblem({ ...sound, jti: undefined }, expected)).toBe(
+      "has no jti",
+    );
+    expect(tokenProblem({ ...sound, jti: "" }, expected)).toBe("has no jti");
+    expect(tokenProblem({ ...sound, dwk: "aauth-agent.json" }, expected)).toBe(
+      "has a dwk other than aauth-person.json",
+    );
+    expect(tokenProblem({ ...sound, exp: 3601 }, expected)).toBe(
+      "lives longer than 3600 seconds",
+    );
+    expect(tokenProblem({ ...sound, iat: undefined }, expected)).toBe(
+      "has no iat or exp",
+    );
+  });
+
+  it("compares identifiers without a trailing slash", () => {
+    expect(trimIdentifier("https://as.example/")).toBe("https://as.example");
+    expect(trimIdentifier("https://as.example//")).toBe("https://as.example");
+    expect(trimIdentifier("https://as.example")).toBe("https://as.example");
+  });
+
+  it("copies only the string claims an auth token carries from the resource token", () => {
+    expect(
+      authGrant(
+        {
+          sub: "s",
+          scope: "a b",
+          account: "acct-7",
+          r3_uri: "https://r.example/r3/1",
+          r3_s256: 5,
+          agent_jkt: "j",
+        },
+        "https://r.example",
+        { amount: 1, unit: "USD", decimals: 2 },
+      ),
+    ).toEqual({
+      aud: "https://r.example",
+      sub: "s",
+      scope: "a b",
+      account: "acct-7",
+      r3_uri: "https://r.example/r3/1",
+      budget: { amount: 1, unit: "USD", decimals: 2 },
+    });
+  });
+});
+
+describe("request bodies and signature errors", () => {
+  it("reads a JSON object, and refuses anything else", () => {
+    expect(readJsonObject('{"a":1}')).toEqual({ a: 1 });
+    for (const body of ["[]", "1", '"a"', "null", "not json", ""])
+      expect(() => readJsonObject(body)).toThrow(/JSON object/);
+  });
+
+  it("answers an unsupported scheme with the scheme it accepts", () => {
+    const err = signatureError("unsupported_scheme", "sign with sig=jwt");
+    expect(err.status).toBe(401);
+    expect(err.headers["Signature-Error"]).toContain("unsupported_scheme");
+    expect(err.headers["Accept-Signature-Scheme"]).toContain("jwt");
   });
 });

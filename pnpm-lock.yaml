@@ -352,9 +352,6 @@ importers:
       '@aauth/resource':
         specifier: ^3.0.0
         version: 3.0.0
-      '@hellocoop/httpsig':
-        specifier: ^2.6.0
-        version: 2.6.0
       '@introspection-sdk/aauth-protocol':
         specifier: workspace:*
         version: link:../introspection-aauth-protocol

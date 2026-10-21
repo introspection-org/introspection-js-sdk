@@ -33,7 +33,6 @@
   },
   "dependencies": {
     "@aauth/resource": "^3.0.0",
-    "@hellocoop/httpsig": "^2.6.0",
     "@introspection-sdk/aauth-protocol": "workspace:*",
     "jose": "^6.2.12"
   },

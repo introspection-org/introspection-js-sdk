@@ -1,8 +1,8 @@
 import type { JWK } from "jose";
 
-import type { Budget } from "@introspection-sdk/aauth-protocol";
+import type { AuthGrant, Budget } from "@introspection-sdk/aauth-protocol";
 
-export type { Budget };
+export type { AuthGrant, Budget };
 
 /** Someone this Person Server speaks for. */
 export interface Person {
@@ -73,8 +73,10 @@ export interface Approval {
   resource?: string;
   /** What an auth token request costs, from the resource token. */
   budget?: Budget;
-  /** For a mission: the resources it would cover. For an auth token: the claims it is minted with. */
-  grant: Record<string, unknown>;
+  /** For a mission: the resources it would cover. */
+  resources?: string[];
+  /** For an auth token: the claims it is minted with. */
+  grant?: AuthGrant;
   /** Set when the resource's Access Server decides too; then the approval is `approved` once the person's side is. */
   federation?: Federation;
   /** Approving a mission sets its budget. */

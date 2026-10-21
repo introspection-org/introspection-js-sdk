@@ -18,9 +18,13 @@ import {
 } from "jose";
 import {
   AAuthError,
+  isJsonObject as isObject,
+  MAX_TOKEN_LIFETIME,
   parseBudget,
   sameScale,
   type Signer,
+  tokenProblem,
+  trimIdentifier,
 } from "@introspection-sdk/aauth-protocol";
 
 import type { Budget, Federation } from "./types.js";
@@ -28,7 +32,6 @@ import type { Budget, Federation } from "./types.js";
 type FetchLike = (input: string, init?: RequestInit) => Promise<Response>;
 
 const ACCESS_DWK = "aauth-access.json";
-const MAX_AUTH_TOKEN_LIFETIME = 60 * 60;
 /** Requirements an Access Server may wait on that this Person Server relays to the agent. */
 const SERVED = new Set(["approval", "interaction"]);
 /** Requirements it would answer for the person, which it does not yet. */
@@ -56,6 +59,13 @@ export type AccessOutcome =
       location: string;
       /** Its `AAuth-Requirement`, relayed to the agent. */
       requirement: string;
+      /** How long it asked to be left, from its `Retry-After`. */
+      retry_after?: number;
+    }
+  | {
+      /** It was too busy to take the request (`429` or `503`): send it again later. */
+      status: "busy";
+      retry_after?: number;
     };
 
 interface AccessMetadata {
@@ -70,15 +80,29 @@ const unreachable = (detail: string) =>
 
 const refused = (detail: string) => new AAuthError(403, "denied", detail);
 
-async function readJson(response: Response): Promise<Record<string, unknown>> {
+async function readJson(response: Response): Promise<unknown> {
   try {
-    const body: unknown = await response.json();
-    return body && typeof body === "object"
-      ? (body as Record<string, unknown>)
-      : {};
+    return await response.json();
   } catch {
-    return {};
+    return undefined;
   }
+}
+
+/** A string member of a JSON object, or undefined. */
+function member(body: unknown, name: string): string | undefined {
+  const value = isObject(body) ? body[name] : undefined;
+  return typeof value === "string" ? value : undefined;
+}
+
+const isJwks = (body: unknown): body is { keys: JWK[] } =>
+  isObject(body) &&
+  Array.isArray(body.keys) &&
+  body.keys.every((key) => isObject(key));
+
+/** `Retry-After` in seconds, when it is a number of them. */
+function retryAfter(response: Response): number | undefined {
+  const seconds = Number(response.headers.get("retry-after") ?? "");
+  return Number.isSafeInteger(seconds) && seconds >= 0 ? seconds : undefined;
 }
 
 /** `{aud}/.well-known/aauth-access.json`, for the AS a verified resource token names. */
@@ -92,13 +116,14 @@ async function accessMetadata(
   });
   if (!response.ok) throw unreachable(`${url} answered ${response.status}`);
   const doc = await readJson(response);
-  const https = (value: unknown): value is string =>
-    typeof value === "string" && value.startsWith("https://");
-  const { issuer, jwks_uri, auth_token_endpoint } = doc;
+  const issuer = member(doc, "issuer");
+  const jwks_uri = member(doc, "jwks_uri");
+  const auth_token_endpoint = member(doc, "auth_token_endpoint");
   if (
-    issuer !== accessServer ||
-    !https(jwks_uri) ||
-    !https(auth_token_endpoint)
+    issuer === undefined ||
+    trimIdentifier(issuer) !== trimIdentifier(accessServer) ||
+    !jwks_uri?.startsWith("https://") ||
+    !auth_token_endpoint?.startsWith("https://")
   )
     throw unreachable(
       `${url} is not this Access Server's metadata, with https endpoints`,
@@ -172,14 +197,16 @@ async function verifyDelivered(
 ): Promise<{ expires_in: number; granted?: Budget }> {
   const rt = decodeJwt(federation.resource_token);
   const presented = decodeJwt(federation.presented_token);
+  const agent = decodeJwt(federation.agent_token);
   let claims;
   try {
-    const keys = await ctx.fetch(metadata.jwks_uri).then((r) => r.json());
+    const keys: unknown = await ctx
+      .fetch(metadata.jwks_uri)
+      .then((r) => r.json());
+    if (!isJwks(keys)) throw new Error("its jwks_uri is not a JWK Set");
     claims = (
-      await jwtVerify(token, createLocalJWKSet(keys as { keys: JWK[] }), {
+      await jwtVerify(token, createLocalJWKSet(keys), {
         typ: "aa-auth+jwt",
-        issuer: metadata.issuer,
-        audience: String(rt.iss),
         algorithms: ["Ed25519", "ES256"],
         currentDate: new Date(ctx.now() * 1000),
       })
@@ -189,21 +216,35 @@ async function verifyDelivered(
       `its auth token does not verify: ${(err as Error).message}`,
     );
   }
-  const cnf = (claims.cnf as { jwk?: JWK } | undefined)?.jwk;
+  const cnf =
+    isObject(claims.cnf) && isObject(claims.cnf.jwk)
+      ? claims.cnf.jwk
+      : undefined;
   const granted = scopes(claims.scope);
   const asked = scopes(rt.scope);
   const budget = readBudget(claims.budget);
+  const shape = tokenProblem(claims, {
+    dwk: ACCESS_DWK,
+    maxLifetime: MAX_TOKEN_LIFETIME,
+  });
+  if (shape) throw unreachable(`its auth token ${shape}`);
+  const same = (claim: string, expected: unknown) =>
+    typeof claims[claim] === "string" &&
+    typeof expected === "string" &&
+    trimIdentifier(String(claims[claim])) === trimIdentifier(expected);
+  const notAfter = Math.min(Number(presented.exp), Number(agent.exp));
   const problems = [
-    claims.dwk !== ACCESS_DWK && "dwk",
-    claims.ps !== ctx.issuer && "ps",
+    !same("iss", metadata.issuer) && "iss",
+    !same("aud", rt.iss) && "aud",
+    !same("ps", ctx.issuer) && "ps",
     claims.sub !== rt.sub && "sub",
     claims.mission_s256 !== rt.mission_s256 && "mission_s256",
+    ...(["account", "r3_uri", "r3_s256"] as const).map(
+      (claim) =>
+        rt[claim] !== undefined && claims[claim] !== rt[claim] && claim,
+    ),
     [...granted].some((s) => !asked.has(s)) && "scope",
-    (typeof claims.exp !== "number" || claims.exp > Number(presented.exp)) &&
-      "exp",
-    (typeof claims.iat !== "number" ||
-      Number(claims.exp) - claims.iat > MAX_AUTH_TOKEN_LIFETIME) &&
-      "lifetime",
+    !(Number(claims.exp) <= notAfter) && "exp",
     (budget === null || !withinSent(budget ?? undefined, federation.budget)) &&
       "budget",
     (!cnf || (await calculateJwkThumbprint(cnf)) !== agentJkt) && "cnf",
@@ -216,6 +257,11 @@ async function verifyDelivered(
   };
 }
 
+const retrying = (response: Response) => {
+  const seconds = retryAfter(response);
+  return seconds === undefined ? {} : { retry_after: seconds };
+};
+
 /** Act on the AS's answer: an auth token, a wait, or a refusal relayed with its reason. */
 async function outcome(
   response: Response,
@@ -226,8 +272,8 @@ async function outcome(
   ctx: FederationContext,
 ): Promise<AccessOutcome> {
   if (response.status === 200) {
-    const { auth_token } = await readJson(response);
-    if (typeof auth_token !== "string")
+    const auth_token = member(await readJson(response), "auth_token");
+    if (auth_token === undefined)
       throw unreachable("it answered 200 without an auth_token");
     const delivered = await verifyDelivered(
       auth_token,
@@ -262,32 +308,31 @@ async function outcome(
       // An unrecognised requirement is polled through, and relayed as approval (#requirement-values).
       requirement:
         header && SERVED.has(requirement) ? header : "requirement=approval",
+      ...retrying(response),
     };
   }
   if (response.status === 402)
     throw refused(
       "the Access Server asks for payment, which this Person Server does not make",
     );
-  // #deferred-responses: a busy AS is polled again later, at the same Location.
-  if (
-    (response.status === 429 || response.status === 503) &&
-    requested !== metadata.auth_token_endpoint
-  )
-    return {
-      status: "pending",
-      location: requested,
-      requirement: federation.requirement ?? "requirement=approval",
-    };
-  const { error, detail } = await readJson(response);
-  if (
-    response.status >= 400 &&
-    response.status < 500 &&
-    typeof error === "string"
-  )
+  // #deferred-responses: a busy AS is asked again later, at the same Location or with the same request.
+  if (response.status === 429 || response.status === 503)
+    return federation.location
+      ? {
+          status: "pending",
+          location: requested,
+          requirement: federation.requirement ?? "requirement=approval",
+          ...retrying(response),
+        }
+      : { status: "busy", ...retrying(response) };
+  const body = await readJson(response);
+  const error = member(body, "error");
+  const detail = member(body, "detail");
+  if (response.status >= 400 && response.status < 500 && error !== undefined)
     throw new AAuthError(
       response.status,
       error,
-      `the Access Server refused: ${typeof detail === "string" ? detail : error}`,
+      `the Access Server refused: ${detail ?? error}`,
     );
   throw unreachable(`it answered ${response.status}`);
 }

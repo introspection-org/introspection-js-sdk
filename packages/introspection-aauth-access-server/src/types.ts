@@ -1,7 +1,15 @@
 import type { JWK, JWTPayload } from "jose";
-import type { Budget } from "@introspection-sdk/aauth-protocol";
+import type { AuthGrant, Budget } from "@introspection-sdk/aauth-protocol";
 
-export type { Budget };
+export type { AuthGrant, Budget };
+
+/** What an auth token from this Access Server carries besides its own claims. */
+export interface AccessGrant extends AuthGrant {
+  /** The Person Server the person is represented by. */
+  ps: string;
+  mission_s256?: string;
+  tenant?: string;
+}
 
 /**
  * A Person Server's token request, once its signature and all three tokens
@@ -66,7 +74,7 @@ export interface PendingAccess {
   interaction?: { url: string; code: string };
   request: AccessRequest;
   /** What the auth token is issued with, once approved. */
-  grant: Record<string, unknown>;
+  grant: AccessGrant;
   /** The agent's key the auth token binds. */
   jwk: JWK;
   /** The latest the auth token may expire: its agent token's and presented token's `exp`. */

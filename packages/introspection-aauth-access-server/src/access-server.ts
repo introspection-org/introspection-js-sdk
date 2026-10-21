@@ -14,21 +14,26 @@ import { buildRequirementHeader } from "@aauth/resource";
 import {
   AAuthError,
   answer,
+  authGrant,
   beneath,
   discovery,
   httpsOnly,
   loadSigner,
   parseBudget,
   problem,
+  readJsonObject,
   readProposalSummary,
   sameScale,
   signatureError,
+  tokenLifetime,
+  trimIdentifier,
   verifySignature,
 } from "@introspection-sdk/aauth-protocol";
 import type { JWK, JWTPayload } from "jose";
 
 import type {
   AccessDecision,
+  AccessGrant,
   AccessRequest,
   Budget,
   IssuedAccess,
@@ -45,7 +50,6 @@ import {
 type FetchLike = (input: string, init?: RequestInit) => Promise<Response>;
 
 const DWK = "aauth-access.json";
-const MAX_TOKEN_TTL = 60 * 60;
 
 export interface AccessServerOptions {
   /** This Access Server's identifier: `https://host`, no port or path. */
@@ -80,7 +84,6 @@ export interface AccessServerOptions {
   now?: () => number;
 }
 
-const trim = (url: string) => url.replace(/\/+$/, "");
 const words = (value: unknown) =>
   typeof value === "string" ? value.split(" ").filter(Boolean) : [];
 
@@ -98,13 +101,8 @@ function narrowed(asked: unknown, scope: string | undefined) {
 }
 
 function readTokens(body: string) {
-  let params: Record<string, unknown> = {};
-  try {
-    params = (JSON.parse(body) ?? {}) as Record<string, unknown>;
-  } catch {
-    // answered below
-  }
-  const { resource_token, agent_token, presented_token, budget } = params;
+  const { resource_token, agent_token, presented_token, budget } =
+    readJsonObject(body);
   if (
     typeof resource_token !== "string" ||
     typeof agent_token !== "string" ||
@@ -140,10 +138,10 @@ function bounded(sent: Budget | undefined, asked: Budget | undefined) {
 
 /** The grant with the policy's lower budget, which may not exceed what may be spent. */
 function lowered(
-  grant: Record<string, unknown>,
+  grant: AccessGrant,
   bound: Budget | undefined,
   lower: Budget | undefined,
-): Record<string, unknown> {
+): AccessGrant {
   if (!lower) return grant;
   let checked: Budget | undefined;
   try {
@@ -165,43 +163,65 @@ function lowered(
   return { ...grant, budget: checked };
 }
 
-/** The claims an auth token for `rt` carries besides its own, copied from the resource token. */
-function grantFor(rt: JWTPayload): Record<string, unknown> {
+/** The claims an auth token for `rt` carries besides its own, copied from the resource token; its scope is the policy's. */
+function grantFor(rt: JWTPayload, budget: Budget | undefined): AccessGrant {
+  const copied = authGrant(rt, String(rt.iss), budget);
+  delete copied.scope;
   return {
-    aud: rt.iss,
-    ps: rt.ps,
-    sub: rt.sub,
-    ...Object.fromEntries(
-      (
-        ["account", "mission_s256", "tenant", "r3_uri", "r3_s256"] as const
-      ).flatMap((k) => (rt[k] === undefined ? [] : [[k, rt[k]]])),
-    ),
+    ...copied,
+    ps: String(rt.ps),
+    ...(typeof rt.mission_s256 === "string"
+      ? { mission_s256: rt.mission_s256 }
+      : {}),
+    ...(typeof rt.tenant === "string" ? { tenant: rt.tenant } : {}),
   };
+}
+
+/** The `AAuth-Requirement` a pending request is answered with; a policy's bad interaction is a 500. */
+function requirementHeader(interaction: PendingAccess["interaction"]): string {
+  if (!interaction) return buildRequirementHeader({ requirement: "approval" });
+  let https = false;
+  try {
+    https = new URL(interaction.url).protocol === "https:";
+  } catch {
+    // answered below
+  }
+  try {
+    if (https)
+      return buildRequirementHeader({
+        requirement: "interaction",
+        ...interaction,
+      });
+  } catch {
+    // answered below
+  }
+  throw new AAuthError(
+    500,
+    "server_error",
+    "the policy's interaction needs an https url and a code of printable ASCII",
+  );
 }
 
 export type AccessServer = Awaited<ReturnType<typeof createAccessServer>>;
 
 export async function createAccessServer(options: AccessServerOptions) {
-  const issuer = trim(options.issuer);
+  const issuer = trimIdentifier(options.issuer);
   if (!issuer.startsWith("https://"))
     throw new Error("issuer must be an https origin");
-  const base = trim(options.basePath ?? "");
+  const base = trimIdentifier(options.basePath ?? "");
   const signer = await loadSigner(options.signingKey, options.kid);
   const fetchLike: FetchLike = httpsOnly(
     options.fetch ?? ((input, init) => fetch(input, init)),
   );
   const now = options.now ?? (() => Math.floor(Date.now() / 1000));
-  const tokenTtl = Math.min(
-    options.tokenTtlSeconds ?? MAX_TOKEN_TTL,
-    MAX_TOKEN_TTL,
-  );
+  const tokenTtl = tokenLifetime(options.tokenTtlSeconds);
   const pendingTtl = options.pendingTtlSeconds ?? 24 * 60 * 60;
   const retryAfter = options.retryAfterSeconds ?? 5;
-  const personServers = options.personServers.map(trim);
+  const personServers = options.personServers.map(trimIdentifier);
   const verifier: Verifier = {
     issuer,
-    resources: options.resources.map(trim),
-    agentProviders: options.agentProviders.map(trim),
+    resources: options.resources.map(trimIdentifier),
+    agentProviders: options.agentProviders.map(trimIdentifier),
     fetch: fetchLike,
     now,
   };
@@ -293,7 +313,7 @@ export async function createAccessServer(options: AccessServerOptions) {
     };
     return {
       request,
-      grant: { ...grantFor(rt), ...(budget ? { budget } : {}) },
+      grant: grantFor(rt, budget),
       jwk: agent.cnf.jwk as JWK,
       not_after: Math.min(agent.exp, presented.exp),
     };
@@ -338,11 +358,7 @@ export async function createAccessServer(options: AccessServerOptions) {
           Location: endpoints.pending(record.id),
           "Retry-After": String(retryAfter),
           "Cache-Control": "no-store",
-          "AAuth-Requirement": buildRequirementHeader(
-            record.interaction
-              ? { requirement: "interaction", ...record.interaction }
-              : { requirement: "approval" },
-          ),
+          "AAuth-Requirement": requirementHeader(record.interaction),
         },
       },
     );
@@ -367,14 +383,17 @@ export async function createAccessServer(options: AccessServerOptions) {
         "denied",
         verdict.detail ?? "this resource's policy refuses it",
       );
+    const interaction =
+      verdict.decision === "interaction"
+        ? { url: verdict.url, code: verdict.code }
+        : undefined;
+    requirementHeader(interaction);
     const created = now();
     const record: PendingAccess = {
       id: randomUUID(),
       status: "pending",
       requirement: verdict.decision,
-      ...(verdict.decision === "interaction"
-        ? { interaction: { url: verdict.url, code: verdict.code } }
-        : {}),
+      ...(interaction ? { interaction } : {}),
       ...asked,
       created_at: created,
       expires_at: Math.min(created + pendingTtl, asked.not_after),

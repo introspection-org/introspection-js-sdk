@@ -12,6 +12,7 @@ export type {
   Approval,
   ApprovalKind,
   ApprovalStatus,
+  AuthGrant,
   Budget,
   Decision,
   Directory,

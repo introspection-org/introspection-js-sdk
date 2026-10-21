@@ -45,7 +45,12 @@ export interface FederatedContext {
   newApproval: NewApproval;
   /** Save a new approval, tell whoever decides, and answer the agent `202`. */
   ask: (...args: Parameters<NewApproval>) => Promise<Response>;
-  stillPending: (tenant: string, id: string, requirement?: string) => Response;
+  stillPending: (
+    tenant: string,
+    id: string,
+    requirement?: string,
+    retryAfter?: number,
+  ) => Response;
   collected: () => Response;
   proposalSummary: (rt: JWTPayload) => Promise<string | undefined>;
   onApproval?: (approval: Approval) => void | Promise<void>;
@@ -152,9 +157,10 @@ export function federatedAccess(ctx: FederatedContext) {
 
   /**
    * Redeem an approved request at its Access Server: its auth token, once the
-   * spend lands, or a wait while the AS decides. `stored` is whether the
-   * approval is saved already; one that is not is saved only if it must wait.
-   * A refusal ends a saved approval as the AS's denial.
+   * spend lands, or a wait while the AS decides or is busy. `stored` is
+   * whether the approval is saved already; one that is not is saved only if it
+   * must wait. Only the AS's own refusal ends a saved approval as its denial:
+   * one that could not be reached is asked again on the agent's next poll.
    */
   async function redeem(
     tenant: string,
@@ -168,7 +174,13 @@ export function federatedAccess(ctx: FederatedContext) {
     try {
       answer = await federate(federation, agent.jkt, ctx.federation);
     } catch (err) {
-      if (stored && err instanceof AAuthError)
+      if (
+        stored &&
+        err instanceof AAuthError &&
+        err.status >= 400 &&
+        err.status < 500 &&
+        err.status !== 429
+      )
         await store.transitionApproval(tenant, "approved", {
           ...approval,
           status: "denied",
@@ -177,7 +189,7 @@ export function federatedAccess(ctx: FederatedContext) {
         });
       throw err;
     }
-    if (answer.status === "pending")
+    if (answer.status !== "issued")
       return wait(tenant, approval, answer, stored);
     if (
       stored &&
@@ -213,29 +225,41 @@ export function federatedAccess(ctx: FederatedContext) {
     });
   }
 
-  /** The AS is deciding: keep where it said to poll, and tell the agent to wait. */
+  /**
+   * The AS is deciding: keep where it said to poll, and tell the agent to
+   * wait. Or it was too busy to take the request: keep the request to send
+   * again when the agent next polls.
+   */
   async function wait(
     tenant: string,
     approval: Approval & { federation: Federation },
-    answer: Extract<AccessOutcome, { status: "pending" }>,
+    answer: Exclude<AccessOutcome, { status: "issued" }>,
     stored: boolean,
   ): Promise<Response> {
     const { federation } = approval;
-    const waiting = {
-      ...approval,
-      federation: {
-        ...federation,
-        location: answer.location,
-        requirement: answer.requirement,
-      },
-    };
+    const waiting =
+      answer.status === "pending"
+        ? {
+            ...approval,
+            federation: {
+              ...federation,
+              location: answer.location,
+              requirement: answer.requirement,
+            },
+          }
+        : approval;
     if (!stored) await store.insertApproval(tenant, waiting);
     else if (
-      answer.location !== federation.location ||
-      answer.requirement !== federation.requirement
+      waiting.federation.location !== federation.location ||
+      waiting.federation.requirement !== federation.requirement
     )
       await store.transitionApproval(tenant, "approved", waiting);
-    return ctx.stillPending(tenant, approval.id, answer.requirement);
+    return ctx.stillPending(
+      tenant,
+      approval.id,
+      waiting.federation.requirement,
+      answer.retry_after,
+    );
   }
 
   /** The budget moved since it was weighed: the approver decides, and the AS is asked again once they do. */

@@ -5,6 +5,8 @@ export {
 } from "./access-server.js";
 export type {
   AccessDecision,
+  AccessGrant,
+  AuthGrant,
   AccessRequest,
   Budget,
   IssuedAccess,

@@ -11,7 +11,12 @@ import {
   discoverJwks,
   verifyToken,
 } from "@aauth/resource";
-import { AAuthError } from "@introspection-sdk/aauth-protocol";
+import {
+  AAuthError,
+  MAX_TOKEN_LIFETIME,
+  tokenProblem,
+  trimIdentifier,
+} from "@introspection-sdk/aauth-protocol";
 import {
   type JWTPayload,
   createLocalJWKSet,
@@ -56,7 +61,7 @@ export async function verifyResourceToken(
   const { header, claims } = decode(token, "resource");
   if (header.typ !== "aa-resource+jwt")
     throw tokenError("resource", "not a resource token");
-  const resource = String(claims.iss ?? "");
+  const resource = trimIdentifier(String(claims.iss ?? ""));
   // Checked before verifying, since verifying fetches the issuer's keys.
   if (!verifier.resources.includes(resource))
     throw tokenError(
@@ -72,7 +77,7 @@ export async function verifyResourceToken(
     });
     ({ payload: rt } = await jwtVerify(token, createLocalJWKSet(keys), {
       typ: "aa-resource+jwt",
-      issuer: resource,
+      issuer: String(claims.iss),
       algorithms: ["Ed25519", "ES256"],
       currentDate: new Date(verifier.now() * 1000),
     }));
@@ -83,11 +88,11 @@ export async function verifyResourceToken(
       (err as { code?: string }).code === "ERR_JWT_EXPIRED",
     );
   }
-  if (rt.dwk !== "aauth-resource.json")
-    throw tokenError("resource", "dwk is not aauth-resource.json");
-  if (rt.aud !== verifier.issuer)
+  const shape = tokenProblem(rt, { dwk: "aauth-resource.json" });
+  if (shape) throw tokenError("resource", `it ${shape}`);
+  if (typeof rt.aud !== "string" || trimIdentifier(rt.aud) !== verifier.issuer)
     throw tokenError("resource", "its aud is not this Access Server");
-  if (rt.ps !== ps)
+  if (typeof rt.ps !== "string" || trimIdentifier(rt.ps) !== ps)
     throw tokenError(
       "resource",
       "its ps is not the Person Server that sent it",
@@ -105,7 +110,9 @@ export async function verifyAgentToken(
   rt: JWTPayload,
   ps: string,
 ): Promise<Extract<VerifiedToken, { type: "agent" }>> {
-  const provider = String(decode(token, "agent").claims.iss ?? "");
+  const provider = trimIdentifier(
+    String(decode(token, "agent").claims.iss ?? ""),
+  );
   if (!verifier.agentProviders.includes(provider))
     throw new AAuthError(
       400,
@@ -126,7 +133,10 @@ export async function verifyAgentToken(
   });
   if (agent.type !== "agent")
     throw new AAuthError(400, "invalid_request", "agent_token is not one");
-  if (agent.ps !== undefined && agent.ps !== ps)
+  const shape = tokenProblem(agent.claims, {});
+  if (shape)
+    throw new AAuthError(400, "invalid_request", `agent_token ${shape}`);
+  if (agent.ps !== undefined && trimIdentifier(agent.ps) !== ps)
     throw new AAuthError(
       400,
       "invalid_request",
@@ -156,7 +166,10 @@ export async function verifyPresentedToken(
         : undefined;
   if (!kind)
     throw tokenError("presented", "neither a person token nor an auth token");
-  if (claims.iss !== (kind === "person" ? ps : verifier.issuer))
+  if (
+    trimIdentifier(String(claims.iss ?? "")) !==
+    (kind === "person" ? ps : verifier.issuer)
+  )
     throw tokenError(
       "presented",
       "issued by neither the Person Server that sent it nor this Access Server",
@@ -176,9 +189,12 @@ export async function verifyPresentedToken(
     );
   });
   const verified = presented.claims;
+  const shape = tokenProblem(verified, { maxLifetime: MAX_TOKEN_LIFETIME });
+  if (shape) throw tokenError("presented", `it ${shape}`);
   if (
     verified.jti !== rt.presented_jti ||
-    (presented.type === "auth" ? presented.ps : presented.iss) !== rt.ps ||
+    trimIdentifier(presented.type === "auth" ? presented.ps : presented.iss) !==
+      ps ||
     verified.sub !== rt.sub ||
     verified.mission_s256 !== rt.mission_s256 ||
     verified.tenant !== rt.tenant

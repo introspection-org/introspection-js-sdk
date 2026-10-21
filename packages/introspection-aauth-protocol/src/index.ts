@@ -1,6 +1,15 @@
 export { AAuthError, problem } from "./errors.js";
 export { type Budget, parseBudget, sameScale } from "./budget.js";
 export { type FetchLike, httpsOnly } from "./fetch.js";
+export { isJsonObject, readJsonObject } from "./json.js";
+export {
+  type AuthGrant,
+  authGrant,
+  MAX_TOKEN_LIFETIME,
+  tokenLifetime,
+  tokenProblem,
+  trimIdentifier,
+} from "./tokens.js";
 export { loadSigner, type Signer } from "./signer.js";
 export {
   answer,

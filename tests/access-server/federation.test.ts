@@ -6,7 +6,7 @@
  *
  * Mock exception 1 of AGENTS.md §6: no LLM call; every party is real code.
  */
-import { generateKeyPairSync } from "node:crypto";
+import { generateKeyPairSync, randomUUID } from "node:crypto";
 
 import { clearMetadataCache, parseRequirementHeader } from "@aauth/resource";
 import { fetch as signedFetch } from "@hellocoop/httpsig";
@@ -43,6 +43,13 @@ const AS = "https://as.flightsector.example";
 const RESOURCE = "https://booking.flightsector.example";
 const PROVIDER = "https://agents.example";
 const USD = { unit: "USD", decimals: 2 };
+/** A body's signature that leaves out `content-type`. */
+const WITHOUT_CONTENT_TYPE = [
+  "@method",
+  "@authority",
+  "@path",
+  "signature-key",
+];
 
 // Fixed across tests: @hellocoop/httpsig caches a jwks_uri signer's keys by URL.
 const pem = () =>
@@ -72,7 +79,7 @@ async function party(kid: string, key?: string): Promise<Party> {
     publicJwk,
     sign: (claims, typ) => {
       const iat = Math.floor(Date.now() / 1000);
-      return new SignJWT({ iat, exp: iat + 600, ...claims })
+      return new SignJWT({ iat, exp: iat + 600, jti: randomUUID(), ...claims })
         .setProtectedHeader({ alg: "Ed25519", typ, kid })
         .sign(privateKey);
     },
@@ -180,10 +187,12 @@ class AgentClient {
     url: string,
     body?: Record<string, unknown>,
     token = this.token,
+    components?: string[],
   ) {
     const text = body ? JSON.stringify(body) : undefined;
     const { headers } = await signedFetch(url, {
       method,
+      ...(components ? { components } : {}),
       ...(text
         ? { body: text, headers: { "Content-Type": "application/json" } }
         : {}),
@@ -201,11 +210,13 @@ class AgentClient {
 async function asPersonServer(
   id: string,
   key: Party,
-  body: Record<string, unknown>,
+  body: unknown,
+  components?: string[],
 ) {
   const text = JSON.stringify(body);
   const { headers } = await signedFetch(`${AS}/token`, {
     method: "POST",
+    ...(components ? { components } : {}),
     body: text,
     headers: { "Content-Type": "application/json" },
     signingKey: key.jwk as JsonWebKey,
@@ -328,6 +339,12 @@ async function challenge(agent: AgentClient, token: string, amount: number) {
   expect(parsed.requirement).toBe("auth-token");
   return parsed.resourceToken!;
 }
+
+const problem500 = () =>
+  Response.json(
+    { error: "server_error" },
+    { status: 500, headers: { "Content-Type": "application/problem+json" } },
+  );
 
 const spent = async (s256: string) => (await ps.mission("acme", s256))?.spent;
 
@@ -592,7 +609,7 @@ describe("@introspection-sdk/aauth-access-server federation", () => {
           budget: { amount: 100_000, ...USD },
           exp: Math.floor(Date.now() / 1000) + 7200,
         },
-        "lifetime",
+        "lives longer",
       ],
     ] as const) {
       const resourceToken = await challenge(agent, trip.personToken, 100_000);
@@ -854,5 +871,217 @@ describe("@introspection-sdk/aauth-access-server federation", () => {
       forged,
     );
     expect(response.status).toBe(401);
+  });
+  it("refuses a signed body whose signature leaves out content-type", async () => {
+    const agent = await AgentClient.create();
+    const trip = await approvedTrip(agent);
+    const tokens = {
+      resource_token: await challenge(agent, trip.personToken, 10_000),
+      presented_token: trip.personToken,
+    };
+    const atPs = await agent.send(
+      "POST",
+      `${PS}/ps/token`,
+      tokens,
+      agent.token,
+      WITHOUT_CONTENT_TYPE,
+    );
+    expect(atPs.status).toBe(401);
+    expect(atPs.headers.get("signature-error")).toContain("invalid_signature");
+    const atAs = await asPersonServer(
+      PS,
+      await party(ps.jwks().keys[0]!.kid!, PS_KEY),
+      { ...tokens, agent_token: agent.token },
+      WITHOUT_CONTENT_TYPE,
+    );
+    expect(atAs.status).toBe(401);
+    expect(atAs.headers.get("signature-error")).toContain("invalid_signature");
+    const atResource = await agent.send(
+      "POST",
+      `${RESOURCE}/reserve`,
+      { amount: 10_000 },
+      trip.personToken,
+      WITHOUT_CONTENT_TYPE,
+    );
+    expect(atResource.status).toBe(401);
+    expect(atResource.headers.get("signature-error")).toContain(
+      "invalid_signature",
+    );
+    expect(decided).toHaveLength(0);
+  });
+
+  it("refuses a body that is not a JSON object", async () => {
+    const response = await asPersonServer(
+      PS,
+      await party(ps.jwks().keys[0]!.kid!, PS_KEY),
+      [],
+    );
+    expect(response.status).toBe(400);
+    expect(await response.json()).toMatchObject({
+      error: "invalid_request",
+      detail: expect.stringContaining("JSON object"),
+    });
+  });
+
+  it("takes an Access Server that names itself with a trailing slash", async () => {
+    const agent = await AgentClient.create();
+    const trip = await approvedTrip(agent);
+    asMetadata = {
+      issuer: `${AS}/`,
+      jwks_uri: `${AS}/.well-known/jwks.json`,
+      auth_token_endpoint: `${AS}/token`,
+    };
+    const issued = await agent.send("POST", `${PS}/ps/token`, {
+      resource_token: await challenge(agent, trip.personToken, 10_000),
+      presented_token: trip.personToken,
+    });
+    expect(issued.status).toBe(200);
+  });
+
+  it("refuses an auth token that drops what the resource token carries, or has no jti", async () => {
+    const agent = await AgentClient.create();
+    const trip = await approvedTrip(agent);
+    const forged = await party(as.jwks().keys[0]!.kid!, AS_KEY);
+    const booking = await party("booking-1", RESOURCE_KEY);
+    const cases: [JWTPayload, string][] = [
+      [{ account: undefined }, "account"],
+      [{ r3_uri: `${RESOURCE}/r3/other` }, "r3_uri"],
+      [{ r3_s256: "other" }, "r3_s256"],
+      [{ jti: undefined }, "no jti"],
+    ];
+    for (const [claims, wrong] of cases) {
+      const rt = decodeJwt(await challenge(agent, trip.personToken, 30_000));
+      const resourceToken = await booking.sign(
+        { ...rt, account: "acct-7" },
+        "aa-resource+jwt",
+      );
+      asAnswer = async () =>
+        Response.json({
+          auth_token: await forged.sign(
+            {
+              iss: AS,
+              dwk: "aauth-access.json",
+              aud: RESOURCE,
+              ps: PS,
+              sub: rt.sub,
+              mission_s256: trip.s256,
+              scope: "booking.reserve",
+              account: "acct-7",
+              r3_uri: rt.r3_uri,
+              r3_s256: rt.r3_s256,
+              budget: { amount: 30_000, ...USD },
+              cnf: { jwk: agent.session.publicJwk },
+              ...claims,
+            },
+            "aa-auth+jwt",
+          ),
+        });
+      const answered = await agent.send("POST", `${PS}/ps/token`, {
+        resource_token: resourceToken,
+        presented_token: trip.personToken,
+      });
+      expect(answered.status).toBe(502);
+      expect(await answered.json()).toMatchObject({
+        error: "as_unreachable",
+        detail: expect.stringContaining(wrong),
+      });
+    }
+    expect(await spent(trip.s256)).toBe(0);
+  });
+
+  it("asks a busy Access Server again on the agent's next poll", async () => {
+    for (const status of [429, 503]) {
+      const agent = await AgentClient.create();
+      const trip = await approvedTrip(agent);
+      let busy = true;
+      asAnswer = (request) =>
+        request.method === "POST" && busy
+          ? new Response(null, { status, headers: { "Retry-After": "7" } })
+          : undefined;
+      const waiting = await agent.send("POST", `${PS}/ps/token`, {
+        resource_token: await challenge(agent, trip.personToken, 40_000),
+        presented_token: trip.personToken,
+      });
+      expect(waiting.status).toBe(202);
+      expect(waiting.headers.get("retry-after")).toBe("7");
+      const [kept] = (await ps.approvals("acme")).filter(
+        (a) => a.kind === "auth_token" && a.mission_s256 === trip.s256,
+      );
+      expect(kept).toMatchObject({ status: "approved" });
+      expect(kept!.federation?.location).toBeUndefined();
+      expect(await spent(trip.s256)).toBe(0);
+      busy = false;
+      const issued = await agent.send("GET", waiting.headers.get("location")!);
+      expect(issued.status).toBe(200);
+      expect(await spent(trip.s256)).toBe(40_000);
+    }
+  });
+
+  it("asks again, rather than denying, when the Access Server fails", async () => {
+    const agent = await AgentClient.create();
+    const trip = await approvedTrip(agent, 100_000);
+    const waiting = await agent.send("POST", `${PS}/ps/token`, {
+      resource_token: await challenge(agent, trip.personToken, 150_000),
+      presented_token: trip.personToken,
+    });
+    expect(waiting.status).toBe(202);
+    await ps.decide("acme", asked.at(-1)!.id, { status: "approved" });
+    const location = waiting.headers.get("location")!;
+    asAnswer = (request) =>
+      request.method === "POST" ? problem500() : undefined;
+    expect((await agent.send("GET", location)).status).toBe(502);
+    expect(await ps.approval("acme", asked.at(-1)!.id)).toMatchObject({
+      status: "approved",
+    });
+    asAnswer = undefined;
+    expect((await agent.send("GET", location)).status).toBe(200);
+    expect(await spent(trip.s256)).toBe(150_000);
+  });
+
+  it("refuses a policy's interaction it cannot send, and keeps no record of it", async () => {
+    for (const interaction of [
+      { url: "http://as.flightsector.example/bind", code: "ABCD-1234" },
+      { url: `${AS}/bind`, code: "ABCD-12\u00e934" },
+    ]) {
+      const agent = await AgentClient.create();
+      const trip = await approvedTrip(agent);
+      policy = () => ({ decision: "interaction", ...interaction });
+      const answered = await agent.send("POST", `${PS}/ps/token`, {
+        resource_token: await challenge(agent, trip.personToken, 20_000),
+        presented_token: trip.personToken,
+      });
+      expect(answered.status).toBe(502);
+      expect(as.pendings()).toHaveLength(0);
+    }
+  });
+
+  it("the resource refuses an auth token without a jti, or that lives over an hour", async () => {
+    const agent = await AgentClient.create();
+    const trip = await approvedTrip(agent);
+    const asKey = await party(as.jwks().keys[0]!.kid!, AS_KEY);
+    const now = Math.floor(Date.now() / 1000);
+    for (const claims of [{ jti: undefined }, { exp: now + 7200 }]) {
+      const token = await asKey.sign(
+        {
+          iss: AS,
+          dwk: "aauth-access.json",
+          aud: RESOURCE,
+          ps: PS,
+          sub: decodeJwt(trip.personToken).sub,
+          scope: "booking.reserve",
+          cnf: { jwk: agent.session.publicJwk },
+          ...claims,
+        },
+        "aa-auth+jwt",
+      );
+      const response = await agent.send(
+        "POST",
+        `${RESOURCE}/reserve`,
+        { amount: 1 },
+        token,
+      );
+      expect(response.status).toBe(401);
+      expect(response.headers.get("signature-error")).toContain("invalid_jwt");
+    }
   });
 });

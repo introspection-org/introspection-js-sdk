@@ -19,12 +19,6 @@ import {
   verifyToken,
 } from "@aauth/resource";
 import {
-  generateAcceptSignatureSchemeHeader,
-  generateSignatureErrorHeader,
-  type SignatureErrorCode,
-  verify,
-} from "@hellocoop/httpsig";
-import {
   type CryptoKey,
   type JWK,
   type JWTPayload,
@@ -42,9 +36,14 @@ import {
   type Budget,
   type FetchLike,
   httpsOnly,
+  MAX_TOKEN_LIFETIME,
   parseBudget,
   problem,
   sameScale,
+  signatureError,
+  tokenProblem,
+  trimIdentifier,
+  verifySignature as verifyAddressed,
 } from "@introspection-sdk/aauth-protocol";
 
 /** RFC 9864's fully-specified identifier; the polymorphic `EdDSA` is not used. */
@@ -190,17 +189,6 @@ export async function respond(run: () => Promise<Response>): Promise<Response> {
   }
 }
 
-function signatureError(code: SignatureErrorCode, detail: string): AAuthError {
-  const headers: Record<string, string> = {
-    "Signature-Error": generateSignatureErrorHeader({ error: code }),
-  };
-  if (code === "unsupported_scheme")
-    headers["Accept-Signature-Scheme"] = generateAcceptSignatureSchemeHeader([
-      "jwt",
-    ]);
-  return new AAuthError(401, code, detail, headers);
-}
-
 const challenge = (
   requirement: Parameters<typeof buildRequirementHeader>[0],
   detail: string,
@@ -231,20 +219,7 @@ async function verifySignature(
   url: string,
 ): Promise<SignedRequest> {
   const { host, pathname } = new URL(url);
-  const result = await verify(
-    {
-      method: request.method,
-      authority: host,
-      path: pathname,
-      headers: request.headers,
-      ...(body ? { body } : {}),
-    },
-    { requireContentDigest: true, supportedAlgorithms: ["Ed25519", "ES256"] },
-  );
-  if (!result.verified) {
-    const code = result.signatureError?.error ?? "invalid_signature";
-    throw signatureError(code, result.error ?? "signature does not verify");
-  }
+  const result = await verifyAddressed(request, body, host, pathname);
   return {
     keyType: result.keyType,
     thumbprint: result.thumbprint,
@@ -257,7 +232,7 @@ async function verifySignature(
 export async function createAAuthResource(
   options: AAuthResourceOptions,
 ): Promise<AAuthResource> {
-  const issuer = options.issuer.replace(/\/+$/, "");
+  const issuer = trimIdentifier(options.issuer);
   if (!issuer.startsWith("https://"))
     throw new Error("issuer must be an https origin");
   const vocabulary = options.vocabulary ?? `${issuer}/r3/vocabulary`;
@@ -276,16 +251,20 @@ export async function createAAuthResource(
     new SignJWT(claims)
       .setProtectedHeader({ ...header, alg: ALG, kid } as { alg: string })
       .sign(privateKey);
-  const accessServer = options.accessServer?.replace(/\/+$/, "");
+  const accessServer =
+    options.accessServer === undefined
+      ? undefined
+      : trimIdentifier(options.accessServer);
   const keysFetch = httpsOnly(
     options.fetch ?? ((input, init) => fetch(input, init)),
   );
   if (accessServer !== undefined && !accessServer.startsWith("https://"))
     throw new Error("accessServer must be an https origin");
+  const personServers = options.personServers.map(trimIdentifier);
   const issuers: Record<TokenKind, readonly string[]> = {
-    agent: options.agentProviders,
-    person: options.personServers,
-    auth: accessServer ? [accessServer] : options.personServers,
+    agent: options.agentProviders.map(trimIdentifier),
+    person: personServers,
+    auth: accessServer ? [accessServer] : personServers,
   };
 
   /** The token a signed request presented: a kind it accepts, from an issuer it trusts, binding the signing key. */
@@ -302,7 +281,8 @@ export async function createAAuthResource(
       throw signatureError("invalid_jwt", "not a JWT");
     }
     // Checked before verifying, since verifying fetches the issuer's keys.
-    if (!accept.some((kind) => issuers[kind]?.includes(String(claims.iss))))
+    const named = trimIdentifier(String(claims.iss));
+    if (!accept.some((kind) => issuers[kind]?.includes(named)))
       throw signatureError(
         "invalid_jwt",
         `${String(claims.iss)} is not trusted here`,
@@ -320,15 +300,22 @@ export async function createAAuthResource(
         err.message,
       );
     });
-    if (!issuers[token.type].includes(token.iss))
+    if (!issuers[token.type].includes(trimIdentifier(token.iss)))
       throw signatureError("invalid_jwt", `${token.iss} does not issue those`);
+    const shape = tokenProblem(
+      token.claims,
+      token.type === "agent" ? {} : { maxLifetime: MAX_TOKEN_LIFETIME },
+    );
+    if (shape)
+      throw signatureError("invalid_jwt", `the ${token.type} token ${shape}`);
     // An auth token is the Access Server's, for one of its Person Servers' people, or else that Person Server's own.
     if (
       token.type === "auth" &&
-      (token.iss === accessServer
+      (trimIdentifier(token.iss) === accessServer
         ? token.dwk !== "aauth-access.json" ||
-          !options.personServers.includes(token.ps)
-        : token.dwk !== "aauth-person.json" || token.ps !== token.iss)
+          !personServers.includes(trimIdentifier(token.ps))
+        : token.dwk !== "aauth-person.json" ||
+          trimIdentifier(token.ps) !== trimIdentifier(token.iss))
     )
       throw signatureError("invalid_jwt", "not an auth token issued here");
     return token;
@@ -470,12 +457,8 @@ export async function createAAuthResource(
           () => true,
           () => false,
         );
-        if (approved)
-          return {
-            ok: true,
-            ...caller(token),
-            jti: String(token.claims.jti),
-          };
+        if (approved && token.jti)
+          return { ok: true, ...caller(token), jti: token.jti };
       }
       return {
         ok: false,
@@ -539,7 +522,10 @@ export async function createAAuthResource(
     const id = /jwks_uri;(?:[^,]*;)?id="([^"]+)"/.exec(
       request.headers.get("signature-key") ?? "",
     )?.[1];
-    if (!id || !(options.personServers.includes(id) || id === accessServer))
+    if (
+      !id ||
+      !(personServers.includes(trimIdentifier(id)) || id === accessServer)
+    )
       throw signatureError(
         "invalid_signature",
         "only the person's Person Server, or this resource's Access Server, reads a proposal",

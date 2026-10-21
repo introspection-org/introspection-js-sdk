@@ -3,7 +3,11 @@
  * with @hellocoop/httpsig, an agent provider and a resource behind an
  * injected fetch, and an operator deciding approvals.
  */
-import { createHash, randomUUID as randomId } from "node:crypto";
+import {
+  createHash,
+  generateKeyPairSync,
+  randomUUID as randomId,
+} from "node:crypto";
 
 import { clearMetadataCache } from "@aauth/resource";
 import { fetch as signedFetch } from "@hellocoop/httpsig";
@@ -27,6 +31,7 @@ import {
   decodeJwt,
   exportJWK,
   generateKeyPair,
+  importPKCS8,
   jwtVerify,
 } from "jose";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -108,7 +113,10 @@ class AgentClient {
   token = "";
   session!: Party;
 
-  static async create(sub = "aauth:travel@agents.example") {
+  static async create(
+    sub = "aauth:travel@agents.example",
+    claims: JWTPayload = {},
+  ) {
     const agent = new AgentClient();
     agent.session = await party("session");
     agent.token = await provider.sign(
@@ -118,6 +126,7 @@ class AgentClient {
         sub,
         ps: PS,
         cnf: { jwk: agent.session.publicJwk },
+        ...claims,
       },
       "aa-agent+jwt",
     );
@@ -147,6 +156,7 @@ async function resourceToken(
   agent: AgentClient,
   presented: string,
   amount?: number,
+  claims: JWTPayload = {},
 ) {
   const person = decodeJwt(presented);
   return resource.sign(
@@ -164,6 +174,7 @@ async function resourceToken(
       r3_uri: R3,
       r3_s256: createHash("sha256").update(proposal).digest("base64url"),
       ...(amount !== undefined ? { budget: { amount, ...USD } } : {}),
+      ...claims,
     },
     "aa-resource+jwt",
   );
@@ -1065,5 +1076,131 @@ describe("@introspection-sdk/aauth-person-server", () => {
     };
     // A default the agent never named is not a tenant claim.
     expect(decodeJwt(person_tokens[RESOURCE]!)).not.toHaveProperty("tenant");
+  });
+});
+
+describe("@introspection-sdk/aauth-person-server token shape and lifetimes", () => {
+  const HOURS = 60 * 60;
+  const longLived = () =>
+    AgentClient.create(undefined, {
+      exp: Math.floor(Date.now() / 1000) + 4 * HOURS,
+    });
+
+  it("issues tokens for no more than an hour, however long it is configured", async () => {
+    ps = await server(undefined, { tokenTtlSeconds: 2 * HOURS });
+    const agent = await longLived();
+    const trip = await approvedTrip(agent);
+    const person = decodeJwt(trip.person_tokens[RESOURCE]!);
+    expect(Number(person.exp) - Number(person.iat)).toBe(HOURS);
+  });
+
+  it("refuses an agent token without a jti", async () => {
+    const agent = await AgentClient.create(undefined, { jti: undefined });
+    const response = await call(agent, "POST", "/ps/mission", {
+      description: "Sydney",
+      resources: [RESOURCE],
+      login_hint: "sam@acme.example",
+    });
+    expect(response.status).toBe(401);
+    expect(response.headers.get("signature-error")).toContain("invalid_jwt");
+  });
+
+  it("judges a presented token by its own clock", async () => {
+    let clock = Math.floor(Date.now() / 1000);
+    ps = await server(undefined, { now: () => clock });
+    const agent = await longLived();
+    const trip = await approvedTrip(agent);
+    const presented = trip.person_tokens[RESOURCE]!;
+    clock += 2 * HOURS;
+    const response = await call(agent, "POST", "/ps/token", {
+      resource_token: await resourceToken(agent, presented, 1_000),
+      presented_token: presented,
+    });
+    expect(response.status).toBe(400);
+    expect(await response.json()).toMatchObject({
+      error: "expired_presented_token",
+    });
+  });
+
+  it("refuses a presented token without a jti, of another kind, or that lives over an hour", async () => {
+    const pem = generateKeyPairSync("ed25519")
+      .privateKey.export({ type: "pkcs8", format: "pem" })
+      .toString();
+    ps = await server(undefined, { signingKey: pem });
+    const key = await importPKCS8(pem, "Ed25519");
+    const agent = await AgentClient.create();
+    const trip = await approvedTrip(agent);
+    const issued = decodeJwt(trip.person_tokens[RESOURCE]!);
+    const iat = Math.floor(Date.now() / 1000);
+    for (const [typ, claims] of [
+      ["aa-person+jwt", { jti: undefined }],
+      ["aa-agent+jwt", {}],
+      ["aa-person+jwt", { iat: iat - HOURS, exp: iat + 600 }],
+    ] as const) {
+      const presented = await new SignJWT({ ...issued, ...claims })
+        .setProtectedHeader({ alg: "Ed25519", typ })
+        .sign(key);
+      const response = await call(agent, "POST", "/ps/token", {
+        resource_token: await resourceToken(agent, presented, 1_000),
+        presented_token: presented,
+      });
+      expect(response.status).toBe(400);
+      expect(await response.json()).toMatchObject({
+        error: "invalid_presented_token",
+      });
+    }
+  });
+
+  it("refuses a resource token without a jti", async () => {
+    const agent = await AgentClient.create();
+    const trip = await approvedTrip(agent);
+    const presented = trip.person_tokens[RESOURCE]!;
+    const response = await call(agent, "POST", "/ps/token", {
+      resource_token: await resourceToken(agent, presented, 1_000, {
+        jti: undefined,
+      }),
+      presented_token: presented,
+    });
+    expect(response.status).toBe(400);
+    expect(await response.json()).toMatchObject({
+      error: "invalid_resource_token",
+      detail: expect.stringContaining("jti"),
+    });
+  });
+
+  it("copies the resource token's account into the auth token", async () => {
+    const agent = await AgentClient.create();
+    const trip = await approvedTrip(agent);
+    const presented = trip.person_tokens[RESOURCE]!;
+    const response = await call(agent, "POST", "/ps/token", {
+      resource_token: await resourceToken(agent, presented, 1_000, {
+        account: "acct-7",
+      }),
+      presented_token: presented,
+    });
+    expect(response.status).toBe(200);
+    const { auth_token } = (await response.json()) as { auth_token: string };
+    expect(decodeJwt(auth_token)).toMatchObject({ account: "acct-7" });
+  });
+
+  it("mints the mission's person tokens again on each poll", async () => {
+    const agent = await AgentClient.create();
+    const proposed = await call(agent, "POST", "/ps/mission", {
+      description: "Sydney",
+      resources: [RESOURCE],
+      login_hint: "sam@acme.example",
+    });
+    await ps.decide("acme", asked.at(-1)!.id, { status: "approved" });
+    const path = new URL(proposed.headers.get("location")!).pathname;
+    const poll = async () =>
+      (
+        (await (await call(agent, "GET", path)).json()) as {
+          person_tokens: Record<string, string>;
+        }
+      ).person_tokens[RESOURCE]!;
+    const first = decodeJwt(await poll());
+    const second = decodeJwt(await poll());
+    expect(second.jti).not.toBe(first.jti);
+    expect(second.sub).toBe(first.sub);
   });
 });
