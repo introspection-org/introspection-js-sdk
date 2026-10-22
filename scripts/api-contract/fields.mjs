@@ -704,17 +704,18 @@ function compareBody(ctx, shapes, body, contentType, out) {
   } else if (!body) {
     if (shapes.body.required)
       out.push({ kind: "missing", field: "body", detail: "required body" });
+  } else if (!encoded && contentType === null) {
+    // Before the media type: an unknown Content-Type is no mismatch.
+    out.push({
+      kind: "unresolvable",
+      field: "body",
+      detail: "Content-Type header is not a literal",
+    });
   } else if (!shapes.body.media.some((m) => essence(m) === essence(media))) {
     out.push({
       kind: "type",
       field: "body",
       detail: `reference takes ${shapes.body.media.join(", ")}, SDK sends ${media}`,
-    });
-  } else if (!encoded && contentType === null) {
-    out.push({
-      kind: "unresolvable",
-      field: "body",
-      detail: "Content-Type header is not a literal",
     });
   } else if (isJson(media)) {
     const why = unresolvable(checker, body);

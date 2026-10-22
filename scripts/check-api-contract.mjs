@@ -46,7 +46,7 @@
  * env: API_CONTRACT_DATAPLANE, API_CONTRACT_CONTROLPLANE  the same, for a flag
  *      left out (default: staging, https://api.staging.introspection.dev/openapi/<plane>.json)
  */
-import { readdirSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { dirname, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -87,12 +87,19 @@ const listing = (items) =>
 /** Path parameters compare by position, not by name. */
 const templateKey = (path) => path.replace(/\{[^}]*\}/g, "{}");
 
+/** Each package's `src`, walked on its own so no `node_modules` is listed. */
 function sourceFiles(dir) {
-  return readdirSync(dir, { recursive: true })
-    .filter((f) => /(^|\/)src\//.test(f) && f.endsWith(".ts"))
-    .filter((f) => !f.endsWith(".d.ts") && !f.endsWith(".test.ts"))
-    .filter((f) => !f.split("/").includes("node_modules"))
-    .map((f) => resolve(dir, f));
+  return readdirSync(dir, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => resolve(dir, entry.name, "src"))
+    .filter((src) => existsSync(src))
+    .flatMap((src) =>
+      readdirSync(src, { recursive: true })
+        .filter((f) => f.endsWith(".ts"))
+        .filter((f) => !f.endsWith(".d.ts") && !f.endsWith(".test.ts"))
+        .filter((f) => !f.split("/").includes("node_modules"))
+        .map((f) => resolve(src, f)),
+    );
 }
 
 /**
@@ -300,20 +307,25 @@ function sdkCalls(program, files) {
 
 /**
  * Every operation in both references, keyed `<METHOD> <path>`, with its plane
- * and the clients its `x-introspection` names, plus the operations both
- * references declare: a call site does not say which plane it sends to.
+ * and the clients its `x-introspection` names, plus the operations that
+ * share a `<METHOD> <template>` (path parameters by position) with another,
+ * in either reference: a call site cannot tell them apart.
  */
 function specOperations(specs) {
   const operations = new Map();
   const inBoth = [];
+  const templates = new Map();
   for (const [plane, spec] of Object.entries(specs)) {
     for (const [path, item] of Object.entries(spec.paths ?? {})) {
       for (const method of HTTP_METHODS) {
         const op = item[method];
         if (!op) continue;
         const key = `${method.toUpperCase()} ${path}`;
-        if (operations.has(key)) inBoth.push(key);
-        operations.set(`${method.toUpperCase()} ${path}`, {
+        const template = `${method.toUpperCase()} ${templateKey(path)}`;
+        if (templates.has(template))
+          inBoth.push(`${templates.get(template)} and ${key}`);
+        else templates.set(template, key);
+        operations.set(key, {
           plane,
           clients: op["x-introspection"]?.clients ?? [],
         });
@@ -370,7 +382,7 @@ function checkOperations(specs, calls, unknownMethod) {
   );
   report(
     inBoth,
-    "in both references, so a call site cannot be matched to one plane",
+    "declared twice with the same method and path template, so a call site cannot be matched to one",
   );
   report(
     unknownMethod,

@@ -174,7 +174,11 @@ function renderPlane(plane, changes) {
 function sdkDrift() {
   const result = spawnSync(
     process.execPath,
-    [resolve(ROOT, "scripts/check-api-contract.mjs")],
+    // The same documents oasdiff reads, whatever `--<plane>` or env chose.
+    [
+      resolve(ROOT, "scripts/check-api-contract.mjs"),
+      ...PLANES.flatMap((plane) => [`--${plane}`, referenceSource(plane)]),
+    ],
     { cwd: ROOT, encoding: "utf8" },
   );
   if (result.error) throw result.error;
