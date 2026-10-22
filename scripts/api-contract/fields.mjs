@@ -78,7 +78,11 @@ function deref(spec, schema) {
   return { schema: schema ?? {}, ref };
 }
 
-/** The branches of a schema with `null` dropped, each dereferenced. */
+/**
+ * The branches of a schema with `null` dropped, each dereferenced. `origin`
+ * is the schema object a branch came from, so a branch rebuilt for one entry
+ * of a `type` list keeps the identity recursion detection keys on.
+ */
 function branches(spec, schema) {
   const { schema: s, ref } = deref(spec, schema);
   const alternatives = s.anyOf ?? s.oneOf;
@@ -93,10 +97,10 @@ function branches(spec, schema) {
   if (Array.isArray(s.type)) {
     return s.type
       .filter((t) => t !== "null")
-      .map((type) => ({ schema: { ...s, type }, ref }));
+      .map((type) => ({ schema: { ...s, type }, ref, origin: s }));
   }
   if (s.type === "null") return [];
-  return [{ schema: s, ref }];
+  return [{ schema: s, ref, origin: s }];
 }
 
 function specKind(schema) {
@@ -235,6 +239,18 @@ function literalValues(checker, obj, name) {
 const describeKinds = (kinds) => [...kinds].sort().join(" | ");
 
 /**
+ * A number per object, for keys that must tell apart two schemas or types
+ * that print the same: two inline object schemas (no `$ref`), or two types
+ * whose `typeToString` collides.
+ */
+const identities = new WeakMap();
+let nextIdentity = 0;
+const identity = (obj) => {
+  if (!identities.has(obj)) identities.set(obj, ++nextIdentity);
+  return identities.get(obj);
+};
+
+/**
  * Compare a reference schema with an SDK type, appending findings
  * `{ kind, field, detail }` to `out`.
  *
@@ -300,7 +316,9 @@ function compare(ctx, schema, type, field, out, repeatable = false) {
     return;
   }
 
-  const key = `${specObjects.map((b) => b.ref).join("|")}::${tsObjects.map((t) => checker.typeToString(t)).join("|")}`;
+  // Keyed by identity, not by name: inline schemas have no `$ref`, so a key
+  // of refs and printed types would let an unrelated pair skip its check.
+  const key = `${specObjects.map((b) => identity(b.origin)).join("|")}::${tsObjects.map(identity).join("|")}`;
   if (seen.has(key)) return;
   seen.add(key);
 
