@@ -7,7 +7,7 @@
     "url": "git+https://github.com/introspection-org/introspection-js-sdk.git",
     "directory": "packages/introspection-aauth-resource"
   },
-  "description": "Make an HTTP API an AAuth resource (draft-hardt-oauth-aauth-protocol -11): signed quotes, the person-token and auth-token challenges with an R3 proposal and a budget, and serving that proposal to its Person Server, as Request → Response helpers",
+  "description": "Make an HTTP API an AAuth resource (draft-hardt-oauth-aauth-protocol -11): signed quotes, the person-token and auth-token challenges with an R3 proposal and a budget, and serving that proposal to its Person Server, as Request \u2192 Response helpers",
   "engines": {
     "node": ">=22"
   },
@@ -33,8 +33,7 @@
   },
   "dependencies": {
     "@aauth/resource": "^3.0.0",
-    "@hellocoop/httpsig": "^2.6.0",
-    "@introspection-sdk/person-server": "workspace:*",
+    "@introspection-sdk/aauth-protocol": "workspace:*",
     "jose": "^6.2.12"
   },
   "devDependencies": {

@@ -21,16 +21,27 @@ Write as you would in a chat on a phone: two or three short sentences, a short l
 
 ## A trip is a mission
 
-1. Confirm the trip: origin, destination, dates, which legs are for work, and a budget. Always call `today` first, on its own, and wait for its answer before calling any other tool or working out any date, and say the actual dates, with the year, back to them.
-2. Price it, then propose the whole trip with `propose_trip`: who travels, where, when, what you will book, and a suggested budget as "up to $N". Suggest the budget the employee named, even when the fares you were quoted come to more: the manager decides, and asks again for anything over what they set. Don't stop to ask the employee to choose between options. The employee's manager approves it once and sets the budget; the approved mission's `budget_cents` is what you have to spend.
-3. Once approved, book one item at a time with `book_item`, passing the offer's `offer_id` and `quote` unchanged, with its purpose and who pays.
+1. Confirm the trip: origin, destination, dates and a budget. Treat the whole trip as work unless the employee says part of it is personal, and don't ask. Always call `today` first, on its own, and wait for its answer before calling any other tool or working out any date, and say the actual dates, with the year, back to them.
+2. Price the whole trip, end to end: the flight out on the first date, the flight home on the last, and the stay between, unless the employee says it is one way or they need no hotel. Then propose the whole trip with `propose_trip`: who travels, where, when, what you will book with each price, and a suggested budget as "up to $N", where N is the quoted total of everything you will book. When that is more than the budget the employee named, say both, such as "Sam named $3,000; the trip as quoted comes to $4,860": the manager decides. Don't stop to ask the employee to choose between options. The employee's manager approves it once and sets the budget, so a budget that covers the quotes books everything listed without asking again; the approved mission's `budget_cents` is what you have to spend.
+3. Once approved, book one item at a time with `book_item`, passing the offer's `offer_id`, with its purpose and who pays.
 4. When everything is booked, report it with `complete_trip`; the employee accepts it.
 
 ## Finding flights and hotels
 
-- **Flights:** search the web with the browser. `start` a session, `navigate` to `https://www.google.com/travel/flights?q=Flights%20from%20SFO%20to%20SYD%20on%202026-10-18%20one%20way%20economy` (your route, date and cabin), `extract` the flights shown with their airline, times, duration, stops and price, then `end` the session. The booking provider sells only some of those flights: `search_offers` with `kind: flight` lists the ones it sells on each route, so pick what fits from that list, then `quote_flight` it by airline and flight number for a bookable offer. Quote and propose the booking provider's fare, never the price the search showed, and don't compare the two.
+- **Flights:** search each leg in the browser before anything else for that leg. `start` a session, `navigate` to `https://www.google.com/travel/flights?q=Flights%20from%20<origin>%20to%20<destination>%20on%20<YYYY-MM-DD>%20one%20way%20<cabin>`, filled in with the leg's airport codes, date and cabin, `extract` the flights shown with their airline, times, duration, stops and price, then `end` the session. Only once `extract` has returned for a leg, call `search_offers` with `kind: flight` for it: the booking provider sells only some of those flights, so pick what fits from its list, then `quote_flight` it by airline and flight number for a bookable offer. Quote and propose the booking provider's fare, never the price the search showed, and don't compare the two.
+
+  The procedure, each call waiting for the one before it:
+  1. `start` a session.
+  2. For each leg of the trip in turn: `navigate` to that leg's search, then `extract`.
+  3. `end` the session.
+  4. For each leg: `search_offers` with `kind: flight`, then `quote_flight` the flight you picked. Quote every leg before proposing: only a quote is bookable.
+
+  If a leg has no bookable flight, quote and propose the legs that have one, and say which leg is missing. Don't wait for the employee to pick.
+
+  The hotel search doesn't wait for these.
+
 - **Hotels:** `search_offers` with `kind: hotel`.
-- If the browser fails, `search_offers` with `kind: flight` also returns bookable flights.
+- If `start`, `navigate` or `extract` returns an error, it is **Unavailable** below: don't look for flights another way.
 
 ## Approval
 
@@ -40,8 +51,10 @@ You never hold a booking credential, and you never decide what is in policy.
 - **Awaiting approval.** A result says it is awaiting approval from the employee's organisation. Tell the employee, then stop. You'll be told here when it is decided:
   - if the trip was approved, you are given its `s256` and budget: start booking it, and do not propose it again;
   - if a booking over what is left of the budget was approved, book the same offer again;
-  - if declined, say so, and finish the trip with what is booked (`complete_trip`). Look for an alternative only if the traveller asks for one.
+  - if declined, say so, and in the same reply offer a cheaper option for the same thing: another fare for that leg, or another hotel for that stay. Offer the cheapest that fits what is left of the budget, or the cheapest there is if none fits, and book it once the employee agrees. Finish the trip with what is booked (`complete_trip`) only once they don't want an alternative.
 - **Refused.** A result names a rule or a reason. Tell the employee and suggest what would fit.
+- **Something they didn't ask for.** When you offer one alternative to what the employee asked for (another hotel, fare or dates), book it once they agree, in whatever words they use. When you offer several, ask which one they want, unless their reply already makes that clear. If they say any of them will do, choose the one that best fits what is left of the budget, say which, and book it. Each booking is checked against what the employee said, so book only what they have agreed to.
+- **Cancelling.** When the employee asks to cancel a booking, cancel it with `cancel_booking` once it is clear which one, then offer to find a replacement. When they decline the trip as complete, they don't want it as booked: cancel every booking under it. Don't report a cancelled trip complete. Cancelling gives nothing back to a trip's budget, so if they want to plan again, propose it as a new trip with `propose_trip`, which is approved with a budget of its own. Cancelling does not give its cost back to the trip's budget, so a replacement over what is left goes to the manager. A booking that has already started can't be cancelled.
 - **Unavailable.** No response, a 5xx, or something that could not be reached. Retry once at most; if it fails again, tell the employee what is not working and stop. Don't keep retrying, and don't promise to.
 
 Never try to work around an approval, never ask the employee for credentials, and don't retry anything awaiting approval.
@@ -217,6 +230,48 @@ function result(res) {
   };
 }
 
+// Each offer's signed quote, by offer_id. The model books an offer by its id
+// and never handles the token: a long signature copied by hand can lose a
+// character, and the provider then refuses a quote it no longer recognises.
+// The reserve request still carries the quote, which the egress's rails read.
+const quotes = new Map();
+
+/** Keep the quotes a search or quote answered with, and show the model the offers without them. */
+function keepQuotes(res) {
+  if (res.status !== 200) return res;
+  let body;
+  try {
+    body = JSON.parse(res.text);
+  } catch {
+    return res;
+  }
+  const offers = [
+    ...(Array.isArray(body?.offers) ? body.offers : []),
+    ...(body?.offer ? [body.offer] : []),
+  ];
+  for (const offer of offers) {
+    if (
+      typeof offer?.offer_id === "string" &&
+      typeof offer.quote === "string"
+    ) {
+      quotes.set(offer.offer_id, offer.quote);
+      delete offer.quote;
+    }
+  }
+  return { ...res, text: JSON.stringify(body) };
+}
+
+const NO_QUOTE = (offerId) => ({
+  content: [
+    {
+      type: "text",
+      text: `No quote for ${offerId} in this session. Search or quote it again (search_offers or quote_flight), then book the offer_id it returns.`,
+    },
+  ],
+  details: { status: 0, reason: "no_quote", offer_id: offerId },
+  isError: true,
+});
+
 export function registerBookingTools(pi) {
   pi.registerTool({
     name: "today",
@@ -246,13 +301,13 @@ export function registerBookingTools(pi) {
     promptSnippet:
       "Propose the trip, with its budget, before booking anything.",
     promptGuidelines: [
-      'Describe the trip in Markdown: who travels, where, when, what will be booked, and a suggested budget as "up to $N". The manager sets the actual budget.',
+      'Describe the trip in Markdown: who travels, where, when, each thing to be booked with its quoted price, and a suggested budget as "up to $N" for their quoted total, naming the employee\'s own budget too when it is lower. The manager sets the actual budget.',
       "Propose once per trip, before the first booking.",
     ],
     parameters: Type.Object({
       description: Type.String({
         description:
-          "Markdown: the trip, ending with a suggested budget, e.g. 'up to $3,000'",
+          "Markdown: the trip with each quoted price, ending with a suggested budget for their total, e.g. 'up to $4,860'",
       }),
     }),
     async execute(_toolCallId, params, signal) {
@@ -296,7 +351,7 @@ export function registerBookingTools(pi) {
     name: "search_offers",
     label: "Search travel",
     description:
-      "Search flights or hotels. Every offer carries a signed `quote`; pass the offer's `offer_id` and `quote` unchanged to book_item.",
+      "Search flights or hotels. Book an offer by passing its `offer_id` to book_item.",
     promptSnippet: "Search flights or hotels for signed, bookable offers.",
     parameters: Type.Object({
       kind: Type.Union([Type.Literal("flight"), Type.Literal("hotel")]),
@@ -320,7 +375,7 @@ export function registerBookingTools(pi) {
     }),
     async execute(_toolCallId, params, signal) {
       if (!BOOKING_API_URL) return NOT_CONFIGURED;
-      return result(await call("/v1/search", params, signal));
+      return result(keepQuotes(await call("/v1/search", params, signal)));
     },
   });
 
@@ -328,7 +383,7 @@ export function registerBookingTools(pi) {
     name: "quote_flight",
     label: "Quote a flight",
     description:
-      "Get a bookable offer for a flight found in a browser search. The booking provider quotes its own fare, which can differ from the price the search showed; the offer carries a signed `quote` to pass unchanged to book_item.",
+      "Get a bookable offer for a flight found in a browser search. The booking provider quotes its own fare, which can differ from the price the search showed; book it by passing its `offer_id` to book_item.",
     promptSnippet:
       "Quote a flight found in a browser search, for a bookable offer.",
     parameters: Type.Object({
@@ -353,7 +408,7 @@ export function registerBookingTools(pi) {
     }),
     async execute(_toolCallId, params, signal) {
       if (!BOOKING_API_URL) return NOT_CONFIGURED;
-      return result(await call("/v1/quote", params, signal));
+      return result(keepQuotes(await call("/v1/quote", params, signal)));
     },
   });
 
@@ -368,16 +423,37 @@ export function registerBookingTools(pi) {
       "Book one item per call, and only after the traveller has confirmed it.",
     ],
     parameters: Type.Object({
-      offer_id: Type.String(),
-      quote: Type.String({
-        description: "The offer's signed quote, unchanged",
+      offer_id: Type.String({
+        description: "The offer_id from search_offers or quote_flight",
       }),
       purpose: Type.Union([Type.Literal("business"), Type.Literal("personal")]),
       payer: Type.Union([Type.Literal("company"), Type.Literal("traveler")]),
     }),
     async execute(_toolCallId, params, signal) {
       if (!BOOKING_API_URL) return NOT_CONFIGURED;
-      return result(await call("/v1/reserve", params, signal));
+      const quote = quotes.get(params.offer_id);
+      if (!quote) return NO_QUOTE(params.offer_id);
+      return result(await call("/v1/reserve", { ...params, quote }, signal));
+    },
+  });
+
+  pi.registerTool({
+    name: "cancel_booking",
+    label: "Cancel a booking",
+    description:
+      "Cancel one booking made under this trip, by its confirmation, until the flight departs or the stay begins. Cancelling does not give its cost back to the trip's budget.",
+    promptSnippet: "Cancel a booking the traveller asked to cancel.",
+    promptGuidelines: [
+      "Cancel only a booking the traveller asked you to cancel, and only once it is clear which one.",
+    ],
+    parameters: Type.Object({
+      confirmation: Type.String({
+        description: "The booking's confirmation, such as FS-5A089BEC",
+      }),
+    }),
+    async execute(_toolCallId, params, signal) {
+      if (!BOOKING_API_URL) return NOT_CONFIGURED;
+      return result(await call("/v1/cancel", params, signal));
     },
   });
 }
@@ -489,7 +565,7 @@ Before booking anything, propose_trip posts the trip to person-server.aauth, a n
 }
 ```
 
-**Acme: missions** · `@introspection-sdk/person-server/src/person-server.ts`
+**Acme: missions** · `@introspection-sdk/aauth-person-server/src/person-server.ts`
 
 ```ts
 /** The live mission `s256` names, if it is this agent's; the same 404 otherwise. */
@@ -517,12 +593,8 @@ async function proposeMission(
   request: Request,
   path: string,
 ): Promise<Response> {
-  const body = await request.text();
-  const agent = await verifyAgent(request, body, path);
-  const params = readBody(body);
-  const named = tenantOf(params);
-  const tenant = tenantFor(named);
-  const person = await personFor(tenant, named, agent, params.login_hint);
+  const { agent, params } = await readSigned(request, path);
+  const { tenant, person } = await requester(agent, params);
   const description = String(params.description ?? "");
   if (!description)
     throw new AAuthError(400, "invalid_request", "describe the mission");
@@ -539,9 +611,7 @@ async function missionAction(
   path: string,
   hash: string,
 ): Promise<Response> {
-  const body = await request.text();
-  const agent = await verifyAgent(request, body, path);
-  const params = readBody(body);
+  const { agent, params } = await readSigned(request, path);
   const tenant = tenantFor(tenantOf(params));
   const mission = await liveMission(tenant, agent, hash);
   if (params.action === "update") {
@@ -674,7 +744,7 @@ export async function decide(
 }
 ```
 
-**Acme: person tokens under the mission** · `@introspection-sdk/person-server/src/person-server.ts`
+**Acme: person tokens under the mission** · `@introspection-sdk/aauth-person-server/src/person-server.ts`
 
 ```ts
 /** The person's identifier at one audience: no two audiences can correlate it. */
@@ -764,15 +834,11 @@ async function requestPersonToken(
   request: Request,
   path: string,
 ): Promise<Response> {
-  const body = await request.text();
-  const agent = await verifyAgent(request, body, path);
-  const params = readBody(body);
+  const { agent, params } = await readSigned(request, path);
   const resource = trim(String(params.resource ?? ""));
   if (!resource.startsWith("https://"))
     throw new AAuthError(400, "invalid_request", "resource is an https origin");
-  const named = tenantOf(params);
-  const tenant = tenantFor(named);
-  const person = await personFor(tenant, named, agent, params.login_hint);
+  const { tenant, person } = await requester(agent, params);
   const mission =
     params.mission_s256 === undefined
       ? undefined
@@ -859,6 +925,14 @@ permit (principal, action == Action::"booking.quote", resource);
 
 @id("reserve")
 permit (principal, action == Action::"booking.reserve", resource);
+
+@id("cancel")
+permit (principal, action == Action::"booking.cancel", resource);
+
+@id("missionless-cancel")
+@reason("a booking is cancelled only under the trip it was booked for")
+forbid (principal, action == Action::"booking.cancel", resource)
+unless { context has mission };
 
 @id("missionless-booking")
 @reason("propose the trip first: a booking needs the traveller's approved mission")
@@ -979,6 +1053,14 @@ booking:
             block_minutes,
             total_cents,
           ]
+  - method: POST
+    path: /v1/cancel
+    action: booking.cancel
+    context: [mission]
+    resource:
+      type: Cancellation
+      attribute_map:
+        confirmation: /confirmation
 
 # The trip the agent proposes to the traveller's Person Server, which the
 # egress answers itself: Jev checks it against what the traveller asked for.
@@ -1309,7 +1391,7 @@ async function serveProposal(request: Request, key: string): Promise<Response> {
 
 _Egress → Acme's Person Server_
 
-The egress proxy holds the request and calls Acme's token endpoint, signed with the same key: the resource token and the person token it presented. Acme checks the signature and the agent token, that the resource token is addressed to Acme and names the same agent key and mission, then weighs the resource token's budget against what is left of the trip's. Acme's Person Server is @introspection-sdk/person-server, configured with Acme's people and its way of asking.
+The egress proxy holds the request and calls Acme's token endpoint, signed with the same key: the resource token and the person token it presented. Acme checks the signature and the agent token, that the resource token is addressed to Acme and names the same agent key and mission, then weighs the resource token's budget against what is left of the trip's. Acme's Person Server is @introspection-sdk/aauth-person-server, configured with Acme's people and its way of asking.
 
 **the token request and its answers** · `platform contract: token-request.json`
 
@@ -1359,7 +1441,7 @@ The egress proxy holds the request and calls Acme's token endpoint, signed with 
 }
 ```
 
-**Acme: verify the agent** · `@introspection-sdk/person-server/src/person-server.ts`
+**Acme: verify the agent** · `@introspection-sdk/aauth-person-server/src/person-server.ts`
 
 ```ts
 /** The request's signature, and the agent token it presents, from a trusted agent provider. */
@@ -1427,6 +1509,27 @@ async function verifyAgent(
   };
 }
 
+/** A signed request's verified agent and its JSON body. */
+async function readSigned(
+  request: Request,
+  path: string,
+): Promise<{ agent: Agent; params: Record<string, unknown> }> {
+  const body = await request.text();
+  const agent = await verifyAgent(request, body, path);
+  return { agent, params: readBody(body) };
+}
+
+/** The tenant a request names, and the person its agent acts for there. */
+async function requester(
+  agent: Agent,
+  params: Record<string, unknown>,
+): Promise<{ tenant: string; person: Person }> {
+  const named = tenantOf(params);
+  const tenant = tenantFor(named);
+  const person = await personFor(tenant, named, agent, params.login_hint);
+  return { tenant, person };
+}
+
 /**
  * The person the agent acts for. Each agent key is bound to the first person
  * it names. Tokens carry the directory's tenant, else the one the agent named.
@@ -1474,7 +1577,7 @@ async function personFor(
 }
 ```
 
-**Acme: verify the request, weigh the budget** · `@introspection-sdk/person-server/src/person-server.ts`
+**Acme: verify the request, weigh the budget** · `@introspection-sdk/aauth-person-server/src/person-server.ts`
 
 ```ts
 /** A resource token, verified against its issuer's keys, binding a token this Person Server issued. */
@@ -1601,9 +1704,7 @@ async function requestAuthToken(
   request: Request,
   path: string,
 ): Promise<Response> {
-  const body = await request.text();
-  const agent = await verifyAgent(request, body, path);
-  const params = readBody(body);
+  const { agent, params } = await readSigned(request, path);
   const { tenant, rt, mission, resource } = await verifyResourceToken(
     agent,
     params,
@@ -1771,7 +1872,7 @@ _Acme → Platform → Agent_
 
 Dana declines. The data plane has been polling the pending URL, signed with the session key; only the agent that asked may read it. It now answers 403, and the platform posts a turn into Sam's conversation saying the QT was declined. The recipe tells the agent to say so and not go looking for alternatives on its own: the flight stays booked, and it asks Sam what he'd like to do about the hotel.
 
-**Acme: the pending URL** · `@introspection-sdk/person-server/src/person-server.ts`
+**Acme: the pending URL** · `@introspection-sdk/aauth-person-server/src/person-server.ts`
 
 ```ts
 /** The agent polls with a signed GET; only the key that asked may read it. Results are minted now. */
@@ -1882,16 +1983,27 @@ Write as you would in a chat on a phone: two or three short sentences, a short l
 
 ## A trip is a mission
 
-1. Confirm the trip: origin, destination, dates, which legs are for work, and a budget. Always call `today` first, on its own, and wait for its answer before calling any other tool or working out any date, and say the actual dates, with the year, back to them.
-2. Price it, then propose the whole trip with `propose_trip`: who travels, where, when, what you will book, and a suggested budget as "up to $N". Suggest the budget the employee named, even when the fares you were quoted come to more: the manager decides, and asks again for anything over what they set. Don't stop to ask the employee to choose between options. The employee's manager approves it once and sets the budget; the approved mission's `budget_cents` is what you have to spend.
-3. Once approved, book one item at a time with `book_item`, passing the offer's `offer_id` and `quote` unchanged, with its purpose and who pays.
+1. Confirm the trip: origin, destination, dates and a budget. Treat the whole trip as work unless the employee says part of it is personal, and don't ask. Always call `today` first, on its own, and wait for its answer before calling any other tool or working out any date, and say the actual dates, with the year, back to them.
+2. Price the whole trip, end to end: the flight out on the first date, the flight home on the last, and the stay between, unless the employee says it is one way or they need no hotel. Then propose the whole trip with `propose_trip`: who travels, where, when, what you will book with each price, and a suggested budget as "up to $N", where N is the quoted total of everything you will book. When that is more than the budget the employee named, say both, such as "Sam named $3,000; the trip as quoted comes to $4,860": the manager decides. Don't stop to ask the employee to choose between options. The employee's manager approves it once and sets the budget, so a budget that covers the quotes books everything listed without asking again; the approved mission's `budget_cents` is what you have to spend.
+3. Once approved, book one item at a time with `book_item`, passing the offer's `offer_id`, with its purpose and who pays.
 4. When everything is booked, report it with `complete_trip`; the employee accepts it.
 
 ## Finding flights and hotels
 
-- **Flights:** search the web with the browser. `start` a session, `navigate` to `https://www.google.com/travel/flights?q=Flights%20from%20SFO%20to%20SYD%20on%202026-10-18%20one%20way%20economy` (your route, date and cabin), `extract` the flights shown with their airline, times, duration, stops and price, then `end` the session. The booking provider sells only some of those flights: `search_offers` with `kind: flight` lists the ones it sells on each route, so pick what fits from that list, then `quote_flight` it by airline and flight number for a bookable offer. Quote and propose the booking provider's fare, never the price the search showed, and don't compare the two.
+- **Flights:** search each leg in the browser before anything else for that leg. `start` a session, `navigate` to `https://www.google.com/travel/flights?q=Flights%20from%20<origin>%20to%20<destination>%20on%20<YYYY-MM-DD>%20one%20way%20<cabin>`, filled in with the leg's airport codes, date and cabin, `extract` the flights shown with their airline, times, duration, stops and price, then `end` the session. Only once `extract` has returned for a leg, call `search_offers` with `kind: flight` for it: the booking provider sells only some of those flights, so pick what fits from its list, then `quote_flight` it by airline and flight number for a bookable offer. Quote and propose the booking provider's fare, never the price the search showed, and don't compare the two.
+
+  The procedure, each call waiting for the one before it:
+  1. `start` a session.
+  2. For each leg of the trip in turn: `navigate` to that leg's search, then `extract`.
+  3. `end` the session.
+  4. For each leg: `search_offers` with `kind: flight`, then `quote_flight` the flight you picked. Quote every leg before proposing: only a quote is bookable.
+
+  If a leg has no bookable flight, quote and propose the legs that have one, and say which leg is missing. Don't wait for the employee to pick.
+
+  The hotel search doesn't wait for these.
+
 - **Hotels:** `search_offers` with `kind: hotel`.
-- If the browser fails, `search_offers` with `kind: flight` also returns bookable flights.
+- If `start`, `navigate` or `extract` returns an error, it is **Unavailable** below: don't look for flights another way.
 
 ## Approval
 
@@ -1901,8 +2013,10 @@ You never hold a booking credential, and you never decide what is in policy.
 - **Awaiting approval.** A result says it is awaiting approval from the employee's organisation. Tell the employee, then stop. You'll be told here when it is decided:
   - if the trip was approved, you are given its `s256` and budget: start booking it, and do not propose it again;
   - if a booking over what is left of the budget was approved, book the same offer again;
-  - if declined, say so, and finish the trip with what is booked (`complete_trip`). Look for an alternative only if the traveller asks for one.
+  - if declined, say so, and in the same reply offer a cheaper option for the same thing: another fare for that leg, or another hotel for that stay. Offer the cheapest that fits what is left of the budget, or the cheapest there is if none fits, and book it once the employee agrees. Finish the trip with what is booked (`complete_trip`) only once they don't want an alternative.
 - **Refused.** A result names a rule or a reason. Tell the employee and suggest what would fit.
+- **Something they didn't ask for.** When you offer one alternative to what the employee asked for (another hotel, fare or dates), book it once they agree, in whatever words they use. When you offer several, ask which one they want, unless their reply already makes that clear. If they say any of them will do, choose the one that best fits what is left of the budget, say which, and book it. Each booking is checked against what the employee said, so book only what they have agreed to.
+- **Cancelling.** When the employee asks to cancel a booking, cancel it with `cancel_booking` once it is clear which one, then offer to find a replacement. When they decline the trip as complete, they don't want it as booked: cancel every booking under it. Don't report a cancelled trip complete. Cancelling gives nothing back to a trip's budget, so if they want to plan again, propose it as a new trip with `propose_trip`, which is approved with a budget of its own. Cancelling does not give its cost back to the trip's budget, so a replacement over what is left goes to the manager. A booking that has already started can't be cancelled.
 - **Unavailable.** No response, a 5xx, or something that could not be reached. Retry once at most; if it fails again, tell the employee what is not working and stop. Don't keep retrying, and don't promise to.
 
 Never try to work around an approval, never ask the employee for credentials, and don't retry anything awaiting approval.
@@ -2084,6 +2198,48 @@ function result(res) {
   };
 }
 
+// Each offer's signed quote, by offer_id. The model books an offer by its id
+// and never handles the token: a long signature copied by hand can lose a
+// character, and the provider then refuses a quote it no longer recognises.
+// The reserve request still carries the quote, which the egress's rails read.
+const quotes = new Map();
+
+/** Keep the quotes a search or quote answered with, and show the model the offers without them. */
+function keepQuotes(res) {
+  if (res.status !== 200) return res;
+  let body;
+  try {
+    body = JSON.parse(res.text);
+  } catch {
+    return res;
+  }
+  const offers = [
+    ...(Array.isArray(body?.offers) ? body.offers : []),
+    ...(body?.offer ? [body.offer] : []),
+  ];
+  for (const offer of offers) {
+    if (
+      typeof offer?.offer_id === "string" &&
+      typeof offer.quote === "string"
+    ) {
+      quotes.set(offer.offer_id, offer.quote);
+      delete offer.quote;
+    }
+  }
+  return { ...res, text: JSON.stringify(body) };
+}
+
+const NO_QUOTE = (offerId) => ({
+  content: [
+    {
+      type: "text",
+      text: `No quote for ${offerId} in this session. Search or quote it again (search_offers or quote_flight), then book the offer_id it returns.`,
+    },
+  ],
+  details: { status: 0, reason: "no_quote", offer_id: offerId },
+  isError: true,
+});
+
 export function registerBookingTools(pi) {
   pi.registerTool({
     name: "today",
@@ -2113,13 +2269,13 @@ export function registerBookingTools(pi) {
     promptSnippet:
       "Propose the trip, with its budget, before booking anything.",
     promptGuidelines: [
-      'Describe the trip in Markdown: who travels, where, when, what will be booked, and a suggested budget as "up to $N". The manager sets the actual budget.',
+      'Describe the trip in Markdown: who travels, where, when, each thing to be booked with its quoted price, and a suggested budget as "up to $N" for their quoted total, naming the employee\'s own budget too when it is lower. The manager sets the actual budget.',
       "Propose once per trip, before the first booking.",
     ],
     parameters: Type.Object({
       description: Type.String({
         description:
-          "Markdown: the trip, ending with a suggested budget, e.g. 'up to $3,000'",
+          "Markdown: the trip with each quoted price, ending with a suggested budget for their total, e.g. 'up to $4,860'",
       }),
     }),
     async execute(_toolCallId, params, signal) {
@@ -2163,7 +2319,7 @@ export function registerBookingTools(pi) {
     name: "search_offers",
     label: "Search travel",
     description:
-      "Search flights or hotels. Every offer carries a signed `quote`; pass the offer's `offer_id` and `quote` unchanged to book_item.",
+      "Search flights or hotels. Book an offer by passing its `offer_id` to book_item.",
     promptSnippet: "Search flights or hotels for signed, bookable offers.",
     parameters: Type.Object({
       kind: Type.Union([Type.Literal("flight"), Type.Literal("hotel")]),
@@ -2187,7 +2343,7 @@ export function registerBookingTools(pi) {
     }),
     async execute(_toolCallId, params, signal) {
       if (!BOOKING_API_URL) return NOT_CONFIGURED;
-      return result(await call("/v1/search", params, signal));
+      return result(keepQuotes(await call("/v1/search", params, signal)));
     },
   });
 
@@ -2195,7 +2351,7 @@ export function registerBookingTools(pi) {
     name: "quote_flight",
     label: "Quote a flight",
     description:
-      "Get a bookable offer for a flight found in a browser search. The booking provider quotes its own fare, which can differ from the price the search showed; the offer carries a signed `quote` to pass unchanged to book_item.",
+      "Get a bookable offer for a flight found in a browser search. The booking provider quotes its own fare, which can differ from the price the search showed; book it by passing its `offer_id` to book_item.",
     promptSnippet:
       "Quote a flight found in a browser search, for a bookable offer.",
     parameters: Type.Object({
@@ -2220,7 +2376,7 @@ export function registerBookingTools(pi) {
     }),
     async execute(_toolCallId, params, signal) {
       if (!BOOKING_API_URL) return NOT_CONFIGURED;
-      return result(await call("/v1/quote", params, signal));
+      return result(keepQuotes(await call("/v1/quote", params, signal)));
     },
   });
 
@@ -2235,16 +2391,37 @@ export function registerBookingTools(pi) {
       "Book one item per call, and only after the traveller has confirmed it.",
     ],
     parameters: Type.Object({
-      offer_id: Type.String(),
-      quote: Type.String({
-        description: "The offer's signed quote, unchanged",
+      offer_id: Type.String({
+        description: "The offer_id from search_offers or quote_flight",
       }),
       purpose: Type.Union([Type.Literal("business"), Type.Literal("personal")]),
       payer: Type.Union([Type.Literal("company"), Type.Literal("traveler")]),
     }),
     async execute(_toolCallId, params, signal) {
       if (!BOOKING_API_URL) return NOT_CONFIGURED;
-      return result(await call("/v1/reserve", params, signal));
+      const quote = quotes.get(params.offer_id);
+      if (!quote) return NO_QUOTE(params.offer_id);
+      return result(await call("/v1/reserve", { ...params, quote }, signal));
+    },
+  });
+
+  pi.registerTool({
+    name: "cancel_booking",
+    label: "Cancel a booking",
+    description:
+      "Cancel one booking made under this trip, by its confirmation, until the flight departs or the stay begins. Cancelling does not give its cost back to the trip's budget.",
+    promptSnippet: "Cancel a booking the traveller asked to cancel.",
+    promptGuidelines: [
+      "Cancel only a booking the traveller asked you to cancel, and only once it is clear which one.",
+    ],
+    parameters: Type.Object({
+      confirmation: Type.String({
+        description: "The booking's confirmation, such as FS-5A089BEC",
+      }),
+    }),
+    async execute(_toolCallId, params, signal) {
+      if (!BOOKING_API_URL) return NOT_CONFIGURED;
+      return result(await call("/v1/cancel", params, signal));
     },
   });
 }
@@ -2260,7 +2437,7 @@ _Agent → Acme → Sam_
 
 complete_trip proposes the mission complete, with a summary of what was booked. Sam accepts it, and Acme ends the mission: a person token or auth token under it is refused from then on, so nothing more can be booked against this trip.
 
-**Acme: missions** · `@introspection-sdk/person-server/src/person-server.ts`
+**Acme: missions** · `@introspection-sdk/aauth-person-server/src/person-server.ts`
 
 ```ts
 /** The live mission `s256` names, if it is this agent's; the same 404 otherwise. */
@@ -2288,12 +2465,8 @@ async function proposeMission(
   request: Request,
   path: string,
 ): Promise<Response> {
-  const body = await request.text();
-  const agent = await verifyAgent(request, body, path);
-  const params = readBody(body);
-  const named = tenantOf(params);
-  const tenant = tenantFor(named);
-  const person = await personFor(tenant, named, agent, params.login_hint);
+  const { agent, params } = await readSigned(request, path);
+  const { tenant, person } = await requester(agent, params);
   const description = String(params.description ?? "");
   if (!description)
     throw new AAuthError(400, "invalid_request", "describe the mission");
@@ -2310,9 +2483,7 @@ async function missionAction(
   path: string,
   hash: string,
 ): Promise<Response> {
-  const body = await request.text();
-  const agent = await verifyAgent(request, body, path);
-  const params = readBody(body);
+  const { agent, params } = await readSigned(request, path);
   const tenant = tenantFor(tenantOf(params));
   const mission = await liveMission(tenant, agent, hash);
   if (params.action === "update") {

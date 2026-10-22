@@ -1,5 +1,42 @@
 # Changelog
 
+## [0.39.0](https://github.com/introspection-org/introspection-js-sdk/compare/v0.38.1...v0.39.0) (2026-10-22)
+
+
+### ⚠ BREAKING CHANGES
+
+* **aauth:** import from @introspection-sdk/aauth-person-server. The old name is deprecated on npm and receives no further releases.
+* **aauth:** import from @introspection-sdk/aauth-person-server. The old name is deprecated on npm and receives no further releases.
+
+### Features
+
+* **aauth:** federated access with a resource's own Access Server ([#505](https://github.com/introspection-org/introspection-js-sdk/issues/505)) ([1449245](https://github.com/introspection-org/introspection-js-sdk/commit/144924559f34c4f298b40717f4e21b5616d5215e))
+
+
+### Bug Fixes
+
+* **examples:** the travel demo signs in before it starts, and stops without a session ([#520](https://github.com/introspection-org/introspection-js-sdk/issues/520)) ([3818c9a](https://github.com/introspection-org/introspection-js-sdk/commit/3818c9a4d76e87bc4700a7dc1e0d72c3cfb951b3))
+
+
+### Code Refactoring
+
+* **aauth:** rename @introspection-sdk/person-server to aauth-person-server ([#517](https://github.com/introspection-org/introspection-js-sdk/issues/517)) ([844e1be](https://github.com/introspection-org/introspection-js-sdk/commit/844e1be67597f19ce39c294c1085d3f423554e83))
+
+## [0.38.1](https://github.com/introspection-org/introspection-js-sdk/compare/v0.38.0...v0.38.1) (2026-10-21)
+
+
+### Bug Fixes
+
+* **examples:** show the helpers each docs region calls ([#513](https://github.com/introspection-org/introspection-js-sdk/issues/513)) ([023ef77](https://github.com/introspection-org/introspection-js-sdk/commit/023ef77b5c09dac93ffa86c8fc100950bdb97195))
+
+## [0.38.0](https://github.com/introspection-org/introspection-js-sdk/compare/v0.37.0...v0.38.0) (2026-10-21)
+
+
+### Features
+
+* **examples:** docs reference snippet regions and a region check ([#500](https://github.com/introspection-org/introspection-js-sdk/issues/500)) ([a3cb0ca](https://github.com/introspection-org/introspection-js-sdk/commit/a3cb0ca916636b6d2e784da3000c471af3ec3b5e))
+* **examples:** docs snippet regions for the pattern, observe and identity pages ([#501](https://github.com/introspection-org/introspection-js-sdk/issues/501)) ([4aef725](https://github.com/introspection-org/introspection-js-sdk/commit/4aef7257a054b979b85bd100c258851d62c51245))
+
 ## [0.37.0](https://github.com/introspection-org/introspection-js-sdk/compare/v0.36.0...v0.37.0) (2026-10-20)
 
 

@@ -1,0 +1,204 @@
+# @introspection-sdk/aauth-person-server
+
+An AAuth Person Server ([draft-hardt-oauth-aauth-protocol](https://github.com/dickhardt/AAuth) `-11`, three-party) you can run instead of building one. It speaks for your people when agents want to act for them:
+
+- verifies each agent by its HTTP Message Signature (RFC 9421) and the agent token it presents, from agent providers you trust;
+- approves **missions**, and issues **person tokens** and **auth tokens** under them;
+- weighs each auth token request against its mission's **budget** ([draft-hardt-aauth-budgets](https://github.com/dickhardt/AAuth)): a request whose resource token carries a `budget` that fits what is left is issued at once, and spent;
+- turns anything that needs a human into an **approval**, which you decide however you reach the person: email, chat, your own app;
+- **federates** with a resource's own Access Server (four-party) when the resource token names one, after weighing the request against the mission as for any resource.
+
+Handlers take a Web `Request` and return a `Response`, so it mounts in Next.js, Hono, Bun, Deno, Workers or plain Node.
+
+Introspection runs the same protocol as a hosted Person Server in its data plane; a connector names either one in `person_server_url`, and an agent cannot tell them apart.
+
+## Use
+
+```ts
+import { createPersonServer } from "@introspection-sdk/aauth-person-server";
+
+const ps = await createPersonServer({
+  issuer: "https://ps.acme.example", // https://host, no port or path
+  trustedAgentProviders: ["https://api.introspection.dev"],
+  signingKey: process.env.PS_SIGNING_KEY, // PKCS#8 Ed25519 PEM
+  subjectSecret: process.env.PS_SUBJECT_SECRET,
+  directory: {
+    // Who you speak for: the person a login_hint names.
+    person: (hint) => employees.byEmail(hint),
+    // Who decides for them; the person themself when omitted.
+    approver: (kind, person) =>
+      kind === "completion" ? person : employees.managerOf(person),
+  },
+  // Reach whoever decides. Answer later with ps.decide().
+  onApproval: (approval) => notify(approval.approver, approval),
+});
+
+// Any framework: one catch-all route.
+export default { fetch: (request: Request) => ps.handle(request) };
+
+// When the approver answers, under the tenant it was asked under:
+await ps.decide(approval.tenant, approval.id, {
+  status: "approved",
+  budget: { amount: 300_000, unit: "USD", decimals: 2 }, // a mission's budget
+  decided_by: "dana@acme.example",
+});
+```
+
+## Run it on its own
+
+```bash
+npm install @introspection-sdk/aauth-person-server
+# A stable Ed25519 signing key and subject secret, generated once:
+node -e 'const c=require("node:crypto");process.stdout.write(c.generateKeyPairSync("ed25519").privateKey.export({type:"pkcs8",format:"pem"}))' > ps-signing-key.pem
+node -e 'process.stdout.write(require("node:crypto").randomBytes(32).toString("hex"))' > ps-subject-secret
+```
+
+Node has no built-in server for `Request` → `Response` handlers, so adapt `node:http`. Bun and Deno take `ps.handle` as it is: `Bun.serve({ fetch: ps.handle })`, `Deno.serve(ps.handle)`.
+
+```ts
+// server.mjs
+import { readFileSync } from "node:fs";
+import { createServer } from "node:http";
+import { Readable } from "node:stream";
+
+import { createPersonServer } from "@introspection-sdk/aauth-person-server";
+
+const issuer = "https://ps.acme.example";
+const people = {
+  "user:sam@acme.example": {
+    id: "sam",
+    name: "Sam",
+    email: "sam@acme.example",
+  },
+  "user:dana@acme.example": {
+    id: "dana",
+    name: "Dana",
+    email: "dana@acme.example",
+  },
+};
+const ps = await createPersonServer({
+  issuer,
+  trustedAgentProviders: ["https://api.introspection.dev"],
+  signingKey: readFileSync("ps-signing-key.pem", "utf8"),
+  subjectSecret: readFileSync("ps-subject-secret", "utf8"),
+  adminToken: process.env.PS_ADMIN_TOKEN, // turns on the management routes
+  directory: {
+    // Who you speak for, by the login hint an agent's connector sends.
+    person: (hint) => people[hint],
+    approver: (kind, person) =>
+      kind === "completion" ? person : people["user:dana@acme.example"],
+  },
+  onApproval: (approval) =>
+    console.log(
+      `approval ${approval.id} for ${approval.approver.email}: ${approval.description}`,
+    ),
+});
+
+createServer(async (req, res) => {
+  const hasBody = req.method !== "GET" && req.method !== "HEAD";
+  const response = await ps.handle(
+    new Request(new URL(req.url, issuer), {
+      method: req.method,
+      headers: req.headers,
+      body: hasBody ? Readable.toWeb(req) : undefined,
+      duplex: "half",
+    }),
+  );
+  res.writeHead(response.status, Object.fromEntries(response.headers));
+  res.end(Buffer.from(await response.arrayBuffer()));
+}).listen(4100);
+```
+
+Serve it at `issuer` over https, behind your proxy or a tunnel (`cloudflared tunnel --url http://localhost:4100`), then check it:
+
+```bash
+curl https://ps.acme.example/.well-known/aauth-person.json
+curl -H "authorization: Bearer $PS_ADMIN_TOKEN" "https://ps.acme.example/consent?status=pending"
+```
+
+Each approval is logged as it arrives. Decide one through the management routes (or `ps.decide()` in code), setting a mission's budget as you approve it:
+
+```bash
+curl -X POST -H "authorization: Bearer $PS_ADMIN_TOKEN" -H "content-type: application/json" \
+  -d '{"decision": "approve", "budget": {"amount": 300000, "unit": "USD", "decimals": 2}, "decided_by": "dana@acme.example"}' \
+  "https://ps.acme.example/consent/<approval id>/decision"
+```
+
+Every request is under a tenant: the `tenant` the agent names (in the body of each POST, in the pending URL `/pending/{tenant}/{id}` of each poll), else `defaultTenant` (`"default"` unless set). With `requireTenant: true` there is no default, and a request naming none is answered `400` before anything is recorded. `directory.person` is passed that tenant. A person it returns with a `tenant` is in that tenant alone: a request under any other is refused with `403`, so a directory that stamps one tenant on its people sets `defaultTenant` to it. A person returned without a `tenant` takes the request's, so a directory that serves several tenants checks the `tenant` it is passed and returns `undefined` for someone outside it. Tokens carry the directory's tenant, else the one the agent named, so tokens for a request under the default with no directory tenant carry none. An auth token request is refused unless it is under the tenant its presented token was issued under (a token with no `tenant` was issued under the default).
+
+An Introspection connector uses it once its `person_server_url` names `issuer`.
+
+## Run the example
+
+`examples/server.ts` in this repository is a runnable server: it speaks for anyone whose login hint is `user:<email>`, prints each approval, and is decided through the management routes. From this package, with Node 22.18 or later (which runs TypeScript as is):
+
+```bash
+pnpm build
+node examples/server.ts --help
+PS_ADMIN_TOKEN=secret PS_SIGNING_KEY="$(cat ps-signing-key.pem)" PS_SUBJECT_SECRET="$(cat ps-subject-secret)" \
+  node examples/server.ts --issuer https://ps.acme.example --default-tenant acme --approver dana@acme.example
+```
+
+Every flag defaults to an environment variable (`--issuer` to `PS_ISSUER`, and so on). The signing key, subject secret and admin token are read from the environment only, never flags, since a process's arguments are visible to anything on the host that can list processes.
+
+Keep the signing key and subject secret stable: resources cache your keys, and each person's directed `sub` is derived from the secret. The default store is in memory; implement `Store` for anything that must survive a restart. Every `Store` method takes the request's tenant first, always a string, and records are kept apart per tenant: a record is found only under the tenant it was saved with. Each `Approval` and `Mission` records its `tenant`. Pass it, first, to `ps.decide()`, `ps.terminate()`, `ps.mission()` and the other lookups, or `?tenant=` to the management routes, which default to `defaultTenant`. `spend` must check and add in one step, and `transitionApproval` must change an approval only from the status it expects, so each decision and each collection happens once.
+
+## Routes
+
+| Route                                               | Who calls it            | What it is                                                |
+| --------------------------------------------------- | ----------------------- | --------------------------------------------------------- |
+| `GET /.well-known/aauth-person.json`                | agents, resources       | metadata                                                  |
+| `GET /.well-known/jwks.json`                        | resources               | the keys person and auth tokens are signed with           |
+| `POST {base}/mission`                               | agent                   | propose a mission; `202` while the approver decides       |
+| `POST {base}/mission/{s256}`                        | agent                   | `update` a mission's log, or propose its `completion`     |
+| `POST {base}/person-token`                          | agent                   | a person token for one resource, under a mission it holds |
+| `POST {base}/token`                                 | agent                   | a resource token in, an auth token (or `202`) out         |
+| `GET`/`DELETE {base}/pending/{id}`                  | agent                   | poll a decision, or withdraw it; only the key that asked  |
+| `GET {base}/consent?status=pending`                 | operator (`adminToken`) | approvals                                                 |
+| `POST {base}/consent/{id}/decision`                 | operator (`adminToken`) | `{decision: "approve" \| "deny", budget?, decided_by?}`   |
+| `GET {base}/missions`, `GET {base}/missions/{s256}` | operator (`adminToken`) | missions and what each has spent                          |
+| `PATCH {base}/missions/{s256}`                      | operator (`adminToken`) | terminate a mission                                       |
+
+`basePath` (`{base}`) defaults to the root. The management routes are off unless `adminToken` is set; the same operations are `ps.approvals()`, `ps.decide()`, `ps.missions()` and `ps.terminate()` in code.
+
+If you are coming from [christian-posta/aauth-person-server](https://github.com/christian-posta/aauth-person-server), the agent routes (`/mission`, `/token`, `/pending/{id}`), the consent routes (`/consent`, `/consent/{id}/decision`) and mission control (`/missions`, `/missions/{s256}`) keep their shape; `-11` adds `/person-token` and `/mission/{s256}`, and a token request is weighed by its resource token's `budget`.
+
+## Policy
+
+Fixed and small:
+
+- a mission is always put to the approver, who may set its budget;
+- an auth token needs a live mission covering the resource token's issuer, and only those issuers' keys are fetched;
+- a request whose `budget` is in the mission's unit and scale and fits what is left is issued at once and spent; any other budgeted request is put to the approver, and spent when its approved token is collected, so a token is issued only once its spend has landed;
+- a request with no `budget` is issued within the mission without spending;
+- completing a mission is the person's own decision, and nothing is issued under it afterwards;
+- each agent key is bound to the first person it names.
+- an approved auth token is collected once (`collected` on the approval): later polls of the same approval answer `410`, so one approval spends once;
+- each approval is decided once, however many answers arrive.
+
+## Resources with their own Access Server
+
+A resource that keeps its own policy names its Access Server (AS) as the `aud` of its resource tokens instead of this Person Server ([`-11` #access-server-federation](https://github.com/dickhardt/AAuth)). That `aud` is the only signal; nothing is configured here. On `POST {base}/token`:
+
+1. The resource token is verified against the resource's keys and weighed against the mission exactly as above: a resource the mission does not cover is refused, and a `budget` over what is left goes to the approver first. Only the AS a verified resource token names is ever fetched.
+2. The request is redeemed at the AS: `{aud}/.well-known/aauth-access.json`, then a `POST` to its `auth_token_endpoint` signed with this server's key (`sig=jwks_uri;id=<issuer>;dwk="aauth-person.json"`), carrying `resource_token`, `agent_token` and `presented_token`.
+3. The AS's auth token is checked before the agent gets it (#auth-token-delivery: its keys, `iss`, `aud`, `ps`, `sub`, `cnf`, `mission_s256`, a scope no broader than asked, an `exp` within the presented token's), the budget is spent only then, and the token is returned unchanged.
+4. A `202` from the AS (`requirement=approval` or `interaction`) is answered to the agent as this server's own `202`, relaying the AS's `AAuth-Requirement`; each poll of the agent's pending URL polls the AS's `Location`, so no worker is needed. An AS refusal is relayed with its own `error` and status, and ends the approval; an AS that cannot be reached, answers malformed or issues a token that fails the checks is `502 as_unreachable`.
+
+The approval for such a request carries `federation` (the AS, the three tokens, and where the AS said to poll), and is `approved` while the AS decides, so `decide()` cannot settle it. `requirement=claims`, `clarification` and `402` are refused with the AS's reason; revocation at the AS is not done yet.
+
+[`@introspection-sdk/aauth-access-server`](../introspection-aauth-access-server) is the other side.
+
+## Hooks
+
+`onApproval(approval)` when a decision is needed, `onDecision(approval)` once it is made, and `onIssued({type, agent, person, resource, mission, budget, access_server?})` for each token issued, `access_server` naming the AS when it issued it.
+
+## Building blocks
+
+`PersonServer` extends `AAuthServer` from [`@introspection-sdk/aauth-protocol`](../introspection-aauth-protocol), which holds what it shares with `@introspection-sdk/aauth-access-server` and `@introspection-sdk/aauth-resource`: the typed errors, `loadSigner`, `verifySignature`, the pending answer and `readProposalSummary`. `AAuthError` and `problem` are exported here too.
+
+The federation steps are its methods: `federationDue(tenant, id)` (an approved request still to redeem at its AS), `federate(…)` (one exchange with the AS, then its record) and `recordFederation(…)`. `AccessServerClient` is the client for the AS (`discover`, `request`, `poll`); each exchange comes back as an `Outcome` (`issued`, `pending` or `refused`, with `Outcome.refused`, `Outcome.unreachable` and `pollDelay()`).
+
+## Logging and tracing
+
+The package configures neither. It writes spans through `@opentelemetry/api`: `person_server.federate`, with `person_server.federate.metadata`, `.request`, `.poll` and `.delivery` per exchange, and `aauth.r3.read` for a proposal. Pass `logger` for its decision records: `federation outcome recorded`, with `tenant`, `approval_id`, `step` and `error`. A record carries identifiers and enumerated values, never a token or a person's details.

@@ -38,7 +38,11 @@ const DEFAULT_SPEC = "https://docs.introspection.dev/openapi/dataplane.json";
 const DEFAULT_CP_SPEC =
   "https://docs.introspection.dev/openapi/controlplane.json";
 
-const TYPES = resolve(ROOT, "packages/introspection-types/src/api.ts");
+/** The `api/` modules that `packages/introspection-types/src/api.ts` re-exports. */
+const TYPES_DIR = resolve(ROOT, "packages/introspection-types/src/api");
+const TYPES = readdirSync(TYPES_DIR)
+  .filter((name) => name.endsWith(".ts"))
+  .map((name) => resolve(TYPES_DIR, name));
 const BROWSER = resolve(
   ROOT,
   "packages/introspection-browser/src/api/tasks.ts",
@@ -48,7 +52,7 @@ const CONVERSATIONS = resolve(
   "packages/introspection-types/src/conversations.ts",
 );
 /** Files searched for a base interface named in an `extends` clause. */
-const SEARCH_PATH = [TYPES, CONVERSATIONS, BROWSER];
+const SEARCH_PATH = [...TYPES, CONVERSATIONS, BROWSER];
 
 /**
  * Property names of an interface, following `extends` so
@@ -57,7 +61,7 @@ const SEARCH_PATH = [TYPES, CONVERSATIONS, BROWSER];
  *
  * Base interfaces are resolved across files, not just within one:
  * `ConversationListParams` lives in `conversations.ts` but extends
- * `CursorParams` from `api.ts`, and a same-file-only walk would silently
+ * `CursorParams` from `api/common.ts`, and a same-file-only walk would silently
  * report its inherited `limit`/`next` as missing. A checker that emits a
  * finding it cannot substantiate is worse than one that stays quiet, because
  * it teaches the reader to skim past real ones.
@@ -117,6 +121,14 @@ function interfaceMembers(file, name, seen = new Set()) {
   return members;
 }
 
+/** Members of an interface declared in one of the `api/` modules. */
+function apiMembers(name) {
+  const file = declaringFile(name);
+  if (!file || !TYPES.includes(file))
+    throw new Error(`no interface named ${name} in ${TYPES_DIR}`);
+  return interfaceMembers(file, name);
+}
+
 const schemaProperties = (spec, name) => {
   const schema = spec.components?.schemas?.[name];
   if (!schema)
@@ -138,7 +150,7 @@ const SURFACES = [
   {
     name: "TaskCreateParams",
     where: "POST /v1/tasks body (runner-bound client)",
-    sdk: () => interfaceMembers(TYPES, "TaskCreateParams"),
+    sdk: () => apiMembers("TaskCreateParams"),
     server: (spec) => schemaProperties(spec, "TaskCreate"),
     // Runner-bound: the credential's claim is authoritative for runtime
     // selection and the API ignores a body `runtime_id` from such a caller, so
@@ -164,7 +176,7 @@ const SURFACES = [
   {
     name: "Task",
     where: "the task read model",
-    sdk: () => interfaceMembers(TYPES, "Task"),
+    sdk: () => apiMembers("Task"),
     server: (spec) => schemaProperties(spec, "Task"),
     extraMeans:
       "declared here but not returned by the API (the SDK describes a response that no longer exists)",
@@ -173,7 +185,7 @@ const SURFACES = [
   {
     name: "TaskRunCreateParams",
     where: "POST /v1/tasks/{id}/runs body",
-    sdk: () => interfaceMembers(TYPES, "TaskRunCreateParams"),
+    sdk: () => apiMembers("TaskRunCreateParams"),
     server: (spec) => schemaProperties(spec, "TaskRunCreate"),
     // `resume` is a separate typed call on this client, not a field here.
     exempt: ["resume"],
@@ -183,7 +195,7 @@ const SURFACES = [
   {
     name: "TaskListParams",
     where: "GET /v1/tasks query parameters",
-    sdk: () => interfaceMembers(TYPES, "TaskListParams"),
+    sdk: () => apiMembers("TaskListParams"),
     server: (spec) => queryParameters(spec, "/v1/tasks", "get"),
     // Product-UI shaped filters, whose only callers are the frontend. Which
     // filters to expose is a product decision, so absence is reported and does
@@ -197,7 +209,7 @@ const SURFACES = [
   {
     name: "File",
     where: "the file read model",
-    sdk: () => interfaceMembers(TYPES, "File"),
+    sdk: () => apiMembers("File"),
     server: (spec) => schemaProperties(spec, "File"),
     extraMeans:
       "declared here but not returned by the API (the SDK describes a response that no longer exists)",
@@ -206,7 +218,7 @@ const SURFACES = [
   {
     name: "FileUpdateParams",
     where: "PATCH /v1/files/{id} body",
-    sdk: () => interfaceMembers(TYPES, "FileUpdateParams"),
+    sdk: () => apiMembers("FileUpdateParams"),
     server: (spec) => schemaProperties(spec, "FileUpdate"),
     extraMeans: "declared here but not accepted by the API",
     missingMeans: "accepted by the API but unavailable to callers of this SDK",
@@ -214,7 +226,7 @@ const SURFACES = [
   {
     name: "FileListParams",
     where: "GET /v1/files query parameters",
-    sdk: () => interfaceMembers(TYPES, "FileListParams"),
+    sdk: () => apiMembers("FileListParams"),
     server: (spec) => queryParameters(spec, "/v1/files", "get"),
     // `identity_key` is privileged-only and 403s for these credentials;
     // `task_id` is a scoping param a runner already carries.
@@ -227,7 +239,7 @@ const SURFACES = [
   {
     name: "ShareCreateParams",
     where: "POST /v1/shares body",
-    sdk: () => interfaceMembers(TYPES, "ShareCreateParams"),
+    sdk: () => apiMembers("ShareCreateParams"),
     server: (spec) => schemaProperties(spec, "ShareCreate"),
     extraMeans: "declared here but not accepted by the API",
     missingMeans: "accepted by the API but unavailable to callers of this SDK",
@@ -235,7 +247,7 @@ const SURFACES = [
   {
     name: "ResourceShare",
     where: "the share read model",
-    sdk: () => interfaceMembers(TYPES, "ResourceShare"),
+    sdk: () => apiMembers("ResourceShare"),
     server: (spec) => schemaProperties(spec, "ResourceShare"),
     extraMeans:
       "declared here but not returned by the API (the SDK describes a response that no longer exists)",
@@ -244,7 +256,7 @@ const SURFACES = [
   {
     name: "ShareUpdateParams",
     where: "PATCH /v1/shares/{id} body",
-    sdk: () => interfaceMembers(TYPES, "ShareUpdateParams"),
+    sdk: () => apiMembers("ShareUpdateParams"),
     server: (spec) => schemaProperties(spec, "ShareUpdate"),
     extraMeans: "declared here but not accepted by the API",
     missingMeans: "accepted by the API but unavailable to callers of this SDK",
@@ -252,7 +264,7 @@ const SURFACES = [
   {
     name: "ShareListParams",
     where: "GET /v1/shares query parameters",
-    sdk: () => interfaceMembers(TYPES, "ShareListParams"),
+    sdk: () => apiMembers("ShareListParams"),
     server: (spec) => queryParameters(spec, "/v1/shares", "get"),
     missingIsFatal: false,
     extraMeans: "sent as a query parameter the API does not accept",
@@ -264,7 +276,7 @@ const SURFACES = [
     where: "the common envelope on every event family",
     // One family stands in for all six: the envelope is shared, so a field
     // added or dropped there moves on every family at once.
-    sdk: () => interfaceMembers(TYPES, "FeedbackEvent"),
+    sdk: () => apiMembers("FeedbackEvent"),
     server: (spec) => schemaProperties(spec, "FeedbackEvent"),
     extraMeans:
       "declared here but not returned by the API (the SDK describes a response that no longer exists)",
@@ -273,7 +285,7 @@ const SURFACES = [
   {
     name: "EventListParams",
     where: "GET /v1/events query parameters",
-    sdk: () => interfaceMembers(TYPES, "EventListParams"),
+    sdk: () => apiMembers("EventListParams"),
     server: (spec) => queryParameters(spec, "/v1/events", "get"),
     // Product-UI shaped filters; `event_id` is covered by `events.get`.
     exempt: [
@@ -295,7 +307,7 @@ const SURFACES = [
   {
     name: "AutomationTriggeredPayload",
     where: "introspection.automation.triggered payload",
-    sdk: () => interfaceMembers(TYPES, "AutomationTriggeredPayload"),
+    sdk: () => apiMembers("AutomationTriggeredPayload"),
     server: (spec) => schemaProperties(spec, "AutomationTriggered"),
     extraMeans:
       "declared here but not returned by the API (the SDK describes a response that no longer exists)",
@@ -304,7 +316,7 @@ const SURFACES = [
   {
     name: "AutomationSkippedPayload",
     where: "introspection.automation.skipped payload",
-    sdk: () => interfaceMembers(TYPES, "AutomationSkippedPayload"),
+    sdk: () => apiMembers("AutomationSkippedPayload"),
     server: (spec) => schemaProperties(spec, "AutomationSkipped"),
     extraMeans:
       "declared here but not returned by the API (the SDK describes a response that no longer exists)",
@@ -314,7 +326,7 @@ const SURFACES = [
   {
     name: "Automation",
     where: "the automation read model",
-    sdk: () => interfaceMembers(TYPES, "Automation"),
+    sdk: () => apiMembers("Automation"),
     server: (spec) => schemaProperties(spec, "Automation"),
     // Always null, and dropped by introspection-cloud#3154; this goes stale
     // (and fails) once the reference drops it too.
@@ -326,7 +338,7 @@ const SURFACES = [
   {
     name: "AutomationCreateParams",
     where: "POST /v1/automations body",
-    sdk: () => interfaceMembers(TYPES, "AutomationCreateParams"),
+    sdk: () => apiMembers("AutomationCreateParams"),
     server: (spec) => schemaProperties(spec, "AutomationCreate"),
     extraMeans:
       "declared here but not accepted by the API (rejected with a 422 — the create body forbids undeclared fields)",
@@ -335,7 +347,7 @@ const SURFACES = [
   {
     name: "AutomationUpdateParams",
     where: "PATCH /v1/automations/{id} body",
-    sdk: () => interfaceMembers(TYPES, "AutomationUpdateParams"),
+    sdk: () => apiMembers("AutomationUpdateParams"),
     server: (spec) => schemaProperties(spec, "AutomationUpdate"),
     extraMeans:
       "declared here but not accepted by the API (rejected with a 422 — the update body forbids undeclared fields)",
@@ -344,7 +356,7 @@ const SURFACES = [
   {
     name: "AutomationTriggerResponse",
     where: "POST /v1/automations/{id}/trigger response",
-    sdk: () => interfaceMembers(TYPES, "AutomationTriggerResponse"),
+    sdk: () => apiMembers("AutomationTriggerResponse"),
     server: (spec) => schemaProperties(spec, "AutomationTriggerResponse"),
     extraMeans:
       "declared here but not returned by the API (the SDK describes a response that no longer exists)",
@@ -353,7 +365,7 @@ const SURFACES = [
   {
     name: "AutomationListParams",
     where: "GET /v1/automations query parameters",
-    sdk: () => interfaceMembers(TYPES, "AutomationListParams"),
+    sdk: () => apiMembers("AutomationListParams"),
     server: (spec) => queryParameters(spec, "/v1/automations", "get"),
     // Sent before the reference publishes it (introspection-cloud#3137);
     // drop the allowance once it does.
@@ -417,7 +429,7 @@ const SURFACES = [
     name: "ExperimentListParams",
     where: "GET /v1/experiments query parameters",
     plane: "cp",
-    sdk: () => interfaceMembers(TYPES, "ExperimentListParams"),
+    sdk: () => apiMembers("ExperimentListParams"),
     server: (spec) => queryParameters(spec, "/v1/experiments", "get"),
     // The deprecated spelling of `project`; this SDK sends the current one.
     exempt: ["project_id"],
@@ -429,7 +441,7 @@ const SURFACES = [
     name: "RecipeListParams",
     where: "GET /v1/recipes query parameters",
     plane: "cp",
-    sdk: () => interfaceMembers(TYPES, "RecipeListParams"),
+    sdk: () => apiMembers("RecipeListParams"),
     server: (spec) => queryParameters(spec, "/v1/recipes", "get"),
     exempt: ["project_id"],
     missingIsFatal: false,
@@ -444,7 +456,7 @@ const SURFACES = [
     name: "RuntimeListParams",
     where: "GET /v1/runtimes query parameters",
     plane: "cp",
-    sdk: () => interfaceMembers(TYPES, "RuntimeListParams"),
+    sdk: () => apiMembers("RuntimeListParams"),
     server: (spec) => queryParameters(spec, "/v1/runtimes", "get"),
     exempt: ["project_id"],
     missingIsFatal: true,
@@ -456,7 +468,7 @@ const SURFACES = [
     name: "ConnectorListParams",
     where: "GET /v1/connectors query parameters",
     plane: "cp",
-    sdk: () => interfaceMembers(TYPES, "CursorParams"),
+    sdk: () => apiMembers("CursorParams"),
     server: (spec) => queryParameters(spec, "/v1/connectors", "get"),
     // Project scope comes from the authenticated credential.
     exempt: ["project", "project_id"],
@@ -468,7 +480,7 @@ const SURFACES = [
     name: "ConnectorCreateParams",
     where: "POST /v1/connectors body",
     plane: "cp",
-    sdk: () => interfaceMembers(TYPES, "ConnectorCreateParams"),
+    sdk: () => apiMembers("ConnectorCreateParams"),
     server: (spec) => schemaProperties(spec, "ConnectorCreate"),
     extraMeans: "declared here but not accepted by the API",
     missingMeans: "accepted by the API but unavailable to callers of this SDK",
@@ -477,7 +489,7 @@ const SURFACES = [
     name: "ConnectorUpdateParams",
     where: "PATCH /v1/connectors/{id} body",
     plane: "cp",
-    sdk: () => interfaceMembers(TYPES, "ConnectorUpdateParams"),
+    sdk: () => apiMembers("ConnectorUpdateParams"),
     server: (spec) => schemaProperties(spec, "ConnectorUpdate"),
     extraMeans: "declared here but not accepted by the API",
     missingMeans: "accepted by the API but unavailable to callers of this SDK",
@@ -486,7 +498,7 @@ const SURFACES = [
     name: "ConnectionCreateParams",
     where: "POST /v1/connectors/{id}/connections body",
     plane: "cp",
-    sdk: () => interfaceMembers(TYPES, "ConnectionCreateParams"),
+    sdk: () => apiMembers("ConnectionCreateParams"),
     server: (spec) => schemaProperties(spec, "ConnectionCreate"),
     extraMeans: "declared here but not accepted by the API",
     missingMeans: "accepted by the API but unavailable to callers of this SDK",
@@ -497,7 +509,7 @@ const SURFACES = [
     name: "ConnectorAuthorizeParams",
     where: "POST /v1/oauth/connections/authorize body",
     plane: "cp",
-    sdk: () => interfaceMembers(TYPES, "ConnectorAuthorizeParams"),
+    sdk: () => apiMembers("ConnectorAuthorizeParams"),
     server: (spec) => schemaProperties(spec, "ConnectAuthorizeRequest"),
     exempt: ["connector_id"],
     extraMeans: "declared here but not accepted by the API",
@@ -507,7 +519,7 @@ const SURFACES = [
     name: "ConnectorAuthorizeBinding",
     where: "POST /v1/oauth/connections/authorize body.binding",
     plane: "cp",
-    sdk: () => interfaceMembers(TYPES, "ConnectorAuthorizeBinding"),
+    sdk: () => apiMembers("ConnectorAuthorizeBinding"),
     server: (spec) => schemaProperties(spec, "ConnectBindingRequest"),
     extraMeans: "declared here but not accepted by the API",
     missingMeans: "accepted by the API but unavailable to callers of this SDK",
@@ -516,7 +528,7 @@ const SURFACES = [
     name: "ConnectorCustomAppSearchParams",
     where: "GET /v1/connectors/custom/apps query parameters",
     plane: "cp",
-    sdk: () => interfaceMembers(TYPES, "ConnectorCustomAppSearchParams"),
+    sdk: () => apiMembers("ConnectorCustomAppSearchParams"),
     server: (spec) =>
       queryParameters(spec, "/v1/connectors/custom/apps", "get"),
     extraMeans: "sent as a query parameter the API does not accept",
@@ -526,7 +538,7 @@ const SURFACES = [
   {
     name: "MetricQueryRequest",
     where: "POST /v1/metrics body",
-    sdk: () => interfaceMembers(TYPES, "MetricQueryRequest"),
+    sdk: () => apiMembers("MetricQueryRequest"),
     server: (spec) => schemaProperties(spec, "MetricQueryRequest"),
     extraMeans: "declared here but not accepted by the API",
     missingMeans: "accepted by the API but unavailable to callers of this SDK",
@@ -535,7 +547,7 @@ const SURFACES = [
   {
     name: "TaskCancelOptions",
     where: "POST /v1/tasks/{id}/runs/{rid}/cancel body",
-    sdk: () => interfaceMembers(TYPES, "TaskCancelOptions"),
+    sdk: () => apiMembers("TaskCancelOptions"),
     server: (spec) => schemaProperties(spec, "TaskCancelRequest"),
     extraMeans: "declared here but not accepted by the API",
     missingMeans: "accepted by the API but unavailable to callers of this SDK",
