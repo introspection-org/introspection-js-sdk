@@ -627,10 +627,9 @@ const encodedMedia = (type) =>
 function compareBody(ctx, shapes, body, out) {
   const { checker } = ctx;
   const media = body && (encodedMedia(body) ?? "application/json");
-  const why = media === "application/json" && unresolvable(checker, body);
-  if (why) {
-    out.push({ kind: "unresolvable", field: "body", detail: why });
-  } else if (!shapes.body) {
+  // Presence and media type first: they hold whatever the body's type, so an
+  // unresolvable body still fails when the reference takes none.
+  if (!shapes.body) {
     if (body)
       out.push({
         kind: "extra",
@@ -647,7 +646,9 @@ function compareBody(ctx, shapes, body, out) {
       detail: `reference takes ${shapes.body.media.join(", ")}, SDK sends ${media}`,
     });
   } else if (media === "application/json") {
-    ctx.run(shapes.body.schema, body, "body");
+    const why = unresolvable(checker, body);
+    if (why) out.push({ kind: "unresolvable", field: "body", detail: why });
+    else ctx.run(shapes.body.schema, body, "body");
   }
   // A form body `fetch` encodes itself matches the reference's media type,
   // but carries no field types to compare, like a non-JSON response.
@@ -658,7 +659,15 @@ function compareQuery(ctx, shapes, types, out) {
   const query = ctx.sent(types.query);
   const why = query && unresolvable(checker, query);
   const findings = [];
-  if (why) findings.push({ kind: "unresolvable", field: "query", detail: why });
+  if (why && !Object.keys(shapes.query.properties).length) {
+    // A query the reference does not take at all fails whatever its type.
+    findings.push({
+      kind: "extra",
+      field: "query",
+      detail: `the reference takes no query parameters, SDK sends ${why}`,
+    });
+  } else if (why)
+    findings.push({ kind: "unresolvable", field: "query", detail: why });
   else if (query) compare(ctx.fresh(), shapes.query, query, "query", findings);
   else {
     // Nothing sent: every parameter the reference takes is missing, as it
@@ -698,27 +707,32 @@ function compareResponse(ctx, shapes, types, out) {
     return;
   }
   if (!members(response).length) return;
-  const reason =
-    unresolvable(checker, response) ??
-    (types.accept === null ? "Accept header is not a literal" : undefined);
-  if (reason) {
-    out.push({ kind: "unresolvable", field: "response", detail: reason });
+  if (types.accept === null) {
+    out.push({
+      kind: "unresolvable",
+      field: "response",
+      detail: "Accept header is not a literal",
+    });
     return;
   }
+  // The media type first: a reference without it fails whatever the
+  // response's type, so an unresolvable response does not hide it.
   const media = types.accept ?? "application/json";
   const entry = mediaEntry(shapes.response, media);
-  if (entry?.schema) {
-    ctx.run(entry.schema, response, "response");
+  if (!entry?.schema) {
+    const declared = Object.keys(shapes.response);
+    out.push({
+      kind: "extra",
+      field: "response",
+      detail: entry
+        ? `the reference declares ${media} without a schema`
+        : `the reference declares no ${media} response${declared.length ? ` (only ${declared.join(", ")})` : ""}`,
+    });
     return;
   }
-  const declared = Object.keys(shapes.response);
-  out.push({
-    kind: "extra",
-    field: "response",
-    detail: entry
-      ? `the reference declares ${media} without a schema`
-      : `the reference declares no ${media} response${declared.length ? ` (only ${declared.join(", ")})` : ""}`,
-  });
+  const why = unresolvable(checker, response);
+  if (why) out.push({ kind: "unresolvable", field: "response", detail: why });
+  else ctx.run(entry.schema, response, "response");
 }
 
 /**
