@@ -18,7 +18,7 @@
  *
  *   state        red | green
  *   body.txt     the Slack message below its headline: summary, run link, and
- *                the agent prompt carrying both reports trimmed to fit
+ *                both reports trimmed to fit
  *   summary.md   both reports in full, for the job summary
  *
  * Exits 0 when the report was built (red or green) and 2 when it could not be,
@@ -36,7 +36,7 @@
  *        read instead of staging, for both reports (the check reads them too)
  */
 import { spawnSync } from "node:child_process";
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -46,7 +46,6 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const PLANES = ["dataplane", "controlplane"];
 
 const SNAPSHOT = (plane) => resolve(ROOT, `api-reference/${plane}.json`);
-const PROMPT = resolve(ROOT, ".github/api-drift-prompt.md");
 
 /**
  * Characters the SDK drift, and each plane's changelog, may take in the Slack
@@ -277,19 +276,14 @@ async function main() {
     runUrl,
   ];
 
-  const prompt = readFileSync(PROMPT, "utf8")
-    .replace(/<!--[\s\S]*?-->\s*/, "")
-    // Replacer functions: the reports can hold `$` sequences, which a
-    // replacement string would read as patterns.
-    .replace("{{RUN_URL}}", () => runUrl)
-    .replace("{{SDK_DRIFT}}", () => trim(driftText, DRIFT_BUDGET))
-    .replace("{{CHANGELOG}}", () =>
-      planes.map((plane) => trim(plane.text, PLANE_BUDGET)).join("\n\n"),
-    )
-    .trim();
-
   const body = red
-    ? `${summaryLines.join("\n")}\n\nAgent prompt, ready to paste:\n\`\`\`\n${prompt}\n\`\`\``
+    ? [
+        summaryLines.join("\n"),
+        `SDK drift:\n\`\`\`\n${trim(driftText, DRIFT_BUDGET)}\n\`\`\``,
+        `Reference changelog:\n\`\`\`\n${planes
+          .map((plane) => trim(plane.text, PLANE_BUDGET))
+          .join("\n\n")}\n\`\`\``,
+      ].join("\n\n")
     : runUrl;
 
   const summary = [
