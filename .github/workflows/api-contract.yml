@@ -1,14 +1,14 @@
-# Watches the published API reference for drift against this SDK's task surface.
+# Watches the staging API reference for drift against this SDK's surface: the
+# operations its x-introspection marks for the SDK, and their fields.
 # Scheduled rather than run on pull requests: it reaches the network and it goes
 # red when the *API* changes, which is a fact about the world and not about the
 # commit under review. Gating PRs on it would make it noise, and being ignorable
 # is how the last one of these went unnoticed.
 #
 # A red run that nobody opens is ignorable too, so the run tells
-# #main-build-alerts on each edge (newly red, a changed report, green again),
+# #main-build-alerts when the state changes (clean to drift, drift to clean),
 # with a ready-to-paste agent prompt for the fix. It never opens a fix PR
-# itself: the drift often needs a decision (add to the SDK or exclude?) that
-# belongs to a person.
+# itself: a person decides when to start one.
 name: API Contract
 
 on:
@@ -17,11 +17,6 @@ on:
     # than arriving mid-afternoon.
     - cron: "0 7 * * *"
   workflow_dispatch:
-    inputs:
-      post_for_real:
-        description: "Post to Slack on an edge, as the nightly run does. Off prints the message instead."
-        type: boolean
-        default: false
 
 permissions:
   contents: read
@@ -31,8 +26,8 @@ env:
   OASDIFF_SHA256: "43a4e328e2d13ba1552d760aa68d2485c75c5621f309f6ff64ae895188345247"
 
 jobs:
-  task-surface:
-    name: Task surface vs published reference
+  sdk-surface:
+    name: SDK surface vs staging reference
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -79,8 +74,8 @@ jobs:
         env:
           REPORT_DIR: ${{ runner.temp }}/api-drift
           STATE_DIR: .api-drift-state
-          # A manual run rehearses unless asked to post: it prints the message.
-          SLACK_WEBHOOK_URL: ${{ (github.event_name != 'workflow_dispatch' || inputs.post_for_real) && secrets.MAIN_STATUS_SLACK_WEBHOOK_URL || '' }}
+          # Empty (a fork, or the secret unset) prints the message instead.
+          SLACK_WEBHOOK_URL: ${{ secrets.MAIN_STATUS_SLACK_WEBHOOK_URL }}
         run: scripts/api-drift-notify.sh
 
       - name: Save the posted state

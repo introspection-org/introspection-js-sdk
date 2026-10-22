@@ -430,13 +430,23 @@ function mediaEntry(content, media) {
  * The reference's request body, query parameters and success response. Body
  * and response keep every media type the reference declares, so a call site
  * is compared with the one it actually sends or asks for.
+ *
+ * `unexpected` names the query parameters whose own `x-introspection.clients`
+ * leaves out `client`: the reference takes them, but this client is not
+ * expected to send them.
  */
-export function specShapes(spec, path, method) {
+export function specShapes(spec, path, method, client) {
   const op = spec.paths?.[path]?.[method.toLowerCase()];
   const content = op?.requestBody?.content ?? {};
   const query = (op?.parameters ?? [])
     .map((p) => deref(spec, p).schema)
     .filter((p) => p.in === "query");
+  const unexpected = query
+    .filter((p) => {
+      const clients = p["x-introspection"]?.clients;
+      return clients && !clients.includes(client);
+    })
+    .map((p) => p.name);
   const success = Object.entries(op?.responses ?? {}).find(([code]) =>
     /^2/.test(code),
   )?.[1];
@@ -455,6 +465,7 @@ export function specShapes(spec, path, method) {
       ),
       required: query.filter((p) => p.required).map((p) => p.name),
     },
+    unexpected,
     response: deref(spec, success ?? {}).schema.content ?? {},
   };
 }
@@ -675,8 +686,12 @@ function compareQuery(ctx, shapes, types, out) {
     for (const name of Object.keys(shapes.query.properties))
       findings.push({ kind: "missing", field: `query.${name}` });
   }
+  // Never missing: what the client adds itself, and what the reference does
+  // not expect this client to send.
   const implicit = new Set(
-    (types.implicitQuery ?? []).map((n) => `query.${n}`),
+    [...(types.implicitQuery ?? []), ...shapes.unexpected].map(
+      (n) => `query.${n}`,
+    ),
   );
   const client = new Set((types.clientQuery ?? []).map((n) => `query.${n}`));
   out.push(

@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
-# Tell #main-build-alerts when the nightly API drift report changes: newly red,
-# red with a different report than the one last posted, or green again.
+# Tell #main-build-alerts when the nightly API drift state changes: clean to
+# drift, or drift to clean.
 #
 # scripts/api-drift-report.mjs builds the report; this script owns the decision
 # and the post, which follow introspection-sre's change/gates/main-status.sh: a
 # {text} JSON curled to the webhook, and an empty webhook prints the message
-# instead. A red that stays the same report stays quiet, so the channel hears
-# each drift once rather than every night until someone fixes it.
+# instead. A red that stays red stays quiet, so the channel hears each drift
+# once rather than every night until someone fixes it.
 #
-# The last posted state lives in STATE_DIR/last-posted as "<state> <hash>", and
+# The last posted state lives in STATE_DIR/last-posted as "<state>", and
 # the workflow carries that directory between runs. It is written only after a
 # real post, so a rehearsal never swallows the edge the first real post needs.
 #
@@ -23,24 +23,18 @@ set -euo pipefail
 output="${GITHUB_OUTPUT:-/dev/null}"
 
 state="$(cat "${REPORT_DIR}/state")"
-hash="$(cat "${REPORT_DIR}/hash")"
 body="$(cat "${REPORT_DIR}/body.txt")"
 prev_state=""
-prev_hash=""
 if [ -f "${STATE_DIR}/last-posted" ]; then
-  read -r prev_state prev_hash <"${STATE_DIR}/last-posted"
+  read -r prev_state _ <"${STATE_DIR}/last-posted"
 fi
-echo "state=${state} hash=${hash:0:12} last posted=${prev_state:-none} ${prev_hash:0:12}"
+echo "state=${state} last posted=${prev_state:-none}"
 
 edge=""
-if [ "${state}" = "red" ]; then
-  if [ "${prev_state}" != "red" ]; then
-    edge="🚨 API drift: the SDK or its snapshots are out of step with the published API reference"
-  elif [ "${prev_hash}" != "${hash}" ]; then
-    edge="🔁 API drift changed: the report differs from the one last posted"
-  fi
-elif [ "${prev_state}" = "red" ]; then
-  edge="✅ API drift cleared: the SDK and its snapshots match the published API reference again"
+if [ "${state}" = "red" ] && [ "${prev_state}" != "red" ]; then
+  edge="🚨 API drift: the SDK or its snapshots are out of step with the staging API reference"
+elif [ "${state}" != "red" ] && [ "${prev_state}" = "red" ]; then
+  edge="✅ API drift cleared: the SDK and its snapshots match the staging API reference again"
 fi
 
 post() {
@@ -75,5 +69,5 @@ if [ -z "${SLACK_WEBHOOK_URL:-}" ]; then
   exit 0
 fi
 mkdir -p "${STATE_DIR}"
-echo "${state} ${hash}" >"${STATE_DIR}/last-posted"
+echo "${state}" >"${STATE_DIR}/last-posted"
 echo "posted=true" >>"${output}"

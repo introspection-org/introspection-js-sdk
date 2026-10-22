@@ -1,5 +1,5 @@
 /**
- * Compares this SDK's request/response surface against the published API reference.
+ * Compares this SDK's request/response surface against the API reference.
  *
  * `mode` and `system_id` sat on `TaskCreateParams` for the entire life of their
  * retirement, `Task.mode` described a field the API had stopped returning, and
@@ -7,29 +7,27 @@
  * TypeScript erases at runtime, so the types lied rather than broke, and
  * nothing in CI knew what the API accepted.
  *
- * That create body is not field-checked today: `TasksClient.create` sends
- * `mapTaskBody(body)`, which returns `Record<string, unknown>`, so its call
- * site is printed as a warning ("SDK has no concrete types") by name until it
- * is given a concrete wire type. It does not yet catch that kind of drift
- * field by field.
+ * The references are the OpenAPI documents the Control Plane serves for both
+ * planes, generated from the APIs themselves. They also say who each route is
+ * for: every public operation carries
+ * `x-introspection: { visibility, clients: [...] }`, and routes no client may
+ * call are not in them at all. That classification is the only one; this
+ * check keeps no list of its own.
  *
- * The reference at docs.introspection.dev is generated from the Data Plane API
- * itself, so comparing against it compares against the API's own declaration
- * rather than a second hand-maintained copy.
+ * It fails when:
  *
- * Every operation in both references must be classified in
- * scripts/api-contract/operations.json as called by this SDK ("sdk") or
- * excluded with a reason, and the classification must agree with the route
- * literals in each package's `src` (see "operations" below).
+ * - an operation whose `x-introspection.clients` includes "sdk" is sent from
+ *   no call site in each package's `src`;
+ * - a call site sends a `/v1/...` route that neither reference has;
+ * - a call site's request body, query parameters or response differ from the
+ *   operation's schemas: field names, required versus optional, and basic
+ *   types, following `$ref` into nested schemas (see api-contract/fields.mjs).
+ *   A parameter whose own `x-introspection.clients` leaves out "sdk" (the
+ *   Data Plane's `lane` and `project_id` say `clients: []`) is not expected.
  *
- * For every "sdk" operation, each call site's request body, query parameters
- * and response are compared field by field with the operation's schemas in
- * the reference (see api-contract/fields.mjs). Types have no runtime
- * representation to reflect over, so they are read with the TypeScript
- * checker at the call site itself: the type that actually goes on the wire,
- * inherited members and nested `$ref` schemas included. An exemption sits in
- * operations.json under its operation, with a reason; one that holds for every
- * operation of a plane sits once under `shared` (see "shared exemptions").
+ * Types have no runtime representation to reflect over, so they are read
+ * with the TypeScript checker at the call site itself: the type that actually
+ * goes on the wire, inherited members included.
  *
  * A call site whose types the checker cannot resolve (a generic, a
  * `Record<string, unknown>`, a direct `fetch()`) is a warning, not a failure:
@@ -42,8 +40,11 @@
  * network and it goes red when the API changes, which is a fact about the world
  * and not about the commit under review — gating PRs on that trains people to
  * ignore it, and being ignorable is how the last one survived.
+ * .github/workflows/api-contract.yml runs it nightly against staging.
  *
- * Run: node scripts/check-api-contract.mjs [--spec URL|PATH] [--cp-spec URL|PATH]
+ * Run: node scripts/check-api-contract.mjs [--dataplane URL|PATH] [--controlplane URL|PATH]
+ * env: API_CONTRACT_DATAPLANE, API_CONTRACT_CONTROLPLANE  the same, for a flag
+ *      left out (default: staging, https://api.staging.introspection.dev/openapi/<plane>.json)
  */
 import { readdirSync, readFileSync } from "node:fs";
 import { dirname, relative, resolve } from "node:path";
@@ -59,18 +60,16 @@ import {
 } from "./api-contract/fields.mjs";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const DEFAULT_SPEC = "https://docs.introspection.dev/openapi/dataplane.json";
-const DEFAULT_CP_SPEC =
-  "https://docs.introspection.dev/openapi/controlplane.json";
+const STAGING = "https://api.staging.introspection.dev";
+/** The client name this SDK goes by in `x-introspection.clients`. */
+const CLIENT = "sdk";
 
 // --- operations -------------------------------------------------------------
 // A field check over routes someone thought to list leaves a route nobody
 // listed invisible: a whole resource could ship, drift or disappear with
-// nothing here noticing. So every operation in both references is classified
-// in operations.json, either as called by this SDK or as excluded with a
-// reason, and the classification is checked against the call sites.
+// nothing here noticing. So every operation the reference marks for this
+// client must have a call site, and every call site must name an operation.
 
-const OPERATIONS = resolve(ROOT, "scripts/api-contract/operations.json");
 const PACKAGES = resolve(ROOT, "packages");
 const PLANE_NAMES = { dp: "dataplane", cp: "controlplane" };
 const HTTP_METHODS = ["get", "post", "put", "patch", "delete"];
@@ -296,105 +295,29 @@ function sdkCalls(program, files) {
   return { calls, unknownMethod };
 }
 
-/** `{ "<METHOD> <path>": plane }` for every operation in both references. */
+/**
+ * Every operation in both references, keyed `<METHOD> <path>`, with its plane
+ * and the clients its `x-introspection` names.
+ */
 function specOperations(specs) {
   const operations = new Map();
   for (const [plane, spec] of Object.entries(specs)) {
     for (const [path, item] of Object.entries(spec.paths ?? {})) {
       for (const method of HTTP_METHODS) {
-        if (item[method])
-          operations.set(`${method.toUpperCase()} ${path}`, plane);
+        const op = item[method];
+        if (!op) continue;
+        operations.set(`${method.toUpperCase()} ${path}`, {
+          plane,
+          clients: op["x-introspection"]?.clients ?? [],
+        });
       }
     }
   }
   return operations;
 }
 
-const isSdk = (entry) => entry === "sdk" || entry?.sdk === true;
-
-/** Problems with an `{ "sdk": true, "exempt": [...] }` entry's shape. */
-function entryShapeProblems(entry) {
-  if (entry === "sdk") return [];
-  if (entry?.sdk !== true) {
-    return typeof entry?.excluded === "string" && entry.excluded.trim()
-      ? []
-      : [
-          'must be "sdk", { "sdk": true, "exempt": [...] } or { "excluded": "<reason>" }',
-        ];
-  }
-  return (entry.exempt ?? []).flatMap((ex, i) => {
-    const kinds = ["missing", "extra"].filter(
-      (k) => typeof ex?.[k] === "string",
-    );
-    const ok =
-      kinds.length === 1 &&
-      typeof ex.reason === "string" &&
-      ex.reason.trim() &&
-      (ex.at === undefined || typeof ex.at === "string") &&
-      (ex.report === undefined || typeof ex.report === "boolean");
-    return ok
-      ? []
-      : [
-          `exempt[${i}] must be { "missing" | "extra": "<field>", "reason": "<why>", "at"?: "<file>", "report"?: true }`,
-        ];
-  });
-}
-
-// --- shared exemptions ------------------------------------------------------
-// Some query parameters exist on every route of a plane for reasons that are
-// not SDK surface, such as the Data Plane's `lane` (the session-lane
-// selector) and `project_id` (a privileged project override). Listing them
-// under each operation would repeat one decision on every route and miss the
-// next route that gains them, so they sit once under `shared.<plane>` in
-// operations.json, as `{ "missing" | "extra": "<field>", "reason": "<why>" }`.
-// A finding a shared exemption covers is dropped, not reported. A shared
-// exemption no call site of its plane needs fails as stale, unless a call
-// site that could need it is unresolvable (a warning never fails the run).
-
-/** The `shared` exemptions by plane name, plus problems with their shape. */
-function sharedExemptions(classified) {
-  const problems = [];
-  const shared = {};
-  const planes = Object.values(PLANE_NAMES);
-  for (const [name, rules] of Object.entries(classified.shared ?? {})) {
-    if (!planes.includes(name) || !Array.isArray(rules)) {
-      problems.push(
-        `operations.json — shared.${name} must be a list under one of: ${planes.join(", ")}`,
-      );
-      continue;
-    }
-    shared[name] = [];
-    rules.forEach((rule, i) => {
-      const kinds = ["missing", "extra"].filter(
-        (k) => typeof rule?.[k] === "string",
-      );
-      const keys = Object.keys(rule ?? {});
-      if (
-        kinds.length !== 1 ||
-        typeof rule.reason !== "string" ||
-        !rule.reason.trim() ||
-        keys.some((k) => ![...kinds, "reason"].includes(k))
-      ) {
-        problems.push(
-          `operations.json — shared.${name}[${i}] must be { "missing" | "extra": "<field>", "reason": "<why>" }`,
-        );
-        return;
-      }
-      shared[name].push({
-        field: rule[kinds[0]],
-        kind: kinds[0],
-        undecided: false,
-        used: false,
-      });
-    });
-  }
-  return { problems, shared };
-}
-
-/** Operation-level findings: classification against call sites. */
+/** Operation-level findings: the reference's classification against call sites. */
 function checkOperations(specs, calls, unknownMethod) {
-  const classified = JSON.parse(readFileSync(OPERATIONS, "utf8"));
-  const { problems, shared } = sharedExemptions(classified);
   const operations = specOperations(specs);
 
   // The spec operation each normalized `<METHOD> <template>` names.
@@ -405,11 +328,11 @@ function checkOperations(specs, calls, unknownMethod) {
   }
 
   const called = new Map();
-  const dead = [];
+  const notInReference = [];
   for (const call of calls) {
     const op = byKey.get(`${call.method} ${templateKey(call.path)}`);
     if (!op) {
-      dead.push(`${call.method} ${call.path} (${call.at})`);
+      notInReference.push(`${call.method} ${call.path} (${call.at})`);
       continue;
     }
     if (!called.has(op)) called.set(op, []);
@@ -417,63 +340,44 @@ function checkOperations(specs, calls, unknownMethod) {
       called.get(op).push(call);
   }
 
-  const unclassified = [];
-  const stale = [];
-  const sdkUncalled = [];
-  const excludedCalled = [];
-  const sdkOperations = [];
-  for (const [plane, name] of Object.entries(PLANE_NAMES)) {
-    const entries = classified[name] ?? {};
-    for (const [op, opPlane] of operations) {
-      if (opPlane === plane && !(op in entries))
-        unclassified.push(`${name}: ${op}`);
-    }
-    for (const [op, entry] of Object.entries(entries)) {
-      const shape = entryShapeProblems(entry);
-      if (operations.get(op) !== plane) {
-        stale.push(`${name}: ${op}`);
-      } else if (shape.length) {
-        problems.push(`operations.json — ${name}: ${op}${listing(shape)}`);
-      } else if (isSdk(entry)) {
-        if (!called.has(op)) sdkUncalled.push(`${name}: ${op}`);
-        else
-          sdkOperations.push({ plane, name, op, entry, sites: called.get(op) });
-      } else if (called.has(op)) {
-        const at = called.get(op).map((c) => c.at);
-        excludedCalled.push(`${name}: ${op} (${at.join(", ")})`);
-      }
-    }
+  const uncalled = [];
+  for (const [op, { plane, clients }] of operations) {
+    if (clients.includes(CLIENT) && !called.has(op))
+      uncalled.push(`${PLANE_NAMES[plane]}: ${op}`);
   }
 
+  const problems = [];
   const report = (items, means) => {
-    if (items.length) problems.push(`operations — ${means}:${listing(items)}`);
+    if (items.length)
+      problems.push(
+        `operations — ${means} (${items.length}):${listing(items)}`,
+      );
   };
   report(
-    unclassified,
-    'in the API reference but not classified in operations.json (add it as "sdk" or excluded with a reason)',
+    uncalled,
+    `the reference lists "${CLIENT}" in x-introspection.clients, but no call site in packages/*/src sends it`,
   );
   report(
-    dead,
-    "called by this SDK but not in the API reference (the SDK calls a route that does not exist)",
-  );
-  report(
-    stale,
-    "classified in operations.json but no longer in the API reference (drop the entry)",
-  );
-  report(
-    sdkUncalled,
-    'classified "sdk" but no call site in packages/*/src sends it',
-  );
-  report(
-    excludedCalled,
-    'classified as excluded but called by this SDK (classify it "sdk")',
+    notInReference,
+    "called by this SDK but not in either reference (the SDK calls a route that does not exist)",
   );
   report(
     unknownMethod,
-    "a route sent without a literal `method`, so it cannot be classified",
+    "a route sent without a literal `method`, so it cannot be matched",
   );
 
-  return { problems, count: operations.size, sdkOperations, shared };
+  const calledOperations = [...called].map(([op, sites]) => ({
+    plane: operations.get(op).plane,
+    op,
+    sites,
+  }));
+  return {
+    problems,
+    count: operations.size,
+    missing: uncalled.length,
+    notInReference: notInReference.length,
+    calledOperations,
+  };
 }
 
 // --- fields -----------------------------------------------------------------
@@ -487,149 +391,51 @@ const FINDING_MEANS = {
   type: "type mismatch",
 };
 
-/** `body`, `query` or `response`: where a field path starts. */
-const fieldRoot = (field) => field.split(/[.[(]/)[0];
-
 /**
- * Whether the reference can hold a field at this operation: a query
- * parameter (or, for `query.*`, any) it declares. Any other path counts as
- * declared, since only the query's parameters are known without the types.
+ * Field findings for one called operation across its call sites. An
+ * unresolvable finding goes to `warnings`, never to `problems`.
  */
-function declares(shapes, field) {
-  const query = /^query\.([^.[(]+)$/.exec(field)?.[1];
-  if (!query) return true;
-  const params = Object.keys(shapes.query.properties);
-  return query === "*" ? params.length > 0 : params.includes(query);
-}
-
-/** An exemption's field is exact, or `<parent>.*` for any direct child. */
-function fieldMatches(pattern, field) {
-  if (!pattern.endsWith(".*")) return pattern === field;
-  const parent = pattern.slice(0, -1);
-  return field.startsWith(parent) && !/[.[(]/.test(field.slice(parent.length));
-}
-
-/**
- * Field findings for one "sdk" operation across its call sites, with the
- * entry's exemptions applied. An exemption that no resolvable call site in
- * its scope needs any more is stale: it would otherwise stay quietly true
- * forever, hiding nothing.
- *
- * `shared` is the plane's shared exemptions, applied before the entry's own.
- * An unresolvable finding goes to `warnings`, never to `problems`.
- */
-function checkFields(spec, checker, { name, op, entry, sites }, shared = []) {
+function checkFields(spec, checker, { plane, op, sites }) {
   const [method, path] = op.split(" ");
-  const shapes = specShapes(spec, path, method);
-  const exemptions = (entry.exempt ?? []).map((ex) => ({
-    ...ex,
-    field: ex.missing ?? ex.extra,
-    kind: ex.missing !== undefined ? "missing" : "extra",
-    judged: false,
-    used: false,
-  }));
+  const shapes = specShapes(spec, path, method, CLIENT);
+  const title = `${PLANE_NAMES[plane]}: ${op}`;
   const problems = [];
-  const notes = [];
   const warnings = [];
+  let count = 0;
 
   for (const { at, site } of sites) {
-    const file = at.replace(/:\d+$/, "");
     const findings = compareCallSite(
       spec,
       checker,
       shapes,
       callSiteTypes(checker, site),
     );
-    const unresolved = new Set(
-      findings
-        .filter((f) => f.kind === "unresolvable")
-        .map((f) => fieldRoot(f.field)),
-    );
-    const inScope = exemptions.filter((ex) => !ex.at || ex.at === file);
-    for (const ex of inScope) {
-      if (!unresolved.has(fieldRoot(ex.field))) ex.judged = true;
-    }
-    // A shared rule spans every route of the plane, so one route that could
-    // need it and cannot be read leaves it undecided: were it stale, the
-    // only routes that still need it might be the unresolvable ones.
-    for (const e of shared) {
-      if (
-        unresolved.has(fieldRoot(e.field)) &&
-        (e.kind === "extra" || declares(shapes, e.field))
-      )
-        e.undecided = true;
-    }
-
-    const fatal = new Map();
-    const noted = new Map();
+    const groups = new Map();
     for (const f of findings) {
       if (f.kind === "unresolvable") {
-        warnings.push({
-          title: `${name}: ${op}`,
-          field: f.field,
-          detail: f.detail,
-          at,
-        });
+        warnings.push({ title, field: f.field, detail: f.detail, at });
         continue;
       }
-      const sharedCovering = shared.filter(
-        (e) => e.kind === f.kind && fieldMatches(e.field, f.field),
-      );
-      for (const e of sharedCovering) e.used = true;
-      if (sharedCovering.length) continue;
-      // Every exemption that covers the finding is in use, whatever its
-      // order: an exact one next to an overlapping `<parent>.*` is not
-      // stale. One that silences wins over a report-only one.
-      const covering = inScope.filter(
-        (e) => e.kind === f.kind && fieldMatches(e.field, f.field),
-      );
-      for (const e of covering) e.used = true;
-      const into = !covering.length
-        ? fatal
-        : covering.every((e) => e.report)
-          ? noted
-          : null;
-      if (!into) continue;
-      if (!into.has(f.kind)) into.set(f.kind, []);
-      into.get(f.kind).push(f.detail ? `${f.field} (${f.detail})` : f.field);
+      count += 1;
+      if (!groups.has(f.kind)) groups.set(f.kind, []);
+      groups.get(f.kind).push(f.detail ? `${f.field} (${f.detail})` : f.field);
     }
-    const describe = (groups) =>
-      [...groups]
-        .map(
-          ([kind, fields]) =>
-            `    ${FINDING_MEANS[kind]}:${listing(fields).replaceAll("\n      ", "\n        ")}`,
-        )
-        .join("\n");
-    if (fatal.size) problems.push(`  ${at}\n${describe(fatal)}`);
-    if (noted.size) notes.push(`  ${at}\n${describe(noted)}`);
+    if (groups.size)
+      problems.push(
+        `  ${at}\n${[...groups]
+          .map(
+            ([kind, fields]) =>
+              `    ${FINDING_MEANS[kind]}:${listing(fields).replaceAll("\n      ", "\n        ")}`,
+          )
+          .join("\n")}`,
+      );
   }
 
-  const describeExemption = (ex) =>
-    `${ex.kind} ${ex.field}${ex.at ? ` (${ex.at})` : ""}`;
-  const stale = exemptions
-    .filter((ex) => ex.judged && !ex.used)
-    .map(describeExemption);
-  if (stale.length)
-    problems.push(
-      `  exempted in operations.json but no call site needs it any more (drop the exemption):${listing(stale)}`,
-    );
-  // Scoped to a file with no call site: never judged, so it would otherwise
-  // stay forever without anyone seeing it.
-  const files = new Set(sites.map(({ at }) => at.replace(/:\d+$/, "")));
-  const orphaned = exemptions
-    .filter((ex) => ex.at && !files.has(ex.at))
-    .map(describeExemption);
-  if (orphaned.length)
-    problems.push(
-      `  exempted in operations.json at a file with no call site of this operation (fix \`at\` or drop the exemption):${listing(orphaned)}`,
-    );
-
-  const title = `fields — ${name}: ${op}`;
   return {
-    problems: problems.length ? [`${title}\n${problems.join("\n")}`] : [],
-    notes: notes.length
-      ? [`note: ${title} (exempted, reported only)\n${notes.join("\n")}\n`]
+    problems: problems.length
+      ? [`fields — ${title}\n${problems.join("\n")}`]
       : [],
+    count,
     warnings,
   };
 }
@@ -645,28 +451,32 @@ async function loadSpec(source) {
   return JSON.parse(readFileSync(source, "utf8"));
 }
 
-function specArg(name, fallback) {
-  const flag = process.argv.indexOf(name);
-  return flag === -1 ? fallback : process.argv[flag + 1];
-}
+/**
+ * Where to read one plane's reference: `--<plane> URL|PATH`, else the
+ * `API_CONTRACT_<PLANE>` environment variable, else staging.
+ */
+const referenceSource = (name) => {
+  const flag = process.argv.indexOf(`--${name}`);
+  if (flag !== -1) return process.argv[flag + 1];
+  return (
+    process.env[`API_CONTRACT_${name.toUpperCase()}`] ||
+    `${STAGING}/openapi/${name}.json`
+  );
+};
 
 async function main() {
-  const specSource = specArg("--spec", DEFAULT_SPEC);
-  const cpSpecSource = specArg("--cp-spec", DEFAULT_CP_SPEC);
-
   // The two planes are separate services with separate references. The
   // control-plane half went unchecked entirely until an experiments filter
   // the API does not accept shipped in two SDKs at once.
+  const sources = {};
   const specs = {};
-  for (const [plane, source] of [
-    ["dp", specSource],
-    ["cp", cpSpecSource],
-  ]) {
+  for (const [plane, name] of Object.entries(PLANE_NAMES)) {
+    sources[plane] = referenceSource(name);
     try {
-      specs[plane] = await loadSpec(source);
+      specs[plane] = await loadSpec(sources[plane]);
     } catch (error) {
       console.error(
-        `could not read the API reference at ${source}: ${error.message}`,
+        `could not read the API reference at ${sources[plane]}: ${error.message}`,
       );
       return 1;
     }
@@ -680,27 +490,13 @@ async function main() {
   const operations = checkOperations(specs, calls, unknownMethod);
   const problems = [...operations.problems];
   const warnings = [];
-  for (const operation of operations.sdkOperations) {
-    const fields = checkFields(
-      specs[operation.plane],
-      checker,
-      operation,
-      operations.shared[operation.name],
-    );
+  let fieldFindings = 0;
+  for (const operation of operations.calledOperations) {
+    const fields = checkFields(specs[operation.plane], checker, operation);
     problems.push(...fields.problems);
     warnings.push(...fields.warnings);
-    for (const note of fields.notes) console.log(note);
+    fieldFindings += fields.count;
   }
-  const staleShared = Object.entries(operations.shared).flatMap(
-    ([name, rules]) =>
-      rules
-        .filter((rule) => !rule.used && !rule.undecided)
-        .map((rule) => `shared.${name}: ${rule.kind} ${rule.field}`),
-  );
-  if (staleShared.length)
-    problems.push(
-      `operations.json — shared exemption no call site needs any more (drop it):${listing(staleShared)}`,
-    );
 
   // Printed whatever the outcome, and never part of it: the checker cannot
   // compare these call sites, which is a gap in the SDK's types rather than
@@ -719,14 +515,21 @@ async function main() {
     );
   }
 
+  const summary = [
+    `${operations.missing} ${CLIENT} operations not called`,
+    `${operations.notInReference} routes not in the reference`,
+    `${fieldFindings} field findings`,
+    `${warnings.length} call-site warnings`,
+  ].join(", ");
   if (problems.length) {
     console.error(problems.join("\n\n"));
-    console.error(`\nreference: ${specSource} + ${cpSpecSource}`);
+    console.error(`\nsummary: ${summary}`);
+    console.error(`reference: ${sources.dp} + ${sources.cp}`);
     return 1;
   }
 
   console.log(
-    `✓ SDK surface matches the published reference (${operations.count} operations, ${operations.sdkOperations.length} field-checked${warnings.length ? `, ${warnings.length} call-site warnings` : ""})`,
+    `✓ SDK surface matches the reference (${operations.count} operations, ${operations.calledOperations.length} field-checked, ${warnings.length} call-site warnings)`,
   );
   return 0;
 }

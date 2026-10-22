@@ -4,11 +4,11 @@
  *
  * Two reports, because they answer different questions:
  *
- * - The reference changelog: what changed in the published API since the
+ * - The reference changelog: what changed in the staging API since the
  *   snapshots in api-reference/ were taken, from oasdiff. Operations and fields
  *   added, removed or changed, with oasdiff's breaking verdict on each.
- * - The SDK drift: where this SDK's types disagree with the live reference,
- *   from scripts/check-api-contract.mjs, run as it is.
+ * - The SDK drift: where this SDK disagrees with the staging reference, from
+ *   scripts/check-api-contract.mjs, run as it is.
  *
  * Either one being non-empty makes the run red: SDK drift needs fixing, and a
  * changelog means the snapshots are behind even when the SDK happens to match.
@@ -16,28 +16,29 @@
  * The report is written to --out as files the notify step reads:
  *
  *   state        red | green
- *   hash         sha256 of both full reports, so the notify step can tell a
- *                changed report from the same one again
  *   body.txt     the Slack message below its headline: summary, run link, and
  *                the agent prompt carrying both reports trimmed to fit
  *   summary.md   both reports in full, for the job summary
  *
  * Exits 0 when the report was built (red or green) and 2 when it could not be,
- * for example when the live reference did not answer: an outage is not drift,
- * and must not post or change the notify state.
+ * for example when the staging reference did not answer: an outage is not
+ * drift, and must not post or change the notify state.
  *
  * Run: node scripts/api-drift-report.mjs --out DIR [--run-url URL]
  * env: OASDIFF  the oasdiff binary (default: oasdiff on PATH)
+ *      API_CONTRACT_DATAPLANE, API_CONTRACT_CONTROLPLANE  a URL or file to
+ *        read instead of staging, for both reports (the check reads them too)
  */
 import { spawnSync } from "node:child_process";
-import { createHash } from "node:crypto";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const PLANES = ["dataplane", "controlplane"];
-const LIVE = (plane) => `https://docs.introspection.dev/openapi/${plane}.json`;
+const REFERENCE = (plane) =>
+  process.env[`API_CONTRACT_${plane.toUpperCase()}`] ||
+  `https://api.staging.introspection.dev/openapi/${plane}.json`;
 const SNAPSHOT = (plane) => resolve(ROOT, `api-reference/${plane}.json`);
 const PROMPT = resolve(ROOT, ".github/api-drift-prompt.md");
 
@@ -57,16 +58,16 @@ function arg(name, fallback) {
   return flag === -1 ? fallback : process.argv[flag + 1];
 }
 
-/** Changes from the snapshot to the live reference, as oasdiff's JSON. */
+/** Changes from the snapshot to the staging reference, as oasdiff's JSON. */
 function changelog(plane) {
   const result = spawnSync(
     process.env.OASDIFF || "oasdiff",
-    ["changelog", SNAPSHOT(plane), LIVE(plane), "--format", "json"],
+    ["changelog", SNAPSHOT(plane), REFERENCE(plane), "--format", "json"],
     { encoding: "utf8", maxBuffer: 64 * 1024 * 1024 },
   );
   if (result.status !== 0) {
     throw new Error(
-      `oasdiff could not compare the ${plane} snapshot with ${LIVE(plane)}: ${
+      `oasdiff could not compare the ${plane} snapshot with ${REFERENCE(plane)}: ${
         result.error?.message ?? result.stderr.trim()
       }`,
     );
@@ -166,9 +167,8 @@ function renderPlane(plane, changes) {
 }
 
 /**
- * The SDK drift as check-api-contract.mjs reports it, minus its `note:`
- * paragraphs: those are fields the API accepts that the SDK chose not to
- * expose, which the check itself does not count as drift.
+ * The SDK drift as check-api-contract.mjs reports it, and its one-line
+ * summary of counts.
  */
 function sdkDrift() {
   const result = spawnSync(
@@ -180,12 +180,13 @@ function sdkDrift() {
   const output = `${result.stdout}\n${result.stderr}`
     .split(/\n\s*\n/)
     .map((paragraph) => paragraph.trim())
-    .filter((paragraph) => paragraph && !paragraph.startsWith("note:"))
+    .filter(Boolean)
     .join("\n\n");
   if (/could not read the API reference/.test(output)) {
     throw new Error(output);
   }
-  return { failed: result.status !== 0, text: output };
+  const summary = /^summary: (.*)$/m.exec(output)?.[1];
+  return { failed: result.status !== 0, text: output, summary };
 }
 
 /** The first lines of `text` that fit in `budget` characters. */
@@ -230,12 +231,8 @@ function main() {
   const red = changed || drift.failed;
   const changelogText = planes.map((plane) => plane.text).join("\n\n");
   const driftText = drift.failed ? drift.text : "none";
-  const surfaces = drift.failed
-    ? drift.text.split("\n\n").filter((p) => !p.startsWith("reference:")).length
-    : 0;
-
   const summaryLines = [
-    `SDK drift: ${surfaces ? `${surfaces} surfaces disagree with the live reference` : "none"}`,
+    `SDK drift: ${drift.failed ? (drift.summary ?? "see the job summary") : "none"}`,
     ...planes.map((plane) => `Reference ${plane.header}`),
     runUrl,
   ];
@@ -275,10 +272,6 @@ function main() {
 
   mkdirSync(out, { recursive: true });
   writeFileSync(resolve(out, "state"), red ? "red\n" : "green\n");
-  writeFileSync(
-    resolve(out, "hash"),
-    `${createHash("sha256").update(`${driftText}\n\n${changelogText}`).digest("hex")}\n`,
-  );
   writeFileSync(resolve(out, "body.txt"), `${slackEscape(body)}\n`);
   writeFileSync(resolve(out, "summary.md"), summary);
   console.log(`API drift: ${red ? "red" : "green"}`);
