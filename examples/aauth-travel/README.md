@@ -9,7 +9,7 @@ The agent holds no credential and the model decides nothing: every booking runs 
 You need Node 24, pnpm, [`cloudflared`](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/downloads/) (`brew install cloudflared`) and an Introspection account. No domain and no Cloudflare account.
 
 ```bash
-npm install -g @introspection-ai/cli
+pnpm add -g @introspection-ai/cli   # after `pnpm setup` once, if pnpm has no global directory yet
 introspection login          # your organization and project
 pnpm install
 pnpm dev

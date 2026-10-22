@@ -107,7 +107,9 @@ elif command -v introspection >/dev/null 2>&1; then
     say "could not upgrade the introspection CLI; carrying on with $(introspection --version)"
 else
   say "installing the introspection CLI"
-  npm install -g @introspection-ai/cli >/dev/null || fail "could not install it: npm install -g @introspection-ai/cli"
+  # pnpm installs globally only into a directory `pnpm setup` has made.
+  pnpm add -g @introspection-ai/cli >/dev/null ||
+    fail "could not install it: run \`pnpm setup\` once, then \`pnpm add -g @introspection-ai/cli\`"
 fi
 [ -n "${FLIGHTSECTOR_NO_SETUP:-}" ] || say "$(introspection --version)"
 
