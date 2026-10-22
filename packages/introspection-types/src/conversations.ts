@@ -670,14 +670,6 @@ export interface ConversationItemListParams {
   /** Filter items by service name (exact match). */
   service_name?: string;
   /**
-   * Filter items by operation name (exact match). Several values match any
-   * of them; the filter ANDs with {@link ConversationItemListParams.contains}.
-   *
-   * @deprecated Pass `contains: ["gen_ai.operation.name:<operation>"]`
-   * instead, which selects the same items. Kept for older servers.
-   */
-  operation_name?: string | string[];
-  /**
    * Return only the items whose messages contain the named part, as
    * `<path>:<value>` over the GenAI semconv attributes, resolved on the
    * server before anything is decrypted; values match any of them. A

@@ -7,6 +7,7 @@ import {
 import type {
   Conversation,
   ConversationContains,
+  ConversationItemListParams,
   GenAiSpan,
   GenAiSpanList,
   Trajectory,
@@ -304,6 +305,22 @@ describe("ConversationsApi", () => {
       ];
       const q = await requestedQuery(wildcards);
       expect(q.getAll("contains")).toEqual(wildcards);
+    });
+
+    it("filters by operation through contains, with no operation_name param", async () => {
+      const q = await requestedQuery(["gen_ai.operation.name:invoke_agent"]);
+      expect(q.getAll("contains")).toEqual([
+        "gen_ai.operation.name:invoke_agent",
+      ]);
+      expect(q.has("operation_name")).toBe(false);
+    });
+
+    it("types reject operation_name on the items list params", () => {
+      const params: ConversationItemListParams = {
+        // @ts-expect-error -- removed: use contains=gen_ai.operation.name:<op>
+        operation_name: "chat",
+      };
+      expect(params).toBeDefined();
     });
 
     it("types reject a value outside the closed path set", () => {
