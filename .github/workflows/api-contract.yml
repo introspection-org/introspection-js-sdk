@@ -10,12 +10,21 @@
 # A red run that nobody opens is ignorable, so this run tells
 # #main-build-alerts when the state changes (clean to drift, drift to clean),
 # with the drift it found and a link to the run.
+#
+# Slack posting rule, the same in every repo: only a run on main may post, and
+# a manual run only when its post_for_real input is set. Every other run
+# prints the message instead.
 name: API Contract
 
 on:
   repository_dispatch:
     types: [api-reference-deployed]
   workflow_dispatch:
+    inputs:
+      post_for_real:
+        description: Post to Slack on a state change, as a deploy-triggered run does. Off prints the message instead.
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -77,9 +86,10 @@ jobs:
           STATE_DIR: .api-drift-state
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           CLOUD_SHA: ${{ github.event.client_payload.sha }}
-          # Posts only from main, whose cache holds the state; elsewhere, or
-          # with the secret unset, the message is printed.
-          SLACK_WEBHOOK_URL: ${{ github.ref == 'refs/heads/main' && secrets.MAIN_STATUS_SLACK_WEBHOOK_URL || '' }}
+          # Posts only from main, whose cache holds the state, and from a manual
+          # run only with post_for_real; otherwise, or with the secret unset,
+          # the message is printed.
+          SLACK_WEBHOOK_URL: ${{ github.ref == 'refs/heads/main' && (github.event_name != 'workflow_dispatch' || inputs.post_for_real) && secrets.MAIN_STATUS_SLACK_WEBHOOK_URL || '' }}
         run: scripts/api-drift-notify.sh
 
       - name: Save the posted state
