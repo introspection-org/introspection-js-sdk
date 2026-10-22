@@ -291,10 +291,15 @@ function compare(ctx, schema, type, field, out, repeatable = false) {
       ?.schema.items;
     if (items) return compare(ctx, items, tsTypes, field, out);
   }
-  // Every kind the SDK allows must be one the reference takes: a
-  // `string | number` field against a `string` one sends numbers the API
-  // rejects, however much the two overlap.
-  if (![...sdkKinds].every((k) => specKinds.has(k))) {
+  // Kinds must cover in the direction the data flows. A request may send
+  // only kinds the reference takes (`string | number` against `string`
+  // sends numbers the API rejects); a response type must cover every kind
+  // the API can return (`string` against `string | number` hides numbers).
+  const [from, to] =
+    field.split(/[.[(]/)[0] === "response"
+      ? [specKinds, sdkKinds]
+      : [sdkKinds, specKinds];
+  if (![...from].every((k) => to.has(k))) {
     out.push({
       kind: "type",
       field,
