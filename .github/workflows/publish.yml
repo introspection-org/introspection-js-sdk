@@ -104,6 +104,12 @@ jobs:
               echo "Skipping private package: $pkg"
               continue
             fi
+            # The AAuth packages release on their own version (publish-aauth.yml).
+            case "$pkg" in
+              packages/introspection-aauth-protocol/* | packages/introspection-aauth-person-server/* | packages/introspection-aauth-access-server/*)
+                echo "Skipping $pkg: released by publish-aauth.yml"
+                continue ;;
+            esac
             jq --arg v "$VERSION" '.version = $v' "$pkg" > tmp.json && mv tmp.json "$pkg"
             echo "Stamped $(jq -r .name "$pkg") → ${VERSION}"
 
@@ -135,7 +141,12 @@ jobs:
       # environment. No NODE_AUTH_TOKEN: an _authToken in .npmrc takes
       # precedence over OIDC and would bypass the trusted publisher.
       - name: Publish to npm
-        run: pnpm -r publish --access public --provenance --no-git-checks
+        run: >-
+          pnpm -r
+          --filter '!@introspection-sdk/aauth-protocol'
+          --filter '!@introspection-sdk/aauth-person-server'
+          --filter '!@introspection-sdk/aauth-access-server'
+          publish --access public --provenance --no-git-checks
 
   # ── GitHub Release ─────────────────────────────────────────────────
   # Release Please creates the tag and GitHub Release when its release PR

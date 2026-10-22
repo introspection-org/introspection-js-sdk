@@ -154,5 +154,25 @@ jobs:
           path: coverage/
           retention-days: 7
 
+  # The one check branch rulesets require. Add every new job above to `needs`.
+  all-green:
+    name: All green
+    if: always()
+    needs:
+      - secrets-scan
+      - lint-actions
+      - lint
+      - knip
+      - duplication
+      - test
+    runs-on: ubuntu-latest
+    steps:
+      # No job here skips by design, so any skipped, failed or cancelled job
+      # fails this check. alls-green publishes no `v1` tag; `release/v1` is
+      # its major-version ref.
+      - uses: re-actors/alls-green@release/v1
+        with:
+          jobs: ${{ toJSON(needs) }}
+
   # Examples live in their own workflow (./examples.yml) so they don't burn
   # LLM tokens on every push. They run on `workflow_dispatch` + tag pushes.
