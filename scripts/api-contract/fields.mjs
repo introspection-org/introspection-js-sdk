@@ -291,7 +291,10 @@ function compare(ctx, schema, type, field, out, repeatable = false) {
       ?.schema.items;
     if (items) return compare(ctx, items, tsTypes, field, out);
   }
-  if (![...specKinds].some((k) => sdkKinds.has(k))) {
+  // Every kind the SDK allows must be one the reference takes: a
+  // `string | number` field against a `string` one sends numbers the API
+  // rejects, however much the two overlap.
+  if (![...sdkKinds].every((k) => specKinds.has(k))) {
     out.push({
       kind: "type",
       field,
@@ -785,7 +788,10 @@ export function compareCallSite(spec, checker, shapes, types) {
         ? type
         : undefined,
   };
-  compareBody(ctx, shapes, ctx.sent(types.body), types.contentType, out);
+  // An empty `{}` body is still a JSON body; only an empty query sends nothing.
+  const body =
+    types.body && members(types.body).length ? types.body : undefined;
+  compareBody(ctx, shapes, body, types.contentType, out);
   compareQuery(ctx, shapes, types, out);
   compareResponse(ctx, shapes, types, out);
   return out;
