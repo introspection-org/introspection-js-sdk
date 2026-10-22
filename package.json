@@ -13,6 +13,7 @@
     "jscpd:renamed": "npx --yes jscpd@5.4.1 --kind renamed --ignore-identifiers",
     "check-types": "turbo run check-types",
     "check:doc-regions": "node scripts/check-doc-regions.mjs",
+    "test:api-contract": "node scripts/test-api-contract.mjs",
     "check-cycles": "madge --circular --extensions ts packages/*/src",
     "check:packages": "pnpm -r --filter \"./packages/*\" run check:package",
     "knip": "knip",

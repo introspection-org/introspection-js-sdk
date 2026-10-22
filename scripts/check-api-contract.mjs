@@ -1,659 +1,445 @@
 /**
- * Compares this SDK's request/response surface against the published API reference.
+ * Compares the routes this SDK calls with the API reference.
  *
- * `mode` and `system_id` sat on `TaskCreateParams` for the entire life of their
- * retirement, `Task.mode` described a field the API had stopped returning, and
- * `TaskListParams.modes` was a filter the API never had. None of it failed:
- * TypeScript erases at runtime, so the types lied rather than broke, and
- * nothing in CI knew what the API accepted.
+ * The references are the OpenAPI documents the Control Plane serves for both
+ * planes, generated from the APIs themselves. They also say who each route is
+ * for: every public operation carries
+ * `x-introspection: { visibility, clients: [...] }`, and routes no client may
+ * call are not in them at all. That classification is the only one; this
+ * check keeps no list of its own.
  *
- * The reference at docs.introspection.dev is generated from the Data Plane API
- * itself, so comparing against it compares against the API's own declaration
- * rather than a second hand-maintained copy.
+ * It fails when:
  *
- * Types have no runtime representation to reflect over, so the interfaces are
- * read with the TypeScript compiler API — which means this checks the source of
- * truth developers actually edit, including inherited members through `extends`.
+ * - an operation whose `x-introspection.clients` includes "sdk" is sent from
+ *   no call site in each package's `src` (method and path);
+ * - a call site sends a `/v1/...` route that neither reference has.
  *
- * Deliberately NOT a unit test and NOT a pull-request gate. It reaches the
- * network and it goes red when the API changes, which is a fact about the world
- * and not about the commit under review — gating PRs on that trains people to
- * ignore it, and being ignorable is how the last one survived.
+ * Field changes are not compared.
  *
- * Run: node scripts/check-api-contract.mjs [--spec URL|PATH]
+ * With `--pr`, the first kind is only reported and does not fail: a new cloud
+ * route must not block unrelated pull requests. ci.yml runs it so on every
+ * pull request; .github/workflows/api-contract.yml runs it in full after each
+ * staging deploy and posts state changes to #main-build-alerts.
+ *
+ * A reference URL that answers 404 is not published: the check says so and
+ * exits 0. Exit 1 is drift, 2 a reference that could not be read.
+ *
+ * Run: node scripts/check-api-contract.mjs [--pr] [--out DIR]
+ *        [--dataplane URL|PATH] [--controlplane URL|PATH]
+ *      --out DIR  also writes the findings to DIR/report.txt and red|green to
+ *                 DIR/state, but not when it skips
+ * env: API_CONTRACT_DATAPLANE, API_CONTRACT_CONTROLPLANE  the same, for a flag
+ *      left out (default: staging, https://api.staging.introspection.dev/openapi/<plane>.json)
  */
-import { readdirSync, readFileSync } from "node:fs";
-import { dirname, resolve } from "node:path";
+import {
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  writeFileSync,
+} from "node:fs";
+import { dirname, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import ts from "typescript";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const DEFAULT_SPEC = "https://docs.introspection.dev/openapi/dataplane.json";
-const DEFAULT_CP_SPEC =
-  "https://docs.introspection.dev/openapi/controlplane.json";
+/** The client name this SDK goes by in `x-introspection.clients`. */
+const CLIENT = "sdk";
+const STAGING = "https://api.staging.introspection.dev";
 
-/** The `api/` modules that `packages/introspection-types/src/api.ts` re-exports. */
-const TYPES_DIR = resolve(ROOT, "packages/introspection-types/src/api");
-const TYPES = readdirSync(TYPES_DIR)
-  .filter((name) => name.endsWith(".ts"))
-  .map((name) => resolve(TYPES_DIR, name));
-const BROWSER = resolve(
-  ROOT,
-  "packages/introspection-browser/src/api/tasks.ts",
-);
-const CONVERSATIONS = resolve(
-  ROOT,
-  "packages/introspection-types/src/conversations.ts",
-);
-/** Files searched for a base interface named in an `extends` clause. */
-const SEARCH_PATH = [...TYPES, CONVERSATIONS, BROWSER];
+const PACKAGES = resolve(ROOT, "packages");
+const PLANE_NAMES = { dp: "dataplane", cp: "controlplane" };
+const HTTP_METHODS = ["get", "post", "put", "patch", "delete"];
+/** Helpers that take a route as an argument and always send it as a GET. */
+const GET_HELPERS = new Set(["paginateGet", "listRead", "arrowRead"]);
+/** Direct fetch calls, such as the OAuth routes that bypass the HTTP client. */
+const FETCH_CALLEES = new Set(["fetch", "fetchImpl"]);
 
-/**
- * Property names of an interface, following `extends` so
- * `TaskListParams extends ListParams` reports `limit`/`next`/`include_total`
- * too — they are on the wire regardless of which declaration carries them.
- *
- * Base interfaces are resolved across files, not just within one:
- * `ConversationListParams` lives in `conversations.ts` but extends
- * `CursorParams` from `api/common.ts`, and a same-file-only walk would silently
- * report its inherited `limit`/`next` as missing. A checker that emits a
- * finding it cannot substantiate is worse than one that stays quiet, because
- * it teaches the reader to skim past real ones.
- */
-/** The file in SEARCH_PATH that declares `name`, if any. */
-function declaringFile(name) {
-  return SEARCH_PATH.find((candidate) =>
-    new RegExp(`^export interface ${name}\\b`, "m").test(
-      readFileSync(candidate, "utf8"),
-    ),
-  );
+function arg(name) {
+  const flag = process.argv.indexOf(name);
+  return flag === -1 ? undefined : process.argv[flag + 1];
 }
 
-function interfaceMembers(file, name, seen = new Set()) {
-  if (seen.has(name)) return new Set();
-  seen.add(name);
+/** `--<plane>`, else `API_CONTRACT_<PLANE>`, else staging. */
+const referenceSource = (plane) =>
+  arg(`--${plane}`) ||
+  process.env[`API_CONTRACT_${plane.toUpperCase()}`] ||
+  `${STAGING}/openapi/${plane}.json`;
 
-  const source = ts.createSourceFile(
-    file,
-    readFileSync(file, "utf8"),
-    ts.ScriptTarget.Latest,
-    true,
-  );
-
-  const members = new Set();
-  let found = false;
-
-  for (const statement of source.statements) {
-    if (!ts.isInterfaceDeclaration(statement) || statement.name.text !== name)
-      continue;
-    found = true;
-
-    for (const member of statement.members) {
-      if (ts.isPropertySignature(member) && member.name) {
-        members.add(member.name.getText(source));
-      }
-    }
-
-    for (const clause of statement.heritageClauses ?? []) {
-      if (clause.token !== ts.SyntaxKind.ExtendsKeyword) continue;
-      for (const type of clause.types) {
-        const base = type.expression.getText(source);
-        for (const inherited of interfaceMembers(
-          declaringFile(base) ?? file,
-          base,
-          seen,
-        )) {
-          members.add(inherited);
-        }
-      }
-    }
-  }
-
-  if (!found && seen.size === 1) {
-    throw new Error(`no interface named ${name} in ${file}`);
-  }
-  return members;
-}
-
-/** Members of an interface declared in one of the `api/` modules. */
-function apiMembers(name) {
-  const file = declaringFile(name);
-  if (!file || !TYPES.includes(file))
-    throw new Error(`no interface named ${name} in ${TYPES_DIR}`);
-  return interfaceMembers(file, name);
-}
-
-const schemaProperties = (spec, name) => {
-  const schema = spec.components?.schemas?.[name];
-  if (!schema)
-    throw new Error(`the reference has no components.schemas.${name}`);
-  return new Set(Object.keys(schema.properties ?? {}));
-};
-
-// Query parameters only. A templated route also declares its path segments as
-// parameters, and counting those would report a path argument the caller passes
-// positionally as a query parameter the SDK forgot.
-const queryParameters = (spec, path, method) => {
-  const params = spec.paths?.[path]?.[method]?.parameters;
-  if (!params)
-    throw new Error(`the reference has no parameters for ${method} ${path}`);
-  return new Set(params.filter((p) => p.in === "query").map((p) => p.name));
-};
-
-const SURFACES = [
-  {
-    name: "TaskCreateParams",
-    where: "POST /v1/tasks body (runner-bound client)",
-    sdk: () => apiMembers("TaskCreateParams"),
-    server: (spec) => schemaProperties(spec, "TaskCreate"),
-    // Runner-bound: the credential's claim is authoritative for runtime
-    // selection and the API ignores a body `runtime_id` from such a caller, so
-    // exposing it would be a field that silently does nothing.
-    exempt: ["runtime_id"],
-    extraMeans:
-      "declared here but not accepted by the API (rejected with a 422 — the create body forbids undeclared fields)",
-    missingMeans: "accepted by the API but unavailable to callers of this SDK",
-  },
-  {
-    name: "CreateTaskParams",
-    where: "POST /v1/tasks body (browser client)",
-    sdk: () => interfaceMembers(BROWSER, "CreateTaskParams"),
-    server: (spec) => schemaProperties(spec, "TaskCreate"),
-    // `identity` is client-side sugar, not a wire field: the browser client
-    // folds it into `metadata.identity`, which the API reads only when the
-    // caller's token carries no identity claim of its own.
-    allowedExtra: ["identity"],
-    extraMeans:
-      "declared here but not accepted by the API (rejected with a 422 — the create body forbids undeclared fields)",
-    missingMeans: "accepted by the API but unavailable to callers of this SDK",
-  },
-  {
-    name: "Task",
-    where: "the task read model",
-    sdk: () => apiMembers("Task"),
-    server: (spec) => schemaProperties(spec, "Task"),
-    extraMeans:
-      "declared here but not returned by the API (the SDK describes a response that no longer exists)",
-    missingMeans: "returned by the API but not surfaced by this SDK",
-  },
-  {
-    name: "TaskRunCreateParams",
-    where: "POST /v1/tasks/{id}/runs body",
-    sdk: () => apiMembers("TaskRunCreateParams"),
-    server: (spec) => schemaProperties(spec, "TaskRunCreate"),
-    // `resume` is a separate typed call on this client, not a field here.
-    exempt: ["resume"],
-    extraMeans: "declared here but not accepted by the API",
-    missingMeans: "accepted by the API but unavailable to callers of this SDK",
-  },
-  {
-    name: "TaskListParams",
-    where: "GET /v1/tasks query parameters",
-    sdk: () => apiMembers("TaskListParams"),
-    server: (spec) => queryParameters(spec, "/v1/tasks", "get"),
-    // Product-UI shaped filters, whose only callers are the frontend. Which
-    // filters to expose is a product decision, so absence is reported and does
-    // not fail.
-    exempt: ["runtime_id", "runtime_ids", "updated_after", "conversation_id"],
-    missingIsFatal: false,
-    extraMeans: "sent as a query parameter the API does not accept",
-    missingMeans: "accepted by the API but not exposed here",
-  },
-  // --- files ---------------------------------------------------------------
-  {
-    name: "File",
-    where: "the file read model",
-    sdk: () => apiMembers("File"),
-    server: (spec) => schemaProperties(spec, "File"),
-    extraMeans:
-      "declared here but not returned by the API (the SDK describes a response that no longer exists)",
-    missingMeans: "returned by the API but not surfaced by this SDK",
-  },
-  {
-    name: "FileUpdateParams",
-    where: "PATCH /v1/files/{id} body",
-    sdk: () => apiMembers("FileUpdateParams"),
-    server: (spec) => schemaProperties(spec, "FileUpdate"),
-    extraMeans: "declared here but not accepted by the API",
-    missingMeans: "accepted by the API but unavailable to callers of this SDK",
-  },
-  {
-    name: "FileListParams",
-    where: "GET /v1/files query parameters",
-    sdk: () => apiMembers("FileListParams"),
-    server: (spec) => queryParameters(spec, "/v1/files", "get"),
-    // `identity_key` is privileged-only and 403s for these credentials;
-    // `task_id` is a scoping param a runner already carries.
-    exempt: ["identity_key", "task_id"],
-    missingIsFatal: false,
-    extraMeans: "sent as a query parameter the API does not accept",
-    missingMeans: "accepted by the API but not exposed here",
-  },
-  // --- shares --------------------------------------------------------------
-  {
-    name: "ShareCreateParams",
-    where: "POST /v1/shares body",
-    sdk: () => apiMembers("ShareCreateParams"),
-    server: (spec) => schemaProperties(spec, "ShareCreate"),
-    extraMeans: "declared here but not accepted by the API",
-    missingMeans: "accepted by the API but unavailable to callers of this SDK",
-  },
-  {
-    name: "ResourceShare",
-    where: "the share read model",
-    sdk: () => apiMembers("ResourceShare"),
-    server: (spec) => schemaProperties(spec, "ResourceShare"),
-    extraMeans:
-      "declared here but not returned by the API (the SDK describes a response that no longer exists)",
-    missingMeans: "returned by the API but not surfaced by this SDK",
-  },
-  {
-    name: "ShareUpdateParams",
-    where: "PATCH /v1/shares/{id} body",
-    sdk: () => apiMembers("ShareUpdateParams"),
-    server: (spec) => schemaProperties(spec, "ShareUpdate"),
-    extraMeans: "declared here but not accepted by the API",
-    missingMeans: "accepted by the API but unavailable to callers of this SDK",
-  },
-  {
-    name: "ShareListParams",
-    where: "GET /v1/shares query parameters",
-    sdk: () => apiMembers("ShareListParams"),
-    server: (spec) => queryParameters(spec, "/v1/shares", "get"),
-    missingIsFatal: false,
-    extraMeans: "sent as a query parameter the API does not accept",
-    missingMeans: "accepted by the API but not exposed here",
-  },
-  // --- events --------------------------------------------------------------
-  {
-    name: "event envelope",
-    where: "the common envelope on every event family",
-    // One family stands in for all six: the envelope is shared, so a field
-    // added or dropped there moves on every family at once.
-    sdk: () => apiMembers("FeedbackEvent"),
-    server: (spec) => schemaProperties(spec, "FeedbackEvent"),
-    extraMeans:
-      "declared here but not returned by the API (the SDK describes a response that no longer exists)",
-    missingMeans: "returned by the API but not surfaced by this SDK",
-  },
-  {
-    name: "EventListParams",
-    where: "GET /v1/events query parameters",
-    sdk: () => apiMembers("EventListParams"),
-    server: (spec) => queryParameters(spec, "/v1/events", "get"),
-    // Product-UI shaped filters; `event_id` is covered by `events.get`.
-    exempt: [
-      "event_id",
-      "owner_key",
-      "runtime_group_unattributed",
-      "runtime_group_id",
-      "conversation_ids",
-      "trace_id",
-      "span_id",
-    ],
-    // Resolved client-side and never sent: the ergonomic window aliases, and
-    // `format`, which selects Arrow via the Accept header rather than a param.
-    allowedExtra: ["order", "start", "end", "lookback", "format"],
-    missingIsFatal: false,
-    extraMeans: "sent as a query parameter the API does not accept",
-    missingMeans: "accepted by the API but not exposed here",
-  },
-  {
-    name: "AutomationTriggeredPayload",
-    where: "introspection.automation.triggered payload",
-    sdk: () => apiMembers("AutomationTriggeredPayload"),
-    server: (spec) => schemaProperties(spec, "AutomationTriggered"),
-    extraMeans:
-      "declared here but not returned by the API (the SDK describes a response that no longer exists)",
-    missingMeans: "returned by the API but not surfaced by this SDK",
-  },
-  {
-    name: "AutomationSkippedPayload",
-    where: "introspection.automation.skipped payload",
-    sdk: () => apiMembers("AutomationSkippedPayload"),
-    server: (spec) => schemaProperties(spec, "AutomationSkipped"),
-    extraMeans:
-      "declared here but not returned by the API (the SDK describes a response that no longer exists)",
-    missingMeans: "returned by the API but not surfaced by this SDK",
-  },
-  // --- automations ---------------------------------------------------------
-  {
-    name: "Automation",
-    where: "the automation read model",
-    sdk: () => apiMembers("Automation"),
-    server: (spec) => schemaProperties(spec, "Automation"),
-    // Always null, and dropped by introspection-cloud#3154; this goes stale
-    // (and fails) once the reference drops it too.
-    exempt: ["agent_member_id"],
-    extraMeans:
-      "declared here but not returned by the API (the SDK describes a response that no longer exists)",
-    missingMeans: "returned by the API but not surfaced by this SDK",
-  },
-  {
-    name: "AutomationCreateParams",
-    where: "POST /v1/automations body",
-    sdk: () => apiMembers("AutomationCreateParams"),
-    server: (spec) => schemaProperties(spec, "AutomationCreate"),
-    extraMeans:
-      "declared here but not accepted by the API (rejected with a 422 — the create body forbids undeclared fields)",
-    missingMeans: "accepted by the API but unavailable to callers of this SDK",
-  },
-  {
-    name: "AutomationUpdateParams",
-    where: "PATCH /v1/automations/{id} body",
-    sdk: () => apiMembers("AutomationUpdateParams"),
-    server: (spec) => schemaProperties(spec, "AutomationUpdate"),
-    extraMeans:
-      "declared here but not accepted by the API (rejected with a 422 — the update body forbids undeclared fields)",
-    missingMeans: "accepted by the API but unavailable to callers of this SDK",
-  },
-  {
-    name: "AutomationTriggerResponse",
-    where: "POST /v1/automations/{id}/trigger response",
-    sdk: () => apiMembers("AutomationTriggerResponse"),
-    server: (spec) => schemaProperties(spec, "AutomationTriggerResponse"),
-    extraMeans:
-      "declared here but not returned by the API (the SDK describes a response that no longer exists)",
-    missingMeans: "returned by the API but not surfaced by this SDK",
-  },
-  {
-    name: "AutomationListParams",
-    where: "GET /v1/automations query parameters",
-    sdk: () => apiMembers("AutomationListParams"),
-    server: (spec) => queryParameters(spec, "/v1/automations", "get"),
-    // Sent before the reference publishes it (introspection-cloud#3137);
-    // drop the allowance once it does.
-    allowedExtra: ["task_id"],
-    missingIsFatal: true,
-    extraMeans: "sent as a query parameter the API does not accept",
-    missingMeans: "accepted by the API but not exposed here",
-  },
-  // --- conversations -------------------------------------------------------
-  // There is deliberately no `Conversation` read-model surface: the published
-  // reference declares no properties for that schema, so the comparison would
-  // pass by doing nothing. The list filters are declared, so they are checked.
-  {
-    name: "ConversationListParams",
-    where: "GET /v1/conversations query parameters",
-    sdk: () => interfaceMembers(CONVERSATIONS, "ConversationListParams"),
-    server: (spec) => queryParameters(spec, "/v1/conversations", "get"),
-    // Product-UI shaped filters this SDK does not surface.
-    exempt: ["conversation_ids", "owner_key", "resolution", "sentiment"],
-    // Resolved client-side and never sent: the ergonomic window aliases, and
-    // `format`, which selects Arrow via the Accept header.
-    allowedExtra: ["order", "start", "end", "lookback", "format"],
-    missingIsFatal: false,
-    extraMeans: "sent as a query parameter the API does not accept",
-    missingMeans: "accepted by the API but not exposed here",
-  },
-  // The export route needs its own surface. Widening the check still left
-  // every route this SDK had just *gained* unchecked, so the conversation
-  // export shipped without `start_date`/`end_date` and nothing noticed: a
-  // guard that covers only what already existed goes blind exactly where new
-  // code lands.
-  {
-    name: "ConversationExportParams",
-    where: "GET /v1/conversations/{id}/export query parameters",
-    sdk: () => interfaceMembers(CONVERSATIONS, "ConversationExportParams"),
-    server: (spec) =>
-      queryParameters(
-        spec,
-        "/v1/conversations/{conversation_id}/export",
-        "get",
-      ),
-    missingIsFatal: true,
-    extraMeans: "sent as a query parameter the API does not accept",
-    missingMeans: "accepted by the API but not exposed here",
-  },
-  // The items route is where the ordering bug hid: this SDK declared an
-  // `order` the route never accepted and omitted the window/share params it
-  // did, and no surface covered it. A sub-resource is still a route.
-  {
-    name: "ConversationItemListParams",
-    where: "GET /v1/conversations/{id}/items query parameters",
-    sdk: () => interfaceMembers(CONVERSATIONS, "ConversationItemListParams"),
-    server: (spec) =>
-      queryParameters(spec, "/v1/conversations/{conversation_id}/items", "get"),
-    missingIsFatal: true,
-    extraMeans: "sent as a query parameter the API does not accept",
-    missingMeans: "accepted by the API but not exposed here",
-  },
-  // --- control plane -------------------------------------------------------
-  {
-    name: "ExperimentListParams",
-    where: "GET /v1/experiments query parameters",
-    plane: "cp",
-    sdk: () => apiMembers("ExperimentListParams"),
-    server: (spec) => queryParameters(spec, "/v1/experiments", "get"),
-    // The deprecated spelling of `project`; this SDK sends the current one.
-    exempt: ["project_id"],
-    missingIsFatal: false,
-    extraMeans: "sent as a query parameter the API does not accept",
-    missingMeans: "accepted by the API but not exposed here",
-  },
-  {
-    name: "RecipeListParams",
-    where: "GET /v1/recipes query parameters",
-    plane: "cp",
-    sdk: () => apiMembers("RecipeListParams"),
-    server: (spec) => queryParameters(spec, "/v1/recipes", "get"),
-    exempt: ["project_id"],
-    missingIsFatal: false,
-    extraMeans: "sent as a query parameter the API does not accept",
-    missingMeans: "accepted by the API but not exposed here",
-  },
-  // The last list surface without a declaration, and it had drifted: this
-  // SDK offered `only_active` and `exclude_yanked` filters the route never
-  // accepted, so they rode along as query parameters the server discarded
-  // and the caller's filter silently did nothing.
-  {
-    name: "RuntimeListParams",
-    where: "GET /v1/runtimes query parameters",
-    plane: "cp",
-    sdk: () => apiMembers("RuntimeListParams"),
-    server: (spec) => queryParameters(spec, "/v1/runtimes", "get"),
-    exempt: ["project_id"],
-    missingIsFatal: true,
-    extraMeans: "sent as a query parameter the API does not accept",
-    missingMeans: "accepted by the API but not exposed here",
-  },
-  // --- connectors ----------------------------------------------------------
-  {
-    name: "ConnectorListParams",
-    where: "GET /v1/connectors query parameters",
-    plane: "cp",
-    sdk: () => apiMembers("CursorParams"),
-    server: (spec) => queryParameters(spec, "/v1/connectors", "get"),
-    // Project scope comes from the authenticated credential.
-    exempt: ["project", "project_id"],
-    missingIsFatal: false,
-    extraMeans: "sent as a query parameter the API does not accept",
-    missingMeans: "accepted by the API but not exposed here",
-  },
-  {
-    name: "ConnectorCreateParams",
-    where: "POST /v1/connectors body",
-    plane: "cp",
-    sdk: () => apiMembers("ConnectorCreateParams"),
-    server: (spec) => schemaProperties(spec, "ConnectorCreate"),
-    extraMeans: "declared here but not accepted by the API",
-    missingMeans: "accepted by the API but unavailable to callers of this SDK",
-  },
-  {
-    name: "ConnectorUpdateParams",
-    where: "PATCH /v1/connectors/{id} body",
-    plane: "cp",
-    sdk: () => apiMembers("ConnectorUpdateParams"),
-    server: (spec) => schemaProperties(spec, "ConnectorUpdate"),
-    extraMeans: "declared here but not accepted by the API",
-    missingMeans: "accepted by the API but unavailable to callers of this SDK",
-  },
-  {
-    name: "ConnectionCreateParams",
-    where: "POST /v1/connectors/{id}/connections body",
-    plane: "cp",
-    sdk: () => apiMembers("ConnectionCreateParams"),
-    server: (spec) => schemaProperties(spec, "ConnectionCreate"),
-    extraMeans: "declared here but not accepted by the API",
-    missingMeans: "accepted by the API but unavailable to callers of this SDK",
-  },
-  {
-    // `connector_id` is a method argument here, not a caller-supplied field:
-    // `authorize(connectorId, params)` merges it into the body.
-    name: "ConnectorAuthorizeParams",
-    where: "POST /v1/oauth/connections/authorize body",
-    plane: "cp",
-    sdk: () => apiMembers("ConnectorAuthorizeParams"),
-    server: (spec) => schemaProperties(spec, "ConnectAuthorizeRequest"),
-    exempt: ["connector_id"],
-    extraMeans: "declared here but not accepted by the API",
-    missingMeans: "accepted by the API but unavailable to callers of this SDK",
-  },
-  {
-    name: "ConnectorAuthorizeBinding",
-    where: "POST /v1/oauth/connections/authorize body.binding",
-    plane: "cp",
-    sdk: () => apiMembers("ConnectorAuthorizeBinding"),
-    server: (spec) => schemaProperties(spec, "ConnectBindingRequest"),
-    extraMeans: "declared here but not accepted by the API",
-    missingMeans: "accepted by the API but unavailable to callers of this SDK",
-  },
-  {
-    name: "ConnectorCustomAppSearchParams",
-    where: "GET /v1/connectors/custom/apps query parameters",
-    plane: "cp",
-    sdk: () => apiMembers("ConnectorCustomAppSearchParams"),
-    server: (spec) =>
-      queryParameters(spec, "/v1/connectors/custom/apps", "get"),
-    extraMeans: "sent as a query parameter the API does not accept",
-    missingMeans: "accepted by the API but not exposed here",
-  },
-  // --- metrics -------------------------------------------------------------
-  {
-    name: "MetricQueryRequest",
-    where: "POST /v1/metrics body",
-    sdk: () => apiMembers("MetricQueryRequest"),
-    server: (spec) => schemaProperties(spec, "MetricQueryRequest"),
-    extraMeans: "declared here but not accepted by the API",
-    missingMeans: "accepted by the API but unavailable to callers of this SDK",
-  },
-  // --- task cancel ---------------------------------------------------------
-  {
-    name: "TaskCancelOptions",
-    where: "POST /v1/tasks/{id}/runs/{rid}/cancel body",
-    sdk: () => apiMembers("TaskCancelOptions"),
-    server: (spec) => schemaProperties(spec, "TaskCancelRequest"),
-    extraMeans: "declared here but not accepted by the API",
-    missingMeans: "accepted by the API but unavailable to callers of this SDK",
-  },
-];
-
-const difference = (a, b) => new Set([...a].filter((x) => !b.has(x)));
-const listing = (fields) =>
-  [...fields]
+const listing = (items) =>
+  [...items]
     .sort()
-    .map((f) => `\n      ${f}`)
+    .map((item) => `\n      ${item}`)
     .join("");
 
+/** Path parameters compare by position, not by name. */
+const templateKey = (path) => path.replace(/\{[^}]*\}/g, "{}");
+
+/** Each package's `src`, walked on its own so no `node_modules` is listed. */
+function sourceFiles(dir) {
+  return readdirSync(dir, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => resolve(dir, entry.name, "src"))
+    .filter((src) => existsSync(src))
+    .flatMap((src) =>
+      readdirSync(src, { recursive: true })
+        .filter((f) => f.endsWith(".ts"))
+        .filter((f) => !f.endsWith(".d.ts") && !f.endsWith(".test.ts"))
+        .filter((f) => !f.split("/").includes("node_modules"))
+        .map((f) => resolve(src, f)),
+    );
+}
+
+/**
+ * The route templates an expression can evaluate to, with every `${...}`
+ * that is not a known route prefix read as a path parameter. Empty when the
+ * expression is not a route.
+ *
+ * `aliases` maps an identifier to the routes the local `const` or helper
+ * function it refers to holds, so `path: tagPath(kind, name)` and
+ * `${runPath}/stream` resolve too.
+ *
+ * With `url`, the expression is a whole URL: a leading `${...}` before the
+ * `/v1/` route is the base URL (`${baseApiUrl}/v1/oauth/token`), not a
+ * parameter.
+ */
+function routesOf(node, aliases, url = false) {
+  if (!node) return [];
+  if (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)) {
+    return node.text.startsWith("/v1/") ? [node.text] : [];
+  }
+  if (ts.isIdentifier(node)) return aliases(node);
+  if (ts.isCallExpression(node) && ts.isIdentifier(node.expression)) {
+    return aliases(node.expression);
+  }
+  if (ts.isConditionalExpression(node)) {
+    return [
+      ...routesOf(node.whenTrue, aliases, url),
+      ...routesOf(node.whenFalse, aliases, url),
+    ];
+  }
+  if (ts.isParenthesizedExpression(node)) {
+    return routesOf(node.expression, aliases, url);
+  }
+  if (!ts.isTemplateExpression(node)) return [];
+
+  let prefixes = [node.head.text];
+  node.templateSpans.forEach((span, i) => {
+    const base =
+      i === 0 && node.head.text === ""
+        ? routesOf(span.expression, aliases)
+        : [];
+    prefixes = base.length
+      ? base.map((b) => b + span.literal.text)
+      : prefixes.map((p) => `${p}{}${span.literal.text}`);
+  });
+  return prefixes
+    .map((p) => (url && p.startsWith("{}/v1/") ? p.slice(2) : p))
+    .filter((p) => p.startsWith("/v1/"));
+}
+
+/**
+ * `const x = <route>` and functions returning a route, in one file, keyed by
+ * the checker's symbol so two same-named locals in different scopes stay
+ * apart. Returns the lookup from an identifier to its routes.
+ */
+function collectAliases(source, checker) {
+  const routesBySymbol = new Map();
+  const symbolOf = (id) =>
+    ts.isShorthandPropertyAssignment(id.parent) && id.parent.name === id
+      ? checker.getShorthandAssignmentValueSymbol(id.parent)
+      : checker.getSymbolAtLocation(id);
+  const aliases = (id) => routesBySymbol.get(symbolOf(id)) ?? [];
+  // Post-order, so a helper's own `const base = ...` is known before its
+  // returns are read.
+  const visit = (node) => {
+    ts.forEachChild(node, visit);
+    if (
+      ts.isVariableDeclaration(node) &&
+      ts.isIdentifier(node.name) &&
+      node.initializer
+    ) {
+      // Read as a URL: a const may hold the whole URL a `fetch` sends
+      // (`${baseApiUrl}/v1/oauth/token`), and a route never starts with
+      // a parameter.
+      const routes = routesOf(node.initializer, aliases, true);
+      if (routes.length) routesBySymbol.set(symbolOf(node.name), routes);
+    }
+    if (ts.isFunctionDeclaration(node) && node.name && node.body) {
+      const routes = [];
+      const returns = (inner) => {
+        if (ts.isFunctionLike(inner)) return;
+        if (ts.isReturnStatement(inner)) {
+          routes.push(...routesOf(inner.expression, aliases, true));
+        }
+        ts.forEachChild(inner, returns);
+      };
+      ts.forEachChild(node.body, returns);
+      if (routes.length) routesBySymbol.set(symbolOf(node.name), routes);
+    }
+  };
+  visit(source);
+  return aliases;
+}
+
+const calleeName = (call) =>
+  ts.isPropertyAccessExpression(call.expression)
+    ? call.expression.name.text
+    : ts.isIdentifier(call.expression)
+      ? call.expression.text
+      : undefined;
+
+/**
+ * Every route this SDK sends, as `{ method, path, at }`. A route is sent where
+ * it is the `path` of the first argument to `request()` or `stream()`
+ * (which is always a GET), an argument of a GET-only helper, or the URL of
+ * a direct `fetch(url, { method })` call (a GET without `method`). A route in
+ * any other position, such as a comparison or a doc comment, is not a call.
+ */
+function sdkCalls(program, files) {
+  const calls = [];
+  const unknownMethod = [];
+  const checker = program.getTypeChecker();
+
+  for (const file of files) {
+    const source = program.getSourceFile(file);
+    if (!source?.text.includes("/v1/")) continue;
+    const aliases = collectAliases(source, checker);
+    const at = (node) =>
+      `${relative(ROOT, file)}:${source.getLineAndCharacterOfPosition(node.getStart(source)).line + 1}`;
+
+    const visit = (node) => {
+      if (
+        (ts.isPropertyAssignment(node) ||
+          ts.isShorthandPropertyAssignment(node)) &&
+        node.name.getText(source) === "path" &&
+        ts.isObjectLiteralExpression(node.parent) &&
+        ts.isCallExpression(node.parent.parent) &&
+        ts.isPropertyAccessExpression(node.parent.parent.expression) &&
+        ["request", "stream"].includes(calleeName(node.parent.parent)) &&
+        node.parent.parent.arguments[0] === node.parent
+      ) {
+        const routes = routesOf(node.initializer ?? node.name, aliases);
+        if (routes.length) {
+          const methodProp = node.parent.properties.find(
+            (p) =>
+              ts.isPropertyAssignment(p) && p.name.getText(source) === "method",
+          );
+          const call = node.parent.parent;
+          let method;
+          if (methodProp && ts.isStringLiteralLike(methodProp.initializer)) {
+            method = methodProp.initializer.text;
+          } else if (
+            !methodProp &&
+            ts.isCallExpression(call) &&
+            calleeName(call) === "stream"
+          ) {
+            method = "GET";
+          }
+          for (const path of routes) {
+            if (method) calls.push({ method, path, at: at(node) });
+            else unknownMethod.push(`${path} (${at(node)})`);
+          }
+        }
+      }
+      if (ts.isCallExpression(node) && GET_HELPERS.has(calleeName(node))) {
+        for (const arg of node.arguments) {
+          for (const path of routesOf(arg, aliases)) {
+            calls.push({ method: "GET", path, at: at(arg) });
+          }
+        }
+      }
+      if (ts.isCallExpression(node) && FETCH_CALLEES.has(calleeName(node))) {
+        const [input, init] = node.arguments;
+        const methodProp =
+          init && ts.isObjectLiteralExpression(init)
+            ? init.properties.find(
+                (p) =>
+                  ts.isPropertyAssignment(p) &&
+                  p.name.getText(source) === "method",
+              )
+            : undefined;
+        let method;
+        if (methodProp && ts.isStringLiteralLike(methodProp.initializer)) {
+          method = methodProp.initializer.text;
+        } else if (
+          !methodProp &&
+          (!init || ts.isObjectLiteralExpression(init))
+        ) {
+          method = "GET";
+        }
+        for (const path of routesOf(input, aliases, true)) {
+          if (method) calls.push({ method, path, at: at(input) });
+          else unknownMethod.push(`${path} (${at(input)})`);
+        }
+      }
+      ts.forEachChild(node, visit);
+    };
+    visit(source);
+  }
+  return { calls, unknownMethod };
+}
+
+/**
+ * Every operation in both references, keyed `<METHOD> <path>`, with its plane
+ * and the clients its `x-introspection` names, plus the operations that
+ * share a `<METHOD> <template>` (path parameters by position) with another,
+ * in either reference: a call site cannot tell them apart.
+ */
+function specOperations(specs) {
+  const operations = new Map();
+  const inBoth = [];
+  const templates = new Map();
+  for (const [plane, spec] of Object.entries(specs)) {
+    for (const [path, item] of Object.entries(spec.paths ?? {})) {
+      for (const method of HTTP_METHODS) {
+        const op = item[method];
+        if (!op) continue;
+        const key = `${method.toUpperCase()} ${path}`;
+        const template = `${method.toUpperCase()} ${templateKey(path)}`;
+        if (templates.has(template))
+          inBoth.push(`${templates.get(template)} and ${key}`);
+        else templates.set(template, key);
+        operations.set(key, {
+          plane,
+          clients: op["x-introspection"]?.clients ?? [],
+        });
+      }
+    }
+  }
+  return { operations, inBoth };
+}
+
+/** The reference's classification against the call sites. */
+function checkOperations(specs, calls, unknownMethod) {
+  const { operations, inBoth } = specOperations(specs);
+
+  // The spec operation each normalized `<METHOD> <template>` names.
+  const byKey = new Map();
+  for (const op of operations.keys()) {
+    const [method, path] = op.split(" ");
+    byKey.set(`${method} ${templateKey(path)}`, op);
+  }
+
+  const called = new Set();
+  const notInReference = [];
+  for (const call of calls) {
+    const op = byKey.get(`${call.method} ${templateKey(call.path)}`);
+    if (!op) {
+      notInReference.push(`${call.method} ${call.path} (${call.at})`);
+      continue;
+    }
+    called.add(op);
+  }
+
+  const uncalled = [];
+  for (const [op, { plane, clients }] of operations) {
+    if (clients.includes(CLIENT) && !called.has(op))
+      uncalled.push(`${PLANE_NAMES[plane]}: ${op}`);
+  }
+
+  // Uncalled operations are reported first; `--pr` reports them without
+  // failing.
+  const problems = [];
+  const report = (items, means, fails = true) => {
+    if (items.length)
+      problems.push({
+        fails,
+        text: `operations — ${means} (${items.length}):${listing(items)}`,
+      });
+  };
+  report(
+    uncalled,
+    `the reference lists "${CLIENT}" in x-introspection.clients, but no call site in packages/*/src sends it`,
+    !process.argv.includes("--pr"),
+  );
+  report(
+    notInReference,
+    "called by this SDK but not in either reference (the SDK calls a route that does not exist)",
+  );
+  report(
+    inBoth,
+    "declared twice with the same method and path template, so a call site cannot be matched to one",
+  );
+  report(
+    unknownMethod,
+    "a route sent without a literal `method`, so it cannot be matched",
+  );
+  return {
+    problems,
+    count: operations.size,
+    missing: uncalled.length,
+    notInReference: notInReference.length,
+    unmatched: inBoth.length + unknownMethod.length,
+  };
+}
+
+/** The reference as JSON, or undefined when its URL answers 404. */
 async function loadSpec(source) {
   if (source.startsWith("http://") || source.startsWith("https://")) {
     const response = await fetch(source, {
       signal: AbortSignal.timeout(30_000),
     });
+    if (response.status === 404) return undefined;
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     return response.json();
   }
   return JSON.parse(readFileSync(source, "utf8"));
 }
 
-function specArg(name, fallback) {
-  const flag = process.argv.indexOf(name);
-  return flag === -1 ? fallback : process.argv[flag + 1];
-}
-
 async function main() {
-  const specSource = specArg("--spec", DEFAULT_SPEC);
-  const cpSpecSource = specArg("--cp-spec", DEFAULT_CP_SPEC);
-
   // The two planes are separate services with separate references. The
   // control-plane half went unchecked entirely until an experiments filter
   // the API does not accept shipped in two SDKs at once.
+  const sources = {};
   const specs = {};
-  for (const [plane, source] of [
-    ["dp", specSource],
-    ["cp", cpSpecSource],
-  ]) {
+  for (const [plane, name] of Object.entries(PLANE_NAMES)) {
+    sources[plane] = referenceSource(name);
     try {
-      specs[plane] = await loadSpec(source);
+      specs[plane] = await loadSpec(sources[plane]);
     } catch (error) {
       console.error(
-        `could not read the API reference at ${source}: ${error.message}`,
+        `could not read the API reference at ${sources[plane]}: ${error.message}`,
       );
-      return 1;
+      return 2;
     }
-  }
-
-  const problems = [];
-
-  for (const surface of SURFACES) {
-    let server;
-    let sdk;
-    try {
-      server = surface.server(specs[surface.plane ?? "dp"]);
-      sdk = surface.sdk();
-    } catch (error) {
-      problems.push(`${surface.name} — ${surface.where}\n  ${error.message}`);
-      continue;
-    }
-
-    const exempt = new Set(surface.exempt ?? []);
-    const allowedExtra = new Set(surface.allowedExtra ?? []);
-
-    const extra = difference(difference(sdk, server), allowedExtra);
-    const missing = difference(difference(server, sdk), exempt);
-    // An exemption naming a field the API no longer has would otherwise stay
-    // quietly true forever, hiding nothing.
-    const stale = difference(exempt, server);
-
-    const lines = [];
-    let fatal = false;
-
-    if (extra.size) {
-      lines.push(`  ${surface.extraMeans}:${listing(extra)}`);
-      fatal = true;
-    }
-    if (missing.size) {
-      if (surface.missingIsFatal === false) {
-        console.log(
-          `note: ${surface.name}: ${surface.missingMeans}:${listing(missing)}\n`,
-        );
-      } else {
-        lines.push(`  ${surface.missingMeans}:${listing(missing)}`);
-        fatal = true;
-      }
-    }
-    if (stale.size) {
-      lines.push(
-        `  exempted here but no longer in the API (drop the exemption):${listing(stale)}`,
+    if (!specs[plane]) {
+      console.log(
+        `${sources[plane]} answered 404: reference not published yet, skipping`,
       );
-      fatal = true;
+      return 0;
     }
-
-    if (fatal)
-      problems.push(`${surface.name} — ${surface.where}\n${lines.join("\n")}`);
   }
 
-  if (problems.length) {
-    console.error(problems.join("\n\n"));
-    console.error(`\nreference: ${specSource} + ${cpSpecSource}`);
-    return 1;
-  }
+  const files = sourceFiles(PACKAGES);
+  // Only the checker's local symbols are needed, to tell same-named route
+  // aliases apart, so nothing is resolved beyond the files themselves.
+  const program = ts.createProgram(files, { noResolve: true, noLib: true });
+  const { calls, unknownMethod } = sdkCalls(program, files);
+  const operations = checkOperations(specs, calls, unknownMethod);
 
-  console.log(
-    `✓ SDK surface matches the published reference (${SURFACES.length} surfaces)`,
-  );
-  return 0;
+  const summary = [
+    `${operations.missing} ${CLIENT} operations not called`,
+    `${operations.notInReference} routes not in the reference`,
+    `${operations.unmatched} unmatched routes`,
+  ].join(", ");
+  const fails = operations.problems.some((problem) => problem.fails);
+  const report = operations.problems.length
+    ? [
+        ...operations.problems.map((problem) => problem.text),
+        `summary: ${summary}\nreference: ${sources.dp} + ${sources.cp}`,
+      ].join("\n\n")
+    : `✓ SDK routes match the reference (${operations.count} operations)`;
+  console.log(report);
+
+  const out = arg("--out");
+  if (out) {
+    mkdirSync(out, { recursive: true });
+    writeFileSync(resolve(out, "report.txt"), `${report}\n`);
+    writeFileSync(resolve(out, "state"), fails ? "red\n" : "green\n");
+  }
+  return fails ? 1 : 0;
 }
 
 process.exit(await main());
