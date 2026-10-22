@@ -111,26 +111,6 @@
       "sdk": true,
       "exempt": [
         {
-          "extra": "query.order",
-          "reason": "Resolved client-side and never sent: the ergonomic window aliases, and `format`, which selects Arrow via the Accept header rather than a param."
-        },
-        {
-          "extra": "query.start",
-          "reason": "Resolved client-side and never sent: the ergonomic window aliases, and `format`, which selects Arrow via the Accept header rather than a param."
-        },
-        {
-          "extra": "query.end",
-          "reason": "Resolved client-side and never sent: the ergonomic window aliases, and `format`, which selects Arrow via the Accept header rather than a param."
-        },
-        {
-          "extra": "query.lookback",
-          "reason": "Resolved client-side and never sent: the ergonomic window aliases, and `format`, which selects Arrow via the Accept header rather than a param."
-        },
-        {
-          "extra": "query.format",
-          "reason": "Resolved client-side and never sent: the ergonomic window aliases, and `format`, which selects Arrow via the Accept header rather than a param."
-        },
-        {
           "missing": "query.*",
           "report": true,
           "reason": "Which filters to expose is a product decision, so a missing filter is reported and does not fail."
@@ -145,26 +125,6 @@
     "GET /v1/events": {
       "sdk": true,
       "exempt": [
-        {
-          "extra": "query.order",
-          "reason": "Resolved client-side and never sent: the ergonomic window aliases, and `format`, which selects Arrow via the Accept header rather than a param."
-        },
-        {
-          "extra": "query.start",
-          "reason": "Resolved client-side and never sent: the ergonomic window aliases, and `format`, which selects Arrow via the Accept header rather than a param."
-        },
-        {
-          "extra": "query.end",
-          "reason": "Resolved client-side and never sent: the ergonomic window aliases, and `format`, which selects Arrow via the Accept header rather than a param."
-        },
-        {
-          "extra": "query.lookback",
-          "reason": "Resolved client-side and never sent: the ergonomic window aliases, and `format`, which selects Arrow via the Accept header rather than a param."
-        },
-        {
-          "extra": "query.format",
-          "reason": "Resolved client-side and never sent: the ergonomic window aliases, and `format`, which selects Arrow via the Accept header rather than a param."
-        },
         {
           "missing": "query.*",
           "report": true,

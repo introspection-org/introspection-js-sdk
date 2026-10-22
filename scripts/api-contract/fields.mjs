@@ -10,10 +10,14 @@
  * route used; the call site is the type the route actually gets.
  *
  * Where the checker cannot say what goes on the wire (a generic, a body
- * mapped to `Record<string, unknown>`, a multipart upload, a body serialized
- * before the call), the call site is reported as unresolvable rather than
- * skipped. A check that passes because it compared nothing teaches the reader
- * that green means checked.
+ * mapped to `Record<string, unknown>`, a body serialized before the call, an
+ * untyped or `Record` field nested in a typed one), the call site is reported
+ * as unresolvable rather than skipped. A check that passes because it
+ * compared nothing teaches the reader that green means checked.
+ *
+ * A form body that `fetch` encodes itself (`FormData`, `URLSearchParams`) is
+ * compared by media type only: it carries no field types, like a non-JSON
+ * response.
  */
 import { readdirSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
@@ -179,8 +183,6 @@ function unresolvable(checker, type) {
   if (!parts.length) return undefined;
   if (isGeneric(checker, type))
     return `generic (${checker.typeToString(type)})`;
-  if (parts.some((t) => t.symbol?.name === "FormData"))
-    return "multipart (FormData)";
   if (parts.every((t) => tsKind(checker, t) === "any"))
     return `untyped (${checker.typeToString(type)})`;
   if (parts.every((t) => tsKind(checker, t) === "string"))
@@ -250,7 +252,13 @@ function compare(ctx, schema, type, field, out, repeatable = false) {
 
   const specKinds = new Set(specBranches.map((b) => specKind(b.schema)));
   const sdkKinds = new Set(tsTypes.map((t) => tsKind(checker, t)));
-  if (specKinds.has("any") || sdkKinds.has("any")) return;
+  if (specKinds.has("any")) return;
+  // Below the top level as at it: a field the SDK leaves untyped or generic
+  // compares nothing, so it is named rather than passed.
+  if (sdkKinds.has("any")) {
+    out.push({ kind: "unresolvable", field, detail: "untyped" });
+    return;
+  }
   if (sdkKinds.has("generic")) {
     out.push({ kind: "unresolvable", field, detail: "generic" });
     return;
@@ -284,7 +292,13 @@ function compare(ctx, schema, type, field, out, repeatable = false) {
   const tsObjects = tsTypes.filter(
     (t) => tsKind(checker, t) === "object" && !isOpaqueObject(checker, t),
   );
-  if (!specObjects.length || !tsObjects.length) return;
+  if (!specObjects.length) return;
+  if (!tsObjects.length) {
+    // The reference names fields the SDK types as `Record<string, ...>`.
+    if (tsTypes.some((t) => isOpaqueObject(checker, t)))
+      out.push({ kind: "unresolvable", field, detail: "no named fields" });
+    return;
+  }
 
   const key = `${specObjects.map((b) => b.ref).join("|")}::${tsObjects.map((t) => checker.typeToString(t)).join("|")}`;
   if (seen.has(key)) return;
@@ -375,11 +389,29 @@ function compareObjects(ctx, specObjects, tsObjects, field, out) {
 
 // --- operations and call sites -----------------------------------------------
 
-/** The reference's request body, query parameters and JSON response. */
+/** A media type without its parameters: `application/x+json;version=1` → `application/x+json`. */
+const essence = (media) => media.split(";")[0].trim().toLowerCase();
+
+/**
+ * The entry of a `content` map for one media type: the exact key, else the
+ * one with the same essence. A reference that declares a vendor type with a
+ * version (`application/vnd.letta.trajectory+json;version=1`) matches a call
+ * that asks for exactly that, and `application/json` matches only itself.
+ */
+function mediaEntry(content, media) {
+  if (content[media]) return content[media];
+  const key = Object.keys(content).find((k) => essence(k) === essence(media));
+  return key ? content[key] : undefined;
+}
+
+/**
+ * The reference's request body, query parameters and success response. Body
+ * and response keep every media type the reference declares, so a call site
+ * is compared with the one it actually sends or asks for.
+ */
 export function specShapes(spec, path, method) {
   const op = spec.paths?.[path]?.[method.toLowerCase()];
   const content = op?.requestBody?.content ?? {};
-  const json = content["application/json"];
   const query = (op?.parameters ?? [])
     .map((p) => deref(spec, p).schema)
     .filter((p) => p.in === "query");
@@ -387,11 +419,13 @@ export function specShapes(spec, path, method) {
     /^2/.test(code),
   )?.[1];
   return {
-    body: json
-      ? { schema: json.schema, required: op.requestBody.required }
-      : Object.keys(content).length
-        ? { media: Object.keys(content) }
-        : undefined,
+    body: Object.keys(content).length
+      ? {
+          media: Object.keys(content),
+          schema: content["application/json"]?.schema,
+          required: op.requestBody.required,
+        }
+      : undefined,
     query: {
       type: "object",
       properties: Object.fromEntries(
@@ -399,8 +433,7 @@ export function specShapes(spec, path, method) {
       ),
       required: query.filter((p) => p.required).map((p) => p.name),
     },
-    response: deref(spec, success ?? {}).schema.content?.["application/json"]
-      ?.schema,
+    response: deref(spec, success ?? {}).schema.content ?? {},
   };
 }
 
@@ -408,6 +441,74 @@ const propertyType = (checker, type, name, at) => {
   const sym = checker.getPropertyOfType(type, name);
   return sym ? checker.getTypeOfSymbolAtLocation(sym, at) : undefined;
 };
+
+/**
+ * The keys `serializeReadParams` (introspection-http `resources/reads.ts`)
+ * consumes on the client, each with the wire parameter it becomes, if any.
+ * `listRead` and `arrowRead` send their params through it, so these keys are
+ * never on the wire themselves.
+ */
+const READ_PARAMS = new Map([
+  ["order", "direction"],
+  ["start", "start_date"],
+  ["end", "end_date"],
+  ["lookback", "start_date"],
+  ["format", undefined],
+  ["signal", undefined],
+]);
+
+/** Bodies `fetch` encodes itself, by the media type it sends them as. */
+const ENCODED_BODIES = new Map([
+  ["FormData", "multipart/form-data"],
+  ["URLSearchParams", "application/x-www-form-urlencoded"],
+]);
+
+/** The string an expression evaluates to, through consts and templates. */
+function literalString(checker, node) {
+  if (ts.isStringLiteralLike(node)) return node.text;
+  if (ts.isTemplateExpression(node)) {
+    let text = node.head.text;
+    for (const span of node.templateSpans) {
+      const part = literalString(checker, span.expression);
+      if (part === undefined) return undefined;
+      text += part + span.literal.text;
+    }
+    return text;
+  }
+  const type = checker.getTypeAtLocation(node);
+  return type.isStringLiteral() ? type.value : undefined;
+}
+
+/** A property of an object literal, matched case-insensitively. */
+const literalProperty = (obj, name) =>
+  obj.properties.find(
+    (p) =>
+      ts.isPropertyAssignment(p) &&
+      p.name
+        .getText()
+        .replace(/^["']|["']$/g, "")
+        .toLowerCase() === name,
+  );
+
+/**
+ * The media type a call asks for in its `Accept` header: undefined without
+ * one (the client then reads JSON), or null when it is not a literal.
+ */
+function acceptOf(checker, opts) {
+  if (!opts || !ts.isObjectLiteralExpression(opts)) return undefined;
+  const headers = literalProperty(opts, "headers")?.initializer;
+  if (!headers) return undefined;
+  if (!ts.isObjectLiteralExpression(headers)) {
+    const type = checker.getTypeAtLocation(headers);
+    const accept =
+      propertyType(checker, type, "Accept", headers) ??
+      propertyType(checker, type, "accept", headers);
+    if (!accept) return undefined;
+    return accept.isStringLiteral() ? accept.value : null;
+  }
+  const accept = literalProperty(headers, "accept")?.initializer;
+  return accept ? (literalString(checker, accept) ?? null) : undefined;
+}
 
 /** The second type argument of `Paginator<T, TPage>`: the wire page. */
 function pageType(checker, call) {
@@ -419,10 +520,22 @@ function pageType(checker, call) {
 
 /**
  * The SDK's body, query and response types at a call site. A slot is a
- * `ts.Type`, `undefined` (nothing sent), or `{ notJson }` for a response the
- * call site reads as something other than JSON.
+ * `ts.Type`, `undefined` (nothing sent), `{ notJson }` for a response the
+ * call site reads as something other than JSON, or `{ unresolved }` for one
+ * whose type says nothing about the wire. `accept` is the media type the
+ * call asks for (see acceptOf).
  */
 export function callSiteTypes(checker, site) {
+  const types = slotTypes(checker, site);
+  const opts =
+    site.kind === "fetch" ? site.call.arguments[1] : site.call.arguments[0];
+  return {
+    ...types,
+    accept: site.kind === "helper" ? undefined : acceptOf(checker, opts),
+  };
+}
+
+function slotTypes(checker, site) {
   const { kind, call } = site;
   if (kind === "request" || kind === "stream") {
     const opts = call.arguments[0];
@@ -449,28 +562,139 @@ export function callSiteTypes(checker, site) {
   if (kind === "helper") {
     const query =
       call.arguments[2] && checker.getTypeAtLocation(call.arguments[2]);
-    // Every pagination helper adds the page's `next` cursor itself.
+    // Every pagination helper adds the page's `next` cursor itself; the read
+    // helpers also turn READ_PARAMS keys into their wire parameters.
+    const reads = site.helper !== "paginateGet";
+    const has = (key) => query && checker.getPropertyOfType(query, key);
     return {
       body: undefined,
       query,
-      implicitQuery: ["next"],
+      clientQuery: reads ? [...READ_PARAMS.keys()] : [],
+      implicitQuery: [
+        "next",
+        ...(reads
+          ? [...READ_PARAMS]
+              .filter(([k, wire]) => wire && has(k))
+              .map(([, wire]) => wire)
+          : []),
+      ],
       response:
         site.helper === "arrowRead"
           ? { notJson: "Arrow IPC stream" }
           : pageType(checker, call),
     };
   }
-  // A direct `fetch(url, init)`: the body is whatever `init.body` holds and
-  // the response is a `Response` read after the call.
+  // A direct `fetch(url, init)`: the body is whatever `init.body` holds. The
+  // call resolves to a `Response`, whose own members (`ok`, `headers`, ...)
+  // are not the wire fields; those are read after the call.
   const init = call.arguments[1];
   const initType = init && checker.getTypeAtLocation(init);
   return {
     body: initType && propertyType(checker, initType, "body", init),
     query: undefined,
-    response: checker.getAwaitedType(
-      checker.getResolvedSignature(call).getReturnType(),
-    ),
+    response: { unresolved: "a fetch Response, read after the call" },
   };
+}
+
+/** The media type of a body `fetch` encodes itself, or undefined for JSON. */
+const encodedMedia = (type) =>
+  members(type)
+    .map((t) => ENCODED_BODIES.get(t.symbol?.name))
+    .find(Boolean);
+
+function compareBody(ctx, shapes, body, out) {
+  const { checker } = ctx;
+  const media = body && (encodedMedia(body) ?? "application/json");
+  const why = media === "application/json" && unresolvable(checker, body);
+  if (why) {
+    out.push({ kind: "unresolvable", field: "body", detail: why });
+  } else if (!shapes.body) {
+    if (body)
+      out.push({
+        kind: "extra",
+        field: "body",
+        detail: `the reference takes no body, SDK sends ${media}`,
+      });
+  } else if (!body) {
+    if (shapes.body.required)
+      out.push({ kind: "missing", field: "body", detail: "required body" });
+  } else if (!shapes.body.media.some((m) => essence(m) === essence(media))) {
+    out.push({
+      kind: "type",
+      field: "body",
+      detail: `reference takes ${shapes.body.media.join(", ")}, SDK sends ${media}`,
+    });
+  } else if (media === "application/json") {
+    ctx.run(shapes.body.schema, body, "body");
+  }
+  // A form body `fetch` encodes itself matches the reference's media type,
+  // but carries no field types to compare, like a non-JSON response.
+}
+
+function compareQuery(ctx, shapes, types, out) {
+  const { checker } = ctx;
+  const query = ctx.sent(types.query);
+  const why = query && unresolvable(checker, query);
+  const findings = [];
+  if (why) findings.push({ kind: "unresolvable", field: "query", detail: why });
+  else if (query) compare(ctx.fresh(), shapes.query, query, "query", findings);
+  else {
+    for (const name of shapes.query.required)
+      findings.push({ kind: "missing", field: `query.${name}` });
+  }
+  const implicit = new Set(
+    (types.implicitQuery ?? []).map((n) => `query.${n}`),
+  );
+  const client = new Set((types.clientQuery ?? []).map((n) => `query.${n}`));
+  out.push(
+    ...findings.filter(
+      (f) =>
+        !(f.kind === "missing" && implicit.has(f.field)) &&
+        !(f.kind === "extra" && client.has(f.field)),
+    ),
+  );
+}
+
+/**
+ * The response, compared with the reference's schema for the media type the
+ * call asks for. A call site that reads no JSON (an event stream, raw bytes,
+ * an Arrow page, `expect: "empty"`) or discards the body (`void`) declares
+ * no fields to compare.
+ */
+function compareResponse(ctx, shapes, types, out) {
+  const { checker } = ctx;
+  const response = types.response;
+  if (!response || response.notJson) return;
+  if (response.unresolved) {
+    out.push({
+      kind: "unresolvable",
+      field: "response",
+      detail: response.unresolved,
+    });
+    return;
+  }
+  if (!members(response).length) return;
+  const reason =
+    unresolvable(checker, response) ??
+    (types.accept === null ? "Accept header is not a literal" : undefined);
+  if (reason) {
+    out.push({ kind: "unresolvable", field: "response", detail: reason });
+    return;
+  }
+  const media = types.accept ?? "application/json";
+  const entry = mediaEntry(shapes.response, media);
+  if (entry?.schema) {
+    ctx.run(entry.schema, response, "response");
+    return;
+  }
+  const declared = Object.keys(shapes.response);
+  out.push({
+    kind: "extra",
+    field: "response",
+    detail: entry
+      ? `the reference declares ${media} without a schema`
+      : `the reference declares no ${media} response${declared.length ? ` (only ${declared.join(", ")})` : ""}`,
+  });
 }
 
 /**
@@ -480,69 +704,18 @@ export function callSiteTypes(checker, site) {
  */
 export function compareCallSite(spec, checker, shapes, types) {
   const out = [];
-  const run = (schema, type, field) =>
-    compare({ spec, checker, seen: new Set() }, schema, type, field, out);
-  const sent = (type) =>
-    type && members(type).length && !isEmptyObject(checker, type)
-      ? type
-      : undefined;
-
-  // Request body.
-  const body = sent(types.body);
-  const bodyWhy = body && unresolvable(checker, body);
-  if (bodyWhy) {
-    out.push({ kind: "unresolvable", field: "body", detail: bodyWhy });
-  } else if (shapes.body?.media && body) {
-    out.push({
-      kind: "type",
-      field: "body",
-      detail: `reference takes ${shapes.body.media.join(", ")}, SDK sends JSON`,
-    });
-  } else if (shapes.body?.schema) {
-    if (body) run(shapes.body.schema, body, "body");
-    else if (shapes.body.required)
-      out.push({ kind: "missing", field: "body", detail: "required body" });
-  } else if (body) {
-    out.push({
-      kind: "extra",
-      field: "body",
-      detail: "the reference takes no body",
-    });
-  }
-
-  // Query parameters.
-  const query = sent(types.query);
-  const queryWhy = query && unresolvable(checker, query);
-  const implicit = new Set(
-    (types.implicitQuery ?? []).map((n) => `query.${n}`),
-  );
-  if (queryWhy)
-    out.push({ kind: "unresolvable", field: "query", detail: queryWhy });
-  else if (query) run(shapes.query, query, "query");
-  else {
-    for (const name of shapes.query.required)
-      out.push({ kind: "missing", field: `query.${name}` });
-  }
-  for (let i = out.length - 1; i >= 0; i--) {
-    if (out[i].kind === "missing" && implicit.has(out[i].field))
-      out.splice(i, 1);
-  }
-
-  // Response. A call site that reads no JSON (an event stream, raw bytes, an
-  // Arrow page, `expect: "empty"`) or discards the body (`void`) declares no
-  // fields to compare.
-  const response = types.response;
-  if (response && !response.notJson && members(response).length) {
-    const reason = unresolvable(checker, response);
-    if (reason)
-      out.push({ kind: "unresolvable", field: "response", detail: reason });
-    else if (shapes.response) run(shapes.response, response, "response");
-    else
-      out.push({
-        kind: "extra",
-        field: "response",
-        detail: "the reference declares no JSON response",
-      });
-  }
+  const fresh = () => ({ spec, checker, seen: new Set() });
+  const ctx = {
+    ...fresh(),
+    fresh,
+    run: (schema, type, field) => compare(fresh(), schema, type, field, out),
+    sent: (type) =>
+      type && members(type).length && !isEmptyObject(checker, type)
+        ? type
+        : undefined,
+  };
+  compareBody(ctx, shapes, ctx.sent(types.body), out);
+  compareQuery(ctx, shapes, types, out);
+  compareResponse(ctx, shapes, types, out);
   return out;
 }
