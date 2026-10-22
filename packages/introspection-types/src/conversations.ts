@@ -388,27 +388,28 @@ export interface IntrospectionSpanAttributes {
   environment?: string;
   conversation?: IntrospectionConversation;
   agent?: IntrospectionAgent;
-  content?: IntrospectionContent;
+  contains?: IntrospectionContains;
   [key: string]: unknown;
 }
 
 /**
- * `introspection.content.*` — the processor's plaintext summary of a chat
- * span's sealed content, stamped at seal time: counts and tool names only.
- * Absent on a span written before the summary existed and on non-chat spans;
- * what `ConversationItemListParams.content` selects on.
+ * `introspection.contains.*` — the processor's plaintext summary of what a
+ * chat span's sealed `gen_ai.input.messages` delta and
+ * `gen_ai.output.messages` contain, stamped at ingest: counts and tool names
+ * only. Absent on a span written before the summary existed and on non-chat
+ * spans; what `ConversationItemListParams.contains` selects on.
  */
-export interface IntrospectionContent {
+export interface IntrospectionContains {
   /** Summary schema version. */
   version?: number;
-  /** User-role text parts in the span's new-input delta. */
-  user_text?: number;
-  /** Assistant-role text parts in the span's output. */
-  assistant_text?: number;
-  /** Distinct tool names the output calls. */
-  tool_calls?: string[];
-  /** Distinct tool names whose results the new-input delta carries. */
-  tool_results?: string[];
+  /** User-authored parts in the span's new-input delta. */
+  input_user_parts?: number;
+  /** Text parts in the span's output. */
+  output_text_parts?: number;
+  /** Distinct `name`s of the `tool_call` parts in the output. */
+  output_tool_names?: string[];
+  /** Distinct `name`s of the `tool_call_response` parts in the new-input delta. */
+  input_tool_response_names?: string[];
   [key: string]: unknown;
 }
 
@@ -675,24 +676,27 @@ export interface ConversationItemListParams {
    */
   operation_name?: string | string[];
   /**
-   * Return only the items carrying these content classes, selected on the
-   * server before anything is decrypted; values match any of them.
-   * `user_text` and `assistant_text` select a chat item by the text parts
-   * of its new input or output, `tool_call:<name>` and `tool_result:<name>`
-   * a chat item whose output calls the tool or whose new input carries its
-   * result, `tool:<name>` the `execute_tool` item itself, and `delegation`
-   * an `invoke_agent` / `create_agent` wrapper. A chat item written before
-   * the content summary existed matches whole. A chat client passes the
-   * classes it renders:
+   * Return only the items whose messages contain the named part, as
+   * `<path>:<value>` over the GenAI semconv attributes, resolved on the
+   * server before anything is decrypted; values match any of them. A
+   * `gen_ai.input.messages.*` value returns only the item's new input
+   * messages and a `gen_ai.output.messages.*` value only its output; a
+   * `gen_ai.tool.name` or `gen_ai.operation.name` value returns the whole
+   * item, as does a chat item written before the summary existed. A chat
+   * client passes what it renders:
    *
    * ```ts
    * client.conversations.items.list(id, {
    *   agent: "root",
-   *   content: ["user_text", "tool:message_user", "tool:ask_user"],
+   *   contains: [
+   *     "gen_ai.input.messages.role:user",
+   *     "gen_ai.tool.name:message_user",
+   *     "gen_ai.tool.name:ask_user",
+   *   ],
    * });
    * ```
    */
-  content?: ConversationContentClass[];
+  contains?: ConversationContains[];
   /** Lower bound on item start time (RFC 3339). */
   start_date?: string;
   /** Upper bound on item start time (RFC 3339). */
@@ -701,18 +705,29 @@ export interface ConversationItemListParams {
   lookback_days?: number;
 }
 
-/** One value of {@link ConversationItemListParams.content}. */
-export type ConversationContentClass =
-  | "user_text"
-  | "assistant_text"
-  | "delegation"
+/**
+ * One value of {@link ConversationItemListParams.contains}: a GenAI semconv
+ * path over the sealed payload and the value it must contain. The set is
+ * closed because every value is resolved from the plaintext summary
+ * (`introspection.contains.*`) or a plaintext column, never from the payload.
+ */
+export type ConversationContains =
+  /** A chat item whose new input carries a user-authored part. */
+  | "gen_ai.input.messages.role:user"
+  /** A chat item whose new input carries any tool's response. */
+  | "gen_ai.input.messages.parts.type:tool_call_response"
+  /** A chat item whose new input carries the named tool's response. */
+  | `gen_ai.input.messages.parts.name:${string}`
+  /** A chat item whose output carries assistant text. */
+  | "gen_ai.output.messages.parts.type:text"
   /** A chat item whose output calls any tool. */
-  | "tool_call"
-  /** A chat item whose new input carries any tool's result. */
-  | "tool_result"
-  | `tool:${string}`
-  | `tool_call:${string}`
-  | `tool_result:${string}`;
+  | "gen_ai.output.messages.parts.type:tool_call"
+  /** A chat item whose output calls the named tool. */
+  | `gen_ai.output.messages.parts.name:${string}`
+  /** The `execute_tool` item for the named tool. */
+  | `gen_ai.tool.name:${string}`
+  /** Every item of the named operation, e.g. `invoke_agent`. */
+  | `gen_ai.operation.name:${string}`;
 
 /**
  * Query params for `GET /v1/conversations/{id}/export`.

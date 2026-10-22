@@ -502,7 +502,10 @@ async function history(runner: Runner, taskId: string) {
   for await (const span of runner.conversations.items.list(taskId, {
     agent: "root",
     limit: 100,
-    content: ["user_text", "assistant_text"],
+    contains: [
+      "gen_ai.input.messages.role:user",
+      "gen_ai.output.messages.parts.type:text",
+    ],
   }))
     spans.push(span);
   const startedAt = new Map(
