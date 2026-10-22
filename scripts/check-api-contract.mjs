@@ -9,9 +9,9 @@
  *
  * That create body is not field-checked today: `TasksClient.create` sends
  * `mapTaskBody(body)`, which returns `Record<string, unknown>`, so its call
- * site fails as unresolvable by name until it is given a concrete wire type.
- * The check is red there whatever the fields are; it does not yet catch that
- * kind of drift field by field.
+ * site is printed as a warning ("SDK has no concrete types") by name until it
+ * is given a concrete wire type. It does not yet catch that kind of drift
+ * field by field.
  *
  * The reference at docs.introspection.dev is generated from the Data Plane API
  * itself, so comparing against it compares against the API's own declaration
@@ -28,7 +28,15 @@
  * representation to reflect over, so they are read with the TypeScript
  * checker at the call site itself: the type that actually goes on the wire,
  * inherited members and nested `$ref` schemas included. An exemption sits in
- * operations.json under its operation, with a reason.
+ * operations.json under its operation, with a reason; one that holds for every
+ * operation of a plane sits once under `shared` (see "shared exemptions").
+ *
+ * A call site whose types the checker cannot resolve (a generic, a
+ * `Record<string, unknown>`, a direct `fetch()`) is a warning, not a failure:
+ * it is printed under "Warning: SDK has no concrete types" with its
+ * operation, the part (body, query or response) and the call site, and does
+ * not change the exit code. Fixing it is SDK work on the call site's types,
+ * not drift in the API.
  *
  * Deliberately NOT a unit test and NOT a pull-request gate. It reaches the
  * network and it goes red when the API changes, which is a fact about the world
@@ -332,10 +340,59 @@ function entryShapeProblems(entry) {
   });
 }
 
+// --- shared exemptions ------------------------------------------------------
+// Some query parameters exist on every route of a plane for reasons that are
+// not SDK surface, such as the Data Plane's `lane` (the session-lane
+// selector) and `project_id` (a privileged project override). Listing them
+// under each operation would repeat one decision on every route and miss the
+// next route that gains them, so they sit once under `shared.<plane>` in
+// operations.json, as `{ "missing" | "extra": "<field>", "reason": "<why>" }`.
+// A finding a shared exemption covers is dropped, not reported. A shared
+// exemption no call site of its plane needs fails as stale.
+
+/** The `shared` exemptions by plane name, plus problems with their shape. */
+function sharedExemptions(classified) {
+  const problems = [];
+  const shared = {};
+  const planes = Object.values(PLANE_NAMES);
+  for (const [name, rules] of Object.entries(classified.shared ?? {})) {
+    if (!planes.includes(name) || !Array.isArray(rules)) {
+      problems.push(
+        `operations.json — shared.${name} must be a list under one of: ${planes.join(", ")}`,
+      );
+      continue;
+    }
+    shared[name] = [];
+    rules.forEach((rule, i) => {
+      const kinds = ["missing", "extra"].filter(
+        (k) => typeof rule?.[k] === "string",
+      );
+      const keys = Object.keys(rule ?? {});
+      if (
+        kinds.length !== 1 ||
+        typeof rule.reason !== "string" ||
+        !rule.reason.trim() ||
+        keys.some((k) => ![...kinds, "reason"].includes(k))
+      ) {
+        problems.push(
+          `operations.json — shared.${name}[${i}] must be { "missing" | "extra": "<field>", "reason": "<why>" }`,
+        );
+        return;
+      }
+      shared[name].push({
+        field: rule[kinds[0]],
+        kind: kinds[0],
+        used: false,
+      });
+    });
+  }
+  return { problems, shared };
+}
+
 /** Operation-level findings: classification against call sites. */
 function checkOperations(specs, calls, unknownMethod) {
-  const problems = [];
   const classified = JSON.parse(readFileSync(OPERATIONS, "utf8"));
+  const { problems, shared } = sharedExemptions(classified);
   const operations = specOperations(specs);
 
   // The spec operation each normalized `<METHOD> <template>` names.
@@ -414,7 +471,7 @@ function checkOperations(specs, calls, unknownMethod) {
     "a route sent without a literal `method`, so it cannot be classified",
   );
 
-  return { problems, count: operations.size, sdkOperations };
+  return { problems, count: operations.size, sdkOperations, shared };
 }
 
 // --- fields -----------------------------------------------------------------
@@ -426,8 +483,6 @@ const FINDING_MEANS = {
     "field extra in SDK (this call site sends or reads it, but the reference does not have it)",
   required: "required mismatch",
   type: "type mismatch",
-  unresolvable:
-    "unresolvable types (the checker cannot tell what this call site sends or reads; give it a concrete type)",
 };
 
 /** `body`, `query` or `response`: where a field path starts. */
@@ -445,8 +500,11 @@ function fieldMatches(pattern, field) {
  * entry's exemptions applied. An exemption that no resolvable call site in
  * its scope needs any more is stale: it would otherwise stay quietly true
  * forever, hiding nothing.
+ *
+ * `shared` is the plane's shared exemptions, applied before the entry's own.
+ * An unresolvable finding goes to `warnings`, never to `problems`.
  */
-function checkFields(spec, checker, { name, op, entry, sites }) {
+function checkFields(spec, checker, { name, op, entry, sites }, shared = []) {
   const [method, path] = op.split(" ");
   const shapes = specShapes(spec, path, method);
   const exemptions = (entry.exempt ?? []).map((ex) => ({
@@ -458,6 +516,7 @@ function checkFields(spec, checker, { name, op, entry, sites }) {
   }));
   const problems = [];
   const notes = [];
+  const warnings = [];
 
   for (const { at, site } of sites) {
     const file = at.replace(/:\d+$/, "");
@@ -480,6 +539,20 @@ function checkFields(spec, checker, { name, op, entry, sites }) {
     const fatal = new Map();
     const noted = new Map();
     for (const f of findings) {
+      if (f.kind === "unresolvable") {
+        warnings.push({
+          title: `${name}: ${op}`,
+          field: f.field,
+          detail: f.detail,
+          at,
+        });
+        continue;
+      }
+      const sharedCovering = shared.filter(
+        (e) => e.kind === f.kind && fieldMatches(e.field, f.field),
+      );
+      for (const e of sharedCovering) e.used = true;
+      if (sharedCovering.length) continue;
       // Every exemption that covers the finding is in use, whatever its
       // order: an exact one next to an overlapping `<parent>.*` is not
       // stale. One that silences wins over a report-only one.
@@ -533,6 +606,7 @@ function checkFields(spec, checker, { name, op, entry, sites }) {
     notes: notes.length
       ? [`note: ${title} (exempted, reported only)\n${notes.join("\n")}\n`]
       : [],
+    warnings,
   };
 }
 
@@ -581,10 +655,44 @@ async function main() {
 
   const operations = checkOperations(specs, calls, unknownMethod);
   const problems = [...operations.problems];
+  const warnings = [];
   for (const operation of operations.sdkOperations) {
-    const fields = checkFields(specs[operation.plane], checker, operation);
+    const fields = checkFields(
+      specs[operation.plane],
+      checker,
+      operation,
+      operations.shared[operation.name],
+    );
     problems.push(...fields.problems);
+    warnings.push(...fields.warnings);
     for (const note of fields.notes) console.log(note);
+  }
+  const staleShared = Object.entries(operations.shared).flatMap(
+    ([name, rules]) =>
+      rules
+        .filter((rule) => !rule.used)
+        .map((rule) => `shared.${name}: ${rule.kind} ${rule.field}`),
+  );
+  if (staleShared.length)
+    problems.push(
+      `operations.json — shared exemption no call site needs any more (drop it):${listing(staleShared)}`,
+    );
+
+  // Printed whatever the outcome, and never part of it: the checker cannot
+  // compare these call sites, which is a gap in the SDK's types rather than
+  // drift in the API.
+  if (warnings.length) {
+    const byOperation = Map.groupBy(warnings, (w) => w.title);
+    console.log(
+      `Warning: SDK has no concrete types (does not fail; give these call sites concrete types so their fields are checked)\n${[
+        ...byOperation,
+      ]
+        .map(
+          ([title, items]) =>
+            `  ${title}\n${items.map((w) => `    ${w.field}${w.detail ? `: ${w.detail}` : ""} (${w.at})`).join("\n")}`,
+        )
+        .join("\n")}\n`,
+    );
   }
 
   if (problems.length) {
@@ -594,7 +702,7 @@ async function main() {
   }
 
   console.log(
-    `✓ SDK surface matches the published reference (${operations.count} operations, ${operations.sdkOperations.length} field-checked)`,
+    `✓ SDK surface matches the published reference (${operations.count} operations, ${operations.sdkOperations.length} field-checked${warnings.length ? `, ${warnings.length} call-site warnings` : ""})`,
   );
   return 0;
 }

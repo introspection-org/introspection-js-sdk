@@ -1,4 +1,16 @@
 {
+  "shared": {
+    "dataplane": [
+      {
+        "missing": "query.lane",
+        "reason": "Session-lane selector and privileged project override, not SDK surface: the lane is chosen by the session and the project comes from the credential."
+      },
+      {
+        "missing": "query.project_id",
+        "reason": "Session-lane selector and privileged project override, not SDK surface: the lane is chosen by the session and the project comes from the credential."
+      }
+    ]
+  },
   "dataplane": {
     "GET /v1/tasks": {
       "sdk": true,
@@ -87,16 +99,7 @@
     "PATCH /v1/files/{file_id}": "sdk",
     "DELETE /v1/files/{file_id}": "sdk",
     "GET /v1/files/{file_id}/content": "sdk",
-    "GET /v1/shares": {
-      "sdk": true,
-      "exempt": [
-        {
-          "missing": "query.*",
-          "report": true,
-          "reason": "Which filters to expose is a product decision, so a missing filter is reported and does not fail."
-        }
-      ]
-    },
+    "GET /v1/shares": "sdk",
     "POST /v1/shares": "sdk",
     "GET /v1/shares/{share_id}": "sdk",
     "PATCH /v1/shares/{share_id}": "sdk",
