@@ -34,11 +34,11 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { referenceSource } from "./api-contract/reference.mjs";
+
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const PLANES = ["dataplane", "controlplane"];
-const REFERENCE = (plane) =>
-  process.env[`API_CONTRACT_${plane.toUpperCase()}`] ||
-  `https://api.staging.introspection.dev/openapi/${plane}.json`;
+
 const SNAPSHOT = (plane) => resolve(ROOT, `api-reference/${plane}.json`);
 const PROMPT = resolve(ROOT, ".github/api-drift-prompt.md");
 
@@ -62,12 +62,12 @@ function arg(name, fallback) {
 function changelog(plane) {
   const result = spawnSync(
     process.env.OASDIFF || "oasdiff",
-    ["changelog", SNAPSHOT(plane), REFERENCE(plane), "--format", "json"],
+    ["changelog", SNAPSHOT(plane), referenceSource(plane), "--format", "json"],
     { encoding: "utf8", maxBuffer: 64 * 1024 * 1024 },
   );
   if (result.status !== 0) {
     throw new Error(
-      `oasdiff could not compare the ${plane} snapshot with ${REFERENCE(plane)}: ${
+      `oasdiff could not compare the ${plane} snapshot with ${referenceSource(plane)}: ${
         result.error?.message ?? result.stderr.trim()
       }`,
     );

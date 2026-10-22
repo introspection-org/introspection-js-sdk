@@ -58,9 +58,9 @@ import {
   createProgram,
   specShapes,
 } from "./api-contract/fields.mjs";
+import { referenceSource } from "./api-contract/reference.mjs";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const STAGING = "https://api.staging.introspection.dev";
 /** The client name this SDK goes by in `x-introspection.clients`. */
 const CLIENT = "sdk";
 
@@ -119,12 +119,12 @@ function routesOf(node, aliases, url = false) {
   }
   if (ts.isConditionalExpression(node)) {
     return [
-      ...routesOf(node.whenTrue, aliases),
-      ...routesOf(node.whenFalse, aliases),
+      ...routesOf(node.whenTrue, aliases, url),
+      ...routesOf(node.whenFalse, aliases, url),
     ];
   }
   if (ts.isParenthesizedExpression(node)) {
-    return routesOf(node.expression, aliases);
+    return routesOf(node.expression, aliases, url);
   }
   if (!ts.isTemplateExpression(node)) return [];
 
@@ -164,7 +164,10 @@ function collectAliases(source, checker) {
       ts.isIdentifier(node.name) &&
       node.initializer
     ) {
-      const routes = routesOf(node.initializer, aliases);
+      // Read as a URL: a const may hold the whole URL a `fetch` sends
+      // (`${baseApiUrl}/v1/oauth/token`), and a route never starts with
+      // a parameter.
+      const routes = routesOf(node.initializer, aliases, true);
       if (routes.length) routesBySymbol.set(symbolOf(node.name), routes);
     }
     if (ts.isFunctionDeclaration(node) && node.name && node.body) {
@@ -172,7 +175,7 @@ function collectAliases(source, checker) {
       const returns = (inner) => {
         if (ts.isFunctionLike(inner)) return;
         if (ts.isReturnStatement(inner)) {
-          routes.push(...routesOf(inner.expression, aliases));
+          routes.push(...routesOf(inner.expression, aliases, true));
         }
         ts.forEachChild(inner, returns);
       };
@@ -459,19 +462,6 @@ async function loadSpec(source) {
   }
   return JSON.parse(readFileSync(source, "utf8"));
 }
-
-/**
- * Where to read one plane's reference: `--<plane> URL|PATH`, else the
- * `API_CONTRACT_<PLANE>` environment variable, else staging.
- */
-const referenceSource = (name) => {
-  const flag = process.argv.indexOf(`--${name}`);
-  if (flag !== -1) return process.argv[flag + 1];
-  return (
-    process.env[`API_CONTRACT_${name.toUpperCase()}`] ||
-    `${STAGING}/openapi/${name}.json`
-  );
-};
 
 async function main() {
   // The two planes are separate services with separate references. The

@@ -74,9 +74,10 @@ jobs:
         env:
           REPORT_DIR: ${{ runner.temp }}/api-drift
           STATE_DIR: .api-drift-state
-          # Posts only from the default branch, whose cache holds the state;
+          # Posts only from main, whose cache holds the state (a schedule's
+          # payload has no repository, so the ref is compared with main);
           # elsewhere, or with the secret unset, the message is printed.
-          SLACK_WEBHOOK_URL: ${{ github.ref_name == github.event.repository.default_branch && secrets.MAIN_STATUS_SLACK_WEBHOOK_URL || '' }}
+          SLACK_WEBHOOK_URL: ${{ github.ref == 'refs/heads/main' && secrets.MAIN_STATUS_SLACK_WEBHOOK_URL || '' }}
         run: scripts/api-drift-notify.sh
 
       - name: Save the posted state

@@ -71,18 +71,17 @@ export function createProgram(root, files) {
  * document it points (`#/components/schemas/...`, `#/components/parameters/...`).
  */
 function deref(spec, schema) {
-  let ref;
   const seen = new Set();
   while (schema?.$ref && !seen.has(schema.$ref)) {
     seen.add(schema.$ref);
-    const pointer = schema.$ref.replace(/^#\//, "").split("/");
-    ref = pointer.at(-1);
-    schema = pointer
+    schema = schema.$ref
+      .replace(/^#\//, "")
+      .split("/")
       .map((part) => part.replaceAll("~1", "/").replaceAll("~0", "~"))
       .reduce((node, part) => node?.[part], spec);
   }
   if (schema?.allOf?.length === 1) return deref(spec, schema.allOf[0]);
-  return { schema: schema ?? {}, ref };
+  return { schema: schema ?? {} };
 }
 
 /**
@@ -91,7 +90,7 @@ function deref(spec, schema) {
  * of a `type` list keeps the identity recursion detection keys on.
  */
 function branches(spec, schema) {
-  const { schema: s, ref } = deref(spec, schema);
+  const { schema: s } = deref(spec, schema);
   const alternatives = s.anyOf ?? s.oneOf;
   if (alternatives) {
     return alternatives
@@ -104,10 +103,10 @@ function branches(spec, schema) {
   if (Array.isArray(s.type)) {
     return s.type
       .filter((t) => t !== "null")
-      .map((type) => ({ schema: { ...s, type }, ref, origin: s }));
+      .map((type) => ({ schema: { ...s, type }, origin: s }));
   }
   if (s.type === "null") return [];
-  return [{ schema: s, ref, origin: s }];
+  return [{ schema: s, origin: s }];
 }
 
 function specKind(schema) {
@@ -245,6 +244,9 @@ function literalValues(checker, obj, name) {
 
 const describeKinds = (kinds) => [...kinds].sort().join(" | ");
 
+/** Whether a field path is in the response, where data flows to the SDK. */
+const isResponse = (field) => field.split(/[.[(]/)[0] === "response";
+
 /**
  * A number per object, for keys that must tell apart two schemas or types
  * that print the same: two inline object schemas (no `$ref`), or two types
@@ -295,10 +297,18 @@ function compare(ctx, schema, type, field, out, repeatable = false) {
   // only kinds the reference takes (`string | number` against `string`
   // sends numbers the API rejects); a response type must cover every kind
   // the API can return (`string` against `string | number` hides numbers).
-  const [from, to] =
-    field.split(/[.[(]/)[0] === "response"
-      ? [specKinds, sdkKinds]
-      : [sdkKinds, specKinds];
+  // A repeatable parameter also takes one value of its items' kinds.
+  const accepted = new Set(specKinds);
+  if (repeatable) {
+    for (const b of specBranches) {
+      if (specKind(b.schema) === "array" && b.schema.items)
+        for (const item of branches(spec, b.schema.items))
+          accepted.add(specKind(item.schema));
+    }
+  }
+  const [from, to] = isResponse(field)
+    ? [specKinds, sdkKinds]
+    : [sdkKinds, accepted];
   if (![...from].every((k) => to.has(k))) {
     out.push({
       kind: "type",
@@ -370,14 +380,19 @@ function compareVariants(ctx, specObjects, tsObjects, name, field, out) {
   for (const t of tsObjects) {
     for (const v of literalValues(checker, t, name)) tsByValue.set(v, t);
   }
+  // In the direction the data flows, as for kinds: a request may send only
+  // some variants but none the reference lacks; a response type must read
+  // every variant the API returns, and may read more.
+  const response = isResponse(field);
   const at = (v) => `${field}(${name}=${v})`;
   for (const [value, b] of specByValue) {
     const t = tsByValue.get(value);
-    if (!t) out.push({ kind: "missing", field: at(value), detail: "variant" });
-    else compareObjects(ctx, [b], [t], at(value), out);
+    if (t) compareObjects(ctx, [b], [t], at(value), out);
+    else if (response)
+      out.push({ kind: "missing", field: at(value), detail: "variant" });
   }
   for (const value of tsByValue.keys()) {
-    if (!specByValue.has(value))
+    if (!response && !specByValue.has(value))
       out.push({ kind: "extra", field: at(value), detail: "variant" });
   }
 }
@@ -429,6 +444,10 @@ function compareObjects(ctx, specObjects, tsObjects, field, out) {
 /** A media type without its parameters: `application/x+json;version=1` → `application/x+json`. */
 const essence = (media) => media.split(";")[0].trim().toLowerCase();
 
+/** `application/json` and the `+json` types, such as `application/merge-patch+json`. */
+const isJson = (media) =>
+  essence(media) === "application/json" || essence(media).endsWith("+json");
+
 /**
  * The entry of a `content` map for one media type: the exact key, else the
  * one with the same essence. A reference that declares a vendor type with a
@@ -451,11 +470,20 @@ function mediaEntry(content, media) {
  * expected to send them.
  */
 export function specShapes(spec, path, method, client) {
-  const op = spec.paths?.[path]?.[method.toLowerCase()];
-  const content = op?.requestBody?.content ?? {};
-  const query = (op?.parameters ?? [])
-    .map((p) => deref(spec, p).schema)
-    .filter((p) => p.in === "query");
+  const item = spec.paths?.[path];
+  const op = item?.[method.toLowerCase()];
+  const requestBody = op?.requestBody && deref(spec, op.requestBody).schema;
+  const content = requestBody?.content ?? {};
+  // Path-item parameters apply to every operation, unless the operation
+  // declares one with the same name and location.
+  const declared = (list) => (list ?? []).map((p) => deref(spec, p).schema);
+  const own = declared(op?.parameters);
+  const query = [
+    ...own,
+    ...declared(item?.parameters).filter(
+      (p) => !own.some((o) => o.name === p.name && o.in === p.in),
+    ),
+  ].filter((p) => p.in === "query");
   const unexpected = query
     .filter((p) => {
       const clients = p["x-introspection"]?.clients;
@@ -468,9 +496,9 @@ export function specShapes(spec, path, method, client) {
   return {
     body: Object.keys(content).length
       ? {
+          content,
           media: Object.keys(content),
-          schema: content["application/json"]?.schema,
-          required: op.requestBody.required,
+          required: requestBody.required,
         }
       : undefined,
     query: {
@@ -662,8 +690,8 @@ const encodedMedia = (type) =>
  */
 function compareBody(ctx, shapes, body, contentType, out) {
   const { checker } = ctx;
-  const media =
-    body && (encodedMedia(body) ?? contentType ?? "application/json");
+  const encoded = body && encodedMedia(body);
+  const media = body && (encoded ?? contentType ?? "application/json");
   // Presence and media type first: they hold whatever the body's type, so an
   // unresolvable body still fails when the reference takes none.
   if (!shapes.body) {
@@ -682,13 +710,28 @@ function compareBody(ctx, shapes, body, contentType, out) {
       field: "body",
       detail: `reference takes ${shapes.body.media.join(", ")}, SDK sends ${media}`,
     });
-  } else if (media === "application/json") {
+  } else if (!encoded && contentType === null) {
+    out.push({
+      kind: "unresolvable",
+      field: "body",
+      detail: "Content-Type header is not a literal",
+    });
+  } else if (isJson(media)) {
     const why = unresolvable(checker, body);
+    const schema = mediaEntry(shapes.body.content, media)?.schema;
     if (why) out.push({ kind: "unresolvable", field: "body", detail: why });
-    else ctx.run(shapes.body.schema, body, "body");
+    else if (schema) ctx.run(schema, body, "body");
+  } else if (!encoded) {
+    // A form serialized to a string before the call: its fields are not
+    // in its type.
+    out.push({
+      kind: "unresolvable",
+      field: "body",
+      detail: `${essence(media)} serialized before the call (string)`,
+    });
   }
-  // A form body matches the reference's media type, but carries no field
-  // types to compare, like a non-JSON response.
+  // A form body `fetch` encodes itself matches the reference's media type,
+  // but carries no field types to compare, like a non-JSON response.
 }
 
 function compareQuery(ctx, shapes, types, out) {
