@@ -72,7 +72,7 @@ export const flow = {
         },
         {
           kind: "package",
-          package: "@introspection-sdk/person-server",
+          package: "@introspection-sdk/aauth-person-server",
           path: "src/person-server.ts",
           region: "missions",
           label: "Acme: missions",
@@ -100,7 +100,7 @@ export const flow = {
         },
         {
           kind: "package",
-          package: "@introspection-sdk/person-server",
+          package: "@introspection-sdk/aauth-person-server",
           path: "src/person-server.ts",
           region: "person-token",
           label: "Acme: person tokens under the mission",
@@ -210,7 +210,7 @@ export const flow = {
       id: "exchange",
       title: "Egress takes the resource token to Acme",
       actor: "Egress → Acme's Person Server",
-      body: "The egress proxy holds the request and calls Acme's token endpoint, signed with the same key: the resource token and the person token it presented. Acme checks the signature and the agent token, that the resource token is addressed to Acme and names the same agent key and mission, then weighs the resource token's budget against what is left of the trip's. Acme's Person Server is @introspection-sdk/person-server, configured with Acme's people and its way of asking.",
+      body: "The egress proxy holds the request and calls Acme's token endpoint, signed with the same key: the resource token and the person token it presented. Acme checks the signature and the agent token, that the resource token is addressed to Acme and names the same agent key and mission, then weighs the resource token's budget against what is left of the trip's. Acme's Person Server is @introspection-sdk/aauth-person-server, configured with Acme's people and its way of asking.",
       sources: [
         {
           kind: "contract",
@@ -219,14 +219,14 @@ export const flow = {
         },
         {
           kind: "package",
-          package: "@introspection-sdk/person-server",
+          package: "@introspection-sdk/aauth-person-server",
           path: "src/person-server.ts",
           region: "verify-agent",
           label: "Acme: verify the agent",
         },
         {
           kind: "package",
-          package: "@introspection-sdk/person-server",
+          package: "@introspection-sdk/aauth-person-server",
           path: "src/person-server.ts",
           region: "auth-token",
           label: "Acme: verify the request, weigh the budget",
@@ -276,7 +276,7 @@ export const flow = {
       sources: [
         {
           kind: "package",
-          package: "@introspection-sdk/person-server",
+          package: "@introspection-sdk/aauth-person-server",
           path: "src/person-server.ts",
           region: "pending",
           label: "Acme: the pending URL",
@@ -315,7 +315,7 @@ export const flow = {
       sources: [
         {
           kind: "package",
-          package: "@introspection-sdk/person-server",
+          package: "@introspection-sdk/aauth-person-server",
           path: "src/person-server.ts",
           region: "missions",
           label: "Acme: missions",

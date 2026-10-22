@@ -9,7 +9,7 @@
     "packages/introspection-*": {
       "project": ["src/**/*.ts!"]
     },
-    "packages/introspection-person-server": {
+    "packages/introspection-aauth-person-server": {
       "entry": ["examples/*.ts"],
       "project": ["src/**/*.ts!", "examples/**/*.ts"]
     },
@@ -21,8 +21,12 @@
       "project": ["**/*.{ts,mjs}"]
     },
     "examples": {
-      "entry": ["{api,otel,proxy}/**/*.ts!"],
-      "project": ["{api,otel,proxy}/**/*.ts!"]
+      "entry": ["{api,otel,proxy,identity,observe,patterns}/**/*.ts!"],
+      "project": ["{api,otel,proxy,identity,observe,patterns}/**/*.ts!"]
+    },
+    "examples/browser": {
+      "entry": ["web-chat.ts!"],
+      "project": ["*.ts!"]
     }
   }
 }

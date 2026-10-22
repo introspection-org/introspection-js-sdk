@@ -25,17 +25,17 @@ export const config = [
     // Size limits ratchet: set at today's worst value, only ever lowered
     // toward the targets in AGENTS.md ("Size limits ratchet").
     rules: {
-      complexity: ["error", 65],
+      complexity: ["error", 45],
       "max-lines": [
         "error",
-        { max: 1211, skipBlankLines: true, skipComments: true },
+        { max: 993, skipBlankLines: true, skipComments: true },
       ],
       "max-lines-per-function": [
         "error",
         { max: 856, skipBlankLines: true, skipComments: true },
       ],
-      "max-params": ["error", 9],
-      "max-depth": ["error", 5],
+      "max-params": ["error", 6],
+      "max-depth": ["error", 4],
     },
   },
   {

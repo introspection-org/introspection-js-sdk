@@ -1,4 +1,9 @@
 dist
+# Docs snippet regions keep the docs' line layout, not prettier's.
+examples/browser/
+examples/identity/
+examples/observe/
+examples/patterns/
 node_modules
 vendor
 coverage
@@ -10,3 +15,5 @@ pnpm-lock.yaml
 # Byte copies of the published API reference, refreshed with curl; see
 # scripts/api-drift-report.mjs.
 api-reference
+# Docs snippet regions keep the docs' line layout, not prettier's.
+examples/reference/

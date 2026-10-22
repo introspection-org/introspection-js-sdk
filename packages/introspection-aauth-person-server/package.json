@@ -1,0 +1,48 @@
+{
+  "name": "@introspection-sdk/aauth-person-server",
+  "version": "0.1.0",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/introspection-org/introspection-js-sdk.git",
+    "directory": "packages/introspection-aauth-person-server"
+  },
+  "description": "An AAuth Person Server (draft-hardt-oauth-aauth-protocol -11): missions, person and auth tokens, budgets and approvals, as Request \u2192 Response handlers",
+  "engines": {
+    "node": ">=22"
+  },
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist/"
+  ],
+  "scripts": {
+    "lint": "eslint . --max-warnings 0",
+    "check-types": "tsc --noEmit",
+    "build": "rm -rf dist && tsc",
+    "clean": "rm -rf dist",
+    "prepare": "rm -rf dist && tsc",
+    "check:package": "publint --strict && attw --pack . --profile esm-only"
+  },
+  "dependencies": {
+    "@aauth/resource": "^3.0.0",
+    "@hellocoop/httpsig": "^2.6.0",
+    "@introspection-sdk/aauth-protocol": "workspace:*",
+    "@opentelemetry/api": "^1.9.1",
+    "jose": "^6.2.12"
+  },
+  "devDependencies": {
+    "@repo/eslint-config": "workspace:*",
+    "@repo/typescript-config": "workspace:*",
+    "@types/node": "^22.20.5",
+    "eslint": "^9.39.5",
+    "typescript": "5.9.3"
+  }
+}
