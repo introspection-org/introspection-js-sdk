@@ -706,6 +706,10 @@ export type ConversationContentClass =
   | "user_text"
   | "assistant_text"
   | "delegation"
+  /** A chat item whose output calls any tool. */
+  | "tool_call"
+  /** A chat item whose new input carries any tool's result. */
+  | "tool_result"
   | `tool:${string}`
   | `tool_call:${string}`
   | `tool_result:${string}`;
