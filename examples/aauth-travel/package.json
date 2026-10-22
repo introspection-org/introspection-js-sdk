@@ -18,7 +18,7 @@
     "@hellocoop/httpsig": "^2.6.0",
     "@introspection-sdk/aauth-resource": "workspace:*",
     "@introspection-sdk/introspection-node": "workspace:*",
-    "@introspection-sdk/person-server": "workspace:*",
+    "@introspection-sdk/aauth-person-server": "workspace:*",
     "jose": "^6.2.12",
     "next": "^16.4.2",
     "react": "^19.3.1",

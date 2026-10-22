@@ -1,7 +1,7 @@
 /**
  * The AAuth glue the demo's routes share. The booking provider's AAuth is
  * @introspection-sdk/aauth-resource's and Acme's Person Server is
- * @introspection-sdk/person-server's; what is here is how a route answers an
+ * @introspection-sdk/aauth-person-server's; what is here is how a route answers an
  * error, with the resource package's AAuthError so one class flows through
  * every route.
  */

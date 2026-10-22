@@ -112,15 +112,15 @@ importers:
       '@hellocoop/httpsig':
         specifier: ^2.6.0
         version: 2.6.0
+      '@introspection-sdk/aauth-person-server':
+        specifier: workspace:*
+        version: link:../../packages/introspection-aauth-person-server
       '@introspection-sdk/aauth-resource':
         specifier: workspace:*
         version: link:../../packages/introspection-aauth-resource
       '@introspection-sdk/introspection-node':
         specifier: workspace:*
         version: link:../../packages/introspection-node
-      '@introspection-sdk/person-server':
-        specifier: workspace:*
-        version: link:../../packages/introspection-person-server
       jose:
         specifier: ^6.2.12
         version: 6.2.12
@@ -260,7 +260,35 @@ importers:
         specifier: ^8.71.2
         version: 8.71.2(eslint@9.39.5(jiti@2.7.0))(typescript@5.9.3)
 
-  packages/introspection-aauth-resource:
+  packages/introspection-aauth-access-server:
+    dependencies:
+      '@aauth/resource':
+        specifier: ^3.0.0
+        version: 3.0.0
+      '@introspection-sdk/aauth-protocol':
+        specifier: workspace:*
+        version: link:../introspection-aauth-protocol
+      jose:
+        specifier: ^6.2.12
+        version: 6.2.12
+    devDependencies:
+      '@repo/eslint-config':
+        specifier: workspace:*
+        version: link:../eslint-config
+      '@repo/typescript-config':
+        specifier: workspace:*
+        version: link:../typescript-config
+      '@types/node':
+        specifier: ^22.20.5
+        version: 22.20.5
+      eslint:
+        specifier: ^9.39.5
+        version: 9.39.5(jiti@2.7.0)
+      typescript:
+        specifier: 5.9.3
+        version: 5.9.3
+
+  packages/introspection-aauth-person-server:
     dependencies:
       '@aauth/resource':
         specifier: ^3.0.0
@@ -268,9 +296,71 @@ importers:
       '@hellocoop/httpsig':
         specifier: ^2.6.0
         version: 2.6.0
-      '@introspection-sdk/person-server':
+      '@introspection-sdk/aauth-protocol':
         specifier: workspace:*
-        version: link:../introspection-person-server
+        version: link:../introspection-aauth-protocol
+      '@opentelemetry/api':
+        specifier: ^1.9.1
+        version: 1.9.1
+      jose:
+        specifier: ^6.2.12
+        version: 6.2.12
+    devDependencies:
+      '@repo/eslint-config':
+        specifier: workspace:*
+        version: link:../eslint-config
+      '@repo/typescript-config':
+        specifier: workspace:*
+        version: link:../typescript-config
+      '@types/node':
+        specifier: ^22.20.5
+        version: 22.20.5
+      eslint:
+        specifier: ^9.39.5
+        version: 9.39.5(jiti@2.7.0)
+      typescript:
+        specifier: 5.9.3
+        version: 5.9.3
+
+  packages/introspection-aauth-protocol:
+    dependencies:
+      '@aauth/resource':
+        specifier: ^3.0.0
+        version: 3.0.0
+      '@hellocoop/httpsig':
+        specifier: ^2.6.0
+        version: 2.6.0
+      '@opentelemetry/api':
+        specifier: ^1.9.1
+        version: 1.9.1
+      jose:
+        specifier: ^6.2.12
+        version: 6.2.12
+    devDependencies:
+      '@repo/eslint-config':
+        specifier: workspace:*
+        version: link:../eslint-config
+      '@repo/typescript-config':
+        specifier: workspace:*
+        version: link:../typescript-config
+      '@types/node':
+        specifier: ^22.20.5
+        version: 22.20.5
+      eslint:
+        specifier: ^9.39.5
+        version: 9.39.5(jiti@2.7.0)
+      typescript:
+        specifier: 5.9.3
+        version: 5.9.3
+
+  packages/introspection-aauth-resource:
+    dependencies:
+      '@aauth/resource':
+        specifier: ^3.0.0
+        version: 3.0.0
+      '@introspection-sdk/aauth-protocol':
+        specifier: workspace:*
+        version: link:../introspection-aauth-protocol
       jose:
         specifier: ^6.2.12
         version: 6.2.12
@@ -472,34 +562,6 @@ importers:
         specifier: 5.9.3
         version: 5.9.3
 
-  packages/introspection-person-server:
-    dependencies:
-      '@aauth/resource':
-        specifier: ^3.0.0
-        version: 3.0.0
-      '@hellocoop/httpsig':
-        specifier: ^2.6.0
-        version: 2.6.0
-      jose:
-        specifier: ^6.2.12
-        version: 6.2.12
-    devDependencies:
-      '@repo/eslint-config':
-        specifier: workspace:*
-        version: link:../eslint-config
-      '@repo/typescript-config':
-        specifier: workspace:*
-        version: link:../typescript-config
-      '@types/node':
-        specifier: ^22.20.5
-        version: 22.20.5
-      eslint:
-        specifier: ^9.39.5
-        version: 9.39.5(jiti@2.7.0)
-      typescript:
-        specifier: 5.9.3
-        version: 5.9.3
-
   packages/introspection-pi:
     dependencies:
       '@introspection-sdk/types':
@@ -612,15 +674,24 @@ importers:
       '@hellocoop/httpsig':
         specifier: ^2.6.0
         version: 2.6.0
+      '@introspection-sdk/aauth-access-server':
+        specifier: workspace:*
+        version: link:../packages/introspection-aauth-access-server
+      '@introspection-sdk/aauth-person-server':
+        specifier: workspace:*
+        version: link:../packages/introspection-aauth-person-server
+      '@introspection-sdk/aauth-protocol':
+        specifier: workspace:*
+        version: link:../packages/introspection-aauth-protocol
+      '@introspection-sdk/aauth-resource':
+        specifier: workspace:*
+        version: link:../packages/introspection-aauth-resource
       '@introspection-sdk/introspection-node':
         specifier: workspace:*
         version: link:../packages/introspection-node
       '@introspection-sdk/introspection-pi':
         specifier: workspace:*
         version: link:../packages/introspection-pi
-      '@introspection-sdk/person-server':
-        specifier: workspace:*
-        version: link:../packages/introspection-person-server
       '@opentelemetry/api':
         specifier: ^1.9.1
         version: 1.9.1
@@ -683,7 +754,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: ^4.1.12
-        version: 4.1.12(@opentelemetry/api@1.9.1)(@types/node@22.20.5)(@vitest/coverage-v8@4.1.12)(vite@8.0.14(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.0))
+        version: 4.1.12(@opentelemetry/api@1.9.1)(@types/node@22.20.5)(@vitest/coverage-v8@4.1.12)(vite@8.0.14(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1))
 
 packages:
 
@@ -7369,7 +7440,7 @@ snapshots:
       obug: 2.2.1
       std-env: 4.3.0
       tinyrainbow: 3.2.0
-      vitest: 4.1.12(@opentelemetry/api@1.9.1)(@types/node@22.20.5)(@vitest/coverage-v8@4.1.12)(vite@8.0.14(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.0))
+      vitest: 4.1.12(@opentelemetry/api@1.9.1)(@types/node@22.20.5)(@vitest/coverage-v8@4.1.12)(vite@8.0.14(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1))
 
   '@vitest/expect@4.1.12':
     dependencies:
@@ -7380,13 +7451,13 @@ snapshots:
       chai: 6.3.0
       tinyrainbow: 3.2.0
 
-  '@vitest/mocker@4.1.12(vite@8.0.14(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.0))':
+  '@vitest/mocker@4.1.12(vite@8.0.14(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1))':
     dependencies:
       '@vitest/spy': 4.1.12
       estree-walker: 3.0.3
       magic-string: 0.30.21
     optionalDependencies:
-      vite: 8.0.14(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.0)
+      vite: 8.0.14(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1)
 
   '@vitest/pretty-format@4.1.12':
     dependencies:
@@ -11190,7 +11261,7 @@ snapshots:
       '@types/unist': 3.0.3
       vfile-message: 4.0.3
 
-  vite@8.0.14(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.0):
+  vite@8.0.14(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1):
     dependencies:
       lightningcss: 1.33.0
       picomatch: 4.0.7
@@ -11203,12 +11274,12 @@ snapshots:
       fsevents: 2.3.3
       jiti: 2.7.0
       tsx: 4.23.15
-      yaml: 2.9.0
+      yaml: 2.9.1
 
-  vitest@4.1.12(@opentelemetry/api@1.9.1)(@types/node@22.20.5)(@vitest/coverage-v8@4.1.12)(vite@8.0.14(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.0)):
+  vitest@4.1.12(@opentelemetry/api@1.9.1)(@types/node@22.20.5)(@vitest/coverage-v8@4.1.12)(vite@8.0.14(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1)):
     dependencies:
       '@vitest/expect': 4.1.12
-      '@vitest/mocker': 4.1.12(vite@8.0.14(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.0))
+      '@vitest/mocker': 4.1.12(vite@8.0.14(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1))
       '@vitest/pretty-format': 4.1.12
       '@vitest/runner': 4.1.12
       '@vitest/snapshot': 4.1.12
@@ -11225,7 +11296,7 @@ snapshots:
       tinyexec: 1.3.1
       tinyglobby: 0.2.17
       tinyrainbow: 3.2.0
-      vite: 8.0.14(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.0)
+      vite: 8.0.14(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1)
       why-is-node-running: 2.3.0
     optionalDependencies:
       '@opentelemetry/api': 1.9.1

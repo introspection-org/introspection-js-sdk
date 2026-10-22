@@ -1,11 +1,12 @@
-# @introspection-sdk/person-server
+# @introspection-sdk/aauth-person-server
 
 An AAuth Person Server ([draft-hardt-oauth-aauth-protocol](https://github.com/dickhardt/AAuth) `-11`, three-party) you can run instead of building one. It speaks for your people when agents want to act for them:
 
 - verifies each agent by its HTTP Message Signature (RFC 9421) and the agent token it presents, from agent providers you trust;
 - approves **missions**, and issues **person tokens** and **auth tokens** under them;
 - weighs each auth token request against its mission's **budget** ([draft-hardt-aauth-budgets](https://github.com/dickhardt/AAuth)): a request whose resource token carries a `budget` that fits what is left is issued at once, and spent;
-- turns anything that needs a human into an **approval**, which you decide however you reach the person: email, chat, your own app.
+- turns anything that needs a human into an **approval**, which you decide however you reach the person: email, chat, your own app;
+- **federates** with a resource's own Access Server (four-party) when the resource token names one, after weighing the request against the mission as for any resource.
 
 Handlers take a Web `Request` and return a `Response`, so it mounts in Next.js, Hono, Bun, Deno, Workers or plain Node.
 
@@ -14,7 +15,7 @@ Introspection runs the same protocol as a hosted Person Server in its data plane
 ## Use
 
 ```ts
-import { createPersonServer } from "@introspection-sdk/person-server";
+import { createPersonServer } from "@introspection-sdk/aauth-person-server";
 
 const ps = await createPersonServer({
   issuer: "https://ps.acme.example", // https://host, no port or path
@@ -46,7 +47,7 @@ await ps.decide(approval.tenant, approval.id, {
 ## Run it on its own
 
 ```bash
-npm install @introspection-sdk/person-server
+npm install @introspection-sdk/aauth-person-server
 # A stable Ed25519 signing key and subject secret, generated once:
 node -e 'const c=require("node:crypto");process.stdout.write(c.generateKeyPairSync("ed25519").privateKey.export({type:"pkcs8",format:"pem"}))' > ps-signing-key.pem
 node -e 'process.stdout.write(require("node:crypto").randomBytes(32).toString("hex"))' > ps-subject-secret
@@ -60,7 +61,7 @@ import { readFileSync } from "node:fs";
 import { createServer } from "node:http";
 import { Readable } from "node:stream";
 
-import { createPersonServer } from "@introspection-sdk/person-server";
+import { createPersonServer } from "@introspection-sdk/aauth-person-server";
 
 const issuer = "https://ps.acme.example";
 const people = {
@@ -172,9 +173,32 @@ Fixed and small:
 - a request with no `budget` is issued within the mission without spending;
 - completing a mission is the person's own decision, and nothing is issued under it afterwards;
 - each agent key is bound to the first person it names.
-- an approved auth token is collected once: later polls of the same approval answer `410`, so one approval spends once;
+- an approved auth token is collected once (`collected` on the approval): later polls of the same approval answer `410`, so one approval spends once;
 - each approval is decided once, however many answers arrive.
+
+## Resources with their own Access Server
+
+A resource that keeps its own policy names its Access Server (AS) as the `aud` of its resource tokens instead of this Person Server ([`-11` #access-server-federation](https://github.com/dickhardt/AAuth)). That `aud` is the only signal; nothing is configured here. On `POST {base}/token`:
+
+1. The resource token is verified against the resource's keys and weighed against the mission exactly as above: a resource the mission does not cover is refused, and a `budget` over what is left goes to the approver first. Only the AS a verified resource token names is ever fetched.
+2. The request is redeemed at the AS: `{aud}/.well-known/aauth-access.json`, then a `POST` to its `auth_token_endpoint` signed with this server's key (`sig=jwks_uri;id=<issuer>;dwk="aauth-person.json"`), carrying `resource_token`, `agent_token` and `presented_token`.
+3. The AS's auth token is checked before the agent gets it (#auth-token-delivery: its keys, `iss`, `aud`, `ps`, `sub`, `cnf`, `mission_s256`, a scope no broader than asked, an `exp` within the presented token's), the budget is spent only then, and the token is returned unchanged.
+4. A `202` from the AS (`requirement=approval` or `interaction`) is answered to the agent as this server's own `202`, relaying the AS's `AAuth-Requirement`; each poll of the agent's pending URL polls the AS's `Location`, so no worker is needed. An AS refusal is relayed with its own `error` and status, and ends the approval; an AS that cannot be reached, answers malformed or issues a token that fails the checks is `502 as_unreachable`.
+
+The approval for such a request carries `federation` (the AS, the three tokens, and where the AS said to poll), and is `approved` while the AS decides, so `decide()` cannot settle it. `requirement=claims`, `clarification` and `402` are refused with the AS's reason; revocation at the AS is not done yet.
+
+[`@introspection-sdk/aauth-access-server`](../introspection-aauth-access-server) is the other side.
 
 ## Hooks
 
-`onApproval(approval)` when a decision is needed, `onDecision(approval)` once it is made, and `onIssued({type, agent, person, resource, mission, budget})` for each token issued.
+`onApproval(approval)` when a decision is needed, `onDecision(approval)` once it is made, and `onIssued({type, agent, person, resource, mission, budget, access_server?})` for each token issued, `access_server` naming the AS when it issued it.
+
+## Building blocks
+
+`PersonServer` extends `AAuthServer` from [`@introspection-sdk/aauth-protocol`](../introspection-aauth-protocol), which holds what it shares with `@introspection-sdk/aauth-access-server` and `@introspection-sdk/aauth-resource`: the typed errors, `loadSigner`, `verifySignature`, the pending answer and `readProposalSummary`. `AAuthError` and `problem` are exported here too.
+
+The federation steps are its methods: `federationDue(tenant, id)` (an approved request still to redeem at its AS), `federate(…)` (one exchange with the AS, then its record) and `recordFederation(…)`. `AccessServerClient` is the client for the AS (`discover`, `request`, `poll`); each exchange comes back as an `Outcome` (`issued`, `pending` or `refused`, with `Outcome.refused`, `Outcome.unreachable` and `pollDelay()`).
+
+## Logging and tracing
+
+The package configures neither. It writes spans through `@opentelemetry/api`: `person_server.federate`, with `person_server.federate.metadata`, `.request`, `.poll` and `.delivery` per exchange, and `aauth.r3.read` for a proposal. Pass `logger` for its decision records: `federation outcome recorded`, with `tenant`, `approval_id`, `step` and `error`. A record carries identifiers and enumerated values, never a token or a person's details.
