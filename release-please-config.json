@@ -23,21 +23,24 @@
       "component": "aauth-protocol",
       "changelog-path": "CHANGELOG.md",
       "bump-minor-pre-major": true,
-      "bump-patch-for-minor-pre-major": false
+      "bump-patch-for-minor-pre-major": false,
+      "last-release-sha": "4a5d885ea96660c92fffd15a4b7031a59a546dde"
     },
     "packages/introspection-aauth-person-server": {
       "release-type": "node",
       "component": "aauth-person-server",
       "changelog-path": "CHANGELOG.md",
       "bump-minor-pre-major": true,
-      "bump-patch-for-minor-pre-major": false
+      "bump-patch-for-minor-pre-major": false,
+      "last-release-sha": "4a5d885ea96660c92fffd15a4b7031a59a546dde"
     },
     "packages/introspection-aauth-access-server": {
       "release-type": "node",
       "component": "aauth-access-server",
       "changelog-path": "CHANGELOG.md",
       "bump-minor-pre-major": true,
-      "bump-patch-for-minor-pre-major": false
+      "bump-patch-for-minor-pre-major": false,
+      "last-release-sha": "4a5d885ea96660c92fffd15a4b7031a59a546dde"
     }
   },
   "plugins": [
