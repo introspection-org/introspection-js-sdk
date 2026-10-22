@@ -19,12 +19,6 @@ import {
   verifyToken,
 } from "@aauth/resource";
 import {
-  generateAcceptSignatureSchemeHeader,
-  generateSignatureErrorHeader,
-  type SignatureErrorCode,
-  verify,
-} from "@hellocoop/httpsig";
-import {
   type CryptoKey,
   type JWK,
   type JWTPayload,
@@ -37,17 +31,27 @@ import {
   jwtVerify,
 } from "jose";
 
-import { AAuthError, problem } from "@introspection-sdk/aauth-person-server";
+import {
+  AAuthError,
+  type Budget,
+  type FetchLike,
+  httpsOnly,
+  InvalidRequest,
+  MAX_TOKEN_LIFETIME,
+  parseBudget,
+  problem,
+  sameScale,
+  Unauthorized,
+  tokenProblem,
+  trimIdentifier,
+  verifySignature as verifyAddressed,
+} from "@introspection-sdk/aauth-protocol";
 
 /** RFC 9864's fully-specified identifier; the polymorphic `EdDSA` is not used. */
 const ALG = "Ed25519";
 
 /** draft-hardt-aauth-budgets: an amount in a unit's smallest denomination. */
-export interface Budget {
-  amount: number;
-  unit: string;
-  decimals: number;
-}
+export type { Budget };
 
 export interface AAuthResourceOptions {
   /** This resource's identifier: `https://host`, the origin agents call. */
@@ -67,7 +71,17 @@ export interface AAuthResourceOptions {
   personServers: readonly string[];
   /** Agent Providers whose agent tokens it accepts. */
   agentProviders: readonly string[];
+  /**
+   * This resource's own Access Server (draft -11 four-party), when it has one:
+   * its resource tokens name it as `aud`, so the person's Person Server
+   * redeems them there, and it accepts only the auth tokens that AS issues for
+   * the people of `personServers`, never one a Person Server issued itself,
+   * which would skip the AS's policy. Unset, each Person Server issues them.
+   */
+  accessServer?: string;
   /** A PKCS#8 PEM to keep the key across restarts; a fresh key otherwise. */
+  /** For fetching the keys of the tokens it verifies; global fetch by default. Only `https`, never redirected. */
+  fetch?: FetchLike;
   signingKey?: string;
   kid?: string;
   /** Where proposals live until their Person Server reads them; in memory by default. */
@@ -176,17 +190,6 @@ export async function respond(run: () => Promise<Response>): Promise<Response> {
   }
 }
 
-function signatureError(code: SignatureErrorCode, detail: string): AAuthError {
-  const headers: Record<string, string> = {
-    "Signature-Error": generateSignatureErrorHeader({ error: code }),
-  };
-  if (code === "unsupported_scheme")
-    headers["Accept-Signature-Scheme"] = generateAcceptSignatureSchemeHeader([
-      "jwt",
-    ]);
-  return new AAuthError(401, code, detail, headers);
-}
-
 const challenge = (
   requirement: Parameters<typeof buildRequirementHeader>[0],
   detail: string,
@@ -217,20 +220,7 @@ async function verifySignature(
   url: string,
 ): Promise<SignedRequest> {
   const { host, pathname } = new URL(url);
-  const result = await verify(
-    {
-      method: request.method,
-      authority: host,
-      path: pathname,
-      headers: request.headers,
-      ...(body ? { body } : {}),
-    },
-    { requireContentDigest: true, supportedAlgorithms: ["Ed25519", "ES256"] },
-  );
-  if (!result.verified) {
-    const code = result.signatureError?.error ?? "invalid_signature";
-    throw signatureError(code, result.error ?? "signature does not verify");
-  }
+  const result = await verifyAddressed(request, body, host, pathname);
   return {
     keyType: result.keyType,
     thumbprint: result.thumbprint,
@@ -243,7 +233,7 @@ async function verifySignature(
 export async function createAAuthResource(
   options: AAuthResourceOptions,
 ): Promise<AAuthResource> {
-  const issuer = options.issuer.replace(/\/+$/, "");
+  const issuer = trimIdentifier(options.issuer);
   if (!issuer.startsWith("https://"))
     throw new Error("issuer must be an https origin");
   const vocabulary = options.vocabulary ?? `${issuer}/r3/vocabulary`;
@@ -262,10 +252,20 @@ export async function createAAuthResource(
     new SignJWT(claims)
       .setProtectedHeader({ ...header, alg: ALG, kid } as { alg: string })
       .sign(privateKey);
-  const issuers: Partial<Record<TokenKind, readonly string[]>> = {
-    agent: options.agentProviders,
-    person: options.personServers,
-    auth: options.personServers,
+  const accessServer =
+    options.accessServer === undefined
+      ? undefined
+      : trimIdentifier(options.accessServer);
+  const keysFetch = httpsOnly(
+    options.fetch ?? ((input, init) => fetch(input, init)),
+  );
+  if (accessServer !== undefined && !accessServer.startsWith("https://"))
+    throw new Error("accessServer must be an https origin");
+  const personServers = options.personServers.map(trimIdentifier);
+  const issuers: Record<TokenKind, readonly string[]> = {
+    agent: options.agentProviders.map(trimIdentifier),
+    person: personServers,
+    auth: accessServer ? [accessServer] : personServers,
   };
 
   /** The token a signed request presented: a kind it accepts, from an issuer it trusts, binding the signing key. */
@@ -274,31 +274,61 @@ export async function createAAuthResource(
     accept: TokenKind[],
   ): Promise<VerifiedToken> {
     if (signed.keyType !== "jwt" || !signed.jwt)
-      throw signatureError("unsupported_scheme", "sign with sig=jwt");
+      throw Unauthorized.signature("unsupported_scheme", "sign with sig=jwt");
     let claims: JWTPayload;
     try {
       claims = decodeJwt(signed.jwt);
     } catch {
-      throw signatureError("invalid_jwt", "not a JWT");
+      throw Unauthorized.signature("invalid_jwt", "not a JWT");
     }
     // Checked before verifying, since verifying fetches the issuer's keys.
-    if (!accept.some((kind) => issuers[kind]?.includes(String(claims.iss))))
-      throw signatureError(
+    const named = trimIdentifier(String(claims.iss));
+    if (!accept.some((kind) => issuers[kind]?.includes(named)))
+      throw Unauthorized.signature(
         "invalid_jwt",
         `${String(claims.iss)} is not trusted here`,
       );
-    return verifyToken({
+    const token = await verifyToken({
       jwt: signed.jwt,
       httpSignatureThumbprint: signed.thumbprint,
       resource: issuer,
       accept,
+      fetch: keysFetch,
     }).catch((err: Error) => {
       const code = err instanceof AAuthTokenError ? err.code : "invalid_jwt";
-      throw signatureError(
+      throw Unauthorized.signature(
         code === "token_expired" ? "expired_jwt" : "invalid_jwt",
         err.message,
       );
     });
+    if (!issuers[token.type].includes(trimIdentifier(token.iss)))
+      throw Unauthorized.signature(
+        "invalid_jwt",
+        `${token.iss} does not issue those`,
+      );
+    const shape = tokenProblem(
+      token.claims,
+      token.type === "agent" ? {} : { maxLifetime: MAX_TOKEN_LIFETIME },
+    );
+    if (shape)
+      throw Unauthorized.signature(
+        "invalid_jwt",
+        `the ${token.type} token ${shape}`,
+      );
+    // An auth token is the Access Server's, for one of its Person Servers' people, or else that Person Server's own.
+    if (
+      token.type === "auth" &&
+      (trimIdentifier(token.iss) === accessServer
+        ? token.dwk !== "aauth-access.json" ||
+          !personServers.includes(trimIdentifier(token.ps))
+        : token.dwk !== "aauth-person.json" ||
+          trimIdentifier(token.ps) !== trimIdentifier(token.iss))
+    )
+      throw Unauthorized.signature(
+        "invalid_jwt",
+        "not an auth token issued here",
+      );
+    return token;
   }
 
   // #region propose
@@ -316,12 +346,13 @@ export async function createAAuthResource(
       display: { summary: ask.summary },
       store: r3,
       baseUri: `${issuer}/r3`,
-      authorized: [ps],
+      // The Access Server reads it too, to weigh the call.
+      authorized: accessServer ? [ps, accessServer] : [ps],
     });
     const resourceToken = await createResourceToken(
       {
         resource: issuer,
-        audience: ps,
+        audience: accessServer ?? ps,
         presentedToken: token as Parameters<
           typeof createResourceToken
         >[0]["presentedToken"],
@@ -426,7 +457,7 @@ export async function createAAuthResource(
       if ("challenge" in call) return { ok: false, response: call.challenge };
       const { signed, token } = call;
       const ask = typeof asked === "function" ? await asked(token) : asked;
-      if (token.type === "auth" && token.r3_s256) {
+      if (token.type === "auth" && token.r3_s256 && grants(token, ask)) {
         const approved = await verifyProposalParameters({
           store: r3,
           r3_s256: token.r3_s256,
@@ -436,18 +467,48 @@ export async function createAAuthResource(
           () => true,
           () => false,
         );
-        if (approved)
-          return {
-            ok: true,
-            ...caller(token),
-            jti: String(token.claims.jti),
-          };
+        if (approved && token.jti)
+          return { ok: true, ...caller(token), jti: token.jti };
       }
       return {
         ok: false,
         response: await propose(token, signed.thumbprint, ask),
       };
     });
+  }
+
+  /**
+   * Whether an auth token grants this call, whoever issued it: its `scope`
+   * covers the call's, and its `budget`, in the call's unit and scale, covers
+   * the call's price (draft-hardt-aauth-budgets #resource-enforces). An Access
+   * Server may grant less than was asked; a token that does not cover the call
+   * is answered with a fresh challenge, as for no token at all.
+   */
+  function grants(token: VerifiedToken, ask: AuthorizeRequest): boolean {
+    const granted = new Set(
+      String(token.claims.scope ?? "")
+        .split(" ")
+        .filter(Boolean),
+    );
+    if (
+      !ask.scope
+        .split(" ")
+        .filter(Boolean)
+        .every((s) => granted.has(s))
+    )
+      return false;
+    if (!ask.budget) return true;
+    let budget: Budget | undefined;
+    try {
+      budget = parseBudget(token.claims.budget);
+    } catch {
+      return false;
+    }
+    return (
+      !!budget &&
+      sameScale(budget, ask.budget) &&
+      budget.amount >= ask.budget.amount
+    );
   }
 
   async function authenticate(
@@ -471,10 +532,13 @@ export async function createAAuthResource(
     const id = /jwks_uri;(?:[^,]*;)?id="([^"]+)"/.exec(
       request.headers.get("signature-key") ?? "",
     )?.[1];
-    if (!id || !options.personServers.includes(id))
-      throw signatureError(
+    if (
+      !id ||
+      !(personServers.includes(trimIdentifier(id)) || id === accessServer)
+    )
+      throw Unauthorized.signature(
         "invalid_signature",
-        "only the person's Person Server reads a proposal",
+        "only the person's Person Server, or this resource's Access Server, reads a proposal",
       );
     const signed = await verifySignature(
       request,
@@ -520,11 +584,7 @@ export async function createAAuthResource(
           })
         ).payload;
       } catch {
-        throw new AAuthError(
-          400,
-          "invalid_request",
-          "not signed by this resource",
-        );
+        throw new InvalidRequest("not signed by this resource");
       }
     },
     authorize,

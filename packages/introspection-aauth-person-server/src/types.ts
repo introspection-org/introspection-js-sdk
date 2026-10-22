@@ -1,11 +1,12 @@
 import type { JWK } from "jose";
 
-/** A draft-hardt-aauth-budgets budget: `amount / 10 ** decimals` in `unit`. */
-export interface Budget {
-  amount: number;
-  unit: string;
-  decimals: number;
-}
+import {
+  type AuthGrant,
+  type Budget,
+  sameScale,
+} from "@introspection-sdk/aauth-protocol";
+
+export type { AuthGrant, Budget };
 
 /** Someone this Person Server speaks for. */
 export interface Person {
@@ -32,8 +33,35 @@ export interface Agent {
 }
 
 export type ApprovalKind = "mission" | "auth_token" | "completion";
-/** `collected`: approved, and its auth token handed out. An auth token is collected once. */
-export type ApprovalStatus = "pending" | "approved" | "denied" | "collected";
+/** What was decided. Whether the agent has the answer is `collected`. */
+export type ApprovalStatus = "pending" | "approved" | "denied";
+
+/** The state a transition expects an approval still to be in: its decision, and whether it was collected. */
+export type ApprovalState = Pick<Approval, "status" | "collected">;
+
+/**
+ * An auth token request the resource's own Access Server decides too (draft
+ * -11 four-party): the resource token's `aud` is the AS, and the Person Server
+ * redeems it there with the three tokens below.
+ */
+export interface Federation {
+  /** The Access Server: the verified resource token's `aud`. */
+  access_server: string;
+  resource_token: string;
+  agent_token: string;
+  presented_token: string;
+  /**
+   * Whether the request must fit what is left of the mission's budget when it
+   * is spent: true when the mission covered it, false once a person approved it.
+   */
+  within_budget: boolean;
+  /** The `budget` sent to the AS (draft-hardt-aauth-budgets #as-token-endpoint): the resource token's. */
+  budget?: Budget;
+  /** Where the Access Server said to poll, once it answered `202`. */
+  location?: string;
+  /** The Access Server's `AAuth-Requirement` while it decides, relayed to the agent. */
+  requirement?: string;
+}
 
 /** A decision this Person Server waits on. Whoever operates it makes the decision. */
 export interface Approval {
@@ -52,13 +80,22 @@ export interface Approval {
   resource?: string;
   /** What an auth token request costs, from the resource token. */
   budget?: Budget;
-  /** For a mission: the resources it would cover. For an auth token: the claims it is minted with. */
-  grant: Record<string, unknown>;
+  /** For a mission: the resources it would cover. */
+  resources?: string[];
+  /** For an auth token: the claims it is minted with. */
+  grant?: AuthGrant;
+  /** Set when the resource's Access Server decides too; then the approval is `approved` once the person's side is. */
+  federation?: Federation;
   /** Approving a mission sets its budget. */
   decided_budget?: Budget;
   decided_by?: string;
   /** When it was decided or withdrawn, in seconds since the epoch. */
   decided_at?: number;
+  /**
+   * Whether its pending URL gave the agent the decision (#pending-url-security):
+   * a decision is answered once, and an auth token is minted then.
+   */
+  collected?: boolean;
   /** The tenant it was asked under: the one the agent named, else the default. */
   tenant: string;
   created_at: number;
@@ -81,6 +118,13 @@ export interface Mission {
   tenant: string;
 }
 
+/** Whether a request costing `budget` fits what is left of `mission`'s budget. */
+export const fits = (mission: Mission, budget: Budget | undefined): boolean =>
+  !budget ||
+  (!!mission.budget &&
+    sameScale(mission.budget, budget) &&
+    mission.spent + budget.amount <= mission.budget.amount);
+
 /** What an operator answers. */
 export interface Decision {
   status: "approved" | "denied";
@@ -101,8 +145,8 @@ export interface Decision {
  *
  * Three methods must be atomic, since concurrent requests race on them:
  * `spend` checks and spends in one step, so two bookings cannot both fit in
- * what is left; `transitionApproval` changes an approval only from the status
- * it was read in, so a decision, a withdrawal or a collection happens once;
+ * what is left; `transitionApproval` changes an approval only from the state
+ * it was read in, so a decision, a withdrawal or an answer happens once;
  * and `insertMission` never replaces a mission. `logMission` and `endMission`
  * change a mission in place rather than overwriting a concurrent spend.
  */
@@ -142,11 +186,15 @@ export interface Store {
   missions(tenant: string): Promise<Mission[]>;
   approval(tenant: string, id: string): Promise<Approval | undefined>;
   /** Save a new approval. */
-  putApproval(tenant: string, approval: Approval): Promise<void>;
-  /** Replace approval `next.id` with `next` only if its status is still `expected`; returns whether it did. */
+  insertApproval(tenant: string, approval: Approval): Promise<void>;
+  /**
+   * Replace approval `next.id` with `next` only if its `status` and
+   * `collected` are still `expected`'s (an absent `collected` is false);
+   * returns whether it did.
+   */
   transitionApproval(
     tenant: string,
-    expected: ApprovalStatus,
+    expected: ApprovalState,
     next: Approval,
   ): Promise<boolean>;
   /** The tenant's approvals. */
@@ -172,4 +220,55 @@ export interface Directory {
     kind: ApprovalKind,
     person: Person,
   ): Promise<Person | undefined> | Person | undefined;
+}
+
+/** What one exchange with an Access Server came to. */
+export type Step = "issued" | "pending" | "refused";
+
+/** Seconds between polls when the Access Server sends no usable `Retry-After`, and the bounds on it. */
+const DEFAULT_DELAY = 5;
+const MIN_DELAY = 1;
+const MAX_DELAY = 300;
+
+/** The Access Server's refusal, relayed to the agent with its own status and code. */
+export interface Refusal {
+  status: number;
+  error: string;
+  detail: string;
+}
+
+/** What an exchange with an Access Server came to. */
+export class Outcome {
+  constructor(
+    readonly step: Step,
+    readonly fields: {
+      auth_token?: string;
+      expires_in?: number;
+      /** The budget the Access Server granted, no more than the one sent; spent in its place. */
+      granted?: Budget;
+      /** Where to poll next; on a pending outcome, undefined sends the request again. */
+      location?: string;
+      /** Its `AAuth-Requirement`, relayed to the agent. */
+      requirement?: string;
+      retry_after?: number;
+      refusal?: Refusal;
+    } = {},
+  ) {}
+
+  static refused(status: number, error: string, detail: string): Outcome {
+    return new Outcome("refused", { refusal: { status, error, detail } });
+  }
+
+  /** `as_unreachable`: no verifiable answer from the Access Server. */
+  static unreachable(detail: string): Outcome {
+    return Outcome.refused(502, "as_unreachable", detail);
+  }
+
+  /** `Retry-After`, 5 seconds when absent; never a hot loop, never a stall. */
+  pollDelay(): number {
+    const after = this.fields.retry_after;
+    return after === undefined
+      ? DEFAULT_DELAY
+      : Math.min(Math.max(after, MIN_DELAY), MAX_DELAY);
+  }
 }
