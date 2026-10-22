@@ -348,7 +348,8 @@ function entryShapeProblems(entry) {
 // next route that gains them, so they sit once under `shared.<plane>` in
 // operations.json, as `{ "missing" | "extra": "<field>", "reason": "<why>" }`.
 // A finding a shared exemption covers is dropped, not reported. A shared
-// exemption no call site of its plane needs fails as stale.
+// exemption no call site of its plane needs fails as stale, unless a call
+// site that could need it is unresolvable (a warning never fails the run).
 
 /** The `shared` exemptions by plane name, plus problems with their shape. */
 function sharedExemptions(classified) {
@@ -382,6 +383,7 @@ function sharedExemptions(classified) {
       shared[name].push({
         field: rule[kinds[0]],
         kind: kinds[0],
+        undecided: false,
         used: false,
       });
     });
@@ -488,6 +490,18 @@ const FINDING_MEANS = {
 /** `body`, `query` or `response`: where a field path starts. */
 const fieldRoot = (field) => field.split(/[.[(]/)[0];
 
+/**
+ * Whether the reference can hold a field at this operation: a query
+ * parameter (or, for `query.*`, any) it declares. Any other path counts as
+ * declared, since only the query's parameters are known without the types.
+ */
+function declares(shapes, field) {
+  const query = /^query\.([^.[(]+)$/.exec(field)?.[1];
+  if (!query) return true;
+  const params = Object.keys(shapes.query.properties);
+  return query === "*" ? params.length > 0 : params.includes(query);
+}
+
 /** An exemption's field is exact, or `<parent>.*` for any direct child. */
 function fieldMatches(pattern, field) {
   if (!pattern.endsWith(".*")) return pattern === field;
@@ -534,6 +548,16 @@ function checkFields(spec, checker, { name, op, entry, sites }, shared = []) {
     const inScope = exemptions.filter((ex) => !ex.at || ex.at === file);
     for (const ex of inScope) {
       if (!unresolved.has(fieldRoot(ex.field))) ex.judged = true;
+    }
+    // A shared rule spans every route of the plane, so one route that could
+    // need it and cannot be read leaves it undecided: were it stale, the
+    // only routes that still need it might be the unresolvable ones.
+    for (const e of shared) {
+      if (
+        unresolved.has(fieldRoot(e.field)) &&
+        (e.kind === "extra" || declares(shapes, e.field))
+      )
+        e.undecided = true;
     }
 
     const fatal = new Map();
@@ -670,7 +694,7 @@ async function main() {
   const staleShared = Object.entries(operations.shared).flatMap(
     ([name, rules]) =>
       rules
-        .filter((rule) => !rule.used)
+        .filter((rule) => !rule.used && !rule.undecided)
         .map((rule) => `shared.${name}: ${rule.kind} ${rule.field}`),
   );
   if (staleShared.length)
