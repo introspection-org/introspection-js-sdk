@@ -1,6 +1,10 @@
 import type { JWK } from "jose";
 
-import type { AuthGrant, Budget } from "@introspection-sdk/aauth-protocol";
+import {
+  type AuthGrant,
+  type Budget,
+  sameScale,
+} from "@introspection-sdk/aauth-protocol";
 
 export type { AuthGrant, Budget };
 
@@ -29,11 +33,11 @@ export interface Agent {
 }
 
 export type ApprovalKind = "mission" | "auth_token" | "completion";
-/** What was decided. Whether the agent has the answer is `answered_at`. */
+/** What was decided. Whether the agent has the answer is `collected`. */
 export type ApprovalStatus = "pending" | "approved" | "denied";
 
-/** The state a transition expects an approval still to be in: its decision, and whether it was answered. */
-export type ApprovalState = Pick<Approval, "status" | "answered_at">;
+/** The state a transition expects an approval still to be in: its decision, and whether it was collected. */
+export type ApprovalState = Pick<Approval, "status" | "collected">;
 
 /**
  * An auth token request the resource's own Access Server decides too (draft
@@ -88,10 +92,10 @@ export interface Approval {
   /** When it was decided or withdrawn, in seconds since the epoch. */
   decided_at?: number;
   /**
-   * When its pending URL gave the agent the decision (#pending-url-security):
+   * Whether its pending URL gave the agent the decision (#pending-url-security):
    * a decision is answered once, and an auth token is minted then.
    */
-  answered_at?: number;
+  collected?: boolean;
   /** The tenant it was asked under: the one the agent named, else the default. */
   tenant: string;
   created_at: number;
@@ -113,6 +117,13 @@ export interface Mission {
   /** The tenant it was asked under: the one the agent named, else the default. */
   tenant: string;
 }
+
+/** Whether a request costing `budget` fits what is left of `mission`'s budget. */
+export const fits = (mission: Mission, budget: Budget | undefined): boolean =>
+  !budget ||
+  (!!mission.budget &&
+    sameScale(mission.budget, budget) &&
+    mission.spent + budget.amount <= mission.budget.amount);
 
 /** What an operator answers. */
 export interface Decision {
@@ -178,8 +189,8 @@ export interface Store {
   insertApproval(tenant: string, approval: Approval): Promise<void>;
   /**
    * Replace approval `next.id` with `next` only if its `status` and
-   * `answered_at` are still `expected`'s (an absent `answered_at` matches only
-   * an absent one); returns whether it did.
+   * `collected` are still `expected`'s (an absent `collected` is false);
+   * returns whether it did.
    */
   transitionApproval(
     tenant: string,
@@ -209,4 +220,55 @@ export interface Directory {
     kind: ApprovalKind,
     person: Person,
   ): Promise<Person | undefined> | Person | undefined;
+}
+
+/** What one exchange with an Access Server came to. */
+export type Step = "issued" | "pending" | "refused";
+
+/** Seconds between polls when the Access Server sends no usable `Retry-After`, and the bounds on it. */
+const DEFAULT_DELAY = 5;
+const MIN_DELAY = 1;
+const MAX_DELAY = 300;
+
+/** The Access Server's refusal, relayed to the agent with its own status and code. */
+export interface Refusal {
+  status: number;
+  error: string;
+  detail: string;
+}
+
+/** What an exchange with an Access Server came to. */
+export class Outcome {
+  constructor(
+    readonly step: Step,
+    readonly fields: {
+      auth_token?: string;
+      expires_in?: number;
+      /** The budget the Access Server granted, no more than the one sent; spent in its place. */
+      granted?: Budget;
+      /** Where to poll next; on a pending outcome, undefined sends the request again. */
+      location?: string;
+      /** Its `AAuth-Requirement`, relayed to the agent. */
+      requirement?: string;
+      retry_after?: number;
+      refusal?: Refusal;
+    } = {},
+  ) {}
+
+  static refused(status: number, error: string, detail: string): Outcome {
+    return new Outcome("refused", { refusal: { status, error, detail } });
+  }
+
+  /** `as_unreachable`: no verifiable answer from the Access Server. */
+  static unreachable(detail: string): Outcome {
+    return Outcome.refused(502, "as_unreachable", detail);
+  }
+
+  /** `Retry-After`, 5 seconds when absent; never a hot loop, never a stall. */
+  pollDelay(): number {
+    const after = this.fields.retry_after;
+    return after === undefined
+      ? DEFAULT_DELAY
+      : Math.min(Math.max(after, MIN_DELAY), MAX_DELAY);
+  }
 }

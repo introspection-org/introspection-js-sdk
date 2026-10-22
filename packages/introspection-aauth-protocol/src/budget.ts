@@ -1,4 +1,4 @@
-import { AAuthError } from "./errors.js";
+import { InvalidRequest } from "./errors.js";
 
 /** A draft-hardt-aauth-budgets budget: `amount / 10 ** decimals` in `unit`. */
 export interface Budget {
@@ -27,9 +27,7 @@ export function parseBudget(value: unknown): Budget | undefined {
     !Number.isInteger(decimals) ||
     decimals < 0
   )
-    throw new AAuthError(
-      400,
-      "invalid_request",
+    throw new InvalidRequest(
       "a budget is {amount, unit, decimals}: a non-negative integer amount in that unit's scale",
     );
   return { amount, unit, decimals };

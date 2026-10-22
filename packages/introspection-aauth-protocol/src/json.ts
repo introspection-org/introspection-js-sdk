@@ -1,4 +1,4 @@
-import { AAuthError } from "./errors.js";
+import { InvalidRequest } from "./errors.js";
 
 /** A JSON object, as opposed to an array, a primitive or null. */
 export const isJsonObject = (
@@ -15,6 +15,6 @@ export function readJsonObject(body: string): Record<string, unknown> {
     // answered below
   }
   if (!isJsonObject(parsed))
-    throw new AAuthError(400, "invalid_request", "body must be a JSON object");
+    throw new InvalidRequest("body must be a JSON object");
   return parsed;
 }

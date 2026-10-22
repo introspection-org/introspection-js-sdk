@@ -173,7 +173,7 @@ Fixed and small:
 - a request with no `budget` is issued within the mission without spending;
 - completing a mission is the person's own decision, and nothing is issued under it afterwards;
 - each agent key is bound to the first person it names.
-- an approved auth token is collected once: later polls of the same approval answer `410`, so one approval spends once;
+- an approved auth token is collected once (`collected` on the approval): later polls of the same approval answer `410`, so one approval spends once;
 - each approval is decided once, however many answers arrive.
 
 ## Resources with their own Access Server
@@ -195,4 +195,10 @@ The approval for such a request carries `federation` (the AS, the three tokens, 
 
 ## Building blocks
 
-The pieces this server, `@introspection-sdk/aauth-access-server` and `@introspection-sdk/aauth-resource` share live in [`@introspection-sdk/aauth-protocol`](../introspection-aauth-protocol): `loadSigner`, `readProposalSummary`, `verifySignature`, `signatureError`, `discovery`, `beneath` and `answer`. `AAuthError` and `problem` are exported here too.
+`PersonServer` extends `AAuthServer` from [`@introspection-sdk/aauth-protocol`](../introspection-aauth-protocol), which holds what it shares with `@introspection-sdk/aauth-access-server` and `@introspection-sdk/aauth-resource`: the typed errors, `loadSigner`, `verifySignature`, the pending answer and `readProposalSummary`. `AAuthError` and `problem` are exported here too.
+
+The federation steps are its methods: `federationDue(tenant, id)` (an approved request still to redeem at its AS), `federate(…)` (one exchange with the AS, then its record) and `recordFederation(…)`. `AccessServerClient` is the client for the AS (`discover`, `request`, `poll`); each exchange comes back as an `Outcome` (`issued`, `pending` or `refused`, with `Outcome.refused`, `Outcome.unreachable` and `pollDelay()`).
+
+## Logging and tracing
+
+The package configures neither. It writes spans through `@opentelemetry/api`: `person_server.federate`, with `person_server.federate.metadata`, `.request`, `.poll` and `.delivery` per exchange, and `aauth.r3.read` for a proposal. Pass `logger` for its decision records: `federation outcome recorded`, with `tenant`, `approval_id`, `step` and `error`. A record carries identifiers and enumerated values, never a token or a person's details.

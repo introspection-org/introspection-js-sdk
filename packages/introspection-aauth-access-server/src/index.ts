@@ -1,8 +1,5 @@
-export {
-  createAccessServer,
-  type AccessServer,
-  type AccessServerOptions,
-} from "./access-server.js";
+export { AccessServer, createAccessServer } from "./access-server.js";
+export type { AccessServerOptions } from "./options.js";
 export type {
   AccessDecision,
   AccessGrant,
@@ -15,4 +12,8 @@ export type {
   Policy,
   Verdict,
 } from "./types.js";
-export { AAuthError, problem } from "@introspection-sdk/aauth-protocol";
+export {
+  AAuthError,
+  type AAuthLogger,
+  problem,
+} from "@introspection-sdk/aauth-protocol";

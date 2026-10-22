@@ -36,11 +36,12 @@ import {
   type Budget,
   type FetchLike,
   httpsOnly,
+  InvalidRequest,
   MAX_TOKEN_LIFETIME,
   parseBudget,
   problem,
   sameScale,
-  signatureError,
+  Unauthorized,
   tokenProblem,
   trimIdentifier,
   verifySignature as verifyAddressed,
@@ -273,17 +274,17 @@ export async function createAAuthResource(
     accept: TokenKind[],
   ): Promise<VerifiedToken> {
     if (signed.keyType !== "jwt" || !signed.jwt)
-      throw signatureError("unsupported_scheme", "sign with sig=jwt");
+      throw Unauthorized.signature("unsupported_scheme", "sign with sig=jwt");
     let claims: JWTPayload;
     try {
       claims = decodeJwt(signed.jwt);
     } catch {
-      throw signatureError("invalid_jwt", "not a JWT");
+      throw Unauthorized.signature("invalid_jwt", "not a JWT");
     }
     // Checked before verifying, since verifying fetches the issuer's keys.
     const named = trimIdentifier(String(claims.iss));
     if (!accept.some((kind) => issuers[kind]?.includes(named)))
-      throw signatureError(
+      throw Unauthorized.signature(
         "invalid_jwt",
         `${String(claims.iss)} is not trusted here`,
       );
@@ -295,19 +296,25 @@ export async function createAAuthResource(
       fetch: keysFetch,
     }).catch((err: Error) => {
       const code = err instanceof AAuthTokenError ? err.code : "invalid_jwt";
-      throw signatureError(
+      throw Unauthorized.signature(
         code === "token_expired" ? "expired_jwt" : "invalid_jwt",
         err.message,
       );
     });
     if (!issuers[token.type].includes(trimIdentifier(token.iss)))
-      throw signatureError("invalid_jwt", `${token.iss} does not issue those`);
+      throw Unauthorized.signature(
+        "invalid_jwt",
+        `${token.iss} does not issue those`,
+      );
     const shape = tokenProblem(
       token.claims,
       token.type === "agent" ? {} : { maxLifetime: MAX_TOKEN_LIFETIME },
     );
     if (shape)
-      throw signatureError("invalid_jwt", `the ${token.type} token ${shape}`);
+      throw Unauthorized.signature(
+        "invalid_jwt",
+        `the ${token.type} token ${shape}`,
+      );
     // An auth token is the Access Server's, for one of its Person Servers' people, or else that Person Server's own.
     if (
       token.type === "auth" &&
@@ -317,7 +324,10 @@ export async function createAAuthResource(
         : token.dwk !== "aauth-person.json" ||
           trimIdentifier(token.ps) !== trimIdentifier(token.iss))
     )
-      throw signatureError("invalid_jwt", "not an auth token issued here");
+      throw Unauthorized.signature(
+        "invalid_jwt",
+        "not an auth token issued here",
+      );
     return token;
   }
 
@@ -526,7 +536,7 @@ export async function createAAuthResource(
       !id ||
       !(personServers.includes(trimIdentifier(id)) || id === accessServer)
     )
-      throw signatureError(
+      throw Unauthorized.signature(
         "invalid_signature",
         "only the person's Person Server, or this resource's Access Server, reads a proposal",
       );
@@ -574,11 +584,7 @@ export async function createAAuthResource(
           })
         ).payload;
       } catch {
-        throw new AAuthError(
-          400,
-          "invalid_request",
-          "not signed by this resource",
-        );
+        throw new InvalidRequest("not signed by this resource");
       }
     },
     authorize,

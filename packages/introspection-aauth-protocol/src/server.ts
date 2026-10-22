@@ -1,31 +1,14 @@
 /** Plumbing every AAuth server here shares: discovery, routing, signatures and errors. */
 import {
-  generateAcceptSignatureSchemeHeader,
-  generateSignatureErrorHeader,
   isInnerList,
   parseDictionary,
-  type SignatureErrorCode,
   type VerificationResult,
   verify,
 } from "@hellocoop/httpsig";
 import type { JWK } from "jose";
 
-import { AAuthError, problem } from "./errors.js";
-
-/** `401` with `Signature-Error`, for a request whose signature or signing token fails. */
-export function signatureError(
-  code: SignatureErrorCode,
-  detail: string,
-): AAuthError {
-  const headers: Record<string, string> = {
-    "Signature-Error": generateSignatureErrorHeader({ error: code }),
-  };
-  if (code === "unsupported_scheme")
-    headers["Accept-Signature-Scheme"] = generateAcceptSignatureSchemeHeader([
-      "jwt",
-    ]);
-  return new AAuthError(401, code, detail, headers);
-}
+import { AAuthError, problem, Unauthorized } from "./errors.js";
+import type { Signer } from "./signer.js";
 
 /** The components the signature labelled `label` covers, as its `Signature-Input` lists them. */
 function coveredComponents(headers: Headers, label: string): string[] {
@@ -63,7 +46,7 @@ export async function verifySignature(
     { requireContentDigest: true, supportedAlgorithms: ["Ed25519", "ES256"] },
   );
   if (!signed.verified)
-    throw signatureError(
+    throw Unauthorized.signature(
       signed.signatureError?.error ?? "invalid_signature",
       signed.error ?? "signature does not verify",
     );
@@ -73,7 +56,7 @@ export async function verifySignature(
       !covered.includes("content-type") ||
       !covered.includes("content-digest")
     )
-      throw signatureError(
+      throw Unauthorized.signature(
         "invalid_signature",
         "a body is signed with content-type and content-digest",
       );
@@ -111,5 +94,69 @@ export async function answer(
     if (err instanceof AAuthError)
       return problem(err.status, err.error, err.message, err.headers);
     return problem(500, "server_error", (err as Error).message);
+  }
+}
+
+/**
+ * What every AAuth server here is: an issuer with a signing key, publishing
+ * its metadata and keys under `/.well-known/`, and answering its routes with
+ * AAuth errors as problem responses.
+ */
+export abstract class AAuthServer {
+  protected constructor(
+    readonly issuer: string,
+    /** Where its routes live under the issuer, e.g. `/ps`; empty for the root. */
+    protected readonly base: string,
+    protected readonly signer: Signer,
+    /** The well-known document its metadata is served as. */
+    private readonly dwk: string,
+    private readonly naming: { name?: string; description?: string },
+  ) {}
+
+  abstract metadata(): Record<string, unknown>;
+
+  /** The request its route `path` (under its base) names; undefined for one it does not serve. */
+  protected abstract serve(
+    request: Request,
+    path: string | undefined,
+  ): Promise<Response | undefined>;
+
+  jwks(): { keys: JWK[] } {
+    return this.signer.jwks;
+  }
+
+  /**
+   * Answer any request this server serves; undefined for one it does not.
+   * `pathname` is the path the request addressed, when a framework rewrote `request.url`.
+   */
+  async route(
+    request: Request,
+    pathname = new URL(request.url).pathname,
+  ): Promise<Response | undefined> {
+    return (
+      discovery(
+        request,
+        pathname,
+        this.dwk,
+        () => this.metadata(),
+        this.signer.jwks,
+      ) ?? this.serve(request, beneath(pathname, this.base))
+    );
+  }
+
+  /** Like `route`, with AAuth errors answered as problem responses and anything else a 404. */
+  handle(request: Request, pathname?: string): Promise<Response> {
+    return answer(() => this.route(request, pathname));
+  }
+
+  /** What every server's metadata carries: its issuer, name, description and keys. */
+  protected commonMetadata() {
+    const { name, description } = this.naming;
+    return {
+      issuer: this.issuer,
+      ...(name ? { name } : {}),
+      ...(description ? { description } : {}),
+      jwks_uri: `${this.issuer}/.well-known/jwks.json`,
+    };
   }
 }

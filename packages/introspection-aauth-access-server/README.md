@@ -81,7 +81,9 @@ It answers one of:
 | `POST {base}/token`                  | Person Server | the three tokens in, an auth token (or `202`) out  |
 | `GET {base}/pending/{id}`            | Person Server | poll a decision; only the Person Server that asked |
 
-A pending request answers `202` until decided, `403 denied` once refused, `408 expired` once past `pendingTtlSeconds` or the tokens it was asked with, and its auth token once approved, collected once (later polls are `410`).
+A pending request answers `202` until decided, `403 denied` once refused, `408 expired` once past `pendingTtlSeconds` or the tokens it was asked with, and its auth token once approved, collected once (`collected`; later polls are `410`).
+
+Pass `logger` for its decision records: `access request decided`, with `resource`, `ps`, `tenant` and `decision`, identifiers only. `AccessServer` extends `AAuthServer` from `@introspection-sdk/aauth-protocol`.
 
 ## Not yet
 

@@ -299,6 +299,9 @@ importers:
       '@introspection-sdk/aauth-protocol':
         specifier: workspace:*
         version: link:../introspection-aauth-protocol
+      '@opentelemetry/api':
+        specifier: ^1.9.1
+        version: 1.9.1
       jose:
         specifier: ^6.2.12
         version: 6.2.12
@@ -327,6 +330,9 @@ importers:
       '@hellocoop/httpsig':
         specifier: ^2.6.0
         version: 2.6.0
+      '@opentelemetry/api':
+        specifier: ^1.9.1
+        version: 1.9.1
       jose:
         specifier: ^6.2.12
         version: 6.2.12

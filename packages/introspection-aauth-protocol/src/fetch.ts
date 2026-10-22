@@ -1,4 +1,4 @@
-import { AAuthError } from "./errors.js";
+import { ServerError } from "./errors.js";
 
 export type FetchLike = (
   input: string,
@@ -19,15 +19,14 @@ export function httpsOnly(fetch: FetchLike): FetchLike {
       url = new URL(input);
     } catch {
       return Promise.reject(
-        new AAuthError(502, "server_error", `${input} is not a URL`),
+        new ServerError(`${input} is not a URL`, { status: 502 }),
       );
     }
     if (url.protocol !== "https:")
       return Promise.reject(
-        new AAuthError(
-          502,
-          "server_error",
+        new ServerError(
           `${url.origin} is not https; AAuth calls only https servers`,
+          { status: 502 },
         ),
       );
     return fetch(input, { ...init, redirect: "error" });

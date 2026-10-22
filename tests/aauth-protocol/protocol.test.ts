@@ -7,9 +7,9 @@ import {
   parseBudget,
   readJsonObject,
   readProposalSummary,
-  signatureError,
   tokenProblem,
   trimIdentifier,
+  Unauthorized,
 } from "@introspection-sdk/aauth-protocol";
 import { describe, expect, it } from "vitest";
 
@@ -148,7 +148,10 @@ describe("request bodies and signature errors", () => {
   });
 
   it("answers an unsupported scheme with the scheme it accepts", () => {
-    const err = signatureError("unsupported_scheme", "sign with sig=jwt");
+    const err = Unauthorized.signature(
+      "unsupported_scheme",
+      "sign with sig=jwt",
+    );
     expect(err.status).toBe(401);
     expect(err.headers["Signature-Error"]).toContain("unsupported_scheme");
     expect(err.headers["Accept-Signature-Scheme"]).toContain("jwt");

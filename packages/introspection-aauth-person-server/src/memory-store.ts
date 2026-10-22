@@ -118,7 +118,7 @@ export class MemoryStore implements Store {
     const current = this.approvalsById.get(tenant, next.id);
     if (
       current?.status !== expected.status ||
-      current.answered_at !== expected.answered_at
+      (current.collected ?? false) !== (expected.collected ?? false)
     )
       return false;
     this.approvalsById.set(tenant, next.id, next);

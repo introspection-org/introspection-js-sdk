@@ -35,6 +35,13 @@ import {
   generateKeyPair,
   importPKCS8,
 } from "jose";
+import { trace } from "@opentelemetry/api";
+import {
+  BasicTracerProvider,
+  InMemorySpanExporter,
+  SimpleSpanProcessor,
+} from "@opentelemetry/sdk-trace-base";
+import type { LogFields } from "@introspection-sdk/aauth-protocol";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const PS = "https://ps.acme.example";
@@ -50,6 +57,18 @@ const WITHOUT_CONTENT_TYPE = [
   "@path",
   "signature-key",
 ];
+
+const spans = new InMemorySpanExporter();
+trace.setGlobalTracerProvider(
+  new BasicTracerProvider({ spanProcessors: [new SimpleSpanProcessor(spans)] }),
+);
+/** What the servers logged, in order. */
+let records: { message: string; fields: LogFields }[];
+const logger = {
+  info: (message: string, fields: LogFields) => {
+    records.push({ message, fields });
+  },
+};
 
 // Fixed across tests: @hellocoop/httpsig caches a jwks_uri signer's keys by URL.
 const pem = () =>
@@ -260,6 +279,8 @@ beforeEach(async () => {
   calls = [];
   asAnswer = undefined;
   asMetadata = undefined;
+  records = [];
+  spans.reset();
   policy = (request) =>
     request.tenant === "acme"
       ? { decision: "allow" }
@@ -281,6 +302,7 @@ beforeEach(async () => {
       asked.push(approval);
     },
     fetch: world,
+    logger,
   });
   as = await createAccessServer({
     issuer: AS,
@@ -293,6 +315,7 @@ beforeEach(async () => {
       return policy(request);
     },
     fetch: world,
+    logger,
   });
   resource = await createAAuthResource({
     issuer: RESOURCE,
@@ -544,7 +567,7 @@ describe("@introspection-sdk/aauth-access-server federation", () => {
     expect(stored).toMatchObject({
       kind: "auth_token",
       status: "approved",
-      answered_at: expect.any(Number),
+      collected: true,
     });
   });
 
@@ -1133,7 +1156,7 @@ describe("@introspection-sdk/aauth-access-server federation", () => {
     expect((await pollAsPersonServer(location)).status).toBe(410);
     expect(as.pendings()[0]).toMatchObject({
       status: "denied",
-      answered_at: expect.any(Number),
+      collected: true,
     });
   });
 
@@ -1158,5 +1181,405 @@ describe("@introspection-sdk/aauth-access-server federation", () => {
       expect(answered.status).toBe(502);
       expect(calls.some((c) => c.includes("collector.example"))).toBe(false);
     }
+  });
+});
+
+/** A resource token for the call, re-signed by the resource with `update`. */
+async function resignedResourceToken(
+  token: string,
+  update: Record<string, unknown>,
+) {
+  const signer = await party("booking-1", RESOURCE_KEY);
+  return signer.sign({ ...decodeJwt(token), ...update }, "aa-resource+jwt");
+}
+
+/** The PS's request to the AS, as the PS signs it. */
+async function redeemAtAs(tokens: {
+  resource_token: string;
+  agent_token: string;
+  presented_token: string;
+}) {
+  return asPersonServer(
+    PS,
+    await party(ps.jwks().keys[0]!.kid!, PS_KEY),
+    tokens,
+  );
+}
+
+describe("every expectation is enforced", () => {
+  it("the Person Server takes the resource token it expects", async () => {
+    const agent = await AgentClient.create();
+    const trip = await approvedTrip(agent);
+    const resourceToken = await challenge(agent, trip.personToken, 100_000);
+    const issued = await agent.send("POST", `${PS}/ps/token`, {
+      resource_token: await resignedResourceToken(resourceToken, {}),
+      presented_token: trip.personToken,
+    });
+    expect(issued.status).toBe(200);
+  });
+
+  it.each([
+    [
+      "presented_jti",
+      { presented_jti: "not-the-presented-token" },
+      "presented token",
+    ],
+    ["sub", { sub: "someone-else" }, "presented token"],
+    ["tenant", { tenant: "other" }, "presented token"],
+    ["ps", { ps: OTHER_PS }, "not for this Person Server"],
+    ["agent_jkt", { agent_jkt: "another-key" }, "agent_jkt"],
+    ["aud", { aud: "https://as.example/with/a/path" }, "aud"],
+  ])(
+    "the Person Server refuses a resource token whose %s is not the request's",
+    async (_, update, detail) => {
+      const agent = await AgentClient.create();
+      const trip = await approvedTrip(agent);
+      const resourceToken = await challenge(agent, trip.personToken, 100_000);
+      calls = [];
+      const refused = await agent.send("POST", `${PS}/ps/token`, {
+        resource_token: await resignedResourceToken(resourceToken, update),
+        presented_token: trip.personToken,
+      });
+      expect(refused.status).toBe(400);
+      expect(await refused.json()).toMatchObject({
+        error: "invalid_resource_token",
+        detail: expect.stringContaining(detail),
+      });
+      // Refused by the Person Server itself, before the Access Server is asked.
+      expect(calls.filter((c) => c.startsWith(`POST ${AS}`))).toEqual([]);
+    },
+  );
+
+  it("the Person Server refuses a resource token naming another of the agent's missions", async () => {
+    const agent = await AgentClient.create();
+    const trip = await approvedTrip(agent);
+    const other = await approvedTrip(agent);
+    const resourceToken = await challenge(agent, trip.personToken, 100_000);
+    calls = [];
+    const refused = await agent.send("POST", `${PS}/ps/token`, {
+      resource_token: await resignedResourceToken(resourceToken, {
+        mission_s256: other.s256,
+      }),
+      presented_token: trip.personToken,
+    });
+    expect(refused.status).toBe(400);
+    expect(await refused.json()).toMatchObject({
+      detail: expect.stringContaining("presented token"),
+    });
+    expect(calls.filter((c) => c.startsWith(`POST ${AS}`))).toEqual([]);
+  });
+
+  it("the Person Server refuses a resource token whose presented token is for another resource", async () => {
+    const agent = await AgentClient.create();
+    const trip = await approvedTrip(agent, 300_000, [
+      RESOURCE,
+      "https://hotels.example",
+    ]);
+    const { person_token: hotels } = (await (
+      await agent.send("POST", `${PS}/ps/person-token`, {
+        resource: "https://hotels.example",
+        mission_s256: trip.s256,
+      })
+    ).json()) as { person_token: string };
+    const presented = decodeJwt(hotels);
+    const resourceToken = await challenge(agent, trip.personToken, 100_000);
+    calls = [];
+    const refused = await agent.send("POST", `${PS}/ps/token`, {
+      resource_token: await resignedResourceToken(resourceToken, {
+        presented_jti: presented.jti,
+        sub: presented.sub,
+      }),
+      presented_token: hotels,
+    });
+    expect(refused.status).toBe(400);
+    expect(await refused.json()).toMatchObject({
+      detail: expect.stringContaining("presented token"),
+    });
+    expect(calls.filter((c) => c.startsWith(`POST ${AS}`))).toEqual([]);
+  });
+
+  it("the Access Server takes the tokens it expects", async () => {
+    const agent = await AgentClient.create();
+    const trip = await approvedTrip(agent);
+    const resourceToken = await challenge(agent, trip.personToken, 100_000);
+    const issued = await redeemAtAs({
+      resource_token: await resignedResourceToken(resourceToken, {}),
+      agent_token: agent.token,
+      presented_token: trip.personToken,
+    });
+    expect(issued.status).toBe(200);
+  });
+
+  it.each([
+    ["presented_jti", { presented_jti: "not-the-presented-token" }],
+    ["sub", { sub: "someone-else" }],
+    ["mission_s256", { mission_s256: "another-mission" }],
+    ["tenant", { tenant: "other" }],
+  ])(
+    "the Access Server refuses a resource token whose %s is not the presented token's",
+    async (name, update) => {
+      const agent = await AgentClient.create();
+      const trip = await approvedTrip(agent);
+      const resourceToken = await challenge(agent, trip.personToken, 100_000);
+      const refused = await redeemAtAs({
+        resource_token: await resignedResourceToken(resourceToken, update),
+        agent_token: agent.token,
+        presented_token: trip.personToken,
+      });
+      expect(refused.status).toBe(400);
+      expect(await refused.json()).toMatchObject({
+        error: "invalid_resource_token",
+        detail: expect.stringContaining(
+          name === "presented_jti" ? "jti" : name,
+        ),
+      });
+      expect(decided).toHaveLength(0);
+    },
+  );
+
+  it("the Access Server refuses a presented auth token for another Person Server's person", async () => {
+    const agent = await AgentClient.create();
+    const trip = await approvedTrip(agent);
+    const resourceToken = await challenge(agent, trip.personToken, 100_000);
+    const rt = decodeJwt(resourceToken);
+    const signer = await party(as.jwks().keys[0]!.kid!, AS_KEY);
+    const presented = (ps: string) =>
+      signer.sign(
+        {
+          iss: AS,
+          dwk: "aauth-access.json",
+          aud: RESOURCE,
+          sub: rt.sub,
+          ps,
+          mission_s256: rt.mission_s256,
+          tenant: rt.tenant,
+          cnf: { jwk: agent.session.publicJwk },
+          jti: "presented-auth-token",
+        },
+        "aa-auth+jwt",
+      );
+    const tokens = async (ps: string) => ({
+      resource_token: await resignedResourceToken(resourceToken, {
+        presented_jti: "presented-auth-token",
+      }),
+      agent_token: agent.token,
+      presented_token: await presented(ps),
+    });
+    expect((await redeemAtAs(await tokens(PS))).status).toBe(200);
+    const refused = await redeemAtAs(await tokens(OTHER_PS));
+    expect(refused.status).toBe(400);
+    expect(await refused.json()).toMatchObject({
+      detail: expect.stringContaining("ps"),
+    });
+  });
+
+  it.each(["sub", "presented_jti", "agent_jkt"])(
+    "the Access Server refuses a resource token without %s",
+    async (claim) => {
+      const agent = await AgentClient.create();
+      const trip = await approvedTrip(agent);
+      const resourceToken = await challenge(agent, trip.personToken, 100_000);
+      const refused = await redeemAtAs({
+        resource_token: await resignedResourceToken(resourceToken, {
+          [claim]: undefined,
+        }),
+        agent_token: agent.token,
+        presented_token: trip.personToken,
+      });
+      expect(refused.status).toBe(400);
+      expect(await refused.json()).toMatchObject({
+        detail: expect.stringContaining(`${claim} is required`),
+      });
+    },
+  );
+
+  it("the Access Server refuses an agent token bound to another key, or for another Person Server", async () => {
+    const agent = await AgentClient.create();
+    const trip = await approvedTrip(agent);
+    const resourceToken = await challenge(agent, trip.personToken, 100_000);
+    const elsewhere = await AgentClient.create();
+    const bound = await redeemAtAs({
+      resource_token: resourceToken,
+      agent_token: elsewhere.token,
+      presented_token: trip.personToken,
+    });
+    expect(bound.status).toBe(400);
+    expect(await bound.json()).toMatchObject({
+      error: "invalid_resource_token",
+      detail: expect.stringContaining("agent_jkt"),
+    });
+    const otherPsToken = await provider.sign(
+      {
+        iss: PROVIDER,
+        dwk: "aauth-agent.json",
+        sub: "aauth:travel@agents.example",
+        ps: OTHER_PS,
+        cnf: { jwk: agent.session.publicJwk },
+      },
+      "aa-agent+jwt",
+    );
+    const forAnother = await redeemAtAs({
+      resource_token: resourceToken,
+      agent_token: otherPsToken,
+      presented_token: trip.personToken,
+    });
+    expect(forAnother.status).toBe(400);
+    expect(await forAnother.json()).toMatchObject({
+      error: "invalid_request",
+      detail: expect.stringContaining("another Person Server"),
+    });
+  });
+
+  it("the Access Server refuses an agent token from a provider it does not trust", async () => {
+    const agent = await AgentClient.create();
+    const trip = await approvedTrip(agent);
+    const rogue = await party("rogue");
+    const refused = await redeemAtAs({
+      resource_token: await challenge(agent, trip.personToken, 100_000),
+      agent_token: await rogue.sign(
+        {
+          iss: "https://rogue.example",
+          dwk: "aauth-agent.json",
+          sub: "aauth:travel@rogue.example",
+          cnf: { jwk: agent.session.publicJwk },
+        },
+        "aa-agent+jwt",
+      ),
+      presented_token: trip.personToken,
+    });
+    expect(refused.status).toBe(400);
+    expect(await refused.json()).toMatchObject({
+      detail: expect.stringContaining("not an agent provider"),
+    });
+    expect(calls.some((c) => c.includes("rogue.example"))).toBe(false);
+  });
+
+  /** The AS, re-signing the auth token it issues with `update`. */
+  const tampering =
+    (update: Record<string, unknown>): Scripted =>
+    async (request) => {
+      const { pathname } = new URL(request.url);
+      if (pathname !== "/token") return undefined;
+      const response = await as.handle(request);
+      if (response.status !== 200) return response;
+      const answer = (await response.json()) as {
+        auth_token: string;
+        expires_in: number;
+      };
+      const signer = await party(as.jwks().keys[0]!.kid!, AS_KEY);
+      return Response.json({
+        ...answer,
+        auth_token: await signer.sign(
+          { ...decodeJwt(answer.auth_token), ...update },
+          "aa-auth+jwt",
+        ),
+      });
+    };
+
+  it("the Person Server takes the auth token it asked for", async () => {
+    const agent = await AgentClient.create();
+    const trip = await approvedTrip(agent);
+    asAnswer = tampering({});
+    const issued = await agent.send("POST", `${PS}/ps/token`, {
+      resource_token: await challenge(agent, trip.personToken, 100_000),
+      presented_token: trip.personToken,
+    });
+    expect(issued.status).toBe(200);
+  });
+
+  it.each([
+    ["iss", () => ({ iss: "https://as.elsewhere.example" })],
+    ["aud", () => ({ aud: "https://elsewhere.example" })],
+    ["ps", () => ({ ps: OTHER_PS })],
+    ["sub", () => ({ sub: "someone-else" })],
+    ["mission_s256", () => ({ mission_s256: "another-mission" })],
+    ["tenant", () => ({ tenant: "other" })],
+    ["scope", () => ({ scope: "booking.reserve booking.cancel" })],
+    ["exp", () => ({ exp: Math.floor(Date.now() / 1000) + 3000 })],
+    ["cnf", async () => ({ cnf: { jwk: (await party("other")).publicJwk } })],
+  ])(
+    "the Person Server refuses an auth token with the wrong %s",
+    async (name, update) => {
+      const agent = await AgentClient.create();
+      const trip = await approvedTrip(agent);
+      asAnswer = tampering(await update());
+      const refused = await agent.send("POST", `${PS}/ps/token`, {
+        resource_token: await challenge(agent, trip.personToken, 100_000),
+        presented_token: trip.personToken,
+      });
+      expect(refused.status).toBe(502);
+      expect(await refused.json()).toMatchObject({
+        error: "as_unreachable",
+        detail: expect.stringContaining(name),
+      });
+      expect(await spent(trip.s256)).toBe(0);
+    },
+  );
+});
+
+describe("telemetry", () => {
+  it("traces a federation and records each decision by identifier, never a token", async () => {
+    const agent = await AgentClient.create();
+    const trip = await approvedTrip(agent);
+    const resourceToken = await challenge(agent, trip.personToken, 100_000);
+    const issued = await agent.send("POST", `${PS}/ps/token`, {
+      resource_token: resourceToken,
+      presented_token: trip.personToken,
+    });
+    expect(issued.status).toBe(200);
+    const { auth_token } = (await issued.json()) as { auth_token: string };
+
+    const names = spans.getFinishedSpans().map((span) => span.name);
+    for (const name of [
+      "person_server.federate",
+      "person_server.federate.metadata",
+      "person_server.federate.request",
+      "person_server.federate.delivery",
+      "aauth.r3.read",
+    ])
+      expect(names).toContain(name);
+
+    expect(records).toEqual([
+      {
+        message: "access request decided",
+        fields: {
+          resource: RESOURCE,
+          ps: PS,
+          tenant: "acme",
+          decision: "allow",
+        },
+      },
+      {
+        message: "federation outcome recorded",
+        fields: {
+          tenant: "acme",
+          approval_id: expect.any(String),
+          step: "issued",
+          error: undefined,
+        },
+      },
+    ]);
+    const written = JSON.stringify(records);
+    for (const token of [
+      agent.token,
+      trip.personToken,
+      resourceToken,
+      auth_token,
+    ])
+      expect(written).not.toContain(token);
+  });
+
+  it("records a refusal with its code", async () => {
+    const agent = await AgentClient.create();
+    const trip = await approvedTrip(agent);
+    policy = () => ({ decision: "deny", detail: "no Flight Sector account" });
+    await agent.send("POST", `${PS}/ps/token`, {
+      resource_token: await challenge(agent, trip.personToken, 100_000),
+      presented_token: trip.personToken,
+    });
+    expect(records.map((r) => r.fields)).toEqual([
+      expect.objectContaining({ decision: "deny" }),
+      expect.objectContaining({ step: "refused", error: "denied" }),
+    ]);
   });
 });

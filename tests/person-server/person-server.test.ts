@@ -1224,7 +1224,7 @@ describe("@introspection-sdk/aauth-person-server token shape and lifetimes", () 
     expect(await byStatus("approved")).toEqual(["mission", "completion"]);
     expect(await byStatus("denied")).toEqual(["mission"]);
     expect(
-      (await ps.approvals("acme")).every((a) => a.answered_at !== undefined),
+      (await ps.approvals("acme")).every((a) => a.collected === true),
     ).toBe(true);
   });
 
