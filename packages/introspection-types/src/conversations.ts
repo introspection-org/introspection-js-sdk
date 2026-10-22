@@ -393,23 +393,22 @@ export interface IntrospectionSpanAttributes {
 }
 
 /**
- * `introspection.contains.*` — the processor's plaintext summary of what a
+ * `introspection.contains` — the processor's plaintext summary of what a
  * chat span's sealed `gen_ai.input.messages` delta and
- * `gen_ai.output.messages` contain, stamped at ingest: counts and tool names
- * only. Absent on a span written before the summary existed and on non-chat
+ * `gen_ai.output.messages` contain, stamped at ingest. Absent on non-chat
  * spans; what `ConversationItemListParams.contains` selects on.
  */
 export interface IntrospectionContains {
-  /** Summary schema version. */
+  /** Summary schema version; `0` or absent means the span was never summarized. */
   version?: number;
-  /** User-authored parts in the span's new-input delta. */
-  input_user_parts?: number;
-  /** Text parts in the span's output. */
-  output_text_parts?: number;
-  /** Distinct `name`s of the `tool_call` parts in the output. */
-  output_tool_names?: string[];
-  /** Distinct `name`s of the `tool_call_response` parts in the new-input delta. */
-  input_tool_response_names?: string[];
+  /**
+   * The {@link ConversationContains} values this span answers, spelled
+   * exactly as a client passes them to `contains=`, e.g.
+   * `"gen_ai.input.messages.role:user"` or
+   * `"gen_ai.output.messages.parts.name:search"`. A name list the processor
+   * cut at its bound carries `"<path>:*"`.
+   */
+  values?: string[];
   [key: string]: unknown;
 }
 
@@ -709,7 +708,7 @@ export interface ConversationItemListParams {
  * One value of {@link ConversationItemListParams.contains}: a GenAI semconv
  * path over the sealed payload and the value it must contain. The set is
  * closed because every value is resolved from the plaintext summary
- * (`introspection.contains.*`) or a plaintext column, never from the payload.
+ * (`introspection.contains.values`) or a plaintext column, never from the payload.
  */
 export type ConversationContains =
   /** A chat item whose new input carries a user-authored part. */
