@@ -66,13 +66,20 @@ export function createProgram(root, files) {
 
 // --- the reference side ------------------------------------------------------
 
+/**
+ * A schema, parameter or response with every `$ref` followed, wherever in the
+ * document it points (`#/components/schemas/...`, `#/components/parameters/...`).
+ */
 function deref(spec, schema) {
   let ref;
   const seen = new Set();
   while (schema?.$ref && !seen.has(schema.$ref)) {
     seen.add(schema.$ref);
-    ref = schema.$ref.split("/").pop();
-    schema = spec.components?.schemas?.[ref];
+    const pointer = schema.$ref.replace(/^#\//, "").split("/");
+    ref = pointer.at(-1);
+    schema = pointer
+      .map((part) => part.replaceAll("~1", "/").replaceAll("~0", "~"))
+      .reduce((node, part) => node?.[part], spec);
   }
   if (schema?.allOf?.length === 1) return deref(spec, schema.allOf[0]);
   return { schema: schema ?? {}, ref };
@@ -524,23 +531,25 @@ const literalProperty = (obj, name) =>
   );
 
 /**
- * The media type a call asks for in its `Accept` header: undefined without
- * one (the client then reads JSON), or null when it is not a literal.
+ * A header a call sets, such as the media type it asks for in `Accept`:
+ * undefined without one, or null when it is not a literal. `name` is
+ * lowercase; the header matches case-insensitively.
  */
-function acceptOf(checker, opts) {
+function headerOf(checker, opts, name) {
   if (!opts || !ts.isObjectLiteralExpression(opts)) return undefined;
   const headers = literalProperty(opts, "headers")?.initializer;
   if (!headers) return undefined;
   if (!ts.isObjectLiteralExpression(headers)) {
     const type = checker.getTypeAtLocation(headers);
-    const accept =
-      propertyType(checker, type, "Accept", headers) ??
-      propertyType(checker, type, "accept", headers);
-    if (!accept) return undefined;
-    return accept.isStringLiteral() ? accept.value : null;
+    const sym = checker
+      .getPropertiesOfType(type)
+      .find((p) => p.name.toLowerCase() === name);
+    if (!sym) return undefined;
+    const value = checker.getTypeOfSymbolAtLocation(sym, headers);
+    return value.isStringLiteral() ? value.value : null;
   }
-  const accept = literalProperty(headers, "accept")?.initializer;
-  return accept ? (literalString(checker, accept) ?? null) : undefined;
+  const value = literalProperty(headers, name)?.initializer;
+  return value ? (literalString(checker, value) ?? null) : undefined;
 }
 
 /** The second type argument of `Paginator<T, TPage>`: the wire page. */
@@ -556,15 +565,18 @@ function pageType(checker, call) {
  * `ts.Type`, `undefined` (nothing sent), `{ notJson }` for a response the
  * call site reads as something other than JSON, or `{ unresolved }` for one
  * whose type says nothing about the wire. `accept` is the media type the
- * call asks for (see acceptOf).
+ * call asks for and `contentType` the one it says it sends (see headerOf).
  */
 export function callSiteTypes(checker, site) {
   const types = slotTypes(checker, site);
   const opts =
     site.kind === "fetch" ? site.call.arguments[1] : site.call.arguments[0];
+  const header = (name) =>
+    site.kind === "helper" ? undefined : headerOf(checker, opts, name);
   return {
     ...types,
-    accept: site.kind === "helper" ? undefined : acceptOf(checker, opts),
+    accept: header("accept"),
+    contentType: header("content-type"),
   };
 }
 
@@ -635,9 +647,15 @@ const encodedMedia = (type) =>
     .map((t) => ENCODED_BODIES.get(t.symbol?.name))
     .find(Boolean);
 
-function compareBody(ctx, shapes, body, out) {
+/**
+ * The media type a body goes as: what `fetch` encodes it as, else the
+ * call's literal `Content-Type` (a form serialized to a string before the
+ * call), else JSON.
+ */
+function compareBody(ctx, shapes, body, contentType, out) {
   const { checker } = ctx;
-  const media = body && (encodedMedia(body) ?? "application/json");
+  const media =
+    body && (encodedMedia(body) ?? contentType ?? "application/json");
   // Presence and media type first: they hold whatever the body's type, so an
   // unresolvable body still fails when the reference takes none.
   if (!shapes.body) {
@@ -661,8 +679,8 @@ function compareBody(ctx, shapes, body, out) {
     if (why) out.push({ kind: "unresolvable", field: "body", detail: why });
     else ctx.run(shapes.body.schema, body, "body");
   }
-  // A form body `fetch` encodes itself matches the reference's media type,
-  // but carries no field types to compare, like a non-JSON response.
+  // A form body matches the reference's media type, but carries no field
+  // types to compare, like a non-JSON response.
 }
 
 function compareQuery(ctx, shapes, types, out) {
@@ -767,7 +785,7 @@ export function compareCallSite(spec, checker, shapes, types) {
         ? type
         : undefined,
   };
-  compareBody(ctx, shapes, ctx.sent(types.body), out);
+  compareBody(ctx, shapes, ctx.sent(types.body), types.contentType, out);
   compareQuery(ctx, shapes, types, out);
   compareResponse(ctx, shapes, types, out);
   return out;

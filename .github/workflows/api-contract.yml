@@ -74,8 +74,9 @@ jobs:
         env:
           REPORT_DIR: ${{ runner.temp }}/api-drift
           STATE_DIR: .api-drift-state
-          # Empty (a fork, or the secret unset) prints the message instead.
-          SLACK_WEBHOOK_URL: ${{ secrets.MAIN_STATUS_SLACK_WEBHOOK_URL }}
+          # Posts only from the default branch, whose cache holds the state;
+          # elsewhere, or with the secret unset, the message is printed.
+          SLACK_WEBHOOK_URL: ${{ github.ref_name == github.event.repository.default_branch && secrets.MAIN_STATUS_SLACK_WEBHOOK_URL || '' }}
         run: scripts/api-drift-notify.sh
 
       - name: Save the posted state

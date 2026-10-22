@@ -297,15 +297,19 @@ function sdkCalls(program, files) {
 
 /**
  * Every operation in both references, keyed `<METHOD> <path>`, with its plane
- * and the clients its `x-introspection` names.
+ * and the clients its `x-introspection` names, plus the operations both
+ * references declare: a call site does not say which plane it sends to.
  */
 function specOperations(specs) {
   const operations = new Map();
+  const inBoth = [];
   for (const [plane, spec] of Object.entries(specs)) {
     for (const [path, item] of Object.entries(spec.paths ?? {})) {
       for (const method of HTTP_METHODS) {
         const op = item[method];
         if (!op) continue;
+        const key = `${method.toUpperCase()} ${path}`;
+        if (operations.has(key)) inBoth.push(key);
         operations.set(`${method.toUpperCase()} ${path}`, {
           plane,
           clients: op["x-introspection"]?.clients ?? [],
@@ -313,12 +317,12 @@ function specOperations(specs) {
       }
     }
   }
-  return operations;
+  return { operations, inBoth };
 }
 
 /** Operation-level findings: the reference's classification against call sites. */
 function checkOperations(specs, calls, unknownMethod) {
-  const operations = specOperations(specs);
+  const { operations, inBoth } = specOperations(specs);
 
   // The spec operation each normalized `<METHOD> <template>` names.
   const byKey = new Map();
@@ -362,6 +366,10 @@ function checkOperations(specs, calls, unknownMethod) {
     "called by this SDK but not in either reference (the SDK calls a route that does not exist)",
   );
   report(
+    inBoth,
+    "in both references, so a call site cannot be matched to one plane",
+  );
+  report(
     unknownMethod,
     "a route sent without a literal `method`, so it cannot be matched",
   );
@@ -376,6 +384,7 @@ function checkOperations(specs, calls, unknownMethod) {
     count: operations.size,
     missing: uncalled.length,
     notInReference: notInReference.length,
+    unmatched: inBoth.length + unknownMethod.length,
     calledOperations,
   };
 }
@@ -518,6 +527,7 @@ async function main() {
   const summary = [
     `${operations.missing} ${CLIENT} operations not called`,
     `${operations.notInReference} routes not in the reference`,
+    `${operations.unmatched} unmatched routes`,
     `${fieldFindings} field findings`,
     `${warnings.length} call-site warnings`,
   ].join(", ");

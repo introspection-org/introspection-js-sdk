@@ -127,7 +127,7 @@ function renderPlane(plane, changes) {
     .map((group) => {
       const text =
         group.values.length > 1
-          ? template(group).replace("…", group.values.join("`, `"))
+          ? template(group).replace("…", () => group.values.join("`, `"))
           : group.text;
       return {
         ...group,
@@ -167,8 +167,9 @@ function renderPlane(plane, changes) {
 }
 
 /**
- * The SDK drift as check-api-contract.mjs reports it, and its one-line
- * summary of counts.
+ * The SDK drift as check-api-contract.mjs reports it, problems before the
+ * warnings that do not fail it, and its one-line summary of counts. A run
+ * that ends without that summary crashed: an error, not drift.
  */
 function sdkDrift() {
   const result = spawnSync(
@@ -177,15 +178,13 @@ function sdkDrift() {
     { cwd: ROOT, encoding: "utf8" },
   );
   if (result.error) throw result.error;
-  const output = `${result.stdout}\n${result.stderr}`
+  const output = `${result.stderr}\n${result.stdout}`
     .split(/\n\s*\n/)
     .map((paragraph) => paragraph.trim())
     .filter(Boolean)
     .join("\n\n");
-  if (/could not read the API reference/.test(output)) {
-    throw new Error(output);
-  }
   const summary = /^summary: (.*)$/m.exec(output)?.[1];
+  if (result.status !== 0 && !summary) throw new Error(output);
   return { failed: result.status !== 0, text: output, summary };
 }
 
@@ -239,10 +238,11 @@ function main() {
 
   const prompt = readFileSync(PROMPT, "utf8")
     .replace(/<!--[\s\S]*?-->\s*/, "")
-    .replace("{{RUN_URL}}", runUrl)
-    .replace("{{SDK_DRIFT}}", trim(driftText, DRIFT_BUDGET))
-    .replace(
-      "{{CHANGELOG}}",
+    // Replacer functions: the reports can hold `$` sequences, which a
+    // replacement string would read as patterns.
+    .replace("{{RUN_URL}}", () => runUrl)
+    .replace("{{SDK_DRIFT}}", () => trim(driftText, DRIFT_BUDGET))
+    .replace("{{CHANGELOG}}", () =>
       planes.map((plane) => trim(plane.text, PLANE_BUDGET)).join("\n\n"),
     )
     .trim();
