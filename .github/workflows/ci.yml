@@ -66,6 +66,10 @@ jobs:
       - name: Check for runtime import cycles
         run: pnpm check-cycles
 
+      # Against the saved snapshots and a local server, never staging.
+      - name: Test the API contract scripts
+        run: pnpm test:api-contract
+
   knip:
     name: Unused Code (Knip)
     runs-on: ubuntu-latest

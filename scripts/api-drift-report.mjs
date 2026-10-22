@@ -25,6 +25,11 @@
  * for example when the staging reference did not answer: an outage is not
  * drift, and must not post or change the notify state.
  *
+ * A reference URL that answers 404 is not published yet (it goes live with
+ * introspection-cloud#3489): the run then says so, writes no `state`, and
+ * exits 0, so the workflow neither posts nor records a state. Any other error
+ * reading a reference (5xx, timeout, invalid JSON) still exits 2.
+ *
  * Run: node scripts/api-drift-report.mjs --out DIR [--run-url URL]
  * env: OASDIFF  the oasdiff binary (default: oasdiff on PATH)
  *      API_CONTRACT_DATAPLANE, API_CONTRACT_CONTROLPLANE  a URL or file to
@@ -74,6 +79,26 @@ function changelog(plane) {
     );
   }
   return JSON.parse(result.stdout || "[]");
+}
+
+/**
+ * The planes whose reference URL answers 404, after reading every URL
+ * reference once so any other failure (5xx, timeout, invalid JSON) throws.
+ */
+async function unpublished() {
+  const missing = [];
+  for (const plane of PLANES) {
+    const source = referenceSource(plane);
+    if (!/^https?:\/\//.test(source)) continue;
+    const response = await fetch(source, {
+      signal: AbortSignal.timeout(30_000),
+    });
+    if (response.status === 404) missing.push(plane);
+    else if (!response.ok)
+      throw new Error(`${source} answered HTTP ${response.status}`);
+    else await response.json();
+  }
+  return missing;
 }
 
 /** Where a change applies: an operation, or the spec section it sits in. */
@@ -212,7 +237,7 @@ function trim(text, budget) {
 const slackEscape = (text) =>
   text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
-function main() {
+async function main() {
   const out = arg("--out");
   if (!out) {
     console.error("usage: api-drift-report.mjs --out DIR [--run-url URL]");
@@ -223,6 +248,17 @@ function main() {
   let planes;
   let drift;
   try {
+    const missing = await unpublished();
+    if (missing.length) {
+      const line = `reference not published on staging yet, skipping (404: ${missing.join(", ")})`;
+      mkdirSync(out, { recursive: true });
+      writeFileSync(
+        resolve(out, "summary.md"),
+        `## API drift: skipped\n\n${line}\n`,
+      );
+      console.log(line);
+      return 0;
+    }
     planes = PLANES.map((plane) => renderPlane(plane, changelog(plane)));
     drift = sdkDrift();
   } catch (error) {
@@ -284,4 +320,4 @@ function main() {
   return 0;
 }
 
-process.exit(main());
+process.exit(await main());
