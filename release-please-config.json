@@ -11,7 +11,44 @@
         "packages/introspection-node/src/version.ts",
         "packages/introspection-browser/src/version.ts",
         "packages/introspection-coding-agent/src/version.ts"
+      ],
+      "exclude-paths": [
+        "packages/introspection-aauth-protocol",
+        "packages/introspection-aauth-person-server",
+        "packages/introspection-aauth-access-server"
+      ]
+    },
+    "packages/introspection-aauth-protocol": {
+      "release-type": "node",
+      "component": "aauth-protocol",
+      "changelog-path": "CHANGELOG.md",
+      "bump-minor-pre-major": true,
+      "bump-patch-for-minor-pre-major": false
+    },
+    "packages/introspection-aauth-person-server": {
+      "release-type": "node",
+      "component": "aauth-person-server",
+      "changelog-path": "CHANGELOG.md",
+      "bump-minor-pre-major": true,
+      "bump-patch-for-minor-pre-major": false
+    },
+    "packages/introspection-aauth-access-server": {
+      "release-type": "node",
+      "component": "aauth-access-server",
+      "changelog-path": "CHANGELOG.md",
+      "bump-minor-pre-major": true,
+      "bump-patch-for-minor-pre-major": false
+    }
+  },
+  "plugins": [
+    {
+      "type": "linked-versions",
+      "groupName": "aauth",
+      "components": [
+        "aauth-protocol",
+        "aauth-person-server",
+        "aauth-access-server"
       ]
     }
-  }
+  ]
 }
