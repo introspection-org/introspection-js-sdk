@@ -121,6 +121,7 @@ export type {
   ConversationSortField,
   ConversationListParams,
   ConversationItemListParams,
+  ConversationContains,
   ConversationItemInclude,
   ResourceShare,
   ShareResourceType,

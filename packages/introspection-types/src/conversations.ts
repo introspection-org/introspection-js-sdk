@@ -671,7 +671,10 @@ export interface ConversationItemListParams {
   service_name?: string;
   /**
    * Filter items by operation name (exact match). Several values match any
-   * of them: `["chat", "execute_tool"]` leaves out the plumbing spans.
+   * of them; the filter ANDs with {@link ConversationItemListParams.contains}.
+   *
+   * @deprecated Pass `contains: ["gen_ai.operation.name:<operation>"]`
+   * instead, which selects the same items. Kept for older servers.
    */
   operation_name?: string | string[];
   /**
@@ -681,16 +684,19 @@ export interface ConversationItemListParams {
    * `gen_ai.input.messages.*` value returns only the item's new input
    * messages and a `gen_ai.output.messages.*` value only its output; a
    * `gen_ai.tool.name` or `gen_ai.operation.name` value returns the whole
-   * item, as does a chat item written before the summary existed. A chat
-   * client passes what it renders:
+   * item, as does a chat item written before the summary existed. A tool
+   * name may end in one `*` to match by prefix (see
+   * {@link ConversationContains}). At most 20 values. A chat client passes
+   * what it renders:
    *
    * ```ts
    * client.conversations.items.list(id, {
    *   agent: "root",
    *   contains: [
    *     "gen_ai.input.messages.role:user",
-   *     "gen_ai.tool.name:message_user",
-   *     "gen_ai.tool.name:ask_user",
+   *     "gen_ai.output.messages.parts.type:text",
+   *     // every call to a Browserbase MCP tool
+   *     "gen_ai.output.messages.parts.name:mcp_browserbase_*",
    *   ],
    * });
    * ```
@@ -709,23 +715,38 @@ export interface ConversationItemListParams {
  * path over the sealed payload and the value it must contain. The set is
  * closed because every value is resolved from the plaintext summary
  * (`introspection.contains.values`) or a plaintext column, never from the payload.
+ *
+ * A value on one of the four name paths (`gen_ai.input.messages.parts.name`,
+ * `gen_ai.output.messages.parts.name`, `gen_ai.tool.name`,
+ * `gen_ai.operation.name`) may end in a single `*`, which matches by prefix:
+ * `"gen_ai.tool.name:mcp_*"` selects every MCP tool's `execute_tool` item,
+ * and `"gen_ai.output.messages.parts.name:*"` any tool call. The server
+ * rejects with 422 a `*` anywhere else, or on the role and part-type paths.
+ *
+ * @example
+ * ```ts
+ * const contains: ConversationContains[] = [
+ *   "gen_ai.output.messages.parts.name:mcp_browserbase_*",
+ *   "gen_ai.tool.name:mcp_*",
+ * ];
+ * ```
  */
 export type ConversationContains =
   /** A chat item whose new input carries a user-authored part. */
   | "gen_ai.input.messages.role:user"
   /** A chat item whose new input carries any tool's response. */
   | "gen_ai.input.messages.parts.type:tool_call_response"
-  /** A chat item whose new input carries the named tool's response. */
+  /** A chat item whose new input carries the named tool's response (`name*` = prefix). */
   | `gen_ai.input.messages.parts.name:${string}`
   /** A chat item whose output carries assistant text. */
   | "gen_ai.output.messages.parts.type:text"
   /** A chat item whose output calls any tool. */
   | "gen_ai.output.messages.parts.type:tool_call"
-  /** A chat item whose output calls the named tool. */
+  /** A chat item whose output calls the named tool (`name*` = prefix). */
   | `gen_ai.output.messages.parts.name:${string}`
-  /** The `execute_tool` item for the named tool. */
+  /** The `execute_tool` item for the named tool (`name*` = prefix). */
   | `gen_ai.tool.name:${string}`
-  /** Every item of the named operation, e.g. `invoke_agent`. */
+  /** Every item of the named operation, e.g. `invoke_agent` (`name*` = prefix). */
   | `gen_ai.operation.name:${string}`;
 
 /**
