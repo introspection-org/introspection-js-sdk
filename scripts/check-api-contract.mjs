@@ -676,8 +676,8 @@ const calleeName = (call) =>
 
 /**
  * Every route this SDK sends, as `{ method, path, at }`. A route is sent where
- * it is the `path` of a request object (`{ method, path }`, or a `stream()`
- * call, which is always a GET), an argument of a GET-only helper, or the URL of
+ * it is the `path` of the first argument to `request()` or `stream()`
+ * (which is always a GET), an argument of a GET-only helper, or the URL of
  * a direct `fetch(url, { method })` call (a GET without `method`). A route in
  * any other position, such as a comparison or a doc comment, is not a call.
  */
@@ -703,7 +703,11 @@ function sdkCalls() {
         (ts.isPropertyAssignment(node) ||
           ts.isShorthandPropertyAssignment(node)) &&
         node.name.getText(source) === "path" &&
-        ts.isObjectLiteralExpression(node.parent)
+        ts.isObjectLiteralExpression(node.parent) &&
+        ts.isCallExpression(node.parent.parent) &&
+        ts.isPropertyAccessExpression(node.parent.parent.expression) &&
+        ["request", "stream"].includes(calleeName(node.parent.parent)) &&
+        node.parent.parent.arguments[0] === node.parent
       ) {
         const routes = routesOf(node.initializer ?? node.name, aliases);
         if (routes.length) {
