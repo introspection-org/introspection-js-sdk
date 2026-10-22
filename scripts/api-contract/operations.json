@@ -1,7 +1,46 @@
 {
   "dataplane": {
-    "GET /v1/tasks": "sdk",
-    "POST /v1/tasks": "sdk",
+    "GET /v1/tasks": {
+      "sdk": true,
+      "exempt": [
+        {
+          "missing": "query.runtime_id",
+          "reason": "Product-UI shaped filters, whose only callers are the frontend. Which filters to expose is a product decision."
+        },
+        {
+          "missing": "query.runtime_ids",
+          "reason": "Product-UI shaped filters, whose only callers are the frontend. Which filters to expose is a product decision."
+        },
+        {
+          "missing": "query.updated_after",
+          "reason": "Product-UI shaped filters, whose only callers are the frontend. Which filters to expose is a product decision."
+        },
+        {
+          "missing": "query.conversation_id",
+          "reason": "Product-UI shaped filters, whose only callers are the frontend. Which filters to expose is a product decision."
+        },
+        {
+          "missing": "query.*",
+          "report": true,
+          "reason": "Which filters to expose is a product decision, so a missing filter is reported and does not fail."
+        }
+      ]
+    },
+    "POST /v1/tasks": {
+      "sdk": true,
+      "exempt": [
+        {
+          "missing": "body.runtime_id",
+          "at": "packages/introspection-http/src/resources/tasks.ts",
+          "reason": "Runner-bound: the credential's claim is authoritative for runtime selection and the API ignores a body `runtime_id` from such a caller, so exposing it would be a field that silently does nothing."
+        },
+        {
+          "extra": "body.identity",
+          "at": "packages/introspection-http/src/resources/tasks.ts",
+          "reason": "`identity` is client-side sugar on the browser client, not a wire field: it folds it into `metadata.identity`, which the API reads only when the caller's token carries no identity claim of its own."
+        }
+      ]
+    },
     "GET /v1/tasks/{task_id}": "sdk",
     "PATCH /v1/tasks/{task_id}": "sdk",
     "DELETE /v1/tasks/{task_id}": "sdk",
@@ -33,13 +72,31 @@
     "GET /v1/files/{file_id}/versions": "sdk",
     "POST /v1/files/{file_id}/versions": "sdk",
     "GET /v1/files/{file_id}/versions/{file_version_id}": "sdk",
-    "GET /v1/files": "sdk",
+    "GET /v1/files": {
+      "sdk": true,
+      "exempt": [
+        {
+          "missing": "query.*",
+          "report": true,
+          "reason": "Which filters to expose is a product decision, so a missing filter is reported and does not fail."
+        }
+      ]
+    },
     "POST /v1/files": "sdk",
     "GET /v1/files/{file_id}": "sdk",
     "PATCH /v1/files/{file_id}": "sdk",
     "DELETE /v1/files/{file_id}": "sdk",
     "GET /v1/files/{file_id}/content": "sdk",
-    "GET /v1/shares": "sdk",
+    "GET /v1/shares": {
+      "sdk": true,
+      "exempt": [
+        {
+          "missing": "query.*",
+          "report": true,
+          "reason": "Which filters to expose is a product decision, so a missing filter is reported and does not fail."
+        }
+      ]
+    },
     "POST /v1/shares": "sdk",
     "GET /v1/shares/{share_id}": "sdk",
     "PATCH /v1/shares/{share_id}": "sdk",
@@ -50,13 +107,71 @@
     "PATCH /v1/tags/{kind}/{name}": "sdk",
     "DELETE /v1/tags/{kind}/{name}": "sdk",
     "POST /v1/metrics": "sdk",
-    "GET /v1/conversations": "sdk",
+    "GET /v1/conversations": {
+      "sdk": true,
+      "exempt": [
+        {
+          "extra": "query.order",
+          "reason": "Resolved client-side and never sent: the ergonomic window aliases, and `format`, which selects Arrow via the Accept header rather than a param."
+        },
+        {
+          "extra": "query.start",
+          "reason": "Resolved client-side and never sent: the ergonomic window aliases, and `format`, which selects Arrow via the Accept header rather than a param."
+        },
+        {
+          "extra": "query.end",
+          "reason": "Resolved client-side and never sent: the ergonomic window aliases, and `format`, which selects Arrow via the Accept header rather than a param."
+        },
+        {
+          "extra": "query.lookback",
+          "reason": "Resolved client-side and never sent: the ergonomic window aliases, and `format`, which selects Arrow via the Accept header rather than a param."
+        },
+        {
+          "extra": "query.format",
+          "reason": "Resolved client-side and never sent: the ergonomic window aliases, and `format`, which selects Arrow via the Accept header rather than a param."
+        },
+        {
+          "missing": "query.*",
+          "report": true,
+          "reason": "Which filters to expose is a product decision, so a missing filter is reported and does not fail."
+        }
+      ]
+    },
     "GET /v1/conversations/{conversation_id}/turns": "sdk",
     "GET /v1/conversations/{conversation_id}/items": "sdk",
     "GET /v1/conversations/{conversation_id}/export": "sdk",
     "GET /v1/conversations/{conversation_id}/items/{item_id}": "sdk",
     "GET /v1/conversations/{conversation_id}": "sdk",
-    "GET /v1/events": "sdk",
+    "GET /v1/events": {
+      "sdk": true,
+      "exempt": [
+        {
+          "extra": "query.order",
+          "reason": "Resolved client-side and never sent: the ergonomic window aliases, and `format`, which selects Arrow via the Accept header rather than a param."
+        },
+        {
+          "extra": "query.start",
+          "reason": "Resolved client-side and never sent: the ergonomic window aliases, and `format`, which selects Arrow via the Accept header rather than a param."
+        },
+        {
+          "extra": "query.end",
+          "reason": "Resolved client-side and never sent: the ergonomic window aliases, and `format`, which selects Arrow via the Accept header rather than a param."
+        },
+        {
+          "extra": "query.lookback",
+          "reason": "Resolved client-side and never sent: the ergonomic window aliases, and `format`, which selects Arrow via the Accept header rather than a param."
+        },
+        {
+          "extra": "query.format",
+          "reason": "Resolved client-side and never sent: the ergonomic window aliases, and `format`, which selects Arrow via the Accept header rather than a param."
+        },
+        {
+          "missing": "query.*",
+          "report": true,
+          "reason": "Which filters to expose is a product decision, so a missing filter is reported and does not fail."
+        }
+      ]
+    },
     "GET /v1/events/{event_id}": "sdk",
     "POST /v1/events/feedback": {
       "excluded": "The SDK's feedback() emitters send feedback as OTLP logs, not through this route."
@@ -217,7 +332,15 @@
     "POST /v1/connectors/discover-oauth": "sdk",
     "GET /v1/connectors/custom/apps": "sdk",
     "GET /v1/connectors/{connector_id}/apps": "sdk",
-    "GET /v1/connectors": "sdk",
+    "GET /v1/connectors": {
+      "sdk": true,
+      "exempt": [
+        {
+          "missing": "query.project",
+          "reason": "Project scope comes from the authenticated credential."
+        }
+      ]
+    },
     "POST /v1/connectors": "sdk",
     "GET /v1/connectors/{connector_id}": "sdk",
     "PATCH /v1/connectors/{connector_id}": "sdk",
