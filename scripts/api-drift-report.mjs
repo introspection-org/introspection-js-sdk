@@ -7,7 +7,8 @@
  * - The reference changelog: what changed in the staging API since the
  *   snapshots in api-reference/ were taken, from oasdiff. Operations and fields
  *   added, removed or changed, with oasdiff's breaking verdict on each.
- * - The SDK drift: where this SDK disagrees with the staging reference, from
+ * - The SDK drift: the operations marked for the SDK that it never calls, and
+ *   the routes it calls that staging does not have, from
  *   scripts/check-api-contract.mjs, run as it is.
  *
  * Either one being non-empty makes the run red: SDK drift needs fixing, and a
@@ -167,8 +168,8 @@ function renderPlane(plane, changes) {
 }
 
 /**
- * The SDK drift as check-api-contract.mjs reports it, problems before the
- * warnings that do not fail it, and its one-line summary of counts. A run
+ * The SDK drift as check-api-contract.mjs reports it, and its one-line
+ * summary of counts. A run
  * that ends without that summary crashed: an error, not drift.
  */
 function sdkDrift() {

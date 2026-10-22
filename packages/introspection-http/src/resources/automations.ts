@@ -10,10 +10,10 @@ import { Paginator, paginateGet } from "../pagination.js";
 import type { ResourceHttpClient } from "./types.js";
 
 /** The fields of `params` that are set, so a PATCH never sends an absent one. */
-function setFields<T extends object>(params: T): T {
+function setFields<T extends object>(params: T): Partial<T> {
   return Object.fromEntries(
     Object.entries(params).filter(([, value]) => value !== undefined),
-  ) as T;
+  ) as Partial<T>;
 }
 
 /**

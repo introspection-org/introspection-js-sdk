@@ -9,9 +9,9 @@ Fix the API drift that last night's API Contract run found in introspection-js-s
 
 Where: the introspection-js-sdk repository. Fetch origin, create a new branch from origin/main, and work only there.
 
-What: fix the client to match the staging API reference, exactly where the SDK drift report below says it differs, and nothing else. The reference's `x-introspection.clients` decides which operations the SDK must call; it is the only classification. Each fix covers the SDK types, the client code that sends or reads the field, and a unit test for it in tests/ that follows AGENTS.md (Polly recordings, no framework mocks). The reference changelog is context: it says what changed in the staging API since the snapshots in api-reference/ were taken.
+What: fix the client to match the staging API reference, exactly where the SDK drift report below says it differs, and nothing else. The reference's `x-introspection.clients` decides which operations the SDK must call; it is the only classification. Each operation the SDK must call gets a client method, its types, and a unit test in tests/ that follows AGENTS.md (Polly recordings, no framework mocks). The reference changelog is context: it says what changed in the staging API since the snapshots in api-reference/ were taken.
 
-Deleting is allowed for what the check reports as stale: a route the SDK calls that is not in the reference, or a field the SDK sends or reads that the reference does not have. List each thing you delete in the PR body.
+Deleting is allowed for what the check reports as stale: a route the SDK calls that is not in the reference. List each route you delete in the PR body.
 
 Finish: refresh both snapshots from staging:
 
