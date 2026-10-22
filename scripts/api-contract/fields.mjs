@@ -657,7 +657,9 @@ function compareQuery(ctx, shapes, types, out) {
   if (why) findings.push({ kind: "unresolvable", field: "query", detail: why });
   else if (query) compare(ctx.fresh(), shapes.query, query, "query", findings);
   else {
-    for (const name of shapes.query.required)
+    // Nothing sent: every parameter the reference takes is missing, as it
+    // would be against a sent query that leaves it out.
+    for (const name of Object.keys(shapes.query.properties))
       findings.push({ kind: "missing", field: `query.${name}` });
   }
   const implicit = new Set(
