@@ -7,6 +7,12 @@
  * TypeScript erases at runtime, so the types lied rather than broke, and
  * nothing in CI knew what the API accepted.
  *
+ * That create body is not field-checked today: `TasksClient.create` sends
+ * `mapTaskBody(body)`, which returns `Record<string, unknown>`, so its call
+ * site fails as unresolvable by name until it is given a concrete wire type.
+ * The check is red there whatever the fields are; it does not yet catch that
+ * kind of drift field by field.
+ *
  * The reference at docs.introspection.dev is generated from the Data Plane API
  * itself, so comparing against it compares against the API's own declaration
  * rather than a second hand-maintained copy.
@@ -87,8 +93,9 @@ function sourceFiles(dir) {
  * that is not a known route prefix read as a path parameter. Empty when the
  * expression is not a route.
  *
- * `aliases` maps a local `const` or helper function to the routes it holds,
- * so `path: tagPath(kind, name)` and `${runPath}/stream` resolve too.
+ * `aliases` maps an identifier to the routes the local `const` or helper
+ * function it refers to holds, so `path: tagPath(kind, name)` and
+ * `${runPath}/stream` resolve too.
  *
  * With `url`, the expression is a whole URL: a leading `${...}` before the
  * `/v1/` route is the base URL (`${baseApiUrl}/v1/oauth/token`), not a
@@ -99,9 +106,9 @@ function routesOf(node, aliases, url = false) {
   if (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)) {
     return node.text.startsWith("/v1/") ? [node.text] : [];
   }
-  if (ts.isIdentifier(node)) return aliases.get(node.text) ?? [];
+  if (ts.isIdentifier(node)) return aliases(node);
   if (ts.isCallExpression(node) && ts.isIdentifier(node.expression)) {
-    return aliases.get(node.expression.text) ?? [];
+    return aliases(node.expression);
   }
   if (ts.isConditionalExpression(node)) {
     return [
@@ -129,9 +136,18 @@ function routesOf(node, aliases, url = false) {
     .filter((p) => p.startsWith("/v1/"));
 }
 
-/** `const x = <route>` and functions returning a route, in one file. */
-function collectAliases(source) {
-  const aliases = new Map();
+/**
+ * `const x = <route>` and functions returning a route, in one file, keyed by
+ * the checker's symbol so two same-named locals in different scopes stay
+ * apart. Returns the lookup from an identifier to its routes.
+ */
+function collectAliases(source, checker) {
+  const routesBySymbol = new Map();
+  const symbolOf = (id) =>
+    ts.isShorthandPropertyAssignment(id.parent) && id.parent.name === id
+      ? checker.getShorthandAssignmentValueSymbol(id.parent)
+      : checker.getSymbolAtLocation(id);
+  const aliases = (id) => routesBySymbol.get(symbolOf(id)) ?? [];
   // Post-order, so a helper's own `const base = ...` is known before its
   // returns are read.
   const visit = (node) => {
@@ -142,7 +158,7 @@ function collectAliases(source) {
       node.initializer
     ) {
       const routes = routesOf(node.initializer, aliases);
-      if (routes.length) aliases.set(node.name.text, routes);
+      if (routes.length) routesBySymbol.set(symbolOf(node.name), routes);
     }
     if (ts.isFunctionDeclaration(node) && node.name && node.body) {
       const routes = [];
@@ -154,7 +170,7 @@ function collectAliases(source) {
         ts.forEachChild(inner, returns);
       };
       ts.forEachChild(node.body, returns);
-      if (routes.length) aliases.set(node.name.text, routes);
+      if (routes.length) routesBySymbol.set(symbolOf(node.name), routes);
     }
   };
   visit(source);
@@ -179,11 +195,12 @@ const calleeName = (call) =>
 function sdkCalls(program, files) {
   const calls = [];
   const unknownMethod = [];
+  const checker = program.getTypeChecker();
 
   for (const file of files) {
     const source = program.getSourceFile(file);
     if (!source?.text.includes("/v1/")) continue;
-    const aliases = collectAliases(source);
+    const aliases = collectAliases(source, checker);
     const at = (node) =>
       `${relative(ROOT, file)}:${source.getLineAndCharacterOfPosition(node.getStart(source)).line + 1}`;
 
@@ -463,11 +480,18 @@ function checkFields(spec, checker, { name, op, entry, sites }) {
     const fatal = new Map();
     const noted = new Map();
     for (const f of findings) {
-      const ex = inScope.find(
+      // Every exemption that covers the finding is in use, whatever its
+      // order: an exact one next to an overlapping `<parent>.*` is not
+      // stale. One that silences wins over a report-only one.
+      const covering = inScope.filter(
         (e) => e.kind === f.kind && fieldMatches(e.field, f.field),
       );
-      if (ex) ex.used = true;
-      const into = ex ? (ex.report ? noted : null) : fatal;
+      for (const e of covering) e.used = true;
+      const into = !covering.length
+        ? fatal
+        : covering.every((e) => e.report)
+          ? noted
+          : null;
       if (!into) continue;
       if (!into.has(f.kind)) into.set(f.kind, []);
       into.get(f.kind).push(f.detail ? `${f.field} (${f.detail})` : f.field);
@@ -483,12 +507,24 @@ function checkFields(spec, checker, { name, op, entry, sites }) {
     if (noted.size) notes.push(`  ${at}\n${describe(noted)}`);
   }
 
+  const describeExemption = (ex) =>
+    `${ex.kind} ${ex.field}${ex.at ? ` (${ex.at})` : ""}`;
   const stale = exemptions
     .filter((ex) => ex.judged && !ex.used)
-    .map((ex) => `${ex.kind} ${ex.field}${ex.at ? ` (${ex.at})` : ""}`);
+    .map(describeExemption);
   if (stale.length)
     problems.push(
       `  exempted in operations.json but no call site needs it any more (drop the exemption):${listing(stale)}`,
+    );
+  // Scoped to a file with no call site: never judged, so it would otherwise
+  // stay forever without anyone seeing it.
+  const files = new Set(sites.map(({ at }) => at.replace(/:\d+$/, "")));
+  const orphaned = exemptions
+    .filter((ex) => ex.at && !files.has(ex.at))
+    .map(describeExemption);
+  if (orphaned.length)
+    problems.push(
+      `  exempted in operations.json at a file with no call site of this operation (fix \`at\` or drop the exemption):${listing(orphaned)}`,
     );
 
   const title = `fields — ${name}: ${op}`;
