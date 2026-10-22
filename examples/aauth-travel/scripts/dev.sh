@@ -113,19 +113,10 @@ else
 fi
 [ -n "${FLIGHTSECTOR_NO_SETUP:-}" ] || say "$(introspection --version)"
 
-# The stack is the one `introspection login` chose. An INTROSPECTION_* variable
-# in the environment would point the CLI at another stack or project, so none
-# is passed to it.
-unset INTROSPECTION_API_BASE_URL INTROSPECTION_DP_URL INTROSPECTION_PROJECT
-
 # A session that answers, not only one on file: `whoami` reads the stored
 # credentials, so an expired session still reads as logged in.
 session_works() {
-  local whoami
-  whoami="$(introspection whoami 2>/dev/null)" || return 1
-  [ "$(json 'v.logged_in' <<<"$whoami")" = true ] || return 1
-  introspection runtimes list -o json >/dev/null 2>&1 || return 1
-  say "on $(json 'v.cp_url' <<<"$whoami"), as \`introspection login\` chose"
+  introspection runtimes list -o json >/dev/null 2>&1
 }
 
 if [ -z "${FLIGHTSECTOR_NO_SETUP:-}" ] && ! session_works; then
