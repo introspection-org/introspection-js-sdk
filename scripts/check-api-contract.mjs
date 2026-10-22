@@ -14,30 +14,39 @@
  *   no call site in each package's `src` (method and path);
  * - a call site sends a `/v1/...` route that neither reference has.
  *
- * Field changes are not compared here: the nightly drift report lists them
- * from oasdiff, as changes between the saved snapshots and staging.
+ * Field changes are not compared.
  *
- * Deliberately NOT a unit test and NOT a pull-request gate. It reaches the
- * network and it goes red when the API changes, which is a fact about the world
- * and not about the commit under review — gating PRs on that trains people to
- * ignore it, and being ignorable is how the last one survived.
- * .github/workflows/api-contract.yml runs it nightly against staging.
+ * With `--pr`, the first kind is only reported and does not fail: a new cloud
+ * route must not block unrelated pull requests. ci.yml runs it so on every
+ * pull request; .github/workflows/api-contract.yml runs it in full after each
+ * staging deploy and posts state changes to #main-build-alerts.
  *
- * Run: node scripts/check-api-contract.mjs [--dataplane URL|PATH] [--controlplane URL|PATH]
+ * A reference URL that answers 404 is not published: the check says so and
+ * exits 0. Exit 1 is drift, 2 a reference that could not be read.
+ *
+ * Run: node scripts/check-api-contract.mjs [--pr] [--out DIR]
+ *        [--dataplane URL|PATH] [--controlplane URL|PATH]
+ *      --out DIR  also writes the findings to DIR/report.txt and red|green to
+ *                 DIR/state, but not when it skips
  * env: API_CONTRACT_DATAPLANE, API_CONTRACT_CONTROLPLANE  the same, for a flag
  *      left out (default: staging, https://api.staging.introspection.dev/openapi/<plane>.json)
  */
-import { existsSync, readdirSync, readFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  writeFileSync,
+} from "node:fs";
 import { dirname, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import ts from "typescript";
 
-import { referenceSource } from "./api-contract/reference.mjs";
-
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 /** The client name this SDK goes by in `x-introspection.clients`. */
 const CLIENT = "sdk";
+const STAGING = "https://api.staging.introspection.dev";
 
 const PACKAGES = resolve(ROOT, "packages");
 const PLANE_NAMES = { dp: "dataplane", cp: "controlplane" };
@@ -46,6 +55,17 @@ const HTTP_METHODS = ["get", "post", "put", "patch", "delete"];
 const GET_HELPERS = new Set(["paginateGet", "listRead", "arrowRead"]);
 /** Direct fetch calls, such as the OAuth routes that bypass the HTTP client. */
 const FETCH_CALLEES = new Set(["fetch", "fetchImpl"]);
+
+function arg(name) {
+  const flag = process.argv.indexOf(name);
+  return flag === -1 ? undefined : process.argv[flag + 1];
+}
+
+/** `--<plane>`, else `API_CONTRACT_<PLANE>`, else staging. */
+const referenceSource = (plane) =>
+  arg(`--${plane}`) ||
+  process.env[`API_CONTRACT_${plane.toUpperCase()}`] ||
+  `${STAGING}/openapi/${plane}.json`;
 
 const listing = (items) =>
   [...items]
@@ -319,16 +339,20 @@ function checkOperations(specs, calls, unknownMethod) {
       uncalled.push(`${PLANE_NAMES[plane]}: ${op}`);
   }
 
+  // Uncalled operations are reported first; `--pr` reports them without
+  // failing.
   const problems = [];
-  const report = (items, means) => {
+  const report = (items, means, fails = true) => {
     if (items.length)
-      problems.push(
-        `operations — ${means} (${items.length}):${listing(items)}`,
-      );
+      problems.push({
+        fails,
+        text: `operations — ${means} (${items.length}):${listing(items)}`,
+      });
   };
   report(
     uncalled,
     `the reference lists "${CLIENT}" in x-introspection.clients, but no call site in packages/*/src sends it`,
+    !process.argv.includes("--pr"),
   );
   report(
     notInReference,
@@ -351,11 +375,13 @@ function checkOperations(specs, calls, unknownMethod) {
   };
 }
 
+/** The reference as JSON, or undefined when its URL answers 404. */
 async function loadSpec(source) {
   if (source.startsWith("http://") || source.startsWith("https://")) {
     const response = await fetch(source, {
       signal: AbortSignal.timeout(30_000),
     });
+    if (response.status === 404) return undefined;
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     return response.json();
   }
@@ -376,7 +402,13 @@ async function main() {
       console.error(
         `could not read the API reference at ${sources[plane]}: ${error.message}`,
       );
-      return 1;
+      return 2;
+    }
+    if (!specs[plane]) {
+      console.log(
+        `${sources[plane]} answered 404: reference not published yet, skipping`,
+      );
+      return 0;
     }
   }
 
@@ -392,17 +424,22 @@ async function main() {
     `${operations.notInReference} routes not in the reference`,
     `${operations.unmatched} unmatched routes`,
   ].join(", ");
-  if (operations.problems.length) {
-    console.error(operations.problems.join("\n\n"));
-    console.error(`\nsummary: ${summary}`);
-    console.error(`reference: ${sources.dp} + ${sources.cp}`);
-    return 1;
-  }
+  const fails = operations.problems.some((problem) => problem.fails);
+  const report = operations.problems.length
+    ? [
+        ...operations.problems.map((problem) => problem.text),
+        `summary: ${summary}\nreference: ${sources.dp} + ${sources.cp}`,
+      ].join("\n\n")
+    : `✓ SDK routes match the reference (${operations.count} operations)`;
+  console.log(report);
 
-  console.log(
-    `✓ SDK routes match the reference (${operations.count} operations)`,
-  );
-  return 0;
+  const out = arg("--out");
+  if (out) {
+    mkdirSync(out, { recursive: true });
+    writeFileSync(resolve(out, "report.txt"), `${report}\n`);
+    writeFileSync(resolve(out, "state"), fails ? "red\n" : "green\n");
+  }
+  return fails ? 1 : 0;
 }
 
 process.exit(await main());

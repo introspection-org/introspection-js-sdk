@@ -12,8 +12,5 @@ coverage
 CHANGELOG.md
 # pnpm owns this generated file's canonical formatting.
 pnpm-lock.yaml
-# Byte copies of the published API reference, refreshed with curl from
-# https://api.staging.introspection.dev/openapi/<plane>.json.
-api-reference
 # Docs snippet regions keep the docs' line layout, not prettier's.
 examples/reference/

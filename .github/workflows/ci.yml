@@ -66,9 +66,22 @@ jobs:
       - name: Check for runtime import cycles
         run: pnpm check-cycles
 
-      # Against the saved snapshots and a local server, never staging.
+      # Against a local server, never staging.
       - name: Test the API contract scripts
         run: pnpm test:api-contract
+
+      # The routes the SDK calls against the staging reference. A route staging
+      # does not have fails; an operation marked for the SDK that it never
+      # calls is only listed in the job summary (api-contract.yml alerts on
+      # those after each staging deploy). A staging 404 skips.
+      - name: Check the SDK routes against staging
+        run: |
+          status=0
+          node scripts/check-api-contract.mjs --pr --out "${RUNNER_TEMP}/api-contract" || status=$?
+          if [ -f "${RUNNER_TEMP}/api-contract/report.txt" ]; then
+            { echo '### API contract'; echo '```'; cat "${RUNNER_TEMP}/api-contract/report.txt"; echo '```'; } >> "${GITHUB_STEP_SUMMARY}"
+          fi
+          exit "${status}"
 
   knip:
     name: Unused Code (Knip)
