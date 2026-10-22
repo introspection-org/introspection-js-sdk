@@ -318,7 +318,11 @@ function compare(ctx, schema, type, field, out, repeatable = false) {
 
   // Keyed by identity, not by name: inline schemas have no `$ref`, so a key
   // of refs and printed types would let an unrelated pair skip its check.
-  const key = `${specObjects.map((b) => identity(b.origin)).join("|")}::${tsObjects.map(identity).join("|")}`;
+  // Deduplicated and sorted, so mutually recursive unions (`A.next: A | B`)
+  // reach the same key again instead of growing it on every level.
+  const ids = (objs) =>
+    [...new Set(objs.map(identity))].sort((a, b) => a - b).join("|");
+  const key = `${ids(specObjects.map((b) => b.origin))}::${ids(tsObjects)}`;
   if (seen.has(key)) return;
   seen.add(key);
 
