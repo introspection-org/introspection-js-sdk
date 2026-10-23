@@ -7,7 +7,9 @@
 
 import { execFileSync } from "node:child_process";
 import fs from "node:fs";
+import path from "node:path";
 import os from "node:os";
+import { fileURLToPath } from "node:url";
 import type { TestContext } from "vitest";
 import type { HttpClient } from "@introspection-sdk/introspection-node";
 import type { PollyMode } from "../polly-setup";
@@ -104,11 +106,34 @@ export function secondTurn(settings: WalkSettings): string {
     : WALK.secondTurn;
 }
 
+/**
+ * What replay needs that no response carries: the login's project id, which
+ * step 1 reads for its deployment. A record run writes it beside the HAR.
+ */
+export const BOOTSTRAP_FILE = "bootstrap.json";
+
+function recordedBootstrap(): { project_id?: string } {
+  const dir = path.resolve(
+    path.dirname(fileURLToPath(import.meta.url)),
+    "../recordings",
+  );
+  if (!fs.existsSync(dir)) return {};
+  for (const entry of fs.readdirSync(dir)) {
+    const file = `${dir}/${entry}/${BOOTSTRAP_FILE}`;
+    if (entry.startsWith("walk") && fs.existsSync(file)) {
+      return JSON.parse(fs.readFileSync(file, "utf8")) as {
+        project_id?: string;
+      };
+    }
+  }
+  return {};
+}
+
 const REPLAY_SETTINGS: WalkSettings = {
   target: "compose",
   baseApiUrl: "http://localhost:8000",
   cpSession: "replay-session",
-  bootstrapProjectId: null,
+  bootstrapProjectId: recordedBootstrap().project_id ?? null,
   deploymentId: null,
   recipeRepositoryUrl:
     "https://github.com/introspection-org/recipe-harbor-mcp-agent",

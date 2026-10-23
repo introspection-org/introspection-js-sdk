@@ -35,10 +35,12 @@ import type {
   TaskCommand,
   TaskCommandSpec,
 } from "@introspection-sdk/types";
+import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { getPollyMode, setupPolly } from "../polly-setup";
 import {
+  BOOTSTRAP_FILE,
   followAuthorization,
   hasCompleteRecording,
   prompt,
@@ -62,6 +64,7 @@ const RECORDINGS_DIR = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
   "../recordings",
 );
+const recordingDir = `${RECORDINGS_DIR}/${RECORDING}`;
 const mode = getPollyMode();
 
 /**
@@ -149,6 +152,7 @@ walk("SDK end-to-end walk", () => {
   /** The same credentials on the native fetch: polls that the recording never sees. */
   let saQuiet: IntrospectionClient;
   let project: Project;
+  let loginDeploymentId: string | null = null;
   let application: Application;
   let repository: Repository;
   let memberToken: string;
@@ -194,7 +198,14 @@ walk("SDK end-to-end walk", () => {
             if (err instanceof NotFoundError) return null;
             throw err;
           });
-        if (existing) await owner.projects.delete(existing.id);
+        if (existing) {
+          // A login whose own project is the walk's slug: its deployment is
+          // read now, since the project is gone before step 1 asks.
+          if (existing.id === settings.bootstrapProjectId) {
+            loginDeploymentId = existing.deployment_id;
+          }
+          await owner.projects.delete(existing.id);
+        }
       });
     },
     STEP_TIMEOUT,
@@ -204,12 +215,23 @@ walk("SDK end-to-end walk", () => {
     "1: project — create, read, list, update",
     async (ctx) => {
       await steps.run(ctx, "project", async () => {
-        // The deployment: from the credentials file where the seed wrote one,
-        // else the one the login's own projects are on. Read from a response,
-        // not a setting, so replay sends what the recording holds.
+        // The deployment: the one the login's project is on (the CI seed
+        // writes it directly, having no project). Read from a response, not
+        // a setting, so replay sends what the recording holds.
         const deploymentId =
           settings.deploymentId ??
-          (await owner.projects.list()).records[0]!.deployment_id;
+          loginDeploymentId ??
+          (settings.bootstrapProjectId
+            ? (await owner.projects.get(settings.bootstrapProjectId))
+                .deployment_id
+            : (await owner.projects.list()).records[0]!.deployment_id);
+        if (mode === "record" && settings.bootstrapProjectId) {
+          fs.mkdirSync(recordingDir, { recursive: true });
+          fs.writeFileSync(
+            `${recordingDir}/${BOOTSTRAP_FILE}`,
+            JSON.stringify({ project_id: settings.bootstrapProjectId }) + "\n",
+          );
+        }
         project = await owner.projects.create({
           name: WALK.projectName,
           slug: WALK.projectSlug,
