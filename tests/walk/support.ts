@@ -26,7 +26,9 @@ export interface WalkSettings {
    * The login's own project. The walk never writes to it: it only reads the
    * deployment to create its own project on.
    */
+  /** The login's project: where the walk runs. */
   bootstrapProjectId: string | null;
+  dpUrl: string | null;
   /** The deployment a new project is created on; resolved from the bootstrap project when unset. */
   deploymentId: string | null;
   /** Where the recipe is cloned from: a public URL, or a checkout on disk. */
@@ -38,9 +40,13 @@ export interface WalkSettings {
 
 /** Fixed names, so a recording matches whatever run replays it. */
 export const WALK = {
-  projectSlug: "sdk-coverage",
-  projectName: "SDK coverage",
+  /** The walk runs in the login's project; this names the sibling it creates and deletes. */
+  siblingSuffix: "-walk",
   applicationName: "sdk-coverage-walk",
+  tagName: "walk",
+  apiKeyName: "walk",
+  automationName: "The walk's automation",
+  experimentNames: ["The walk's experiment", "The walk's cancelled experiment"],
   credentialName: "WALK_SECRET",
   credentialSecret: "walk-secret-value-0001",
   secondTurn: "Reply with the single word done.",
@@ -134,6 +140,7 @@ const REPLAY_SETTINGS: WalkSettings = {
   baseApiUrl: "http://localhost:8000",
   cpSession: "replay-session",
   bootstrapProjectId: recordedBootstrap().project_id ?? null,
+  dpUrl: "http://localhost:8002",
   deploymentId: null,
   recipeRepositoryUrl:
     "https://github.com/introspection-org/recipe-harbor-mcp-agent",
@@ -149,6 +156,7 @@ const REPLAY_SETTINGS: WalkSettings = {
 interface CredentialsFile {
   cp_url?: string;
   cp_session?: string;
+  dp_url?: string;
   org_id?: string;
   project_id?: string;
   deployment_id?: string;
@@ -180,11 +188,20 @@ export function walkSettings(
         "or set INTROSPECTION_BASE_API_URL and INTROSPECTION_CP_SESSION",
     );
   }
+  const bootstrapProjectId =
+    env.INTROSPECTION_PROJECT_ID ?? file.project_id ?? null;
+  if (!bootstrapProjectId) {
+    throw new Error(
+      "the walk runs in the login's project and the login names none: " +
+        "run `introspection login` and pick a project, or set INTROSPECTION_PROJECT_ID",
+    );
+  }
   return {
     target: (env.WALK_TARGET as WalkTarget | undefined) ?? "compose",
     baseApiUrl,
     cpSession,
-    bootstrapProjectId: env.INTROSPECTION_PROJECT_ID ?? file.project_id ?? null,
+    bootstrapProjectId,
+    dpUrl: env.INTROSPECTION_DP_URL ?? file.dp_url ?? null,
     deploymentId: env.INTROSPECTION_DEPLOYMENT_ID ?? file.deployment_id ?? null,
     // The recipe the walk pushes: a checkout on disk (RECIPE_DIR) or a git
     // URL, at the head of `main` unless RECIPE_GIT_REF names another ref.

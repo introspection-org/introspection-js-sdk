@@ -106,9 +106,7 @@ const APPLICATION_SCOPES = [
   "automations:read",
   "automations:write",
   "annotations:read",
-
   "approvals:read",
-
   "approvals:write",
   "images:read",
   "images:write",
@@ -152,10 +150,11 @@ walk("SDK end-to-end walk", () => {
   /** The same credentials on the native fetch: polls that the recording never sees. */
   let saQuiet: IntrospectionClient;
   let project: Project;
-  let loginDeploymentId: string | null = null;
   let application: Application;
   let repository: Repository;
   let memberToken: string;
+  let member: IntrospectionClient;
+  let originalDescription: string | null;
   let recipe: Recipe;
   /** The walk's own pin of the same commit: a runtime version's identity is (group, recipe). */
   let pinnedRecipe: Recipe;
@@ -189,88 +188,107 @@ walk("SDK end-to-end walk", () => {
   }, STEP_TIMEOUT);
 
   it(
-    "0: a clean slate — the walk's project is gone before it starts",
+    "0: the login's project, with a crashed run's leftovers removed",
     async (ctx) => {
       await steps.run(ctx, "clean slate", async () => {
-        const existing = await owner.projects
-          .get(WALK.projectSlug)
-          .catch((err: unknown) => {
-            if (err instanceof NotFoundError) return null;
-            throw err;
-          });
-        if (existing) {
-          // A login whose own project is the walk's slug: its deployment is
-          // read now, since the project is gone before step 1 asks.
-          if (existing.id === settings.bootstrapProjectId) {
-            loginDeploymentId = existing.deployment_id;
-          }
-          await owner.projects.delete(existing.id);
+        // The walk runs in the project the login names and never deletes it;
+        // a record run writes the id beside the recording, which is all
+        // replay needs to send the same read.
+        project = await owner.projects.get(settings.bootstrapProjectId!);
+        if (mode === "record") {
+          fs.mkdirSync(recordingDir, { recursive: true });
+          fs.writeFileSync(
+            `${recordingDir}/${BOOTSTRAP_FILE}`,
+            JSON.stringify({ project_id: project.id }) + "\n",
+          );
         }
+        // The owner's Data Plane token for the project: it carries
+        // `git:push`, which no service account can, and the member-only
+        // Data Plane writes (access tags, annotations).
+        const minted = await raw(owner.cpHttp).post<{
+          access_token: string;
+          project_id: string;
+        }>("/v1/tokens", { project: project.id, expires_hours: 24 });
+        memberToken = minted.access_token;
+        expect(minted.project_id).toBe(project.id);
+        member = new IntrospectionClient({
+          token: memberToken,
+          advanced: {
+            baseApiUrl: settings.baseApiUrl,
+            dpUrl: settings.dpUrl ?? undefined,
+          },
+        });
+        await removeWalkResources(owner, member, project);
       });
     },
     STEP_TIMEOUT,
   );
 
   it(
-    "1: project — create, read, list, update",
+    "1: project — read, list, update; a sibling created and deleted",
     async (ctx) => {
       await steps.run(ctx, "project", async () => {
-        // The deployment: the one the login's project is on (the CI seed
-        // writes it directly, having no project). Read from a response, not
-        // a setting, so replay sends what the recording holds.
-        const deploymentId =
-          settings.deploymentId ??
-          loginDeploymentId ??
-          (settings.bootstrapProjectId
-            ? (await owner.projects.get(settings.bootstrapProjectId))
-                .deployment_id
-            : (await owner.projects.list()).records[0]!.deployment_id);
-        if (mode === "record" && settings.bootstrapProjectId) {
-          fs.mkdirSync(recordingDir, { recursive: true });
-          fs.writeFileSync(
-            `${recordingDir}/${BOOTSTRAP_FILE}`,
-            JSON.stringify({ project_id: settings.bootstrapProjectId }) + "\n",
-          );
-        }
-        project = await owner.projects.create({
-          name: WALK.projectName,
-          slug: WALK.projectSlug,
-          deployment_id: deploymentId,
-        });
-        expect(stable(project)).toMatchInlineSnapshot(`
-        {
-          "created_by_member_id": "[uuid]",
-          "deployment_id": "[uuid]",
-          "description": null,
-          "id": "[uuid]",
-          "name": "SDK coverage",
-          "org_id": "[uuid]",
-          "settings": null,
-          "slug": "sdk-coverage",
-        }
-      `);
-
+        // The project's name, slug and description are the login's.
+        expect(
+          stable({
+            ...project,
+            name: undefined,
+            slug: undefined,
+            description: undefined,
+          }),
+        ).toMatchInlineSnapshot(`
+          {
+            "created_by_member_id": "[uuid]",
+            "deployment_id": "[uuid]",
+            "description": undefined,
+            "id": "[uuid]",
+            "name": undefined,
+            "org_id": "[uuid]",
+            "settings": null,
+            "slug": undefined,
+          }
+        `);
+        originalDescription = project.description;
         const read = await owner.projects.get(project.id);
-        expect(read.slug).toBe(WALK.projectSlug);
+        expect(read.id).toBe(project.id);
 
         const listed = await owner.projects.list();
         expect(listed.records.some((p) => p.id === project.id)).toBe(true);
 
         const updated = await owner.projects.update(project.id, {
-          description: "The SDK end-to-end walk's project",
+          description: "The SDK end-to-end walk ran here",
         });
-        expect(stable(updated)).toMatchInlineSnapshot(`
-        {
-          "created_by_member_id": "[uuid]",
-          "deployment_id": "[uuid]",
-          "description": "The SDK end-to-end walk's project",
-          "id": "[uuid]",
-          "name": "SDK coverage",
-          "org_id": "[uuid]",
-          "settings": null,
-          "slug": "sdk-coverage",
-        }
-      `);
+        expect(updated.description).toBe("The SDK end-to-end walk ran here");
+        // A PATCH with only nulls is "no fields to update", so a project
+        // that had no description gets an empty one back.
+        const restored = await owner.projects.update(project.id, {
+          description: originalDescription ?? "",
+        });
+        expect(restored.description ?? "").toBe(originalDescription ?? "");
+
+        // Creating and deleting a project is the one write the login's own
+        // project must not see, so a sibling takes it.
+        const sibling = await owner.projects.create({
+          name: `${project.name} (walk)`,
+          slug: `${project.slug}${WALK.siblingSuffix}`,
+          deployment_id: project.deployment_id,
+        });
+        expect(sibling.deployment_id).toBe(project.deployment_id);
+        expect(stable({ ...sibling, name: undefined, slug: undefined }))
+          .toMatchInlineSnapshot(`
+          {
+            "created_by_member_id": "[uuid]",
+            "deployment_id": "[uuid]",
+            "description": null,
+            "id": "[uuid]",
+            "name": undefined,
+            "org_id": "[uuid]",
+            "settings": null,
+            "slug": undefined,
+          }
+        `);
+        await owner.projects.delete(sibling.id);
+        await expectNotFound(() => owner.projects.get(sibling.id));
       });
     },
     STEP_TIMEOUT,
@@ -487,16 +505,6 @@ walk("SDK end-to-end walk", () => {
           }
         `);
 
-        // The owner's Data Plane token, minted for the walk's project: it
-        // carries `git:push`, which no service account can, and later the
-        // member-only Data Plane writes (annotations).
-        const minted = await raw(owner.cpHttp).post<{
-          access_token: string;
-          project_id: string;
-        }>("/v1/tokens", { project: project.id, expires_hours: 24 });
-        memberToken = minted.access_token;
-        expect(minted.project_id).toBe(project.id);
-
         // Provisioning seeds the hosted copy with the deployment's template and
         // reports it; that first push pins a recipe. A runtime made from it
         // registers the group's slug, which is what lets the next push
@@ -630,7 +638,7 @@ walk("SDK end-to-end walk", () => {
             "policies": null,
             "project_id": "[uuid]",
             "repository_id": "[uuid]",
-            "slug": "hello-mcp-production-main-a8db04a2e4d1",
+            "slug": "hello-mcp-production-main-e3327a0d0d12",
             "sub_path": ".",
             "updated_at": "[timestamp]",
             "validation": {
@@ -1417,13 +1425,6 @@ walk("SDK end-to-end walk", () => {
 
         // Access tags are an administrator's to write: the owner's token, not
         // the service account, which acts as the project's agent member.
-        const member = new IntrospectionClient({
-          token: memberToken,
-          advanced: {
-            baseApiUrl: settings.baseApiUrl,
-            dpUrl: sa.advancedOptions.dpUrl,
-          },
-        });
         const memberQuiet = new IntrospectionClient({
           token: memberToken,
           advanced: {
@@ -2074,7 +2075,7 @@ walk("SDK end-to-end walk", () => {
         expect(keys.some((k) => k.id === apiKey.id)).toBe(true);
         await sa.apiKeys.update(
           apiKey.id,
-          { name: "walk (renamed)" },
+          { name: `${WALK.apiKeyName} (renamed)` },
           project.id,
         );
         await sa.apiKeys.acknowledge(apiKey.id, project.id);
@@ -2100,75 +2101,122 @@ walk("SDK end-to-end walk", () => {
     "18: teardown — everything the walk created, in reverse",
     async (ctx) => {
       await steps.run(ctx, "teardown", async () => {
-        // Deleting is the owner's: the `:delete` scopes of runtimes, recipes,
-        // experiments, repositories and connectors are never minted to an
-        // application, so the session does what the service account cannot.
-        await sa.apiKeys.delete(apiKey.id, { project: project.id });
-        await sa.automations.delete(automation.id);
-        await sa.shares.delete(shareId);
-        const memberAgain = new IntrospectionClient({
-          token: memberToken,
-          advanced: {
-            baseApiUrl: settings.baseApiUrl,
-            dpUrl: sa.advancedOptions.dpUrl,
-          },
-        });
-        await memberAgain.tags.delete("access", "walk");
-        // The runner's session never carries `tasks:delete`; the service account does.
-        for await (const t of sa.tasks.list()) await sa.tasks.delete(t.id);
-        await expectNotFound(() => sa.tasks.get(task.id));
-        // The default list omits the upload a task holds, so it goes by id.
+        // The default file list omits the upload a task holds, so it goes by id.
         await sa.files.delete(inputFile.id);
-        for await (const f of sa.files.list({}))
-          await sa.files.delete(f.id).catch(() => undefined);
+        await removeWalkResources(owner, member, project, sa);
+        await expectNotFound(() => sa.tasks.get(task.id));
         await expectNotFound(() => sa.files.get(inputFile.id));
-        // `experiments:delete` is no scope a token can name, so the owner deletes.
-        await owner.experiments.delete(experiment.id, project.id);
-        // Every version in the group: the push's, the walk's and the arm's.
-        for await (const r of sa.runtimes.list({
-          project: project.id,
-          runtime: WALK.runtimeSlug,
-        })) {
-          await owner.runtimes.delete(r.id, project.id);
-        }
         await expectNotFound(() => sa.runtimes.get(runtimeV2.id));
-        // The group's endpoint binding went with its last runtime version.
-        await sa.endpoints
-          .delete(endpoint.id, project.id)
-          .catch((err: unknown) => {
-            if (!(err instanceof NotFoundError)) throw err;
-          });
-        for await (const c of sa.connectors.connections.list(connector.id)) {
-          await owner.connectors.connections.revoke(
-            connector.id,
-            c.id,
-            project.id,
-          );
-        }
-        await owner.connectors.delete(connector.id, project.id);
         await expectNotFound(() => sa.connectors.get(connector.id));
-        for await (const v of sa.variables.list({ project: project.id }))
-          await sa.variables.delete(v.id, project.id);
-        for await (const c of sa.credentials.list({ project: project.id }))
-          await sa.credentials.delete(c.id, project.id);
-        for await (const r of sa.recipes.list({ project: project.id })) {
-          await owner.recipes.delete(r.id, project.id);
-        }
         await expectNotFound(() => sa.recipes.get(recipe.id));
-        await owner.repositories.delete(repository.id, { project: project.id });
-        try {
-          await sa.repositories.branches(repository.id);
-        } catch {
-          // The hosted content went with the repository.
-        }
-        await owner.applications.delete(application.id, project.id);
-        await owner.projects.delete(project.id);
-        await expectNotFound(() => owner.projects.get(project.id));
+        await expectNotFound(() =>
+          owner.applications.get(application.id, project.id),
+        );
+        // The login's project is untouched: still there, as it was.
+        const after = await owner.projects.get(project.id);
+        expect(after.description ?? "").toBe(originalDescription ?? "");
       });
     },
     STEP_TIMEOUT,
   );
 });
+
+/**
+ * Everything the walk creates, found by its fixed names and removed in
+ * reverse, so step 0 clears a crashed run and step 18 clears this one.
+ * Deleting is the owner's where a `:delete` scope is never minted to an
+ * application (runtimes, recipes, experiments, repositories, connectors);
+ * the member's Data Plane token does the rest.
+ */
+async function removeWalkResources(
+  owner: IntrospectionClient,
+  member: IntrospectionClient,
+  project: Project,
+  // Tasks and files are listed as the project's agent member (the service
+  // account) where it exists: a member's own token lists only the tasks it
+  // owns, not the runner's, which a customer identity owns.
+  dp: IntrospectionClient = member,
+): Promise<void> {
+  const q = { project: project.id };
+  const ignore404 = (err: unknown) => {
+    if (!(err instanceof NotFoundError)) throw err;
+  };
+  for (const key of await owner.apiKeys.list(q)) {
+    if ([WALK.apiKeyName, `${WALK.apiKeyName} (renamed)`].includes(key.name)) {
+      await owner.apiKeys.delete(key.id, q);
+    }
+  }
+  for await (const a of member.automations.list()) {
+    if (a.name === WALK.automationName) await member.automations.delete(a.id);
+  }
+  await member.tags.delete("access", WALK.tagName).catch(ignore404);
+  for await (const task of dp.tasks.list()) {
+    if ((task.metadata as { suite?: string } | null)?.suite === "walk") {
+      await dp.tasks.delete(task.id);
+    }
+  }
+  const walkFiles: string[] = [];
+  for await (const f of dp.files.list({})) {
+    if (f.name === WALK.inputFileName || f.name.endsWith(WALK.outputFileName)) {
+      walkFiles.push(f.id);
+    }
+  }
+  for await (const s of dp.shares.list({ resource_type: "file" })) {
+    if (walkFiles.includes(s.resource_id)) await dp.shares.delete(s.id);
+  }
+  for (const id of walkFiles) await dp.files.delete(id).catch(ignore404);
+  for await (const x of owner.experiments.list({ project: project.id })) {
+    if ((WALK.experimentNames as readonly string[]).includes(x.name)) {
+      await owner.experiments.delete(x.id, project.id);
+    }
+  }
+  for await (const r of owner.runtimes.list({
+    project: project.id,
+    runtime: WALK.runtimeSlug,
+  })) {
+    // Deleting the group's live version takes its siblings with it.
+    await owner.runtimes.delete(r.id, project.id).catch(ignore404);
+  }
+  for await (const e of owner.endpoints.list({
+    project: project.id,
+    mcp_server_id: WALK.mcpServerId,
+  })) {
+    await owner.endpoints.delete(e.id, project.id).catch(ignore404);
+  }
+  for await (const c of owner.connectors.list({ project: project.id })) {
+    if (c.slug !== WALK.connectorName) continue;
+    for await (const conn of owner.connectors.connections.list(c.id)) {
+      await owner.connectors.connections.revoke(c.id, conn.id, project.id);
+    }
+    await owner.connectors.delete(c.id, project.id);
+  }
+  for await (const v of owner.variables.list(q)) {
+    if (v.name === WALK.variableName)
+      await owner.variables.delete(v.id, project.id);
+  }
+  for await (const c of owner.credentials.list(q)) {
+    if (c.name === WALK.credentialName) {
+      await owner.credentials.delete(c.id, project.id);
+    }
+  }
+  for (const repo of await owner.repositories.list({
+    project: project.id,
+    slug: WALK.recipeSlug,
+  })) {
+    for await (const r of owner.recipes.list({
+      project: project.id,
+      repository_id: repo.id,
+    })) {
+      await owner.recipes.delete(r.id, project.id);
+    }
+    await owner.repositories.delete(repo.id, q);
+  }
+  for await (const a of owner.applications.list(q)) {
+    if (a.name.startsWith(WALK.applicationName)) {
+      await owner.applications.delete(a.id, project.id);
+    }
+  }
+}
 
 async function expectNotFound(read: () => Promise<unknown>): Promise<void> {
   const outcome = await read().then(

@@ -94,9 +94,10 @@ RECIPE_DIR=~/introspection/recipe-harbor-mcp-agent pnpm test:walk:live
 
 A live run reads `~/.introspection/credentials.json` (or the file
 `INTROSPECTION_CREDENTIALS` names), pushes the recipe at the head of `main`
-(`RECIPE_GIT_REF` overrides), and must be the only walk on that organisation:
-its first step deletes the `sdk-coverage` project. Scan the recording for
-credentials before committing it.
+(`RECIPE_GIT_REF` overrides), runs inside the project the login chose (the
+project stays; everything the walk makes under its fixed names is removed
+first and after), and must be the only walk in that project. Scan the
+recording for credentials before committing it.
 
 ## Code coverage
 

@@ -169,7 +169,10 @@ export interface ConnectorUpdateParams {
   policy_entities?: PolicyEntity[];
 }
 
-export type ConnectorListParams = CursorParams;
+export interface ConnectorListParams extends CursorParams {
+  /** The project, for a credential that names none (an org member's session). */
+  project?: string;
+}
 
 export interface ConnectorApp {
   /** Provider-specific application slug accepted by `authorize({ app })`. */
