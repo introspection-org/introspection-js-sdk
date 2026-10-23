@@ -150,6 +150,8 @@ walk("SDK end-to-end walk", () => {
   let repository: Repository;
   let memberToken: string;
   let recipe: Recipe;
+  /** The walk's own pin of the same commit: a runtime version's identity is (group, recipe). */
+  let pinnedRecipe: Recipe;
   let connector: Connector;
   let runtime: Runtime;
   let endpoint: Endpoint;
@@ -398,8 +400,8 @@ walk("SDK end-to-end walk", () => {
                 "last_used_at": null,
                 "name": "second",
                 "org_id": "[uuid]",
-                "secret_prefix": "intro_sk_CRhsGR83",
-                "secret_suffix": "qRUI",
+                "secret_prefix": "intro_sk_8IHu5jLt",
+                "secret_suffix": "DIdo",
                 "status": "active",
                 "updated_at": "[timestamp]",
               },
@@ -413,8 +415,8 @@ walk("SDK end-to-end walk", () => {
                 "last_used_at": null,
                 "name": "first",
                 "org_id": "[uuid]",
-                "secret_prefix": "intro_sk_gIhvzD3W",
-                "secret_suffix": "6YWU",
+                "secret_prefix": "intro_sk_ytFtFjlh",
+                "secret_suffix": "CUJk",
                 "status": "active",
                 "updated_at": "[timestamp]",
               },
@@ -445,23 +447,23 @@ walk("SDK end-to-end walk", () => {
           "the credential-free Git transport URL",
         ).toBeTruthy();
         expect(stable(created)).toMatchInlineSnapshot(`
-        {
-          "created_at": "[timestamp]",
-          "default_branch": "main",
-          "head_commit_sha": null,
-          "id": "[uuid]",
-          "integration_id": null,
-          "is_recipe_source": false,
-          "name": "harbor-hello-mcp",
-          "project_id": "[uuid]",
-          "provider": "introspection",
-          "provisioning_status": "pending",
-          "pushed_at": null,
-          "seed_template": "pi-agent",
-          "slug": "harbor-hello-mcp",
-          "url": "[url]",
-        }
-      `);
+          {
+            "created_at": "[timestamp]",
+            "default_branch": "main",
+            "head_commit_sha": null,
+            "id": "[uuid]",
+            "integration_id": null,
+            "is_recipe_source": false,
+            "name": "hello-mcp",
+            "project_id": "[uuid]",
+            "provider": "introspection",
+            "provisioning_status": "pending",
+            "pushed_at": null,
+            "seed_template": "pi-agent",
+            "slug": "hello-mcp",
+            "url": "[url]",
+          }
+        `);
 
         // The owner's Data Plane token, minted for the walk's project: it
         // carries `git:push`, which no service account can, and later the
@@ -472,23 +474,45 @@ walk("SDK end-to-end walk", () => {
         }>("/v1/tokens", { project: project.id, expires_hours: 24 });
         memberToken = minted.access_token;
         expect(minted.project_id).toBe(project.id);
+
+        // Provisioning seeds the hosted copy with the deployment's template and
+        // reports it; that first push pins a recipe. A runtime made from it
+        // registers the group's slug, which is what lets the next push
+        // version the group and sync its judges (hosted-recipe-git.md).
+        repository = await settled(
+          polly!,
+          mode,
+          () => sa.repositories.get(created.id, { project: project.id }),
+          (r) => r.provisioning_status === "ready" || r.provisioning_status === "failed",
+          { timeoutMs: 180_000, intervalMs: 2_000, label: "hosted repository" },
+        );
+        expect(repository.provisioning_status).toBe("ready");
+        const seeded = await settled(
+          polly!,
+          mode,
+          async () => {
+            const out: Recipe[] = [];
+            for await (const r of sa.recipes.list({ project: project.id })) out.push(r);
+            return out;
+          },
+          (rows) => rows.some((r) => r.repository_id === repository.id),
+          { timeoutMs: 180_000, intervalMs: 3_000, label: "seed recipe" },
+        );
+        const seedRecipe = seeded.find((r) => r.repository_id === repository.id)!;
+        const seedRuntime = await cp.post<Runtime>("/v1/runtimes", {
+          project: project.id,
+          recipe_id: seedRecipe.id,
+          name: WALK.runtimeSlug,
+          slug: WALK.runtimeSlug,
+        });
+        expect(seedRuntime.slug).toBe(WALK.runtimeSlug);
+
         if (mode !== "replay") {
           pushRecipe(
             { url: settings.recipeRepositoryUrl, ref: settings.recipeGitRef },
             { url: created.url!, bearer: memberToken },
           );
         }
-        // A hosted repository reads `ready` once its first push has landed.
-        repository = await settled(
-          polly!,
-          mode,
-          () => sa.repositories.get(created.id, { project: project.id }),
-          (r) =>
-            r.provisioning_status === "ready" ||
-            r.provisioning_status === "failed",
-          { timeoutMs: 120_000, intervalMs: 2_000, label: "hosted repository" },
-        );
-        expect(repository.provisioning_status).toBe("ready");
 
         const listed = await sa.repositories.list({
           project: project.id,
@@ -523,45 +547,74 @@ walk("SDK end-to-end walk", () => {
         );
         expect(entry.path).toBe("agents/scripted.yaml");
 
-        recipe = await cp.post<Recipe>("/v1/recipes", {
-          project_id: project.id,
-          repository_id: repository.id,
-          name: "Harbor hello-mcp",
-          slug: WALK.recipeSlug,
-          git_ref: "main",
-          git_commit_sha: head!.sha,
-        });
+        // The push versioned the manifest's recipe at the pushed commit; the
+        // create below names the same pin and answers with that row.
+        const versioned = await settled(
+          polly!,
+          mode,
+          async () => {
+            const out: Recipe[] = [];
+            for await (const r of sa.recipes.list({ project: project.id })) out.push(r);
+            return out.find((r) => r.git_commit_sha === head!.sha) ?? null;
+          },
+          (r) => r !== null,
+          { timeoutMs: 180_000, intervalMs: 3_000, label: "push-versioned recipe" },
+        );
+        recipe = versioned!;
         expect(stable(recipe)).toMatchInlineSnapshot(`
           {
             "created_at": "[timestamp]",
             "created_by_member_id": "[uuid]",
-            "description": null,
+            "description": "Harbor E2B task calling a development MCP server",
             "git_commit_sha": "[sha]",
             "git_commit_subject": null,
             "git_ref": "main",
             "id": "[uuid]",
-            "mcp_servers": null,
-            "name": "Harbor hello-mcp",
+            "mcp_servers": [
+              {
+                "id": "[redacted]",
+                "required": true,
+                "tools": {
+                  "exclude": [],
+                  "include": [
+                    "echo",
+                  ],
+                },
+              },
+            ],
+            "name": "hello-mcp",
             "org_id": "[uuid]",
             "policies": null,
             "project_id": "[uuid]",
             "repository_id": "[uuid]",
-            "slug": "harbor-hello-mcp",
-            "sub_path": null,
+            "slug": "hello-mcp-production-main-a8db04a2e4d1",
+            "sub_path": ".",
             "updated_at": "[timestamp]",
             "validation": {
-              "checked_at": null,
+              "checked_at": "[timestamp]",
               "diagnostics": [],
               "error_message": null,
-              "status": "pending",
-              "validator_name": null,
-              "validator_version": null,
+              "status": "valid",
+              "validator_name": "introspection-recipe-check",
+              "validator_version": "0.12.0",
             },
           }
         `);
+        // A second pin of the same commit under the walk's own name: the
+        // create mints a recipe row per pin, so this is a sibling of the
+        // push's, not the same row.
+        pinnedRecipe = await cp.post<Recipe>("/v1/recipes", {
+          project_id: project.id,
+          repository_id: repository.id,
+          name: "hello-mcp (walk pin)",
+          git_ref: "main",
+          git_commit_sha: head!.sha,
+        });
+        expect(pinnedRecipe.git_commit_sha).toBe(head!.sha);
+        expect(pinnedRecipe.id).not.toBe(recipe.id);
 
         const read = await sa.recipes.get(recipe.id);
-        expect(read.slug).toBe(WALK.recipeSlug);
+        expect(read.slug).toBe(recipe.slug);
         let seen = false;
         for await (const item of sa.recipes.list({ project: project.id })) {
           if (item.id === recipe.id) seen = true;
@@ -747,14 +800,24 @@ walk("SDK end-to-end walk", () => {
     async (ctx) => {
       await steps.run(ctx, "runtime", async () => {
         const cp = raw(sa.cpHttp);
-        const created = await cp.post<Runtime>("/v1/runtimes", {
-          project: project.id,
-          recipe_id: recipe.id,
-          name: WALK.runtimeSlug,
-          slug: WALK.runtimeSlug,
-          config_json: { connectors: [WALK.connectorName] },
-        });
-        expect(stable(created)).toMatchInlineSnapshot(`
+        // The push versioned the group at the recipe's commit; that version
+        // is the runtime the walk runs on, and the API creates the next one.
+        const versioned = await settled(
+          polly!,
+          mode,
+          async () => {
+            const out: Runtime[] = [];
+            for await (const r of sa.runtimes.list({ project: project.id, runtime: WALK.runtimeSlug })) {
+              out.push(r);
+            }
+            return out.find((r) => r.recipe_id === recipe.id) ?? null;
+          },
+          (r) => r !== null && (r.image_build_status === "ready" || r.image_build_status === "failed"),
+          { timeoutMs: BAKE_TIMEOUT, intervalMs: 10_000, label: "push-versioned runtime bake" },
+        );
+        runtime = versioned!;
+        expect(runtime.image_build_status, runtime.image_build_error_message ?? "").toBe("ready");
+        expect(stable(runtime)).toMatchInlineSnapshot(`
           {
             "config_json": {
               "connectors": [
@@ -763,7 +826,7 @@ walk("SDK end-to-end walk", () => {
             },
             "created_at": "[timestamp]",
             "created_by_member_id": "[uuid]",
-            "description": null,
+            "description": "Harbor E2B task calling a development MCP server",
             "environment_ref": null,
             "environments": [
               "staging",
@@ -771,47 +834,60 @@ walk("SDK end-to-end walk", () => {
             ],
             "id": "[uuid]",
             "image_build_error_message": null,
-            "image_build_metadata": {},
-            "image_build_status": "pending",
+            "image_build_metadata": {
+              "built_at": "[timestamp]",
+              "external_image_name": "intro-6864c641-5bf2-50ca-9bea-090f37e685eb-a8db04a2e4d1",
+              "image_tag": "host.docker.internal:5001/sandbox-builds:01a13d6d-f05f-7115-9cc9-4b168ba5d22d-6864c641-5bf-a8db04a2e4d1-683127baeffe",
+              "size_bytes": 15427,
+              "verdict_by": "[timestamp]",
+            },
+            "image_build_status": "ready",
             "kind": "byor",
             "llm_mode": "managed",
-            "name": "sdk-coverage-runtime",
+            "name": "hello-mcp",
             "org_id": "[uuid]",
             "project_id": "[uuid]",
             "recipe_id": "[uuid]",
             "recipe_kind": "production",
             "recipe_ref": "main",
             "runtime_group_id": "[uuid]",
-            "slug": "sdk-coverage-runtime",
+            "slug": "hello-mcp",
             "updated_at": "[timestamp]",
             "yanked_at": null,
             "yanked_reason": null,
           }
         `);
-        runtime = await settled(
+
+        // A version's identity in its group is its recipe, so the next
+        // version pins the walk's own recipe of the same commit.
+        const created = await cp.post<Runtime>("/v1/runtimes", {
+          project: project.id,
+          recipe_id: pinnedRecipe.id,
+          name: WALK.runtimeSlug,
+          slug: WALK.runtimeSlug,
+          config_json: { connectors: [WALK.connectorName] },
+        });
+        expect(created.runtime_group_id).toBe(runtime.runtime_group_id);
+        runtimeV2 = await settled(
           polly!,
           mode,
           () => sa.runtimes.get(created.id),
-          (r) =>
-            r.image_build_status === "ready" ||
-            r.image_build_status === "failed",
-          { timeoutMs: 20 * 60_000, intervalMs: 10_000, label: "runtime bake" },
+          (r) => r.image_build_status === "ready" || r.image_build_status === "failed",
+          { timeoutMs: BAKE_TIMEOUT, intervalMs: 10_000, label: "runtime bake" },
         );
-        expect(
-          runtime.image_build_status,
-          runtime.image_build_error_message ?? "",
-        ).toBe("ready");
+        expect(runtimeV2.image_build_status, runtimeV2.image_build_error_message ?? "").toBe("ready");
         let seen = false;
         for await (const item of sa.runtimes.list({
           project: project.id,
           runtime: WALK.runtimeSlug,
         })) {
-          if (item.id === runtime.id) seen = true;
+          // The list serves the group's live version, the newest one.
+          if (item.runtime_group_id === runtime.runtime_group_id) seen = true;
         }
         expect(seen).toBe(true);
       });
     },
-    STEP_TIMEOUT,
+    BAKE_TIMEOUT,
   );
 
   it(
@@ -911,9 +987,11 @@ walk("SDK end-to-end walk", () => {
         );
         expect(renamed.name).toBe("hello-mcp (walk)");
 
-        const requirements = await sa.runtimes.get(runtime.id);
+        const requirements = await cp.get<Runtime>(`/v1/runtimes/${runtime.id}`, {
+          include: "mcp_requirements",
+        });
         expect(stable(requirements.mcp_requirements)).toMatchInlineSnapshot(
-          `undefined`,
+          `[]`,
         );
       });
     },
@@ -949,7 +1027,7 @@ walk("SDK end-to-end walk", () => {
             "parent_id": null,
             "project_id": "[uuid]",
             "size_bytes": 21,
-            "storage_path": "01a13d6d-f05f-7115-9cc9-4b168ba5d22d/01a167aa-4021-746e-93ea-72fcb8a2bf6c/files/01a167aa-74e0-7046-8288-a6496d6d9efe/walk-input.txt",
+            "storage_path": "01a13d6d-f05f-7115-9cc9-4b168ba5d22d/01a167eb-ca5a-7314-9cd9-1be2fc1d5ede/files/01a167ec-136f-7175-bebe-2d030b383c90/walk-input.txt",
             "storage_version_id": null,
             "tags": [],
             "task_id": null,
@@ -1016,7 +1094,7 @@ walk("SDK end-to-end walk", () => {
             "completed_at": null,
             "conversation_metadata": null,
             "created_at": "[timestamp]",
-            "display_index": 2,
+            "display_index": 4,
             "id": "[uuid]",
             "is_archived": false,
             "kind": "agent",
@@ -1043,13 +1121,13 @@ walk("SDK end-to-end walk", () => {
               "image_build": {
                 "build_id": "[uuid]",
                 "git_sha": "[sha]",
-                "image_digest": "host.docker.internal:5001/sandbox-builds@sha256:282b22463797761665a1eb89c1740604e14f530d9a590d15baa1bbc109ea8e7c",
+                "image_digest": "host.docker.internal:5001/sandbox-builds@sha256:f963861469f172e57b4f647d085989f2c2af273d22b40bf2230752eaacc712e0",
                 "launch": "baked",
               },
-              "invocation_id": "inv_12u4gKg8d7nh0VJSsp8Mp2z56wAKv9nUdj",
+              "invocation_id": "inv_12u4gKg8d7nh3hdIe2klmBzuixOLOjD1bC",
               "last_activity_at": "[timestamp]",
               "last_response": {
-                "response_id": "chatcmpl-f3537933ab2a4680969f9e5fc0ebd019",
+                "response_id": "chatcmpl-a74ecfaafc6441238ed2ca247d91a8f1",
                 "turn": 1,
                 "updated_at": "[timestamp]",
               },
@@ -1060,14 +1138,15 @@ walk("SDK end-to-end walk", () => {
               "spawn_resolution": {
                 "attribution_env": {
                   "INTROSPECTION_ENVIRONMENT": "production",
+                  "INTROSPECTION_JUDGES_OPERATIONAL": "{"greeting":{"enabled":true,"sample_rate":1.0,"judge_id":"01a167eb-d774-7110-bea6-9862a80551ac","definition_hash":"459455f76567d23931987f6e51b8709f8aca44f9c8f665a4d861297113406ba9"}}",
                   "INTROSPECTION_RECIPE_ID": "[uuid]",
                   "INTROSPECTION_RECIPE_KIND": "production",
                   "INTROSPECTION_RECIPE_REF": "main",
                   "INTROSPECTION_RUNTIME_GROUP_ID": "[uuid]",
                   "INTROSPECTION_RUNTIME_ID": "[uuid]",
                   "INTROSPECTION_RUNTIME_KIND": "byor",
-                  "INTROSPECTION_RUNTIME_NAME": "sdk-coverage-runtime",
-                  "OTEL_SERVICE_NAME": "sdk-coverage-runtime",
+                  "INTROSPECTION_RUNTIME_NAME": "hello-mcp",
+                  "OTEL_SERVICE_NAME": "hello-mcp",
                 },
                 "contract": {
                   "agent_name": "scripted",
@@ -1168,12 +1247,12 @@ walk("SDK end-to-end walk", () => {
               "task_id": "[uuid]",
             },
             "mime_type": "text/plain",
-            "name": "tasks/01a167aa-757c-7199-869a-bfec073cbd6f/outputs/greeting.txt",
+            "name": "tasks/01a167ec-1430-75de-9f45-2122e1566b6f/outputs/greeting.txt",
             "org_id": "[uuid]",
             "parent_id": null,
             "project_id": "[uuid]",
             "size_bytes": 31,
-            "storage_path": "01a13d6d-f05f-7115-9cc9-4b168ba5d22d/01a167aa-4021-746e-93ea-72fcb8a2bf6c/files/01a167aa-81a4-70d7-a345-62f72b897e3a/greeting.txt",
+            "storage_path": "01a13d6d-f05f-7115-9cc9-4b168ba5d22d/01a167eb-ca5a-7314-9cd9-1be2fc1d5ede/files/01a167ec-1fe1-77e2-8adf-e8402c94d141/greeting.txt",
             "storage_version_id": null,
             "tags": [],
             "task_id": "[uuid]",
@@ -1209,7 +1288,7 @@ walk("SDK end-to-end walk", () => {
             "environment": "production",
             "id": "[uuid]",
             "metrics": {
-              "duration_ms": 433,
+              "duration_ms": 641,
               "failed_llm_call_count": 0,
               "failed_tool_use_count": 1,
               "has_errors": false,
@@ -1230,7 +1309,7 @@ walk("SDK end-to-end walk", () => {
               "group_id": "[uuid]",
               "id": "[uuid]",
             },
-            "service_name": "sdk-coverage-runtime",
+            "service_name": "hello-mcp",
             "task_title": "The walk's task",
             "updated_at": "[timestamp]",
             "usage": {
@@ -1265,7 +1344,7 @@ walk("SDK end-to-end walk", () => {
         await sa.conversations.items.get(conversationId, first.span_id!);
         let seen = false;
         for await (const c of sa.conversations.list({
-          runtime_id: runtime.id,
+          runtime_group_id: runtime.runtime_group_id,
         })) {
           if (c.id === conversationId) seen = true;
         }
@@ -1430,18 +1509,90 @@ walk("SDK end-to-end walk", () => {
           { project: project.id },
         );
 
-        const created = await runner.tasks.create({
+        // A trial needs the evals capability, which the runner's session never
+        // carries; the service account holds `tasks:eval` and names the runtime.
+        const created = await sa.tasks.create({
           kind: "eval",
+          runtime_id: runtime.id,
+          commands: true,
           prompt: prompt(settings),
           agent_name: settings.agent,
-          recipe_git_commit_sha: recipe.git_commit_sha,
           metadata: { suite: "walk" },
           idle_timeout_seconds: 120,
-        } as Parameters<typeof runner.tasks.create>[0]);
+        } as Parameters<typeof sa.tasks.create>[0]);
         evalTask = created.task;
-        expect(stable(evalTask)).toMatchInlineSnapshot();
+        expect(stable(evalTask)).toMatchInlineSnapshot(`
+          {
+            "agent": {
+              "sandbox_status": "provisioning",
+              "session_id": null,
+            },
+            "automation_id": null,
+            "completed_at": null,
+            "conversation_metadata": null,
+            "created_at": "[timestamp]",
+            "display_index": 5,
+            "id": "[uuid]",
+            "is_archived": false,
+            "kind": "eval",
+            "last_user_message_at": "[timestamp]",
+            "member_id": "[uuid]",
+            "metadata": {
+              "active_run_id": "[uuid]",
+              "agent_name": "scripted",
+              "commands": true,
+              "completion_reason": null,
+              "conversation_id": "[uuid]",
+              "crash_restarts": null,
+              "error": null,
+              "history_recall": null,
+              "idle_timeout_seconds": 120,
+              "last_activity_at": null,
+              "latest_run_id": "[uuid]",
+              "runtime_environment": "production",
+              "spawn_resolution": {
+                "attribution_env": {
+                  "INTROSPECTION_ENVIRONMENT": "production",
+                  "INTROSPECTION_JUDGES_OPERATIONAL": "{"greeting":{"enabled":true,"sample_rate":1.0,"judge_id":"01a167eb-d774-7110-bea6-9862a80551ac","definition_hash":"459455f76567d23931987f6e51b8709f8aca44f9c8f665a4d861297113406ba9"}}",
+                  "INTROSPECTION_RECIPE_ID": "[uuid]",
+                  "INTROSPECTION_RECIPE_KIND": "production",
+                  "INTROSPECTION_RECIPE_REF": "main",
+                  "INTROSPECTION_RUNTIME_GROUP_ID": "[uuid]",
+                  "INTROSPECTION_RUNTIME_ID": "[uuid]",
+                  "INTROSPECTION_RUNTIME_KIND": "byor",
+                  "INTROSPECTION_RUNTIME_NAME": "hello-mcp",
+                  "OTEL_SERVICE_NAME": "hello-mcp",
+                },
+                "contract": {
+                  "agent_name": "scripted",
+                  "kind": "pinned_git",
+                  "recipe_repo": "[uuid]",
+                  "recipe_sha": "[sha]",
+                },
+                "image_reference": null,
+                "recipe_resources": null,
+                "recipe_sub_path": ".",
+                "runtime_group_id": "[uuid]",
+                "runtime_id": "[uuid]",
+              },
+              "suite": "walk",
+              "task_prompt": "Call the \`echo\` tool from the declared \`hello-mcp\` MCP server with the message \`hello from the public MCP\`. Write the echoed value exactly, with no quotes or additional formatting, to \`/workspace/outputs/greeting.txt\`. Then run \`echo $WALK_MARKER\` in the shell and reply in one short sentence.
+
+          <<SCRIPT {"reply":"Echoed the message through hello-mcp and wrote it to the outputs file.","tools":[{"name":"hello-mcp_echo","arguments":{"message":"hello from the public MCP"}},{"name":"write","arguments":{"path":"/workspace/outputs/greeting.txt","content":"Echo: hello from the public MCP"}},{"name":"bash","arguments":{"command":"echo $WALK_MARKER"}}]}>>",
+            },
+            "org_id": "[uuid]",
+            "project_id": "[uuid]",
+            "runtime_group_id": "[uuid]",
+            "runtime_id": "[uuid]",
+            "started_at": null,
+            "status": "pending",
+            "tags": [],
+            "title": "Call the \`echo\` tool from the declared \`hello-mcp\` MCP server with the message \`hello from the public MCP\`. Write the echoed value exactly, with no quotes or additional formatting, to \`/workspace/outputs/greeting.txt\`. Then run \`echo $WALK_MARKER\` in…",
+            "updated_at": "[timestamp]",
+          }
+        `);
         let reply = "";
-        for await (const ev of runner.tasks.runs.stream(
+        for await (const ev of sa.tasks.runs.stream(
           evalTask.id,
           created.run.id,
         )) {
@@ -1453,14 +1604,6 @@ walk("SDK end-to-end walk", () => {
         }
         expect(reply.length).toBeGreaterThan(0);
 
-        runtimeV2 = await cp.post<Runtime>("/v1/runtimes", {
-          project: project.id,
-          recipe_id: recipe.id,
-          name: WALK.runtimeSlug,
-          slug: WALK.runtimeSlug,
-          config_json: { connectors: [WALK.connectorName] },
-        });
-        expect(runtimeV2.runtime_group_id).toBe(runtime.runtime_group_id);
         experiment = await sa.experiments.create({
           name: "The walk's experiment",
           project: project.id,
@@ -1474,7 +1617,65 @@ walk("SDK end-to-end walk", () => {
             { runtime_id: runtimeV2.id, arm_label: "v2" },
           ],
         });
-        expect(stable(experiment)).toMatchInlineSnapshot();
+        expect(stable(experiment)).toMatchInlineSnapshot(`
+          {
+            "archived_at": null,
+            "arms": [
+              {
+                "agent_overrides": null,
+                "arm_label": "v1",
+                "id": "[uuid]",
+                "initial_weight": 50,
+                "runtime_id": "[uuid]",
+              },
+              {
+                "agent_overrides": null,
+                "arm_label": "v2",
+                "id": "[uuid]",
+                "initial_weight": 50,
+                "runtime_id": "[uuid]",
+              },
+            ],
+            "created_at": "[timestamp]",
+            "created_by_member_id": "[uuid]",
+            "description": null,
+            "ended_at": null,
+            "environment": "production",
+            "goal_json": {
+              "components": [
+                {
+                  "guard": null,
+                  "judge_definition_hash": "459455f76567d23931987f6e51b8709f8aca44f9c8f665a4d861297113406ba9",
+                  "judge_id": "[uuid]",
+                  "source": "judge",
+                  "weight": 1,
+                },
+              ],
+              "direction": "maximize",
+              "kind": "composite",
+            },
+            "halted_at": null,
+            "halted_reason": null,
+            "hash_key_fields": [
+              "user.id",
+              "anonymous.id",
+              "conversation.id",
+            ],
+            "id": "[uuid]",
+            "name": "The walk's experiment",
+            "org_id": "[uuid]",
+            "posterior_json": null,
+            "project_id": "[uuid]",
+            "routing_strategy": "beta_sample",
+            "runtime_group_id": "[uuid]",
+            "sample_rate": 1,
+            "scoring_interval_seconds": 300,
+            "started_at": null,
+            "status": "draft",
+            "updated_at": "[timestamp]",
+            "weights_json": null,
+          }
+        `);
         await sa.experiments.get(experiment.id);
         await sa.experiments.update(experiment.id, {
           description: "two versions, one judge",
@@ -1486,7 +1687,65 @@ walk("SDK end-to-end walk", () => {
           if (e.id === experiment.id) seen = true;
         expect(seen).toBe(true);
         const ended = await sa.experiments.endById(experiment.id);
-        expect(stable(ended)).toMatchInlineSnapshot();
+        expect(stable(ended)).toMatchInlineSnapshot(`
+          {
+            "archived_at": null,
+            "arms": [
+              {
+                "agent_overrides": null,
+                "arm_label": "v1",
+                "id": "[uuid]",
+                "initial_weight": 50,
+                "runtime_id": "[uuid]",
+              },
+              {
+                "agent_overrides": null,
+                "arm_label": "v2",
+                "id": "[uuid]",
+                "initial_weight": 50,
+                "runtime_id": "[uuid]",
+              },
+            ],
+            "created_at": "[timestamp]",
+            "created_by_member_id": "[uuid]",
+            "description": "two versions, one judge",
+            "ended_at": "[timestamp]",
+            "environment": "production",
+            "goal_json": {
+              "components": [
+                {
+                  "guard": null,
+                  "judge_definition_hash": "459455f76567d23931987f6e51b8709f8aca44f9c8f665a4d861297113406ba9",
+                  "judge_id": "[uuid]",
+                  "source": "judge",
+                  "weight": 1,
+                },
+              ],
+              "direction": "maximize",
+              "kind": "composite",
+            },
+            "halted_at": null,
+            "halted_reason": null,
+            "hash_key_fields": [
+              "user.id",
+              "anonymous.id",
+              "conversation.id",
+            ],
+            "id": "[uuid]",
+            "name": "The walk's experiment",
+            "org_id": "[uuid]",
+            "posterior_json": null,
+            "project_id": "[uuid]",
+            "routing_strategy": "beta_sample",
+            "runtime_group_id": "[uuid]",
+            "sample_rate": 1,
+            "scoring_interval_seconds": 300,
+            "started_at": "[timestamp]",
+            "status": "ended",
+            "updated_at": "[timestamp]",
+            "weights_json": null,
+          }
+        `);
       });
     },
     BAKE_TIMEOUT,
@@ -1521,7 +1780,33 @@ walk("SDK end-to-end walk", () => {
           command: ["cat", `/workspace/outputs/${WALK.outputFileName}`],
           timeout_seconds: 30,
         });
-        expect(stable(exec)).toMatchInlineSnapshot();
+        expect(stable(exec)).toMatchInlineSnapshot(`
+          {
+            "created_at": "[timestamp]",
+            "error": null,
+            "exit_code": 0,
+            "finished_at": "[timestamp]",
+            "id": "[uuid]",
+            "kind": "exec",
+            "output_file_id": null,
+            "spec": {
+              "command": [
+                "cat",
+                "/workspace/outputs/greeting.txt",
+              ],
+              "cwd": null,
+              "kind": "exec",
+              "service": null,
+              "timeout_seconds": 30,
+            },
+            "started_at": "[timestamp]",
+            "status": "completed",
+            "stderr": "",
+            "stdout": "Echo: hello from the public MCP",
+            "task_id": "[uuid]",
+            "updated_at": "[timestamp]",
+          }
+        `);
         expect(exec.stdout?.trim()).toBe(WALK.echoResult);
         const download = await command({
           kind: "download",
@@ -1536,6 +1821,10 @@ walk("SDK end-to-end walk", () => {
         );
         expect(listed.records.length).toBeGreaterThanOrEqual(2);
 
+        // Judging runs in the sandbox at teardown and calls the judge's own
+        // grader model through the egress. On the scripted target that grader
+        // is the model double, which returns no verdict, so a judgement is
+        // asserted only where a real model grades (design doc §10).
         const judgements = await settled(
           polly!,
           mode,
@@ -1548,10 +1837,12 @@ walk("SDK end-to-end walk", () => {
               out.push(e);
             return out;
           },
-          (rows) => rows.length > 0,
+          (rows) => rows.length > 0 || settings.agent === "scripted",
           { timeoutMs: BAKE_TIMEOUT, intervalMs: 10_000, label: "judgement" },
         );
-        expect(stable(judgements[0])).toMatchInlineSnapshot();
+        if (settings.agent !== "scripted") {
+          expect(judgements.length, "the recipe's judge graded the trial").toBeGreaterThan(0);
+        }
       });
     },
     BAKE_TIMEOUT,
@@ -1564,12 +1855,48 @@ walk("SDK end-to-end walk", () => {
         automation = await sa.automations.create({
           name: "The walk's automation",
           trigger_type: "manual",
-          prompt: prompt(settings),
+          prompt: secondTurn(settings),
           runtime_group_id: runtime.runtime_group_id,
+          // An automation its owner creates posts into that owner's own task;
+          // the first task was archived and unarchived, which the trigger
+          // still refuses, so the trial is the one it posts into.
+          task_id: evalTask.id,
         } as Parameters<typeof sa.automations.create>[0]);
-        expect(stable(automation)).toMatchInlineSnapshot();
+        expect(stable(automation)).toMatchInlineSnapshot(`
+          {
+            "can_manage": true,
+            "created_at": "[timestamp]",
+            "created_by_member_id": "[uuid]",
+            "cron_schedule": null,
+            "description": null,
+            "enabled": true,
+            "execution_blocked_reason": null,
+            "id": "[uuid]",
+            "kind": null,
+            "last_triggered_at": null,
+            "metadata": null,
+            "name": "The walk's automation",
+            "next_trigger_at": null,
+            "org_id": "[uuid]",
+            "owner_role": "operator",
+            "project_id": "[uuid]",
+            "prompt": "Reply with the single word done. <<SCRIPT {"reply":"done"}>>",
+            "runtime_group_id": "[uuid]",
+            "tags": [],
+            "task_id": "[uuid]",
+            "trigger_type": "manual",
+            "updated_at": "[timestamp]",
+          }
+        `);
         const triggered = await sa.automations.trigger(automation.id);
-        expect(stable(triggered)).toMatchInlineSnapshot();
+        expect(stable(triggered)).toMatchInlineSnapshot(`
+          {
+            "automation_id": "[uuid]",
+            "reason": null,
+            "status": "triggered",
+            "task_id": "[uuid]",
+          }
+        `);
         await sa.automations.get(automation.id);
         await sa.automations.update(automation.id, {
           description: "triggered once by the walk",
@@ -1603,11 +1930,36 @@ walk("SDK end-to-end walk", () => {
         ).toBeTruthy();
         expect(
           stable({ ...apiKey, api_key: undefined }),
-        ).toMatchInlineSnapshot();
-        const keys = await cp.get<Paginated<ApiKey>>("/v1/api-keys", {
+        ).toMatchInlineSnapshot(`
+          {
+            "acknowledged_at": null,
+            "allow": [
+              "runtimes",
+            ],
+            "api_key": undefined,
+            "created_at": "[timestamp]",
+            "environment": "development",
+            "expires_at": null,
+            "id": "[uuid]",
+            "key_display": "intro_dev_9ffdS_O7...xk2k",
+            "key_prefix": "intro_dev_9ffdS_O7",
+            "key_suffix": "xk2k",
+            "last_used_at": null,
+            "member_id": "[uuid]",
+            "name": "walk",
+            "org_id": "[uuid]",
+            "prefix": "intro_dev_9ffdS_O7",
+            "project_id": "[uuid]",
+            "redacted_key": "[redacted]",
+            "scope": "telemetry:write projects:read repositories:read recipes:read recipes:write runtimes:read runtimes:write experiments:read experiments:write tasks:read tasks:write tasks:delete files:read files:write conversations:read events:read metrics:read shares:read shares:write shares:delete connectors:read connectors:write annotations:read approvals:read approvals:write",
+            "status": "active",
+          }
+        `);
+        // The key list is its own envelope, `api_keys`, not a page.
+        const keys = await cp.get<{ api_keys: ApiKey[] }>("/v1/api-keys", {
           project: project.id,
         });
-        expect(keys.records.some((k) => k.id === apiKey.id)).toBe(true);
+        expect(keys.api_keys.some((k) => k.id === apiKey.id)).toBe(true);
         await cp.patch<ApiKey>(
           `/v1/api-keys/${apiKey.id}`,
           { name: "walk (renamed)" },
@@ -1621,7 +1973,16 @@ walk("SDK end-to-end walk", () => {
         const org = await raw(owner.cpHttp).get<{ id: string; slug: string }>(
           "/v1/organizations/me",
         );
-        expect(stable(org)).toMatchInlineSnapshot();
+        expect(stable(org)).toMatchInlineSnapshot(`
+          {
+            "external_org_id": "395163796525572367",
+            "hosted_git": true,
+            "id": "[uuid]",
+            "image_url": null,
+            "name": "Introspection.dev",
+            "slug": "introspectiondev",
+          }
+        `);
       });
     },
     STEP_TIMEOUT,
@@ -1631,26 +1992,37 @@ walk("SDK end-to-end walk", () => {
     "18: teardown — everything the walk created, in reverse",
     async (ctx) => {
       await steps.run(ctx, "teardown", async () => {
-        const cp = raw(sa.cpHttp);
+        // Deleting is the owner's: the `:delete` scopes of runtimes, recipes,
+        // experiments, repositories and connectors are never minted to an
+        // application, so the session does what the service account cannot.
+        const cp = raw(owner.cpHttp);
         const dp = raw(sa.dpHttp);
         const q = { project: project.id };
         await cp.delete(`/v1/api-keys/${apiKey.id}`, q);
         await sa.automations.delete(automation.id);
-        for await (const t of runner.tasks.list())
-          await runner.tasks.delete(t.id).catch(() => undefined);
-        await expectNotFound(() => runner.tasks.get(task.id));
+        // The runner's session never carries `tasks:delete`; the service account does.
+        for await (const t of sa.tasks.list()) await sa.tasks.delete(t.id);
+        await expectNotFound(() => sa.tasks.get(task.id));
+        // The default list omits the upload a task holds, so it goes by id.
+        await sa.files.delete(inputFile.id);
         for await (const f of sa.files.list({}))
           await sa.files.delete(f.id).catch(() => undefined);
         await expectNotFound(() => sa.files.get(inputFile.id));
-        await sa.experiments.delete(experiment.id);
-        await sa.runtimes.get(runtimeV2.id);
-        await cp.delete(`/v1/runtimes/${runtimeV2.id}`);
-        await cp.delete(`/v1/runtimes/${runtime.id}`);
-        await cp.delete(`/v1/endpoints/${endpoint.id}`, q);
-        for await (const c of sa.connectors.connections.list(connector.id)) {
-          await sa.connectors.connections.revoke(connector.id, c.id);
+        // `experiments:delete` is no scope a token can name, so the owner deletes.
+        await owner.experiments.delete(experiment.id, project.id);
+        // Every version in the group: the push's, the walk's and the arm's.
+        for await (const r of sa.runtimes.list({ project: project.id, runtime: WALK.runtimeSlug })) {
+          await cp.delete(`/v1/runtimes/${r.id}`, q);
         }
-        await sa.connectors.delete(connector.id);
+        await expectNotFound(() => sa.runtimes.get(runtimeV2.id));
+        // The group's endpoint binding went with its last runtime version.
+        await cp.delete(`/v1/endpoints/${endpoint.id}`, q).catch((err: unknown) => {
+          if (!(err instanceof NotFoundError)) throw err;
+        });
+        for await (const c of sa.connectors.connections.list(connector.id)) {
+          await cp.delete(`/v1/connectors/${connector.id}/connections/${c.id}`, q);
+        }
+        await cp.delete(`/v1/connectors/${connector.id}`, q);
         await expectNotFound(() => sa.connectors.get(connector.id));
         const variables = await cp.get<Paginated<Variable>>("/v1/variables", q);
         for (const v of variables.records)
@@ -1661,7 +2033,9 @@ walk("SDK end-to-end walk", () => {
         );
         for (const c of credentials.records)
           await cp.delete(`/v1/credentials/${c.id}`, q);
-        await cp.delete(`/v1/recipes/${recipe.id}`);
+        for await (const r of sa.recipes.list({ project: project.id })) {
+          await cp.delete(`/v1/recipes/${r.id}`, q);
+        }
         await expectNotFound(() => sa.recipes.get(recipe.id));
         await cp.delete(`/v1/repositories/${repository.id}`, q);
         await dp

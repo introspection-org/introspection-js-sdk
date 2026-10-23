@@ -49,8 +49,13 @@ export const WALK = {
   mcpServerId: "hello-mcp",
   mcpIssuer: "https://example-server.modelcontextprotocol.io/",
   mcpEndpoint: "https://example-server.modelcontextprotocol.io/mcp",
-  recipeSlug: "harbor-hello-mcp",
-  runtimeSlug: "sdk-coverage-runtime",
+  /**
+   * The hosted repository's slug names the manifest the push versions,
+   * `.introspection/hello-mcp.yaml`: the push creates the recipe, the runtime
+   * group and its judges, which is the hosted-git contract.
+   */
+  recipeSlug: "hello-mcp",
+  runtimeSlug: "hello-mcp",
   inputFileName: "walk-input.txt",
   inputFileText: "the walk's input file",
   outputFileName: "greeting.txt",

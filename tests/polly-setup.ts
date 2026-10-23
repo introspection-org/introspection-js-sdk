@@ -87,6 +87,14 @@ const SECRET_PATTERNS: [RegExp, string][] = [
   [/AIza[A-Za-z0-9_-]{35}/g, "REDACTED_GOOGLE_KEY"],
   [/sk-ant-api\d+-[A-Za-z0-9_-]{20,}/g, "REDACTED_ANTHROPIC_KEY"],
   [/intro_dev_[A-Za-z0-9_-]{20,}/g, "REDACTED_INTROSPECTION_TOKEN"],
+  // The platform's own credentials as the walk records them: every JWT the
+  // planes mint (access, session, runner, member tokens), a project API key
+  // in any environment, and the one-time plaintext of an application secret
+  // or a credential, in a JSON body or a form field.
+  [/eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}/g, "REDACTED_JWT"],
+  [/intro_[a-z]+_[A-Za-z0-9_-]{20,}/g, "REDACTED_INTROSPECTION_KEY"],
+  [/("(?:client_secret|secret|api_key)"\s*:\s*")[^"]+(")/g, "$1REDACTED_SECRET$2"],
+  [/(client_secret=)[^&\s]+/g, "$1REDACTED_SECRET"],
 ];
 
 function scrubSecrets(text: string | undefined | null): string | undefined {
@@ -125,7 +133,10 @@ export function setupPolly({
     persister: "fs",
     persisterOptions: {
       fs: {
-        recordingsDir: path.resolve(__dirname, "recordings"),
+        // A CI run records somewhere other than the committed cassettes.
+        recordingsDir:
+          process.env.POLLY_RECORDINGS_DIR ??
+          path.resolve(__dirname, "recordings"),
       },
     },
     recordIfMissing: mode === "record",
