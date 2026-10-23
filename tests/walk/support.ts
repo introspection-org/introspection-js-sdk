@@ -176,7 +176,7 @@ const TIMESTAMP =
 const SHA = /^[0-9a-f]{40}$/i;
 const JWT = /^eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/;
 const VOLATILE_KEY =
-  /(^id$|_at$|_sha$|token$|secret$|^key$|_key$|cookie$|^url$|_url$|^expires_in$|^client_id$)/;
+  /(^id$|_at$|_sha$|token$|secret$|^key$|_key$|cookie$|^url$|_url$|^expires_in$|^client_id$|_prefix$|_suffix$)/;
 
 /**
  * Everything stable, nothing volatile: ids, timestamps, hashes, tokens,
