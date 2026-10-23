@@ -193,25 +193,15 @@ export function foldSpans(spans: GenAiSpan[]): TranscriptEntry[] {
     }
 
     const inputMessages: InputMessage[] = genAiInputMessages(span);
-    const clientMessageId =
-      span.attributes.introspection?.conversation?.client_message_id;
-    const userMessages = inputMessages.filter((m) => m.role === "user");
     inputMessages.forEach((message, index) => {
       if (message.role === "user") {
         const text = textOf(message.parts ?? []);
         if (!text) return;
-        // client_message_id names the turn's optimistic user message; it can
-        // only be the id when the delta carries exactly one candidate.
-        const stableId =
-          clientMessageId && userMessages.length === 1
-            ? clientMessageId
-            : `span:${spanId ?? span.trace_id}:user:${index}`;
         const entry: TranscriptMessageEntry = {
           kind: "message",
-          id: stableId,
+          id: `span:${spanId ?? span.trace_id}:user:${index}`,
           role: "user",
           text,
-          ...(clientMessageId ? { clientMessageId } : {}),
           ...(spanId ? { spanId } : {}),
         };
         entries.push(entry);
@@ -640,7 +630,6 @@ export function foldAgui(events: Iterable<AGUIEvent>): TranscriptEntry[] {
 function messageKeys(entry: TranscriptMessageEntry): string[] {
   const keys = [entry.id];
   if (entry.responseId) keys.push(entry.responseId);
-  if (entry.clientMessageId) keys.push(entry.clientMessageId);
   return keys;
 }
 
@@ -651,7 +640,7 @@ function messageKeys(entry: TranscriptMessageEntry): string[] {
  * when nothing stored correlates with it:
  *
  * - **messages** — every alias on both sides participates (`id`,
- *   `gen_ai.response.id`, `client_message_id`); the live id is
+ *   `gen_ai.response.id`); the live id is
  *   transport-local, and the `introspection.message_identity` frame is what
  *   gives a live entry the `responseId` its hydrated twin folds under.
  * - **tools** — `callId`.

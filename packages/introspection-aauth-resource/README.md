@@ -1,6 +1,6 @@
 # @introspection-sdk/aauth-resource
 
-Make an HTTP API a native AAuth resource ([draft-hardt-oauth-aauth-protocol](https://github.com/dickhardt/AAuth) `-11`, three-party): the resource side of what [`@introspection-sdk/aauth-person-server`](../introspection-aauth-person-server) is to the person's side. Handlers take a Web `Request` and return a `Response`.
+Make an HTTP API a native AAuth resource ([draft-hardt-oauth-aauth-protocol](https://github.com/dickhardt/AAuth) `-11`, three-party, or four-party with its own Access Server): the resource side of what [`@introspection-sdk/aauth-person-server`](../introspection-aauth-person-server) is to the person's side. Handlers take a Web `Request` and return a `Response`.
 
 - **Discovery:** `/.well-known/aauth-resource.json` and its JWKS.
 - **Signed facts:** `sign()` a quote or an offer, `verifySigned()` it when it comes back, so the price a Person Server weighs is the resource's, not the agent's.
@@ -63,3 +63,4 @@ Two resources are built on it:
 - `authorize(request, body, ask, { url })`: `ask` may be a function, run only once the presented token verifies, so a resource challenges before it validates the call. `url` is the public URL the request was addressed to, when the app serves it under another path.
 - `onPropose`: called as each call is put to a Person Server, e.g. to log or narrate it.
 - `r3Store`: where proposals live until their Person Server reads them; in memory by default, so a multi-process deployment supplies a shared one.
+- `accessServer`: the resource's own Access Server (`-11` four-party), e.g. [`@introspection-sdk/aauth-access-server`](../introspection-aauth-access-server). Its resource tokens then name the AS as `aud`, so the person's Person Server redeems them there, and `authorize()` admits only auth tokens the AS issued (`iss` the AS, verified against its `aauth-access.json` keys, `ps` one of `personServers`). An auth token a Person Server issued itself is refused, since it would skip the AS's policy. The AS may read each R3 proposal too. Resource metadata does not change: the `aud` is the only signal. Unset, nothing changes.

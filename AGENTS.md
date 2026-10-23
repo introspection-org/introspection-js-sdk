@@ -52,6 +52,13 @@ If your branch is intentionally adding code that can't be covered by unit tests 
 
 `.github/workflows/ci.yml` runs the same coverage check on every PR and uploads the HTML report as a downloadable artifact. CI is the source of truth — if your local hook passes but CI fails, CI wins (your local has stale builds or stale deps).
 
+### Required check (All green)
+
+Branch rulesets require only the `All green` check (job `all-green` in `ci.yml`). It runs `re-actors/alls-green` over every other job in the file and fails when any of them fails, is cancelled or is skipped. So the ruleset never has to change when jobs are added, renamed or split.
+
+- **Add every new `ci.yml` job to `all-green`'s `needs`.** A job left out is not gated: it can fail and the PR still merges.
+- A job that skips by design (a job-level `if:`) goes into `allowed-skips` too, with the reason in a comment. Today none does, so `allowed-skips` is unset.
+
 ### Unused code (Knip)
 
 The `knip` job in `ci.yml` runs `knip` and `knip --production` and fails on any finding. Run them locally with `pnpm knip` and `pnpm knip:production`. `knip.json` sets what counts as used:

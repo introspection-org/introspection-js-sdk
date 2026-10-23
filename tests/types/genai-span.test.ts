@@ -82,7 +82,13 @@ const FULL_SPAN: GenAiSpan = {
     introspection: {
       member: { id: "019fbe0c" },
       environment: "production",
-      conversation: { position: 1, is_new: true },
+      turn: 1,
+      history: {
+        position: 1,
+        is_new: true,
+        hash_hit: false,
+        new_messages: { start: 0, end: 1 },
+      },
     },
   },
 };
@@ -119,6 +125,10 @@ describe("semconv naming", () => {
   it("puts introspection attributes beside gen_ai, not inside it", () => {
     expect(FULL_SPAN.attributes.introspection?.member?.id).toBe("019fbe0c");
     expect(FULL_SPAN.attributes.introspection?.environment).toBe("production");
+    expect(FULL_SPAN.attributes.introspection?.turn).toBe(1);
+    expect(FULL_SPAN.attributes.introspection?.history?.new_messages?.end).toBe(
+      1,
+    );
     // Cost is the exception: it keeps the name the span writes it with.
     // `GenAICostUsd` is materialized *from* `gen_ai.cost.usd`, so relocating
     // it into `introspection` would put a second, renamed copy of an
@@ -134,24 +144,31 @@ describe("semconv naming", () => {
       created_at: "2026-08-04T22:14:34.462000Z",
       updated_at: "2026-08-04T22:14:37.488000Z",
       agents: [{ id: "agent-root", name: "coordinator", depth: 0 }],
-      usage: { input_tokens: 1527, output_tokens: 45, total_tokens: 1572 },
+      usage: {
+        total_input_tokens: 3051,
+        output_tokens: 45,
+        total_tokens: 3096,
+      },
       cost: { usd: 0.0098 },
       metrics: {
         duration_ms: 3026.835672,
         trace_count: 3,
+        max_turn: 2,
         span_count: 12,
         tool_use_count: 4,
         failed_tool_use_count: 0,
         has_errors: false,
       },
       environment: "production",
-      runtime_id: "019fced4",
-      runtime_group_id: "019fced3",
-      recipe_git_commit_sha: "df7339af",
+      runtime: { id: "019fced4", group_id: "019fced3" },
+      recipe: { git_commit_sha: "df7339af" },
     };
 
     expect(summary.usage.output_tokens).toBe(45);
     expect(summary.metrics.span_count).toBe(12);
+    expect(summary.metrics.max_turn).toBe(2);
+    expect(summary.runtime?.group_id).toBe("019fced3");
+    expect(summary.experiment).toBeUndefined();
     expect(summary.agents?.[0]?.id).toBe("agent-root");
   });
 });

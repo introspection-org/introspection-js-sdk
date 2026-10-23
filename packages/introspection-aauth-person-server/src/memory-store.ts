@@ -1,6 +1,6 @@
 import type {
   Approval,
-  ApprovalStatus,
+  ApprovalState,
   Mission,
   Person,
   Store,
@@ -106,16 +106,20 @@ export class MemoryStore implements Store {
     return this.approvalsById.get(tenant, id);
   }
 
-  async putApproval(tenant: string, approval: Approval) {
+  async insertApproval(tenant: string, approval: Approval) {
     this.approvalsById.set(tenant, approval.id, approval);
   }
 
   async transitionApproval(
     tenant: string,
-    expected: ApprovalStatus,
+    expected: ApprovalState,
     next: Approval,
   ) {
-    if (this.approvalsById.get(tenant, next.id)?.status !== expected)
+    const current = this.approvalsById.get(tenant, next.id);
+    if (
+      current?.status !== expected.status ||
+      (current.collected ?? false) !== (expected.collected ?? false)
+    )
       return false;
     this.approvalsById.set(tenant, next.id, next);
     return true;
