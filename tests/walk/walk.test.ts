@@ -2142,7 +2142,9 @@ async function removeWalkResources(
     if (!(err instanceof NotFoundError)) throw err;
   };
   for (const key of await owner.apiKeys.list(q)) {
-    if ([WALK.apiKeyName, `${WALK.apiKeyName} (renamed)`].includes(key.name)) {
+    if (
+      [WALK.apiKeyName, `${WALK.apiKeyName} (renamed)`].includes(key.name ?? "")
+    ) {
       await owner.apiKeys.delete(key.id, q);
     }
   }
