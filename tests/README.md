@@ -67,7 +67,36 @@ pnpm test:observability
 
 # Run in watch mode
 pnpm test:watch
+
+# Any vitest filter works through the script: a directory, a file or a name
+pnpm test walk/
+pnpm test api/tasks.test.ts
 ```
+
+### The SDK end-to-end walk
+
+`walk/` is one ordered scenario from a clean project to its teardown, recorded
+against a live stack and replayed in CI (design:
+`introspection-cloud/docs/design/sdk-end-to-end-walk.md`). The scripts below
+also exist at the repository root.
+
+```bash
+# Replay the committed recording: no stack, no network (what `pnpm test` runs)
+pnpm test:walk
+
+# Live against the stack `introspection login` chose, writing the recording
+# and the inline snapshots. Needs the recipe checkout on disk.
+RECIPE_DIR=~/introspection/recipe-harbor-mcp-agent pnpm test:walk:record
+
+# Live without touching the recording, for checking a stack
+RECIPE_DIR=~/introspection/recipe-harbor-mcp-agent pnpm test:walk:live
+```
+
+A live run reads `~/.introspection/credentials.json` (or the file
+`INTROSPECTION_CREDENTIALS` names), pushes the recipe at the head of `main`
+(`RECIPE_GIT_REF` overrides), and must be the only walk on that organisation:
+its first step deletes the `sdk-coverage` project. Scan the recording for
+credentials before committing it.
 
 ## Code coverage
 
