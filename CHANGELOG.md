@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.41.0](https://github.com/introspection-org/introspection-js-sdk/compare/v0.40.0...v0.41.0) (2026-10-23)
+
+
+### Features
+
+* add the project administration and eval resources the CLI calls ([#519](https://github.com/introspection-org/introspection-js-sdk/issues/519)) ([be286ce](https://github.com/introspection-org/introspection-js-sdk/commit/be286ce79b70a3c13ae476b3d7cfeaf14d713fa2))
+
 ## [0.40.0](https://github.com/introspection-org/introspection-js-sdk/compare/v0.39.0...v0.40.0) (2026-10-23)
 
 
