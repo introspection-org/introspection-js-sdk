@@ -91,8 +91,8 @@ RECIPE_DIR=~/introspection/recipe-harbor-mcp-agent pnpm test:walk:record
 # Live without touching the recording, for checking a stack
 RECIPE_DIR=~/introspection/recipe-harbor-mcp-agent pnpm test:walk:live
 
-# The SDK coverage the walk alone reaches: a per-resource table in the
-# terminal, the full report in coverage/walk/index.html. The replay reaches
+# The SDK coverage the walk alone reaches: Vitest's text report of the
+# resource clients in the terminal, the HTML report in coverage/walk/index.html. The replay reaches
 # the same SDK code a record does; add POLLY_MODE=record and -u to measure
 # while recording.
 pnpm test:walk:cov
