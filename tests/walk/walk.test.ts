@@ -2114,8 +2114,9 @@ walk("SDK end-to-end walk", () => {
           string[],
         ][]) {
           const externalUserId = `user:walk-${name}`;
+          const displayName = name[0]!.toUpperCase() + name.slice(1);
           // Members have no public delete, so a persona from an earlier run is
-          // reused and its tags set again.
+          // reused and its name and tags set again.
           const existing = await owner.members.list({
             member_type: "customer",
             external_user_id: [externalUserId],
@@ -2126,11 +2127,13 @@ walk("SDK end-to-end walk", () => {
               await owner.members.create({
                 member_type: "customer",
                 external_user_id: externalUserId,
-                name: `walk-${name}`,
+                name: displayName,
                 tags,
               })
             ).id;
-          if (existing.records[0]) await owner.members.update(id, { tags });
+          if (existing.records[0]) {
+            await owner.members.update(id, { name: displayName, tags });
+          }
           const client = await sa.runtimes.runById(runtime.id, {
             environment: "production",
             agent_name: settings.agent,
