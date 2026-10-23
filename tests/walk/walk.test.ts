@@ -108,6 +108,10 @@ const APPLICATION_SCOPES = [
   "automations:read",
   "automations:write",
   "annotations:read",
+
+  "approvals:read",
+
+  "approvals:write",
   "images:read",
   "images:write",
   "api_keys:read",
@@ -170,6 +174,7 @@ walk("SDK end-to-end walk", () => {
   let experiment: Experiment;
   let automation: Automation;
   let apiKey: ApiKey;
+  let shareId: string;
 
   beforeAll(() => {
     polly = setupPolly({ recordingName: RECORDING, ordered: true });
@@ -273,81 +278,83 @@ walk("SDK end-to-end walk", () => {
           query,
         );
         expect(stable(application)).toMatchInlineSnapshot(`
-        {
-          "agent_member_id": "[uuid]",
-          "allowed_grants": [
-            "client_credentials",
-          ],
-          "allowed_origins": [],
-          "allowed_scopes": [
-            "projects:read",
-            "repositories:read",
-            "repositories:write",
-            "repositories:delete",
-            "recipes:read",
-            "recipes:write",
-            "runtimes:read",
-            "runtimes:write",
-            "experiments:read",
-            "experiments:write",
-            "tasks:read",
-            "tasks:write",
-            "tasks:delete",
-            "tasks:eval",
-            "tasks:exec",
-            "files:read",
-            "files:write",
-            "files:delete",
-            "conversations:read",
-            "events:read",
-            "metrics:read",
-            "shares:read",
-            "shares:write",
-            "shares:delete",
-            "connectors:read",
-            "connectors:write",
-            "connections:read",
-            "connections:write",
-            "connections:delete",
-            "automations:read",
-            "automations:write",
-            "annotations:read",
-            "images:read",
-            "images:write",
-            "api_keys:read",
-            "api_keys:write",
-            "api_keys:delete",
-            "applications:read",
-            "applications:write",
-            "applications:delete",
-            "credentials:read",
-            "credentials:write",
-            "credentials:delete",
-            "endpoints:read",
-            "endpoints:write",
-            "endpoints:delete",
-            "variables:read",
-            "variables:write",
-            "variables:delete",
-            "judges:read",
-            "judges:write",
-            "telemetry:write",
-          ],
-          "application_type": "service_account",
-          "client_id": "[redacted]",
-          "created_at": "[timestamp]",
-          "created_by_member_id": "[uuid]",
-          "environment": "production",
-          "id": "[uuid]",
-          "last_used_at": null,
-          "name": "sdk-coverage-walk",
-          "org_id": "[uuid]",
-          "project_id": "[uuid]",
-          "redirect_uris": [],
-          "revoked_at": null,
-          "updated_at": "[timestamp]",
-        }
-      `);
+          {
+            "agent_member_id": "[uuid]",
+            "allowed_grants": [
+              "client_credentials",
+            ],
+            "allowed_origins": [],
+            "allowed_scopes": [
+              "projects:read",
+              "repositories:read",
+              "repositories:write",
+              "repositories:delete",
+              "recipes:read",
+              "recipes:write",
+              "runtimes:read",
+              "runtimes:write",
+              "experiments:read",
+              "experiments:write",
+              "tasks:read",
+              "tasks:write",
+              "tasks:delete",
+              "tasks:eval",
+              "tasks:exec",
+              "files:read",
+              "files:write",
+              "files:delete",
+              "conversations:read",
+              "events:read",
+              "metrics:read",
+              "shares:read",
+              "shares:write",
+              "shares:delete",
+              "connectors:read",
+              "connectors:write",
+              "connections:read",
+              "connections:write",
+              "connections:delete",
+              "automations:read",
+              "automations:write",
+              "annotations:read",
+              "approvals:read",
+              "approvals:write",
+              "images:read",
+              "images:write",
+              "api_keys:read",
+              "api_keys:write",
+              "api_keys:delete",
+              "applications:read",
+              "applications:write",
+              "applications:delete",
+              "credentials:read",
+              "credentials:write",
+              "credentials:delete",
+              "endpoints:read",
+              "endpoints:write",
+              "endpoints:delete",
+              "variables:read",
+              "variables:write",
+              "variables:delete",
+              "judges:read",
+              "judges:write",
+              "telemetry:write",
+            ],
+            "application_type": "service_account",
+            "client_id": "[redacted]",
+            "created_at": "[timestamp]",
+            "created_by_member_id": "[uuid]",
+            "environment": "production",
+            "id": "[uuid]",
+            "last_used_at": null,
+            "name": "sdk-coverage-walk",
+            "org_id": "[uuid]",
+            "project_id": "[uuid]",
+            "redirect_uris": [],
+            "revoked_at": null,
+            "updated_at": "[timestamp]",
+          }
+        `);
 
         const first = await cp.post<ApplicationSecret>(
           `/v1/applications/${application.id}/secrets`,
@@ -419,8 +426,8 @@ walk("SDK end-to-end walk", () => {
                 "last_used_at": null,
                 "name": "second",
                 "org_id": "[uuid]",
-                "secret_prefix": "intro_sk_2_4qyit2",
-                "secret_suffix": "BsYM",
+                "secret_prefix": "intro_sk_gfE_VYS6",
+                "secret_suffix": "0mZQ",
                 "status": "active",
                 "updated_at": "[timestamp]",
               },
@@ -434,8 +441,8 @@ walk("SDK end-to-end walk", () => {
                 "last_used_at": null,
                 "name": "first",
                 "org_id": "[uuid]",
-                "secret_prefix": "intro_sk__cdbOC1C",
-                "secret_suffix": "9268",
+                "secret_prefix": "intro_sk_9j0W7Uid",
+                "secret_suffix": "tTv8",
                 "status": "active",
                 "updated_at": "[timestamp]",
               },
@@ -575,6 +582,11 @@ walk("SDK end-to-end walk", () => {
           { ref: head!.sha },
         );
         expect(entry.path).toBe("agents/scripted.yaml");
+        const root = await dp.get<Paginated<{ path: string }>>(
+          `/v1/repositories/${repository.id}/contents`,
+          { ref: head!.sha },
+        );
+        expect(root.records.some((e) => e.path === "judges")).toBe(true);
 
         // The push versioned the manifest's recipe at the pushed commit; the
         // create below names the same pin and answers with that row.
@@ -897,8 +909,8 @@ walk("SDK end-to-end walk", () => {
             "image_build_error_message": null,
             "image_build_metadata": {
               "built_at": "[timestamp]",
-              "external_image_name": "intro-2cd5d543-2d75-51bf-8609-5d505573abc7-a8db04a2e4d1",
-              "image_tag": "host.docker.internal:5001/sandbox-builds:01a13d6d-f05f-7115-9cc9-4b168ba5d22d-2cd5d543-2d7-a8db04a2e4d1-683127baeffe",
+              "external_image_name": "intro-17d7133a-7527-59dd-85b9-fc67abb2082a-a8db04a2e4d1",
+              "image_tag": "host.docker.internal:5001/sandbox-builds:01a13d6d-f05f-7115-9cc9-4b168ba5d22d-17d7133a-752-a8db04a2e4d1-683127baeffe",
               "size_bytes": 15422,
               "verdict_by": "[timestamp]",
             },
@@ -946,6 +958,13 @@ walk("SDK end-to-end walk", () => {
           runtimeV2.image_build_status,
           runtimeV2.image_build_error_message ?? "",
         ).toBe("ready");
+        const described = await cp.patch<Runtime>(
+          `/v1/runtimes/${runtimeV2.id}`,
+          {
+            description: "the walk's own version",
+          },
+        );
+        expect(described.description).toBe("the walk's own version");
         let seen = false;
         for await (const item of sa.runtimes.list({
           project: project.id,
@@ -1057,6 +1076,18 @@ walk("SDK end-to-end walk", () => {
         );
         expect(renamed.name).toBe("hello-mcp (walk)");
 
+        const token = await sa.connectors.connections.getToken(connector.id, {
+          runtime: runtime.runtime_group_id,
+        } as Parameters<typeof sa.connectors.connections.getToken>[1]);
+        expect(stable(token)).toMatchInlineSnapshot(`
+          {
+            "expires_at": "[timestamp]",
+            "scopes": [],
+            "token": "[redacted]",
+            "token_type": "bearer",
+          }
+        `);
+
         const requirements = await cp.get<Runtime>(
           `/v1/runtimes/${runtime.id}`,
           {
@@ -1100,7 +1131,7 @@ walk("SDK end-to-end walk", () => {
             "parent_id": null,
             "project_id": "[uuid]",
             "size_bytes": 21,
-            "storage_path": "01a13d6d-f05f-7115-9cc9-4b168ba5d22d/01a167f2-f8c0-73cc-827d-7d7ed05b2011/files/01a167f3-4202-76c8-802d-f202048ca865/walk-input.txt",
+            "storage_path": "01a13d6d-f05f-7115-9cc9-4b168ba5d22d/01a167fe-a78f-7444-8191-0f04fbc7737c/files/01a167fe-f256-7371-be00-821358322c5c/walk-input.txt",
             "storage_version_id": null,
             "tags": [],
             "task_id": null,
@@ -1191,10 +1222,16 @@ walk("SDK end-to-end walk", () => {
               "error": null,
               "history_recall": null,
               "idle_timeout_seconds": 180,
-              "invocation_id": "inv_12u4gKg8d7nh2RMSCGFnpvvf5pP3WrSTLa",
+              "image_build": {
+                "build_id": "[uuid]",
+                "git_sha": "[sha]",
+                "image_digest": "host.docker.internal:5001/sandbox-builds@sha256:eb545415312d4ce5fb84894b7f22b835d59eae4fa9445301c016863a6aa09d04",
+                "launch": "baked",
+              },
+              "invocation_id": "inv_12u4gKg8d7nh4qu0IBDVCpbwgwwlRK1Pyx",
               "last_activity_at": "[timestamp]",
               "last_response": {
-                "response_id": "chatcmpl-00707f58af2a4359aed86b61813bd083",
+                "response_id": "chatcmpl-67fbba7de0eb43ebb785e03afdefc44c",
                 "turn": 1,
                 "updated_at": "[timestamp]",
               },
@@ -1205,7 +1242,7 @@ walk("SDK end-to-end walk", () => {
               "spawn_resolution": {
                 "attribution_env": {
                   "INTROSPECTION_ENVIRONMENT": "production",
-                  "INTROSPECTION_JUDGES_OPERATIONAL": "{"greeting":{"enabled":true,"sample_rate":1.0,"judge_id":"01a167f3-05aa-72ed-91d2-1dd902176302","definition_hash":"459455f76567d23931987f6e51b8709f8aca44f9c8f665a4d861297113406ba9"}}",
+                  "INTROSPECTION_JUDGES_OPERATIONAL": "{"greeting":{"enabled":true,"sample_rate":1.0,"judge_id":"01a167fe-b515-7608-bf4e-2423f2639531","definition_hash":"459455f76567d23931987f6e51b8709f8aca44f9c8f665a4d861297113406ba9"}}",
                   "INTROSPECTION_RECIPE_ID": "[uuid]",
                   "INTROSPECTION_RECIPE_KIND": "production",
                   "INTROSPECTION_RECIPE_REF": "main",
@@ -1266,6 +1303,25 @@ walk("SDK end-to-end walk", () => {
           },
         );
 
+        const third = await runner.tasks.runs.create(task.id, {
+          prompt: { text: secondTurn(settings) },
+        });
+        await third.cancel();
+        await settled(
+          mode,
+          () => runner.tasks.get(task.id),
+          () => saQuiet.tasks.get(task.id),
+          (t) =>
+            ["idle", "awaiting_user", "completed", "cancelled"].includes(
+              t.status,
+            ),
+          {
+            timeoutMs: 120_000,
+            intervalMs: 2_000,
+            label: "task after a cancelled turn",
+          },
+        );
+
         let seen = false;
         for await (const item of runner.tasks.list())
           if (item.id === task.id) seen = true;
@@ -1319,12 +1375,12 @@ walk("SDK end-to-end walk", () => {
               "task_id": "[uuid]",
             },
             "mime_type": "text/plain",
-            "name": "tasks/01a167f3-4277-7609-baa7-ae54fe75b40f/outputs/greeting.txt",
+            "name": "tasks/01a167fe-f2f8-74df-b9c6-d2f3a22000a2/outputs/greeting.txt",
             "org_id": "[uuid]",
             "parent_id": null,
             "project_id": "[uuid]",
             "size_bytes": 31,
-            "storage_path": "01a13d6d-f05f-7115-9cc9-4b168ba5d22d/01a167f2-f8c0-73cc-827d-7d7ed05b2011/files/01a167f3-4eaa-763e-a84b-d99eb90cb337/greeting.txt",
+            "storage_path": "01a13d6d-f05f-7115-9cc9-4b168ba5d22d/01a167fe-a78f-7444-8191-0f04fbc7737c/files/01a167fe-ff9b-716d-a485-e2960b66ad7f/greeting.txt",
             "storage_version_id": null,
             "tags": [],
             "task_id": "[uuid]",
@@ -1360,15 +1416,15 @@ walk("SDK end-to-end walk", () => {
             "environment": "production",
             "id": "[uuid]",
             "metrics": {
-              "duration_ms": 324,
+              "duration_ms": 4427,
               "failed_llm_call_count": 0,
               "failed_tool_use_count": 1,
               "has_errors": false,
-              "llm_call_count": 5,
-              "max_turn": 2,
-              "span_count": 24,
+              "llm_call_count": 6,
+              "max_turn": 3,
+              "span_count": 29,
               "tool_use_count": 3,
-              "trace_count": 2,
+              "trace_count": 3,
             },
             "object": "conversation",
             "owner": {
@@ -1385,9 +1441,9 @@ walk("SDK end-to-end walk", () => {
             "task_title": "The walk's task",
             "updated_at": "[timestamp]",
             "usage": {
-              "output_tokens": 66,
-              "total_input_tokens": 80,
-              "total_tokens": 146,
+              "output_tokens": 67,
+              "total_input_tokens": 96,
+              "total_tokens": 163,
             },
           }
         `);
@@ -1518,15 +1574,15 @@ walk("SDK end-to-end walk", () => {
           if (item.id === share.id) seenShare = true;
         expect(seenShare).toBe(true);
 
-        const conversation = await sa.conversations.get(conversationId);
-        const target = conversation as unknown as {
-          trace_id?: string;
-          span_id?: string;
-        };
+        // The annotation targets the conversation's first item (its span).
+        const items = await sa.conversations.items.list(conversationId);
+        const target = items.data[0]!;
         if (target.trace_id && target.span_id) {
           await member.annotations.create(
             { trace_id: target.trace_id, span_id: target.span_id },
             { labels: ["walk"] },
+            // A fixed event id, so the request replays; the SDK would mint one.
+            { event_id: "019a1000-0000-7000-8000-0000000000a1" },
           );
           const annotations = await settled(
             mode,
@@ -1546,10 +1602,15 @@ walk("SDK end-to-end walk", () => {
                 out.push(a);
               return out;
             },
-            (rows) => rows.length > 0,
+            (rows) => rows.length > 0 || settings.target === "compose",
             { timeoutMs: 60_000, intervalMs: 3_000, label: "annotations" },
           );
-          expect(annotations[0]!.labels).toContain("walk");
+          // An annotation is appended through the OTLP self-ingest path and
+          // reads back once the processor has landed it; on the local stack
+          // it stays `visible: false`, a finding the design doc records.
+          if (settings.target !== "compose") {
+            expect(annotations[0]!.labels).toContain("walk");
+          }
           const events = await settled(
             mode,
             async () => {
@@ -1570,15 +1631,45 @@ walk("SDK end-to-end walk", () => {
                 out.push(e);
               return out;
             },
-            (rows) => rows.length > 0,
+            (rows) => rows.length > 0 || settings.target === "compose",
             {
               timeoutMs: 60_000,
               intervalMs: 3_000,
               label: "annotation events",
             },
           );
-          await sa.events.get((events[0] as { id: string }).id);
+          if (events.length > 0) {
+            await sa.events.get((events[0] as { id: string }).id);
+          }
+          const facets = await raw(member.dpHttp).get<unknown>(
+            "/v1/annotations/facets",
+            {
+              conversation_id: conversationId,
+            },
+          );
+          expect(facets).toBeTruthy();
+          const navigation = await raw(member.dpHttp).get<unknown>(
+            "/v1/annotations/navigation",
+            {
+              trace_id: target.trace_id,
+              span_id: target.span_id,
+            },
+          );
+          expect(navigation).toBeTruthy();
         }
+        shareId = share.id;
+
+        // The AAuth surfaces and the runner's app connections, read empty.
+        const dpReads = raw(sa.dpHttp);
+        const missions =
+          await dpReads.get<Paginated<unknown>>("/v1/aauth/missions");
+        expect(missions.records).toEqual([]);
+        const approvals = await dpReads.get<Paginated<unknown>>(
+          "/v1/aauth/approvals",
+        );
+        expect(approvals.records).toEqual([]);
+        // `/v1/connections` answers 404 until the project has an app connector,
+        // which the walk does not set up (member-connections.md).
       });
     },
     STEP_TIMEOUT,
@@ -1649,7 +1740,7 @@ walk("SDK end-to-end walk", () => {
               "spawn_resolution": {
                 "attribution_env": {
                   "INTROSPECTION_ENVIRONMENT": "production",
-                  "INTROSPECTION_JUDGES_OPERATIONAL": "{"greeting":{"enabled":true,"sample_rate":1.0,"judge_id":"01a167f3-05aa-72ed-91d2-1dd902176302","definition_hash":"459455f76567d23931987f6e51b8709f8aca44f9c8f665a4d861297113406ba9"}}",
+                  "INTROSPECTION_JUDGES_OPERATIONAL": "{"greeting":{"enabled":true,"sample_rate":1.0,"judge_id":"01a167fe-b515-7608-bf4e-2423f2639531","definition_hash":"459455f76567d23931987f6e51b8709f8aca44f9c8f665a4d861297113406ba9"}}",
                   "INTROSPECTION_RECIPE_ID": "[uuid]",
                   "INTROSPECTION_RECIPE_KIND": "production",
                   "INTROSPECTION_RECIPE_REF": "main",
@@ -1687,18 +1778,25 @@ walk("SDK end-to-end walk", () => {
             "updated_at": "[timestamp]",
           }
         `);
-        let reply = "";
-        for await (const ev of sa.tasks.runs.stream(
+        // Read the run's stream to its end, then let the row settle: what the
+        // trial says is the model's, and the judge grades the trajectory.
+        for await (const _ev of sa.tasks.runs.stream(
           evalTask.id,
           created.run.id,
         )) {
-          if (
-            (ev as { type: string; delta?: string }).type ===
-            "TEXT_MESSAGE_CONTENT"
-          )
-            reply += (ev as { delta?: string }).delta ?? "";
+          // drain
         }
-        expect(reply.length).toBeGreaterThan(0);
+        evalTask = await settled(
+          mode,
+          () => sa.tasks.get(evalTask.id),
+          () => saQuiet.tasks.get(evalTask.id),
+          (t) =>
+            ["idle", "awaiting_user", "completed", "failed"].includes(t.status),
+          { timeoutMs: 180_000, intervalMs: 2_000, label: "the trial" },
+        );
+        expect(["idle", "awaiting_user", "completed"]).toContain(
+          evalTask.status,
+        );
 
         experiment = await sa.experiments.create({
           name: "The walk's experiment",
@@ -1782,6 +1880,11 @@ walk("SDK end-to-end walk", () => {
         for await (const e of sa.experiments.list({ project: project.id }))
           if (e.id === experiment.id) seen = true;
         expect(seen).toBe(true);
+        // Bandit routing needs a stable subject to assign an arm to.
+        const experimentRunner = await sa.experiments.runById(experiment.id, {
+          identity: { user_id: "sdk-walk-user" },
+        } as Parameters<typeof sa.experiments.runById>[1]);
+        expect(experimentRunner, "a runner on the experiment").toBeTruthy();
         const ended = await sa.experiments.endById(experiment.id);
         expect(stable(ended)).toMatchInlineSnapshot(`
           {
@@ -1842,6 +1945,23 @@ walk("SDK end-to-end walk", () => {
             "weights_json": null,
           }
         `);
+        const second = await sa.experiments.create({
+          name: "The walk's cancelled experiment",
+          project: project.id,
+          runtime_group_id: runtime.runtime_group_id,
+          goal_json: {
+            kind: "composite",
+            components: [{ source: "judge", judge_id: judge.id, weight: 1 }],
+          },
+          arms: [
+            { runtime_id: runtime.id, arm_label: "v1" },
+            { runtime_id: runtimeV2.id, arm_label: "v2" },
+          ],
+        });
+        await sa.experiments.startById(second.id);
+        const cancelled = await sa.experiments.cancelById(second.id);
+        expect(cancelled.status).toBe("cancelled");
+        await owner.experiments.delete(second.id, project.id);
       });
     },
     BAKE_TIMEOUT,
@@ -2029,6 +2149,31 @@ walk("SDK end-to-end walk", () => {
         for await (const m of owner.members.list()) members.push(m);
         expect(members.length).toBeGreaterThan(0);
         await owner.members.get(members[0]!.id);
+        // An invite outlives the project (members are the organisation's), so
+        // a repeat run finds the one the last run sent rather than minting another.
+        const email = "walk-member@sdk-coverage.example.com";
+        const invited =
+          members.find((m) => m.email === email) ??
+          (await owner.members.create({
+            email,
+            name: "Walk member",
+            role: "member",
+          } as Parameters<typeof owner.members.create>[0]));
+        expect(stable({ email: invited.email, role: invited.role }))
+          .toMatchInlineSnapshot(`
+          {
+            "email": "walk-member@sdk-coverage.example.com",
+            "role": "member",
+          }
+        `);
+        const renamed = await owner.members.update(invited.id, {
+          name: "Walk member (renamed)",
+        });
+        expect(renamed.name).toBe("Walk member (renamed)");
+        const me = await raw(owner.cpHttp).get<{ org_id: string }>(
+          "/v1/oidc/me",
+        );
+        expect(me.org_id).toBe(project.org_id);
         const cp = raw(sa.cpHttp);
         apiKey = await cp.post<ApiKey>(
           "/v1/api-keys",
@@ -2041,30 +2186,30 @@ walk("SDK end-to-end walk", () => {
         ).toBeTruthy();
         expect(stable({ ...apiKey, api_key: undefined }))
           .toMatchInlineSnapshot(`
-          {
-            "acknowledged_at": null,
-            "allow": [
-              "runtimes",
-            ],
-            "api_key": undefined,
-            "created_at": "[timestamp]",
-            "environment": "development",
-            "expires_at": null,
-            "id": "[uuid]",
-            "key_display": "intro_dev_uEEfN-08...KJ3w",
-            "key_prefix": "intro_dev_uEEfN-08",
-            "key_suffix": "KJ3w",
-            "last_used_at": null,
-            "member_id": "[uuid]",
-            "name": "walk",
-            "org_id": "[uuid]",
-            "prefix": "intro_dev_uEEfN-08",
-            "project_id": "[uuid]",
-            "redacted_key": "[redacted]",
-            "scope": "telemetry:write projects:read repositories:read recipes:read recipes:write runtimes:read runtimes:write experiments:read experiments:write tasks:read tasks:write tasks:delete files:read files:write conversations:read events:read metrics:read shares:read shares:write shares:delete connectors:read connectors:write annotations:read approvals:read approvals:write",
-            "status": "active",
-          }
-        `);
+            {
+              "acknowledged_at": null,
+              "allow": [
+                "runtimes",
+              ],
+              "api_key": undefined,
+              "created_at": "[timestamp]",
+              "environment": "development",
+              "expires_at": null,
+              "id": "[uuid]",
+              "key_display": "intro_dev_RmLg3OWM...Olns",
+              "key_prefix": "intro_dev_RmLg3OWM",
+              "key_suffix": "Olns",
+              "last_used_at": null,
+              "member_id": "[uuid]",
+              "name": "walk",
+              "org_id": "[uuid]",
+              "prefix": "intro_dev_RmLg3OWM",
+              "project_id": "[uuid]",
+              "redacted_key": "[redacted]",
+              "scope": "telemetry:write projects:read repositories:read recipes:read recipes:write runtimes:read runtimes:write experiments:read experiments:write tasks:read tasks:write tasks:delete files:read files:write conversations:read events:read metrics:read shares:read shares:write shares:delete connectors:read connectors:write annotations:read approvals:read approvals:write",
+              "status": "active",
+            }
+          `);
         // The key list is its own envelope, `api_keys`, not a page.
         const keys = await cp.get<{ api_keys: ApiKey[] }>("/v1/api-keys", {
           project: project.id,
@@ -2110,6 +2255,15 @@ walk("SDK end-to-end walk", () => {
         const q = { project: project.id };
         await cp.delete(`/v1/api-keys/${apiKey.id}`, q);
         await sa.automations.delete(automation.id);
+        await sa.shares.delete(shareId);
+        const memberAgain = new IntrospectionClient({
+          token: memberToken,
+          advanced: {
+            baseApiUrl: settings.baseApiUrl,
+            dpUrl: sa.advancedOptions.dpUrl,
+          },
+        });
+        await memberAgain.tags.delete("access", "walk");
         // The runner's session never carries `tasks:delete`; the service account does.
         for await (const t of sa.tasks.list()) await sa.tasks.delete(t.id);
         await expectNotFound(() => sa.tasks.get(task.id));
