@@ -15,6 +15,7 @@ import type { Polly } from "@pollyjs/core";
 import {
   IntrospectionClient,
   NotFoundError,
+  serviceAccountToken,
   type Runner,
 } from "@introspection-sdk/introspection-node";
 import type {
@@ -37,6 +38,7 @@ import {
   pushRecipe,
   secondTurn,
   raw,
+  NATIVE_FETCH,
   settled,
   stable,
   Steps,
@@ -145,6 +147,8 @@ walk("SDK end-to-end walk", () => {
   let owner: IntrospectionClient;
   /** The walk's own service account in its own project, from step 2 on. */
   let sa: IntrospectionClient;
+  /** The same credentials on the native fetch: polls that the recording never sees. */
+  let saQuiet: IntrospectionClient;
   let project: Project;
   let application: Application;
   let repository: Repository;
@@ -168,7 +172,7 @@ walk("SDK end-to-end walk", () => {
   let apiKey: ApiKey;
 
   beforeAll(() => {
-    polly = setupPolly({ recordingName: RECORDING });
+    polly = setupPolly({ recordingName: RECORDING, ordered: true });
     settings = walkSettings(mode);
     owner = new IntrospectionClient({
       cpSession: settings.cpSession,
@@ -202,9 +206,12 @@ walk("SDK end-to-end walk", () => {
     async (ctx) => {
       await steps.run(ctx, "project", async () => {
         const cp = raw(owner.cpHttp);
+        // The deployment: from the credentials file where the seed wrote one,
+        // else the one the login's own projects are on. Read from a response,
+        // not a setting, so replay sends what the recording holds.
         const deploymentId =
           settings.deploymentId ??
-          (await cp.get<Project>(`/v1/projects/${settings.bootstrapProjectId}`))
+          (await cp.get<Paginated<Project>>("/v1/projects")).records[0]!
             .deployment_id;
         project = await cp.post<Project>("/v1/projects", {
           name: WALK.projectName,
@@ -349,16 +356,28 @@ walk("SDK end-to-end walk", () => {
         );
         expect(first.secret, "the plaintext is returned once").toBeTruthy();
 
-        sa = await IntrospectionClient.fromServiceAccount({
+        const minted = await serviceAccountToken({
           clientId: application.client_id,
           clientSecret: first.secret!,
           project: project.id,
           baseApiUrl: settings.baseApiUrl,
         });
         expect(
-          sa.advancedOptions.dpUrl,
+          minted.dp_url,
           "the token response names the Data Plane",
         ).toBeTruthy();
+        const credentials = {
+          token: minted.access_token,
+          advanced: {
+            baseApiUrl: settings.baseApiUrl,
+            dpUrl: minted.dp_url ?? undefined,
+          },
+        };
+        sa = new IntrospectionClient(credentials);
+        saQuiet = new IntrospectionClient({
+          ...credentials,
+          advanced: { ...credentials.advanced, fetch: NATIVE_FETCH },
+        });
 
         const listed = await cp.get<Paginated<Application>>(
           "/v1/applications",
@@ -400,8 +419,8 @@ walk("SDK end-to-end walk", () => {
                 "last_used_at": null,
                 "name": "second",
                 "org_id": "[uuid]",
-                "secret_prefix": "intro_sk_8IHu5jLt",
-                "secret_suffix": "DIdo",
+                "secret_prefix": "intro_sk_2_4qyit2",
+                "secret_suffix": "BsYM",
                 "status": "active",
                 "updated_at": "[timestamp]",
               },
@@ -415,8 +434,8 @@ walk("SDK end-to-end walk", () => {
                 "last_used_at": null,
                 "name": "first",
                 "org_id": "[uuid]",
-                "secret_prefix": "intro_sk_ytFtFjlh",
-                "secret_suffix": "CUJk",
+                "secret_prefix": "intro_sk__cdbOC1C",
+                "secret_suffix": "9268",
                 "status": "active",
                 "updated_at": "[timestamp]",
               },
@@ -480,25 +499,35 @@ walk("SDK end-to-end walk", () => {
         // registers the group's slug, which is what lets the next push
         // version the group and sync its judges (hosted-recipe-git.md).
         repository = await settled(
-          polly!,
           mode,
           () => sa.repositories.get(created.id, { project: project.id }),
-          (r) => r.provisioning_status === "ready" || r.provisioning_status === "failed",
+          () => saQuiet.repositories.get(created.id, { project: project.id }),
+          (r) =>
+            r.provisioning_status === "ready" ||
+            r.provisioning_status === "failed",
           { timeoutMs: 180_000, intervalMs: 2_000, label: "hosted repository" },
         );
         expect(repository.provisioning_status).toBe("ready");
         const seeded = await settled(
-          polly!,
           mode,
           async () => {
             const out: Recipe[] = [];
-            for await (const r of sa.recipes.list({ project: project.id })) out.push(r);
+            for await (const r of sa.recipes.list({ project: project.id }))
+              out.push(r);
+            return out;
+          },
+          async () => {
+            const out: Recipe[] = [];
+            for await (const r of saQuiet.recipes.list({ project: project.id }))
+              out.push(r);
             return out;
           },
           (rows) => rows.some((r) => r.repository_id === repository.id),
           { timeoutMs: 180_000, intervalMs: 3_000, label: "seed recipe" },
         );
-        const seedRecipe = seeded.find((r) => r.repository_id === repository.id)!;
+        const seedRecipe = seeded.find(
+          (r) => r.repository_id === repository.id,
+        )!;
         const seedRuntime = await cp.post<Runtime>("/v1/runtimes", {
           project: project.id,
           recipe_id: seedRecipe.id,
@@ -550,15 +579,25 @@ walk("SDK end-to-end walk", () => {
         // The push versioned the manifest's recipe at the pushed commit; the
         // create below names the same pin and answers with that row.
         const versioned = await settled(
-          polly!,
           mode,
           async () => {
             const out: Recipe[] = [];
-            for await (const r of sa.recipes.list({ project: project.id })) out.push(r);
+            for await (const r of sa.recipes.list({ project: project.id }))
+              out.push(r);
+            return out.find((r) => r.git_commit_sha === head!.sha) ?? null;
+          },
+          async () => {
+            const out: Recipe[] = [];
+            for await (const r of saQuiet.recipes.list({ project: project.id }))
+              out.push(r);
             return out.find((r) => r.git_commit_sha === head!.sha) ?? null;
           },
           (r) => r !== null,
-          { timeoutMs: 180_000, intervalMs: 3_000, label: "push-versioned recipe" },
+          {
+            timeoutMs: 180_000,
+            intervalMs: 3_000,
+            label: "push-versioned recipe",
+          },
         );
         recipe = versioned!;
         expect(stable(recipe)).toMatchInlineSnapshot(`
@@ -803,20 +842,42 @@ walk("SDK end-to-end walk", () => {
         // The push versioned the group at the recipe's commit; that version
         // is the runtime the walk runs on, and the API creates the next one.
         const versioned = await settled(
-          polly!,
           mode,
           async () => {
             const out: Runtime[] = [];
-            for await (const r of sa.runtimes.list({ project: project.id, runtime: WALK.runtimeSlug })) {
+            for await (const r of sa.runtimes.list({
+              project: project.id,
+              runtime: WALK.runtimeSlug,
+            })) {
               out.push(r);
             }
             return out.find((r) => r.recipe_id === recipe.id) ?? null;
           },
-          (r) => r !== null && (r.image_build_status === "ready" || r.image_build_status === "failed"),
-          { timeoutMs: BAKE_TIMEOUT, intervalMs: 10_000, label: "push-versioned runtime bake" },
+          async () => {
+            const out: Runtime[] = [];
+            for await (const r of saQuiet.runtimes.list({
+              project: project.id,
+              runtime: WALK.runtimeSlug,
+            })) {
+              out.push(r);
+            }
+            return out.find((r) => r.recipe_id === recipe.id) ?? null;
+          },
+          (r) =>
+            r !== null &&
+            (r.image_build_status === "ready" ||
+              r.image_build_status === "failed"),
+          {
+            timeoutMs: BAKE_TIMEOUT,
+            intervalMs: 10_000,
+            label: "push-versioned runtime bake",
+          },
         );
         runtime = versioned!;
-        expect(runtime.image_build_status, runtime.image_build_error_message ?? "").toBe("ready");
+        expect(
+          runtime.image_build_status,
+          runtime.image_build_error_message ?? "",
+        ).toBe("ready");
         expect(stable(runtime)).toMatchInlineSnapshot(`
           {
             "config_json": {
@@ -836,9 +897,9 @@ walk("SDK end-to-end walk", () => {
             "image_build_error_message": null,
             "image_build_metadata": {
               "built_at": "[timestamp]",
-              "external_image_name": "intro-6864c641-5bf2-50ca-9bea-090f37e685eb-a8db04a2e4d1",
-              "image_tag": "host.docker.internal:5001/sandbox-builds:01a13d6d-f05f-7115-9cc9-4b168ba5d22d-6864c641-5bf-a8db04a2e4d1-683127baeffe",
-              "size_bytes": 15427,
+              "external_image_name": "intro-2cd5d543-2d75-51bf-8609-5d505573abc7-a8db04a2e4d1",
+              "image_tag": "host.docker.internal:5001/sandbox-builds:01a13d6d-f05f-7115-9cc9-4b168ba5d22d-2cd5d543-2d7-a8db04a2e4d1-683127baeffe",
+              "size_bytes": 15422,
               "verdict_by": "[timestamp]",
             },
             "image_build_status": "ready",
@@ -869,13 +930,22 @@ walk("SDK end-to-end walk", () => {
         });
         expect(created.runtime_group_id).toBe(runtime.runtime_group_id);
         runtimeV2 = await settled(
-          polly!,
           mode,
           () => sa.runtimes.get(created.id),
-          (r) => r.image_build_status === "ready" || r.image_build_status === "failed",
-          { timeoutMs: BAKE_TIMEOUT, intervalMs: 10_000, label: "runtime bake" },
+          () => saQuiet.runtimes.get(created.id),
+          (r) =>
+            r.image_build_status === "ready" ||
+            r.image_build_status === "failed",
+          {
+            timeoutMs: BAKE_TIMEOUT,
+            intervalMs: 10_000,
+            label: "runtime bake",
+          },
         );
-        expect(runtimeV2.image_build_status, runtimeV2.image_build_error_message ?? "").toBe("ready");
+        expect(
+          runtimeV2.image_build_status,
+          runtimeV2.image_build_error_message ?? "",
+        ).toBe("ready");
         let seen = false;
         for await (const item of sa.runtimes.list({
           project: project.id,
@@ -987,9 +1057,12 @@ walk("SDK end-to-end walk", () => {
         );
         expect(renamed.name).toBe("hello-mcp (walk)");
 
-        const requirements = await cp.get<Runtime>(`/v1/runtimes/${runtime.id}`, {
-          include: "mcp_requirements",
-        });
+        const requirements = await cp.get<Runtime>(
+          `/v1/runtimes/${runtime.id}`,
+          {
+            include: "mcp_requirements",
+          },
+        );
         expect(stable(requirements.mcp_requirements)).toMatchInlineSnapshot(
           `[]`,
         );
@@ -1027,7 +1100,7 @@ walk("SDK end-to-end walk", () => {
             "parent_id": null,
             "project_id": "[uuid]",
             "size_bytes": 21,
-            "storage_path": "01a13d6d-f05f-7115-9cc9-4b168ba5d22d/01a167eb-ca5a-7314-9cd9-1be2fc1d5ede/files/01a167ec-136f-7175-bebe-2d030b383c90/walk-input.txt",
+            "storage_path": "01a13d6d-f05f-7115-9cc9-4b168ba5d22d/01a167f2-f8c0-73cc-827d-7d7ed05b2011/files/01a167f3-4202-76c8-802d-f202048ca865/walk-input.txt",
             "storage_version_id": null,
             "tags": [],
             "task_id": null,
@@ -1077,9 +1150,9 @@ walk("SDK end-to-end walk", () => {
 
         // The stream ends before the row settles; the second turn needs it idle.
         task = await settled(
-          polly!,
           mode,
           () => runner.tasks.get(started.task!.id),
+          () => saQuiet.tasks.get(started.task!.id),
           (t) => ["idle", "awaiting_user", "completed"].includes(t.status),
           {
             timeoutMs: 120_000,
@@ -1118,16 +1191,10 @@ walk("SDK end-to-end walk", () => {
               "error": null,
               "history_recall": null,
               "idle_timeout_seconds": 180,
-              "image_build": {
-                "build_id": "[uuid]",
-                "git_sha": "[sha]",
-                "image_digest": "host.docker.internal:5001/sandbox-builds@sha256:f963861469f172e57b4f647d085989f2c2af273d22b40bf2230752eaacc712e0",
-                "launch": "baked",
-              },
-              "invocation_id": "inv_12u4gKg8d7nh3hdIe2klmBzuixOLOjD1bC",
+              "invocation_id": "inv_12u4gKg8d7nh2RMSCGFnpvvf5pP3WrSTLa",
               "last_activity_at": "[timestamp]",
               "last_response": {
-                "response_id": "chatcmpl-a74ecfaafc6441238ed2ca247d91a8f1",
+                "response_id": "chatcmpl-00707f58af2a4359aed86b61813bd083",
                 "turn": 1,
                 "updated_at": "[timestamp]",
               },
@@ -1138,7 +1205,7 @@ walk("SDK end-to-end walk", () => {
               "spawn_resolution": {
                 "attribution_env": {
                   "INTROSPECTION_ENVIRONMENT": "production",
-                  "INTROSPECTION_JUDGES_OPERATIONAL": "{"greeting":{"enabled":true,"sample_rate":1.0,"judge_id":"01a167eb-d774-7110-bea6-9862a80551ac","definition_hash":"459455f76567d23931987f6e51b8709f8aca44f9c8f665a4d861297113406ba9"}}",
+                  "INTROSPECTION_JUDGES_OPERATIONAL": "{"greeting":{"enabled":true,"sample_rate":1.0,"judge_id":"01a167f3-05aa-72ed-91d2-1dd902176302","definition_hash":"459455f76567d23931987f6e51b8709f8aca44f9c8f665a4d861297113406ba9"}}",
                   "INTROSPECTION_RECIPE_ID": "[uuid]",
                   "INTROSPECTION_RECIPE_KIND": "production",
                   "INTROSPECTION_RECIPE_REF": "main",
@@ -1188,9 +1255,9 @@ walk("SDK end-to-end walk", () => {
         });
         await turn.text();
         await settled(
-          polly!,
           mode,
           () => runner.tasks.get(task.id),
+          () => saQuiet.tasks.get(task.id),
           (t) => ["idle", "awaiting_user", "completed"].includes(t.status),
           {
             timeoutMs: 120_000,
@@ -1219,11 +1286,16 @@ walk("SDK end-to-end walk", () => {
     async (ctx) => {
       await steps.run(ctx, "evidence", async () => {
         const outputs = await settled(
-          polly!,
           mode,
           async () => {
             const out: IntrospectionFile[] = [];
             for await (const f of sa.files.list({ task_id: task.id }))
+              out.push(f);
+            return out;
+          },
+          async () => {
+            const out: IntrospectionFile[] = [];
+            for await (const f of saQuiet.files.list({ task_id: task.id }))
               out.push(f);
             return out;
           },
@@ -1247,12 +1319,12 @@ walk("SDK end-to-end walk", () => {
               "task_id": "[uuid]",
             },
             "mime_type": "text/plain",
-            "name": "tasks/01a167ec-1430-75de-9f45-2122e1566b6f/outputs/greeting.txt",
+            "name": "tasks/01a167f3-4277-7609-baa7-ae54fe75b40f/outputs/greeting.txt",
             "org_id": "[uuid]",
             "parent_id": null,
             "project_id": "[uuid]",
             "size_bytes": 31,
-            "storage_path": "01a13d6d-f05f-7115-9cc9-4b168ba5d22d/01a167eb-ca5a-7314-9cd9-1be2fc1d5ede/files/01a167ec-1fe1-77e2-8adf-e8402c94d141/greeting.txt",
+            "storage_path": "01a13d6d-f05f-7115-9cc9-4b168ba5d22d/01a167f2-f8c0-73cc-827d-7d7ed05b2011/files/01a167f3-4eaa-763e-a84b-d99eb90cb337/greeting.txt",
             "storage_version_id": null,
             "tags": [],
             "task_id": "[uuid]",
@@ -1266,9 +1338,9 @@ walk("SDK end-to-end walk", () => {
         expect(content.trim()).toBe(WALK.echoResult);
 
         const conversation = await settled(
-          polly!,
           mode,
           () => sa.conversations.get(conversationId),
+          () => saQuiet.conversations.get(conversationId),
           () => true,
           { timeoutMs: 60_000, label: "conversation" },
         );
@@ -1288,7 +1360,7 @@ walk("SDK end-to-end walk", () => {
             "environment": "production",
             "id": "[uuid]",
             "metrics": {
-              "duration_ms": 641,
+              "duration_ms": 324,
               "failed_llm_call_count": 0,
               "failed_tool_use_count": 1,
               "has_errors": false,
@@ -1320,9 +1392,9 @@ walk("SDK end-to-end walk", () => {
           }
         `);
         const page = await settled(
-          polly!,
           mode,
           async () => await sa.conversations.items.list(conversationId),
+          async () => await saQuiet.conversations.items.list(conversationId),
           (p) =>
             JSON.stringify(p).includes("echo") &&
             JSON.stringify(p).includes(WALK.variableValue),
@@ -1363,13 +1435,14 @@ walk("SDK end-to-end walk", () => {
     "13: telemetry reads — metrics, a tag, a share, an annotation, events",
     async (ctx) => {
       await steps.run(ctx, "telemetry reads", async () => {
-        const now = new Date();
+        // A fixed window, so the request replays; the walk's conversation is
+        // within it by construction.
         const metrics = await sa.metrics.query({
           view: "conversations",
           metrics: [{ aggregation: "count" }],
           filters: [{ field: "runtime_id", operator: "eq", value: runtime.id }],
-          from_timestamp: new Date(now.getTime() - 3_600_000).toISOString(),
-          to_timestamp: new Date(now.getTime() + 60_000).toISOString(),
+          from_timestamp: "2026-01-01T00:00:00Z",
+          to_timestamp: "2027-01-01T00:00:00Z",
         } as Parameters<typeof sa.metrics.query>[0]);
         expect(metrics, "a metrics response").toBeTruthy();
 
@@ -1380,6 +1453,14 @@ walk("SDK end-to-end walk", () => {
           advanced: {
             baseApiUrl: settings.baseApiUrl,
             dpUrl: sa.advancedOptions.dpUrl,
+          },
+        });
+        const memberQuiet = new IntrospectionClient({
+          token: memberToken,
+          advanced: {
+            baseApiUrl: settings.baseApiUrl,
+            dpUrl: sa.advancedOptions.dpUrl,
+            fetch: NATIVE_FETCH,
           },
         });
         const tag = await member.tags.create({
@@ -1448,7 +1529,6 @@ walk("SDK end-to-end walk", () => {
             { labels: ["walk"] },
           );
           const annotations = await settled(
-            polly!,
             mode,
             async () => {
               const out = [];
@@ -1458,16 +1538,32 @@ walk("SDK end-to-end walk", () => {
                 out.push(a);
               return out;
             },
+            async () => {
+              const out = [];
+              for await (const a of memberQuiet.annotations.list({
+                conversation_id: conversationId,
+              } as Parameters<typeof memberQuiet.annotations.list>[0]))
+                out.push(a);
+              return out;
+            },
             (rows) => rows.length > 0,
             { timeoutMs: 60_000, intervalMs: 3_000, label: "annotations" },
           );
           expect(annotations[0]!.labels).toContain("walk");
           const events = await settled(
-            polly!,
             mode,
             async () => {
               const out = [];
               for await (const e of sa.events.list({
+                event_name: "introspection.annotation",
+                conversation_id: conversationId,
+              }))
+                out.push(e);
+              return out;
+            },
+            async () => {
+              const out = [];
+              for await (const e of saQuiet.events.list({
                 event_name: "introspection.annotation",
                 conversation_id: conversationId,
               }))
@@ -1553,7 +1649,7 @@ walk("SDK end-to-end walk", () => {
               "spawn_resolution": {
                 "attribution_env": {
                   "INTROSPECTION_ENVIRONMENT": "production",
-                  "INTROSPECTION_JUDGES_OPERATIONAL": "{"greeting":{"enabled":true,"sample_rate":1.0,"judge_id":"01a167eb-d774-7110-bea6-9862a80551ac","definition_hash":"459455f76567d23931987f6e51b8709f8aca44f9c8f665a4d861297113406ba9"}}",
+                  "INTROSPECTION_JUDGES_OPERATIONAL": "{"greeting":{"enabled":true,"sample_rate":1.0,"judge_id":"01a167f3-05aa-72ed-91d2-1dd902176302","definition_hash":"459455f76567d23931987f6e51b8709f8aca44f9c8f665a4d861297113406ba9"}}",
                   "INTROSPECTION_RECIPE_ID": "[uuid]",
                   "INTROSPECTION_RECIPE_KIND": "production",
                   "INTROSPECTION_RECIPE_REF": "main",
@@ -1756,16 +1852,20 @@ walk("SDK end-to-end walk", () => {
     async (ctx) => {
       await steps.run(ctx, "commands", async () => {
         const dp = raw(sa.dpHttp);
+        const dpQuiet = raw(saQuiet.dpHttp);
         const command = async (body: Record<string, unknown>) => {
           const created = await dp.post<TaskCommand>(
             `/v1/tasks/${evalTask.id}/commands`,
             body,
           );
           return settled(
-            polly!,
             mode,
             () =>
               dp.get<TaskCommand>(
+                `/v1/tasks/${evalTask.id}/commands/${created.id}`,
+              ),
+            () =>
+              dpQuiet.get<TaskCommand>(
                 `/v1/tasks/${evalTask.id}/commands/${created.id}`,
               ),
             (c) =>
@@ -1826,7 +1926,6 @@ walk("SDK end-to-end walk", () => {
         // is the model double, which returns no verdict, so a judgement is
         // asserted only where a real model grades (design doc §10).
         const judgements = await settled(
-          polly!,
           mode,
           async () => {
             const out = [];
@@ -1837,11 +1936,23 @@ walk("SDK end-to-end walk", () => {
               out.push(e);
             return out;
           },
+          async () => {
+            const out = [];
+            for await (const e of saQuiet.events.list({
+              event_name: "introspection.judgement",
+              judge_id: judge.id,
+            } as Parameters<typeof saQuiet.events.list>[0]))
+              out.push(e);
+            return out;
+          },
           (rows) => rows.length > 0 || settings.agent === "scripted",
           { timeoutMs: BAKE_TIMEOUT, intervalMs: 10_000, label: "judgement" },
         );
         if (settings.agent !== "scripted") {
-          expect(judgements.length, "the recipe's judge graded the trial").toBeGreaterThan(0);
+          expect(
+            judgements.length,
+            "the recipe's judge graded the trial",
+          ).toBeGreaterThan(0);
         }
       });
     },
@@ -1928,9 +2039,8 @@ walk("SDK end-to-end walk", () => {
           apiKey.api_key,
           "the plaintext key is returned once",
         ).toBeTruthy();
-        expect(
-          stable({ ...apiKey, api_key: undefined }),
-        ).toMatchInlineSnapshot(`
+        expect(stable({ ...apiKey, api_key: undefined }))
+          .toMatchInlineSnapshot(`
           {
             "acknowledged_at": null,
             "allow": [
@@ -1941,14 +2051,14 @@ walk("SDK end-to-end walk", () => {
             "environment": "development",
             "expires_at": null,
             "id": "[uuid]",
-            "key_display": "intro_dev_9ffdS_O7...xk2k",
-            "key_prefix": "intro_dev_9ffdS_O7",
-            "key_suffix": "xk2k",
+            "key_display": "intro_dev_uEEfN-08...KJ3w",
+            "key_prefix": "intro_dev_uEEfN-08",
+            "key_suffix": "KJ3w",
             "last_used_at": null,
             "member_id": "[uuid]",
             "name": "walk",
             "org_id": "[uuid]",
-            "prefix": "intro_dev_9ffdS_O7",
+            "prefix": "intro_dev_uEEfN-08",
             "project_id": "[uuid]",
             "redacted_key": "[redacted]",
             "scope": "telemetry:write projects:read repositories:read recipes:read recipes:write runtimes:read runtimes:write experiments:read experiments:write tasks:read tasks:write tasks:delete files:read files:write conversations:read events:read metrics:read shares:read shares:write shares:delete connectors:read connectors:write annotations:read approvals:read approvals:write",
@@ -2011,16 +2121,24 @@ walk("SDK end-to-end walk", () => {
         // `experiments:delete` is no scope a token can name, so the owner deletes.
         await owner.experiments.delete(experiment.id, project.id);
         // Every version in the group: the push's, the walk's and the arm's.
-        for await (const r of sa.runtimes.list({ project: project.id, runtime: WALK.runtimeSlug })) {
+        for await (const r of sa.runtimes.list({
+          project: project.id,
+          runtime: WALK.runtimeSlug,
+        })) {
           await cp.delete(`/v1/runtimes/${r.id}`, q);
         }
         await expectNotFound(() => sa.runtimes.get(runtimeV2.id));
         // The group's endpoint binding went with its last runtime version.
-        await cp.delete(`/v1/endpoints/${endpoint.id}`, q).catch((err: unknown) => {
-          if (!(err instanceof NotFoundError)) throw err;
-        });
+        await cp
+          .delete(`/v1/endpoints/${endpoint.id}`, q)
+          .catch((err: unknown) => {
+            if (!(err instanceof NotFoundError)) throw err;
+          });
         for await (const c of sa.connectors.connections.list(connector.id)) {
-          await cp.delete(`/v1/connectors/${connector.id}/connections/${c.id}`, q);
+          await cp.delete(
+            `/v1/connectors/${connector.id}/connections/${c.id}`,
+            q,
+          );
         }
         await cp.delete(`/v1/connectors/${connector.id}`, q);
         await expectNotFound(() => sa.connectors.get(connector.id));

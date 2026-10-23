@@ -9,7 +9,6 @@ import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import type { TestContext } from "vitest";
-import type { Polly } from "@pollyjs/core";
 import type { HttpClient } from "@introspection-sdk/introspection-node";
 import type { PollyMode } from "../polly-setup";
 
@@ -110,7 +109,7 @@ const REPLAY_SETTINGS: WalkSettings = {
   baseApiUrl: "http://localhost:8000",
   cpSession: "replay-session",
   bootstrapProjectId: null,
-  deploymentId: "00000000-0000-7000-8000-000000000000",
+  deploymentId: null,
   recipeRepositoryUrl:
     "https://github.com/introspection-org/recipe-harbor-mcp-agent",
   recipeGitRef: "main",
@@ -241,38 +240,38 @@ export function raw(http: HttpClient) {
 }
 
 /**
- * Poll `read` until `done` with recording off, so the HAR holds none of the
- * polls, then read once more with it on: that one read, in the resource's
- * terminal state, is what the recording carries (design doc §5).
- * In replay the single recorded read is all there is.
+ * The fetch Node had before Polly patched it, for the clients that poll:
+ * nothing they send is recorded, and nothing they send counts toward the
+ * order in which identical recorded requests are matched.
+ */
+export const NATIVE_FETCH: typeof fetch = globalThis.fetch;
+
+/**
+ * Poll `poll` (a quiet client, see NATIVE_FETCH) until `done`, then `read`
+ * once through the recorded client: that one read, in the resource's
+ * terminal state, is what the recording carries (design doc §5). In replay
+ * the single recorded read is all there is.
  */
 export async function settled<T>(
-  polly: Polly,
   mode: PollyMode,
   read: () => Promise<T>,
+  poll: () => Promise<T>,
   done: (value: T) => boolean,
   opts: { timeoutMs: number; intervalMs?: number; label: string },
 ): Promise<T> {
   if (mode !== "replay") {
-    // A passthrough rule over everything for the polling window; `pause()`
-    // would detach the fetch the SDK's client captured at construction.
-    const window = polly.server.any().passthrough();
-    try {
-      const deadline = Date.now() + opts.timeoutMs;
-      for (;;) {
-        const value = await read();
-        if (done(value)) break;
-        if (Date.now() > deadline) {
-          throw new Error(
-            `${opts.label}: not done after ${opts.timeoutMs}ms: ${JSON.stringify(value).slice(0, 400)}`,
-          );
-        }
-        await new Promise((resolve) =>
-          setTimeout(resolve, opts.intervalMs ?? 3000),
+    const deadline = Date.now() + opts.timeoutMs;
+    for (;;) {
+      const value = await poll();
+      if (done(value)) break;
+      if (Date.now() > deadline) {
+        throw new Error(
+          `${opts.label}: not done after ${opts.timeoutMs}ms: ${JSON.stringify(value).slice(0, 400)}`,
         );
       }
-    } finally {
-      window.passthrough(false);
+      await new Promise((resolve) =>
+        setTimeout(resolve, opts.intervalMs ?? 3000),
+      );
     }
   }
   const final = await read();

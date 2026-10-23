@@ -91,9 +91,15 @@ const SECRET_PATTERNS: [RegExp, string][] = [
   // planes mint (access, session, runner, member tokens), a project API key
   // in any environment, and the one-time plaintext of an application secret
   // or a credential, in a JSON body or a form field.
-  [/eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}/g, "REDACTED_JWT"],
+  [
+    /eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}/g,
+    "REDACTED_JWT",
+  ],
   [/intro_[a-z]+_[A-Za-z0-9_-]{20,}/g, "REDACTED_INTROSPECTION_KEY"],
-  [/("(?:client_secret|secret|api_key)"\s*:\s*")[^"]+(")/g, "$1REDACTED_SECRET$2"],
+  [
+    /("(?:client_secret|secret|api_key)"\s*:\s*")[^"]+(")/g,
+    "$1REDACTED_SECRET$2",
+  ],
   [/(client_secret=)[^&\s]+/g, "$1REDACTED_SECRET"],
 ];
 
@@ -109,6 +115,12 @@ function scrubSecrets(text: string | undefined | null): string | undefined {
 interface SetupPollyOptions {
   recordingName: string;
   adapters?: ("fetch" | "node-http")[];
+  /**
+   * Match identical requests in the order they were recorded. A scenario
+   * that reads one resource several times as it changes (the walk) needs
+   * it; the Pi cassettes do not.
+   */
+  ordered?: boolean;
 }
 
 export function getPollyMode(): PollyMode {
@@ -124,6 +136,7 @@ export function getPollyMode(): PollyMode {
 export function setupPolly({
   recordingName,
   adapters = ["fetch", "node-http"],
+  ordered = false,
 }: SetupPollyOptions): Polly {
   const mode = getPollyMode();
 
@@ -147,8 +160,12 @@ export function setupPolly({
     matchRequestsBy: {
       method: true,
       headers: false,
-      body: true,
-      order: false,
+      // The identifier is computed from the scrubbed body, in record and
+      // replay alike: a request id hashed from a secret before beforePersist
+      // scrubbed it would never match the replayed, already-scrubbed body.
+      body: (body: unknown) =>
+        typeof body === "string" ? scrubSecrets(body) : body,
+      order: ordered,
       url: {
         protocol: true,
         hostname: true,
