@@ -1,8 +1,17 @@
 # Runs the full API contract check after each staging deploy: the operations
-# the staging reference marks for the SDK that it never calls, and the routes
-# it calls that staging does not have. introspection-cloud sends the
-# api-reference-deployed event after each staging deploy, with the cloud commit
-# in client_payload.sha.
+# the staging references (each plane's /openapi.json) mark for every client or
+# for the SDK that it never calls, and the routes it calls that staging does
+# not have. introspection-cloud sends the api-reference-deployed event after
+# each staging deploy of either plane, with the cloud commit in
+# client_payload.sha and the plane (cp or dp) in client_payload.plane. Both
+# planes are checked either way.
+#
+# The data plane has no fixed host: its base URL comes from the org variable
+# STAGING_DP_URL, and the check fails when it is not set.
+#
+# A reference that cannot be read (404 included) fails the run but writes no
+# state, so the steps after the check skip: nothing is posted and the recorded
+# drift state stays as it was.
 #
 # Pull requests run the same check from ci.yml with --pr, where an uncalled
 # operation is only reported: a new cloud route must not block unrelated PRs.
@@ -54,10 +63,12 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      # A staging 404 writes no state: the steps below then skip, so the run is
-      # green, posts nothing and records no state.
+      # A reference that could not be read writes no state: the steps below
+      # then skip, so the run is red but posts nothing and records no state.
       - name: Check the SDK routes
         id: check
+        env:
+          STAGING_DP_URL: ${{ vars.STAGING_DP_URL }}
         run: |
           status=0
           node scripts/check-api-contract.mjs --out "${RUNNER_TEMP}/api-contract" || status=$?

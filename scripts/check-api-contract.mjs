@@ -1,17 +1,18 @@
 /**
  * Compares the routes this SDK calls with the API reference.
  *
- * The references are the OpenAPI documents the Control Plane serves for both
- * planes, generated from the APIs themselves. They also say who each route is
- * for: every public operation carries
- * `x-introspection: { visibility, clients: [...] }`, and routes no client may
- * call are not in them at all. That classification is the only one; this
- * check keeps no list of its own.
+ * The references are the OpenAPI documents each plane serves at
+ * `/openapi.json`, generated from the APIs themselves. They also say who each
+ * route is for: an operation without `x-introspection` is for every client;
+ * one with `x-introspection: { clients: [...] }` is for the clients it lists,
+ * and `clients: []` for none. Routes no client may call are not in them at
+ * all. That classification is the only one; this check keeps no list of its
+ * own, and compares routes only (method and path, not query parameters).
  *
  * It fails when:
  *
- * - an operation whose `x-introspection.clients` includes "sdk" is sent from
- *   no call site in each package's `src` (method and path);
+ * - an operation for every client, or whose `x-introspection.clients`
+ *   includes "sdk", is sent from no call site in each package's `src`;
  * - a call site sends a `/v1/...` route that neither reference has.
  *
  * Field changes are not compared.
@@ -21,15 +22,21 @@
  * pull request; .github/workflows/api-contract.yml runs it in full after each
  * staging deploy and posts state changes to #main-build-alerts.
  *
- * A reference URL that answers 404 is not published: the check says so and
- * exits 0. Exit 1 is drift, 2 a reference that could not be read.
+ * Exit 1 is drift, 2 a reference that could not be read (any HTTP error,
+ * including 404, a network failure or a body that is not JSON) or a data
+ * plane URL that is not set. Only a run that read both references writes
+ * `--out`, so a failed read changes no recorded state and posts nothing.
  *
- * Run: node scripts/check-api-contract.mjs [--pr] [--out DIR]
- *        [--dataplane URL|PATH] [--controlplane URL|PATH]
+ * Run: STAGING_DP_URL=<data plane base URL> node scripts/check-api-contract.mjs
+ *        [--pr] [--out DIR] [--dataplane URL|PATH] [--controlplane URL|PATH]
  *      --out DIR  also writes the findings to DIR/report.txt and red|green to
- *                 DIR/state, but not when it skips
+ *                 DIR/state
  * env: API_CONTRACT_DATAPLANE, API_CONTRACT_CONTROLPLANE  the same, for a flag
- *      left out (default: staging, https://api.staging.introspection.dev/openapi/<plane>.json)
+ *      left out
+ *      STAGING_DP_URL  the staging data plane's base URL, whose /openapi.json
+ *                      is the data plane reference when neither of the above
+ *                      names one (the control plane's is
+ *                      https://api.staging.introspection.dev/openapi.json)
  */
 import {
   existsSync,
@@ -61,11 +68,25 @@ function arg(name) {
   return flag === -1 ? undefined : process.argv[flag + 1];
 }
 
-/** `--<plane>`, else `API_CONTRACT_<PLANE>`, else staging. */
+/** Each plane's staging base URL; the data plane's has no fixed host. */
+const STAGING_BASES = {
+  controlplane: () => STAGING,
+  dataplane: () => {
+    const base = process.env.STAGING_DP_URL?.trim().replace(/\/+$/, "");
+    if (!base) {
+      throw new Error(
+        "STAGING_DP_URL is not set: set it to the staging data plane's base URL (the STAGING_DP_URL GitHub Actions variable), or pass --dataplane",
+      );
+    }
+    return base;
+  },
+};
+
+/** `--<plane>`, else `API_CONTRACT_<PLANE>`, else staging's `/openapi.json`. */
 const referenceSource = (plane) =>
   arg(`--${plane}`) ||
   process.env[`API_CONTRACT_${plane.toUpperCase()}`] ||
-  `${STAGING}/openapi/${plane}.json`;
+  `${STAGING_BASES[plane]()}/openapi.json`;
 
 const listing = (items) =>
   [...items]
@@ -283,9 +304,10 @@ function sdkCalls(program, files) {
 
 /**
  * Every operation in both references, keyed `<METHOD> <path>`, with its plane
- * and the clients its `x-introspection` names, plus the operations that
- * share a `<METHOD> <template>` (path parameters by position) with another,
- * in either reference: a call site cannot tell them apart.
+ * and the clients its `x-introspection` names (undefined without one: every
+ * client), plus the operations that
+ * share a `<METHOD> /v1/<template>` (path parameters by position) with
+ * another, in either reference: a call site cannot tell them apart.
  */
 function specOperations(specs) {
   const operations = new Map();
@@ -298,12 +320,16 @@ function specOperations(specs) {
         if (!op) continue;
         const key = `${method.toUpperCase()} ${path}`;
         const template = `${method.toUpperCase()} ${templateKey(path)}`;
-        if (templates.has(template))
-          inBoth.push(`${templates.get(template)} and ${key}`);
-        else templates.set(template, key);
+        // Call sites only send `/v1/` routes, so only those can be ambiguous;
+        // both planes serve their own `/health` and `/ready`.
+        if (path.startsWith("/v1/")) {
+          if (templates.has(template))
+            inBoth.push(`${templates.get(template)} and ${key}`);
+          else templates.set(template, key);
+        }
         operations.set(key, {
           plane,
-          clients: op["x-introspection"]?.clients ?? [],
+          clients: op["x-introspection"]?.clients,
         });
       }
     }
@@ -335,7 +361,7 @@ function checkOperations(specs, calls, unknownMethod) {
 
   const uncalled = [];
   for (const [op, { plane, clients }] of operations) {
-    if (clients.includes(CLIENT) && !called.has(op))
+    if ((!clients || clients.includes(CLIENT)) && !called.has(op))
       uncalled.push(`${PLANE_NAMES[plane]}: ${op}`);
   }
 
@@ -351,7 +377,7 @@ function checkOperations(specs, calls, unknownMethod) {
   };
   report(
     uncalled,
-    `the reference lists "${CLIENT}" in x-introspection.clients, but no call site in packages/*/src sends it`,
+    `for every client (no x-introspection) or "${CLIENT}" in x-introspection.clients, but no call site in packages/*/src sends it`,
     !process.argv.includes("--pr"),
   );
   report(
@@ -375,13 +401,12 @@ function checkOperations(specs, calls, unknownMethod) {
   };
 }
 
-/** The reference as JSON, or undefined when its URL answers 404. */
+/** The reference as JSON; any HTTP error, 404 included, throws. */
 async function loadSpec(source) {
   if (source.startsWith("http://") || source.startsWith("https://")) {
     const response = await fetch(source, {
       signal: AbortSignal.timeout(30_000),
     });
-    if (response.status === 404) return undefined;
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     return response.json();
   }
@@ -395,7 +420,12 @@ async function main() {
   const sources = {};
   const specs = {};
   for (const [plane, name] of Object.entries(PLANE_NAMES)) {
-    sources[plane] = referenceSource(name);
+    try {
+      sources[plane] = referenceSource(name);
+    } catch (error) {
+      console.error(error.message);
+      return 2;
+    }
     try {
       specs[plane] = await loadSpec(sources[plane]);
     } catch (error) {
@@ -403,12 +433,6 @@ async function main() {
         `could not read the API reference at ${sources[plane]}: ${error.message}`,
       );
       return 2;
-    }
-    if (!specs[plane]) {
-      console.log(
-        `${sources[plane]} answered 404: reference not published yet, skipping`,
-      );
-      return 0;
     }
   }
 
