@@ -205,6 +205,9 @@ export function attachRuntimes<TRunner>(
   hybrid.resolve = api.resolve.bind(api);
   hybrid.runById = api.runById.bind(api);
   hybrid.openRunner = api.openRunner.bind(api);
+  hybrid.create = api.create.bind(api);
+  hybrid.update = api.update.bind(api);
+  hybrid.delete = api.delete.bind(api);
   return hybrid;
 }
 
