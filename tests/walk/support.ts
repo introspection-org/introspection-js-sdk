@@ -99,6 +99,8 @@ export const WALK = {
   /** The access step's administrator: an application on the admin agent. */
   adminName: "Drew",
   personaFileName: "walk-avery-notes.txt",
+  /** The branch the walk pushes and merges into the hosted repository's main. */
+  changeBranch: "pr/1",
   echoMessage: "hello from the public MCP",
   echoResult: "Echo: hello from the public MCP",
   instruction:
@@ -641,6 +643,62 @@ export function pushRecipe(
   }
   fs.rmSync(dir, { recursive: true, force: true });
   return sha;
+}
+
+/**
+ * Push one commit on `branch`, on top of the hosted repository's `main`: the
+ * change a later merge brings in. Fixed author and dates, so the commit is the
+ * same on every run. Live only; the bearer travels in the environment.
+ */
+export function pushBranch(
+  target: { url: string; bearer: string },
+  branch: string,
+  file: { path: string; content: string },
+): void {
+  const dir = fs.mkdtempSync(`${os.tmpdir()}/sdk-walk-branch-`);
+  const env = {
+    ...process.env,
+    GIT_TERMINAL_PROMPT: "0",
+    GIT_CONFIG_COUNT: "2",
+    GIT_CONFIG_KEY_0: "http.extraHeader",
+    GIT_CONFIG_VALUE_0: `Authorization: Bearer ${target.bearer}`,
+    GIT_CONFIG_KEY_1: "credential.helper",
+    GIT_CONFIG_VALUE_1: "",
+    GIT_AUTHOR_NAME: "SDK walk",
+    GIT_AUTHOR_EMAIL: "walk@example.com",
+    GIT_AUTHOR_DATE: "2026-01-01T00:00:00Z",
+    GIT_COMMITTER_NAME: "SDK walk",
+    GIT_COMMITTER_EMAIL: "walk@example.com",
+    GIT_COMMITTER_DATE: "2026-01-01T00:00:00Z",
+  };
+  const git = (...args: string[]) =>
+    execFileSync("git", args, { env, stdio: ["ignore", "pipe", "pipe"] });
+  try {
+    git(
+      "clone",
+      "--quiet",
+      "--depth",
+      "1",
+      "--branch",
+      "main",
+      target.url,
+      dir,
+    );
+    fs.writeFileSync(path.join(dir, file.path), file.content);
+    git("-C", dir, "add", file.path);
+    git("-C", dir, "commit", "--quiet", "-m", `walk: ${file.path}`);
+    git(
+      "-C",
+      dir,
+      "push",
+      "--quiet",
+      "--force",
+      "origin",
+      `HEAD:refs/heads/${branch}`,
+    );
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
 }
 
 /**

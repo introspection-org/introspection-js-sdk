@@ -46,6 +46,7 @@ import {
   hasCompleteRecording,
   prompt,
   prepareRecipe,
+  pushBranch,
   pushRecipe,
   secondTurn,
   raw,
@@ -158,6 +159,7 @@ walk("SDK end-to-end walk", () => {
   let application: Application;
   let repository: Repository;
   let memberToken: string;
+  let hostedUrl: string;
   let member: IntrospectionClient;
   let originalDescription: string | null;
   let recipe: Recipe;
@@ -578,8 +580,9 @@ walk("SDK end-to-end walk", () => {
         });
         expect(seedRuntime.slug).toBe(WALK.runtimeSlug);
 
+        hostedUrl = created.url!;
         if (mode !== "replay") {
-          pushRecipe(recipeDir, { url: created.url!, bearer: memberToken });
+          pushRecipe(recipeDir, { url: hostedUrl, bearer: memberToken });
         }
 
         const listed = await sa.repositories.list({
@@ -2487,7 +2490,43 @@ walk("SDK end-to-end walk", () => {
   );
 
   it(
-    "18: members and keys — the owner's reads, a development API key, the organisation",
+    "18: a change merged — a branch pushed to the hosted repository, merged into main",
+    async (ctx) => {
+      await steps.run(ctx, "merge", async () => {
+        if (mode !== "replay") {
+          pushBranch(
+            { url: hostedUrl, bearer: memberToken },
+            WALK.changeBranch,
+            { path: "WALK.md", content: "A change the walk merges.\n" },
+          );
+        }
+        let pushed = false;
+        for await (const b of sa.repositories.branches(repository.id, {
+          q: "pr",
+        }))
+          if (b.name === WALK.changeBranch) pushed = true;
+        expect(pushed, "the pushed branch").toBe(true);
+        const merged = await sa.repositories.merge(repository.id, {
+          base: "main",
+          head: WALK.changeBranch,
+          commit_message: `Merge ${WALK.changeBranch}`,
+        });
+        expect(merged, "a merge commit").not.toBeNull();
+        expect(merged!.base).toBe("main");
+        expect(merged!.parents).toHaveLength(2);
+        // Merging again finds nothing new.
+        const again = await sa.repositories.merge(repository.id, {
+          base: "main",
+          head: WALK.changeBranch,
+        });
+        expect(again).toBeNull();
+      });
+    },
+    STEP_TIMEOUT,
+  );
+
+  it(
+    "19: members and keys — the owner's reads, a development API key, the organisation",
     async (ctx) => {
       await steps.run(ctx, "members and keys", async () => {
         const members = [];
@@ -2582,7 +2621,7 @@ walk("SDK end-to-end walk", () => {
   );
 
   it(
-    "19: teardown — everything the walk created, in reverse",
+    "20: teardown — everything the walk created, in reverse",
     async (ctx) => {
       await steps.run(ctx, "teardown", async () => {
         // The default file list omits the upload a task holds, so it goes by id.
