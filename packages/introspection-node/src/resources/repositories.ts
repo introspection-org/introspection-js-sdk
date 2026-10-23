@@ -1,6 +1,10 @@
+// jscpd:ignore-start -- import list: the same names as every resource client's
 import {
   ValidationError,
+  type Paginated,
   type Repository,
+  type RepositoryBranch,
+  type RepositoryBranchesParams,
   type RepositoryCommit,
   type RepositoryCommitDetail,
   type RepositoryCommitPage,
@@ -16,6 +20,7 @@ import {
   type RepositoryMergeParams,
   type Uuid,
 } from "@introspection-sdk/types";
+// jscpd:ignore-end
 import type { HttpClient } from "../http.js";
 import { Paginator } from "../pagination.js";
 
@@ -166,6 +171,37 @@ export class RepositoriesApi {
       method: "GET",
       path: `/v1/repositories/${encodeURIComponent(repositoryId)}`,
       query: { ...params },
+    });
+  }
+
+  /**
+   * Unlink a repository from its project. A hosted repository's content goes
+   * with it; a GitHub one is merely unlinked. Needs `repositories:delete`,
+   * which a member's session carries.
+   */
+  delete(repositoryId: Uuid, params: RepositoryGetParams): Promise<void> {
+    return this.cpHttp.request<void>({
+      method: "DELETE",
+      path: `/v1/repositories/${encodeURIComponent(repositoryId)}`,
+      query: { ...params },
+      expect: "empty",
+    });
+  }
+
+  /** The repository's branches, through the Data Plane that hosts or mirrors it. */
+  branches(
+    repositoryId: Uuid,
+    params: RepositoryBranchesParams = {},
+  ): Paginator<RepositoryBranch> {
+    return new Paginator<RepositoryBranch>({
+      fetch: (cursor) =>
+        this.dpHttp.request<Paginated<RepositoryBranch>>({
+          method: "GET",
+          path: `/v1/repositories/${encodeURIComponent(repositoryId)}/branches`,
+          query: { ...params, cursor },
+        }),
+      items: (page) => page.records,
+      next: (page) => page.next || undefined,
     });
   }
 }

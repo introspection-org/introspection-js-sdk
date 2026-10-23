@@ -1,3 +1,4 @@
+// jscpd:ignore-start -- import list: the same names as every resource client's
 import type {
   Connection,
   ConnectionCreateParams,
@@ -14,10 +15,13 @@ import type {
   ConnectorOAuthDiscoveryResponse,
   ConnectorUpdateParams,
   CursorParams,
+  ProjectRef,
   Uuid,
 } from "@introspection-sdk/types";
+// jscpd:ignore-end
 import type { HttpClient } from "../http.js";
 import { Paginator, paginateGet } from "../pagination.js";
+import { projectQuery } from "./project-scoped.js";
 
 /**
  * Connections nested under a connector
@@ -72,10 +76,15 @@ export class ConnectionsApi {
    * destroys the provider token behind it — the subject must re-consent
    * to connect again.
    */
-  revoke(connectorId: Uuid, connectionId: Uuid): Promise<void> {
+  revoke(
+    connectorId: Uuid,
+    connectionId: Uuid,
+    project?: ProjectRef,
+  ): Promise<void> {
     return this.http.request<void>({
       method: "DELETE",
       path: `/v1/connectors/${encodeURIComponent(connectorId)}/connections/${encodeURIComponent(connectionId)}`,
+      query: projectQuery(project),
       expect: "empty",
     });
   }
@@ -157,10 +166,12 @@ export class ConnectorsApi {
   }
 
   /** Soft-delete a connector; the server revokes its connections. */
-  delete(connectorId: Uuid): Promise<void> {
+  /** `project` selects the project for a credential that names none. */
+  delete(connectorId: Uuid, project?: ProjectRef): Promise<void> {
     return this.http.request<void>({
       method: "DELETE",
       path: `/v1/connectors/${encodeURIComponent(connectorId)}`,
+      query: projectQuery(project),
       expect: "empty",
     });
   }

@@ -29,3 +29,21 @@ export interface ProjectListParams extends CursorParams {
   /** Only the project with this slug or id. */
   project?: ProjectRef;
 }
+
+/** `POST /v1/projects`. The slug derives from the name when omitted. */
+export interface ProjectCreateParams {
+  name: string;
+  /** The Data Plane deployment the project lives on. */
+  deployment_id: Uuid;
+  slug?: string;
+  description?: string | null;
+  display_id_prefixes?: Record<string, string>;
+}
+
+/** `PATCH /v1/projects/{project}`. */
+export interface ProjectUpdateParams {
+  name?: string;
+  description?: string | null;
+  display_id_prefixes?: Record<string, string>;
+  settings?: Record<string, unknown> | null;
+}

@@ -28,8 +28,12 @@ export interface File {
 
 export interface FileListParams extends ListParams {
   name?: string;
+  /** Files whose name contains this, ignoring case. */
+  name_contains?: string;
   file_type?: FileType;
   storage_path?: string;
+  /** Also list a file that has versions; the default list omits it. */
+  include_versions?: boolean;
   /** Accounting view: files stamped with this task. Access rules still apply. */
   task_id?: Uuid;
   /**

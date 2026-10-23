@@ -36,6 +36,8 @@ const SUMMARY_FIXTURE: Conversation = {
     span_count: 3,
     tool_use_count: 0,
     failed_tool_use_count: 0,
+    llm_call_count: 1,
+    failed_llm_call_count: 0,
     has_errors: false,
   },
   service_name: "coding-agent",

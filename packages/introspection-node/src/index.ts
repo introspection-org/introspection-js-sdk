@@ -110,7 +110,7 @@ export {
 } from "./resources/connectors.js";
 export { MembersApi, attachMembers } from "./resources/members.js";
 export { AutomationsApi, attachAutomations } from "./resources/automations.js";
-export { AppConnectionsApi } from "./resources/app-connections.js";
+export { AppConnectionsApi } from "./resources/connections.js";
 export type { DataPlaneResources } from "./data-plane.js";
 export {
   RepositoriesApi,
@@ -128,6 +128,7 @@ export {
   ApplicationsApi,
 } from "./resources/applications.js";
 export { CredentialsApi, VariablesApi } from "./resources/runtime-settings.js";
+export { EndpointsApi } from "./resources/endpoints.js";
 export {
   ProjectScopedCollection,
   ProjectScopedResource,

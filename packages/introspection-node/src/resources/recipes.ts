@@ -1,14 +1,23 @@
 // jscpd:ignore-start -- import list: the same names as every resource client's
-import type { Recipe, RecipeListParams, Uuid } from "@introspection-sdk/types";
+import type {
+  ProjectRef,
+  Recipe,
+  RecipeCreateParams,
+  RecipeListParams,
+  RecipeUpdateParams,
+  Uuid,
+} from "@introspection-sdk/types";
 import type { HttpClient } from "../http.js";
 import { Paginator, paginateGet } from "../pagination.js";
+import { projectQuery } from "./project-scoped.js";
 // jscpd:ignore-end
 
 /**
- * Read access to `/v1/recipes` on the CP.
+ * `/v1/recipes` on the CP.
  *
- * Lookup only: a runner resolves the recipe it is running under. Authoring
- * a recipe is a project-authoring act and lives in the CLI.
+ * A runner resolves the recipe it is running under; a credential holding
+ * `recipes:write` (an org member, or an Application granted it) pins and
+ * describes one, and `recipes:delete` (a member) removes it.
  *
  * Recipes are immutable build artefacts (repository + git ref + commit
  * sha + optional sub-path). They are referenced by runtimes via
@@ -31,6 +40,37 @@ export class RecipesApi {
     return this.http.request<Recipe>({
       method: "GET",
       path: `/v1/recipes/${encodeURIComponent(id)}`,
+    });
+  }
+
+  /** Pin a repository at a ref or commit; a repeat of the same pin answers the live row. */
+  create(params: RecipeCreateParams): Promise<Recipe> {
+    return this.http.request<Recipe>({
+      method: "POST",
+      path: "/v1/recipes",
+      body: params,
+    });
+  }
+
+  update(
+    id: Uuid,
+    params: RecipeUpdateParams,
+    project?: ProjectRef,
+  ): Promise<Recipe> {
+    return this.http.request<Recipe>({
+      method: "PATCH",
+      path: `/v1/recipes/${encodeURIComponent(id)}`,
+      query: projectQuery(project),
+      body: params,
+    });
+  }
+
+  delete(id: Uuid, project?: ProjectRef): Promise<void> {
+    return this.http.request<void>({
+      method: "DELETE",
+      path: `/v1/recipes/${encodeURIComponent(id)}`,
+      query: projectQuery(project),
+      expect: "empty",
     });
   }
 }

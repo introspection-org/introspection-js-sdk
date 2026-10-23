@@ -15,12 +15,35 @@ import { fileURLToPath } from "url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
+// Polly serializes a multipart body entry by entry and reads each Blob
+// through `FileReader.readAsDataURL`, a browser API Node lacks; this is the
+// one method it calls, over the Blob methods Node does have.
+if (typeof globalThis.FileReader === "undefined") {
+  class NodeFileReader {
+    result: string | ArrayBuffer | null = null;
+    onload: (() => void) | null = null;
+    onerror: ((err: unknown) => void) | null = null;
+    onend: ((err: unknown) => void) | null = null;
+    onabort: ((err: unknown) => void) | null = null;
+    readAsDataURL(blob: Blob): void {
+      blob.arrayBuffer().then(
+        (buffer) => {
+          this.result = `data:${blob.type};base64,${Buffer.from(buffer).toString("base64")}`;
+          this.onload?.();
+        },
+        (err: unknown) => this.onerror?.(err),
+      );
+    }
+  }
+  (globalThis as { FileReader?: unknown }).FileReader = NodeFileReader;
+}
+
 // Register adapters and persister globally
 Polly.register(FetchAdapter);
 Polly.register(NodeHTTPAdapter);
 Polly.register(FSPersister);
 
-type PollyMode = "record" | "replay" | "passthrough";
+export type PollyMode = "record" | "replay" | "passthrough";
 
 // Cassette scrubbing: credential-bearing headers are redacted before a
 // recording is written, so cassettes stay committable.
@@ -64,6 +87,20 @@ const SECRET_PATTERNS: [RegExp, string][] = [
   [/AIza[A-Za-z0-9_-]{35}/g, "REDACTED_GOOGLE_KEY"],
   [/sk-ant-api\d+-[A-Za-z0-9_-]{20,}/g, "REDACTED_ANTHROPIC_KEY"],
   [/intro_dev_[A-Za-z0-9_-]{20,}/g, "REDACTED_INTROSPECTION_TOKEN"],
+  // The platform's own credentials as the walk records them: every JWT the
+  // planes mint (access, session, runner, member tokens), a project API key
+  // in any environment, and the one-time plaintext of an application secret
+  // or a credential, in a JSON body or a form field.
+  [
+    /eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}/g,
+    "REDACTED_JWT",
+  ],
+  [/intro_[a-z]+_[A-Za-z0-9_-]{20,}/g, "REDACTED_INTROSPECTION_KEY"],
+  [
+    /("(?:client_secret|secret|api_key)"\s*:\s*")[^"]+(")/g,
+    "$1REDACTED_SECRET$2",
+  ],
+  [/(client_secret=)[^&\s]+/g, "$1REDACTED_SECRET"],
 ];
 
 function scrubSecrets(text: string | undefined | null): string | undefined {
@@ -78,9 +115,15 @@ function scrubSecrets(text: string | undefined | null): string | undefined {
 interface SetupPollyOptions {
   recordingName: string;
   adapters?: ("fetch" | "node-http")[];
+  /**
+   * Match identical requests in the order they were recorded. A scenario
+   * that reads one resource several times as it changes (the walk) needs
+   * it; the Pi cassettes do not.
+   */
+  ordered?: boolean;
 }
 
-function getPollyMode(): PollyMode {
+export function getPollyMode(): PollyMode {
   const mode = (process.env.POLLY_MODE || "replay") as PollyMode;
   if (mode !== "record" && mode !== "replay" && mode !== "passthrough") {
     throw new Error(
@@ -93,6 +136,7 @@ function getPollyMode(): PollyMode {
 export function setupPolly({
   recordingName,
   adapters = ["fetch", "node-http"],
+  ordered = false,
 }: SetupPollyOptions): Polly {
   const mode = getPollyMode();
 
@@ -102,7 +146,10 @@ export function setupPolly({
     persister: "fs",
     persisterOptions: {
       fs: {
-        recordingsDir: path.resolve(__dirname, "recordings"),
+        // A CI run records somewhere other than the committed cassettes.
+        recordingsDir:
+          process.env.POLLY_RECORDINGS_DIR ??
+          path.resolve(__dirname, "recordings"),
       },
     },
     recordIfMissing: mode === "record",
@@ -113,8 +160,12 @@ export function setupPolly({
     matchRequestsBy: {
       method: true,
       headers: false,
-      body: true,
-      order: false,
+      // The identifier is computed from the scrubbed body, in record and
+      // replay alike: a request id hashed from a secret before beforePersist
+      // scrubbed it would never match the replayed, already-scrubbed body.
+      body: (body: unknown) =>
+        typeof body === "string" ? scrubSecrets(body) : body,
+      order: ordered,
       url: {
         protocol: true,
         hostname: true,

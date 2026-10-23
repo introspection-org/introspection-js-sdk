@@ -22,6 +22,10 @@
     "test": "pnpm --filter introspection-tests test",
     "test:replay": "pnpm --filter introspection-tests test:replay",
     "test:record": "pnpm --filter introspection-tests test:record",
+    "test:walk": "pnpm --filter introspection-tests test:walk",
+    "test:walk:record": "pnpm --filter introspection-tests test:walk:record",
+    "test:walk:live": "pnpm --filter introspection-tests test:walk:live",
+    "test:walk:cov": "pnpm --filter introspection-tests test:walk:cov",
     "test:live": "turbo run test:live --filter=introspection-tests --ui=stream"
   },
   "devDependencies": {

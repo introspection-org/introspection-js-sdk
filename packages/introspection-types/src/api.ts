@@ -24,5 +24,6 @@ export * from "./api/applications.js";
 export * from "./api/runtime-settings.js";
 export * from "./api/integrations.js";
 export * from "./api/judges.js";
+export * from "./api/endpoints.js";
 export * from "./api/oidc.js";
 export * from "./api/images.js";

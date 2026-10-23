@@ -11,6 +11,18 @@ import type { CursorParams, IsoDate, Uuid } from "./common.js";
  */
 export type RuntimeLlmMode = "managed" | "byok";
 
+/** One declared MCP server requirement resolved for one Runtime environment. */
+export interface RuntimeMcpRequirement {
+  slug?: string | null;
+  mcp_server_id?: string;
+  state: string;
+  url_source?: string | null;
+  endpoint_id?: Uuid | null;
+  connector_id?: Uuid | null;
+  connection_id?: Uuid | null;
+  [key: string]: unknown;
+}
+
 export interface Runtime {
   id: Uuid;
   org_id: Uuid;
@@ -36,6 +48,47 @@ export interface Runtime {
    */
   environment_ref?: Record<string, string> | null;
   metadata?: Record<string, unknown> | null;
+  /** The group this version belongs to; versions share a slug within it. */
+  runtime_group_id?: Uuid;
+  recipe_kind?: string;
+  recipe_ref?: string;
+  environments?: string[];
+  /** The bake: `pending`, `queued`, `baking`, `ready` or `failed`. */
+  image_build_status?: string;
+  image_build_error_message?: string | null;
+  image_build_metadata?: Record<string, unknown> | null;
+  /** Every declared MCP server resolved for the environment, non-secret. */
+  mcp_requirements?: RuntimeMcpRequirement[] | null;
+}
+
+/** `POST /v1/runtimes`: a version of the group `slug` names, from a recipe. */
+export interface RuntimeCreateParams {
+  /** Project slug or id. */
+  project: string;
+  name: string;
+  recipe_id?: Uuid;
+  /** The runtime group; a new slug starts a group. */
+  slug?: string;
+  description?: string | null;
+  llm_mode?: RuntimeLlmMode;
+  config_json?: Record<string, unknown>;
+}
+
+/** `PATCH /v1/runtimes/{id}`. */
+export interface RuntimeUpdateParams {
+  name?: string;
+  description?: string | null;
+  llm_mode?: RuntimeLlmMode;
+  config_json?: Record<string, unknown>;
+  /** Point `staging` at this version; `production` follows main. */
+  environment?: string;
+  yanked?: boolean;
+}
+
+export interface RuntimeGetParams {
+  project?: string;
+  /** `mcp_requirements` adds the MCP servers the recipe declares. */
+  include?: string;
 }
 
 export interface RuntimeListParams extends CursorParams {

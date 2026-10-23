@@ -333,6 +333,8 @@ export interface ConversationMetrics {
   span_count: number;
   tool_use_count: number;
   failed_tool_use_count: number;
+  llm_call_count: number;
+  failed_llm_call_count: number;
   has_errors: boolean;
 }
 

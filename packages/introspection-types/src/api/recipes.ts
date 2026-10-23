@@ -16,6 +16,27 @@ export interface Recipe {
   updated_at: IsoDate;
 }
 
+/**
+ * `POST /v1/recipes`: pin a repository at a ref or commit. The pin is
+ * immutable; pointing at other content is a new recipe.
+ */
+export interface RecipeCreateParams {
+  /** Project slug or id. */
+  project: string;
+  repository_id?: Uuid;
+  name?: string;
+  description?: string | null;
+  git_ref?: string;
+  git_commit_sha?: string;
+  sub_path?: string | null;
+}
+
+/** `PATCH /v1/recipes/{id}`: presentation only. */
+export interface RecipeUpdateParams {
+  name?: string;
+  description?: string | null;
+}
+
 export interface RecipeListParams extends CursorParams {
   project?: string;
   repository_id?: Uuid;
@@ -182,4 +203,17 @@ export interface RepositoryMerge {
   /** The sha `head` resolved to. */
   head_sha: string;
   parents: string[];
+}
+
+/** A branch of a repository, from `GET /v1/repositories/{id}/branches`. */
+export interface RepositoryBranch {
+  name: string;
+  sha: string;
+  committed_at: IsoDate | null;
+}
+
+export interface RepositoryBranchesParams {
+  /** Only branches whose name contains this, ignoring case. */
+  q?: string;
+  limit?: number;
 }
