@@ -2091,9 +2091,9 @@ walk("SDK end-to-end walk", () => {
     "17: access — Avery's work, read by Blake (a member share), Casey (the platform group tag), Drew (an administrator) and Emery (only a project-wide share)",
     async (ctx) => {
       await steps.run(ctx, "access", async () => {
-        // The owner (Drew) is privileged, so its quiet client polls for what
-        // Avery makes; every persona's own read is then recorded once.
-        const drewQuiet = new IntrospectionClient({
+        // The owner login is privileged, so its quiet client polls for what
+        // Avery makes; every person's own read is then recorded once.
+        const ownerQuiet = new IntrospectionClient({
           token: memberToken,
           advanced: {
             baseApiUrl: settings.baseApiUrl,
@@ -2101,6 +2101,45 @@ walk("SDK end-to-end walk", () => {
             fetch: NATIVE_FETCH,
           },
         });
+        // Drew, the administrator: no person signs in on a walk, so Drew is an
+        // application bound to the organisation's admin agent member, whose
+        // client-credentials token is privileged.
+        let adminAgentId: string | undefined;
+        for await (const m of owner.members.list({ member_type: "agent" }))
+          if (m.role === "admin") adminAgentId = m.id;
+        expect(adminAgentId, "the organisation's admin agent").toBeTruthy();
+        const drewApp = await owner.applications.create(
+          {
+            name: WALK.adminName,
+            application_type: "service_account",
+            allowed_scopes: [
+              "conversations:read",
+              "tasks:read",
+              "files:read",
+              "shares:read",
+              "shares:delete",
+            ],
+            agent_member_id: adminAgentId,
+          },
+          project.id,
+        );
+        const drewSecret = await owner.applications.secrets.create(drewApp.id, {
+          name: "drew",
+        });
+        const drewToken = await serviceAccountToken({
+          clientId: drewApp.client_id,
+          clientSecret: drewSecret.secret!,
+          project: project.id,
+          baseApiUrl: settings.baseApiUrl,
+        });
+        const drew = new IntrospectionClient({
+          token: drewToken.access_token,
+          advanced: {
+            baseApiUrl: settings.baseApiUrl,
+            dpUrl: drewToken.dp_url ?? undefined,
+          },
+        });
+
         type Name = keyof typeof WALK.personas;
         const people = {} as Record<
           Name,
@@ -2157,7 +2196,7 @@ walk("SDK end-to-end walk", () => {
         const averyTask = await settled(
           mode,
           () => avery.client.tasks.get(started.task!.id),
-          () => drewQuiet.tasks.get(started.task!.id),
+          () => ownerQuiet.tasks.get(started.task!.id),
           (t) => ["idle", "awaiting_user", "completed"].includes(t.status),
           { timeoutMs: 300_000, intervalMs: 5_000, label: "Avery's task" },
         );
@@ -2179,7 +2218,7 @@ walk("SDK end-to-end walk", () => {
           async () =>
             (await member.files.list({ task_id: averyTask.id })).records,
           async () =>
-            (await drewQuiet.files.list({ task_id: averyTask.id })).records,
+            (await ownerQuiet.files.list({ task_id: averyTask.id })).records,
           (files) => files.some((f) => f.name.endsWith(WALK.outputFileName)),
           { timeoutMs: 120_000, intervalMs: 3_000, label: "Avery's output" },
         );
@@ -2189,7 +2228,7 @@ walk("SDK end-to-end walk", () => {
         await settled(
           mode,
           () => member.conversations.get(averyConversation),
-          () => drewQuiet.conversations.get(averyConversation),
+          () => ownerQuiet.conversations.get(averyConversation),
           (c) => c.metrics.llm_call_count > 0,
           {
             timeoutMs: 120_000,
@@ -2238,7 +2277,7 @@ walk("SDK end-to-end walk", () => {
           avery: await reads(avery),
           blake: await reads(blake),
           casey: await reads(casey),
-          drew: await reads({ client: member }),
+          drew: await reads({ client: drew }),
           emery: await reads(emery),
         });
         const none = {
@@ -2304,7 +2343,7 @@ walk("SDK end-to-end walk", () => {
         // `shares:delete`, so Avery cannot revoke their own share; the grantor
         // or an administrator may, so Drew does.
         for (const share of [toBlake, toPlatform, toProject]) {
-          await member.shares.delete(share.id);
+          await drew.shares.delete(share.id);
         }
         expect(await matrix(), "every share revoked").toEqual({
           avery: all,
@@ -2316,6 +2355,7 @@ walk("SDK end-to-end walk", () => {
 
         await member.files.delete(averyFile.id);
         await member.tasks.delete(averyTask.id);
+        await owner.applications.delete(drewApp.id, project.id);
       });
     },
     STEP_TIMEOUT,
@@ -2537,7 +2577,7 @@ async function removeWalkResources(
     await owner.repositories.delete(repo.id, q);
   }
   for await (const a of owner.applications.list(q)) {
-    if (a.name.startsWith(WALK.applicationName)) {
+    if (a.name.startsWith(WALK.applicationName) || a.name === WALK.adminName) {
       await owner.applications.delete(a.id, project.id);
     }
   }

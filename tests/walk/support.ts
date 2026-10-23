@@ -69,8 +69,8 @@ export const WALK = {
   /**
    * The access step's people: customer members keyed `user:walk-<name>`.
    * Avery makes everything; Blake is shared it directly, Casey by holding the
-   * platform group tag, Emery by nothing until the project-wide share. The owner's
-   * login plays the administrator, Drew: no headless route mints one.
+   * platform group tag, Emery by nothing until the project-wide share. Drew, the
+   * administrator, is an application on the organisation's admin agent.
    */
   personas: {
     avery: ["group:platform"],
@@ -79,6 +79,8 @@ export const WALK = {
     emery: [],
   } as Record<"avery" | "blake" | "casey" | "emery", string[]>,
   groupTag: "group:platform",
+  /** The access step's administrator: an application on the admin agent. */
+  adminName: "Drew",
   personaFileName: "walk-avery-notes.txt",
   echoMessage: "hello from the public MCP",
   echoResult: "Echo: hello from the public MCP",
