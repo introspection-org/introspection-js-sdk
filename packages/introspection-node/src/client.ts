@@ -58,7 +58,7 @@ import {
   attachRepositories,
   type RepositoriesApi,
 } from "./resources/repositories.js";
-import { AppConnectionsApi } from "./resources/app-connections.js";
+import { AppConnectionsApi } from "./resources/connections.js";
 import { ProjectsApi } from "./resources/projects.js";
 import { ApiKeysApi } from "./resources/api-keys.js";
 import { ApplicationsApi } from "./resources/applications.js";

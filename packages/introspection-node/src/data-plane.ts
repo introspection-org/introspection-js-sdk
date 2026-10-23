@@ -10,7 +10,7 @@ import {
 } from "@introspection-sdk/http";
 import type { AppConnectionCreateParams } from "@introspection-sdk/types";
 import { HttpClient, type BearerCredentials } from "./http.js";
-import { AppConnectionsApi } from "./resources/app-connections.js";
+import { AppConnectionsApi } from "./resources/connections.js";
 import { USER_AGENT } from "./utils.js";
 
 /**

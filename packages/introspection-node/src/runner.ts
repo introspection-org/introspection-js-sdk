@@ -18,7 +18,7 @@ import {
 } from "@introspection-sdk/http";
 import { HttpClient } from "./http.js";
 import { AutomationsApi } from "./resources/automations.js";
-import { AppConnectionsApi } from "./resources/app-connections.js";
+import { AppConnectionsApi } from "./resources/connections.js";
 import type { DataPlaneResources } from "./data-plane.js";
 import type { IntrospectionClient } from "./client.js";
 

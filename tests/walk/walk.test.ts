@@ -644,7 +644,7 @@ walk("SDK end-to-end walk", () => {
             "policies": null,
             "project_id": "[uuid]",
             "repository_id": "[uuid]",
-            "slug": "hello-mcp-production-main-e3327a0d0d12",
+            "slug": "hello-mcp-production-main-543b8db50a83",
             "sub_path": ".",
             "updated_at": "[timestamp]",
             "validation": {
@@ -1138,6 +1138,36 @@ walk("SDK end-to-end walk", () => {
           metadata: { suite: "walk", stage: "attached" },
         });
         expect(updated.metadata?.stage).toBe("attached");
+        const tagged: string[] = [];
+        // A file with versions is listed only with `include_versions`.
+        for await (const f of sa.files.list({
+          metadata: { suite: "walk", stage: "attached" },
+          include_versions: true,
+        })) {
+          tagged.push(f.id);
+        }
+        expect(tagged, "the metadata filter finds the file").toContain(
+          inputFile.id,
+        );
+        await sa.files.update(inputFile.id, { tags: ["suite:walk"] });
+        const byTag: string[] = [];
+        for await (const f of sa.files.list({
+          tag: "suite:walk",
+          include_versions: true,
+        })) {
+          byTag.push(f.id);
+        }
+        expect(byTag, "the tag filter finds the file").toContain(inputFile.id);
+        const byName: string[] = [];
+        for await (const f of sa.files.list({
+          name_contains: "WALK-INPUT",
+          include_versions: true,
+        })) {
+          byName.push(f.id);
+        }
+        expect(byName, "the substring filter finds the file").toContain(
+          inputFile.id,
+        );
       });
     },
     STEP_TIMEOUT,
@@ -1407,6 +1437,43 @@ walk("SDK end-to-end walk", () => {
         const trajectory =
           await sa.conversations.exportTrajectory(conversationId);
         expect(trajectory, "the trajectory export").toBeTruthy();
+
+        // The other export formats, the Arrow list, and a paged item list.
+        const latest = await sa.conversations.retrieve(conversationId);
+        expect(latest?.span_id, "the latest LLM turn").toBeTruthy();
+        const exported = await sa.conversations.exportJson(conversationId);
+        expect(exported.data.length).toBeGreaterThanOrEqual(page.data.length);
+        const exportedTable =
+          await sa.conversations.exportArrow(conversationId);
+        expect(exportedTable.numRows).toBe(exported.data.length);
+        const stream = await sa.conversations.exportStream(
+          conversationId,
+          "json",
+        );
+        const streamed = JSON.parse(await new Response(stream).text()) as {
+          data: unknown[];
+        };
+        expect(streamed.data.length).toBe(exported.data.length);
+        const listedTable = await sa.conversations
+          .listArrow({ runtime_group_id: runtime.runtime_group_id })
+          .readAll();
+        expect(listedTable.numRows).toBeGreaterThan(0);
+        let itemPages = 0;
+        for await (const _ of sa.conversations.items.list(conversationId, {
+          limit: 1,
+        })) {
+          if (++itemPages === 2) break;
+        }
+        expect(itemPages, "a second page of items").toBe(2);
+        // `contains` selects items by the plaintext summary of their messages.
+        const toolCalls = await sa.conversations.items.list(conversationId, {
+          contains: ["gen_ai.output.messages.parts.name:*"],
+        });
+        expect(JSON.stringify(toolCalls), "a tool-call item").toContain("echo");
+        const userTurns = await sa.conversations.items.list(conversationId, {
+          contains: ["gen_ai.input.messages.role:user"],
+        });
+        expect(userTurns.data.length, "a user turn").toBeGreaterThan(0);
       });
     },
     STEP_TIMEOUT,
@@ -1561,6 +1628,13 @@ walk("SDK end-to-end walk", () => {
           if (events.length > 0) {
             await sa.events.get((events[0] as { id: string }).id);
           }
+          const eventTable = await sa.events
+            .listArrow({
+              event_name: "introspection.annotation",
+              conversation_id: conversationId,
+            } as Parameters<typeof sa.events.listArrow>[0])
+            .readAll();
+          expect(eventTable.numRows).toBe(events.length);
           const facets = await raw(member.dpHttp).get<unknown>(
             "/v1/annotations/facets",
             {
@@ -1599,6 +1673,11 @@ walk("SDK end-to-end walk", () => {
     "14: eval — a trial on the runtime, graded by the recipe's judge; an experiment over two versions",
     async (ctx) => {
       await steps.run(ctx, "eval", async () => {
+        // What eval compose services run as, and the org's provider installs.
+        const images = await sa.images.list();
+        if (images.records.length > 0)
+          await sa.images.get(images.records[0]!.id);
+        await owner.integrations.list();
         const judges = await sa.judges.list({
           project: project.id,
           runtime_group_id: runtime.runtime_group_id,
