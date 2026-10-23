@@ -12,7 +12,7 @@
     "test:walk": "vitest run walk/",
     "test:walk:record": "POLLY_MODE=record vitest run walk/ -u",
     "test:walk:live": "POLLY_MODE=passthrough vitest run walk/",
-    "test:walk:cov": "vitest run walk/ --coverage --coverage.include='packages/introspection-node/src/**/*.ts' --coverage.reportsDirectory=coverage/walk --coverage.reporter=text-summary --coverage.reporter=html --coverage.thresholds.lines=0 --coverage.thresholds.functions=0 --coverage.thresholds.branches=0 --coverage.thresholds.statements=0",
+    "test:walk:cov": "vitest run walk/ --coverage --coverage.reportsDirectory=coverage/walk --coverage.reporter=json-summary --coverage.reporter=html --coverage.thresholds.lines=0 --coverage.thresholds.functions=0 --coverage.thresholds.branches=0 --coverage.thresholds.statements=0 && tsx walk/coverage-summary.ts",
     "test:record": "POLLY_MODE=record vitest run",
     "test:replay": "POLLY_MODE=replay vitest run",
     "test:live": "NODE_USE_ENV_PROXY=1 vitest run --config vitest.live.config.ts",
@@ -48,8 +48,10 @@
     "@types/node": "^22.20.5",
     "@vitest/coverage-v8": "^4.1.12",
     "apache-arrow": "^21.2.0",
+    "cli-table3": "^0.6.5",
     "dotenv": "^16.4.0",
     "jose": "^6.2.12",
+    "picocolors": "^1.1.1",
     "typescript": "^5.9.3",
     "vitest": "^4.1.12"
   }

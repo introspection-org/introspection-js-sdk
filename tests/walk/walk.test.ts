@@ -1631,33 +1631,33 @@ walk("SDK end-to-end walk", () => {
         expect(evalTask.metadata?.suite).toBe("walk");
         expect(stable({ ...evalTask, metadata: undefined }))
           .toMatchInlineSnapshot(`
-            {
-              "agent": {
-                "sandbox_status": "provisioning",
-                "session_id": null,
-              },
-              "automation_id": null,
-              "completed_at": null,
-              "conversation_metadata": null,
-              "created_at": "[timestamp]",
-              "display_index": 5,
-              "id": "[uuid]",
-              "is_archived": false,
-              "kind": "eval",
-              "last_user_message_at": "[timestamp]",
-              "member_id": "[uuid]",
-              "metadata": undefined,
-              "org_id": "[uuid]",
-              "project_id": "[uuid]",
-              "runtime_group_id": "[uuid]",
-              "runtime_id": "[uuid]",
-              "started_at": null,
-              "status": "pending",
-              "tags": [],
-              "title": "Call the \`echo\` tool from the declared \`hello-mcp\` MCP server with the message \`hello from the public MCP\`. Write the echoed value exactly, with no quotes or additional formatting, to \`/workspace/outputs/greeting.txt\`. Then run \`echo $WALK_MARKER\` in…",
-              "updated_at": "[timestamp]",
-            }
-          `);
+          {
+            "agent": {
+              "sandbox_status": "provisioning",
+              "session_id": null,
+            },
+            "automation_id": null,
+            "completed_at": null,
+            "conversation_metadata": null,
+            "created_at": "[timestamp]",
+            "display_index": 5,
+            "id": "[uuid]",
+            "is_archived": false,
+            "kind": "eval",
+            "last_user_message_at": "[timestamp]",
+            "member_id": "[uuid]",
+            "metadata": undefined,
+            "org_id": "[uuid]",
+            "project_id": "[uuid]",
+            "runtime_group_id": "[uuid]",
+            "runtime_id": "[uuid]",
+            "started_at": null,
+            "status": "pending",
+            "tags": [],
+            "title": "Call the \`echo\` tool from the declared \`hello-mcp\` MCP server with the message \`hello from the public MCP\`. Write the echoed value exactly, with no quotes or additional formatting, to \`/workspace/outputs/greeting.txt\`. Then run \`echo $WALK_MARKER\` in…",
+            "updated_at": "[timestamp]",
+          }
+        `);
         // Read the run's stream to its end, then let the row settle: what the
         // trial says is the model's, and the judge grades the trajectory.
         for await (const _ev of sa.tasks.runs.stream(
