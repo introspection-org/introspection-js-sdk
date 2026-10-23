@@ -63,6 +63,7 @@ import { ProjectsApi } from "./resources/projects.js";
 import { ApiKeysApi } from "./resources/api-keys.js";
 import { ApplicationsApi } from "./resources/applications.js";
 import { CredentialsApi, VariablesApi } from "./resources/runtime-settings.js";
+import { EndpointsApi } from "./resources/endpoints.js";
 import { IntegrationsApi } from "./resources/integrations.js";
 import { JudgesApi } from "./resources/judges.js";
 import { OidcApi } from "./resources/oidc.js";
@@ -158,6 +159,9 @@ export class IntrospectionClient implements DataPlaneResources {
 
   /** `/v1/credentials`; the secret is write-only. */
   readonly credentials: CredentialsApi;
+
+  /** `/v1/endpoints`: the hosts a runtime may reach; read, rename, remove. */
+  readonly endpoints: EndpointsApi;
 
   /** `/v1/variables`. */
   readonly variables: VariablesApi;
@@ -273,6 +277,7 @@ export class IntrospectionClient implements DataPlaneResources {
     this.apiKeys = new ApiKeysApi(this.cpHttp);
     this.applications = new ApplicationsApi(this.cpHttp);
     this.credentials = new CredentialsApi(this.cpHttp);
+    this.endpoints = new EndpointsApi(this.cpHttp);
     this.automations = attachAutomations(this.dpHttp);
     this.images = new ImagesApi(this.dpHttp);
     this.repositories = attachRepositories(this.cpHttp, this.dpHttp);

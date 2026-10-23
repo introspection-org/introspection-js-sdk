@@ -2,7 +2,10 @@ import type {
   RunRequest,
   RunnerSpec,
   Runtime,
+  RuntimeCreateParams,
+  RuntimeGetParams,
   RuntimeListParams,
+  RuntimeUpdateParams,
   Uuid,
 } from "@introspection-sdk/types";
 import { NotFoundError } from "@introspection-sdk/types";
@@ -67,11 +70,47 @@ export class RuntimesClient<TRunner> {
     return paginateGet<Runtime>(this.http, "/v1/runtimes", params, params.next);
   }
 
-  get(id: Uuid, params?: { project?: string }): Promise<Runtime> {
+  get(id: Uuid, params?: RuntimeGetParams): Promise<Runtime> {
     return this.http.request<Runtime>({
       method: "GET",
       path: `/v1/runtimes/${encodeURIComponent(id)}`,
       query: params as Record<string, unknown> | undefined,
+    });
+  }
+
+  /**
+   * A new version in the group `slug` names (a new slug starts a group),
+   * built from `recipe_id`. The version bakes after the call answers; poll
+   * `get` for `image_build_status`. Needs `runtimes:write`.
+   */
+  create(params: RuntimeCreateParams): Promise<Runtime> {
+    return this.http.request<Runtime>({
+      method: "POST",
+      path: "/v1/runtimes",
+      body: params,
+    });
+  }
+
+  update(
+    id: Uuid,
+    params: RuntimeUpdateParams,
+    project?: string,
+  ): Promise<Runtime> {
+    return this.http.request<Runtime>({
+      method: "PATCH",
+      path: `/v1/runtimes/${encodeURIComponent(id)}`,
+      query: project === undefined ? undefined : { project },
+      body: params,
+    });
+  }
+
+  /** Retire one version; needs `runtimes:delete`, which a member's session carries. */
+  delete(id: Uuid, project?: string): Promise<void> {
+    return this.http.request<void>({
+      method: "DELETE",
+      path: `/v1/runtimes/${encodeURIComponent(id)}`,
+      query: project === undefined ? undefined : { project },
+      expect: "empty",
     });
   }
 

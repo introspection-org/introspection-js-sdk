@@ -61,6 +61,36 @@ export interface Runtime {
   mcp_requirements?: RuntimeMcpRequirement[] | null;
 }
 
+/** `POST /v1/runtimes`: a version of the group `slug` names, from a recipe. */
+export interface RuntimeCreateParams {
+  /** Project slug or id. */
+  project: string;
+  name: string;
+  recipe_id?: Uuid;
+  /** The runtime group; a new slug starts a group. */
+  slug?: string;
+  description?: string | null;
+  llm_mode?: RuntimeLlmMode;
+  config_json?: Record<string, unknown>;
+}
+
+/** `PATCH /v1/runtimes/{id}`. */
+export interface RuntimeUpdateParams {
+  name?: string;
+  description?: string | null;
+  llm_mode?: RuntimeLlmMode;
+  config_json?: Record<string, unknown>;
+  /** Point `staging` at this version; `production` follows main. */
+  environment?: string;
+  yanked?: boolean;
+}
+
+export interface RuntimeGetParams {
+  project?: string;
+  /** `mcp_requirements` adds the MCP servers the recipe declares. */
+  include?: string;
+}
+
 export interface RuntimeListParams extends CursorParams {
   /** Project slug or id. */
   project?: string;

@@ -157,6 +157,8 @@ describe("semconv naming", () => {
         span_count: 12,
         tool_use_count: 4,
         failed_tool_use_count: 0,
+        llm_call_count: 3,
+        failed_llm_call_count: 0,
         has_errors: false,
       },
       environment: "production",

@@ -1,0 +1,67 @@
+import type { CursorParams, IsoDate, Uuid } from "./common.js";
+import type { ProjectRef } from "./projects.js";
+
+export type EndpointKind = "llm" | "api" | "mcp";
+
+export interface EndpointMetadata {
+  mcp_server_id?: string | null;
+  connector_id?: Uuid | null;
+  provider_app?: string | null;
+  auth_audience?: string | null;
+  extra_hosts?: string[];
+}
+
+/**
+ * An endpoint (`/v1/endpoints`, Control Plane): a host a runtime's sandbox
+ * may reach, with the headers the egress adds. Header values are returned
+ * to an operator; `header_names` lists them for everyone else.
+ */
+export interface Endpoint {
+  id: Uuid;
+  org_id: Uuid;
+  project_id: Uuid;
+  name: string;
+  host: string;
+  base_url: string | null;
+  kind: EndpointKind;
+  metadata: EndpointMetadata;
+  headers: Record<string, string>;
+  header_names: string[];
+  credential_refs: string[];
+  assertion_claims: Record<string, string> | null;
+  runtime_id: Uuid | null;
+  runtime_group_id: Uuid | null;
+  environment: string | null;
+  verify_path: string | null;
+  last_verified_at: IsoDate | null;
+  authorized_application_id: Uuid | null;
+  created_by_member_id: Uuid;
+  created_at: IsoDate;
+  updated_at: IsoDate;
+}
+
+export interface EndpointListParams extends CursorParams {
+  project?: ProjectRef;
+  kind?: EndpointKind;
+  runtime_id?: Uuid;
+  /** A runtime group slug or id. */
+  runtime?: string;
+  environment?: string;
+  mcp_server_id?: string;
+}
+
+/** `PATCH /v1/endpoints/{id}`; a change to the host or headers re-verifies. */
+export interface EndpointUpdateParams {
+  name?: string;
+  host?: string;
+  base_url?: string | null;
+  headers?: Record<string, string>;
+  kind?: EndpointKind;
+  metadata?: EndpointMetadata;
+  assertion_claims?: Record<string, string> | null;
+  runtime_id?: Uuid | null;
+  runtime_group_id?: Uuid | null;
+  environment?: string | null;
+  verify_path?: string | null;
+  authorized_application_id?: Uuid | null;
+}

@@ -128,6 +128,7 @@ export {
   ApplicationsApi,
 } from "./resources/applications.js";
 export { CredentialsApi, VariablesApi } from "./resources/runtime-settings.js";
+export { EndpointsApi } from "./resources/endpoints.js";
 export {
   ProjectScopedCollection,
   ProjectScopedResource,
