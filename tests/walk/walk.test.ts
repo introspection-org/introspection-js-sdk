@@ -378,8 +378,8 @@ walk("SDK end-to-end walk", () => {
                 "last_used_at": null,
                 "name": "second",
                 "org_id": "[uuid]",
-                "secret_prefix": "intro_sk_8Ggh2D8U",
-                "secret_suffix": "bUp4",
+                "secret_prefix": "intro_sk_Jjaq_uPY",
+                "secret_suffix": "6IZI",
                 "status": "active",
                 "updated_at": "[timestamp]",
               },
@@ -393,8 +393,8 @@ walk("SDK end-to-end walk", () => {
                 "last_used_at": null,
                 "name": "first",
                 "org_id": "[uuid]",
-                "secret_prefix": "intro_sk_aRB3ajME",
-                "secret_suffix": "6Kh4",
+                "secret_prefix": "intro_sk_7FUjFNoS",
+                "secret_suffix": "IEYA",
                 "status": "active",
                 "updated_at": "[timestamp]",
               },
@@ -654,18 +654,17 @@ walk("SDK end-to-end walk", () => {
           discovered.authorization_endpoint,
           "the issuer publishes its metadata",
         ).toBeTruthy();
-        connector = await sa.connectors.create({
-          name: WALK.connectorName,
-          slug: WALK.connectorName,
-          provider: WALK.connectorName,
-          auth_mode: "oauth_stored",
-          issuer: WALK.mcpIssuer,
-          authorization_endpoint: discovered.authorization_endpoint,
-          token_endpoint: discovered.token_endpoint,
-          api_hosts: [new URL(WALK.mcpEndpoint).host],
-          client_id: discovered.client_id ?? undefined,
-          client_secret: discovered.client_secret ?? undefined,
-        } as Parameters<typeof sa.connectors.create>[0]);
+        // Naming the issuer alone makes the Control Plane discover the
+      // endpoints, register a client dynamically and record PKCE support;
+      // endpoints passed by hand would skip that and the grant would fail.
+      connector = await sa.connectors.create({
+        name: WALK.connectorName,
+        slug: WALK.connectorName,
+        provider: WALK.connectorName,
+        auth_mode: "oauth_stored",
+        issuer: WALK.mcpIssuer,
+        api_hosts: [new URL(WALK.mcpEndpoint).host],
+      } as Parameters<typeof sa.connectors.create>[0]);
         expect(stable(connector)).toMatchInlineSnapshot(`
           {
             "agent_member_id": "[uuid]",
@@ -681,7 +680,20 @@ walk("SDK end-to-end walk", () => {
             "created_by_member_id": "[uuid]",
             "environment": "production",
             "id": "[uuid]",
-            "metadata": {},
+            "metadata": {
+              "issuer": "[url]",
+              "oauth": {
+                "client_registration": "dynamic",
+                "code_challenge_methods_supported": [
+                  "S256",
+                ],
+                "registration_endpoint": "[url]",
+                "resource": "[url]",
+                "token_endpoint_auth_methods_supported": [
+                  "none",
+                ],
+              },
+            },
             "name": "hello-mcp",
             "org_id": "[uuid]",
             "person_server_url": null,
@@ -810,7 +822,24 @@ walk("SDK end-to-end walk", () => {
           connector.id,
           connectionId,
         );
-        expect(stable(connection)).toMatchInlineSnapshot();
+        expect(stable(connection)).toMatchInlineSnapshot(`
+          {
+            "connector_id": "[uuid]",
+            "created_at": "[timestamp]",
+            "created_by_member_id": "[uuid]",
+            "id": "[uuid]",
+            "member_id": null,
+            "org_id": "[uuid]",
+            "provider_account_id": null,
+            "provider_app": null,
+            "runtime_group_id": "[uuid]",
+            "scopes_granted": [],
+            "status": "active",
+            "subject_type": "app",
+            "token_expires_at": "[timestamp]",
+            "updated_at": "[timestamp]",
+          }
+        `);
         let seen = false;
         for await (const item of sa.connectors.connections.list(connector.id))
           if (item.id === connectionId) seen = true;
@@ -822,7 +851,37 @@ walk("SDK end-to-end walk", () => {
           mcp_server_id: WALK.mcpServerId,
         });
         endpoint = endpoints.records[0]!;
-        expect(stable(endpoint)).toMatchInlineSnapshot();
+        expect(stable(endpoint)).toMatchInlineSnapshot(`
+          {
+            "assertion_claims": null,
+            "authorized_application_id": null,
+            "base_url": "[url]",
+            "created_at": "[timestamp]",
+            "created_by_member_id": "[uuid]",
+            "credential_refs": [],
+            "environment": "production",
+            "header_names": [],
+            "headers": {},
+            "host": "example-server.modelcontextprotocol.io",
+            "id": "[uuid]",
+            "kind": "mcp",
+            "last_verified_at": null,
+            "metadata": {
+              "auth_audience": null,
+              "connector_id": "[uuid]",
+              "extra_hosts": [],
+              "mcp_server_id": "[redacted]",
+              "provider_app": null,
+            },
+            "name": "hello-mcp",
+            "org_id": "[uuid]",
+            "project_id": "[uuid]",
+            "runtime_group_id": "[uuid]",
+            "runtime_id": null,
+            "updated_at": "[timestamp]",
+            "verify_path": null,
+          }
+        `);
         const read = await cp.get<Endpoint>(`/v1/endpoints/${endpoint.id}`, {
           project: project.id,
         });
@@ -835,7 +894,7 @@ walk("SDK end-to-end walk", () => {
         expect(renamed.name).toBe("hello-mcp (walk)");
 
         const requirements = await sa.runtimes.get(runtime.id);
-        expect(stable(requirements.mcp_requirements)).toMatchInlineSnapshot();
+        expect(stable(requirements.mcp_requirements)).toMatchInlineSnapshot(`undefined`);
       });
     },
     STEP_TIMEOUT,

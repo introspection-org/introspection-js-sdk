@@ -283,7 +283,7 @@ export async function followAuthorization(
   returnUrl: string,
 ): Promise<URL> {
   let next = authorizeUrl;
-  for (let hop = 0; hop < 8; hop++) {
+  for (let hop = 0; hop < 12; hop++) {
     const url = new URL(next);
     if (url.pathname === "/v1/oauth/connections/callback") {
       next = `${cp.baseApiUrl}${url.pathname}${url.search}`;
@@ -294,7 +294,32 @@ export async function followAuthorization(
       redirect: "manual",
       headers: toCp ? { Cookie: `intro_cp_session=${cp.cookie}` } : {},
     });
-    const location = res.headers.get("location");
+    let location = res.headers.get("location");
+    if (!location && res.status === 200) {
+      // The MCP reference server's consent page is one "Continue" link to its
+      // mock upstream IdP, which grants without a person; take the link.
+      const page = await res.text();
+      const link = /<a\s+href="([^"]+)"[^>]*class="btn-primary"/.exec(page);
+      location = link?.[1] ?? null;
+      // Its mock upstream IdP completes from a script that navigates to its
+      // callback with a fixed code and the browser's user id; the walk's user
+      // id is fixed too, so the grant is the same subject every run.
+      const upstream = /searchParams\.set\('state',\s*'([^']+)'\)/.exec(page);
+      if (!location && upstream && page.includes("/mock-upstream-idp/callback")) {
+        const callback = new URL("/mock-upstream-idp/callback", next);
+        callback.searchParams.set("state", upstream[1]!);
+        callback.searchParams.set("code", "mock-auth-code");
+        callback.searchParams.set("userId", "sdk-walk-user");
+        location = callback.toString();
+      }
+      if (!location) {
+        throw new Error(
+          `authorization stopped at ${url.origin}${url.pathname}: a page with no continue link: ${page.slice(0, 300)}`,
+        );
+      }
+      next = new URL(location, next).toString();
+      continue;
+    }
     if (!location) {
       throw new Error(
         `authorization stopped at ${url.origin}${url.pathname} with ${res.status} and no redirect: ${(await res.text()).slice(0, 300)}`,
