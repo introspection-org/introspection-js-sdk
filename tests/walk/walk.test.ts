@@ -62,10 +62,10 @@ import type { Paginated } from "./types";
 const RECORDING = "walk";
 const STEP_TIMEOUT = 10 * 60_000;
 const BAKE_TIMEOUT = 30 * 60_000;
-const RECORDINGS_DIR = path.resolve(
-  path.dirname(fileURLToPath(import.meta.url)),
-  "../recordings",
-);
+// Beside the HAR, wherever Polly writes it (POLLY_RECORDINGS_DIR redirects both).
+const RECORDINGS_DIR =
+  process.env.POLLY_RECORDINGS_DIR ??
+  path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../recordings");
 const recordingDir = `${RECORDINGS_DIR}/${RECORDING}`;
 const mode = getPollyMode();
 

@@ -135,10 +135,9 @@ export function secondTurn(settings: WalkSettings): string {
 export const BOOTSTRAP_FILE = "bootstrap.json";
 
 function recordedBootstrap(): { project_id?: string } {
-  const dir = path.resolve(
-    path.dirname(fileURLToPath(import.meta.url)),
-    "../recordings",
-  );
+  const dir =
+    process.env.POLLY_RECORDINGS_DIR ??
+    path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../recordings");
   if (!fs.existsSync(dir)) return {};
   for (const entry of fs.readdirSync(dir)) {
     const file = `${dir}/${entry}/${BOOTSTRAP_FILE}`;

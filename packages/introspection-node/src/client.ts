@@ -226,9 +226,10 @@ export class IntrospectionClient implements DataPlaneResources {
     // as `dpUrl` and fromServiceAccount wires it automatically.
     const dpUrl = advanced.dpUrl || baseApiUrl;
 
-    if (!token) {
+    // A Control Plane session cookie authenticates on its own.
+    if (!token && !options.cpSession) {
       sdkLogger.warn(
-        "IntrospectionClient: No token provided. REST calls will fail.",
+        "IntrospectionClient: No token or cpSession provided. REST calls will fail.",
       );
     }
 
