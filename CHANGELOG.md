@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.40.0](https://github.com/introspection-org/introspection-js-sdk/compare/v0.39.0...v0.40.0) (2026-10-23)
+
+
+### ⚠ BREAKING CHANGES
+
+* `ConversationsClient.turns`, `ConversationTurn`, `ConversationTurnMessage`, `ConversationTurnList` and `ConversationTurnListParams` are removed.
+
+### Features
+
+* filter conversation items with contains=&lt;semconv path&gt;:&lt;value&gt; (name prefix wildcard) and drop turns ([#516](https://github.com/introspection-org/introspection-js-sdk/issues/516)) ([629ce0c](https://github.com/introspection-org/introspection-js-sdk/commit/629ce0c5d99cc685336a73aa23bbe29c9c9b2737))
+
 ## [0.39.0](https://github.com/introspection-org/introspection-js-sdk/compare/v0.38.1...v0.39.0) (2026-10-22)
 
 
