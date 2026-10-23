@@ -83,6 +83,7 @@ export class Runner implements DataPlaneResources {
   ) {
     this.spec = spec;
     this.http = this.buildHttp();
+    // jscpd:ignore-start — one line per resource, alike only in shape.
     this.tasks = new TasksApi(this.guardedHttp());
     this.files = new FilesApi(this.guardedHttp());
     this.conversations = new ConversationsApi(this.guardedHttp());
@@ -97,6 +98,7 @@ export class Runner implements DataPlaneResources {
       this.guardedHttp(),
       () => this.spec.runtime_context?.runtime_group_id,
     );
+    // jscpd:ignore-end
   }
 
   // --- public accessors ---
