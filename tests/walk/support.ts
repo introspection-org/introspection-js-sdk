@@ -66,6 +66,20 @@ export const WALK = {
   inputFileName: "walk-input.txt",
   inputFileText: "the walk's input file",
   outputFileName: "greeting.txt",
+  /**
+   * The access step's people: customer members keyed `user:walk-<name>`.
+   * Avery makes everything; Blake is shared it directly, Casey by holding the
+   * platform group tag, Emery by nothing until the project-wide share. The owner's
+   * login plays the administrator, Drew: no headless route mints one.
+   */
+  personas: {
+    avery: ["group:platform"],
+    blake: [],
+    casey: ["group:platform"],
+    emery: [],
+  } as Record<"avery" | "blake" | "casey" | "emery", string[]>,
+  groupTag: "group:platform",
+  personaFileName: "walk-avery-notes.txt",
   echoMessage: "hello from the public MCP",
   echoResult: "Echo: hello from the public MCP",
   instruction:

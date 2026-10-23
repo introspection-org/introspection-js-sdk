@@ -2088,7 +2088,238 @@ walk("SDK end-to-end walk", () => {
   );
 
   it(
-    "17: members and keys — the owner's reads, a development API key, the organisation",
+    "17: access — Avery's work, read by Blake (a member share), Casey (the platform group tag), Drew (an administrator) and Emery (only a project-wide share)",
+    async (ctx) => {
+      await steps.run(ctx, "access", async () => {
+        // The owner (Drew) is privileged, so its quiet client polls for what
+        // Avery makes; every persona's own read is then recorded once.
+        const drewQuiet = new IntrospectionClient({
+          token: memberToken,
+          advanced: {
+            baseApiUrl: settings.baseApiUrl,
+            dpUrl: member.advancedOptions.dpUrl,
+            fetch: NATIVE_FETCH,
+          },
+        });
+        type Name = keyof typeof WALK.personas;
+        const people = {} as Record<
+          Name,
+          {
+            id: string;
+            client: Awaited<ReturnType<typeof sa.runtimes.runById>>;
+          }
+        >;
+        for (const [name, tags] of Object.entries(WALK.personas) as [
+          Name,
+          string[],
+        ][]) {
+          const externalUserId = `user:walk-${name}`;
+          // Members have no public delete, so a persona from an earlier run is
+          // reused and its tags set again.
+          const existing = await owner.members.list({
+            member_type: "customer",
+            external_user_id: [externalUserId],
+          });
+          const id =
+            existing.records[0]?.id ??
+            (
+              await owner.members.create({
+                member_type: "customer",
+                external_user_id: externalUserId,
+                name: `walk-${name}`,
+                tags,
+              })
+            ).id;
+          if (existing.records[0]) await owner.members.update(id, { tags });
+          const client = await sa.runtimes.runById(runtime.id, {
+            environment: "production",
+            agent_name: settings.agent,
+            identity: { user_id: `walk-${name}` },
+          } as Parameters<typeof sa.runtimes.runById>[1]);
+          people[name] = { id, client };
+        }
+        const { avery, blake, casey, emery } = people;
+
+        // Avery makes everything first: a task tagged for the platform group, its
+        // conversation and output file, and a file of their own.
+        const started = await avery.client.tasks.start({
+          prompt: prompt(settings),
+          agent_name: settings.agent,
+          metadata: { suite: "walk" },
+          conversation_metadata: { suite: "walk", persona: "avery" },
+          tags: [WALK.groupTag, "suite:walk"],
+          idle_timeout_seconds: 180,
+        } as Parameters<typeof avery.client.tasks.start>[0]);
+        await started.text();
+        const averyTask = await settled(
+          mode,
+          () => avery.client.tasks.get(started.task!.id),
+          () => drewQuiet.tasks.get(started.task!.id),
+          (t) => ["idle", "awaiting_user", "completed"].includes(t.status),
+          { timeoutMs: 300_000, intervalMs: 5_000, label: "Avery's task" },
+        );
+        expect(averyTask.tags).toEqual([WALK.groupTag, "suite:walk"]);
+        // A row carrying two tags is found by either one.
+        for (const tag of [WALK.groupTag, "suite:walk"]) {
+          let found = false;
+          for await (const t of member.tasks.list({ tag }))
+            if (t.id === averyTask.id) found = true;
+          expect(found, `the task list by ${tag}`).toBe(true);
+        }
+        expect(averyTask.conversation_metadata).toEqual({
+          suite: "walk",
+          persona: "avery",
+        });
+        const averyConversation = averyTask.id;
+        const averyOutputs = await settled(
+          mode,
+          async () =>
+            (await member.files.list({ task_id: averyTask.id })).records,
+          async () =>
+            (await drewQuiet.files.list({ task_id: averyTask.id })).records,
+          (files) => files.some((f) => f.name.endsWith(WALK.outputFileName)),
+          { timeoutMs: 120_000, intervalMs: 3_000, label: "Avery's output" },
+        );
+        const averyOutput = averyOutputs.find((f) =>
+          f.name.endsWith(WALK.outputFileName),
+        )!;
+        await settled(
+          mode,
+          () => member.conversations.get(averyConversation),
+          () => drewQuiet.conversations.get(averyConversation),
+          (c) => c.metrics.llm_call_count > 0,
+          {
+            timeoutMs: 120_000,
+            intervalMs: 5_000,
+            label: "Avery's conversation",
+          },
+        );
+        const averyFile = await avery.client.files.createText({
+          name: WALK.personaFileName,
+          content: "Avery's notes",
+          mime_type: "text/plain",
+          metadata: { suite: "walk" },
+        });
+
+        // Both keys must sit on the conversation (ANDed).
+        let filtered = false;
+        for await (const c of member.conversations.list({
+          metadata: { suite: "walk", persona: "avery" },
+        }))
+          if (c.id === averyConversation) filtered = true;
+        expect(filtered, "conversation_metadata filters").toBe(true);
+
+        const can = (read: () => Promise<unknown>) =>
+          read().then(
+            () => true,
+            (err: unknown) => {
+              if (err instanceof NotFoundError) return false;
+              throw err;
+            },
+          );
+        type Who = {
+          client: Pick<
+            IntrospectionClient,
+            "tasks" | "files" | "conversations"
+          >;
+        };
+        const reads = async (who: Who) => ({
+          conversation: await can(() =>
+            who.client.conversations.get(averyConversation),
+          ),
+          task: await can(() => who.client.tasks.get(averyTask.id)),
+          file: await can(() => who.client.files.get(averyFile.id)),
+          output: await can(() => who.client.files.get(averyOutput.id)),
+        });
+        const matrix = async () => ({
+          avery: await reads(avery),
+          blake: await reads(blake),
+          casey: await reads(casey),
+          drew: await reads({ client: member }),
+          emery: await reads(emery),
+        });
+        const none = {
+          conversation: false,
+          task: false,
+          file: false,
+          output: false,
+        };
+        const all = {
+          conversation: true,
+          task: true,
+          file: true,
+          output: true,
+        };
+        // Casey holds one of the task's two tags, which opens the task and its
+        // conversation; the output file carries no tags of its own, so a tag
+        // reader cannot open it (output files do not inherit the task's tags).
+        const byTag = {
+          conversation: true,
+          task: true,
+          file: false,
+          output: false,
+        };
+        expect(await matrix(), "before any share").toEqual({
+          avery: all,
+          blake: none,
+          casey: byTag,
+          drew: all,
+          emery: none,
+        });
+
+        // A share to one member, and one to everyone holding the platform group tag.
+        const toBlake = await avery.client.shares.create({
+          resource_type: "conversation",
+          resource_id: averyConversation,
+          granted_member_id: blake.id,
+        });
+        const toPlatform = await avery.client.shares.create({
+          resource_type: "file",
+          resource_id: averyFile.id,
+          granted_tag: WALK.groupTag,
+        });
+        expect(await matrix(), "a member share and a tag share").toEqual({
+          avery: all,
+          // A conversation share opens the conversation, never the task.
+          blake: { ...none, conversation: true },
+          casey: { ...byTag, file: true },
+          drew: all,
+          emery: none,
+        });
+
+        // A share naming neither opens the conversation to the whole project.
+        const toProject = await avery.client.shares.create({
+          resource_type: "conversation",
+          resource_id: averyConversation,
+        });
+        expect((await matrix()).emery, "a project-wide share").toEqual({
+          ...none,
+          conversation: true,
+        });
+
+        // Revoked, every share stops granting. A runner cannot hold
+        // `shares:delete`, so Avery cannot revoke their own share; the grantor
+        // or an administrator may, so Drew does.
+        for (const share of [toBlake, toPlatform, toProject]) {
+          await member.shares.delete(share.id);
+        }
+        expect(await matrix(), "every share revoked").toEqual({
+          avery: all,
+          blake: none,
+          casey: byTag,
+          drew: all,
+          emery: none,
+        });
+
+        await member.files.delete(averyFile.id);
+        await member.tasks.delete(averyTask.id);
+      });
+    },
+    STEP_TIMEOUT,
+  );
+
+  it(
+    "18: members and keys — the owner's reads, a development API key, the organisation",
     async (ctx) => {
       await steps.run(ctx, "members and keys", async () => {
         const members = [];
@@ -2183,7 +2414,7 @@ walk("SDK end-to-end walk", () => {
   );
 
   it(
-    "18: teardown — everything the walk created, in reverse",
+    "19: teardown — everything the walk created, in reverse",
     async (ctx) => {
       await steps.run(ctx, "teardown", async () => {
         // The default file list omits the upload a task holds, so it goes by id.
@@ -2244,7 +2475,11 @@ async function removeWalkResources(
   }
   const walkFiles: string[] = [];
   for await (const f of dp.files.list({})) {
-    if (f.name === WALK.inputFileName || f.name.endsWith(WALK.outputFileName)) {
+    if (
+      f.name === WALK.inputFileName ||
+      f.name === WALK.personaFileName ||
+      f.name.endsWith(WALK.outputFileName)
+    ) {
       walkFiles.push(f.id);
     }
   }
