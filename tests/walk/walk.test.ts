@@ -398,8 +398,8 @@ walk("SDK end-to-end walk", () => {
                 "last_used_at": null,
                 "name": "second",
                 "org_id": "[uuid]",
-                "secret_prefix": "intro_sk_D7ewvJ0M",
-                "secret_suffix": "04iU",
+                "secret_prefix": "intro_sk_CRhsGR83",
+                "secret_suffix": "qRUI",
                 "status": "active",
                 "updated_at": "[timestamp]",
               },
@@ -413,8 +413,8 @@ walk("SDK end-to-end walk", () => {
                 "last_used_at": null,
                 "name": "first",
                 "org_id": "[uuid]",
-                "secret_prefix": "intro_sk_kxYwWSEB",
-                "secret_suffix": "8_zo",
+                "secret_prefix": "intro_sk_gIhvzD3W",
+                "secret_suffix": "6YWU",
                 "status": "active",
                 "updated_at": "[timestamp]",
               },
@@ -516,9 +516,7 @@ walk("SDK end-to-end walk", () => {
         const branches = await dp.get<Paginated<{ name: string }>>(
           `/v1/repositories/${repository.id}/branches`,
         );
-        expect(
-          branches.records.some((b) => b.name === "main"),
-        ).toBe(true);
+        expect(branches.records.some((b) => b.name === "main")).toBe(true);
         const entry = await dp.get<{ path: string; type: string }>(
           `/v1/repositories/${repository.id}/contents/agents/scripted.yaml`,
           { ref: head!.sha },
@@ -675,16 +673,16 @@ walk("SDK end-to-end walk", () => {
           "the issuer publishes its metadata",
         ).toBeTruthy();
         // Naming the issuer alone makes the Control Plane discover the
-      // endpoints, register a client dynamically and record PKCE support;
-      // endpoints passed by hand would skip that and the grant would fail.
-      connector = await sa.connectors.create({
-        name: WALK.connectorName,
-        slug: WALK.connectorName,
-        provider: WALK.connectorName,
-        auth_mode: "oauth_stored",
-        issuer: WALK.mcpIssuer,
-        api_hosts: [new URL(WALK.mcpEndpoint).host],
-      } as Parameters<typeof sa.connectors.create>[0]);
+        // endpoints, register a client dynamically and record PKCE support;
+        // endpoints passed by hand would skip that and the grant would fail.
+        connector = await sa.connectors.create({
+          name: WALK.connectorName,
+          slug: WALK.connectorName,
+          provider: WALK.connectorName,
+          auth_mode: "oauth_stored",
+          issuer: WALK.mcpIssuer,
+          api_hosts: [new URL(WALK.mcpEndpoint).host],
+        } as Parameters<typeof sa.connectors.create>[0]);
         expect(stable(connector)).toMatchInlineSnapshot(`
           {
             "agent_member_id": "[uuid]",
@@ -914,7 +912,9 @@ walk("SDK end-to-end walk", () => {
         expect(renamed.name).toBe("hello-mcp (walk)");
 
         const requirements = await sa.runtimes.get(runtime.id);
-        expect(stable(requirements.mcp_requirements)).toMatchInlineSnapshot(`undefined`);
+        expect(stable(requirements.mcp_requirements)).toMatchInlineSnapshot(
+          `undefined`,
+        );
       });
     },
     STEP_TIMEOUT,
@@ -949,7 +949,7 @@ walk("SDK end-to-end walk", () => {
             "parent_id": null,
             "project_id": "[uuid]",
             "size_bytes": 21,
-            "storage_path": "01a13d6d-f05f-7115-9cc9-4b168ba5d22d/01a167a2-a3d6-706a-809a-cb625c77d72a/files/01a167a2-d8bb-73c9-8ae1-c713f7288f11/walk-input.txt",
+            "storage_path": "01a13d6d-f05f-7115-9cc9-4b168ba5d22d/01a167aa-4021-746e-93ea-72fcb8a2bf6c/files/01a167aa-74e0-7046-8288-a6496d6d9efe/walk-input.txt",
             "storage_version_id": null,
             "tags": [],
             "task_id": null,
@@ -997,10 +997,109 @@ walk("SDK end-to-end walk", () => {
         const reply = await started.text();
         expect(reply.length, "the turn replied").toBeGreaterThan(0);
 
-        task = await runner.tasks.get(started.task!.id);
-        expect(stable(task)).toMatchInlineSnapshot();
+        // The stream ends before the row settles; the second turn needs it idle.
+        task = await settled(
+          polly!,
+          mode,
+          () => runner.tasks.get(started.task!.id),
+          (t) => ["idle", "awaiting_user", "completed"].includes(t.status),
+          {
+            timeoutMs: 120_000,
+            intervalMs: 2_000,
+            label: "task after its first turn",
+          },
+        );
+        expect(stable(task)).toMatchInlineSnapshot(`
+          {
+            "agent": null,
+            "automation_id": null,
+            "completed_at": null,
+            "conversation_metadata": null,
+            "created_at": "[timestamp]",
+            "display_index": 2,
+            "id": "[uuid]",
+            "is_archived": false,
+            "kind": "agent",
+            "last_user_message_at": "[timestamp]",
+            "member_id": "[uuid]",
+            "metadata": {
+              "active_run_delivered": null,
+              "active_run_id": null,
+              "agent_name": "scripted",
+              "agent_session_id": "[uuid]",
+              "completion_reason": null,
+              "conversation_files": {
+                "uploads": [
+                  {
+                    "id": "[uuid]",
+                  },
+                ],
+              },
+              "conversation_id": "[uuid]",
+              "crash_restarts": null,
+              "error": null,
+              "history_recall": null,
+              "idle_timeout_seconds": 180,
+              "image_build": {
+                "build_id": "[uuid]",
+                "git_sha": "[sha]",
+                "image_digest": "host.docker.internal:5001/sandbox-builds@sha256:282b22463797761665a1eb89c1740604e14f530d9a590d15baa1bbc109ea8e7c",
+                "launch": "baked",
+              },
+              "invocation_id": "inv_12u4gKg8d7nh0VJSsp8Mp2z56wAKv9nUdj",
+              "last_activity_at": "[timestamp]",
+              "last_response": {
+                "response_id": "chatcmpl-f3537933ab2a4680969f9e5fc0ebd019",
+                "turn": 1,
+                "updated_at": "[timestamp]",
+              },
+              "latest_run_id": "[uuid]",
+              "pending_delivery_id": null,
+              "pending_resume": null,
+              "runtime_environment": "production",
+              "spawn_resolution": {
+                "attribution_env": {
+                  "INTROSPECTION_ENVIRONMENT": "production",
+                  "INTROSPECTION_RECIPE_ID": "[uuid]",
+                  "INTROSPECTION_RECIPE_KIND": "production",
+                  "INTROSPECTION_RECIPE_REF": "main",
+                  "INTROSPECTION_RUNTIME_GROUP_ID": "[uuid]",
+                  "INTROSPECTION_RUNTIME_ID": "[uuid]",
+                  "INTROSPECTION_RUNTIME_KIND": "byor",
+                  "INTROSPECTION_RUNTIME_NAME": "sdk-coverage-runtime",
+                  "OTEL_SERVICE_NAME": "sdk-coverage-runtime",
+                },
+                "contract": {
+                  "agent_name": "scripted",
+                  "kind": "pinned_git",
+                  "recipe_repo": "[uuid]",
+                  "recipe_sha": "[sha]",
+                },
+                "image_reference": null,
+                "recipe_resources": null,
+                "recipe_sub_path": "",
+                "runtime_group_id": "[uuid]",
+                "runtime_id": "[uuid]",
+              },
+              "suite": "walk",
+              "task_prompt": null,
+              "turn_count": 1,
+              "workflow_version": 1,
+            },
+            "org_id": "[uuid]",
+            "project_id": "[uuid]",
+            "runtime_group_id": "[uuid]",
+            "runtime_id": "[uuid]",
+            "started_at": "[timestamp]",
+            "status": "idle",
+            "tags": [],
+            "title": "Call the \`echo\` tool from the declared \`hello-mcp\` MCP server with the message \`hello from the public MCP\`. Write the echoed value exactly, with no quotes or additional formatting, to \`/workspace/outputs/greeting.txt\`. Then run \`echo $WALK_MARKER\` in…",
+            "updated_at": "[timestamp]",
+          }
+        `);
         conversationId = String(
-          (task.metadata as Record<string, unknown> | null)?.conversation_id ?? task.id,
+          (task.metadata as Record<string, unknown> | null)?.conversation_id ??
+            task.id,
         );
         const run = await runner.tasks.runs.get(task.id, started.run.id);
         expect(run.task_id).toBe(task.id);
@@ -1009,11 +1108,25 @@ walk("SDK end-to-end walk", () => {
           prompt: { text: secondTurn(settings) },
         });
         await turn.text();
+        await settled(
+          polly!,
+          mode,
+          () => runner.tasks.get(task.id),
+          (t) => ["idle", "awaiting_user", "completed"].includes(t.status),
+          {
+            timeoutMs: 120_000,
+            intervalMs: 2_000,
+            label: "task after its second turn",
+          },
+        );
 
         let seen = false;
-        for await (const item of runner.tasks.list()) if (item.id === task.id) seen = true;
+        for await (const item of runner.tasks.list())
+          if (item.id === task.id) seen = true;
         expect(seen).toBe(true);
-        const retitled = await runner.tasks.update(task.id, { title: "The walk's task" });
+        const retitled = await runner.tasks.update(task.id, {
+          title: "The walk's task",
+        });
         expect(retitled.title).toBe("The walk's task");
         await runner.tasks.archive(task.id);
         await runner.tasks.unarchive(task.id);
@@ -1031,15 +1144,46 @@ walk("SDK end-to-end walk", () => {
           mode,
           async () => {
             const out: IntrospectionFile[] = [];
-            for await (const f of sa.files.list({ task_id: task.id })) out.push(f);
+            for await (const f of sa.files.list({ task_id: task.id }))
+              out.push(f);
             return out;
           },
           (files) => files.some((f) => f.name.endsWith(WALK.outputFileName)),
           { timeoutMs: 120_000, intervalMs: 3_000, label: "task output files" },
         );
         outputFile = outputs.find((f) => f.name.endsWith(WALK.outputFileName))!;
-        expect(stable(outputFile)).toMatchInlineSnapshot();
-        const content = new TextDecoder().decode(await sa.files.download(outputFile.id));
+        expect(stable(outputFile)).toMatchInlineSnapshot(`
+          {
+            "created_at": "[timestamp]",
+            "expires_at": null,
+            "file_type": "filesystem",
+            "generated_output_task_id": "[uuid]",
+            "id": "[uuid]",
+            "member_id": "[uuid]",
+            "metadata": {
+              "blob_checksum": "548e66e4ed3b79c6587949deca60cdd96c163f1c950dc21a4038c0557f9a145b",
+              "conversation_id": "[uuid]",
+              "original_filename": "greeting.txt",
+              "relative_path": "greeting.txt",
+              "task_id": "[uuid]",
+            },
+            "mime_type": "text/plain",
+            "name": "tasks/01a167aa-757c-7199-869a-bfec073cbd6f/outputs/greeting.txt",
+            "org_id": "[uuid]",
+            "parent_id": null,
+            "project_id": "[uuid]",
+            "size_bytes": 31,
+            "storage_path": "01a13d6d-f05f-7115-9cc9-4b168ba5d22d/01a167aa-4021-746e-93ea-72fcb8a2bf6c/files/01a167aa-81a4-70d7-a345-62f72b897e3a/greeting.txt",
+            "storage_version_id": null,
+            "tags": [],
+            "task_id": "[uuid]",
+            "updated_at": "[timestamp]",
+            "version": 1,
+          }
+        `);
+        const content = new TextDecoder().decode(
+          await sa.files.download(outputFile.id),
+        );
         expect(content.trim()).toBe(WALK.echoResult);
 
         const conversation = await settled(
@@ -1049,26 +1193,85 @@ walk("SDK end-to-end walk", () => {
           () => true,
           { timeoutMs: 60_000, label: "conversation" },
         );
-        expect(stable(conversation)).toMatchInlineSnapshot();
+        expect(stable(conversation)).toMatchInlineSnapshot(`
+          {
+            "agents": [
+              {
+                "depth": 0,
+                "id": "[redacted]",
+                "name": "scripted",
+              },
+            ],
+            "cost": {
+              "usd": 0,
+            },
+            "created_at": "[timestamp]",
+            "environment": "production",
+            "id": "[uuid]",
+            "metrics": {
+              "duration_ms": 433,
+              "failed_llm_call_count": 0,
+              "failed_tool_use_count": 1,
+              "has_errors": false,
+              "llm_call_count": 5,
+              "max_turn": 2,
+              "span_count": 24,
+              "tool_use_count": 3,
+              "trace_count": 2,
+            },
+            "object": "conversation",
+            "owner": {
+              "key": "[redacted]",
+            },
+            "recipe": {
+              "git_commit_sha": "[sha]",
+            },
+            "runtime": {
+              "group_id": "[uuid]",
+              "id": "[uuid]",
+            },
+            "service_name": "sdk-coverage-runtime",
+            "task_title": "The walk's task",
+            "updated_at": "[timestamp]",
+            "usage": {
+              "output_tokens": 66,
+              "total_input_tokens": 80,
+              "total_tokens": 146,
+            },
+          }
+        `);
         const page = await settled(
           polly!,
           mode,
           async () => await sa.conversations.items.list(conversationId),
-          (p) => JSON.stringify(p).includes("echo") && JSON.stringify(p).includes(WALK.variableValue),
-          { timeoutMs: 120_000, intervalMs: 5_000, label: "conversation items" },
+          (p) =>
+            JSON.stringify(p).includes("echo") &&
+            JSON.stringify(p).includes(WALK.variableValue),
+          {
+            timeoutMs: 120_000,
+            intervalMs: 5_000,
+            label: "conversation items",
+          },
         );
         const items = JSON.stringify(page);
         expect(items, "the hello-mcp echo tool was called").toContain("echo");
-        expect(items, "the echo result reached the conversation").toContain(WALK.echoResult);
-        expect(items, "the variable reached the sandbox").toContain(WALK.variableValue);
+        expect(items, "the echo result reached the conversation").toContain(
+          WALK.echoResult,
+        );
+        expect(items, "the variable reached the sandbox").toContain(
+          WALK.variableValue,
+        );
         const first = page.data[0]!;
         await sa.conversations.items.get(conversationId, first.span_id!);
         let seen = false;
-        for await (const c of sa.conversations.list({ runtime_id: runtime.id })) {
+        for await (const c of sa.conversations.list({
+          runtime_id: runtime.id,
+        })) {
           if (c.id === conversationId) seen = true;
         }
         expect(seen).toBe(true);
-        const trajectory = await sa.conversations.exportTrajectory(conversationId);
+        const trajectory =
+          await sa.conversations.exportTrajectory(conversationId);
         expect(trajectory, "the trajectory export").toBeTruthy();
       });
     },
@@ -1091,32 +1294,75 @@ walk("SDK end-to-end walk", () => {
         } as Parameters<typeof sa.metrics.query>[0]);
         expect(metrics, "a metrics response").toBeTruthy();
 
-        const tag = await sa.tags.create({ kind: "access", name: "walk", description: "the walk's tag" } as Parameters<typeof sa.tags.create>[0]);
-        expect(stable(tag)).toMatchInlineSnapshot();
-        await sa.tags.get("access", "walk");
-        await sa.tags.update("access", "walk", { description: "the walk's tag, updated" });
+        // Access tags are an administrator's to write: the owner's token, not
+        // the service account, which acts as the project's agent member.
+        const member = new IntrospectionClient({
+          token: memberToken,
+          advanced: {
+            baseApiUrl: settings.baseApiUrl,
+            dpUrl: sa.advancedOptions.dpUrl,
+          },
+        });
+        const tag = await member.tags.create({
+          kind: "access",
+          name: "walk",
+          description: "the walk's tag",
+        } as Parameters<typeof sa.tags.create>[0]);
+        expect(stable(tag)).toMatchInlineSnapshot(`
+          {
+            "color": null,
+            "created_at": "[timestamp]",
+            "description": "the walk's tag",
+            "kind": "access",
+            "name": "walk",
+            "updated_at": "[timestamp]",
+          }
+        `);
+        await member.tags.get("access", "walk");
+        await member.tags.update("access", "walk", {
+          description: "the walk's tag, updated",
+        });
         let seenTag = false;
-        for await (const item of sa.tags.list("access")) if (item.name === "walk") seenTag = true;
+        for await (const item of member.tags.list("access"))
+          if (item.name === "walk") seenTag = true;
         expect(seenTag).toBe(true);
 
+        // A tag share's grantor must hold the tag, so the file is shared to
+        // the owner member directly.
+        const owners = [];
+        for await (const m of owner.members.list()) owners.push(m);
         const share = await sa.shares.create({
           resource_type: "file",
           resource_id: outputFile.id,
-          granted_tag: "walk",
+          granted_member_id: owners[0]!.id,
         } as Parameters<typeof sa.shares.create>[0]);
-        expect(stable(share)).toMatchInlineSnapshot();
+        expect(stable(share)).toMatchInlineSnapshot(`
+          {
+            "created_at": "[timestamp]",
+            "created_by_member_id": "[uuid]",
+            "granted_member_id": "[uuid]",
+            "granted_tag": null,
+            "id": "[uuid]",
+            "org_id": "[uuid]",
+            "project_id": "[uuid]",
+            "resource_id": "[uuid]",
+            "resource_type": "file",
+            "updated_at": "[timestamp]",
+            "url": "[url]",
+            "visible_from": null,
+          }
+        `);
         await sa.shares.get(share.id);
-        await sa.shares.update(share.id, {} as Parameters<typeof sa.shares.update>[1]);
         let seenShare = false;
-        for await (const item of sa.shares.list({ resource_type: "file" })) if (item.id === share.id) seenShare = true;
+        for await (const item of sa.shares.list({ resource_type: "file" }))
+          if (item.id === share.id) seenShare = true;
         expect(seenShare).toBe(true);
 
-        const member = new IntrospectionClient({
-          token: memberToken,
-          advanced: { baseApiUrl: settings.baseApiUrl, dpUrl: sa.advancedOptions.dpUrl },
-        });
         const conversation = await sa.conversations.get(conversationId);
-        const target = conversation as unknown as { trace_id?: string; span_id?: string };
+        const target = conversation as unknown as {
+          trace_id?: string;
+          span_id?: string;
+        };
         if (target.trace_id && target.span_id) {
           await member.annotations.create(
             { trace_id: target.trace_id, span_id: target.span_id },
@@ -1127,7 +1373,10 @@ walk("SDK end-to-end walk", () => {
             mode,
             async () => {
               const out = [];
-              for await (const a of member.annotations.list({ conversation_id: conversationId } as Parameters<typeof member.annotations.list>[0])) out.push(a);
+              for await (const a of member.annotations.list({
+                conversation_id: conversationId,
+              } as Parameters<typeof member.annotations.list>[0]))
+                out.push(a);
               return out;
             },
             (rows) => rows.length > 0,
@@ -1139,11 +1388,19 @@ walk("SDK end-to-end walk", () => {
             mode,
             async () => {
               const out = [];
-              for await (const e of sa.events.list({ event_name: "introspection.annotation", conversation_id: conversationId })) out.push(e);
+              for await (const e of sa.events.list({
+                event_name: "introspection.annotation",
+                conversation_id: conversationId,
+              }))
+                out.push(e);
               return out;
             },
             (rows) => rows.length > 0,
-            { timeoutMs: 60_000, intervalMs: 3_000, label: "annotation events" },
+            {
+              timeoutMs: 60_000,
+              intervalMs: 3_000,
+              label: "annotation events",
+            },
           );
           await sa.events.get((events[0] as { id: string }).id);
         }
@@ -1163,9 +1420,15 @@ walk("SDK end-to-end walk", () => {
         });
         judge = judges.records.find((j) => j.name === "greeting")!;
         expect(judge, "the recipe's judge is synced").toBeTruthy();
-        const readJudge = await cp.get<Judge>(`/v1/judges/${judge.id}`, { project: project.id });
+        const readJudge = await cp.get<Judge>(`/v1/judges/${judge.id}`, {
+          project: project.id,
+        });
         expect(readJudge.name).toBe("greeting");
-        await cp.patch<Judge>(`/v1/judges/${judge.id}`, { enabled: true, sample_rate: 1 }, { project: project.id });
+        await cp.patch<Judge>(
+          `/v1/judges/${judge.id}`,
+          { enabled: true, sample_rate: 1 },
+          { project: project.id },
+        );
 
         const created = await runner.tasks.create({
           kind: "eval",
@@ -1178,8 +1441,15 @@ walk("SDK end-to-end walk", () => {
         evalTask = created.task;
         expect(stable(evalTask)).toMatchInlineSnapshot();
         let reply = "";
-        for await (const ev of runner.tasks.runs.stream(evalTask.id, created.run.id)) {
-          if ((ev as { type: string; delta?: string }).type === "TEXT_MESSAGE_CONTENT") reply += (ev as { delta?: string }).delta ?? "";
+        for await (const ev of runner.tasks.runs.stream(
+          evalTask.id,
+          created.run.id,
+        )) {
+          if (
+            (ev as { type: string; delta?: string }).type ===
+            "TEXT_MESSAGE_CONTENT"
+          )
+            reply += (ev as { delta?: string }).delta ?? "";
         }
         expect(reply.length).toBeGreaterThan(0);
 
@@ -1195,7 +1465,10 @@ walk("SDK end-to-end walk", () => {
           name: "The walk's experiment",
           project: project.id,
           runtime_group_id: runtime.runtime_group_id,
-          goal_json: { kind: "composite", components: [{ source: "judge", judge_id: judge.id, weight: 1 }] },
+          goal_json: {
+            kind: "composite",
+            components: [{ source: "judge", judge_id: judge.id, weight: 1 }],
+          },
           arms: [
             { runtime_id: runtime.id, arm_label: "v1" },
             { runtime_id: runtimeV2.id, arm_label: "v2" },
@@ -1203,11 +1476,14 @@ walk("SDK end-to-end walk", () => {
         });
         expect(stable(experiment)).toMatchInlineSnapshot();
         await sa.experiments.get(experiment.id);
-        await sa.experiments.update(experiment.id, { description: "two versions, one judge" } as Parameters<typeof sa.experiments.update>[1]);
+        await sa.experiments.update(experiment.id, {
+          description: "two versions, one judge",
+        } as Parameters<typeof sa.experiments.update>[1]);
         const started = await sa.experiments.startById(experiment.id);
         expect(started.status).toBe("running");
         let seen = false;
-        for await (const e of sa.experiments.list({ project: project.id })) if (e.id === experiment.id) seen = true;
+        for await (const e of sa.experiments.list({ project: project.id }))
+          if (e.id === experiment.id) seen = true;
         expect(seen).toBe(true);
         const ended = await sa.experiments.endById(experiment.id);
         expect(stable(ended)).toMatchInlineSnapshot();
@@ -1222,12 +1498,21 @@ walk("SDK end-to-end walk", () => {
       await steps.run(ctx, "commands", async () => {
         const dp = raw(sa.dpHttp);
         const command = async (body: Record<string, unknown>) => {
-          const created = await dp.post<TaskCommand>(`/v1/tasks/${evalTask.id}/commands`, body);
+          const created = await dp.post<TaskCommand>(
+            `/v1/tasks/${evalTask.id}/commands`,
+            body,
+          );
           return settled(
             polly!,
             mode,
-            () => dp.get<TaskCommand>(`/v1/tasks/${evalTask.id}/commands/${created.id}`),
-            (c) => ["succeeded", "completed", "failed", "cancelled"].includes(c.status),
+            () =>
+              dp.get<TaskCommand>(
+                `/v1/tasks/${evalTask.id}/commands/${created.id}`,
+              ),
+            (c) =>
+              ["succeeded", "completed", "failed", "cancelled"].includes(
+                c.status,
+              ),
             { timeoutMs: 120_000, intervalMs: 3_000, label: "task command" },
           );
         };
@@ -1238,9 +1523,17 @@ walk("SDK end-to-end walk", () => {
         });
         expect(stable(exec)).toMatchInlineSnapshot();
         expect(exec.stdout?.trim()).toBe(WALK.echoResult);
-        const download = await command({ kind: "download", path: `/workspace/outputs/${WALK.outputFileName}` });
-        expect(download.output_file_id, "the download produced a file").toBeTruthy();
-        const listed = await dp.get<Paginated<TaskCommand>>(`/v1/tasks/${evalTask.id}/commands`);
+        const download = await command({
+          kind: "download",
+          path: `/workspace/outputs/${WALK.outputFileName}`,
+        });
+        expect(
+          download.output_file_id,
+          "the download produced a file",
+        ).toBeTruthy();
+        const listed = await dp.get<Paginated<TaskCommand>>(
+          `/v1/tasks/${evalTask.id}/commands`,
+        );
         expect(listed.records.length).toBeGreaterThanOrEqual(2);
 
         const judgements = await settled(
@@ -1248,7 +1541,11 @@ walk("SDK end-to-end walk", () => {
           mode,
           async () => {
             const out = [];
-            for await (const e of sa.events.list({ event_name: "introspection.judgement", judge_id: judge.id } as Parameters<typeof sa.events.list>[0])) out.push(e);
+            for await (const e of sa.events.list({
+              event_name: "introspection.judgement",
+              judge_id: judge.id,
+            } as Parameters<typeof sa.events.list>[0]))
+              out.push(e);
             return out;
           },
           (rows) => rows.length > 0,
@@ -1274,9 +1571,12 @@ walk("SDK end-to-end walk", () => {
         const triggered = await sa.automations.trigger(automation.id);
         expect(stable(triggered)).toMatchInlineSnapshot();
         await sa.automations.get(automation.id);
-        await sa.automations.update(automation.id, { description: "triggered once by the walk" } as Parameters<typeof sa.automations.update>[1]);
+        await sa.automations.update(automation.id, {
+          description: "triggered once by the walk",
+        } as Parameters<typeof sa.automations.update>[1]);
         let seen = false;
-        for await (const a of sa.automations.list()) if (a.id === automation.id) seen = true;
+        for await (const a of sa.automations.list())
+          if (a.id === automation.id) seen = true;
         expect(seen).toBe(true);
       });
     },
@@ -1297,13 +1597,30 @@ walk("SDK end-to-end walk", () => {
           { name: "walk", environment: "development", allow: ["runtimes"] },
           { project: project.id },
         );
-        expect(apiKey.api_key, "the plaintext key is returned once").toBeTruthy();
-        expect(stable({ ...apiKey, api_key: undefined })).toMatchInlineSnapshot();
-        const keys = await cp.get<Paginated<ApiKey>>("/v1/api-keys", { project: project.id });
+        expect(
+          apiKey.api_key,
+          "the plaintext key is returned once",
+        ).toBeTruthy();
+        expect(
+          stable({ ...apiKey, api_key: undefined }),
+        ).toMatchInlineSnapshot();
+        const keys = await cp.get<Paginated<ApiKey>>("/v1/api-keys", {
+          project: project.id,
+        });
         expect(keys.records.some((k) => k.id === apiKey.id)).toBe(true);
-        await cp.patch<ApiKey>(`/v1/api-keys/${apiKey.id}`, { name: "walk (renamed)" }, { project: project.id });
-        await cp.post(`/v1/api-keys/${apiKey.id}/acknowledge`, {}, { project: project.id });
-        const org = await raw(owner.cpHttp).get<{ id: string; slug: string }>("/v1/organizations/me");
+        await cp.patch<ApiKey>(
+          `/v1/api-keys/${apiKey.id}`,
+          { name: "walk (renamed)" },
+          { project: project.id },
+        );
+        await cp.post(
+          `/v1/api-keys/${apiKey.id}/acknowledge`,
+          {},
+          { project: project.id },
+        );
+        const org = await raw(owner.cpHttp).get<{ id: string; slug: string }>(
+          "/v1/organizations/me",
+        );
         expect(stable(org)).toMatchInlineSnapshot();
       });
     },
@@ -1319,9 +1636,11 @@ walk("SDK end-to-end walk", () => {
         const q = { project: project.id };
         await cp.delete(`/v1/api-keys/${apiKey.id}`, q);
         await sa.automations.delete(automation.id);
-        for await (const t of runner.tasks.list()) await runner.tasks.delete(t.id).catch(() => undefined);
+        for await (const t of runner.tasks.list())
+          await runner.tasks.delete(t.id).catch(() => undefined);
         await expectNotFound(() => runner.tasks.get(task.id));
-        for await (const f of sa.files.list({})) await sa.files.delete(f.id).catch(() => undefined);
+        for await (const f of sa.files.list({}))
+          await sa.files.delete(f.id).catch(() => undefined);
         await expectNotFound(() => sa.files.get(inputFile.id));
         await sa.experiments.delete(experiment.id);
         await sa.runtimes.get(runtimeV2.id);
@@ -1334,16 +1653,25 @@ walk("SDK end-to-end walk", () => {
         await sa.connectors.delete(connector.id);
         await expectNotFound(() => sa.connectors.get(connector.id));
         const variables = await cp.get<Paginated<Variable>>("/v1/variables", q);
-        for (const v of variables.records) await cp.delete(`/v1/variables/${v.id}`, q);
-        const credentials = await cp.get<Paginated<Credential>>("/v1/credentials", q);
-        for (const c of credentials.records) await cp.delete(`/v1/credentials/${c.id}`, q);
+        for (const v of variables.records)
+          await cp.delete(`/v1/variables/${v.id}`, q);
+        const credentials = await cp.get<Paginated<Credential>>(
+          "/v1/credentials",
+          q,
+        );
+        for (const c of credentials.records)
+          await cp.delete(`/v1/credentials/${c.id}`, q);
         await cp.delete(`/v1/recipes/${recipe.id}`);
         await expectNotFound(() => sa.recipes.get(recipe.id));
         await cp.delete(`/v1/repositories/${repository.id}`, q);
-        await dp.get(`/v1/repositories/${repository.id}/branches`).catch(() => undefined);
+        await dp
+          .get(`/v1/repositories/${repository.id}/branches`)
+          .catch(() => undefined);
         await cp.delete(`/v1/applications/${application.id}`, q);
         await raw(owner.cpHttp).delete(`/v1/projects/${project.id}`);
-        await expectNotFound(() => raw(owner.cpHttp).get<Project>(`/v1/projects/${project.id}`));
+        await expectNotFound(() =>
+          raw(owner.cpHttp).get<Project>(`/v1/projects/${project.id}`),
+        );
       });
     },
     STEP_TIMEOUT,

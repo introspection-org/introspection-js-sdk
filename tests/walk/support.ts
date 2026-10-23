@@ -13,7 +13,7 @@ import type { Polly } from "@pollyjs/core";
 import type { HttpClient } from "@introspection-sdk/introspection-node";
 import type { PollyMode } from "../polly-setup";
 
-export type WalkTarget = "compose" | "staging" | "production";
+type WalkTarget = "compose" | "staging" | "production";
 
 export interface WalkSettings {
   target: WalkTarget;
@@ -67,7 +67,7 @@ export const WALK = {
  * What the scripted model does on the instruction: the same three things a
  * real model does, so the judge grades both alike.
  */
-export function scriptedDirective(): string {
+function scriptedDirective(): string {
   const directive = {
     reply:
       "Echoed the message through hello-mcp and wrote it to the outputs file.",
@@ -313,7 +313,11 @@ export async function followAuthorization(
       // callback with a fixed code and the browser's user id; the walk's user
       // id is fixed too, so the grant is the same subject every run.
       const upstream = /searchParams\.set\('state',\s*'([^']+)'\)/.exec(page);
-      if (!location && upstream && page.includes("/mock-upstream-idp/callback")) {
+      if (
+        !location &&
+        upstream &&
+        page.includes("/mock-upstream-idp/callback")
+      ) {
         const callback = new URL("/mock-upstream-idp/callback", next);
         callback.searchParams.set("state", upstream[1]!);
         callback.searchParams.set("code", "mock-auth-code");
@@ -385,7 +389,15 @@ export function pushRecipe(
     try {
       // Provisioning seeds the hosted copy with a first commit; the walk's
       // recipe replaces it, so the push is forced on this fresh repository.
-      git("-C", dir, "push", "--quiet", "--force", target.url, "HEAD:refs/heads/main");
+      git(
+        "-C",
+        dir,
+        "push",
+        "--quiet",
+        "--force",
+        target.url,
+        "HEAD:refs/heads/main",
+      );
       break;
     } catch (err) {
       const text = String((err as { stderr?: Buffer }).stderr ?? err);
