@@ -27,11 +27,12 @@ const SUMMARY_FIXTURE: Conversation = {
   task_title: "Map Australian fintech leaders",
   created_at: "2025-01-01T00:00:00Z",
   updated_at: "2025-01-01T00:00:05Z",
-  usage: { input_tokens: 10, output_tokens: 20, total_tokens: 30 },
+  usage: { total_input_tokens: 10, output_tokens: 20, total_tokens: 30 },
   cost: { usd: 0.01 },
   metrics: {
     duration_ms: 5_000,
     trace_count: 1,
+    max_turn: 1,
     span_count: 3,
     tool_use_count: 0,
     failed_tool_use_count: 0,

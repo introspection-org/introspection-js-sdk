@@ -271,40 +271,30 @@ export interface IntrospectionRecipe {
   [key: string]: unknown;
 }
 
+/** `introspection.history.new_messages` — the span's new input-message range. */
+export interface IntrospectionHistoryNewMessages {
+  /** Inclusive start index of newly added input messages in the full history. */
+  start?: number;
+  /** Exclusive end index of newly added input messages in the full history. */
+  end?: number;
+  [key: string]: unknown;
+}
+
 /**
- * `introspection.conversation.*`.
- *
- * On an item these describe the turn's place in the conversation. On a
- * summary the counts describe the conversation as a whole — these are the
- * rollups with no semantic-convention name, which is why they live here
- * rather than under `gen_ai`: claiming a `gen_ai.*` name for them would
- * assert a standard meaning that does not exist.
+ * `introspection.history.*` — where a model call's input history sits in the
+ * conversation. Absent on spans the linker never placed (tool, proxy and API
+ * calls), and every field is optional.
  */
-export interface IntrospectionConversation {
-  /** Position of this turn in the conversation (0-based). */
+export interface IntrospectionHistory {
+  /** One-based position of this call in the conversation. */
   position?: number;
-  /** Whether this is the first turn of a conversation. */
+  /** Whether this call opened the conversation. */
   is_new?: boolean;
   /** How this span was linked to a conversation (e.g. `"conversation_id"`). */
   continuation_method?: string;
   /** Whether the history hash lookup matched an existing conversation. */
-  history_hash_hit?: boolean;
-  /** Inclusive start index of newly added input messages in the full history. */
-  new_messages_start?: number;
-  /** Exclusive end index of newly added input messages in the full history. */
-  new_messages_end?: number;
-  /** Client-generated message ID for optimistic turn reconciliation. */
-  client_message_id?: string;
-  /** Number of traces in the conversation (summary rollup). */
-  trace_count?: number;
-  /** Number of spans in the conversation (summary rollup). */
-  span_count?: number;
-  /** Number of `execute_tool` spans in the conversation (summary rollup). */
-  tool_use_count?: number;
-  /** Number of failed `execute_tool` spans (summary rollup). */
-  failed_tool_use_count?: number;
-  /** Whether any span in the conversation has errors (summary rollup). */
-  has_errors?: boolean;
+  hash_hit?: boolean;
+  new_messages?: IntrospectionHistoryNewMessages;
   [key: string]: unknown;
 }
 
@@ -322,7 +312,11 @@ export interface ConversationAgent {
 }
 
 export interface ConversationUsage {
-  input_tokens: number;
+  /**
+   * Every input token the model read: uncached input plus cache reads plus
+   * cache writes. Not the sum of the items' `gen_ai.usage.input_tokens`.
+   */
+  total_input_tokens: number;
   output_tokens: number;
   total_tokens: number;
 }
@@ -334,10 +328,30 @@ export interface ConversationCost {
 export interface ConversationMetrics {
   duration_ms: number;
   trace_count: number;
+  /** Highest `introspection.turn` stamped on the conversation; null when none. */
+  max_turn: number | null;
   span_count: number;
   tool_use_count: number;
   failed_tool_use_count: number;
   has_errors: boolean;
+}
+
+/** Each identity group below is omitted when it has no value, never `{}`. */
+export interface ConversationRuntime {
+  id?: Uuid;
+  group_id?: Uuid;
+}
+
+export interface ConversationExperiment {
+  id?: Uuid;
+}
+
+export interface ConversationRecipe {
+  git_commit_sha?: string;
+}
+
+export interface ConversationOwner {
+  key?: string;
 }
 
 /** Aggregated conversation resource returned by summary reads. */
@@ -354,11 +368,10 @@ export interface Conversation {
   metrics: ConversationMetrics;
   environment?: string;
   service_name?: string;
-  runtime_id?: Uuid;
-  runtime_group_id?: Uuid;
-  experiment_id?: Uuid;
-  recipe_git_commit_sha?: string;
-  owner_key?: string;
+  runtime?: ConversationRuntime;
+  experiment?: ConversationExperiment;
+  recipe?: ConversationRecipe;
+  owner?: ConversationOwner;
   /**
    * Customer-defined dimensions, stamped at ingest via `introspection.metadata.<key>`
    * span attributes. Folded wholesale from the earliest span of the conversation
@@ -386,7 +399,9 @@ export interface IntrospectionSpanAttributes {
   recipe?: IntrospectionRecipe;
   /** Runtime environment lane. */
   environment?: string;
-  conversation?: IntrospectionConversation;
+  /** The runtime's application-level turn, numbered from 1 per conversation. */
+  turn?: number | null;
+  history?: IntrospectionHistory;
   agent?: IntrospectionAgent;
   contains?: IntrospectionContains;
   [key: string]: unknown;
