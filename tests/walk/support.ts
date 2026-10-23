@@ -161,11 +161,13 @@ export function walkSettings(
     cpSession,
     bootstrapProjectId: env.INTROSPECTION_PROJECT_ID ?? file.project_id ?? null,
     deploymentId: env.INTROSPECTION_DEPLOYMENT_ID ?? file.deployment_id ?? null,
+    // The recipe the walk pushes: a checkout on disk (RECIPE_DIR) or a git
+    // URL, at the head of `main` unless RECIPE_GIT_REF names another ref.
     recipeRepositoryUrl:
-      env.WALK_RECIPE_DIR ??
-      env.WALK_RECIPE_REPOSITORY_URL ??
+      env.RECIPE_DIR ??
+      env.RECIPE_REPOSITORY_URL ??
       REPLAY_SETTINGS.recipeRepositoryUrl,
-    recipeGitRef: env.WALK_RECIPE_GIT_REF ?? "main",
+    recipeGitRef: env.RECIPE_GIT_REF ?? "main",
     agent: env.WALK_AGENT ?? "scripted",
   };
 }
