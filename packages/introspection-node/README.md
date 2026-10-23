@@ -2,7 +2,9 @@
 
 Node.js platform SDK for [Introspection](https://introspection.dev) — open runtimes,
 drive tasks, and manage experiments, recipes, repositories, members,
-automations, app connections, files, conversations, and shares.
+automations, app connections, files, conversations, shares, project
+administration (API keys, Applications, credentials, variables, integrations,
+judges) and eval images and task commands.
 
 ## Install
 
@@ -70,8 +72,8 @@ const runner = await client.runtimes("customer-agent").run({
 
 `IntrospectionClient` and `Runner` expose the same Data Plane namespaces, and
 both implement the exported `DataPlaneResources` interface: `tasks` (with
-`tasks.runs`), `files`, `conversations`, `events`, `metrics`, `shares`,
-`automations` and `connections`. So does the `DataPlaneClient` that
+`tasks.runs` and `tasks.commands`), `files`, `conversations`, `events`,
+`metrics`, `shares`, `automations`, `images` and `connections`. So does the `DataPlaneClient` that
 `AuthClient.dataPlane()` returns. Code written against `DataPlaneResources`
 runs against any of them.
 
@@ -194,6 +196,51 @@ const page = await client.events.list({
 });
 for (const ev of page.records)
   console.log(ev.payload.task_id, ev.payload.posted);
+```
+
+### Project administration
+
+`client.apiKeys`, `client.applications` (with `.idps`, `.secrets` and
+`.keys`), `client.credentials`, `client.variables`, `client.integrations`,
+`client.judges`, `client.projects` (list and get only) and `client.oidc.me()`
+cover the Control Plane's project administration. They need an org credential,
+such as a member's Control Plane session (`cpSession`); a project API key
+carries none of their scopes. Project-scoped methods take an optional
+`project` (slug or id) for a credential that names no project.
+
+```typescript
+const client = new IntrospectionClient({ cpSession: process.env.CP_SESSION });
+const created = await client.apiKeys.create({ name: "ci" }, "my-project");
+saveSecret(created.api_key); // returned once
+await client.apiKeys.acknowledge(created.id, "my-project");
+// Rotate: keep the old key working for an hour.
+await client.apiKeys.delete(created.id, {
+  project: "my-project",
+  expires_in: 3600,
+});
+```
+
+### Eval images and task commands
+
+`images` builds or mirrors the images an eval task's compose services run as,
+and `tasks.commands` runs `exec` / `upload` / `download` against an eval task's
+live sandbox (a task created with `kind: "eval"` and `commands: true`). Both
+need an admin, owner or `operator` credential on a plane with evals enabled.
+
+```typescript
+const image = await client.images.create({
+  name: "hello-mcp/mcp-server",
+  source: { kind: "mirror", reference: "ghcr.io/acme/mcp@sha256:…" },
+});
+const command = await client.tasks.commands.create(taskId, {
+  kind: "exec",
+  command: ["pytest", "-q"],
+});
+// Holds the read up to MAX_COMMAND_WAIT_SECONDS for the command to finish.
+const done = await client.tasks.commands.get(taskId, command.id, {
+  wait_seconds: 30,
+});
+console.log(done.status, done.exit_code, done.stdout);
 ```
 
 ### Connections

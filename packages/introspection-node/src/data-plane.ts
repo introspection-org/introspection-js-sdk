@@ -3,6 +3,7 @@ import {
   ConversationsApi,
   EventsApi,
   FilesApi,
+  ImagesApi,
   MetricsApi,
   SharesApi,
   TasksApi,
@@ -29,6 +30,8 @@ export interface DataPlaneResources {
   readonly metrics: MetricsApi;
   readonly shares: SharesApi;
   readonly automations: AutomationsApi;
+  /** `/v1/images`, what an eval task's compose services run as. */
+  readonly images: ImagesApi;
   /** Apps members connected for themselves (`/v1/connections`). */
   readonly connections: AppConnectionsApi;
 }
@@ -72,6 +75,8 @@ export class DataPlaneClient implements DataPlaneResources {
   readonly metrics: MetricsApi;
   /** `/v1/automations`; needs `automations:read` / `automations:write`. */
   readonly automations: AutomationsApi;
+  /** `/v1/images`; needs `images:read` / `images:write`. */
+  readonly images: ImagesApi;
   /**
    * CRUD on `/v1/connections`, the apps members connected for themselves.
    * `create` takes the `runtime` explicitly, since this client has no
@@ -102,6 +107,7 @@ export class DataPlaneClient implements DataPlaneResources {
     this.events = new EventsApi(this.http);
     this.metrics = new MetricsApi(this.http);
     this.automations = new AutomationsApi(this.http);
+    this.images = new ImagesApi(this.http);
     this.connections = new AppConnectionsApi(this.http);
   }
 }
