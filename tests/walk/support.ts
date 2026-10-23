@@ -414,36 +414,102 @@ export async function followAuthorization(
 }
 
 /**
- * Push the recipe into the walk's hosted repository: a shallow clone of the
- * source (a git URL, or a checkout on disk) at `ref`, pushed to the
- * hosted `main`. The bearer travels in the
- * environment as a git config, never in argv. Live only; the git transport
- * is a subprocess the recording cannot see.
+ * The recipe the walk pushes, cloned at `ref` and checked before the walk
+ * creates anything: `introspection check` passes and the walk's agent is
+ * there. A checkout is read at `ref`, not its working tree, since that commit
+ * is what the push sends. The clone uses the person's own git config, so a
+ * private recipe reads through their credential helper. Live only.
+ */
+export function prepareRecipe(
+  source: { url: string; ref: string },
+  agent: string,
+): string {
+  const env = { ...process.env, GIT_TERMINAL_PROMPT: "0" };
+  const firstLine = (err: unknown) =>
+    String((err as { stderr?: Buffer }).stderr ?? err)
+      .trim()
+      .split("\n")[0];
+  const isPath = !/^[a-z+]+:\/\/|^[^/]+@[^/]+:/.test(source.url);
+  if (isPath && !fs.existsSync(source.url)) {
+    throw new Error(`RECIPE_DIR=${source.url} does not exist.`);
+  }
+  const dir = fs.mkdtempSync(`${os.tmpdir()}/sdk-walk-recipe-`);
+  try {
+    execFileSync(
+      "git",
+      [
+        "clone",
+        "--quiet",
+        "--depth",
+        "1",
+        "--branch",
+        source.ref,
+        source.url,
+        dir,
+      ],
+      { env, stdio: ["ignore", "pipe", "pipe"] },
+    );
+  } catch (err) {
+    fs.rmSync(dir, { recursive: true, force: true });
+    throw new Error(
+      isPath
+        ? `Cannot clone ${source.ref} from RECIPE_DIR=${source.url} ` +
+            `(${firstLine(err)}). It must be a git checkout with a ` +
+            `${source.ref} branch; RECIPE_GIT_REF names another.`
+        : `Cannot clone ${source.ref} from ${source.url} (${firstLine(err)}). ` +
+            `Point RECIPE_DIR at a local checkout, e.g. ` +
+            `RECIPE_DIR=~/introspection/recipe-harbor-mcp-agent, or make the ` +
+            `URL readable by your git credentials.`,
+    );
+  }
+  const from = isPath ? `RECIPE_DIR=${source.url}` : source.url;
+  const agentFile = `agents/${agent}.yaml`;
+  if (!fs.existsSync(path.join(dir, agentFile))) {
+    fs.rmSync(dir, { recursive: true, force: true });
+    throw new Error(
+      `${from} has no ${agentFile} committed on ${source.ref}; the walk ` +
+        `pushes what is committed there, not the working tree.` +
+        (isPath ? ` Pull ${source.ref} (git -C ${source.url} pull).` : ""),
+    );
+  }
+  try {
+    execFileSync(
+      "npx",
+      [
+        "-y",
+        "-p",
+        "@introspection-ai/cli@latest",
+        "introspection",
+        "check",
+        "--work-dir",
+        dir,
+        "--non-interactive",
+        "-o",
+        "table",
+      ],
+      { env, stdio: ["ignore", "pipe", "pipe"] },
+    );
+  } catch (err) {
+    fs.rmSync(dir, { recursive: true, force: true });
+    const out = err as { stdout?: Buffer; stderr?: Buffer };
+    throw new Error(
+      `The recipe from ${from} at ${source.ref} fails introspection check:\n` +
+        `${out.stdout ?? ""}${out.stderr ?? ""}`.trim(),
+    );
+  }
+  return dir;
+}
+
+/**
+ * Push a recipe prepared by `prepareRecipe` to the walk's hosted `main`, then
+ * remove the clone. The bearer travels in the environment as a git config,
+ * never in argv. Live only; the git transport is a subprocess the recording
+ * cannot see.
  */
 export function pushRecipe(
-  source: { url: string; ref: string },
+  dir: string,
   target: { url: string; bearer: string },
 ): string {
-  const dir = fs.mkdtempSync(`${os.tmpdir()}/sdk-walk-recipe-`);
-  // The source is read with the person's own git config, so a private recipe
-  // clones through their credential helper; the bearer goes to the target only.
-  execFileSync(
-    "git",
-    [
-      "clone",
-      "--quiet",
-      "--depth",
-      "1",
-      "--branch",
-      source.ref,
-      source.url,
-      dir,
-    ],
-    {
-      env: { ...process.env, GIT_TERMINAL_PROMPT: "0" },
-      stdio: ["ignore", "pipe", "pipe"],
-    },
-  );
   const env = {
     ...process.env,
     GIT_TERMINAL_PROMPT: "0",

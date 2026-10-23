@@ -44,6 +44,7 @@ import {
   followAuthorization,
   hasCompleteRecording,
   prompt,
+  prepareRecipe,
   pushRecipe,
   secondTurn,
   raw,
@@ -173,17 +174,25 @@ walk("SDK end-to-end walk", () => {
   let automation: Automation;
   let apiKey: ApiKeyCreated;
   let shareId: string;
+  let recipeDir: string;
 
   beforeAll(() => {
     polly = setupPolly({ recordingName: RECORDING, ordered: true });
     settings = walkSettings(mode);
+    if (mode !== "replay") {
+      recipeDir = prepareRecipe(
+        { url: settings.recipeRepositoryUrl, ref: settings.recipeGitRef },
+        settings.agent,
+      );
+    }
     owner = new IntrospectionClient({
       cpSession: settings.cpSession,
       advanced: { baseApiUrl: settings.baseApiUrl },
     });
-  });
+  }, STEP_TIMEOUT);
 
   afterAll(async () => {
+    if (recipeDir) fs.rmSync(recipeDir, { recursive: true, force: true });
     await polly?.stop();
   }, STEP_TIMEOUT);
 
@@ -548,10 +557,7 @@ walk("SDK end-to-end walk", () => {
         expect(seedRuntime.slug).toBe(WALK.runtimeSlug);
 
         if (mode !== "replay") {
-          pushRecipe(
-            { url: settings.recipeRepositoryUrl, ref: settings.recipeGitRef },
-            { url: created.url!, bearer: memberToken },
-          );
+          pushRecipe(recipeDir, { url: created.url!, bearer: memberToken });
         }
 
         const listed = await sa.repositories.list({
@@ -1625,33 +1631,33 @@ walk("SDK end-to-end walk", () => {
         expect(evalTask.metadata?.suite).toBe("walk");
         expect(stable({ ...evalTask, metadata: undefined }))
           .toMatchInlineSnapshot(`
-          {
-            "agent": {
-              "sandbox_status": "provisioning",
-              "session_id": null,
-            },
-            "automation_id": null,
-            "completed_at": null,
-            "conversation_metadata": null,
-            "created_at": "[timestamp]",
-            "display_index": 5,
-            "id": "[uuid]",
-            "is_archived": false,
-            "kind": "eval",
-            "last_user_message_at": "[timestamp]",
-            "member_id": "[uuid]",
-            "metadata": undefined,
-            "org_id": "[uuid]",
-            "project_id": "[uuid]",
-            "runtime_group_id": "[uuid]",
-            "runtime_id": "[uuid]",
-            "started_at": null,
-            "status": "pending",
-            "tags": [],
-            "title": "Call the \`echo\` tool from the declared \`hello-mcp\` MCP server with the message \`hello from the public MCP\`. Write the echoed value exactly, with no quotes or additional formatting, to \`/workspace/outputs/greeting.txt\`. Then run \`echo $WALK_MARKER\` in…",
-            "updated_at": "[timestamp]",
-          }
-        `);
+            {
+              "agent": {
+                "sandbox_status": "provisioning",
+                "session_id": null,
+              },
+              "automation_id": null,
+              "completed_at": null,
+              "conversation_metadata": null,
+              "created_at": "[timestamp]",
+              "display_index": 5,
+              "id": "[uuid]",
+              "is_archived": false,
+              "kind": "eval",
+              "last_user_message_at": "[timestamp]",
+              "member_id": "[uuid]",
+              "metadata": undefined,
+              "org_id": "[uuid]",
+              "project_id": "[uuid]",
+              "runtime_group_id": "[uuid]",
+              "runtime_id": "[uuid]",
+              "started_at": null,
+              "status": "pending",
+              "tags": [],
+              "title": "Call the \`echo\` tool from the declared \`hello-mcp\` MCP server with the message \`hello from the public MCP\`. Write the echoed value exactly, with no quotes or additional formatting, to \`/workspace/outputs/greeting.txt\`. Then run \`echo $WALK_MARKER\` in…",
+              "updated_at": "[timestamp]",
+            }
+          `);
         // Read the run's stream to its end, then let the row settle: what the
         // trial says is the model's, and the judge grades the trajectory.
         for await (const _ev of sa.tasks.runs.stream(

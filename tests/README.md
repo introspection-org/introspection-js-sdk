@@ -90,11 +90,17 @@ RECIPE_DIR=~/introspection/recipe-harbor-mcp-agent pnpm test:walk:record
 
 # Live without touching the recording, for checking a stack
 RECIPE_DIR=~/introspection/recipe-harbor-mcp-agent pnpm test:walk:live
+
+# The Node SDK's line coverage from the walk alone (coverage/walk/index.html);
+# the replay reaches the same SDK code a record does. Add POLLY_MODE=record
+# and -u to measure while recording.
+pnpm test:walk:cov
 ```
 
 A live run reads `~/.introspection/credentials.json` (or the file
 `INTROSPECTION_CREDENTIALS` names), pushes the recipe at the head of `main`
-(`RECIPE_GIT_REF` overrides), runs inside the project the login chose (the
+(`RECIPE_GIT_REF` overrides) after checking it with `introspection check`,
+runs inside the project the login chose (the
 project stays; everything the walk makes under its fixed names is removed
 first and after), and must be the only walk in that project. Scan the
 recording for credentials before committing it.
