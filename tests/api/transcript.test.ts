@@ -60,7 +60,8 @@ function chatSpan(overrides: Partial<GenAiSpan> = {}): GenAiSpan {
         },
       },
       introspection: {
-        conversation: { position: 0, client_message_id: "cmid-1" },
+        turn: 1,
+        history: { position: 1, is_new: true },
       },
     },
     ...overrides,
@@ -159,8 +160,7 @@ describe("foldSpans", () => {
     const [user, assistant, tool, delegation, followUp] = entries;
     expect(user).toMatchObject({
       role: "user",
-      id: "cmid-1",
-      clientMessageId: "cmid-1",
+      id: "span:span-chat-1:user:0",
       text: "find react devs",
     });
     // One entry despite three sources (execute_tool span, tool_call output

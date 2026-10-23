@@ -10,7 +10,10 @@
  */
 import "server-only";
 
-import { IntrospectionClient } from "@introspection-sdk/introspection-node";
+import {
+  IntrospectionClient,
+  foldSpans,
+} from "@introspection-sdk/introspection-node";
 
 import { clearInbox, inbox } from "../acme/mail";
 import { approvalSummary, missions } from "../acme/approvals";
@@ -493,24 +496,34 @@ export async function stop() {
   r.streaming = false;
 }
 
-/** The conversation so far, from its turns in Introspection, oldest first, with when each line was said. */
+/** The conversation so far, from the items that carry text in Introspection, oldest first, with when each line was said. */
 async function history(runner: Runner, taskId: string) {
-  const turns = [];
-  for await (const turn of runner.conversations.turns(taskId, { limit: 100 }))
-    turns.push(turn);
+  const spans = [];
+  for await (const span of runner.conversations.items.list(taskId, {
+    agent: "root",
+    limit: 100,
+    contains: [
+      "gen_ai.input.messages.role:user",
+      "gen_ai.output.messages.parts.type:text",
+    ],
+  }))
+    spans.push(span);
+  const startedAt = new Map(
+    spans.map((span) => [span.span_id, span.start_time]),
+  );
   return (
-    turns
-      .sort((a, b) => a.started_at.localeCompare(b.started_at))
-      .flatMap((turn) =>
-        turn.messages.map((message) => ({
-          from: message.role === "user" ? ("Sam" as const) : ("Agent" as const),
-          text: message.parts
-            .map((part) =>
-              part.type === "text" && "content" in part ? part.content : "",
-            )
-            .join(""),
-          at: message.created_at,
-        })),
+    foldSpans(spans)
+      .flatMap((entry) =>
+        entry.kind === "message"
+          ? [
+              {
+                from:
+                  entry.role === "user" ? ("Sam" as const) : ("Agent" as const),
+                text: entry.text,
+                at: startedAt.get(entry.spanId ?? "") ?? "",
+              },
+            ]
+          : [],
       )
       // The platform resumes the agent with a `[platform]` message of its own,
       // which the live chat never shows.

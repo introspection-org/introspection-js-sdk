@@ -22,10 +22,9 @@ export type TranscriptStatus = "running" | "complete" | "error";
  * A rendered chat message.
  *
  * `id` is stable across transports where the wire allows it: a stored
- * assistant message prefers `gen_ai.response.id`, a stored user message
- * prefers `introspection.conversation.client_message_id`, and otherwise the
- * id is synthesized from span identity (`span:{span_id}:...`) so re-folding
- * the same data can never mint a second id for the same entry.
+ * assistant message prefers `gen_ai.response.id`, and otherwise the id is
+ * synthesized from span identity (`span:{span_id}:...`) so re-folding the
+ * same data can never mint a second id for the same entry.
  */
 export interface TranscriptMessageEntry {
   kind: "message";
@@ -38,8 +37,6 @@ export interface TranscriptMessageEntry {
   thinking?: string;
   /** `gen_ai.response.id` correlation key, when known. */
   responseId?: string;
-  /** `introspection.conversation.client_message_id`, when known. */
-  clientMessageId?: string;
   /** Span the entry was folded from (stored transport only). */
   spanId?: string;
 }

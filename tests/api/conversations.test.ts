@@ -6,6 +6,8 @@ import {
 } from "@introspection-sdk/introspection-node";
 import type {
   Conversation,
+  ConversationContains,
+  ConversationItemListParams,
   GenAiSpan,
   GenAiSpanList,
   Trajectory,
@@ -25,11 +27,12 @@ const SUMMARY_FIXTURE: Conversation = {
   task_title: "Map Australian fintech leaders",
   created_at: "2025-01-01T00:00:00Z",
   updated_at: "2025-01-01T00:00:05Z",
-  usage: { input_tokens: 10, output_tokens: 20, total_tokens: 30 },
+  usage: { total_input_tokens: 10, output_tokens: 20, total_tokens: 30 },
   cost: { usd: 0.01 },
   metrics: {
     duration_ms: 5_000,
     trace_count: 1,
+    max_turn: 1,
     span_count: 3,
     tool_use_count: 0,
     failed_tool_use_count: 0,
@@ -249,6 +252,85 @@ describe("ConversationsApi", () => {
       query: { include: ["events", "resource_attributes"] },
     });
     expect(items).toHaveLength(1);
+  });
+
+  describe("items.list() contains", () => {
+    // Real HttpClient over a fetch stub: asserts the exact query string the
+    // server parses, with no LLM call involved.
+    function fetchingApi() {
+      const fetchImpl = vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        headers: new Headers({ "content-type": "application/json" }),
+        json: () => Promise.resolve(makePage([makeSpan("span-1")], false)),
+      });
+      const http = new HttpClient({
+        apiUrl: "https://api.example.com",
+        token: "test-token",
+        fetch: fetchImpl as unknown as typeof fetch,
+      });
+      return { api: new ConversationsApi(http), fetchImpl };
+    }
+
+    async function requestedQuery(contains: ConversationContains[]) {
+      const { api, fetchImpl } = fetchingApi();
+      for await (const _item of api.items.list("conv-1", {
+        agent: "root",
+        contains,
+      })) {
+        // drain
+      }
+      const url = new URL(fetchImpl.mock.calls[0][0] as string);
+      return url.searchParams;
+    }
+
+    it("sends each value as a repeated contains param", async () => {
+      const q = await requestedQuery([
+        "gen_ai.input.messages.role:user",
+        "gen_ai.output.messages.parts.type:text",
+      ]);
+      expect(q.getAll("contains")).toEqual([
+        "gen_ai.input.messages.role:user",
+        "gen_ai.output.messages.parts.type:text",
+      ]);
+      expect(q.get("agent")).toBe("root");
+    });
+
+    it("passes a trailing * prefix wildcard on the name paths through verbatim", async () => {
+      const wildcards: ConversationContains[] = [
+        "gen_ai.output.messages.parts.name:mcp_browserbase_*",
+        "gen_ai.input.messages.parts.name:mcp_*",
+        "gen_ai.tool.name:mcp_*",
+        "gen_ai.operation.name:invoke_*",
+        "gen_ai.output.messages.parts.name:*",
+      ];
+      const q = await requestedQuery(wildcards);
+      expect(q.getAll("contains")).toEqual(wildcards);
+    });
+
+    it("filters by operation through contains, with no operation_name param", async () => {
+      const q = await requestedQuery(["gen_ai.operation.name:invoke_agent"]);
+      expect(q.getAll("contains")).toEqual([
+        "gen_ai.operation.name:invoke_agent",
+      ]);
+      expect(q.has("operation_name")).toBe(false);
+    });
+
+    it("types reject operation_name on the items list params", () => {
+      const params: ConversationItemListParams = {
+        // @ts-expect-error -- removed: use contains=gen_ai.operation.name:<op>
+        operation_name: "chat",
+      };
+      expect(params).toBeDefined();
+    });
+
+    it("types reject a value outside the closed path set", () => {
+      // @ts-expect-error -- role is closed to `user`
+      const role: ConversationContains = "gen_ai.input.messages.role:assistant";
+      // @ts-expect-error -- not a supported semconv path
+      const path: ConversationContains = "gen_ai.request.model:claude*";
+      expect([role, path]).toHaveLength(2);
+    });
   });
 
   it("items.list() drives the opaque next cursor while has_more, then stops", async () => {

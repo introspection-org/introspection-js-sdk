@@ -172,6 +172,19 @@ const bytes = await client.files.download(page.records[0].id);
 for await (const summary of client.conversations.list()) {
   console.log(summary.conversation_id);
 }
+// Only the items a chat view renders, selected before anything is decrypted:
+// user input, assistant text, and calls to any Browserbase MCP tool (a name
+// value may end in one `*` to match by prefix)
+for await (const item of client.conversations.items.list(conversationId, {
+  agent: "root",
+  contains: [
+    "gen_ai.input.messages.role:user",
+    "gen_ai.output.messages.parts.type:text",
+    "gen_ai.output.messages.parts.name:mcp_browserbase_*",
+  ],
+})) {
+  console.log(item.attributes.introspection?.contains?.values);
+}
 // Resolve the latest turn of a conversation (Responses-API shape)
 const turn = await client.conversations.retrieve(conversationId);
 console.log(turn?.output_messages);
