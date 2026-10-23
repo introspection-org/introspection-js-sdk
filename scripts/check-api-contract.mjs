@@ -23,20 +23,22 @@
  * staging deploy and posts state changes to #main-build-alerts.
  *
  * Exit 1 is drift, 2 a reference that could not be read (any HTTP error,
- * including 404, a network failure or a body that is not JSON) or a data
- * plane URL that is not set. Only a run that read both references writes
- * `--out`, so a failed read changes no recorded state and posts nothing.
+ * including 404, a network failure or a body that is not JSON) or a plane
+ * URL that is not set. Only a run that read both references writes `--out`,
+ * so a failed read changes no recorded state and posts nothing.
  *
- * Run: STAGING_DP_URL=<data plane base URL> node scripts/check-api-contract.mjs
+ * Run: INTROSPECTION_CP_URL=<control plane base URL> \
+ *      INTROSPECTION_DP_URL=<data plane base URL> \
+ *        node scripts/check-api-contract.mjs
  *        [--pr] [--out DIR] [--dataplane URL|PATH] [--controlplane URL|PATH]
  *      --out DIR  also writes the findings to DIR/report.txt and red|green to
  *                 DIR/state
  * env: API_CONTRACT_DATAPLANE, API_CONTRACT_CONTROLPLANE  the same, for a flag
  *      left out
- *      STAGING_DP_URL  the staging data plane's base URL, whose /openapi.json
- *                      is the data plane reference when neither of the above
- *                      names one (the control plane's is
- *                      https://api.staging.introspection.dev/openapi.json)
+ *      INTROSPECTION_CP_URL, INTROSPECTION_DP_URL  each plane's base URL,
+ *          whose /openapi.json is its reference when neither of the above
+ *          names one. CI takes them from introspection-cloud's
+ *          api-reference-deployed event (scripts/api-reference-urls.sh).
  */
 import {
   existsSync,
@@ -53,7 +55,6 @@ import ts from "typescript";
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 /** The client name this SDK goes by in `x-introspection.clients`. */
 const CLIENT = "sdk";
-const STAGING = "https://api.staging.introspection.dev";
 
 const PACKAGES = resolve(ROOT, "packages");
 const PLANE_NAMES = { dp: "dataplane", cp: "controlplane" };
@@ -68,25 +69,29 @@ function arg(name) {
   return flag === -1 ? undefined : process.argv[flag + 1];
 }
 
-/** Each plane's staging base URL; the data plane's has no fixed host. */
-const STAGING_BASES = {
-  controlplane: () => STAGING,
-  dataplane: () => {
-    const base = process.env.STAGING_DP_URL?.trim().replace(/\/+$/, "");
-    if (!base) {
-      throw new Error(
-        "STAGING_DP_URL is not set: set it to the staging data plane's base URL (the STAGING_DP_URL GitHub Actions variable), or pass --dataplane",
-      );
-    }
-    return base;
-  },
+/** The variable holding each plane's base URL; neither has a fixed host. */
+const BASE_URL_VARS = {
+  controlplane: "INTROSPECTION_CP_URL",
+  dataplane: "INTROSPECTION_DP_URL",
 };
 
-/** `--<plane>`, else `API_CONTRACT_<PLANE>`, else staging's `/openapi.json`. */
+/** Each plane's base URL; a missing one throws. */
+function baseUrl(plane) {
+  const name = BASE_URL_VARS[plane];
+  const base = process.env[name]?.trim().replace(/\/+$/, "");
+  if (!base) {
+    throw new Error(
+      `${name} is not set: set it to the staging ${plane}'s base URL, or pass --${plane}`,
+    );
+  }
+  return base;
+}
+
+/** `--<plane>`, else `API_CONTRACT_<PLANE>`, else the base URL's `/openapi.json`. */
 const referenceSource = (plane) =>
   arg(`--${plane}`) ||
   process.env[`API_CONTRACT_${plane.toUpperCase()}`] ||
-  `${STAGING_BASES[plane]()}/openapi.json`;
+  `${baseUrl(plane)}/openapi.json`;
 
 const listing = (items) =>
   [...items]

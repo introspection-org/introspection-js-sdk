@@ -3,11 +3,18 @@
 # for the SDK that it never calls, and the routes it calls that staging does
 # not have. introspection-cloud sends the api-reference-deployed event after
 # each staging deploy of either plane, with the cloud commit in
-# client_payload.sha and the plane (cp or dp) in client_payload.plane. Both
+# client_payload.sha, the plane (cp or dp) in client_payload.plane and both
+# planes' base URLs in client_payload.cp_url and client_payload.dp_url. Both
 # planes are checked either way.
 #
-# The data plane has no fixed host: its base URL comes from the org variable
-# STAGING_DP_URL, and the check fails when it is not set.
+# Neither plane has a fixed host here. A dispatched run takes the URLs from
+# its payload and, once it has read both references, saves them in the
+# Actions cache (api-reference-urls-*, next to api-drift-state-*). A manual
+# run takes the cp_url and dp_url inputs; each one left empty, and every
+# pull request run in ci.yml, comes from the newest saved pair. With none
+# saved yet the run fails and says so: run introspection-cloud's "API
+# Reference Deployed" workflow by hand, which dispatches here and refills the
+# cache, or pass both inputs.
 #
 # A reference that cannot be read (404 included) fails the run but writes no
 # state, so the steps after the check skip: nothing is posted and the recorded
@@ -34,6 +41,14 @@ on:
         description: Post to Slack on a state change, as a deploy-triggered run does. Off prints the message instead.
         type: boolean
         default: false
+      cp_url:
+        description: Control plane base URL. Empty takes the one the last deploy-triggered run saved.
+        type: string
+        default: ""
+      dp_url:
+        description: Data plane base URL. Empty takes the one the last deploy-triggered run saved.
+        type: string
+        default: ""
 
 permissions:
   contents: read
@@ -63,12 +78,25 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      # The URLs the last deploy-triggered run saved, newest first by prefix.
+      - name: Restore the staging reference URLs
+        uses: actions/cache/restore@v5
+        with:
+          path: .api-reference-urls
+          key: api-reference-urls-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: api-reference-urls-
+
+      - name: Pick the staging reference URLs
+        env:
+          URLS_DIR: .api-reference-urls
+          CP_URL: ${{ github.event.client_payload.cp_url || inputs.cp_url }}
+          DP_URL: ${{ github.event.client_payload.dp_url || inputs.dp_url }}
+        run: scripts/api-reference-urls.sh
+
       # A reference that could not be read writes no state: the steps below
       # then skip, so the run is red but posts nothing and records no state.
       - name: Check the SDK routes
         id: check
-        env:
-          STAGING_DP_URL: ${{ vars.STAGING_DP_URL }}
         run: |
           status=0
           node scripts/check-api-contract.mjs --out "${RUNNER_TEMP}/api-contract" || status=$?
@@ -78,6 +106,15 @@ jobs:
           fi
           # 1 is drift, reported below; 2 is a reference that could not be read.
           [ "${status}" -le 1 ]
+
+      # Only a deploy-triggered run that read both references records its
+      # URLs, so a bad payload never replaces a working pair.
+      - name: Save the staging reference URLs
+        if: github.event_name == 'repository_dispatch' && steps.check.outputs.checked == 'true'
+        uses: actions/cache/save@v5
+        with:
+          path: .api-reference-urls
+          key: api-reference-urls-${{ github.run_id }}-${{ github.run_attempt }}
 
       # The state of the last real post. Caches are immutable, so each post
       # saves under a new key and the newest one is restored by prefix.

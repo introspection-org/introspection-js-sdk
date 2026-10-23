@@ -70,15 +70,47 @@ jobs:
       - name: Test the API contract scripts
         run: pnpm test:api-contract
 
-      # The routes the SDK calls against the staging references (each plane's
-      # /openapi.json; the data plane's base URL is the STAGING_DP_URL org
-      # variable). A route staging does not have fails; an operation for every
-      # client or the SDK that it never calls is only listed in the job
-      # summary (api-contract.yml alerts on those after each staging deploy).
-      # A reference that cannot be read, 404 included, fails.
-      - name: Check the SDK routes against staging
+  # The routes the SDK calls against the staging references (each plane's
+  # /openapi.json, at the URLs the last deploy-triggered api-contract.yml run
+  # saved in the Actions cache). A route staging does not have fails; an
+  # operation for every client or the SDK that it never calls is only listed
+  # in the job summary (api-contract.yml alerts on those after each staging
+  # deploy). No saved URLs, or a reference that cannot be read, 404 included,
+  # fails.
+  api-routes:
+    name: SDK routes vs staging reference
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: "pnpm"
+
+      # Only the TypeScript compiler is needed, to find the routes the SDK
+      # calls — the packages themselves are never built.
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # A pull request reads main's caches, where api-contract.yml saves them.
+      - name: Restore the staging reference URLs
+        uses: actions/cache/restore@v5
+        with:
+          path: .api-reference-urls
+          key: api-reference-urls-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: api-reference-urls-
+
+      - name: Pick the staging reference URLs
         env:
-          STAGING_DP_URL: ${{ vars.STAGING_DP_URL }}
+          URLS_DIR: .api-reference-urls
+        run: scripts/api-reference-urls.sh
+
+      - name: Check the SDK routes against staging
         run: |
           status=0
           node scripts/check-api-contract.mjs --pr --out "${RUNNER_TEMP}/api-contract" || status=$?
@@ -183,6 +215,7 @@ jobs:
       - secrets-scan
       - lint-actions
       - lint
+      - api-routes
       - knip
       - duplication
       - test

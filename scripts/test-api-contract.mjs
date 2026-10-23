@@ -9,8 +9,10 @@
  *   With `--pr` the listed ones do not fail; without it, they fail. A route
  *   missing from the references fails either way.
  * - `/health` in both planes is not an ambiguous route.
- * - The data plane reference is `$STAGING_DP_URL/openapi.json`; with neither
- *   it nor an override set, the check exits 2 and names the variable.
+ * - Each plane's reference is `$INTROSPECTION_<CP|DP>_URL/openapi.json`; with
+ *   neither it nor an override set, the check exits 2 and names the variable.
+ * - scripts/api-reference-urls.sh takes the URLs given over the recorded ones,
+ *   records them, and fails when neither is there.
  * - Any failure reading a reference, 404 included, exits 2 without a state.
  * - The first red run, with no state recorded yet, posts once and records
  *   red; the next red run stays quiet.
@@ -46,7 +48,7 @@ const server = createServer((req, res) => {
     res.writeHead(200).end("ok");
     return;
   }
-  // /<mode>/<plane>.json, or /<mode>/openapi.json for STAGING_DP_URL
+  // /<mode>/<plane>.json, or /<mode>/openapi.json for INTROSPECTION_*_URL
   const [, mode] = req.url.split("/");
   if (mode === "500") res.writeHead(500).end("Internal Server Error");
   else if (mode === "bad") res.writeHead(200).end("<html>not json</html>");
@@ -140,28 +142,78 @@ expect(
   full.output,
 );
 
-const fromDpUrl = await check(undefined, ["--pr"], {
+const noOverrides = {
   API_CONTRACT_DATAPLANE: "",
-  API_CONTRACT_CONTROLPLANE: `${base}/health/controlplane.json`,
-  STAGING_DP_URL: `${base}/ok/`,
+  API_CONTRACT_CONTROLPLANE: "",
+};
+const fromBaseUrls = await check(undefined, ["--pr"], {
+  ...noOverrides,
+  INTROSPECTION_CP_URL: `${base}/health`,
+  INTROSPECTION_DP_URL: `${base}/ok/`,
 });
 expect(
-  "the data plane reference is $STAGING_DP_URL/openapi.json",
-  fromDpUrl.status === 0 &&
-    fromDpUrl.output.includes(`${base}/ok/openapi.json`),
-  fromDpUrl.output,
+  "each reference is $INTROSPECTION_<CP|DP>_URL/openapi.json",
+  fromBaseUrls.status === 0 &&
+    fromBaseUrls.output.includes(`${base}/ok/openapi.json`) &&
+    fromBaseUrls.output.includes(`${base}/health/openapi.json`),
+  fromBaseUrls.output,
 );
-const noDpUrl = await check(undefined, [], {
-  API_CONTRACT_DATAPLANE: "",
-  API_CONTRACT_CONTROLPLANE: `${base}/health/controlplane.json`,
-  STAGING_DP_URL: "",
+for (const name of ["INTROSPECTION_CP_URL", "INTROSPECTION_DP_URL"]) {
+  const unset = await check(undefined, [], {
+    ...noOverrides,
+    INTROSPECTION_CP_URL: `${base}/health`,
+    INTROSPECTION_DP_URL: `${base}/ok`,
+    [name]: "",
+  });
+  expect(
+    `an unset ${name} exits 2 and names it`,
+    unset.status === 2 &&
+      !unset.state &&
+      unset.output.includes(`${name} is not set`),
+    unset.output,
+  );
+}
+
+const urlsDir = mkdtempSync(resolve(tmpdir(), "api-reference-urls-"));
+const urls = (env) =>
+  run("scripts/api-reference-urls.sh", [], {
+    URLS_DIR: urlsDir,
+    GITHUB_ENV: "",
+    CP_URL: "",
+    DP_URL: "",
+    ...env,
+  });
+const recorded = (name) => readFileSync(resolve(urlsDir, name), "utf8").trim();
+const miss = await urls({});
+expect(
+  "with no URLs given or recorded, the resolver fails and says how to record them",
+  miss.status === 1 && miss.output.includes("No staging reference URLs"),
+  miss.output,
+);
+const given = await urls({
+  CP_URL: "https://cp.test",
+  DP_URL: "https://dp.test",
 });
 expect(
-  "an unset STAGING_DP_URL exits 2 and names it",
-  noDpUrl.status === 2 &&
-    !noDpUrl.state &&
-    noDpUrl.output.includes("STAGING_DP_URL is not set"),
-  noDpUrl.output,
+  "the resolver records the URLs it is given",
+  given.status === 0 &&
+    recorded("cp_url") === "https://cp.test" &&
+    recorded("dp_url") === "https://dp.test",
+  given.output,
+);
+const mixed = await urls({ DP_URL: "https://dp2.test" });
+expect(
+  "a URL not given comes from the recorded pair",
+  mixed.status === 0 &&
+    mixed.output.includes("control plane: https://cp.test") &&
+    recorded("dp_url") === "https://dp2.test",
+  mixed.output,
+);
+const notUrl = await urls({ CP_URL: "https://cp.test\nEVIL=1" });
+expect(
+  "a URL that is not one line of http(s) fails",
+  notUrl.status === 1 && recorded("cp_url") === "https://cp.test",
+  notUrl.output,
 );
 
 for (const modes of [
