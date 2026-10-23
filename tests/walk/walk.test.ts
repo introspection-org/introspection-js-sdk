@@ -859,10 +859,12 @@ walk("SDK end-to-end walk", () => {
           name: `${WALK.connectorName} (walk)`,
         });
         expect(updated.name).toBe(`${WALK.connectorName} (walk)`);
-        // The provider's catalogue for this connector, and the open MCP
-        // registry a custom connector is picked from.
-        const apps = await sa.connectors.listApps(connector.id, { limit: 5 });
-        expect(Array.isArray(apps)).toBe(true);
+        // Only an aggregator connector (Pipedream) has an app catalogue; an
+        // MCP server's is refused. The open MCP registry is what a custom
+        // connector is picked from.
+        await expect(
+          sa.connectors.listApps(connector.id, { limit: 5 }),
+        ).rejects.toBeInstanceOf(ValidationError);
         const registry = await sa.connectors.searchCustomApps({
           q: "echo",
           limit: 5,
