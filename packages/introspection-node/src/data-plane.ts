@@ -1,10 +1,12 @@
 import {
+  ApprovalsApi,
   AutomationsApi,
   ConversationsApi,
   EventsApi,
   FilesApi,
   ImagesApi,
   MetricsApi,
+  MissionsApi,
   SharesApi,
   TasksApi,
 } from "@introspection-sdk/http";
@@ -29,6 +31,10 @@ export interface DataPlaneResources {
   readonly events: EventsApi;
   readonly metrics: MetricsApi;
   readonly shares: SharesApi;
+  /** The hosted Person Server's approvals (`/v1/aauth/approvals`). */
+  readonly approvals: ApprovalsApi;
+  /** The missions the hosted Person Server approved (`/v1/aauth/missions`). */
+  readonly missions: MissionsApi;
   readonly automations: AutomationsApi;
   /** `/v1/images`, what an eval task's compose services run as. */
   readonly images: ImagesApi;
@@ -71,6 +77,8 @@ export class DataPlaneClient implements DataPlaneResources {
   readonly files: FilesApi;
   readonly conversations: ConversationsApi;
   readonly shares: SharesApi;
+  readonly approvals: ApprovalsApi;
+  readonly missions: MissionsApi;
   readonly events: EventsApi;
   readonly metrics: MetricsApi;
   /** `/v1/automations`; needs `automations:read` / `automations:write`. */
@@ -104,6 +112,8 @@ export class DataPlaneClient implements DataPlaneResources {
     this.files = new FilesApi(this.http);
     this.conversations = new ConversationsApi(this.http);
     this.shares = new SharesApi(this.http);
+    this.approvals = new ApprovalsApi(this.http);
+    this.missions = new MissionsApi(this.http);
     this.events = new EventsApi(this.http);
     this.metrics = new MetricsApi(this.http);
     this.automations = new AutomationsApi(this.http);

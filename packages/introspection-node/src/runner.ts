@@ -7,11 +7,13 @@ import {
   type Uuid,
 } from "@introspection-sdk/types";
 import {
+  ApprovalsApi,
   ConversationsApi,
   EventsApi,
   FilesApi,
   ImagesApi,
   MetricsApi,
+  MissionsApi,
   SharesApi,
   TasksApi,
   toRunRequestBody,
@@ -35,8 +37,8 @@ export type RunnerSource =
  * Live handle to a Data Plane sandbox. Holds the bearer JWT, the DP
  * endpoint URL, and the runtime/experiment context, and exposes the
  * runner-bound Data Plane namespaces ({@link DataPlaneResources}: `tasks`,
- * `files`, `conversations`, `events`, `metrics`, `shares`, `automations`,
- * `images` and `connections`), which send the runner's bearer and use its
+ * `files`, `conversations`, `events`, `metrics`, `shares`, `approvals`,
+ * `missions`, `automations`, `images` and `connections`), which send the runner's bearer and use its
  * runtime context.
  *
  * A runner a member opens for themself carries `automations:read` and
@@ -54,12 +56,15 @@ export class Runner implements DataPlaneResources {
   private closed = false;
 
   // Public API surfaces.
+  // jscpd:ignore-start -- field declarations of the resource namespaces
   readonly tasks: TasksApi;
   readonly files: FilesApi;
   readonly conversations: ConversationsApi;
   readonly events: EventsApi;
   readonly metrics: MetricsApi;
   readonly shares: SharesApi;
+  readonly approvals: ApprovalsApi;
+  readonly missions: MissionsApi;
   /** CRUD on `/v1/automations` plus `trigger(id)`, on the runner's token. */
   readonly automations: AutomationsApi;
   /** `/v1/images`, on the runner's token. */
@@ -69,6 +74,7 @@ export class Runner implements DataPlaneResources {
    * runtime group.
    */
   readonly connections: AppConnectionsApi;
+  // jscpd:ignore-end
 
   constructor(
     private readonly client: IntrospectionClient,
@@ -83,6 +89,8 @@ export class Runner implements DataPlaneResources {
     this.events = new EventsApi(this.guardedHttp());
     this.metrics = new MetricsApi(this.guardedHttp());
     this.shares = new SharesApi(this.guardedHttp());
+    this.approvals = new ApprovalsApi(this.guardedHttp());
+    this.missions = new MissionsApi(this.guardedHttp());
     this.automations = new AutomationsApi(this.guardedHttp());
     this.images = new ImagesApi(this.guardedHttp());
     this.connections = new AppConnectionsApi(

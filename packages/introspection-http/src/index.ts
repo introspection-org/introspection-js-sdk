@@ -75,6 +75,12 @@ export {
 } from "./resources/reads.js";
 export type { ListReadParams } from "./resources/reads.js";
 export { SharesApi, SharesClient } from "./resources/shares.js";
+export {
+  ApprovalsApi,
+  ApprovalsClient,
+  MissionsApi,
+  MissionsClient,
+} from "./resources/aauth.js";
 export { CollectionClient } from "./resources/collection.js";
 export { ImagesApi, ImagesClient } from "./resources/images.js";
 export { AutomationsApi, AutomationsClient } from "./resources/automations.js";

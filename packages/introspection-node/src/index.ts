@@ -54,6 +54,7 @@ export type {
 // Runner-bound REST namespaces (runner.tasks, runner.files,
 // runner.conversations) + HTTP.
 export {
+  ApprovalsApi,
   ConversationItemsApi,
   ConversationsApi,
   EventsApi,
@@ -62,6 +63,7 @@ export {
   ImagesApi,
   MAX_COMMAND_WAIT_SECONDS,
   MetricsApi,
+  MissionsApi,
   RunHandle,
   SharesApi,
   TaskCommandsApi,
