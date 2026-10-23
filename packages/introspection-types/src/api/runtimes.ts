@@ -11,6 +11,18 @@ import type { CursorParams, IsoDate, Uuid } from "./common.js";
  */
 export type RuntimeLlmMode = "managed" | "byok";
 
+/** One declared MCP server requirement resolved for one Runtime environment. */
+export interface RuntimeMcpRequirement {
+  slug?: string | null;
+  mcp_server_id?: string;
+  state: string;
+  url_source?: string | null;
+  endpoint_id?: Uuid | null;
+  connector_id?: Uuid | null;
+  connection_id?: Uuid | null;
+  [key: string]: unknown;
+}
+
 export interface Runtime {
   id: Uuid;
   org_id: Uuid;
@@ -36,6 +48,17 @@ export interface Runtime {
    */
   environment_ref?: Record<string, string> | null;
   metadata?: Record<string, unknown> | null;
+  /** The group this version belongs to; versions share a slug within it. */
+  runtime_group_id?: Uuid;
+  recipe_kind?: string;
+  recipe_ref?: string;
+  environments?: string[];
+  /** The bake: `pending`, `queued`, `baking`, `ready` or `failed`. */
+  image_build_status?: string;
+  image_build_error_message?: string | null;
+  image_build_metadata?: Record<string, unknown> | null;
+  /** Every declared MCP server resolved for the environment, non-secret. */
+  mcp_requirements?: RuntimeMcpRequirement[] | null;
 }
 
 export interface RuntimeListParams extends CursorParams {

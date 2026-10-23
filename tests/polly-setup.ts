@@ -20,7 +20,7 @@ Polly.register(FetchAdapter);
 Polly.register(NodeHTTPAdapter);
 Polly.register(FSPersister);
 
-type PollyMode = "record" | "replay" | "passthrough";
+export type PollyMode = "record" | "replay" | "passthrough";
 
 // Cassette scrubbing: credential-bearing headers are redacted before a
 // recording is written, so cassettes stay committable.
@@ -80,7 +80,7 @@ interface SetupPollyOptions {
   adapters?: ("fetch" | "node-http")[];
 }
 
-function getPollyMode(): PollyMode {
+export function getPollyMode(): PollyMode {
   const mode = (process.env.POLLY_MODE || "replay") as PollyMode;
   if (mode !== "record" && mode !== "replay" && mode !== "passthrough") {
     throw new Error(
