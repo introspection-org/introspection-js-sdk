@@ -20,6 +20,7 @@ import {
   ConversationsApi,
   EventsApi,
   FilesApi,
+  ImagesApi,
   MetricsApi,
   SharesApi,
   TasksApi,
@@ -58,6 +59,13 @@ import {
   type RepositoriesApi,
 } from "./resources/repositories.js";
 import { AppConnectionsApi } from "./resources/app-connections.js";
+import { ProjectsApi } from "./resources/projects.js";
+import { ApiKeysApi } from "./resources/api-keys.js";
+import { ApplicationsApi } from "./resources/applications.js";
+import { CredentialsApi, VariablesApi } from "./resources/runtime-settings.js";
+import { IntegrationsApi } from "./resources/integrations.js";
+import { JudgesApi } from "./resources/judges.js";
+import { OidcApi } from "./resources/oidc.js";
 import type { DataPlaneResources } from "./data-plane.js";
 import { DEV_TARGET_HEADER, resolveDevTarget } from "./dev-target.js";
 
@@ -134,6 +142,35 @@ export class IntrospectionClient implements DataPlaneResources {
    */
   readonly repositories: RepositoriesApi;
 
+  // The project-administration namespaces below need an org credential (a
+  // member's Control Plane session or access token); a project API key
+  // carries none of their scopes. Their project-scoped methods take an
+  // optional `project` (slug or id) for a credential that names none.
+
+  /** Reads on `/v1/projects`, by slug or id. */
+  readonly projects: ProjectsApi;
+
+  /** `/v1/api-keys`, plus `apiKeys.acknowledge(id)`. */
+  readonly apiKeys: ApiKeysApi;
+
+  /** `/v1/applications`, with `.idps`, `.secrets` and `.keys`. */
+  readonly applications: ApplicationsApi;
+
+  /** `/v1/credentials`; the secret is write-only. */
+  readonly credentials: CredentialsApi;
+
+  /** `/v1/variables`. */
+  readonly variables: VariablesApi;
+
+  /** The org's provider installs on `/v1/integrations`. */
+  readonly integrations: IntegrationsApi;
+
+  /** Read judges and change whether and how often they run (`/v1/judges`). */
+  readonly judges: JudgesApi;
+
+  /** `oidc.me()`: who the credential signs in as. */
+  readonly oidc: OidcApi;
+
   /** Read folded span annotations and append one annotation mutation. */
   readonly annotations: AnnotationsApi;
 
@@ -161,6 +198,9 @@ export class IntrospectionClient implements DataPlaneResources {
 
   /** `/v1/shares` sharing grants (Data Plane). */
   readonly shares: SharesApi;
+
+  /** `/v1/images` (Data Plane), what eval compose services run as. */
+  readonly images: ImagesApi;
 
   /**
    * CRUD on `/v1/connections` (Data Plane), the apps members connected for
@@ -229,8 +269,17 @@ export class IntrospectionClient implements DataPlaneResources {
     this.recipes = attachRecipes(this.cpHttp);
     this.connectors = attachConnectors(this.cpHttp);
     this.members = attachMembers(this.cpHttp);
+    this.projects = new ProjectsApi(this.cpHttp);
+    this.apiKeys = new ApiKeysApi(this.cpHttp);
+    this.applications = new ApplicationsApi(this.cpHttp);
+    this.credentials = new CredentialsApi(this.cpHttp);
     this.automations = attachAutomations(this.dpHttp);
+    this.images = new ImagesApi(this.dpHttp);
     this.repositories = attachRepositories(this.cpHttp, this.dpHttp);
+    this.variables = new VariablesApi(this.cpHttp);
+    this.integrations = new IntegrationsApi(this.cpHttp);
+    this.judges = new JudgesApi(this.cpHttp);
+    this.oidc = new OidcApi(this.cpHttp);
     this.annotations = attachAnnotations(this.cpHttp, this.dpHttp);
     this.tags = attachTags(this.dpHttp);
     this.events = new EventsApi(this.dpHttp);
