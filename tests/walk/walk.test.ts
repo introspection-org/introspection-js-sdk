@@ -856,6 +856,15 @@ walk("SDK end-to-end walk", () => {
           name: `${WALK.connectorName} (walk)`,
         });
         expect(updated.name).toBe(`${WALK.connectorName} (walk)`);
+        // The provider's catalogue for this connector, and the open MCP
+        // registry a custom connector is picked from.
+        const apps = await sa.connectors.listApps(connector.id, { limit: 5 });
+        expect(Array.isArray(apps)).toBe(true);
+        const registry = await sa.connectors.searchCustomApps({
+          q: "echo",
+          limit: 5,
+        });
+        expect(Array.isArray(registry)).toBe(true);
       });
     },
     STEP_TIMEOUT,
@@ -1102,6 +1111,19 @@ walk("SDK end-to-end walk", () => {
         expect(stable(requirements.mcp_requirements)).toMatchInlineSnapshot(
           `[]`,
         );
+
+        // Registered mode: a connection from a token the caller already holds,
+        // for one user beside the app's own grant; read, then revoked.
+        const registered = await sa.connectors.connections.create(
+          connector.id,
+          { access_token: "walk-registered-token", subject_type: "user" },
+        );
+        const reread = await sa.connectors.connections.get(
+          connector.id,
+          registered.id,
+        );
+        expect(reread.subject_type).toBe("user");
+        await sa.connectors.connections.revoke(connector.id, registered.id);
       });
     },
     STEP_TIMEOUT,
@@ -2339,12 +2361,40 @@ walk("SDK end-to-end walk", () => {
           file: await can(() => who.client.files.get(averyFile.id)),
           output: await can(() => who.client.files.get(averyOutput.id)),
         });
+        // Each list shows a person what a read by id lets them open, and a
+        // filter narrows it: the task list is filtered by the group tag.
+        const lists = async (who: Who) => {
+          const conversations: string[] = [];
+          for await (const c of who.client.conversations.list({
+            runtime_group_id: runtime.runtime_group_id,
+          }))
+            conversations.push(c.id);
+          const tasks: string[] = [];
+          for await (const t of who.client.tasks.list({ tag: WALK.groupTag }))
+            tasks.push(t.id);
+          const files: string[] = [];
+          for await (const f of who.client.files.list({})) files.push(f.id);
+          return {
+            conversation: conversations.includes(averyConversation),
+            task: tasks.includes(averyTask.id),
+            file: files.includes(averyFile.id),
+          };
+        };
+        const readsAndLists = async (who: Who) => {
+          const read = await reads(who);
+          expect(await lists(who), "a list agrees with reads by id").toEqual({
+            conversation: read.conversation,
+            task: read.task,
+            file: read.file,
+          });
+          return read;
+        };
         const matrix = async () => ({
-          avery: await reads(avery),
-          blake: await reads(blake),
-          casey: await reads(casey),
-          drew: await reads({ client: drew }),
-          emery: await reads(emery),
+          avery: await readsAndLists(avery),
+          blake: await readsAndLists(blake),
+          casey: await readsAndLists(casey),
+          drew: await readsAndLists({ client: drew }),
+          emery: await readsAndLists(emery),
         });
         const none = {
           conversation: false,
@@ -2381,6 +2431,15 @@ walk("SDK end-to-end walk", () => {
           resource_id: averyConversation,
           granted_member_id: blake.id,
         });
+        // A conversation share may hide the history before an instant.
+        const hidden = await avery.client.shares.update(toBlake.id, {
+          visible_from: "2026-01-01T00:00:00Z",
+        });
+        expect(hidden.visible_from).toBeTruthy();
+        const shown = await avery.client.shares.update(toBlake.id, {
+          visible_from: null,
+        });
+        expect(shown.visible_from).toBeNull();
         const toPlatform = await avery.client.shares.create({
           resource_type: "file",
           resource_id: averyFile.id,
