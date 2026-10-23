@@ -4,12 +4,6 @@
  * inline snapshots pin the rest.
  */
 
-export interface Integration {
-  id: string;
-  type: string;
-  status: string;
-}
-
 export interface Paginated<T> {
   records: T[];
   next?: string | null;

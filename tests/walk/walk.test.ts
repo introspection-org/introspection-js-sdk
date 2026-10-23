@@ -55,7 +55,7 @@ import {
   walkSettings,
   type WalkSettings,
 } from "./support";
-import type { Integration, Paginated } from "./types";
+import type { Paginated } from "./types";
 
 const RECORDING = "walk";
 const STEP_TIMEOUT = 10 * 60_000;
