@@ -174,13 +174,14 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const TIMESTAMP =
   /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2})$/;
 const SHA = /^[0-9a-f]{40}$/i;
-const UUID_ANYWHERE = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi;
+const UUID_ANYWHERE =
+  /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi;
 const SHA_ANYWHERE = /\b[0-9a-f]{40}\b/gi;
 const DIGEST_ANYWHERE = /\b[0-9a-f]{64}\b/gi;
 const JWT = /^eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/;
 const MEASURED_KEY = /(_ms$|_count$|_tokens$|^max_turn$)/;
 const VOLATILE_KEY =
-  /(^id$|_at$|_sha$|token$|secret$|^key$|_key$|cookie$|^url$|_url$|^expires_in$|^client_id$|_prefix$|_suffix$|image_tag$|_image_name$|_bytes$)/;
+  /(^id$|_at$|_sha$|token$|secret$|^key$|_key$|cookie$|^url$|_url$|^expires_in$|^client_id$|_prefix$|_suffix$|^prefix$|^key_display$|image_tag$|_image_name$|_bytes$)/;
 
 /**
  * Everything stable, nothing volatile: ids, timestamps, hashes, tokens,
@@ -217,7 +218,11 @@ export function stable(value: unknown, key = ""): unknown {
   // A measured number (a duration, a span or call count, a token total)
   // moves between two runs of the same script; its bounds are asserted
   // beside the snapshot instead.
-  if (typeof value === "number" && (VOLATILE_KEY.test(key) || MEASURED_KEY.test(key))) return "[number]";
+  if (
+    typeof value === "number" &&
+    (VOLATILE_KEY.test(key) || MEASURED_KEY.test(key))
+  )
+    return "[number]";
   return value;
 }
 

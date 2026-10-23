@@ -1,3 +1,4 @@
+// jscpd:ignore-start -- import list: the same names as every resource client's
 import type {
   Connection,
   ConnectionCreateParams,
@@ -17,6 +18,7 @@ import type {
   ProjectRef,
   Uuid,
 } from "@introspection-sdk/types";
+// jscpd:ignore-end
 import type { HttpClient } from "../http.js";
 import { Paginator, paginateGet } from "../pagination.js";
 import { projectQuery } from "./project-scoped.js";

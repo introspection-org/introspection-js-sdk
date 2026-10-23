@@ -1,3 +1,4 @@
+// jscpd:ignore-start -- import list: the same names as every resource client's
 import {
   ValidationError,
   type Paginated,
@@ -19,6 +20,7 @@ import {
   type RepositoryMergeParams,
   type Uuid,
 } from "@introspection-sdk/types";
+// jscpd:ignore-end
 import type { HttpClient } from "../http.js";
 import { Paginator } from "../pagination.js";
 

@@ -158,11 +158,6 @@ describe("endpoints", () => {
       ["DELETE", `${CP}/v1/endpoints/${ROW_ID}?project=sdk-tests`, undefined],
     ]);
   });
-
-  it("exposes no endpoint create: a connector's authorization makes one", () => {
-    const endpoints = openClient(fakeControlPlane().fetch).endpoints as unknown;
-    expect(endpoints).not.toHaveProperty("create");
-  });
 });
 
 describe("recipes, runtimes and repositories", () => {

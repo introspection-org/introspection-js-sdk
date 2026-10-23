@@ -50,13 +50,16 @@ export interface EndpointListParams extends CursorParams {
   mcp_server_id?: string;
 }
 
-/** `PATCH /v1/endpoints/{id}`; a change to the host or headers re-verifies. */
-export interface EndpointUpdateParams {
-  name?: string;
-  host?: string;
+/**
+ * `POST /v1/endpoints`. A connector's authorization creates the MCP endpoint
+ * it binds; this is the shape for the other kinds.
+ */
+export interface EndpointCreateParams {
+  name: string;
+  host: string;
+  kind: EndpointKind;
+  headers: Record<string, string>;
   base_url?: string | null;
-  headers?: Record<string, string>;
-  kind?: EndpointKind;
   metadata?: EndpointMetadata;
   assertion_claims?: Record<string, string> | null;
   runtime_id?: Uuid | null;
@@ -65,3 +68,6 @@ export interface EndpointUpdateParams {
   verify_path?: string | null;
   authorized_application_id?: Uuid | null;
 }
+
+/** `PATCH /v1/endpoints/{id}`; a change to the host or headers re-verifies. */
+export type EndpointUpdateParams = Partial<EndpointCreateParams>;

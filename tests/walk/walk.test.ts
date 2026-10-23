@@ -385,10 +385,9 @@ walk("SDK end-to-end walk", () => {
         expect(renamed.name).toBe(`${WALK.applicationName}-renamed`);
 
         // Rotate: a second secret, then the first revoked.
-        const second = await owner.applications.secrets.create(
-          application.id,
-          { name: "second" },
-        );
+        const second = await owner.applications.secrets.create(application.id, {
+          name: "second",
+        });
         const secrets = await owner.applications.secrets.list(application.id);
         expect(stable(secrets.records.map(({ secret: _, ...rest }) => rest)))
           .toMatchInlineSnapshot(`
@@ -1601,7 +1600,8 @@ walk("SDK end-to-end walk", () => {
         // differs between a warm pod and a baked image; the walk's own key is
         // asserted and the rest left out of the snapshot.
         expect(evalTask.metadata?.suite).toBe("walk");
-        expect(stable({ ...evalTask, metadata: undefined })).toMatchInlineSnapshot(`
+        expect(stable({ ...evalTask, metadata: undefined }))
+          .toMatchInlineSnapshot(`
           {
             "agent": {
               "sandbox_status": "provisioning",
@@ -1987,9 +1987,14 @@ walk("SDK end-to-end walk", () => {
         for await (const m of owner.members.list()) members.push(m);
         expect(members.length).toBeGreaterThan(0);
         await owner.members.get(members[0]!.id);
+        const org = await raw(owner.cpHttp).get<{ id: string; slug: string }>(
+          "/v1/organizations/me",
+        );
         // An invite outlives the project (members are the organisation's), so
-        // a repeat run finds the one the last run sent rather than minting another.
-        const email = "walk-member@sdk-coverage.example.com";
+        // a repeat run finds the one the last run sent rather than minting
+        // another; and a person belongs to one organisation, so the address
+        // names this one, or a second organisation's walk answers 409.
+        const email = `walk-member@${org.slug}.example.com`;
         const invited =
           members.find((m) => m.email === email) ??
           (await owner.members.create({
@@ -1997,13 +2002,8 @@ walk("SDK end-to-end walk", () => {
             name: "Walk member",
             role: "member",
           } as Parameters<typeof owner.members.create>[0]));
-        expect(stable({ email: invited.email, role: invited.role }))
-          .toMatchInlineSnapshot(`
-          {
-            "email": "walk-member@sdk-coverage.example.com",
-            "role": "member",
-          }
-        `);
+        expect(invited.email).toBe(email);
+        expect(invited.role).toBe("member");
         const renamed = await owner.members.update(invited.id, {
           name: "Walk member (renamed)",
         });
@@ -2032,14 +2032,14 @@ walk("SDK end-to-end walk", () => {
               "environment": "development",
               "expires_at": null,
               "id": "[uuid]",
-              "key_display": "intro_dev_KNB4_pM4...IOMo",
+              "key_display": "[redacted]",
               "key_prefix": "[redacted]",
               "key_suffix": "[redacted]",
               "last_used_at": null,
               "member_id": "[uuid]",
               "name": "walk",
               "org_id": "[uuid]",
-              "prefix": "intro_dev_KNB4_pM4",
+              "prefix": "[redacted]",
               "project_id": "[uuid]",
               "redacted_key": "[redacted]",
               "scope": "telemetry:write projects:read repositories:read recipes:read recipes:write runtimes:read runtimes:write experiments:read experiments:write tasks:read tasks:write tasks:delete files:read files:write conversations:read events:read metrics:read shares:read shares:write shares:delete connectors:read connectors:write annotations:read approvals:read approvals:write",
@@ -2056,17 +2056,17 @@ walk("SDK end-to-end walk", () => {
           project.id,
         );
         await sa.apiKeys.acknowledge(apiKey.id, project.id);
-        const org = await raw(owner.cpHttp).get<{ id: string; slug: string }>(
-          "/v1/organizations/me",
-        );
-        expect(stable(org)).toMatchInlineSnapshot(`
+        // The organisation's name and slug are whoever is running the walk.
+        expect(org.slug).toBeTruthy();
+        expect(stable({ ...org, name: undefined, slug: undefined }))
+          .toMatchInlineSnapshot(`
           {
             "external_org_id": "[id]",
             "hosted_git": true,
             "id": "[uuid]",
             "image_url": null,
-            "name": "Introspection.dev",
-            "slug": "introspectiondev",
+            "name": undefined,
+            "slug": undefined,
           }
         `);
       });
