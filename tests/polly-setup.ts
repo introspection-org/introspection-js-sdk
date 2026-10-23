@@ -15,6 +15,29 @@ import { fileURLToPath } from "url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
+// Polly serializes a multipart body entry by entry and reads each Blob
+// through `FileReader.readAsDataURL`, a browser API Node lacks; this is the
+// one method it calls, over the Blob methods Node does have.
+if (typeof globalThis.FileReader === "undefined") {
+  class NodeFileReader {
+    result: string | ArrayBuffer | null = null;
+    onload: (() => void) | null = null;
+    onerror: ((err: unknown) => void) | null = null;
+    onend: ((err: unknown) => void) | null = null;
+    onabort: ((err: unknown) => void) | null = null;
+    readAsDataURL(blob: Blob): void {
+      blob.arrayBuffer().then(
+        (buffer) => {
+          this.result = `data:${blob.type};base64,${Buffer.from(buffer).toString("base64")}`;
+          this.onload?.();
+        },
+        (err: unknown) => this.onerror?.(err),
+      );
+    }
+  }
+  (globalThis as { FileReader?: unknown }).FileReader = NodeFileReader;
+}
+
 // Register adapters and persister globally
 Polly.register(FetchAdapter);
 Polly.register(NodeHTTPAdapter);

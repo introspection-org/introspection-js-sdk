@@ -15,12 +15,17 @@ import type { Polly } from "@pollyjs/core";
 import {
   IntrospectionClient,
   NotFoundError,
+  type Runner,
 } from "@introspection-sdk/introspection-node";
 import type {
+  Automation,
   Connector,
+  Experiment,
+  File as IntrospectionFile,
   Recipe,
   Repository,
   Runtime,
+  Task,
 } from "@introspection-sdk/types";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -30,6 +35,7 @@ import {
   hasCompleteRecording,
   prompt,
   pushRecipe,
+  secondTurn,
   raw,
   settled,
   stable,
@@ -39,13 +45,16 @@ import {
   type WalkSettings,
 } from "./support";
 import type {
+  ApiKey,
   Application,
   ApplicationSecret,
   Credential,
   Endpoint,
   Integration,
+  Judge,
   Paginated,
   Project,
+  TaskCommand,
   Variable,
 } from "./types";
 
@@ -144,6 +153,17 @@ walk("SDK end-to-end walk", () => {
   let connector: Connector;
   let runtime: Runtime;
   let endpoint: Endpoint;
+  let runtimeV2: Runtime;
+  let runner: Runner;
+  let inputFile: IntrospectionFile;
+  let task: Task;
+  let conversationId: string;
+  let outputFile: IntrospectionFile;
+  let evalTask: Task;
+  let judge: Judge;
+  let experiment: Experiment;
+  let automation: Automation;
+  let apiKey: ApiKey;
 
   beforeAll(() => {
     polly = setupPolly({ recordingName: RECORDING });
@@ -378,8 +398,8 @@ walk("SDK end-to-end walk", () => {
                 "last_used_at": null,
                 "name": "second",
                 "org_id": "[uuid]",
-                "secret_prefix": "intro_sk_Jjaq_uPY",
-                "secret_suffix": "6IZI",
+                "secret_prefix": "intro_sk_D7ewvJ0M",
+                "secret_suffix": "04iU",
                 "status": "active",
                 "updated_at": "[timestamp]",
               },
@@ -393,8 +413,8 @@ walk("SDK end-to-end walk", () => {
                 "last_used_at": null,
                 "name": "first",
                 "org_id": "[uuid]",
-                "secret_prefix": "intro_sk_7FUjFNoS",
-                "secret_suffix": "IEYA",
+                "secret_prefix": "intro_sk_kxYwWSEB",
+                "secret_suffix": "8_zo",
                 "status": "active",
                 "updated_at": "[timestamp]",
               },
@@ -870,7 +890,7 @@ walk("SDK end-to-end walk", () => {
               "auth_audience": null,
               "connector_id": "[uuid]",
               "extra_hosts": [],
-              "mcp_server_id": "[redacted]",
+              "mcp_server_id": "hello-mcp",
               "provider_app": null,
             },
             "name": "hello-mcp",
@@ -899,4 +919,441 @@ walk("SDK end-to-end walk", () => {
     },
     STEP_TIMEOUT,
   );
+
+  it(
+    "9: files in — an upload the task will find under /workspace/files",
+    async (ctx) => {
+      await steps.run(ctx, "files in", async () => {
+        inputFile = await sa.files.createText({
+          name: WALK.inputFileName,
+          content: WALK.inputFileText,
+          mime_type: "text/plain",
+          metadata: { suite: "walk" },
+        });
+        expect(stable(inputFile)).toMatchInlineSnapshot(`
+          {
+            "created_at": "[timestamp]",
+            "expires_at": null,
+            "file_type": "filesystem",
+            "generated_output_task_id": null,
+            "id": "[uuid]",
+            "member_id": "[uuid]",
+            "metadata": {
+              "blob_checksum": "0e90bfe21ca1588eb625db464fba78d47c540b3027ac2ca6536cd9cec2d932dd",
+              "original_filename": "walk-input.txt",
+              "suite": "walk",
+            },
+            "mime_type": "text/plain",
+            "name": "walk-input.txt",
+            "org_id": "[uuid]",
+            "parent_id": null,
+            "project_id": "[uuid]",
+            "size_bytes": 21,
+            "storage_path": "01a13d6d-f05f-7115-9cc9-4b168ba5d22d/01a167a2-a3d6-706a-809a-cb625c77d72a/files/01a167a2-d8bb-73c9-8ae1-c713f7288f11/walk-input.txt",
+            "storage_version_id": null,
+            "tags": [],
+            "task_id": null,
+            "updated_at": "[timestamp]",
+            "version": 1,
+          }
+        `);
+        const read = await sa.files.get(inputFile.id);
+        expect(read.name).toBe(WALK.inputFileName);
+        const body = await sa.files.download(inputFile.id);
+        expect(new TextDecoder().decode(body)).toBe(WALK.inputFileText);
+        const version = await sa.files.versions.create(inputFile.id, {
+          file: new TextEncoder().encode(`${WALK.inputFileText} (v2)`),
+          name: WALK.inputFileName,
+          contentType: "text/plain",
+        });
+        const versions = await sa.files.versions.list(inputFile.id);
+        expect(versions.records.some((v) => v.id === version.id)).toBe(true);
+        await sa.files.versions.get(inputFile.id, version.id);
+        const updated = await sa.files.update(inputFile.id, {
+          metadata: { suite: "walk", stage: "attached" },
+        });
+        expect(updated.metadata?.stage).toBe("attached");
+      });
+    },
+    STEP_TIMEOUT,
+  );
+
+  it(
+    "10: task — a runner on the runtime, one turn that calls the MCP and leaves a file",
+    async (ctx) => {
+      await steps.run(ctx, "task", async () => {
+        runner = await sa.runtimes.runById(runtime.id, {
+          environment: "production",
+          agent_name: settings.agent,
+        } as Parameters<typeof sa.runtimes.runById>[1]);
+        const started = await runner.tasks.start({
+          prompt: prompt(settings),
+          agent_name: settings.agent,
+          files: [{ id: inputFile.id }],
+          metadata: { suite: "walk" },
+          idle_timeout_seconds: 180,
+        } as Parameters<typeof runner.tasks.start>[0]);
+        expect(started.task, "the create returns the task").toBeTruthy();
+        const reply = await started.text();
+        expect(reply.length, "the turn replied").toBeGreaterThan(0);
+
+        task = await runner.tasks.get(started.task!.id);
+        expect(stable(task)).toMatchInlineSnapshot();
+        conversationId = String(
+          (task.metadata as Record<string, unknown> | null)?.conversation_id ?? task.id,
+        );
+        const run = await runner.tasks.runs.get(task.id, started.run.id);
+        expect(run.task_id).toBe(task.id);
+
+        const turn = await runner.tasks.runs.create(task.id, {
+          prompt: { text: secondTurn(settings) },
+        });
+        await turn.text();
+
+        let seen = false;
+        for await (const item of runner.tasks.list()) if (item.id === task.id) seen = true;
+        expect(seen).toBe(true);
+        const retitled = await runner.tasks.update(task.id, { title: "The walk's task" });
+        expect(retitled.title).toBe("The walk's task");
+        await runner.tasks.archive(task.id);
+        await runner.tasks.unarchive(task.id);
+      });
+    },
+    STEP_TIMEOUT,
+  );
+
+  it(
+    "11: evidence — the output file, the conversation and its items",
+    async (ctx) => {
+      await steps.run(ctx, "evidence", async () => {
+        const outputs = await settled(
+          polly!,
+          mode,
+          async () => {
+            const out: IntrospectionFile[] = [];
+            for await (const f of sa.files.list({ task_id: task.id })) out.push(f);
+            return out;
+          },
+          (files) => files.some((f) => f.name.endsWith(WALK.outputFileName)),
+          { timeoutMs: 120_000, intervalMs: 3_000, label: "task output files" },
+        );
+        outputFile = outputs.find((f) => f.name.endsWith(WALK.outputFileName))!;
+        expect(stable(outputFile)).toMatchInlineSnapshot();
+        const content = new TextDecoder().decode(await sa.files.download(outputFile.id));
+        expect(content.trim()).toBe(WALK.echoResult);
+
+        const conversation = await settled(
+          polly!,
+          mode,
+          () => sa.conversations.get(conversationId),
+          () => true,
+          { timeoutMs: 60_000, label: "conversation" },
+        );
+        expect(stable(conversation)).toMatchInlineSnapshot();
+        const page = await settled(
+          polly!,
+          mode,
+          async () => await sa.conversations.items.list(conversationId),
+          (p) => JSON.stringify(p).includes("echo") && JSON.stringify(p).includes(WALK.variableValue),
+          { timeoutMs: 120_000, intervalMs: 5_000, label: "conversation items" },
+        );
+        const items = JSON.stringify(page);
+        expect(items, "the hello-mcp echo tool was called").toContain("echo");
+        expect(items, "the echo result reached the conversation").toContain(WALK.echoResult);
+        expect(items, "the variable reached the sandbox").toContain(WALK.variableValue);
+        const first = page.data[0]!;
+        await sa.conversations.items.get(conversationId, first.span_id!);
+        let seen = false;
+        for await (const c of sa.conversations.list({ runtime_id: runtime.id })) {
+          if (c.id === conversationId) seen = true;
+        }
+        expect(seen).toBe(true);
+        const trajectory = await sa.conversations.exportTrajectory(conversationId);
+        expect(trajectory, "the trajectory export").toBeTruthy();
+      });
+    },
+    STEP_TIMEOUT,
+  );
+
+  it.skip("12: the dev lane — introspection dev serves a local MCP into a development task (the CLI serves its login's project; pending a project flag)", () => {});
+
+  it(
+    "13: telemetry reads — metrics, a tag, a share, an annotation, events",
+    async (ctx) => {
+      await steps.run(ctx, "telemetry reads", async () => {
+        const now = new Date();
+        const metrics = await sa.metrics.query({
+          view: "conversations",
+          metrics: [{ aggregation: "count" }],
+          filters: [{ field: "runtime_id", operator: "eq", value: runtime.id }],
+          from_timestamp: new Date(now.getTime() - 3_600_000).toISOString(),
+          to_timestamp: new Date(now.getTime() + 60_000).toISOString(),
+        } as Parameters<typeof sa.metrics.query>[0]);
+        expect(metrics, "a metrics response").toBeTruthy();
+
+        const tag = await sa.tags.create({ kind: "access", name: "walk", description: "the walk's tag" } as Parameters<typeof sa.tags.create>[0]);
+        expect(stable(tag)).toMatchInlineSnapshot();
+        await sa.tags.get("access", "walk");
+        await sa.tags.update("access", "walk", { description: "the walk's tag, updated" });
+        let seenTag = false;
+        for await (const item of sa.tags.list("access")) if (item.name === "walk") seenTag = true;
+        expect(seenTag).toBe(true);
+
+        const share = await sa.shares.create({
+          resource_type: "file",
+          resource_id: outputFile.id,
+          granted_tag: "walk",
+        } as Parameters<typeof sa.shares.create>[0]);
+        expect(stable(share)).toMatchInlineSnapshot();
+        await sa.shares.get(share.id);
+        await sa.shares.update(share.id, {} as Parameters<typeof sa.shares.update>[1]);
+        let seenShare = false;
+        for await (const item of sa.shares.list({ resource_type: "file" })) if (item.id === share.id) seenShare = true;
+        expect(seenShare).toBe(true);
+
+        const member = new IntrospectionClient({
+          token: memberToken,
+          advanced: { baseApiUrl: settings.baseApiUrl, dpUrl: sa.advancedOptions.dpUrl },
+        });
+        const conversation = await sa.conversations.get(conversationId);
+        const target = conversation as unknown as { trace_id?: string; span_id?: string };
+        if (target.trace_id && target.span_id) {
+          await member.annotations.create(
+            { trace_id: target.trace_id, span_id: target.span_id },
+            { labels: ["walk"] },
+          );
+          const annotations = await settled(
+            polly!,
+            mode,
+            async () => {
+              const out = [];
+              for await (const a of member.annotations.list({ conversation_id: conversationId } as Parameters<typeof member.annotations.list>[0])) out.push(a);
+              return out;
+            },
+            (rows) => rows.length > 0,
+            { timeoutMs: 60_000, intervalMs: 3_000, label: "annotations" },
+          );
+          expect(annotations[0]!.labels).toContain("walk");
+          const events = await settled(
+            polly!,
+            mode,
+            async () => {
+              const out = [];
+              for await (const e of sa.events.list({ event_name: "introspection.annotation", conversation_id: conversationId })) out.push(e);
+              return out;
+            },
+            (rows) => rows.length > 0,
+            { timeoutMs: 60_000, intervalMs: 3_000, label: "annotation events" },
+          );
+          await sa.events.get((events[0] as { id: string }).id);
+        }
+      });
+    },
+    STEP_TIMEOUT,
+  );
+
+  it(
+    "14: eval — a trial on the runtime, graded by the recipe's judge; an experiment over two versions",
+    async (ctx) => {
+      await steps.run(ctx, "eval", async () => {
+        const cp = raw(sa.cpHttp);
+        const judges = await cp.get<Paginated<Judge>>("/v1/judges", {
+          project: project.id,
+          runtime_group_id: runtime.runtime_group_id,
+        });
+        judge = judges.records.find((j) => j.name === "greeting")!;
+        expect(judge, "the recipe's judge is synced").toBeTruthy();
+        const readJudge = await cp.get<Judge>(`/v1/judges/${judge.id}`, { project: project.id });
+        expect(readJudge.name).toBe("greeting");
+        await cp.patch<Judge>(`/v1/judges/${judge.id}`, { enabled: true, sample_rate: 1 }, { project: project.id });
+
+        const created = await runner.tasks.create({
+          kind: "eval",
+          prompt: prompt(settings),
+          agent_name: settings.agent,
+          recipe_git_commit_sha: recipe.git_commit_sha,
+          metadata: { suite: "walk" },
+          idle_timeout_seconds: 120,
+        } as Parameters<typeof runner.tasks.create>[0]);
+        evalTask = created.task;
+        expect(stable(evalTask)).toMatchInlineSnapshot();
+        let reply = "";
+        for await (const ev of runner.tasks.runs.stream(evalTask.id, created.run.id)) {
+          if ((ev as { type: string; delta?: string }).type === "TEXT_MESSAGE_CONTENT") reply += (ev as { delta?: string }).delta ?? "";
+        }
+        expect(reply.length).toBeGreaterThan(0);
+
+        runtimeV2 = await cp.post<Runtime>("/v1/runtimes", {
+          project: project.id,
+          recipe_id: recipe.id,
+          name: WALK.runtimeSlug,
+          slug: WALK.runtimeSlug,
+          config_json: { connectors: [WALK.connectorName] },
+        });
+        expect(runtimeV2.runtime_group_id).toBe(runtime.runtime_group_id);
+        experiment = await sa.experiments.create({
+          name: "The walk's experiment",
+          project: project.id,
+          runtime_group_id: runtime.runtime_group_id,
+          goal_json: { kind: "composite", components: [{ source: "judge", judge_id: judge.id, weight: 1 }] },
+          arms: [
+            { runtime_id: runtime.id, arm_label: "v1" },
+            { runtime_id: runtimeV2.id, arm_label: "v2" },
+          ],
+        });
+        expect(stable(experiment)).toMatchInlineSnapshot();
+        await sa.experiments.get(experiment.id);
+        await sa.experiments.update(experiment.id, { description: "two versions, one judge" } as Parameters<typeof sa.experiments.update>[1]);
+        const started = await sa.experiments.startById(experiment.id);
+        expect(started.status).toBe("running");
+        let seen = false;
+        for await (const e of sa.experiments.list({ project: project.id })) if (e.id === experiment.id) seen = true;
+        expect(seen).toBe(true);
+        const ended = await sa.experiments.endById(experiment.id);
+        expect(stable(ended)).toMatchInlineSnapshot();
+      });
+    },
+    BAKE_TIMEOUT,
+  );
+
+  it(
+    "15: commands — exec and download inside the eval's sandbox",
+    async (ctx) => {
+      await steps.run(ctx, "commands", async () => {
+        const dp = raw(sa.dpHttp);
+        const command = async (body: Record<string, unknown>) => {
+          const created = await dp.post<TaskCommand>(`/v1/tasks/${evalTask.id}/commands`, body);
+          return settled(
+            polly!,
+            mode,
+            () => dp.get<TaskCommand>(`/v1/tasks/${evalTask.id}/commands/${created.id}`),
+            (c) => ["succeeded", "completed", "failed", "cancelled"].includes(c.status),
+            { timeoutMs: 120_000, intervalMs: 3_000, label: "task command" },
+          );
+        };
+        const exec = await command({
+          kind: "exec",
+          command: ["cat", `/workspace/outputs/${WALK.outputFileName}`],
+          timeout_seconds: 30,
+        });
+        expect(stable(exec)).toMatchInlineSnapshot();
+        expect(exec.stdout?.trim()).toBe(WALK.echoResult);
+        const download = await command({ kind: "download", path: `/workspace/outputs/${WALK.outputFileName}` });
+        expect(download.output_file_id, "the download produced a file").toBeTruthy();
+        const listed = await dp.get<Paginated<TaskCommand>>(`/v1/tasks/${evalTask.id}/commands`);
+        expect(listed.records.length).toBeGreaterThanOrEqual(2);
+
+        const judgements = await settled(
+          polly!,
+          mode,
+          async () => {
+            const out = [];
+            for await (const e of sa.events.list({ event_name: "introspection.judgement", judge_id: judge.id } as Parameters<typeof sa.events.list>[0])) out.push(e);
+            return out;
+          },
+          (rows) => rows.length > 0,
+          { timeoutMs: BAKE_TIMEOUT, intervalMs: 10_000, label: "judgement" },
+        );
+        expect(stable(judgements[0])).toMatchInlineSnapshot();
+      });
+    },
+    BAKE_TIMEOUT,
+  );
+
+  it(
+    "16: automations — a manual automation, triggered",
+    async (ctx) => {
+      await steps.run(ctx, "automations", async () => {
+        automation = await sa.automations.create({
+          name: "The walk's automation",
+          trigger_type: "manual",
+          prompt: prompt(settings),
+          runtime_group_id: runtime.runtime_group_id,
+        } as Parameters<typeof sa.automations.create>[0]);
+        expect(stable(automation)).toMatchInlineSnapshot();
+        const triggered = await sa.automations.trigger(automation.id);
+        expect(stable(triggered)).toMatchInlineSnapshot();
+        await sa.automations.get(automation.id);
+        await sa.automations.update(automation.id, { description: "triggered once by the walk" } as Parameters<typeof sa.automations.update>[1]);
+        let seen = false;
+        for await (const a of sa.automations.list()) if (a.id === automation.id) seen = true;
+        expect(seen).toBe(true);
+      });
+    },
+    STEP_TIMEOUT,
+  );
+
+  it(
+    "17: members and keys — the owner's reads, a development API key, the organisation",
+    async (ctx) => {
+      await steps.run(ctx, "members and keys", async () => {
+        const members = [];
+        for await (const m of owner.members.list()) members.push(m);
+        expect(members.length).toBeGreaterThan(0);
+        await owner.members.get(members[0]!.id);
+        const cp = raw(sa.cpHttp);
+        apiKey = await cp.post<ApiKey>(
+          "/v1/api-keys",
+          { name: "walk", environment: "development", allow: ["runtimes"] },
+          { project: project.id },
+        );
+        expect(apiKey.api_key, "the plaintext key is returned once").toBeTruthy();
+        expect(stable({ ...apiKey, api_key: undefined })).toMatchInlineSnapshot();
+        const keys = await cp.get<Paginated<ApiKey>>("/v1/api-keys", { project: project.id });
+        expect(keys.records.some((k) => k.id === apiKey.id)).toBe(true);
+        await cp.patch<ApiKey>(`/v1/api-keys/${apiKey.id}`, { name: "walk (renamed)" }, { project: project.id });
+        await cp.post(`/v1/api-keys/${apiKey.id}/acknowledge`, {}, { project: project.id });
+        const org = await raw(owner.cpHttp).get<{ id: string; slug: string }>("/v1/organizations/me");
+        expect(stable(org)).toMatchInlineSnapshot();
+      });
+    },
+    STEP_TIMEOUT,
+  );
+
+  it(
+    "18: teardown — everything the walk created, in reverse",
+    async (ctx) => {
+      await steps.run(ctx, "teardown", async () => {
+        const cp = raw(sa.cpHttp);
+        const dp = raw(sa.dpHttp);
+        const q = { project: project.id };
+        await cp.delete(`/v1/api-keys/${apiKey.id}`, q);
+        await sa.automations.delete(automation.id);
+        for await (const t of runner.tasks.list()) await runner.tasks.delete(t.id).catch(() => undefined);
+        await expectNotFound(() => runner.tasks.get(task.id));
+        for await (const f of sa.files.list({})) await sa.files.delete(f.id).catch(() => undefined);
+        await expectNotFound(() => sa.files.get(inputFile.id));
+        await sa.experiments.delete(experiment.id);
+        await sa.runtimes.get(runtimeV2.id);
+        await cp.delete(`/v1/runtimes/${runtimeV2.id}`);
+        await cp.delete(`/v1/runtimes/${runtime.id}`);
+        await cp.delete(`/v1/endpoints/${endpoint.id}`, q);
+        for await (const c of sa.connectors.connections.list(connector.id)) {
+          await sa.connectors.connections.revoke(connector.id, c.id);
+        }
+        await sa.connectors.delete(connector.id);
+        await expectNotFound(() => sa.connectors.get(connector.id));
+        const variables = await cp.get<Paginated<Variable>>("/v1/variables", q);
+        for (const v of variables.records) await cp.delete(`/v1/variables/${v.id}`, q);
+        const credentials = await cp.get<Paginated<Credential>>("/v1/credentials", q);
+        for (const c of credentials.records) await cp.delete(`/v1/credentials/${c.id}`, q);
+        await cp.delete(`/v1/recipes/${recipe.id}`);
+        await expectNotFound(() => sa.recipes.get(recipe.id));
+        await cp.delete(`/v1/repositories/${repository.id}`, q);
+        await dp.get(`/v1/repositories/${repository.id}/branches`).catch(() => undefined);
+        await cp.delete(`/v1/applications/${application.id}`, q);
+        await raw(owner.cpHttp).delete(`/v1/projects/${project.id}`);
+        await expectNotFound(() => raw(owner.cpHttp).get<Project>(`/v1/projects/${project.id}`));
+      });
+    },
+    STEP_TIMEOUT,
+  );
 });
+
+async function expectNotFound(read: () => Promise<unknown>): Promise<void> {
+  const outcome = await read().then(
+    () => "found",
+    (err: unknown) => (err instanceof NotFoundError ? "not found" : err),
+  );
+  expect(outcome).toBe("not found");
+}

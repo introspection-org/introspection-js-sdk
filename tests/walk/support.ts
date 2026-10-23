@@ -42,6 +42,7 @@ export const WALK = {
   applicationName: "sdk-coverage-walk",
   credentialName: "WALK_SECRET",
   credentialSecret: "walk-secret-value-0001",
+  secondTurn: "Reply with the single word done.",
   variableName: "WALK_MARKER",
   variableValue: "walk-marker-7f3a",
   connectorName: "hello-mcp",
@@ -90,6 +91,13 @@ export function prompt(settings: WalkSettings): string {
   return settings.agent === "scripted"
     ? `${WALK.instruction}\n\n${scriptedDirective()}`
     : WALK.instruction;
+}
+
+/** A second turn that needs no tool: the scripted agent is told its reply. */
+export function secondTurn(settings: WalkSettings): string {
+  return settings.agent === "scripted"
+    ? `${WALK.secondTurn} <<SCRIPT ${JSON.stringify({ reply: "done" })}>>`
+    : WALK.secondTurn;
 }
 
 const REPLAY_SETTINGS: WalkSettings = {
@@ -164,7 +172,7 @@ const TIMESTAMP =
 const SHA = /^[0-9a-f]{40}$/i;
 const JWT = /^eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/;
 const VOLATILE_KEY =
-  /(^id$|_id$|_ids$|_at$|_sha$|token$|secret$|^key$|_key$|cookie$|^url$|_url$|^slug_suffix$|^expires_in$|^client_id$)/;
+  /(^id$|_at$|_sha$|token$|secret$|^key$|_key$|cookie$|^url$|_url$|^expires_in$|^client_id$)/;
 
 /**
  * Everything stable, nothing volatile: ids, timestamps, hashes, tokens,
