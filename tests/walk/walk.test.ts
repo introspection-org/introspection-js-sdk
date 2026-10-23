@@ -19,14 +19,21 @@ import {
   type Runner,
 } from "@introspection-sdk/introspection-node";
 import type {
+  ApiKeyCreated,
+  Application,
   Automation,
   Connector,
+  Endpoint,
   Experiment,
+  Judge,
+  Project,
   File as IntrospectionFile,
   Recipe,
   Repository,
   Runtime,
   Task,
+  TaskCommand,
+  TaskCommandSpec,
 } from "@introspection-sdk/types";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -46,19 +53,7 @@ import {
   walkSettings,
   type WalkSettings,
 } from "./support";
-import type {
-  ApiKey,
-  Application,
-  ApplicationSecret,
-  Credential,
-  Endpoint,
-  Integration,
-  Judge,
-  Paginated,
-  Project,
-  TaskCommand,
-  Variable,
-} from "./types";
+import type { Integration, Paginated } from "./types";
 
 const RECORDING = "walk";
 const STEP_TIMEOUT = 10 * 60_000;
@@ -173,7 +168,7 @@ walk("SDK end-to-end walk", () => {
   let judge: Judge;
   let experiment: Experiment;
   let automation: Automation;
-  let apiKey: ApiKey;
+  let apiKey: ApiKeyCreated;
   let shareId: string;
 
   beforeAll(() => {
@@ -193,14 +188,13 @@ walk("SDK end-to-end walk", () => {
     "0: a clean slate — the walk's project is gone before it starts",
     async (ctx) => {
       await steps.run(ctx, "clean slate", async () => {
-        const cp = raw(owner.cpHttp);
-        const existing = await cp
-          .get<Project>(`/v1/projects/${WALK.projectSlug}`)
+        const existing = await owner.projects
+          .get(WALK.projectSlug)
           .catch((err: unknown) => {
             if (err instanceof NotFoundError) return null;
             throw err;
           });
-        if (existing) await cp.delete(`/v1/projects/${existing.id}`);
+        if (existing) await owner.projects.delete(existing.id);
       });
     },
     STEP_TIMEOUT,
@@ -210,15 +204,13 @@ walk("SDK end-to-end walk", () => {
     "1: project — create, read, list, update",
     async (ctx) => {
       await steps.run(ctx, "project", async () => {
-        const cp = raw(owner.cpHttp);
         // The deployment: from the credentials file where the seed wrote one,
         // else the one the login's own projects are on. Read from a response,
         // not a setting, so replay sends what the recording holds.
         const deploymentId =
           settings.deploymentId ??
-          (await cp.get<Paginated<Project>>("/v1/projects")).records[0]!
-            .deployment_id;
-        project = await cp.post<Project>("/v1/projects", {
+          (await owner.projects.list()).records[0]!.deployment_id;
+        project = await owner.projects.create({
           name: WALK.projectName,
           slug: WALK.projectSlug,
           deployment_id: deploymentId,
@@ -236,13 +228,13 @@ walk("SDK end-to-end walk", () => {
         }
       `);
 
-        const read = await cp.get<Project>(`/v1/projects/${project.id}`);
+        const read = await owner.projects.get(project.id);
         expect(read.slug).toBe(WALK.projectSlug);
 
-        const listed = await cp.get<Paginated<Project>>("/v1/projects");
+        const listed = await owner.projects.list();
         expect(listed.records.some((p) => p.id === project.id)).toBe(true);
 
-        const updated = await cp.patch<Project>(`/v1/projects/${project.id}`, {
+        const updated = await owner.projects.update(project.id, {
           description: "The SDK end-to-end walk's project",
         });
         expect(stable(updated)).toMatchInlineSnapshot(`
@@ -266,16 +258,13 @@ walk("SDK end-to-end walk", () => {
     "2: application — a service account, its secret, and the token that names the Data Plane",
     async (ctx) => {
       await steps.run(ctx, "application", async () => {
-        const cp = raw(owner.cpHttp);
-        const query = { project: project.id };
-        application = await cp.post<Application>(
-          "/v1/applications",
+        application = await owner.applications.create(
           {
             name: WALK.applicationName,
             application_type: "service_account",
             allowed_scopes: APPLICATION_SCOPES,
           },
-          query,
+          project.id,
         );
         expect(stable(application)).toMatchInlineSnapshot(`
           {
@@ -356,11 +345,9 @@ walk("SDK end-to-end walk", () => {
           }
         `);
 
-        const first = await cp.post<ApplicationSecret>(
-          `/v1/applications/${application.id}/secrets`,
-          { name: "first" },
-          query,
-        );
+        const first = await owner.applications.secrets.create(application.id, {
+          name: "first",
+        });
         expect(first.secret, "the plaintext is returned once").toBeTruthy();
 
         const minted = await serviceAccountToken({
@@ -386,33 +373,23 @@ walk("SDK end-to-end walk", () => {
           advanced: { ...credentials.advanced, fetch: NATIVE_FETCH },
         });
 
-        const listed = await cp.get<Paginated<Application>>(
-          "/v1/applications",
-          query,
-        );
+        const listed = await owner.applications.list({ project: project.id });
         expect(listed.records.some((a) => a.id === application.id)).toBe(true);
-        const read = await cp.get<Application>(
-          `/v1/applications/${application.id}`,
-          query,
-        );
+        const read = await owner.applications.get(application.id, project.id);
         expect(read.client_id).toBe(application.client_id);
-        const renamed = await cp.patch<Application>(
-          `/v1/applications/${application.id}`,
+        const renamed = await owner.applications.update(
+          application.id,
           { name: `${WALK.applicationName}-renamed` },
-          query,
+          project.id,
         );
         expect(renamed.name).toBe(`${WALK.applicationName}-renamed`);
 
         // Rotate: a second secret, then the first revoked.
-        const second = await cp.post<ApplicationSecret>(
-          `/v1/applications/${application.id}/secrets`,
+        const second = await owner.applications.secrets.create(
+          application.id,
           { name: "second" },
-          query,
         );
-        const secrets = await cp.get<Paginated<ApplicationSecret>>(
-          `/v1/applications/${application.id}/secrets`,
-          query,
-        );
+        const secrets = await owner.applications.secrets.list(application.id);
         expect(stable(secrets.records.map(({ secret: _, ...rest }) => rest)))
           .toMatchInlineSnapshot(`
             [
@@ -448,10 +425,7 @@ walk("SDK end-to-end walk", () => {
               },
             ]
           `);
-        await cp.delete(
-          `/v1/applications/${application.id}/secrets/${first.id}`,
-          query,
-        );
+        await owner.applications.secrets.delete(application.id, first.id);
         expect(second.id).not.toBe(first.id);
       });
     },
@@ -462,8 +436,9 @@ walk("SDK end-to-end walk", () => {
     "3: repository — a hosted repository the walk pushes the recipe into",
     async (ctx) => {
       await steps.run(ctx, "repository", async () => {
-        const cp = raw(sa.cpHttp);
-        const created = await cp.post<Repository>(
+        // `POST /v1/repositories` is documented for the CLI only, so this
+        // is the one write the walk sends by hand.
+        const created = await raw(sa.cpHttp).post<Repository>(
           "/v1/repositories",
           { provider: "hosted", slug: WALK.recipeSlug, default_branch: "main" },
           { project: project.id },
@@ -535,7 +510,7 @@ walk("SDK end-to-end walk", () => {
         const seedRecipe = seeded.find(
           (r) => r.repository_id === repository.id,
         )!;
-        const seedRuntime = await cp.post<Runtime>("/v1/runtimes", {
+        const seedRuntime = await sa.runtimes.create({
           project: project.id,
           recipe_id: seedRecipe.id,
           name: WALK.runtimeSlug,
@@ -564,7 +539,6 @@ walk("SDK end-to-end walk", () => {
     "4: recipe — create from the repository at a pinned commit, read, list, update",
     async (ctx) => {
       await steps.run(ctx, "recipe", async () => {
-        const cp = raw(sa.cpHttp);
         const page = await sa.repositories.commits(repository.id, {
           sha: "main",
         });
@@ -572,20 +546,17 @@ walk("SDK end-to-end walk", () => {
         expect(head?.sha, "a commit on the hosted main").toBeTruthy();
         const detail = await sa.repositories.commit(repository.id, head!.sha);
         expect(detail.sha).toBe(head!.sha);
-        const dp = raw(sa.dpHttp);
-        const branches = await dp.get<Paginated<{ name: string }>>(
-          `/v1/repositories/${repository.id}/branches`,
-        );
+        const branches = await sa.repositories.branches(repository.id);
         expect(branches.records.some((b) => b.name === "main")).toBe(true);
-        const entry = await dp.get<{ path: string; type: string }>(
-          `/v1/repositories/${repository.id}/contents/agents/scripted.yaml`,
+        const entry = await sa.repositories.contents.get(
+          repository.id,
+          "agents/scripted.yaml",
           { ref: head!.sha },
         );
         expect(entry.path).toBe("agents/scripted.yaml");
-        const root = await dp.get<Paginated<{ path: string }>>(
-          `/v1/repositories/${repository.id}/contents`,
-          { ref: head!.sha },
-        );
+        const root = await sa.repositories.contents(repository.id, {
+          ref: head!.sha,
+        });
         expect(root.records.some((e) => e.path === "judges")).toBe(true);
 
         // The push versioned the manifest's recipe at the pushed commit; the
@@ -654,8 +625,8 @@ walk("SDK end-to-end walk", () => {
         // A second pin of the same commit under the walk's own name: the
         // create mints a recipe row per pin, so this is a sibling of the
         // push's, not the same row.
-        pinnedRecipe = await cp.post<Recipe>("/v1/recipes", {
-          project_id: project.id,
+        pinnedRecipe = await sa.recipes.create({
+          project: project.id,
           repository_id: repository.id,
           name: "hello-mcp (walk pin)",
           git_ref: "main",
@@ -671,7 +642,7 @@ walk("SDK end-to-end walk", () => {
           if (item.id === recipe.id) seen = true;
         }
         expect(seen).toBe(true);
-        const updated = await cp.patch<Recipe>(`/v1/recipes/${recipe.id}`, {
+        const updated = await sa.recipes.update(recipe.id, {
           description: "The walk's recipe",
         });
         expect(updated.description).toBe("The walk's recipe");
@@ -684,17 +655,11 @@ walk("SDK end-to-end walk", () => {
     "5: credential and variable — a write-only secret and a value the sandbox reads",
     async (ctx) => {
       await steps.run(ctx, "credential and variable", async () => {
-        const cp = raw(sa.cpHttp);
-        const query = { project: project.id };
-        const credential = await cp.post<Credential>(
-          "/v1/credentials",
+        const credential = await sa.credentials.create(
           { name: WALK.credentialName, secret: WALK.credentialSecret },
-          query,
+          project.id,
         );
-        expect(
-          credential.secret ?? null,
-          "a secret never reads back",
-        ).toBeNull();
+        expect("secret" in credential, "a secret never reads back").toBe(false);
         expect(stable(credential)).toMatchInlineSnapshot(`
           {
             "created_at": "[timestamp]",
@@ -712,28 +677,24 @@ walk("SDK end-to-end walk", () => {
             "updated_at": "[timestamp]",
           }
         `);
-        const credentials = await cp.get<Paginated<Credential>>(
-          "/v1/credentials",
-          query,
-        );
+        const credentials = await sa.credentials.list({ project: project.id });
         expect(credentials.records.some((c) => c.id === credential.id)).toBe(
           true,
         );
-        const readCredential = await cp.get<Credential>(
-          `/v1/credentials/${credential.id}`,
-          query,
+        const readCredential = await sa.credentials.get(
+          credential.id,
+          project.id,
         );
         expect(readCredential.name).toBe(WALK.credentialName);
-        await cp.patch<Credential>(
-          `/v1/credentials/${credential.id}`,
+        await sa.credentials.update(
+          credential.id,
           { secret: `${WALK.credentialSecret}-rotated` },
-          query,
+          project.id,
         );
 
-        const variable = await cp.post<Variable>(
-          "/v1/variables",
+        const variable = await sa.variables.create(
           { name: WALK.variableName, kind: "value", value: WALK.variableValue },
-          query,
+          project.id,
         );
         expect(stable(variable)).toMatchInlineSnapshot(`
           {
@@ -751,15 +712,12 @@ walk("SDK end-to-end walk", () => {
             "value": "walk-marker-7f3a",
           }
         `);
-        const variables = await cp.get<Paginated<Variable>>(
-          "/v1/variables",
-          query,
-        );
+        const variables = await sa.variables.list({ project: project.id });
         expect(variables.records.some((v) => v.id === variable.id)).toBe(true);
-        const updated = await cp.patch<Variable>(
-          `/v1/variables/${variable.id}`,
+        const updated = await sa.variables.update(
+          variable.id,
           { value: WALK.variableValue },
-          query,
+          project.id,
         );
         expect(updated.value).toBe(WALK.variableValue);
       });
@@ -850,7 +808,6 @@ walk("SDK end-to-end walk", () => {
     "7: runtime — created from the recipe and baked",
     async (ctx) => {
       await steps.run(ctx, "runtime", async () => {
-        const cp = raw(sa.cpHttp);
         // The push versioned the group at the recipe's commit; that version
         // is the runtime the walk runs on, and the API creates the next one.
         const versioned = await settled(
@@ -933,7 +890,7 @@ walk("SDK end-to-end walk", () => {
 
         // A version's identity in its group is its recipe, so the next
         // version pins the walk's own recipe of the same commit.
-        const created = await cp.post<Runtime>("/v1/runtimes", {
+        const created = await sa.runtimes.create({
           project: project.id,
           recipe_id: pinnedRecipe.id,
           name: WALK.runtimeSlug,
@@ -958,12 +915,9 @@ walk("SDK end-to-end walk", () => {
           runtimeV2.image_build_status,
           runtimeV2.image_build_error_message ?? "",
         ).toBe("ready");
-        const described = await cp.patch<Runtime>(
-          `/v1/runtimes/${runtimeV2.id}`,
-          {
-            description: "the walk's own version",
-          },
-        );
+        const described = await sa.runtimes.update(runtimeV2.id, {
+          description: "the walk's own version",
+        });
         expect(described.description).toBe("the walk's own version");
         let seen = false;
         for await (const item of sa.runtimes.list({
@@ -1028,8 +982,7 @@ walk("SDK end-to-end walk", () => {
           if (item.id === connectionId) seen = true;
         expect(seen).toBe(true);
 
-        const cp = raw(sa.cpHttp);
-        const endpoints = await cp.get<Paginated<Endpoint>>("/v1/endpoints", {
+        const endpoints = await sa.endpoints.list({
           project: project.id,
           mcp_server_id: WALK.mcpServerId,
         });
@@ -1065,14 +1018,12 @@ walk("SDK end-to-end walk", () => {
             "verify_path": null,
           }
         `);
-        const read = await cp.get<Endpoint>(`/v1/endpoints/${endpoint.id}`, {
-          project: project.id,
-        });
+        const read = await sa.endpoints.get(endpoint.id, project.id);
         expect(read.kind).toBe("mcp");
-        const renamed = await cp.patch<Endpoint>(
-          `/v1/endpoints/${endpoint.id}`,
+        const renamed = await sa.endpoints.update(
+          endpoint.id,
           { name: "hello-mcp (walk)" },
-          { project: project.id },
+          project.id,
         );
         expect(renamed.name).toBe("hello-mcp (walk)");
 
@@ -1088,12 +1039,9 @@ walk("SDK end-to-end walk", () => {
           }
         `);
 
-        const requirements = await cp.get<Runtime>(
-          `/v1/runtimes/${runtime.id}`,
-          {
-            include: "mcp_requirements",
-          },
-        );
+        const requirements = await sa.runtimes.get(runtime.id, {
+          include: "mcp_requirements",
+        });
         expect(stable(requirements.mcp_requirements)).toMatchInlineSnapshot(
           `[]`,
         );
@@ -1121,7 +1069,7 @@ walk("SDK end-to-end walk", () => {
             "id": "[uuid]",
             "member_id": "[uuid]",
             "metadata": {
-              "blob_checksum": "0e90bfe21ca1588eb625db464fba78d47c540b3027ac2ca6536cd9cec2d932dd",
+              "blob_checksum": "[digest]",
               "original_filename": "walk-input.txt",
               "suite": "walk",
             },
@@ -1131,7 +1079,7 @@ walk("SDK end-to-end walk", () => {
             "parent_id": null,
             "project_id": "[uuid]",
             "size_bytes": "[number]",
-            "storage_path": "01a13d6d-f05f-7115-9cc9-4b168ba5d22d/01a16803-661c-7117-b7e8-2cc503ed3419/files/01a16803-b378-75ef-aee4-b908ed33ba70/walk-input.txt",
+            "storage_path": "[uuid]/[uuid]/files/[uuid]/walk-input.txt",
             "storage_version_id": null,
             "tags": [],
             "task_id": null,
@@ -1191,7 +1139,11 @@ walk("SDK end-to-end walk", () => {
             label: "task after its first turn",
           },
         );
-        expect(stable(task)).toMatchInlineSnapshot(`
+        // `metadata` is the platform's (the launch path, the active run) and
+        // differs between a warm pod and a baked image; the walk's own key is
+        // asserted and the rest left out of the snapshot.
+        expect(task.metadata?.suite).toBe("walk");
+        expect(stable({ ...task, metadata: undefined })).toMatchInlineSnapshot(`
           {
             "agent": null,
             "automation_id": null,
@@ -1204,71 +1156,7 @@ walk("SDK end-to-end walk", () => {
             "kind": "agent",
             "last_user_message_at": "[timestamp]",
             "member_id": "[uuid]",
-            "metadata": {
-              "active_run_delivered": null,
-              "active_run_id": null,
-              "agent_name": "scripted",
-              "agent_session_id": "[uuid]",
-              "completion_reason": null,
-              "conversation_files": {
-                "uploads": [
-                  {
-                    "id": "[uuid]",
-                  },
-                ],
-              },
-              "conversation_id": "[uuid]",
-              "crash_restarts": null,
-              "error": null,
-              "history_recall": null,
-              "idle_timeout_seconds": 180,
-              "image_build": {
-                "build_id": "[uuid]",
-                "git_sha": "[sha]",
-                "image_digest": "host.docker.internal:5001/sandbox-builds@sha256:290f09b542f08ce39ee76b5bffff6e2266f8250c7deb42ad85688e1572615694",
-                "launch": "baked",
-              },
-              "invocation_id": "inv_12u4gKg8d7nh6qf9ZLFkTnxz8PbmDr6SWN",
-              "last_activity_at": "[timestamp]",
-              "last_response": {
-                "response_id": "chatcmpl-29e1dda8c79645ebb0732436cb9ded0b",
-                "turn": 1,
-                "updated_at": "[timestamp]",
-              },
-              "latest_run_id": "[uuid]",
-              "pending_delivery_id": null,
-              "pending_resume": null,
-              "runtime_environment": "production",
-              "spawn_resolution": {
-                "attribution_env": {
-                  "INTROSPECTION_ENVIRONMENT": "production",
-                  "INTROSPECTION_JUDGES_OPERATIONAL": "{"greeting":{"enabled":true,"sample_rate":1.0,"judge_id":"01a16803-736c-76cd-88c5-5323ae00aae4","definition_hash":"459455f76567d23931987f6e51b8709f8aca44f9c8f665a4d861297113406ba9"}}",
-                  "INTROSPECTION_RECIPE_ID": "[uuid]",
-                  "INTROSPECTION_RECIPE_KIND": "production",
-                  "INTROSPECTION_RECIPE_REF": "main",
-                  "INTROSPECTION_RUNTIME_GROUP_ID": "[uuid]",
-                  "INTROSPECTION_RUNTIME_ID": "[uuid]",
-                  "INTROSPECTION_RUNTIME_KIND": "byor",
-                  "INTROSPECTION_RUNTIME_NAME": "hello-mcp",
-                  "OTEL_SERVICE_NAME": "hello-mcp",
-                },
-                "contract": {
-                  "agent_name": "scripted",
-                  "kind": "pinned_git",
-                  "recipe_repo": "[uuid]",
-                  "recipe_sha": "[sha]",
-                },
-                "image_reference": null,
-                "recipe_resources": null,
-                "recipe_sub_path": "",
-                "runtime_group_id": "[uuid]",
-                "runtime_id": "[uuid]",
-              },
-              "suite": "walk",
-              "task_prompt": null,
-              "turn_count": 1,
-              "workflow_version": 1,
-            },
+            "metadata": undefined,
             "org_id": "[uuid]",
             "project_id": "[uuid]",
             "runtime_group_id": "[uuid]",
@@ -1368,19 +1256,19 @@ walk("SDK end-to-end walk", () => {
             "id": "[uuid]",
             "member_id": "[uuid]",
             "metadata": {
-              "blob_checksum": "548e66e4ed3b79c6587949deca60cdd96c163f1c950dc21a4038c0557f9a145b",
+              "blob_checksum": "[digest]",
               "conversation_id": "[uuid]",
               "original_filename": "greeting.txt",
               "relative_path": "greeting.txt",
               "task_id": "[uuid]",
             },
             "mime_type": "text/plain",
-            "name": "tasks/01a16803-b404-73af-9b83-081b5dd1f5dd/outputs/greeting.txt",
+            "name": "tasks/[uuid]/outputs/greeting.txt",
             "org_id": "[uuid]",
             "parent_id": null,
             "project_id": "[uuid]",
             "size_bytes": "[number]",
-            "storage_path": "01a13d6d-f05f-7115-9cc9-4b168ba5d22d/01a16803-661c-7117-b7e8-2cc503ed3419/files/01a16803-bfbf-7713-b056-6b630d129ad5/greeting.txt",
+            "storage_path": "[uuid]/[uuid]/files/[uuid]/greeting.txt",
             "storage_version_id": null,
             "tags": [],
             "task_id": "[uuid]",
@@ -1416,15 +1304,15 @@ walk("SDK end-to-end walk", () => {
             "environment": "production",
             "id": "[uuid]",
             "metrics": {
-              "duration_ms": 2637,
-              "failed_llm_call_count": 0,
-              "failed_tool_use_count": 1,
+              "duration_ms": "[number]",
+              "failed_llm_call_count": "[number]",
+              "failed_tool_use_count": "[number]",
               "has_errors": false,
-              "llm_call_count": 6,
-              "max_turn": 3,
-              "span_count": 29,
-              "tool_use_count": 3,
-              "trace_count": 3,
+              "llm_call_count": "[number]",
+              "max_turn": "[number]",
+              "span_count": "[number]",
+              "tool_use_count": "[number]",
+              "trace_count": "[number]",
             },
             "object": "conversation",
             "owner": {
@@ -1441,12 +1329,16 @@ walk("SDK end-to-end walk", () => {
             "task_title": "The walk's task",
             "updated_at": "[timestamp]",
             "usage": {
-              "output_tokens": 67,
-              "total_input_tokens": 96,
-              "total_tokens": 163,
+              "output_tokens": "[number]",
+              "total_input_tokens": "[number]",
+              "total_tokens": "[number]",
             },
           }
         `);
+        expect(conversation.metrics.llm_call_count).toBeGreaterThan(0);
+        expect(conversation.metrics.tool_use_count).toBeGreaterThan(0);
+        expect(conversation.metrics.trace_count).toBeGreaterThanOrEqual(2);
+        expect(conversation.usage.total_tokens).toBeGreaterThan(0);
         const page = await settled(
           mode,
           async () => await sa.conversations.items.list(conversationId),
@@ -1679,21 +1571,18 @@ walk("SDK end-to-end walk", () => {
     "14: eval — a trial on the runtime, graded by the recipe's judge; an experiment over two versions",
     async (ctx) => {
       await steps.run(ctx, "eval", async () => {
-        const cp = raw(sa.cpHttp);
-        const judges = await cp.get<Paginated<Judge>>("/v1/judges", {
+        const judges = await sa.judges.list({
           project: project.id,
           runtime_group_id: runtime.runtime_group_id,
         });
         judge = judges.records.find((j) => j.name === "greeting")!;
         expect(judge, "the recipe's judge is synced").toBeTruthy();
-        const readJudge = await cp.get<Judge>(`/v1/judges/${judge.id}`, {
-          project: project.id,
-        });
+        const readJudge = await sa.judges.get(judge.id, project.id);
         expect(readJudge.name).toBe("greeting");
-        await cp.patch<Judge>(
-          `/v1/judges/${judge.id}`,
+        await sa.judges.update(
+          judge.id,
           { enabled: true, sample_rate: 1 },
-          { project: project.id },
+          project.id,
         );
 
         // A trial needs the evals capability, which the runner's session never
@@ -1708,7 +1597,11 @@ walk("SDK end-to-end walk", () => {
           idle_timeout_seconds: 120,
         } as Parameters<typeof sa.tasks.create>[0]);
         evalTask = created.task;
-        expect(stable(evalTask)).toMatchInlineSnapshot(`
+        // `metadata` is the platform's (the launch path, the active run) and
+        // differs between a warm pod and a baked image; the walk's own key is
+        // asserted and the rest left out of the snapshot.
+        expect(evalTask.metadata?.suite).toBe("walk");
+        expect(stable({ ...evalTask, metadata: undefined })).toMatchInlineSnapshot(`
           {
             "agent": {
               "sandbox_status": "provisioning",
@@ -1724,49 +1617,7 @@ walk("SDK end-to-end walk", () => {
             "kind": "eval",
             "last_user_message_at": "[timestamp]",
             "member_id": "[uuid]",
-            "metadata": {
-              "active_run_id": "[uuid]",
-              "agent_name": "scripted",
-              "commands": true,
-              "completion_reason": null,
-              "conversation_id": "[uuid]",
-              "crash_restarts": null,
-              "error": null,
-              "history_recall": null,
-              "idle_timeout_seconds": 120,
-              "last_activity_at": null,
-              "latest_run_id": "[uuid]",
-              "runtime_environment": "production",
-              "spawn_resolution": {
-                "attribution_env": {
-                  "INTROSPECTION_ENVIRONMENT": "production",
-                  "INTROSPECTION_JUDGES_OPERATIONAL": "{"greeting":{"enabled":true,"sample_rate":1.0,"judge_id":"01a16803-736c-76cd-88c5-5323ae00aae4","definition_hash":"459455f76567d23931987f6e51b8709f8aca44f9c8f665a4d861297113406ba9"}}",
-                  "INTROSPECTION_RECIPE_ID": "[uuid]",
-                  "INTROSPECTION_RECIPE_KIND": "production",
-                  "INTROSPECTION_RECIPE_REF": "main",
-                  "INTROSPECTION_RUNTIME_GROUP_ID": "[uuid]",
-                  "INTROSPECTION_RUNTIME_ID": "[uuid]",
-                  "INTROSPECTION_RUNTIME_KIND": "byor",
-                  "INTROSPECTION_RUNTIME_NAME": "hello-mcp",
-                  "OTEL_SERVICE_NAME": "hello-mcp",
-                },
-                "contract": {
-                  "agent_name": "scripted",
-                  "kind": "pinned_git",
-                  "recipe_repo": "[uuid]",
-                  "recipe_sha": "[sha]",
-                },
-                "image_reference": null,
-                "recipe_resources": null,
-                "recipe_sub_path": ".",
-                "runtime_group_id": "[uuid]",
-                "runtime_id": "[uuid]",
-              },
-              "suite": "walk",
-              "task_prompt": "Call the \`echo\` tool from the declared \`hello-mcp\` MCP server with the message \`hello from the public MCP\`. Write the echoed value exactly, with no quotes or additional formatting, to \`/workspace/outputs/greeting.txt\`. Then run \`echo $WALK_MARKER\` in the shell and reply in one short sentence.
-
-          <<SCRIPT {"reply":"Echoed the message through hello-mcp and wrote it to the outputs file.","tools":[{"name":"hello-mcp_echo","arguments":{"message":"hello from the public MCP"}},{"name":"write","arguments":{"path":"/workspace/outputs/greeting.txt","content":"Echo: hello from the public MCP"}},{"name":"bash","arguments":{"command":"echo $WALK_MARKER"}}]}>>",
-            },
+            "metadata": undefined,
             "org_id": "[uuid]",
             "project_id": "[uuid]",
             "runtime_group_id": "[uuid]",
@@ -1839,7 +1690,7 @@ walk("SDK end-to-end walk", () => {
               "components": [
                 {
                   "guard": null,
-                  "judge_definition_hash": "459455f76567d23931987f6e51b8709f8aca44f9c8f665a4d861297113406ba9",
+                  "judge_definition_hash": "[digest]",
                   "judge_id": "[uuid]",
                   "source": "judge",
                   "weight": 1,
@@ -1914,7 +1765,7 @@ walk("SDK end-to-end walk", () => {
               "components": [
                 {
                   "guard": null,
-                  "judge_definition_hash": "459455f76567d23931987f6e51b8709f8aca44f9c8f665a4d861297113406ba9",
+                  "judge_definition_hash": "[digest]",
                   "judge_id": "[uuid]",
                   "source": "judge",
                   "weight": 1,
@@ -1971,24 +1822,13 @@ walk("SDK end-to-end walk", () => {
     "15: commands — exec and download inside the eval's sandbox",
     async (ctx) => {
       await steps.run(ctx, "commands", async () => {
-        const dp = raw(sa.dpHttp);
-        const dpQuiet = raw(saQuiet.dpHttp);
-        const command = async (body: Record<string, unknown>) => {
-          const created = await dp.post<TaskCommand>(
-            `/v1/tasks/${evalTask.id}/commands`,
-            body,
-          );
+        const command = async (spec: TaskCommandSpec) => {
+          const created = await sa.tasks.commands.create(evalTask.id, spec);
           return settled(
             mode,
-            () =>
-              dp.get<TaskCommand>(
-                `/v1/tasks/${evalTask.id}/commands/${created.id}`,
-              ),
-            () =>
-              dpQuiet.get<TaskCommand>(
-                `/v1/tasks/${evalTask.id}/commands/${created.id}`,
-              ),
-            (c) =>
+            () => sa.tasks.commands.get(evalTask.id, created.id),
+            () => saQuiet.tasks.commands.get(evalTask.id, created.id),
+            (c: TaskCommand) =>
               ["succeeded", "completed", "failed", "cancelled"].includes(
                 c.status,
               ),
@@ -2036,9 +1876,7 @@ walk("SDK end-to-end walk", () => {
           download.output_file_id,
           "the download produced a file",
         ).toBeTruthy();
-        const listed = await dp.get<Paginated<TaskCommand>>(
-          `/v1/tasks/${evalTask.id}/commands`,
-        );
+        const listed = await sa.tasks.commands.list(evalTask.id);
         expect(listed.records.length).toBeGreaterThanOrEqual(2);
 
         // Judging runs in the sandbox at teardown and calls the judge's own
@@ -2174,11 +2012,9 @@ walk("SDK end-to-end walk", () => {
           "/v1/oidc/me",
         );
         expect(me.org_id).toBe(project.org_id);
-        const cp = raw(sa.cpHttp);
-        apiKey = await cp.post<ApiKey>(
-          "/v1/api-keys",
+        apiKey = await sa.apiKeys.create(
           { name: "walk", environment: "development", allow: ["runtimes"] },
-          { project: project.id },
+          project.id,
         );
         expect(
           apiKey.api_key,
@@ -2196,41 +2032,36 @@ walk("SDK end-to-end walk", () => {
               "environment": "development",
               "expires_at": null,
               "id": "[uuid]",
-              "key_display": "intro_dev_AVNoO21K...Wnx0",
+              "key_display": "intro_dev_KNB4_pM4...IOMo",
               "key_prefix": "[redacted]",
               "key_suffix": "[redacted]",
               "last_used_at": null,
               "member_id": "[uuid]",
               "name": "walk",
               "org_id": "[uuid]",
-              "prefix": "intro_dev_AVNoO21K",
+              "prefix": "intro_dev_KNB4_pM4",
               "project_id": "[uuid]",
               "redacted_key": "[redacted]",
               "scope": "telemetry:write projects:read repositories:read recipes:read recipes:write runtimes:read runtimes:write experiments:read experiments:write tasks:read tasks:write tasks:delete files:read files:write conversations:read events:read metrics:read shares:read shares:write shares:delete connectors:read connectors:write annotations:read approvals:read approvals:write",
               "status": "active",
             }
           `);
-        // The key list is its own envelope, `api_keys`, not a page.
-        const keys = await cp.get<{ api_keys: ApiKey[] }>("/v1/api-keys", {
-          project: project.id,
-        });
-        expect(keys.api_keys.some((k) => k.id === apiKey.id)).toBe(true);
-        await cp.patch<ApiKey>(
-          `/v1/api-keys/${apiKey.id}`,
+        // The key list is its own envelope, `api_keys`, not a page; the SDK
+        // answers the array.
+        const keys = await sa.apiKeys.list({ project: project.id });
+        expect(keys.some((k) => k.id === apiKey.id)).toBe(true);
+        await sa.apiKeys.update(
+          apiKey.id,
           { name: "walk (renamed)" },
-          { project: project.id },
+          project.id,
         );
-        await cp.post(
-          `/v1/api-keys/${apiKey.id}/acknowledge`,
-          {},
-          { project: project.id },
-        );
+        await sa.apiKeys.acknowledge(apiKey.id, project.id);
         const org = await raw(owner.cpHttp).get<{ id: string; slug: string }>(
           "/v1/organizations/me",
         );
         expect(stable(org)).toMatchInlineSnapshot(`
           {
-            "external_org_id": "395163796525572367",
+            "external_org_id": "[id]",
             "hosted_git": true,
             "id": "[uuid]",
             "image_url": null,
@@ -2250,10 +2081,7 @@ walk("SDK end-to-end walk", () => {
         // Deleting is the owner's: the `:delete` scopes of runtimes, recipes,
         // experiments, repositories and connectors are never minted to an
         // application, so the session does what the service account cannot.
-        const cp = raw(owner.cpHttp);
-        const dp = raw(sa.dpHttp);
-        const q = { project: project.id };
-        await cp.delete(`/v1/api-keys/${apiKey.id}`, q);
+        await sa.apiKeys.delete(apiKey.id, { project: project.id });
         await sa.automations.delete(automation.id);
         await sa.shares.delete(shareId);
         const memberAgain = new IntrospectionClient({
@@ -2279,45 +2107,41 @@ walk("SDK end-to-end walk", () => {
           project: project.id,
           runtime: WALK.runtimeSlug,
         })) {
-          await cp.delete(`/v1/runtimes/${r.id}`, q);
+          await owner.runtimes.delete(r.id, project.id);
         }
         await expectNotFound(() => sa.runtimes.get(runtimeV2.id));
         // The group's endpoint binding went with its last runtime version.
-        await cp
-          .delete(`/v1/endpoints/${endpoint.id}`, q)
+        await sa.endpoints
+          .delete(endpoint.id, project.id)
           .catch((err: unknown) => {
             if (!(err instanceof NotFoundError)) throw err;
           });
         for await (const c of sa.connectors.connections.list(connector.id)) {
-          await cp.delete(
-            `/v1/connectors/${connector.id}/connections/${c.id}`,
-            q,
+          await owner.connectors.connections.revoke(
+            connector.id,
+            c.id,
+            project.id,
           );
         }
-        await cp.delete(`/v1/connectors/${connector.id}`, q);
+        await owner.connectors.delete(connector.id, project.id);
         await expectNotFound(() => sa.connectors.get(connector.id));
-        const variables = await cp.get<Paginated<Variable>>("/v1/variables", q);
-        for (const v of variables.records)
-          await cp.delete(`/v1/variables/${v.id}`, q);
-        const credentials = await cp.get<Paginated<Credential>>(
-          "/v1/credentials",
-          q,
-        );
-        for (const c of credentials.records)
-          await cp.delete(`/v1/credentials/${c.id}`, q);
+        for await (const v of sa.variables.list({ project: project.id }))
+          await sa.variables.delete(v.id, project.id);
+        for await (const c of sa.credentials.list({ project: project.id }))
+          await sa.credentials.delete(c.id, project.id);
         for await (const r of sa.recipes.list({ project: project.id })) {
-          await cp.delete(`/v1/recipes/${r.id}`, q);
+          await owner.recipes.delete(r.id, project.id);
         }
         await expectNotFound(() => sa.recipes.get(recipe.id));
-        await cp.delete(`/v1/repositories/${repository.id}`, q);
-        await dp
-          .get(`/v1/repositories/${repository.id}/branches`)
-          .catch(() => undefined);
-        await cp.delete(`/v1/applications/${application.id}`, q);
-        await raw(owner.cpHttp).delete(`/v1/projects/${project.id}`);
-        await expectNotFound(() =>
-          raw(owner.cpHttp).get<Project>(`/v1/projects/${project.id}`),
-        );
+        await owner.repositories.delete(repository.id, { project: project.id });
+        try {
+          await sa.repositories.branches(repository.id);
+        } catch {
+          // The hosted content went with the repository.
+        }
+        await owner.applications.delete(application.id, project.id);
+        await owner.projects.delete(project.id);
+        await expectNotFound(() => owner.projects.get(project.id));
       });
     },
     STEP_TIMEOUT,

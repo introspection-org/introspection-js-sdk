@@ -109,11 +109,168 @@ describe("projects", () => {
     ]);
   });
 
-  it("exposes no project writes", () => {
-    const projects = openClient(fakeControlPlane().fetch).projects as unknown;
-    for (const write of ["create", "update", "delete"]) {
-      expect(projects).not.toHaveProperty(write);
-    }
+  it("creates, updates and deletes by slug or id", async () => {
+    const { sent, fetch } = fakeControlPlane((call) =>
+      call.method === "DELETE" ? empty() : json({ id: ROW_ID }),
+    );
+    const projects = openClient(fetch).projects;
+
+    await projects.create({ name: "SDK", deployment_id: CHILD_ID });
+    await projects.update("sdk-tests", { description: "walk" });
+    await projects.delete(ROW_ID);
+
+    expect(calls(sent)).toEqual([
+      ["POST", `${CP}/v1/projects`, { name: "SDK", deployment_id: CHILD_ID }],
+      ["PATCH", `${CP}/v1/projects/sdk-tests`, { description: "walk" }],
+      ["DELETE", `${CP}/v1/projects/${ROW_ID}`, undefined],
+    ]);
+  });
+});
+
+describe("endpoints", () => {
+  it("lists with filters, reads, renames and deletes with the project selector", async () => {
+    const { sent, fetch } = fakeControlPlane((call) =>
+      call.method === "DELETE"
+        ? empty()
+        : call.method === "GET" && !call.url.includes(ROW_ID)
+          ? json(page([]))
+          : json({ id: ROW_ID }),
+    );
+    const endpoints = openClient(fetch).endpoints;
+
+    await endpoints.list({ project: "sdk-tests", mcp_server_id: "hello" });
+    await endpoints.get(ROW_ID, "sdk-tests");
+    await endpoints.update(ROW_ID, { name: "renamed" }, "sdk-tests");
+    await endpoints.delete(ROW_ID, "sdk-tests");
+
+    expect(calls(sent)).toEqual([
+      [
+        "GET",
+        `${CP}/v1/endpoints?project=sdk-tests&mcp_server_id=hello`,
+        undefined,
+      ],
+      ["GET", `${CP}/v1/endpoints/${ROW_ID}?project=sdk-tests`, undefined],
+      [
+        "PATCH",
+        `${CP}/v1/endpoints/${ROW_ID}?project=sdk-tests`,
+        { name: "renamed" },
+      ],
+      ["DELETE", `${CP}/v1/endpoints/${ROW_ID}?project=sdk-tests`, undefined],
+    ]);
+  });
+
+  it("exposes no endpoint create: a connector's authorization makes one", () => {
+    const endpoints = openClient(fakeControlPlane().fetch).endpoints as unknown;
+    expect(endpoints).not.toHaveProperty("create");
+  });
+});
+
+describe("recipes, runtimes and repositories", () => {
+  it("a recipe is pinned, described and deleted", async () => {
+    const { sent, fetch } = fakeControlPlane((call) =>
+      call.method === "DELETE" ? empty() : json({ id: ROW_ID }),
+    );
+    const recipes = openClient(fetch).recipes;
+
+    await recipes.create({
+      project: "sdk-tests",
+      repository_id: CHILD_ID,
+      git_ref: "main",
+    });
+    await recipes.update(ROW_ID, { description: "walk" });
+    await recipes.delete(ROW_ID, "sdk-tests");
+
+    expect(calls(sent)).toEqual([
+      [
+        "POST",
+        `${CP}/v1/recipes`,
+        { project: "sdk-tests", repository_id: CHILD_ID, git_ref: "main" },
+      ],
+      ["PATCH", `${CP}/v1/recipes/${ROW_ID}`, { description: "walk" }],
+      ["DELETE", `${CP}/v1/recipes/${ROW_ID}?project=sdk-tests`, undefined],
+    ]);
+  });
+
+  it("a runtime version is created, read with an include, described and deleted", async () => {
+    const { sent, fetch } = fakeControlPlane((call) =>
+      call.method === "DELETE" ? empty() : json({ id: ROW_ID }),
+    );
+    const runtimes = openClient(fetch).runtimes;
+
+    await runtimes.create({
+      project: "sdk-tests",
+      name: "hello",
+      slug: "hello",
+      recipe_id: CHILD_ID,
+    });
+    await runtimes.get(ROW_ID, { include: "mcp_requirements" });
+    await runtimes.update(ROW_ID, { description: "walk" }, "sdk-tests");
+    await runtimes.delete(ROW_ID, "sdk-tests");
+
+    expect(calls(sent)).toEqual([
+      [
+        "POST",
+        `${CP}/v1/runtimes`,
+        {
+          project: "sdk-tests",
+          name: "hello",
+          slug: "hello",
+          recipe_id: CHILD_ID,
+        },
+      ],
+      [
+        "GET",
+        `${CP}/v1/runtimes/${ROW_ID}?include=mcp_requirements`,
+        undefined,
+      ],
+      [
+        "PATCH",
+        `${CP}/v1/runtimes/${ROW_ID}?project=sdk-tests`,
+        { description: "walk" },
+      ],
+      ["DELETE", `${CP}/v1/runtimes/${ROW_ID}?project=sdk-tests`, undefined],
+    ]);
+  });
+
+  it("a repository's branches read through the Data Plane and its delete through the Control Plane", async () => {
+    const { sent, fetch } = fakeControlPlane((call) =>
+      call.method === "DELETE"
+        ? empty()
+        : json(page([{ name: "main", sha: "a".repeat(40) }])),
+    );
+    const repositories = openClient(fetch).repositories;
+
+    const branches = await repositories.branches(ROW_ID, { q: "ma" });
+    await repositories.delete(ROW_ID, { project: "sdk-tests" });
+
+    expect(branches.records.map((b) => b.name)).toEqual(["main"]);
+    expect(calls(sent)).toEqual([
+      [
+        "GET",
+        `https://dp.example.com/v1/repositories/${ROW_ID}/branches?q=ma`,
+        undefined,
+      ],
+      [
+        "DELETE",
+        `${CP}/v1/repositories/${ROW_ID}?project=sdk-tests`,
+        undefined,
+      ],
+    ]);
+  });
+
+  it("a connector's delete and a connection's revoke take the project selector", async () => {
+    const { sent, fetch } = fakeControlPlane(() => empty());
+    const connectors = openClient(fetch).connectors;
+
+    await connectors.connections.revoke(ROW_ID, CHILD_ID, "sdk-tests");
+    await connectors.delete(ROW_ID, "sdk-tests");
+    await connectors.delete(ROW_ID);
+
+    expect(sent.map((s) => s.url)).toEqual([
+      `${CP}/v1/connectors/${ROW_ID}/connections/${CHILD_ID}?project=sdk-tests`,
+      `${CP}/v1/connectors/${ROW_ID}?project=sdk-tests`,
+      `${CP}/v1/connectors/${ROW_ID}`,
+    ]);
   });
 });
 

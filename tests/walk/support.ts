@@ -174,7 +174,11 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const TIMESTAMP =
   /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2})$/;
 const SHA = /^[0-9a-f]{40}$/i;
+const UUID_ANYWHERE = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi;
+const SHA_ANYWHERE = /\b[0-9a-f]{40}\b/gi;
+const DIGEST_ANYWHERE = /\b[0-9a-f]{64}\b/gi;
 const JWT = /^eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/;
+const MEASURED_KEY = /(_ms$|_count$|_tokens$|^max_turn$)/;
 const VOLATILE_KEY =
   /(^id$|_at$|_sha$|token$|secret$|^key$|_key$|cookie$|^url$|_url$|^expires_in$|^client_id$|_prefix$|_suffix$|image_tag$|_image_name$|_bytes$)/;
 
@@ -199,9 +203,21 @@ export function stable(value: unknown, key = ""): unknown {
     if (JWT.test(value)) return "[jwt]";
     if (/^https?:\/\//.test(value)) return "[url]";
     if (VOLATILE_KEY.test(key)) return "[redacted]";
-    return value;
+    // An identifier under an `_id` key that is not a UUID (a Restate
+    // invocation, a provider response id) is volatile when it carries digits;
+    // a declared name such as `mcp_server_id: hello-mcp` stays.
+    if (/_id$/.test(key) && /\d/.test(value)) return "[id]";
+    // An id or a hash inside a longer value (a storage path, an image tag,
+    // a digest) is volatile too; the text around it stays.
+    return value
+      .replace(UUID_ANYWHERE, "[uuid]")
+      .replace(DIGEST_ANYWHERE, "[digest]")
+      .replace(SHA_ANYWHERE, "[sha]");
   }
-  if (typeof value === "number" && VOLATILE_KEY.test(key)) return "[number]";
+  // A measured number (a duration, a span or call count, a token total)
+  // moves between two runs of the same script; its bounds are asserted
+  // beside the snapshot instead.
+  if (typeof value === "number" && (VOLATILE_KEY.test(key) || MEASURED_KEY.test(key))) return "[number]";
   return value;
 }
 
