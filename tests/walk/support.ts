@@ -415,7 +415,7 @@ export async function followAuthorization(
 
 /**
  * Push the recipe into the walk's hosted repository: a shallow clone of the
- * source (a public URL, or a checkout on disk) at `ref`, pushed to the
+ * source (a git URL, or a checkout on disk) at `ref`, pushed to the
  * hosted `main`. The bearer travels in the
  * environment as a git config, never in argv. Live only; the git transport
  * is a subprocess the recording cannot see.
@@ -425,14 +425,32 @@ export function pushRecipe(
   target: { url: string; bearer: string },
 ): string {
   const dir = fs.mkdtempSync(`${os.tmpdir()}/sdk-walk-recipe-`);
+  // The source is read with the person's own git config, so a private recipe
+  // clones through their credential helper; the bearer goes to the target only.
+  execFileSync(
+    "git",
+    [
+      "clone",
+      "--quiet",
+      "--depth",
+      "1",
+      "--branch",
+      source.ref,
+      source.url,
+      dir,
+    ],
+    {
+      env: { ...process.env, GIT_TERMINAL_PROMPT: "0" },
+      stdio: ["ignore", "pipe", "pipe"],
+    },
+  );
   const env = {
     ...process.env,
     GIT_TERMINAL_PROMPT: "0",
     GIT_CONFIG_COUNT: "2",
     GIT_CONFIG_KEY_0: "http.extraHeader",
     GIT_CONFIG_VALUE_0: `Authorization: Bearer ${target.bearer}`,
-    // No credential helper from the person's own git config: the source is
-    // a public URL or a local checkout, the target takes the bearer above.
+    // No credential helper for the target: it takes the bearer above.
     GIT_CONFIG_KEY_1: "credential.helper",
     GIT_CONFIG_VALUE_1: "",
   };
@@ -440,16 +458,6 @@ export function pushRecipe(
     execFileSync("git", args, { env, stdio: ["ignore", "pipe", "pipe"] })
       .toString()
       .trim();
-  git(
-    "clone",
-    "--quiet",
-    "--depth",
-    "1",
-    "--branch",
-    source.ref,
-    source.url,
-    dir,
-  );
   const sha = git("-C", dir, "rev-parse", "HEAD");
   // The Data Plane provisions the hosted copy off the Control Plane's sync
   // lane on its own schedule, so the first push may land before it exists.
@@ -481,7 +489,7 @@ export function pushRecipe(
 /**
  * Whether the committed recording reaches the walk's end: a record run that
  * stopped short leaves a partial HAR, which replay must not take for the
- * contract. The teardown's last call, deleting the project, is the marker.
+ * contract. The teardown's last two calls are the marker.
  */
 export function hasCompleteRecording(
   recordingsDir: string,
@@ -495,12 +503,21 @@ export function hasCompleteRecording(
     const har = `${recordingsDir}/${entry}/recording.har`;
     if (!fs.existsSync(har)) continue;
     const log = JSON.parse(fs.readFileSync(har, "utf8")) as {
-      log: { entries: { request: { method: string; url: string } }[] };
+      log: {
+        entries: {
+          request: { method: string; url: string };
+          response: { status: number };
+        }[];
+      };
     };
-    return log.log.entries.some(
-      (e) =>
-        e.request.method === "DELETE" &&
-        /\/v1\/projects\/[^/?]+$/.test(e.request.url),
+    // The teardown ends reading the application it removed (404), then the
+    // login's project.
+    const [app, last] = log.log.entries.slice(-2);
+    return (
+      app?.response.status === 404 &&
+      /\/v1\/applications\//.test(app.request.url) &&
+      last?.request.method === "GET" &&
+      /\/v1\/projects\/[^/?]+$/.test(last.request.url)
     );
   }
   return false;
