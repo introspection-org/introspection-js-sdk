@@ -15,6 +15,7 @@ import type { Polly } from "@pollyjs/core";
 import {
   IntrospectionClient,
   NotFoundError,
+  ValidationError,
   serviceAccountToken,
   type Runner,
 } from "@introspection-sdk/introspection-node";
@@ -1571,6 +1572,19 @@ walk("SDK end-to-end walk", () => {
             // A fixed event id, so the request replays; the SDK would mint one.
             { event_id: "019a1000-0000-7000-8000-0000000000a1" },
           );
+          // Reviewers by email resolve through the Control Plane's member list,
+          // which a member's Data Plane token cannot read (design doc §9); the
+          // walk clears them, which needs no lookup, and reaches the check made
+          // before any request.
+          const span = { trace_id: target.trace_id, span_id: target.span_id };
+          await member.annotations.create(
+            span,
+            { reviewerEmails: [] },
+            { event_id: "019a1000-0000-7000-8000-0000000000a3" },
+          );
+          await expect(
+            member.annotations.create(span, { reviewerEmails: [" "] }),
+          ).rejects.toBeInstanceOf(ValidationError);
           const annotations = await settled(
             mode,
             async () => {
@@ -1662,8 +1676,28 @@ walk("SDK end-to-end walk", () => {
           "/v1/aauth/approvals",
         );
         expect(approvals.records).toEqual([]);
-        // `/v1/connections` answers 404 until the project has an app connector,
-        // which the walk does not set up (member-connections.md).
+        // `/v1/connections` is the apps a member connects through an app
+        // (Pipedream) connector, which needs that provider's credentials; with
+        // none on the project every route answers 404 (member-connections.md).
+        await expectNotFound(async () => await member.connections.list());
+        await expectNotFound(() =>
+          member.connections.get("019a1000-0000-7000-8000-0000000000c1"),
+        );
+        await expectNotFound(() =>
+          member.connections.delete("019a1000-0000-7000-8000-0000000000c1"),
+        );
+        await expectNotFound(() =>
+          member.connections.create({
+            app: "gmail",
+            runtime: WALK.runtimeSlug,
+          }),
+        );
+        // A client with no runtime of its own refuses before any request.
+        await expect(
+          member.connections.create({ app: "gmail" } as Parameters<
+            typeof member.connections.create
+          >[0]),
+        ).rejects.toThrow(/runtime/);
       });
     },
     STEP_TIMEOUT,
