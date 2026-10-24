@@ -46,7 +46,7 @@ export interface WalkSettings {
 }
 
 /** Fixed names, so a recording matches whatever run replays it. */
-export const WALK = {
+const WALK = {
   /** Names the sibling project step 1 creates and deletes. */
   siblingSuffix: "-walk",
   /** A walk takes minutes; a run this old crashed before its teardown. */
