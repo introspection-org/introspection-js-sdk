@@ -49,5 +49,4 @@ jobs:
         run: sudo env "PATH=$PATH" npx -y portless@0.15.11 proxy start
 
       - name: Run the e2e
-        working-directory: examples/aauth-travel
-        run: pnpm e2e
+        run: pnpm --filter introspection-example-aauth-travel run e2e
