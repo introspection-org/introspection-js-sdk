@@ -793,7 +793,11 @@ walk("SDK end-to-end walk", () => {
           issuer: WALK.mcpIssuer,
           api_hosts: [new URL(WALK.mcpEndpoint).host],
         } as Parameters<typeof sa.connectors.create>[0]);
-        expect(stable(connector)).toMatchInlineSnapshot(`
+        // Create is idempotent on the slug, and the login's project keeps the
+        // connector between runs: pending when new, active once granted.
+        const { status, ...created } = connector;
+        expect(["pending", "active"]).toContain(status);
+        expect(stable(created)).toMatchInlineSnapshot(`
           {
             "agent_member_id": "[uuid]",
             "api_hosts": [
@@ -831,7 +835,6 @@ walk("SDK end-to-end walk", () => {
             "requires_runtime": false,
             "scopes": [],
             "slug": "hello-mcp",
-            "status": "active",
             "token_endpoint": "[url]",
             "updated_at": "[timestamp]",
             "webhook_url": null,
