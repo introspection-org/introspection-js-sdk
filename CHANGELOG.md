@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.42.0](https://github.com/introspection-org/introspection-js-sdk/compare/v0.41.1...v0.42.0) (2026-10-24)
+
+
+### Features
+
+* approvals and missions resources for the Data Plane's AAuth routes ([#531](https://github.com/introspection-org/introspection-js-sdk/issues/531)) ([42e98e4](https://github.com/introspection-org/introspection-js-sdk/commit/42e98e48b3a896decfba9e9142c5ee0b4e5bc863))
+
 ## [0.41.1](https://github.com/introspection-org/introspection-js-sdk/compare/v0.41.0...v0.41.1) (2026-10-24)
 
 
