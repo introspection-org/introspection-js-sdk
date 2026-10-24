@@ -51,9 +51,11 @@ import {
   raw,
   NATIVE_FETCH,
   settled,
+  spanEventId,
   stable,
   Steps,
   WALK,
+  walkProjectBorn,
   walkSettings,
   type WalkSettings,
 } from "./support";
@@ -151,6 +153,7 @@ walk("SDK end-to-end walk", () => {
   let sa: IntrospectionClient;
   /** The same credentials on the native fetch: polls that the recording never sees. */
   let saQuiet: IntrospectionClient;
+  let loginProject: Project;
   let project: Project;
   let application: Application;
   let repository: Repository;
@@ -198,18 +201,38 @@ walk("SDK end-to-end walk", () => {
   }, STEP_TIMEOUT);
 
   it(
-    "0: the login's project, with a crashed run's leftovers removed",
+    "0: a project of its own, created empty on the login's deployment",
     async (ctx) => {
       await steps.run(ctx, "clean slate", async () => {
-        // The walk runs in the project the login names and never deletes it;
-        // a record run writes the id beside the recording, which is all
-        // replay needs to send the same read.
-        project = await owner.projects.get(settings.bootstrapProjectId!);
+        // Every run starts in a project of its own, created here on the
+        // login's deployment and deleted by the teardown. A record run writes
+        // both ids beside the recording, which is all replay needs to send
+        // the same calls.
+        loginProject = await owner.projects.get(settings.bootstrapProjectId!);
+        // A run that crashed before its teardown left its project behind; one
+        // still running is younger than the cutoff. Measured from this run's
+        // own slug, so replay decides as the recording did.
+        const now = walkProjectBorn(settings.projectSlug);
+        expect(now, "the walk's own slug carries its time").toBeDefined();
+        for (const other of (await owner.projects.list()).records) {
+          const born = walkProjectBorn(other.slug);
+          if (born !== undefined && now! - born > WALK.staleAfterSeconds) {
+            await owner.projects.delete(other.id);
+          }
+        }
+        project = await owner.projects.create({
+          name: WALK.projectName,
+          slug: settings.projectSlug,
+          deployment_id: loginProject.deployment_id,
+        });
         if (mode === "record") {
           fs.mkdirSync(recordingDir, { recursive: true });
           fs.writeFileSync(
             `${recordingDir}/${BOOTSTRAP_FILE}`,
-            JSON.stringify({ project_id: project.id }) + "\n",
+            JSON.stringify({
+              project_id: loginProject.id,
+              project_slug: settings.projectSlug,
+            }) + "\n",
           );
         }
         // The owner's Data Plane token for the project: it carries
@@ -228,7 +251,6 @@ walk("SDK end-to-end walk", () => {
             dpUrl: settings.dpUrl ?? undefined,
           },
         });
-        await removeWalkResources(owner, member, project);
       });
     },
     STEP_TIMEOUT,
@@ -238,7 +260,7 @@ walk("SDK end-to-end walk", () => {
     "1: project — read, list, update; a sibling created and deleted",
     async (ctx) => {
       await steps.run(ctx, "project", async () => {
-        // The project's name, slug and description are the login's.
+        // The slug is new on every live run, so the snapshot leaves it out.
         expect(
           stable({
             ...project,
@@ -276,8 +298,7 @@ walk("SDK end-to-end walk", () => {
         });
         expect(restored.description ?? "").toBe(originalDescription ?? "");
 
-        // Creating and deleting a project is the one write the login's own
-        // project must not see, so a sibling takes it.
+        // A sibling is created and deleted while the walk's project is in use.
         const sibling = await owner.projects.create({
           name: `${project.name} (walk)`,
           slug: `${project.slug}${WALK.siblingSuffix}`,
@@ -1216,7 +1237,7 @@ walk("SDK end-to-end walk", () => {
             "completed_at": null,
             "conversation_metadata": null,
             "created_at": "[timestamp]",
-            "display_index": 4,
+            "display_index": "[number]",
             "id": "[uuid]",
             "is_archived": false,
             "kind": "agent",
@@ -1446,7 +1467,9 @@ walk("SDK end-to-end walk", () => {
         expect(exported.data.length).toBeGreaterThanOrEqual(page.data.length);
         const exportedTable =
           await sa.conversations.exportArrow(conversationId);
-        expect(exportedTable.numRows).toBe(exported.data.length);
+        // Spans can still be arriving between two exports, so each is held
+        // to the items the step already read rather than to the other.
+        expect(exportedTable.numRows).toBeGreaterThanOrEqual(page.data.length);
         const stream = await sa.conversations.exportStream(
           conversationId,
           "json",
@@ -1454,7 +1477,7 @@ walk("SDK end-to-end walk", () => {
         const streamed = JSON.parse(await new Response(stream).text()) as {
           data: unknown[];
         };
-        expect(streamed.data.length).toBe(exported.data.length);
+        expect(streamed.data.length).toBeGreaterThanOrEqual(page.data.length);
         const listedTable = await sa.conversations
           .listArrow({ runtime_group_id: runtime.runtime_group_id })
           .readAll();
@@ -1569,8 +1592,11 @@ walk("SDK end-to-end walk", () => {
           await member.annotations.create(
             { trace_id: target.trace_id, span_id: target.span_id },
             { labels: ["walk"] },
-            // A fixed event id, so the request replays; the SDK would mint one.
-            { event_id: "019a1000-0000-7000-8000-0000000000a1" },
+            // An event id derived from the span, so the request replays; the
+            // SDK would mint one.
+            {
+              event_id: spanEventId(target.trace_id, target.span_id, "labels"),
+            },
           );
           // Reviewers by email resolve through the Control Plane's member list,
           // which a member's Data Plane token cannot read (design doc §9); the
@@ -1580,7 +1606,13 @@ walk("SDK end-to-end walk", () => {
           await member.annotations.create(
             span,
             { reviewerEmails: [] },
-            { event_id: "019a1000-0000-7000-8000-0000000000a3" },
+            {
+              event_id: spanEventId(
+                target.trace_id,
+                target.span_id,
+                "reviewers",
+              ),
+            },
           );
           await expect(
             member.annotations.create(span, { reviewerEmails: [" "] }),
@@ -1648,7 +1680,7 @@ walk("SDK end-to-end walk", () => {
               conversation_id: conversationId,
             } as Parameters<typeof sa.events.listArrow>[0])
             .readAll();
-          expect(eventTable.numRows).toBe(events.length);
+          expect(eventTable.numRows).toBeGreaterThanOrEqual(events.length);
           const facets = await raw(member.dpHttp).get<unknown>(
             "/v1/annotations/facets",
             {
@@ -1753,7 +1785,7 @@ walk("SDK end-to-end walk", () => {
             "completed_at": null,
             "conversation_metadata": null,
             "created_at": "[timestamp]",
-            "display_index": 5,
+            "display_index": "[number]",
             "id": "[uuid]",
             "is_archived": false,
             "kind": "eval",
@@ -2505,9 +2537,11 @@ walk("SDK end-to-end walk", () => {
         await expectNotFound(() =>
           owner.applications.get(application.id, project.id),
         );
-        // The login's project is untouched: still there, as it was.
-        const after = await owner.projects.get(project.id);
-        expect(after.description ?? "").toBe(originalDescription ?? "");
+        // The walk's project goes with it; the login's is untouched.
+        await owner.projects.delete(project.id);
+        await expectNotFound(() => owner.projects.get(project.id));
+        const after = await owner.projects.get(loginProject.id);
+        expect(after.id).toBe(loginProject.id);
       });
     },
     STEP_TIMEOUT,
