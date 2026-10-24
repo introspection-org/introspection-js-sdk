@@ -166,7 +166,7 @@ export type WalkNames = ReturnType<typeof walkNames>;
 const RUN_ANYWHERE = /([0-9a-f]{8})[-_]([0-9a-f]{4})/gi;
 
 /** When the run a name carries started; `undefined` for a name no run made. */
-export function runBorn(name: string | null | undefined): number | undefined {
+function runBorn(name: string | null | undefined): number | undefined {
   const match = new RegExp(RUN_ANYWHERE.source, "i").exec(name ?? "");
   return match ? parseInt(match[1]!, 16) : undefined;
 }
