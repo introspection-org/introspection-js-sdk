@@ -19,7 +19,11 @@ import type {
   ConnectPage,
   DataPlaneResources,
 } from "@introspection-sdk/introspection-node";
-import type { ResourceShare } from "@introspection-sdk/types";
+import type {
+  Approval,
+  Mission,
+  ResourceShare,
+} from "@introspection-sdk/types";
 import { RunnerExpiredError } from "@introspection-sdk/types";
 
 const CLIENT_DP = "https://dp-client.example.com";
@@ -147,6 +151,18 @@ const NAMESPACES: NamespaceCall[] = [
     (dp) => dp.shares.update("share-1", { visible_from: null }),
     "PATCH",
     "/v1/shares/share-1",
+  ],
+  [
+    "approvals",
+    (dp) => dp.approvals.get("approval-1"),
+    "GET",
+    "/v1/aauth/approvals/approval-1",
+  ],
+  [
+    "missions",
+    (dp) => dp.missions.get("mission-1"),
+    "GET",
+    "/v1/aauth/missions/mission-1",
   ],
   [
     "automations",
@@ -447,6 +463,183 @@ describe("shares", () => {
 
     expect(sent.map((s) => [s.method, s.url])).toEqual([
       ["DELETE", `${MEMBER_DP}/v1/shares/${SHARE_ID}`],
+    ]);
+  });
+});
+
+describe("approvals", () => {
+  const APPROVAL_ID = "0199a1b2-0000-7000-8000-000000000008";
+  const MISSION_ID = "0199a1b2-0000-7000-8000-000000000009";
+  const BUDGET = { amount: 50000, unit: "USD", decimals: 2 };
+  const APPROVAL: Approval = {
+    id: APPROVAL_ID,
+    org_id: "0199a1b2-0000-7000-8000-000000000006",
+    project_id: "0199a1b2-0000-7000-8000-000000000007",
+    kind: "mission",
+    status: "pending",
+    agent_id: "aauth:travel@agent.example.com",
+    member_id: MEMBER_ID,
+    mission_id: null,
+    description: "Book a flight to Lisbon",
+    resource: null,
+    budget: null,
+    summary: null,
+    decided_budget: null,
+    decided_by_member_id: null,
+    decided_at: null,
+    expires_at: "2026-10-06T11:00:00Z",
+    created_at: "2026-10-06T10:00:00Z",
+    updated_at: "2026-10-06T10:00:00Z",
+  };
+
+  it("list() repeats status and sends every filter", async () => {
+    const { sent, fetch } = fakeDataPlane(() =>
+      json({ records: [APPROVAL], count: 1, next: null }),
+    );
+
+    const page = await openClient(fetch).approvals.list({
+      status: ["pending", "approved"],
+      kind: "mission",
+      member_id: MEMBER_ID,
+      decided_by_member_id: MEMBER_ID,
+      mission_id: MISSION_ID,
+      limit: 10,
+    });
+
+    expectTypeOf(page.records).toEqualTypeOf<Approval[]>();
+    expect(page.records).toEqual([APPROVAL]);
+    expect(sent.map((s) => [s.method, s.url])).toEqual([
+      [
+        "GET",
+        `${CLIENT_DP}/v1/aauth/approvals?status=pending&status=approved&kind=mission&member_id=${MEMBER_ID}&decided_by_member_id=${MEMBER_ID}&mission_id=${MISSION_ID}&limit=10`,
+      ],
+    ]);
+  });
+
+  it("list() with no params sends a bare GET", async () => {
+    const { sent, fetch } = fakeDataPlane(() =>
+      json({ records: [], count: 0, next: null }),
+    );
+
+    await openDataPlaneClient(fetch).approvals.list();
+
+    expect(sent.map((s) => s.url)).toEqual([`${MEMBER_DP}/v1/aauth/approvals`]);
+  });
+
+  it("get() reads one approval", async () => {
+    const { sent, fetch } = fakeDataPlane(() => json(APPROVAL));
+
+    const approval = await openRunner(fetch).approvals.get(APPROVAL_ID);
+
+    expectTypeOf(approval).toEqualTypeOf<Approval>();
+    expect(approval).toEqual(APPROVAL);
+    expect(sent.map((s) => [s.method, s.url])).toEqual([
+      ["GET", `${RUNNER_DP}/v1/aauth/approvals/${APPROVAL_ID}`],
+    ]);
+  });
+
+  it("update() sends the decision: status, budget and who decided", async () => {
+    const decided: Approval = {
+      ...APPROVAL,
+      status: "approved",
+      decided_budget: BUDGET,
+      decided_by_member_id: MEMBER_ID,
+      decided_at: "2026-10-06T10:05:00Z",
+    };
+    const { sent, fetch } = fakeDataPlane(() => json(decided));
+    const approvals = openClient(fetch).approvals;
+
+    expect(
+      await approvals.update(APPROVAL_ID, {
+        status: "approved",
+        budget: BUDGET,
+        decided_by: { identity: { user_id: "user-42" } },
+      }),
+    ).toEqual(decided);
+    await approvals.update(APPROVAL_ID, {
+      status: "denied",
+      decided_by: { member_id: MEMBER_ID },
+    });
+
+    expect(sent.map((s) => [s.method, s.url, s.body])).toEqual([
+      [
+        "PATCH",
+        `${CLIENT_DP}/v1/aauth/approvals/${APPROVAL_ID}`,
+        {
+          status: "approved",
+          budget: BUDGET,
+          decided_by: { identity: { user_id: "user-42" } },
+        },
+      ],
+      [
+        "PATCH",
+        `${CLIENT_DP}/v1/aauth/approvals/${APPROVAL_ID}`,
+        { status: "denied", decided_by: { member_id: MEMBER_ID } },
+      ],
+    ]);
+  });
+
+  it("update() types the decider as exactly one principal", () => {
+    type Decider = Parameters<
+      DataPlaneResources["approvals"]["update"]
+    >[1]["decided_by"];
+    expectTypeOf({
+      identity: { anonymous_id: "anon-1" },
+    }).toMatchTypeOf<Decider>();
+    expectTypeOf({ member_id: MEMBER_ID }).toMatchTypeOf<Decider>();
+    expectTypeOf({
+      identity: { user_id: "u" },
+      member_id: MEMBER_ID,
+    }).not.toMatchTypeOf<Decider>();
+    expectTypeOf({ identity: {} }).not.toMatchTypeOf<Decider>();
+  });
+});
+
+describe("missions", () => {
+  const MISSION_ID = "0199a1b2-0000-7000-8000-000000000009";
+  const MISSION: Mission = {
+    id: MISSION_ID,
+    org_id: "0199a1b2-0000-7000-8000-000000000006",
+    project_id: "0199a1b2-0000-7000-8000-000000000007",
+    s256: "abc",
+    mission: "Book a flight to Lisbon",
+    agent_id: "aauth:travel@agent.example.com",
+    member_id: MEMBER_ID,
+    resources: ["https://air.example.com"],
+    budget: { amount: 50000, unit: "USD", decimals: 2 },
+    spent: 12000,
+    log: [{ at: "2026-10-06T10:10:00Z", entry: "Held seat 12A" }],
+    expires_at: "2026-10-07T10:00:00Z",
+    completed_at: null,
+    created_at: "2026-10-06T10:00:00Z",
+    updated_at: "2026-10-06T10:10:00Z",
+  };
+
+  it("list() filters by member", async () => {
+    const { sent, fetch } = fakeDataPlane(() =>
+      json({ records: [MISSION], count: 1, next: null }),
+    );
+
+    const page = await openRunner(fetch).missions.list({
+      member_id: MEMBER_ID,
+    });
+
+    expectTypeOf(page.records).toEqualTypeOf<Mission[]>();
+    expect(page.records).toEqual([MISSION]);
+    expect(sent.map((s) => [s.method, s.url])).toEqual([
+      ["GET", `${RUNNER_DP}/v1/aauth/missions?member_id=${MEMBER_ID}`],
+    ]);
+  });
+
+  it("get() reads one mission", async () => {
+    const { sent, fetch } = fakeDataPlane(() => json(MISSION));
+
+    const mission = await openClient(fetch).missions.get(MISSION_ID);
+
+    expectTypeOf(mission).toEqualTypeOf<Mission>();
+    expect(mission).toEqual(MISSION);
+    expect(sent.map((s) => [s.method, s.url])).toEqual([
+      ["GET", `${CLIENT_DP}/v1/aauth/missions/${MISSION_ID}`],
     ]);
   });
 });

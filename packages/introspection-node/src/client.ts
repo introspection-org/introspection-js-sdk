@@ -17,11 +17,13 @@ import type {
   AppConnectionCreateParams,
 } from "@introspection-sdk/types";
 import {
+  ApprovalsApi,
   ConversationsApi,
   EventsApi,
   FilesApi,
   ImagesApi,
   MetricsApi,
+  MissionsApi,
   SharesApi,
   TasksApi,
 } from "@introspection-sdk/http";
@@ -203,6 +205,12 @@ export class IntrospectionClient implements DataPlaneResources {
   /** `/v1/shares` sharing grants (Data Plane). */
   readonly shares: SharesApi;
 
+  /** The hosted Person Server's approvals, `/v1/aauth/approvals` (Data Plane). */
+  readonly approvals: ApprovalsApi;
+
+  /** Approved missions and their spend, `/v1/aauth/missions` (Data Plane). */
+  readonly missions: MissionsApi;
+
   /** `/v1/images` (Data Plane), what eval compose services run as. */
   readonly images: ImagesApi;
 
@@ -294,6 +302,8 @@ export class IntrospectionClient implements DataPlaneResources {
     this.conversations = new ConversationsApi(this.dpHttp);
     this.metrics = new MetricsApi(this.dpHttp);
     this.shares = new SharesApi(this.dpHttp);
+    this.approvals = new ApprovalsApi(this.dpHttp);
+    this.missions = new MissionsApi(this.dpHttp);
     this.connections = new AppConnectionsApi(this.dpHttp);
 
     sdkLogger.info(`IntrospectionClient initialized: api=${baseApiUrl}`);

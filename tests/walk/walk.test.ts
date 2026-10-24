@@ -60,7 +60,6 @@ import {
   walkSettings,
   type WalkSettings,
 } from "./support";
-import type { Paginated } from "./types";
 
 const RECORDING = "walk";
 const STEP_TIMEOUT = 10 * 60_000;
@@ -1733,13 +1732,9 @@ walk("SDK end-to-end walk", () => {
         shareId = share.id;
 
         // The AAuth surfaces and the runner's app connections, read empty.
-        const dpReads = raw(sa.dpHttp);
-        const missions =
-          await dpReads.get<Paginated<unknown>>("/v1/aauth/missions");
+        const missions = await sa.missions.list();
         expect(missions.records).toEqual([]);
-        const approvals = await dpReads.get<Paginated<unknown>>(
-          "/v1/aauth/approvals",
-        );
+        const approvals = await sa.approvals.list();
         expect(approvals.records).toEqual([]);
         // `/v1/connections` is the apps a member connects through an app
         // (Pipedream) connector, which needs that provider's credentials; with
