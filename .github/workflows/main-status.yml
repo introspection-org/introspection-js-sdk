@@ -10,6 +10,10 @@ name: Main Status
 # file in RELEASE_WORKFLOWS), which runs
 # on a release tag or a dispatch, counts on every run, since each is a release.
 # Pull request runs never count.
+#
+# A dispatch with a run id evaluates that run; without one it sends a test
+# message, so an operator can prove this repository reaches the channel. Either
+# only prints unless post_for_real is set.
 on:
   workflow_run:
     workflows:
@@ -20,6 +24,17 @@ on:
         "Release Please",
       ]
     types: [completed]
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: "Evaluate this run id; empty sends a test message instead"
+        required: false
+        type: string
+      post_for_real:
+        description: "Post to Slack instead of printing the message"
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   actions: read
@@ -27,7 +42,7 @@ permissions:
 
 jobs:
   alert:
-    if: github.event.workflow_run.conclusion == 'success' || github.event.workflow_run.conclusion == 'failure'
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' || github.event.workflow_run.conclusion == 'failure'
     runs-on: ubuntu-latest
     steps:
       - name: Evaluate and alert
@@ -36,10 +51,29 @@ jobs:
           REPO: ${{ github.repository }}
           SERVER: ${{ github.server_url }}
           RUN_JSON: ${{ toJson(github.event.workflow_run) }}
+          DISPATCH_RUN_ID: ${{ inputs.run_id }}
+          ACTOR: ${{ github.actor }}
+          THIS_RUN: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           RELEASE_WORKFLOWS: ".github/workflows/publish.yml,.github/workflows/publish-aauth.yml"
-          SLACK_WEBHOOK_URL: ${{ secrets.MAIN_STATUS_SLACK_WEBHOOK_URL }}
+          SLACK_WEBHOOK_URL: ${{ (github.event_name != 'workflow_dispatch' || inputs.post_for_real) && secrets.MAIN_STATUS_SLACK_WEBHOOK_URL || '' }}
         run: |
           set -euo pipefail
+          send() {
+            echo "$1"
+            if [ -n "${SLACK_WEBHOOK_URL:-}" ]; then
+              jq -n --arg text "$1" '{text: $text}' | curl -fsS -X POST -H 'Content-Type: application/json' --data @- "$SLACK_WEBHOOK_URL" >/dev/null
+              echo "Posted to Slack."
+            else
+              echo "Slack post withheld (rehearsal or no secret)."
+            fi
+          }
+          if [ "$GITHUB_EVENT_NAME" = workflow_dispatch ]; then
+            if [ -z "$DISPATCH_RUN_ID" ]; then
+              send "🧪 ${REPO#*/}: Main Status test message from $ACTOR, not an alert"$'\n'"<$THIS_RUN|this run>"
+              exit 0
+            fi
+            RUN_JSON=$(gh api "repos/$REPO/actions/runs/$DISPATCH_RUN_ID")
+          fi
           # Every field is read with jq and posted through jq, so commit text
           # never reaches the shell.
           field() { jq -r "$1" <<<"$RUN_JSON"; }
@@ -87,7 +121,4 @@ jobs:
             --arg subject "$(field '.head_commit.message // "" | split("\n")[0]')" \
             --arg author "$(field '.head_commit.author.name // "unknown"')" \
             '"\($h)\n<\($commit)|\($short)> on \($ref) by \($author): \($subject)\n<\($run)|the run>"')
-          echo "$text"
-          if [ -n "${SLACK_WEBHOOK_URL:-}" ]; then
-            jq -n --arg text "$text" '{text: $text}' | curl -fsS -X POST -H 'Content-Type: application/json' --data @- "$SLACK_WEBHOOK_URL" >/dev/null
-          fi
+          send "$text"
