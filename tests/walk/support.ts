@@ -6,6 +6,7 @@
  */
 
 import { execFileSync } from "node:child_process";
+import { createHash, randomBytes } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
@@ -26,8 +27,12 @@ export interface WalkSettings {
    * The login's own project. The walk never writes to it: it only reads the
    * deployment to create its own project on.
    */
-  /** The login's project: where the walk runs. */
   bootstrapProjectId: string | null;
+  /**
+   * The project the walk creates, runs in and deletes: new on every live
+   * run, so each starts empty; replay sends the recorded one.
+   */
+  projectSlug: string;
   dpUrl: string | null;
   /** The deployment a new project is created on; resolved from the bootstrap project when unset. */
   deploymentId: string | null;
@@ -40,8 +45,17 @@ export interface WalkSettings {
 
 /** Fixed names, so a recording matches whatever run replays it. */
 export const WALK = {
-  /** The walk runs in the login's project; this names the sibling it creates and deletes. */
+  /** Names the sibling project step 1 creates and deletes. */
   siblingSuffix: "-walk",
+  projectName: "SDK end-to-end walk",
+  /**
+   * `sdk-walk-js-<unix time, hex>-<random>`: the SDK, so walks of different
+   * SDKs never sweep each other's project, and the time, which the projects
+   * list does not carry, so a sweep spares a run still going.
+   */
+  projectSlugPrefix: "sdk-walk-js-",
+  /** A walk takes about a minute; one this old crashed before its teardown. */
+  staleAfterSeconds: 3600,
   applicationName: "sdk-coverage-walk",
   tagName: "walk",
   apiKeyName: "walk",
@@ -130,11 +144,12 @@ export function secondTurn(settings: WalkSettings): string {
 
 /**
  * What replay needs that no response carries: the login's project id, which
- * step 1 reads for its deployment. A record run writes it beside the HAR.
+ * step 0 reads for its deployment, and the walk's project slug. A record run
+ * writes them beside the HAR.
  */
 export const BOOTSTRAP_FILE = "bootstrap.json";
 
-function recordedBootstrap(): { project_id?: string } {
+function recordedBootstrap(): { project_id?: string; project_slug?: string } {
   const dir =
     process.env.POLLY_RECORDINGS_DIR ??
     path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../recordings");
@@ -144,6 +159,7 @@ function recordedBootstrap(): { project_id?: string } {
     if (entry.startsWith("walk") && fs.existsSync(file)) {
       return JSON.parse(fs.readFileSync(file, "utf8")) as {
         project_id?: string;
+        project_slug?: string;
       };
     }
   }
@@ -155,6 +171,7 @@ const REPLAY_SETTINGS: WalkSettings = {
   baseApiUrl: "http://localhost:8000",
   cpSession: "replay-session",
   bootstrapProjectId: recordedBootstrap().project_id ?? null,
+  projectSlug: recordedBootstrap().project_slug ?? "",
   dpUrl: "http://localhost:8002",
   deploymentId: null,
   recipeRepositoryUrl:
@@ -207,7 +224,7 @@ export function walkSettings(
     env.INTROSPECTION_PROJECT_ID ?? file.project_id ?? null;
   if (!bootstrapProjectId) {
     throw new Error(
-      "the walk runs in the login's project and the login names none: " +
+      "the walk creates its project on the login's deployment and the login names no project: " +
         "run `introspection login` and pick a project, or set INTROSPECTION_PROJECT_ID",
     );
   }
@@ -216,6 +233,7 @@ export function walkSettings(
     baseApiUrl,
     cpSession,
     bootstrapProjectId,
+    projectSlug: `${WALK.projectSlugPrefix}${Math.floor(Date.now() / 1000).toString(16)}-${randomBytes(2).toString("hex")}`,
     dpUrl: env.INTROSPECTION_DP_URL ?? file.dp_url ?? null,
     deploymentId: env.INTROSPECTION_DEPLOYMENT_ID ?? file.deployment_id ?? null,
     // The recipe the walk pushes: a checkout on disk (RECIPE_DIR) or a git
@@ -223,10 +241,58 @@ export function walkSettings(
     recipeRepositoryUrl:
       env.RECIPE_DIR ??
       env.RECIPE_REPOSITORY_URL ??
+      siblingRecipe() ??
       REPLAY_SETTINGS.recipeRepositoryUrl,
     recipeGitRef: env.RECIPE_GIT_REF ?? "main",
     agent: env.WALK_AGENT ?? "scripted",
   };
+}
+
+/**
+ * A `recipe-harbor-mcp-agent` checkout beside this repository: the recipe is
+ * private, so cloning it needs GitHub credentials a local checkout does not.
+ */
+function siblingRecipe(): string | undefined {
+  const dir = path.resolve(
+    path.dirname(fileURLToPath(import.meta.url)),
+    "../../../recipe-harbor-mcp-agent",
+  );
+  return fs.existsSync(`${dir}/.git`) ? dir : undefined;
+}
+
+/**
+ * When a walk project was created, from its slug (see
+ * `WALK.projectSlugPrefix`); `undefined` for anyone else's project.
+ */
+export function walkProjectBorn(
+  slug: string | null | undefined,
+): number | undefined {
+  if (!slug?.startsWith(WALK.projectSlugPrefix)) return undefined;
+  const born = parseInt(
+    slug.slice(WALK.projectSlugPrefix.length).split("-")[0]!,
+    16,
+  );
+  return Number.isNaN(born) ? undefined : born;
+}
+
+/**
+ * A UUIDv7-shaped id derived from the span an event annotates: the same on
+ * every replay (the span is recorded), new on every live run, where a fixed
+ * id would collide with the receipt a previous run left in the project.
+ */
+export function spanEventId(
+  traceId: string,
+  spanId: string,
+  label: string,
+): string {
+  const bytes = createHash("sha256")
+    .update(`${traceId}:${spanId}:${label}`)
+    .digest()
+    .subarray(0, 16);
+  bytes[6] = (bytes[6]! & 0x0f) | 0x70;
+  bytes[8] = (bytes[8]! & 0x3f) | 0x80;
+  const hex = bytes.toString("hex");
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
 }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -238,7 +304,7 @@ const UUID_ANYWHERE =
 const SHA_ANYWHERE = /\b[0-9a-f]{40}\b/gi;
 const DIGEST_ANYWHERE = /\b[0-9a-f]{64}\b/gi;
 const JWT = /^eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/;
-const MEASURED_KEY = /(_ms$|_count$|_tokens$|^max_turn$)/;
+const MEASURED_KEY = /(_ms$|_count$|_tokens$|^max_turn$|^display_index$)/;
 const VOLATILE_KEY =
   /(^id$|_at$|_sha$|token$|secret$|^key$|_key$|cookie$|^url$|_url$|^expires_in$|^client_id$|_prefix$|_suffix$|^prefix$|^key_display$|image_tag$|_image_name$|_bytes$)/;
 
@@ -591,14 +657,17 @@ export function hasCompleteRecording(
         }[];
       };
     };
-    // The teardown ends reading the application it removed (404), then the
-    // login's project.
-    const [app, last] = log.log.entries.slice(-2);
+    // The teardown ends reading the walk's project it deleted (404), then
+    // the login's project.
+    const project = /\/v1\/projects\/[^/?]+$/;
+    const [gone, last] = log.log.entries.slice(-2);
     return (
-      app?.response.status === 404 &&
-      /\/v1\/applications\//.test(app.request.url) &&
+      gone?.request.method === "GET" &&
+      gone.response.status === 404 &&
+      project.test(gone.request.url) &&
       last?.request.method === "GET" &&
-      /\/v1\/projects\/[^/?]+$/.test(last.request.url)
+      last.response.status === 200 &&
+      project.test(last.request.url)
     );
   }
   return false;
