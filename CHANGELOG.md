@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.41.1](https://github.com/introspection-org/introspection-js-sdk/compare/v0.41.0...v0.41.1) (2026-10-24)
+
+
+### Bug Fixes
+
+* **walk:** a poll reads a 404 as not yet ([#534](https://github.com/introspection-org/introspection-js-sdk/issues/534)) ([d0fc7c3](https://github.com/introspection-org/introspection-js-sdk/commit/d0fc7c396d5140b5be5c2e7f9404118088c0f5c6))
+* **walk:** every run in a project of its own, so reruns and concurrent walks hold ([#533](https://github.com/introspection-org/introspection-js-sdk/issues/533)) ([857e31a](https://github.com/introspection-org/introspection-js-sdk/commit/857e31a2729f35a505e554e1a8e107039a7e5838))
+
 ## [0.41.0](https://github.com/introspection-org/introspection-js-sdk/compare/v0.40.0...v0.41.0) (2026-10-23)
 
 
