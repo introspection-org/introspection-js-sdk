@@ -46,6 +46,7 @@ import {
   hasCompleteRecording,
   prompt,
   prepareRecipe,
+  pushBranch,
   pushRecipe,
   secondTurn,
   raw,
@@ -158,6 +159,7 @@ walk("SDK end-to-end walk", () => {
   let application: Application;
   let repository: Repository;
   let memberToken: string;
+  let hostedUrl: string;
   let member: IntrospectionClient;
   let originalDescription: string | null;
   let recipe: Recipe;
@@ -578,8 +580,9 @@ walk("SDK end-to-end walk", () => {
         });
         expect(seedRuntime.slug).toBe(WALK.runtimeSlug);
 
+        hostedUrl = created.url!;
         if (mode !== "replay") {
-          pushRecipe(recipeDir, { url: created.url!, bearer: memberToken });
+          pushRecipe(recipeDir, { url: hostedUrl, bearer: memberToken });
         }
 
         const listed = await sa.repositories.list({
@@ -856,6 +859,17 @@ walk("SDK end-to-end walk", () => {
           name: `${WALK.connectorName} (walk)`,
         });
         expect(updated.name).toBe(`${WALK.connectorName} (walk)`);
+        // Only an aggregator connector (Pipedream) has an app catalogue; an
+        // MCP server's is refused. The open MCP registry is what a custom
+        // connector is picked from.
+        await expect(
+          sa.connectors.listApps(connector.id, { limit: 5 }),
+        ).rejects.toBeInstanceOf(ValidationError);
+        const registry = await sa.connectors.searchCustomApps({
+          q: "echo",
+          limit: 5,
+        });
+        expect(Array.isArray(registry)).toBe(true);
       });
     },
     STEP_TIMEOUT,
@@ -1101,6 +1115,25 @@ walk("SDK end-to-end walk", () => {
         });
         expect(stable(requirements.mcp_requirements)).toMatchInlineSnapshot(
           `[]`,
+        );
+
+        // Registered mode: a connection from a token the caller already holds,
+        // for one user beside the app's own grant; read, then revoked.
+        const registered = await sa.connectors.connections.create(
+          connector.id,
+          { access_token: "walk-registered-token", subject_type: "user" },
+        );
+        const reread = await sa.connectors.connections.get(
+          connector.id,
+          registered.id,
+        );
+        expect(reread.subject_type).toBe("user");
+        // Revoking takes `connectors:delete`, which no application is minted;
+        // the owner revokes, as the teardown does.
+        await owner.connectors.connections.revoke(
+          connector.id,
+          registered.id,
+          project.id,
         );
       });
     },
@@ -2339,12 +2372,40 @@ walk("SDK end-to-end walk", () => {
           file: await can(() => who.client.files.get(averyFile.id)),
           output: await can(() => who.client.files.get(averyOutput.id)),
         });
+        // Each list shows a person what a read by id lets them open, and a
+        // filter narrows it: the task list is filtered by the group tag.
+        const lists = async (who: Who) => {
+          const conversations: string[] = [];
+          for await (const c of who.client.conversations.list({
+            runtime_group_id: runtime.runtime_group_id,
+          }))
+            conversations.push(c.id);
+          const tasks: string[] = [];
+          for await (const t of who.client.tasks.list({ tag: WALK.groupTag }))
+            tasks.push(t.id);
+          const files: string[] = [];
+          for await (const f of who.client.files.list({})) files.push(f.id);
+          return {
+            conversation: conversations.includes(averyConversation),
+            task: tasks.includes(averyTask.id),
+            file: files.includes(averyFile.id),
+          };
+        };
+        const readsAndLists = async (who: Who) => {
+          const read = await reads(who);
+          expect(await lists(who), "a list agrees with reads by id").toEqual({
+            conversation: read.conversation,
+            task: read.task,
+            file: read.file,
+          });
+          return read;
+        };
         const matrix = async () => ({
-          avery: await reads(avery),
-          blake: await reads(blake),
-          casey: await reads(casey),
-          drew: await reads({ client: drew }),
-          emery: await reads(emery),
+          avery: await readsAndLists(avery),
+          blake: await readsAndLists(blake),
+          casey: await readsAndLists(casey),
+          drew: await readsAndLists({ client: drew }),
+          emery: await readsAndLists(emery),
         });
         const none = {
           conversation: false,
@@ -2381,6 +2442,15 @@ walk("SDK end-to-end walk", () => {
           resource_id: averyConversation,
           granted_member_id: blake.id,
         });
+        // A conversation share may hide the history before an instant.
+        const hidden = await avery.client.shares.update(toBlake.id, {
+          visible_from: "2026-01-01T00:00:00Z",
+        });
+        expect(hidden.visible_from).toBeTruthy();
+        const shown = await avery.client.shares.update(toBlake.id, {
+          visible_from: null,
+        });
+        expect(shown.visible_from).toBeNull();
         const toPlatform = await avery.client.shares.create({
           resource_type: "file",
           resource_id: averyFile.id,
@@ -2428,7 +2498,45 @@ walk("SDK end-to-end walk", () => {
   );
 
   it(
-    "18: members and keys — the owner's reads, a development API key, the organisation",
+    "18: a change merged — a branch pushed to the hosted repository, merged into main",
+    async (ctx) => {
+      await steps.run(ctx, "merge", async () => {
+        if (mode !== "replay") {
+          pushBranch(
+            { url: hostedUrl, bearer: memberToken },
+            WALK.changeBranch,
+            { path: "WALK.md", content: "A change the walk merges.\n" },
+          );
+        }
+        let pushed = false;
+        for await (const b of sa.repositories.branches(repository.id, {
+          q: "pr",
+        }))
+          if (b.name === WALK.changeBranch) pushed = true;
+        expect(pushed, "the pushed branch").toBe(true);
+        const merged = await sa.repositories.merge(repository.id, {
+          base: "main",
+          head: WALK.changeBranch,
+          commit_message: `Merge ${WALK.changeBranch}`,
+        });
+        expect(merged, "a merge commit").not.toBeNull();
+        expect(merged!.base).toBe("main");
+        expect(merged!.parents).toHaveLength(2);
+        // The same merge again is the same request (the data plane keys it by
+        // repository, base and head, so a timed-out one can be resent), so it
+        // answers with the merge already made rather than GitHub's 204.
+        const again = await sa.repositories.merge(repository.id, {
+          base: "main",
+          head: WALK.changeBranch,
+        });
+        expect(again?.sha).toBe(merged!.sha);
+      });
+    },
+    STEP_TIMEOUT,
+  );
+
+  it(
+    "19: members and keys — the owner's reads, a development API key, the organisation",
     async (ctx) => {
       await steps.run(ctx, "members and keys", async () => {
         const members = [];
@@ -2523,7 +2631,7 @@ walk("SDK end-to-end walk", () => {
   );
 
   it(
-    "19: teardown — everything the walk created, in reverse",
+    "20: teardown — everything the walk created, in reverse",
     async (ctx) => {
       await steps.run(ctx, "teardown", async () => {
         // The default file list omits the upload a task holds, so it goes by id.
