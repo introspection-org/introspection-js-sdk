@@ -7,10 +7,12 @@
  * into `walk` through the platform, read back. `main` is never written, so the
  * smoke probe that pins it never re-bakes.
  *
- * Live, it needs `WALK_GITHUB=1` and a Control Plane that can reach the
- * repository: `GITHUB_DEV_PAT` (a fine-grained token for that one repository,
- * Contents read and write) on a development plane, or the GitHub App's
- * installation. Replay needs the committed recording; without either, it skips.
+ * It runs on whatever `introspection login` names, nothing seeded: in a project
+ * of its own on the login's deployment, deleted by the teardown, linking
+ * through the logged-in organisation's GitHub integration. Live, it needs
+ * `WALK_GITHUB=1` and that integration able to reach the repository (the
+ * GitHub App's installation, or `GITHUB_DEV_PAT` on a development plane).
+ * Replay needs the committed recording; without either, it skips.
  */
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { Polly } from "@pollyjs/core";
@@ -34,6 +36,8 @@ import {
   raw,
   settled,
   Steps,
+  WALK,
+  walkProjectBorn,
   walkSettings,
 } from "./support";
 import type { WalkSettings } from "./support";
@@ -92,6 +96,7 @@ lane("SDK walk: GitHub write-back", () => {
   let owner: IntrospectionClient;
   let ownerQuiet: IntrospectionClient;
   let member: IntrospectionClient;
+  let loginProject: Project;
   let project: Project;
   let repository: Repository;
   let recipe: Recipe;
@@ -106,8 +111,12 @@ lane("SDK walk: GitHub write-back", () => {
           `${RECORDINGS_DIR}/${RECORDING}/${BOOTSTRAP_FILE}`,
           "utf8",
         ),
-      ) as { project_id: string };
-      settings = { ...settings, bootstrapProjectId: bootstrap.project_id };
+      ) as { project_id: string; project_slug?: string };
+      settings = {
+        ...settings,
+        bootstrapProjectId: bootstrap.project_id,
+        projectSlug: bootstrap.project_slug ?? "",
+      };
     }
     owner = new IntrospectionClient({
       cpSession: settings.cpSession,
@@ -124,15 +133,34 @@ lane("SDK walk: GitHub write-back", () => {
   }, STEP_TIMEOUT);
 
   it(
-    "0: the login's project, with a crashed run's link removed",
+    "0: a project of its own, created empty on the login's deployment",
     async (ctx) => {
       await steps.run(ctx, "clean slate", async () => {
-        project = await owner.projects.get(settings.bootstrapProjectId!);
+        // As in the main walk: the login's project is only read, for its
+        // deployment, and a run that crashed left only a project older than
+        // the cutoff behind, which goes first.
+        loginProject = await owner.projects.get(settings.bootstrapProjectId!);
+        const now = walkProjectBorn(settings.projectSlug);
+        expect(now, "the walk's own slug carries its time").toBeDefined();
+        for (const other of (await owner.projects.list()).records) {
+          const born = walkProjectBorn(other.slug);
+          if (born !== undefined && now! - born > WALK.staleAfterSeconds) {
+            await owner.projects.delete(other.id);
+          }
+        }
+        project = await owner.projects.create({
+          name: "SDK walk: GitHub write-back",
+          slug: settings.projectSlug,
+          deployment_id: loginProject.deployment_id,
+        });
         if (mode === "record") {
           fs.mkdirSync(`${RECORDINGS_DIR}/${RECORDING}`, { recursive: true });
           fs.writeFileSync(
             `${RECORDINGS_DIR}/${RECORDING}/${BOOTSTRAP_FILE}`,
-            JSON.stringify({ project_id: project.id }) + "\n",
+            JSON.stringify({
+              project_id: loginProject.id,
+              project_slug: settings.projectSlug,
+            }) + "\n",
           );
         }
         // The owner's Data Plane token for the project, for the merge.
@@ -147,7 +175,6 @@ lane("SDK walk: GitHub write-back", () => {
             dpUrl: settings.dpUrl ?? undefined,
           },
         });
-        await removeLink(owner, project);
       });
     },
     STEP_TIMEOUT,
@@ -298,7 +325,7 @@ lane("SDK walk: GitHub write-back", () => {
   );
 
   it(
-    "5: teardown — the runtime, the recipe and the link",
+    "5: teardown — the runtime, the recipe, the link and the project",
     async (ctx) => {
       await steps.run(ctx, "teardown", async () => {
         await removeLink(owner, project);
@@ -310,6 +337,9 @@ lane("SDK walk: GitHub write-back", () => {
               err instanceof NotFoundError ? "not found" : err,
           );
         expect(gone).toBe("not found");
+        await owner.projects.delete(project.id);
+        const after = await owner.projects.get(loginProject.id);
+        expect(after.id).toBe(loginProject.id);
       });
     },
     STEP_TIMEOUT,
