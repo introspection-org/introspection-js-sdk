@@ -1128,7 +1128,13 @@ walk("SDK end-to-end walk", () => {
           registered.id,
         );
         expect(reread.subject_type).toBe("user");
-        await sa.connectors.connections.revoke(connector.id, registered.id);
+        // Revoking takes `connectors:delete`, which no application is minted;
+        // the owner revokes, as the teardown does.
+        await owner.connectors.connections.revoke(
+          connector.id,
+          registered.id,
+          project.id,
+        );
       });
     },
     STEP_TIMEOUT,
@@ -2516,12 +2522,14 @@ walk("SDK end-to-end walk", () => {
         expect(merged, "a merge commit").not.toBeNull();
         expect(merged!.base).toBe("main");
         expect(merged!.parents).toHaveLength(2);
-        // Merging again finds nothing new.
+        // The same merge again is the same request (the data plane keys it by
+        // repository, base and head, so a timed-out one can be resent), so it
+        // answers with the merge already made rather than GitHub's 204.
         const again = await sa.repositories.merge(repository.id, {
           base: "main",
           head: WALK.changeBranch,
         });
-        expect(again).toBeNull();
+        expect(again?.sha).toBe(merged!.sha);
       });
     },
     STEP_TIMEOUT,
