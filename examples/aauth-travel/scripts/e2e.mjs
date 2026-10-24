@@ -6,8 +6,11 @@
 // an agent: no model, recipe or Cedar rails run here.
 //
 // Every party is named by an https URL with no port, so the script gives each
-// a free Cloudflare quick tunnel (`brew install cloudflared`), starts the app
-// with those URLs, runs the scenarios and stops it all. Approvals read the
+// a portless name (`https://<name>.localhost` on :443, its local CA trusted
+// through NODE_EXTRA_CA_CERTS), starts the app with those URLs, runs the
+// scenarios and stops it all. The proxy binds :443, so start it once with
+// `sudo npx -y portless@0.15.11 proxy start`. E2E_TUNNEL=cloudflare gives each
+// party a free Cloudflare quick tunnel instead (`brew install cloudflared`). Approvals read the
 // code from the app's log, where Acme prints its email when RESEND_API_KEY is
 // unset.
 //
@@ -15,11 +18,11 @@
 // URLs in the environment. With PERSON_SERVER=hosted it plays the agent
 // against Introspection's hosted Person Server (HOSTED_PERSON_SERVER_URL,
 // tenant E2E_TENANT), which must trust the provider.
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { createServer } from "node:http";
-import { tmpdir } from "node:os";
+import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 
 import {
@@ -31,6 +34,30 @@ import { SignJWT, exportJWK, generateKeyPair, importJWK } from "jose";
 
 const APP_PORT = Number(process.env.E2E_APP_PORT ?? 3400);
 const AP_PORT = Number(process.env.E2E_AP_PORT ?? 3499);
+const TUNNELS = process.env.E2E_TUNNEL ?? "portless";
+const PORTLESS = "portless@0.15.11";
+const PORTLESS_CA = join(homedir(), ".portless", "ca.pem");
+
+// Node reads NODE_EXTRA_CA_CERTS only at startup, so the run starts over once
+// with portless's CA trusted; the app it spawns inherits it.
+if (
+  !process.env.E2E_SERVER_LOG &&
+  TUNNELS === "portless" &&
+  !process.env.NODE_EXTRA_CA_CERTS
+) {
+  if (!existsSync(PORTLESS_CA)) {
+    console.error(
+      `No portless CA at ${PORTLESS_CA}: start the proxy once with \`sudo npx -y ${PORTLESS} proxy start\`.`,
+    );
+    process.exit(1);
+  }
+  const { status } = spawnSync(process.execPath, process.argv.slice(1), {
+    stdio: "inherit",
+    env: { ...process.env, NODE_EXTRA_CA_CERTS: PORTLESS_CA },
+  });
+  process.exit(status ?? 1);
+}
+
 const children = [];
 const stop = () => children.forEach((child) => child.kill());
 process.on("exit", stop);
@@ -56,6 +83,36 @@ function tunnel(port) {
   });
 }
 
+/** A portless name routed to `port`; returns its https URL, with no port. */
+function portlessRoute(name, port) {
+  const alias = spawnSync(
+    "npx",
+    ["-y", PORTLESS, "alias", name, String(port), "--force"],
+    { encoding: "utf8" },
+  );
+  if (alias.status !== 0) {
+    throw new Error(
+      `portless alias ${name} failed: ${(alias.stderr || alias.stdout).trim()}`,
+    );
+  }
+  const url = spawnSync("npx", ["-y", PORTLESS, "get", name], {
+    encoding: "utf8",
+  });
+  const origin = url.stdout.trim().split("\n").pop();
+  if (url.status !== 0 || !origin?.startsWith("https://")) {
+    throw new Error(
+      `portless get ${name} gave no https URL; start the proxy: sudo npx -y ${PORTLESS} proxy start`,
+    );
+  }
+  // @aauth/resource rejects an issuer with a port.
+  if (new URL(origin).port) {
+    throw new Error(
+      `portless serves ${origin}, but AAuth needs :443: sudo npx -y ${PORTLESS} proxy stop, then sudo npx -y ${PORTLESS} proxy start`,
+    );
+  }
+  return origin;
+}
+
 /** Wait until `url` answers, through a tunnel that may still be propagating. */
 async function reachable(url) {
   for (let i = 0; i < 90; i++) {
@@ -70,11 +127,14 @@ async function reachable(url) {
 }
 
 if (!process.env.E2E_SERVER_LOG) {
-  const [booking, acme, provider] = await Promise.all([
-    tunnel(APP_PORT),
-    tunnel(APP_PORT),
-    tunnel(AP_PORT),
-  ]);
+  const [booking, acme, provider] =
+    TUNNELS === "cloudflare"
+      ? await Promise.all([tunnel(APP_PORT), tunnel(APP_PORT), tunnel(AP_PORT)])
+      : [
+          portlessRoute("booking.flightsector", APP_PORT),
+          portlessRoute("ps.acme", APP_PORT),
+          portlessRoute("e2e-agents", AP_PORT),
+        ];
   const log = join(tmpdir(), `aauth-travel-e2e-${process.pid}.log`);
   writeFileSync(log, "");
   Object.assign(process.env, {

@@ -1,0 +1,53 @@
+name: AAuth e2e
+
+# The AAuth travel example end to end against its own Person Server: no
+# backend and no model, so it runs on every change that can break it.
+on:
+  pull_request:
+    paths:
+      - "examples/aauth-travel/**"
+      - "packages/introspection-aauth-*/**"
+      - "packages/introspection-person-server/**"
+      - ".github/workflows/aauth-e2e.yml"
+  push:
+    branches: [main]
+    paths:
+      - "examples/aauth-travel/**"
+      - "packages/introspection-aauth-*/**"
+      - "packages/introspection-person-server/**"
+  workflow_dispatch:
+
+concurrency:
+  group: aauth-e2e-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  e2e:
+    name: AAuth e2e (portless)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: "pnpm"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build packages
+        run: pnpm build
+
+      # AAuth names every party by an https URL with no port, so the proxy binds :443.
+      - name: Start portless
+        run: sudo env "PATH=$PATH" npx -y portless@0.15.11 proxy start
+
+      - name: Run the e2e
+        working-directory: examples/aauth-travel
+        run: pnpm e2e
