@@ -134,7 +134,7 @@ export function prompt(settings: WalkSettings): string {
 }
 
 /** A new run's suffix: its time, so a crashed run can be told apart, and a random tail. */
-export function newRun(): string {
+function newRun(): string {
   return `${Math.floor(Date.now() / 1000).toString(16)}-${randomBytes(2).toString("hex")}`;
 }
 
