@@ -36,8 +36,7 @@ import {
   raw,
   settled,
   Steps,
-  WALK,
-  walkProjectBorn,
+  ownOrStale,
   walkSettings,
 } from "./support";
 import type { WalkSettings } from "./support";
@@ -96,7 +95,6 @@ lane("SDK walk: GitHub write-back", () => {
   let owner: IntrospectionClient;
   let ownerQuiet: IntrospectionClient;
   let member: IntrospectionClient;
-  let loginProject: Project;
   let project: Project;
   let repository: Repository;
   let recipe: Recipe;
@@ -111,11 +109,11 @@ lane("SDK walk: GitHub write-back", () => {
           `${RECORDINGS_DIR}/${RECORDING}/${BOOTSTRAP_FILE}`,
           "utf8",
         ),
-      ) as { project_id: string; project_slug?: string };
+      ) as { project_id: string; run?: string };
       settings = {
         ...settings,
         bootstrapProjectId: bootstrap.project_id,
-        projectSlug: bootstrap.project_slug ?? "",
+        run: bootstrap.run ?? "",
       };
     }
     owner = new IntrospectionClient({
@@ -133,34 +131,18 @@ lane("SDK walk: GitHub write-back", () => {
   }, STEP_TIMEOUT);
 
   it(
-    "0: a project of its own, created empty on the login's deployment",
+    "0: the login's project, with what a crashed run left removed",
     async (ctx) => {
       await steps.run(ctx, "clean slate", async () => {
-        // As in the main walk: the login's project is only read, for its
-        // deployment, and a run that crashed left only a project older than
-        // the cutoff behind, which goes first.
-        loginProject = await owner.projects.get(settings.bootstrapProjectId!);
-        const now = walkProjectBorn(settings.projectSlug);
-        expect(now, "the walk's own slug carries its time").toBeDefined();
-        for (const other of (await owner.projects.list()).records) {
-          const born = walkProjectBorn(other.slug);
-          if (born !== undefined && now! - born > WALK.staleAfterSeconds) {
-            await owner.projects.delete(other.id);
-          }
-        }
-        project = await owner.projects.create({
-          name: "SDK walk: GitHub write-back",
-          slug: settings.projectSlug,
-          deployment_id: loginProject.deployment_id,
-        });
+        // As in the main walk: the login's project, under names that carry
+        // this run's suffix, so two runs share it without meeting.
+        project = await owner.projects.get(settings.bootstrapProjectId!);
         if (mode === "record") {
           fs.mkdirSync(`${RECORDINGS_DIR}/${RECORDING}`, { recursive: true });
           fs.writeFileSync(
             `${RECORDINGS_DIR}/${RECORDING}/${BOOTSTRAP_FILE}`,
-            JSON.stringify({
-              project_id: loginProject.id,
-              project_slug: settings.projectSlug,
-            }) + "\n",
+            JSON.stringify({ project_id: project.id, run: settings.run }) +
+              "\n",
           );
         }
         // The owner's Data Plane token for the project, for the merge.
@@ -175,6 +157,14 @@ lane("SDK walk: GitHub write-back", () => {
             dpUrl: settings.dpUrl ?? undefined,
           },
         });
+        // What a run that crashed before its teardown left, older than the cutoff.
+        const take = ownOrStale(settings.run);
+        await removeRuns(
+          owner,
+          member,
+          project,
+          (name) => take(name) && !name?.includes(settings.run),
+        );
       });
     },
     STEP_TIMEOUT,
@@ -191,23 +181,26 @@ lane("SDK walk: GitHub write-back", () => {
           integrationId,
           "a GitHub integration on the organisation",
         ).toBeTruthy();
-        // `POST /v1/repositories` is documented for the CLI only.
-        repository = await raw(owner.cpHttp).post<Repository>(
-          "/v1/repositories",
-          {
-            provider: "github",
-            integration_id: integrationId,
-            url: GITHUB.url,
-            name: GITHUB.repo,
-          },
-          { project: project.id },
-        );
-        expect(repository.provider).toBe("github");
-        const listed = await owner.repositories.list({
+        // The link is the project's, kept between runs: a run reuses it, and
+        // links it only where no run has (linking twice is a 409).
+        const linked = await owner.repositories.list({
           project: project.id,
           slug: GITHUB.repo,
         });
-        expect(listed.some((r) => r.id === repository.id)).toBe(true);
+        repository =
+          linked[0] ??
+          // `POST /v1/repositories` is documented for the CLI only.
+          (await raw(owner.cpHttp).post<Repository>(
+            "/v1/repositories",
+            {
+              provider: "github",
+              integration_id: integrationId,
+              url: GITHUB.url,
+              name: GITHUB.repo,
+            },
+            { project: project.id },
+          ));
+        expect(repository.provider).toBe("github");
       });
     },
     STEP_TIMEOUT,
@@ -226,7 +219,7 @@ lane("SDK walk: GitHub write-back", () => {
         recipe = await owner.recipes.create({
           project: project.id,
           repository_id: repository.id,
-          name: GITHUB.recipe,
+          name: `${GITHUB.recipe}-${settings.run}`,
           git_ref: GITHUB.base,
           git_commit_sha: head!.sha,
         });
@@ -235,8 +228,8 @@ lane("SDK walk: GitHub write-back", () => {
         const created = await owner.runtimes.create({
           project: project.id,
           recipe_id: recipe.id,
-          name: GITHUB.recipe,
-          slug: GITHUB.recipe,
+          name: `${GITHUB.recipe}-${settings.run}`,
+          slug: `${GITHUB.recipe}-${settings.run}`,
           config_json: {
             github: {
               repositories: [GITHUB.repo],
@@ -275,7 +268,7 @@ lane("SDK walk: GitHub write-back", () => {
           prompt: `Commit and push the coverage bump.\n\n${directive()}`,
           agent_name: "scripted",
           repositories: [{ repo: GITHUB.repo, ref: GITHUB.base }],
-          metadata: { suite: "github-walk" },
+          metadata: { suite: "github-walk", walk_run: settings.run },
           idle_timeout_seconds: 180,
         } as Parameters<typeof runner.tasks.start>[0]);
         expect((await started.text()).length).toBeGreaterThan(0);
@@ -325,50 +318,60 @@ lane("SDK walk: GitHub write-back", () => {
   );
 
   it(
-    "5: teardown — the runtime, the recipe, the link and the project",
+    "5: teardown — this run's runtime, recipe and task",
     async (ctx) => {
       await steps.run(ctx, "teardown", async () => {
-        await removeLink(owner, project);
-        const gone = await owner.repositories
-          .get(repository.id, { project: project.id })
+        await removeRuns(
+          owner,
+          member,
+          project,
+          (name) => !!name?.includes(settings.run),
+        );
+        const gone = await owner.runtimes
+          .get(runtime.id, { project: project.id })
           .then(
             () => "found",
             (err: unknown) =>
               err instanceof NotFoundError ? "not found" : err,
           );
         expect(gone).toBe("not found");
-        await owner.projects.delete(project.id);
-        const after = await owner.projects.get(loginProject.id);
-        expect(after.id).toBe(loginProject.id);
+        // The repository link is the project's, shared by every run, and stays.
+        expect(
+          (await owner.repositories.get(repository.id, { project: project.id }))
+            .id,
+        ).toBe(repository.id);
       });
     },
     STEP_TIMEOUT,
   );
 });
 
-/** The lane's runtime, its recipes and the repository link, found by name. */
-async function removeLink(
+/**
+ * What runs left, by the run suffix their names carry: `take` says which (this
+ * run's at the teardown, a crashed run's at step 0). The repository link is
+ * the project's, shared by every run, and stays.
+ */
+async function removeRuns(
   owner: IntrospectionClient,
+  member: IntrospectionClient,
   project: Project,
+  take: (name: string | null | undefined) => boolean,
 ): Promise<void> {
   const ignore404 = (err: unknown) => {
     if (!(err instanceof NotFoundError)) throw err;
   };
-  const links = await owner.repositories.list({
-    project: project.id,
-    slug: GITHUB.repo,
-  });
-  for await (const r of owner.runtimes.list({
-    project: project.id,
-    runtime: GITHUB.recipe,
-  }))
-    await owner.runtimes.delete(r.id, project.id).catch(ignore404);
-  for (const link of links) {
-    for await (const r of owner.recipes.list({ project: project.id }))
-      if (r.repository_id === link.id)
-        await owner.recipes.delete(r.id, project.id).catch(ignore404);
-    await owner.repositories
-      .delete(link.id, { project: project.id })
-      .catch(ignore404);
+  for await (const task of member.tasks.list()) {
+    const run = (task.metadata as { walk_run?: string } | null)?.walk_run;
+    if (
+      (task.metadata as { suite?: string } | null)?.suite === "github-walk" &&
+      take(run)
+    )
+      await member.tasks.delete(task.id).catch(ignore404);
   }
+  for await (const r of owner.runtimes.list({ project: project.id }))
+    if (take(r.slug))
+      await owner.runtimes.delete(r.id, project.id).catch(ignore404);
+  for await (const r of owner.recipes.list({ project: project.id }))
+    if (take(r.name))
+      await owner.recipes.delete(r.id, project.id).catch(ignore404);
 }

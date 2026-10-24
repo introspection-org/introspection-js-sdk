@@ -55,13 +55,17 @@ import {
   spanEventId,
   stable,
   Steps,
-  WALK,
-  walkProjectBorn,
+  ownOrStale,
+  retargetRecipe,
+  walkNames,
   walkSettings,
+  type WalkNames,
   type WalkSettings,
 } from "./support";
 
 const RECORDING = "walk";
+/** This run's names (`walkNames`), set once the settings name the run. */
+let WALK: WalkNames;
 const STEP_TIMEOUT = 10 * 60_000;
 const BAKE_TIMEOUT = 30 * 60_000;
 // Beside the HAR, wherever Polly writes it (POLLY_RECORDINGS_DIR redirects both).
@@ -153,14 +157,12 @@ walk("SDK end-to-end walk", () => {
   let sa: IntrospectionClient;
   /** The same credentials on the native fetch: polls that the recording never sees. */
   let saQuiet: IntrospectionClient;
-  let loginProject: Project;
   let project: Project;
   let application: Application;
   let repository: Repository;
   let memberToken: string;
   let hostedUrl: string;
   let member: IntrospectionClient;
-  let originalDescription: string | null;
   let recipe: Recipe;
   /** The walk's own pin of the same commit: a runtime version's identity is (group, recipe). */
   let pinnedRecipe: Recipe;
@@ -184,11 +186,13 @@ walk("SDK end-to-end walk", () => {
   beforeAll(() => {
     polly = setupPolly({ recordingName: RECORDING, ordered: true });
     settings = walkSettings(mode);
+    WALK = walkNames(settings.run);
     if (mode !== "replay") {
       recipeDir = prepareRecipe(
         { url: settings.recipeRepositoryUrl, ref: settings.recipeGitRef },
         settings.agent,
       );
+      retargetRecipe(recipeDir, WALK.recipeSlug);
     }
     owner = new IntrospectionClient({
       cpSession: settings.cpSession,
@@ -202,38 +206,20 @@ walk("SDK end-to-end walk", () => {
   }, STEP_TIMEOUT);
 
   it(
-    "0: a project of its own, created empty on the login's deployment",
+    "0: the login's project, with what a crashed run left removed",
     async (ctx) => {
       await steps.run(ctx, "clean slate", async () => {
-        // Every run starts in a project of its own, created here on the
-        // login's deployment and deleted by the teardown. A record run writes
-        // both ids beside the recording, which is all replay needs to send
-        // the same calls.
-        loginProject = await owner.projects.get(settings.bootstrapProjectId!);
-        // A run that crashed before its teardown left its project behind; one
-        // still running is younger than the cutoff. Measured from this run's
-        // own slug, so replay decides as the recording did.
-        const now = walkProjectBorn(settings.projectSlug);
-        expect(now, "the walk's own slug carries its time").toBeDefined();
-        for (const other of (await owner.projects.list()).records) {
-          const born = walkProjectBorn(other.slug);
-          if (born !== undefined && now! - born > WALK.staleAfterSeconds) {
-            await owner.projects.delete(other.id);
-          }
-        }
-        project = await owner.projects.create({
-          name: WALK.projectName,
-          slug: settings.projectSlug,
-          deployment_id: loginProject.deployment_id,
-        });
+        // The walk runs in the login's project, under names that carry this
+        // run's suffix (`walkNames`), so two runs share the project without
+        // meeting. A record run writes the project id and the run beside the
+        // recording, which is all replay needs to send the same calls.
+        project = await owner.projects.get(settings.bootstrapProjectId!);
         if (mode === "record") {
           fs.mkdirSync(recordingDir, { recursive: true });
           fs.writeFileSync(
             `${recordingDir}/${BOOTSTRAP_FILE}`,
-            JSON.stringify({
-              project_id: loginProject.id,
-              project_slug: settings.projectSlug,
-            }) + "\n",
+            JSON.stringify({ project_id: project.id, run: settings.run }) +
+              "\n",
           );
         }
         // The owner's Data Plane token for the project: it carries
@@ -252,6 +238,16 @@ walk("SDK end-to-end walk", () => {
             dpUrl: settings.dpUrl ?? undefined,
           },
         });
+        // A run that crashed before its teardown left resources under its own
+        // suffix; those older than the cutoff go now, never a run still going.
+        const take = ownOrStale(settings.run);
+        await removeWalkResources(
+          owner,
+          member,
+          project,
+          member,
+          (name) => take(name) && !name?.includes(settings.run),
+        );
       });
     },
     STEP_TIMEOUT,
@@ -281,30 +277,23 @@ walk("SDK end-to-end walk", () => {
             "slug": undefined,
           }
         `);
-        originalDescription = project.description;
         const read = await owner.projects.get(project.id);
         expect(read.id).toBe(project.id);
 
         const listed = await owner.projects.list();
         expect(listed.records.some((p) => p.id === project.id)).toBe(true);
 
-        const updated = await owner.projects.update(project.id, {
+        // The writes go to a sibling of this run's own, never the login's
+        // project another run may be reading.
+        const sibling = await owner.projects.create({
+          name: `${project.name} (walk ${WALK.run})`,
+          slug: `${project.slug}${WALK.siblingSuffix}-${WALK.run}`,
+          deployment_id: project.deployment_id,
+        });
+        const updated = await owner.projects.update(sibling.id, {
           description: "The SDK end-to-end walk ran here",
         });
         expect(updated.description).toBe("The SDK end-to-end walk ran here");
-        // A PATCH with only nulls is "no fields to update", so a project
-        // that had no description gets an empty one back.
-        const restored = await owner.projects.update(project.id, {
-          description: originalDescription ?? "",
-        });
-        expect(restored.description ?? "").toBe(originalDescription ?? "");
-
-        // A sibling is created and deleted while the walk's project is in use.
-        const sibling = await owner.projects.create({
-          name: `${project.name} (walk)`,
-          slug: `${project.slug}${WALK.siblingSuffix}`,
-          deployment_id: project.deployment_id,
-        });
         expect(sibling.deployment_id).toBe(project.deployment_id);
         expect(stable({ ...sibling, name: undefined, slug: undefined }))
           .toMatchInlineSnapshot(`
@@ -408,7 +397,7 @@ walk("SDK end-to-end walk", () => {
             "environment": "production",
             "id": "[uuid]",
             "last_used_at": null,
-            "name": "sdk-coverage-walk",
+            "name": "sdk-coverage-walk-[run]",
             "org_id": "[uuid]",
             "project_id": "[uuid]",
             "redirect_uris": [],
@@ -526,13 +515,13 @@ walk("SDK end-to-end walk", () => {
             "id": "[uuid]",
             "integration_id": null,
             "is_recipe_source": false,
-            "name": "hello-mcp",
+            "name": "hello-mcp-[run]",
             "project_id": "[uuid]",
             "provider": "introspection",
             "provisioning_status": "pending",
             "pushed_at": null,
             "seed_template": "pi-agent",
-            "slug": "hello-mcp",
+            "slug": "hello-mcp-[run]",
             "url": "[url]",
           }
         `);
@@ -663,12 +652,12 @@ walk("SDK end-to-end walk", () => {
                 },
               },
             ],
-            "name": "hello-mcp",
+            "name": "hello-mcp-[run]",
             "org_id": "[uuid]",
             "policies": null,
             "project_id": "[uuid]",
             "repository_id": "[uuid]",
-            "slug": "hello-mcp-production-main-543b8db50a83",
+            "slug": "hello-mcp-[run]-production-main-[sha]",
             "sub_path": ".",
             "updated_at": "[timestamp]",
             "validation": {
@@ -726,7 +715,7 @@ walk("SDK end-to-end walk", () => {
             "environment": null,
             "has_secret": true,
             "id": "[uuid]",
-            "name": "WALK_SECRET",
+            "name": "WALK_SECRET_[run]",
             "org_id": "[uuid]",
             "project_id": "[uuid]",
             "runtime_group_id": null,
@@ -762,7 +751,7 @@ walk("SDK end-to-end walk", () => {
             "environment": null,
             "id": "[uuid]",
             "kind": "value",
-            "name": "WALK_MARKER",
+            "name": "WALK_MARKER_[run]",
             "org_id": "[uuid]",
             "project_id": "[uuid]",
             "runtime_group_id": null,
@@ -842,7 +831,7 @@ walk("SDK end-to-end walk", () => {
             "requires_runtime": false,
             "scopes": [],
             "slug": "hello-mcp",
-            "status": "pending",
+            "status": "active",
             "token_endpoint": "[url]",
             "updated_at": "[timestamp]",
             "webhook_url": null,
@@ -944,14 +933,14 @@ walk("SDK end-to-end walk", () => {
             "image_build_status": "ready",
             "kind": "byor",
             "llm_mode": "managed",
-            "name": "hello-mcp",
+            "name": "hello-mcp-[run]",
             "org_id": "[uuid]",
             "project_id": "[uuid]",
             "recipe_id": "[uuid]",
             "recipe_kind": "production",
             "recipe_ref": "main",
             "runtime_group_id": "[uuid]",
-            "slug": "hello-mcp",
+            "slug": "hello-mcp-[run]",
             "updated_at": "[timestamp]",
             "yanked_at": null,
             "yanked_reason": null,
@@ -1052,11 +1041,14 @@ walk("SDK end-to-end walk", () => {
           if (item.id === connectionId) seen = true;
         expect(seen).toBe(true);
 
+        // Another run's runtime may have a `hello-mcp` endpoint too.
         const endpoints = await sa.endpoints.list({
           project: project.id,
           mcp_server_id: WALK.mcpServerId,
         });
-        endpoint = endpoints.records[0]!;
+        endpoint = endpoints.records.find(
+          (e) => e.runtime_group_id === runtime.runtime_group_id,
+        )!;
         expect(stable(endpoint)).toMatchInlineSnapshot(`
           {
             "assertion_claims": null,
@@ -1147,7 +1139,7 @@ walk("SDK end-to-end walk", () => {
           name: WALK.inputFileName,
           content: WALK.inputFileText,
           mime_type: "text/plain",
-          metadata: { suite: "walk" },
+          metadata: { suite: "walk", walk_run: WALK.run },
         });
         expect(stable(inputFile)).toMatchInlineSnapshot(`
           {
@@ -1159,16 +1151,17 @@ walk("SDK end-to-end walk", () => {
             "member_id": "[uuid]",
             "metadata": {
               "blob_checksum": "[digest]",
-              "original_filename": "walk-input.txt",
+              "original_filename": "walk-input-[run].txt",
               "suite": "walk",
+              "walk_run": "[run]",
             },
             "mime_type": "text/plain",
-            "name": "walk-input.txt",
+            "name": "walk-input-[run].txt",
             "org_id": "[uuid]",
             "parent_id": null,
             "project_id": "[uuid]",
             "size_bytes": "[number]",
-            "storage_path": "[uuid]/[uuid]/files/[uuid]/walk-input.txt",
+            "storage_path": "[uuid]/[uuid]/files/[uuid]/walk-input-[run].txt",
             "storage_version_id": null,
             "tags": [],
             "task_id": null,
@@ -1189,13 +1182,13 @@ walk("SDK end-to-end walk", () => {
         expect(versions.records.some((v) => v.id === version.id)).toBe(true);
         await sa.files.versions.get(inputFile.id, version.id);
         const updated = await sa.files.update(inputFile.id, {
-          metadata: { suite: "walk", stage: "attached" },
+          metadata: { suite: "walk", walk_run: WALK.run, stage: "attached" },
         });
         expect(updated.metadata?.stage).toBe("attached");
         const tagged: string[] = [];
         // A file with versions is listed only with `include_versions`.
         for await (const f of sa.files.list({
-          metadata: { suite: "walk", stage: "attached" },
+          metadata: { suite: "walk", walk_run: WALK.run, stage: "attached" },
           include_versions: true,
         })) {
           tagged.push(f.id);
@@ -1239,7 +1232,7 @@ walk("SDK end-to-end walk", () => {
           prompt: prompt(settings),
           agent_name: settings.agent,
           files: [{ id: inputFile.id }],
-          metadata: { suite: "walk" },
+          metadata: { suite: "walk", walk_run: WALK.run },
           idle_timeout_seconds: 180,
         } as Parameters<typeof runner.tasks.start>[0]);
         expect(started.task, "the create returns the task").toBeTruthy();
@@ -1283,7 +1276,7 @@ walk("SDK end-to-end walk", () => {
             "started_at": "[timestamp]",
             "status": "idle",
             "tags": [],
-            "title": "Call the \`echo\` tool from the declared \`hello-mcp\` MCP server with the message \`hello from the public MCP\`. Write the echoed value exactly, with no quotes or additional formatting, to \`/workspace/outputs/greeting.txt\`. Then run \`echo $WALK_MARKER\` in…",
+            "title": "Call the \`echo\` tool from the declared \`hello-mcp\` MCP server with the message \`hello from the public MCP\`. Write the echoed value exactly, with no quotes or additional formatting, to \`/workspace/outputs/greeting.txt\`. Then run \`echo…",
             "updated_at": "[timestamp]",
           }
         `);
@@ -1444,7 +1437,7 @@ walk("SDK end-to-end walk", () => {
               "group_id": "[uuid]",
               "id": "[uuid]",
             },
-            "service_name": "hello-mcp",
+            "service_name": "hello-mcp-[run]",
             "task_title": "The walk's task",
             "updated_at": "[timestamp]",
             "usage": {
@@ -1571,7 +1564,7 @@ walk("SDK end-to-end walk", () => {
           {
             "color": null,
             "created_at": "[timestamp]",
-            "description": "the walk's tag",
+            "description": "the walk's tag, updated",
             "kind": "access",
             "name": "walk",
             "updated_at": "[timestamp]",
@@ -1794,7 +1787,7 @@ walk("SDK end-to-end walk", () => {
           commands: true,
           prompt: prompt(settings),
           agent_name: settings.agent,
-          metadata: { suite: "walk" },
+          metadata: { suite: "walk", walk_run: WALK.run },
           idle_timeout_seconds: 120,
         } as Parameters<typeof sa.tasks.create>[0]);
         evalTask = created.task;
@@ -1804,33 +1797,33 @@ walk("SDK end-to-end walk", () => {
         expect(evalTask.metadata?.suite).toBe("walk");
         expect(stable({ ...evalTask, metadata: undefined }))
           .toMatchInlineSnapshot(`
-          {
-            "agent": {
-              "sandbox_status": "provisioning",
-              "session_id": null,
-            },
-            "automation_id": null,
-            "completed_at": null,
-            "conversation_metadata": null,
-            "created_at": "[timestamp]",
-            "display_index": "[number]",
-            "id": "[uuid]",
-            "is_archived": false,
-            "kind": "eval",
-            "last_user_message_at": "[timestamp]",
-            "member_id": "[uuid]",
-            "metadata": undefined,
-            "org_id": "[uuid]",
-            "project_id": "[uuid]",
-            "runtime_group_id": "[uuid]",
-            "runtime_id": "[uuid]",
-            "started_at": null,
-            "status": "pending",
-            "tags": [],
-            "title": "Call the \`echo\` tool from the declared \`hello-mcp\` MCP server with the message \`hello from the public MCP\`. Write the echoed value exactly, with no quotes or additional formatting, to \`/workspace/outputs/greeting.txt\`. Then run \`echo $WALK_MARKER\` in…",
-            "updated_at": "[timestamp]",
-          }
-        `);
+            {
+              "agent": {
+                "sandbox_status": "provisioning",
+                "session_id": null,
+              },
+              "automation_id": null,
+              "completed_at": null,
+              "conversation_metadata": null,
+              "created_at": "[timestamp]",
+              "display_index": "[number]",
+              "id": "[uuid]",
+              "is_archived": false,
+              "kind": "eval",
+              "last_user_message_at": "[timestamp]",
+              "member_id": "[uuid]",
+              "metadata": undefined,
+              "org_id": "[uuid]",
+              "project_id": "[uuid]",
+              "runtime_group_id": "[uuid]",
+              "runtime_id": "[uuid]",
+              "started_at": null,
+              "status": "pending",
+              "tags": [],
+              "title": "Call the \`echo\` tool from the declared \`hello-mcp\` MCP server with the message \`hello from the public MCP\`. Write the echoed value exactly, with no quotes or additional formatting, to \`/workspace/outputs/greeting.txt\`. Then run \`echo…",
+              "updated_at": "[timestamp]",
+            }
+          `);
         // Read the run's stream to its end, then let the row settle: what the
         // trial says is the model's, and the judge grades the trajectory.
         for await (const _ev of sa.tasks.runs.stream(
@@ -2281,8 +2274,12 @@ walk("SDK end-to-end walk", () => {
         const started = await avery.client.tasks.start({
           prompt: prompt(settings),
           agent_name: settings.agent,
-          metadata: { suite: "walk" },
-          conversation_metadata: { suite: "walk", persona: "avery" },
+          metadata: { suite: "walk", walk_run: WALK.run },
+          conversation_metadata: {
+            suite: "walk",
+            walk_run: WALK.run,
+            persona: "avery",
+          },
           tags: [WALK.groupTag, "suite:walk"],
           idle_timeout_seconds: 180,
         } as Parameters<typeof avery.client.tasks.start>[0]);
@@ -2304,6 +2301,7 @@ walk("SDK end-to-end walk", () => {
         }
         expect(averyTask.conversation_metadata).toEqual({
           suite: "walk",
+          walk_run: WALK.run,
           persona: "avery",
         });
         const averyConversation = averyTask.id;
@@ -2334,15 +2332,25 @@ walk("SDK end-to-end walk", () => {
           name: WALK.personaFileName,
           content: "Avery's notes",
           mime_type: "text/plain",
-          metadata: { suite: "walk" },
+          metadata: { suite: "walk", walk_run: WALK.run },
         });
 
-        // Both keys must sit on the conversation (ANDed).
-        let filtered = false;
-        for await (const c of member.conversations.list({
-          metadata: { suite: "walk", persona: "avery" },
-        }))
-          if (c.id === averyConversation) filtered = true;
+        // Both keys must sit on the conversation (ANDed). The filter reads the
+        // conversation's root span, which lands a moment after the task.
+        const byMetadata = async (client: IntrospectionClient) => {
+          for await (const c of client.conversations.list({
+            metadata: { suite: "walk", walk_run: WALK.run, persona: "avery" },
+          }))
+            if (c.id === averyConversation) return true;
+          return false;
+        };
+        const filtered = await settled(
+          mode,
+          () => byMetadata(member),
+          () => byMetadata(ownerQuiet),
+          (found) => found,
+          { timeoutMs: 60_000, label: "conversation_metadata filter" },
+        );
         expect(filtered, "conversation_metadata filters").toBe(true);
 
         const can = (read: () => Promise<unknown>) =>
@@ -2631,20 +2639,24 @@ walk("SDK end-to-end walk", () => {
       await steps.run(ctx, "teardown", async () => {
         // The default file list omits the upload a task holds, so it goes by id.
         await sa.files.delete(inputFile.id);
-        await removeWalkResources(owner, member, project, sa);
+        await removeWalkResources(
+          owner,
+          member,
+          project,
+          sa,
+          (name) => !!name?.includes(settings.run),
+        );
         await expectNotFound(() => sa.tasks.get(task.id));
         await expectNotFound(() => sa.files.get(inputFile.id));
         await expectNotFound(() => sa.runtimes.get(runtimeV2.id));
-        await expectNotFound(() => sa.connectors.get(connector.id));
+        // The `hello-mcp` connector is the project's, shared by every run.
+        expect((await sa.connectors.get(connector.id)).id).toBe(connector.id);
         await expectNotFound(() => sa.recipes.get(recipe.id));
         await expectNotFound(() =>
           owner.applications.get(application.id, project.id),
         );
-        // The walk's project goes with it; the login's is untouched.
-        await owner.projects.delete(project.id);
-        await expectNotFound(() => owner.projects.get(project.id));
-        const after = await owner.projects.get(loginProject.id);
-        expect(after.id).toBe(loginProject.id);
+        // The login's project stays.
+        expect((await owner.projects.get(project.id)).id).toBe(project.id);
       });
     },
     STEP_TIMEOUT,
@@ -2652,11 +2664,12 @@ walk("SDK end-to-end walk", () => {
 });
 
 /**
- * Everything the walk creates, found by its fixed names and removed in
- * reverse, so step 0 clears a crashed run and step 18 clears this one.
+ * What runs left in the project, by the run suffix their names carry: `take`
+ * says which (this run's at the teardown, a crashed run's at step 0).
  * Deleting is the owner's where a `:delete` scope is never minted to an
- * application (runtimes, recipes, experiments, repositories, connectors);
- * the member's Data Plane token does the rest.
+ * application (runtimes, recipes, experiments, repositories); the member's
+ * Data Plane token does the rest. The `hello-mcp` connector is the project's,
+ * shared by every run, and stays.
  */
 async function removeWalkResources(
   owner: IntrospectionClient,
@@ -2665,51 +2678,46 @@ async function removeWalkResources(
   // Tasks and files are listed as the project's agent member (the service
   // account) where it exists: a member's own token lists only the tasks it
   // owns, not the runner's, which a customer identity owns.
-  dp: IntrospectionClient = member,
+  dp: IntrospectionClient,
+  take: (name: string | null | undefined) => boolean,
 ): Promise<void> {
   const q = { project: project.id };
   const ignore404 = (err: unknown) => {
     if (!(err instanceof NotFoundError)) throw err;
   };
   for (const key of await owner.apiKeys.list(q)) {
-    if (
-      [WALK.apiKeyName, `${WALK.apiKeyName} (renamed)`].includes(key.name ?? "")
-    ) {
-      await owner.apiKeys.delete(key.id, q);
-    }
+    if (take(key.name)) await owner.apiKeys.delete(key.id, q);
   }
   for await (const a of member.automations.list()) {
-    if (a.name === WALK.automationName) await member.automations.delete(a.id);
+    if (take(a.name)) await member.automations.delete(a.id);
   }
-  await member.tags.delete("access", WALK.tagName).catch(ignore404);
+  for await (const t of member.tags.list("access")) {
+    if (take(t.name))
+      await member.tags.delete("access", t.name).catch(ignore404);
+  }
+  const tasks = new Set<string>();
   for await (const task of dp.tasks.list()) {
-    if ((task.metadata as { suite?: string } | null)?.suite === "walk") {
-      await dp.tasks.delete(task.id);
-    }
+    const run = (task.metadata as { walk_run?: string } | null)?.walk_run;
+    if (take(run)) tasks.add(task.id);
   }
   const walkFiles: string[] = [];
   for await (const f of dp.files.list({})) {
-    if (
-      f.name === WALK.inputFileName ||
-      f.name === WALK.personaFileName ||
-      f.name.endsWith(WALK.outputFileName)
-    ) {
+    if (take(f.name) || (f.task_id && tasks.has(f.task_id))) {
       walkFiles.push(f.id);
     }
   }
+  for (const id of tasks) await dp.tasks.delete(id).catch(ignore404);
   for await (const s of dp.shares.list({ resource_type: "file" })) {
     if (walkFiles.includes(s.resource_id)) await dp.shares.delete(s.id);
   }
   for (const id of walkFiles) await dp.files.delete(id).catch(ignore404);
   for await (const x of owner.experiments.list({ project: project.id })) {
-    if ((WALK.experimentNames as readonly string[]).includes(x.name)) {
-      await owner.experiments.delete(x.id, project.id);
-    }
+    if (take(x.name)) await owner.experiments.delete(x.id, project.id);
   }
-  for await (const r of owner.runtimes.list({
-    project: project.id,
-    runtime: WALK.runtimeSlug,
-  })) {
+  const groups = new Set<string>();
+  for await (const r of owner.runtimes.list({ project: project.id })) {
+    if (!take(r.slug)) continue;
+    if (r.runtime_group_id) groups.add(r.runtime_group_id);
     // Deleting the group's live version takes its siblings with it.
     await owner.runtimes.delete(r.id, project.id).catch(ignore404);
   }
@@ -2717,28 +2725,18 @@ async function removeWalkResources(
     project: project.id,
     mcp_server_id: WALK.mcpServerId,
   })) {
-    await owner.endpoints.delete(e.id, project.id).catch(ignore404);
-  }
-  for await (const c of owner.connectors.list({ project: project.id })) {
-    if (c.slug !== WALK.connectorName) continue;
-    for await (const conn of owner.connectors.connections.list(c.id)) {
-      await owner.connectors.connections.revoke(c.id, conn.id, project.id);
+    if (e.runtime_group_id && groups.has(e.runtime_group_id)) {
+      await owner.endpoints.delete(e.id, project.id).catch(ignore404);
     }
-    await owner.connectors.delete(c.id, project.id);
   }
   for await (const v of owner.variables.list(q)) {
-    if (v.name === WALK.variableName)
-      await owner.variables.delete(v.id, project.id);
+    if (take(v.name)) await owner.variables.delete(v.id, project.id);
   }
   for await (const c of owner.credentials.list(q)) {
-    if (c.name === WALK.credentialName) {
-      await owner.credentials.delete(c.id, project.id);
-    }
+    if (take(c.name)) await owner.credentials.delete(c.id, project.id);
   }
-  for (const repo of await owner.repositories.list({
-    project: project.id,
-    slug: WALK.recipeSlug,
-  })) {
+  for (const repo of await owner.repositories.list({ project: project.id })) {
+    if (!take(repo.slug)) continue;
     for await (const r of owner.recipes.list({
       project: project.id,
       repository_id: repo.id,
@@ -2748,8 +2746,12 @@ async function removeWalkResources(
     await owner.repositories.delete(repo.id, q);
   }
   for await (const a of owner.applications.list(q)) {
-    if (a.name.startsWith(WALK.applicationName) || a.name === WALK.adminName) {
-      await owner.applications.delete(a.id, project.id);
+    if (take(a.name)) await owner.applications.delete(a.id, project.id);
+  }
+  // Step 1's sibling, should a run have crashed between its create and delete.
+  for (const other of (await owner.projects.list()).records) {
+    if (other.id !== project.id && take(other.slug)) {
+      await owner.projects.delete(other.id).catch(ignore404);
     }
   }
 }

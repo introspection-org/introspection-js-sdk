@@ -26,16 +26,15 @@ export interface WalkSettings {
   baseApiUrl: string;
   /** The signed-in owner's Control Plane session, the walk's bootstrap credential. */
   cpSession: string;
-  /**
-   * The login's own project. The walk never writes to it: it only reads the
-   * deployment to create its own project on.
-   */
+  /** The login's project: where the walk runs. */
   bootstrapProjectId: string | null;
   /**
-   * The project the walk creates, runs in and deletes: new on every live
-   * run, so each starts empty; replay sends the recorded one.
+   * This run's suffix, `<unix time, hex>-<random>`: every name two runs in one
+   * project would contend for carries it (`walkNames`), so walks run side by
+   * side, and its time lets a later run remove what a crashed one left.
+   * Replay sends the recorded one.
    */
-  projectSlug: string;
+  run: string;
   dpUrl: string | null;
   /** The deployment a new project is created on; resolved from the bootstrap project when unset. */
   deploymentId: string | null;
@@ -50,14 +49,7 @@ export interface WalkSettings {
 export const WALK = {
   /** Names the sibling project step 1 creates and deletes. */
   siblingSuffix: "-walk",
-  projectName: "SDK end-to-end walk",
-  /**
-   * `sdk-walk-js-<unix time, hex>-<random>`: the SDK, so walks of different
-   * SDKs never sweep each other's project, and the time, which the projects
-   * list does not carry, so a sweep spares a run still going.
-   */
-  projectSlugPrefix: "sdk-walk-js-",
-  /** A walk takes about a minute; one this old crashed before its teardown. */
+  /** A walk takes minutes; a run this old crashed before its teardown. */
   staleAfterSeconds: 3600,
   applicationName: "sdk-coverage-walk",
   tagName: "walk",
@@ -114,7 +106,7 @@ export const WALK = {
  * What the scripted model does on the instruction: the same three things a
  * real model does, so the judge grades both alike.
  */
-function scriptedDirective(): string {
+function scriptedDirective(names: WalkNames): string {
   const directive = {
     reply:
       "Echoed the message through hello-mcp and wrote it to the outputs file.",
@@ -127,7 +119,7 @@ function scriptedDirective(): string {
           content: WALK.echoResult,
         },
       },
-      { name: "bash", arguments: { command: "echo $WALK_MARKER" } },
+      { name: "bash", arguments: { command: `echo $${names.variableName}` } },
     ],
   };
   return `<<SCRIPT ${JSON.stringify(directive)}>>`;
@@ -135,9 +127,66 @@ function scriptedDirective(): string {
 
 /** The prompt for the target's agent. */
 export function prompt(settings: WalkSettings): string {
+  const names = walkNames(settings.run);
   return settings.agent === "scripted"
-    ? `${WALK.instruction}\n\n${scriptedDirective()}`
-    : WALK.instruction;
+    ? `${names.instruction}\n\n${scriptedDirective(names)}`
+    : names.instruction;
+}
+
+/** A new run's suffix: its time, so a crashed run can be told apart, and a random tail. */
+export function newRun(): string {
+  return `${Math.floor(Date.now() / 1000).toString(16)}-${randomBytes(2).toString("hex")}`;
+}
+
+/** The names a run uses: the fixed ones, and per-run ones for whatever two runs would contend for. */
+export function walkNames(run: string) {
+  const env = run.toUpperCase().replace("-", "_");
+  const variableName = `WALK_MARKER_${env}`;
+  return {
+    ...WALK,
+    run,
+    /** The hosted repository and its manifest, so a push always versions afresh. */
+    recipeSlug: `hello-mcp-${run}`,
+    runtimeSlug: `hello-mcp-${run}`,
+    applicationName: `sdk-coverage-walk-${run}`,
+    adminName: `Drew ${run}`,
+    tagName: `walk-${run}`,
+    apiKeyName: `walk-${run}`,
+    automationName: `The walk's automation ${run}`,
+    experimentNames: WALK.experimentNames.map((name) => `${name} ${run}`),
+    credentialName: `WALK_SECRET_${env}`,
+    variableName,
+    inputFileName: `walk-input-${run}.txt`,
+    personaFileName: `walk-avery-notes-${run}.txt`,
+    instruction: WALK.instruction.replace("$WALK_MARKER", `$${variableName}`),
+  };
+}
+export type WalkNames = ReturnType<typeof walkNames>;
+
+const RUN_ANYWHERE = /([0-9a-f]{8})[-_]([0-9a-f]{4})/gi;
+
+/** When the run a name carries started; `undefined` for a name no run made. */
+export function runBorn(name: string | null | undefined): number | undefined {
+  const match = new RegExp(RUN_ANYWHERE.source, "i").exec(name ?? "");
+  return match ? parseInt(match[1]!, 16) : undefined;
+}
+
+/**
+ * What a cleanup takes: a name this run made, or one a run older than the
+ * cutoff left (it crashed before its teardown); never a run still going.
+ * Measured from this run's own time, so replay decides as the recording did.
+ */
+export function ownOrStale(
+  run: string,
+): (name: string | null | undefined) => boolean {
+  const now = runBorn(run)!;
+  const own = new RegExp(run.replace("-", "[-_]"), "i");
+  return (name) => {
+    if (!name) return false;
+    if (own.test(name)) return true;
+    const born = runBorn(name);
+    return born !== undefined && now - born > WALK.staleAfterSeconds;
+  };
 }
 
 /** A second turn that needs no tool: the scripted agent is told its reply. */
@@ -148,23 +197,25 @@ export function secondTurn(settings: WalkSettings): string {
 }
 
 /**
- * What replay needs that no response carries: the login's project id, which
- * step 0 reads for its deployment, and the walk's project slug. A record run
- * writes them beside the HAR.
+ * What replay needs that no response carries: the login's project id and the
+ * run's suffix. A record run writes them beside the HAR.
  */
 export const BOOTSTRAP_FILE = "bootstrap.json";
 
-function recordedBootstrap(): { project_id?: string; project_slug?: string } {
+function recordedBootstrap(recording = "walk"): {
+  project_id?: string;
+  run?: string;
+} {
   const dir =
     process.env.POLLY_RECORDINGS_DIR ??
     path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../recordings");
   if (!fs.existsSync(dir)) return {};
   for (const entry of fs.readdirSync(dir)) {
     const file = `${dir}/${entry}/${BOOTSTRAP_FILE}`;
-    if (entry.startsWith("walk") && fs.existsSync(file)) {
+    if (entry === recording && fs.existsSync(file)) {
       return JSON.parse(fs.readFileSync(file, "utf8")) as {
         project_id?: string;
-        project_slug?: string;
+        run?: string;
       };
     }
   }
@@ -176,7 +227,7 @@ const REPLAY_SETTINGS: WalkSettings = {
   baseApiUrl: "http://localhost:8000",
   cpSession: "replay-session",
   bootstrapProjectId: recordedBootstrap().project_id ?? null,
-  projectSlug: recordedBootstrap().project_slug ?? "",
+  run: recordedBootstrap().run ?? "",
   dpUrl: "http://localhost:8002",
   deploymentId: null,
   recipeRepositoryUrl:
@@ -229,7 +280,7 @@ export function walkSettings(
     env.INTROSPECTION_PROJECT_ID ?? file.project_id ?? null;
   if (!bootstrapProjectId) {
     throw new Error(
-      "the walk creates its project on the login's deployment and the login names no project: " +
+      "the walk runs in the login's project and the login names none: " +
         "run `introspection login` and pick a project, or set INTROSPECTION_PROJECT_ID",
     );
   }
@@ -238,7 +289,7 @@ export function walkSettings(
     baseApiUrl,
     cpSession,
     bootstrapProjectId,
-    projectSlug: `${WALK.projectSlugPrefix}${Math.floor(Date.now() / 1000).toString(16)}-${randomBytes(2).toString("hex")}`,
+    run: newRun(),
     dpUrl: env.INTROSPECTION_DP_URL ?? file.dp_url ?? null,
     deploymentId: env.INTROSPECTION_DEPLOYMENT_ID ?? file.deployment_id ?? null,
     // The recipe the walk pushes: a checkout on disk (RECIPE_DIR) or a git
@@ -263,21 +314,6 @@ function siblingRecipe(): string | undefined {
     "../../../recipe-harbor-mcp-agent",
   );
   return fs.existsSync(`${dir}/.git`) ? dir : undefined;
-}
-
-/**
- * When a walk project was created, from its slug (see
- * `WALK.projectSlugPrefix`); `undefined` for anyone else's project.
- */
-export function walkProjectBorn(
-  slug: string | null | undefined,
-): number | undefined {
-  if (!slug?.startsWith(WALK.projectSlugPrefix)) return undefined;
-  const born = parseInt(
-    slug.slice(WALK.projectSlugPrefix.length).split("-")[0]!,
-    16,
-  );
-  return Number.isNaN(born) ? undefined : born;
 }
 
 /**
@@ -340,10 +376,14 @@ export function stable(value: unknown, key = ""): unknown {
     if (/_id$/.test(key) && /\d/.test(value)) return "[id]";
     // An id or a hash inside a longer value (a storage path, an image tag,
     // a digest) is volatile too; the text around it stays.
+    // So is a run's suffix (`walkNames`), in either of its spellings.
     return value
       .replace(UUID_ANYWHERE, "[uuid]")
       .replace(DIGEST_ANYWHERE, "[digest]")
-      .replace(SHA_ANYWHERE, "[sha]");
+      .replace(SHA_ANYWHERE, "[sha]")
+      .replace(RUN_ANYWHERE, "[run]")
+      // A short commit sha, as a recipe's slug ends in; each run pushes its own commit.
+      .replace(/\b[0-9a-f]{12}\b/g, "[sha]");
   }
   // A measured number (a duration, a span or call count, a token total)
   // moves between two runs of the same script; its bounds are asserted
@@ -599,6 +639,43 @@ export function prepareRecipe(
  * never in argv. Live only; the git transport is a subprocess the recording
  * cannot see.
  */
+/**
+ * Make the cloned recipe this run's: the push versions every manifest in the
+ * repository, and a manifest's name is its runtime group's, so the copy keeps
+ * only `.introspection/hello-mcp.yaml`, renamed to the run's slug, and commits
+ * that as one parentless commit. Two runs in one project then version groups
+ * of their own. Live only.
+ */
+export function retargetRecipe(dir: string, slug: string): void {
+  const manifests = path.join(dir, ".introspection");
+  for (const entry of fs.readdirSync(manifests)) {
+    if (/\.ya?ml$/.test(entry) && entry !== "hello-mcp.yaml") {
+      fs.rmSync(path.join(manifests, entry));
+    }
+  }
+  const manifest = fs
+    .readFileSync(path.join(manifests, "hello-mcp.yaml"), "utf8")
+    .replace(/^name: hello-mcp$/m, `name: ${slug}`);
+  fs.rmSync(path.join(manifests, "hello-mcp.yaml"));
+  fs.writeFileSync(path.join(manifests, `${slug}.yaml`), manifest);
+  const env = {
+    ...process.env,
+    GIT_AUTHOR_NAME: "SDK walk",
+    GIT_AUTHOR_EMAIL: "walk@example.com",
+    GIT_COMMITTER_NAME: "SDK walk",
+    GIT_COMMITTER_EMAIL: "walk@example.com",
+  };
+  // One parentless commit of the whole recipe: a hosted repository refuses a
+  // push whose parent a shallow clone lacks.
+  for (const args of [
+    ["checkout", "--quiet", "--orphan", `walk-${slug}`],
+    ["add", "--all"],
+    ["commit", "--quiet", "-m", `walk: ${slug}`],
+  ]) {
+    execFileSync("git", ["-C", dir, ...args], { env, stdio: "ignore" });
+  }
+}
+
 export function pushRecipe(
   dir: string,
   target: { url: string; bearer: string },
@@ -725,17 +802,16 @@ export function hasCompleteRecording(
         }[];
       };
     };
-    // The teardown ends reading the walk's project it deleted (404), then
-    // the login's project.
-    const project = /\/v1\/projects\/[^/?]+$/;
-    const [gone, last] = log.log.entries.slice(-2);
+    // The teardown ends reading the application it removed (404), then the
+    // login's project, which stays.
+    const [app, last] = log.log.entries.slice(-2);
     return (
-      gone?.request.method === "GET" &&
-      gone.response.status === 404 &&
-      project.test(gone.request.url) &&
+      app?.request.method === "GET" &&
+      app.response.status === 404 &&
+      /\/v1\/applications\//.test(app.request.url) &&
       last?.request.method === "GET" &&
       last.response.status === 200 &&
-      project.test(last.request.url)
+      /\/v1\/projects\/[^/?]+$/.test(last.request.url)
     );
   }
   return false;
