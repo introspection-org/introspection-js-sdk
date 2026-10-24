@@ -3,7 +3,7 @@
  * linked through the organisation's GitHub integration, a runtime from its
  * `smoke-test-agent-walk` manifest (which grants `contents: write` over the
  * repository), a scripted task that commits `probe/coverage-bump.txt` on
- * `walk/change` and pushes it from the sandbox, and the merge of that branch
+ * `walk-change` and pushes it from the sandbox, and the merge of that branch
  * into `walk` through the platform, read back. `main` is never written, so the
  * smoke probe that pins it never re-bakes.
  *
@@ -54,12 +54,12 @@ const GITHUB = {
   /** The long-lived branch the walk merges into; `main` stays untouched. */
   base: "walk",
   /** The branch the sandbox pushes. */
-  head: "walk/change",
+  head: "walk-change",
   file: "probe/coverage-bump.txt",
   content: "A change the SDK walk pushes from a sandbox and merges.\n",
 } as const;
 
-/** The scripted task: commit the file on `walk/change` and push it. */
+/** The scripted task: commit the file on `walk-change` and push it. */
 function directive(): string {
   const checkout = `/workspace/repos/${GITHUB.repo.split("/")[1]}`;
   const command = [
@@ -190,17 +190,32 @@ lane("SDK walk: GitHub write-back", () => {
     "2: runtime — the write-granting manifest, at the head of `walk`, baked",
     async (ctx) => {
       await steps.run(ctx, "runtime", async () => {
+        // A recipe pins the commit it was made at, so the head of `walk` is
+        // read first, through the linked repository.
+        const head = (
+          await member.repositories.commits(repository.id, { sha: GITHUB.base })
+        ).records[0];
+        expect(head?.sha, "a commit on `walk`").toBeTruthy();
         recipe = await owner.recipes.create({
           project: project.id,
           repository_id: repository.id,
           name: GITHUB.recipe,
           git_ref: GITHUB.base,
+          git_commit_sha: head!.sha,
         });
+        // A runtime made through the API carries the config it is given; the
+        // manifest's `runtime.github` reaches only runtimes a push creates.
         const created = await owner.runtimes.create({
           project: project.id,
           recipe_id: recipe.id,
           name: GITHUB.recipe,
           slug: GITHUB.recipe,
+          config_json: {
+            github: {
+              repositories: [GITHUB.repo],
+              permissions: { contents: "write" },
+            },
+          },
         });
         runtime = await settled(
           mode,
@@ -222,7 +237,7 @@ lane("SDK walk: GitHub write-back", () => {
   );
 
   it(
-    "3: push — a scripted task commits on `walk/change` and pushes it from the sandbox",
+    "3: push — a scripted task commits on `walk-change` and pushes it from the sandbox",
     async (ctx) => {
       await steps.run(ctx, "push", async () => {
         const runner = await owner.runtimes.runById(runtime.id, {
@@ -249,7 +264,7 @@ lane("SDK walk: GitHub write-back", () => {
   );
 
   it(
-    "4: merge — `walk/change` into `walk` through the merges API, read back",
+    "4: merge — `walk-change` into `walk` through the merges API, read back",
     async (ctx) => {
       await steps.run(ctx, "merge", async () => {
         const merged = await member.repositories.merge(repository.id, {
@@ -271,7 +286,12 @@ lane("SDK walk: GitHub write-back", () => {
           base: GITHUB.base,
           head: GITHUB.head,
         });
-        expect(again, "merging again finds nothing new").toBeNull();
+        // The same merge again is the same request (the data plane keys it by
+        // repository, base and head, so a timed-out one can be resent), so it
+        // answers with the merge already made rather than GitHub's 204.
+        expect(again?.sha, "merging again returns the same merge").toBe(
+          merged!.sha,
+        );
       });
     },
     STEP_TIMEOUT,
