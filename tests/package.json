@@ -15,7 +15,6 @@
     "test:walk:cov": "vitest run walk/ --coverage --coverage.reportsDirectory=coverage/walk --coverage.reporter=text --coverage.reporter=html --coverage.include='packages/introspection-http/src/resources/**' --coverage.include='packages/introspection-node/src/resources/**' --coverage.thresholds.lines=0 --coverage.thresholds.functions=0 --coverage.thresholds.branches=0 --coverage.thresholds.statements=0",
     "test:record": "POLLY_MODE=record vitest run",
     "test:replay": "POLLY_MODE=replay vitest run",
-    "test:live": "NODE_USE_ENV_PROXY=1 vitest run --config vitest.live.config.ts",
     "test:cov": "vitest run --coverage",
     "test:cov:check": "vitest run --coverage --coverage.reporter=text --coverage.reporter=json-summary"
   },

@@ -75,8 +75,6 @@ export default defineConfig({
     testTimeout: 60000, // 60s for API calls
     hookTimeout: 30000,
     include: ["tests/**/*.test.ts"],
-    // The live suite reaches a deployment; `pnpm test:live` runs it.
-    exclude: ["**/node_modules/**", "tests/live/**"],
     setupFiles: ["tests/setup-env.ts"],
     // Each test FILE runs in its own forked process. OTel global state
     // (context manager, tracer provider, propagator) cannot leak across
