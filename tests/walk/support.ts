@@ -12,7 +12,10 @@ import path from "node:path";
 import os from "node:os";
 import { fileURLToPath } from "node:url";
 import type { TestContext } from "vitest";
-import type { HttpClient } from "@introspection-sdk/introspection-node";
+import {
+  NotFoundError,
+  type HttpClient,
+} from "@introspection-sdk/introspection-node";
 import type { PollyMode } from "../polly-setup";
 
 type WalkTarget = "compose" | "staging" | "production";
@@ -408,8 +411,15 @@ export async function settled<T>(
   if (mode !== "replay") {
     const deadline = Date.now() + opts.timeoutMs;
     for (;;) {
-      const value = await poll();
-      if (done(value)) break;
+      // A conversation reads 404 until its first spans are ingested: not
+      // yet, rather than gone.
+      let value: T | undefined;
+      try {
+        value = await poll();
+      } catch (err) {
+        if (!(err instanceof NotFoundError)) throw err;
+      }
+      if (value !== undefined && done(value)) break;
       if (Date.now() > deadline) {
         throw new Error(
           `${opts.label}: not done after ${opts.timeoutMs}ms: ${JSON.stringify(value).slice(0, 400)}`,
