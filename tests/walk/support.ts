@@ -377,13 +377,15 @@ export function stable(value: unknown, key = ""): unknown {
     // An id or a hash inside a longer value (a storage path, an image tag,
     // a digest) is volatile too; the text around it stays.
     // So is a run's suffix (`walkNames`), in either of its spellings.
-    return value
-      .replace(UUID_ANYWHERE, "[uuid]")
-      .replace(DIGEST_ANYWHERE, "[digest]")
-      .replace(SHA_ANYWHERE, "[sha]")
-      .replace(RUN_ANYWHERE, "[run]")
-      // A short commit sha, as a recipe's slug ends in; each run pushes its own commit.
-      .replace(/\b[0-9a-f]{12}\b/g, "[sha]");
+    return (
+      value
+        .replace(UUID_ANYWHERE, "[uuid]")
+        .replace(DIGEST_ANYWHERE, "[digest]")
+        .replace(SHA_ANYWHERE, "[sha]")
+        .replace(RUN_ANYWHERE, "[run]")
+        // A short commit sha, as a recipe's slug ends in; each run pushes its own commit.
+        .replace(/\b[0-9a-f]{12}\b/g, "[sha]")
+    );
   }
   // A measured number (a duration, a span or call count, a token total)
   // moves between two runs of the same script; its bounds are asserted
