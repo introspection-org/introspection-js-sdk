@@ -1,19 +1,5 @@
 name: Main Status
 
-# Tell the build-alerts channel when a workflow that guards this repository's
-# main or its releases turns red, and again when it recovers, so a break reaches
-# people without anyone watching the Actions tab. It speaks on the edges only: a
-# failure after a failure, or a success after a success, says nothing, so the
-# channel stays worth reading.
-#
-# A mainline workflow counts on main's own runs. A release workflow (named by its
-# file in RELEASE_WORKFLOWS), which runs
-# on a release tag or a dispatch, counts on every run, since each is a release.
-# Pull request runs never count.
-#
-# A dispatch with a run id evaluates that run; without one it sends a test
-# message, so an operator can prove this repository reaches the channel. Either
-# only prints unless post_for_real is set.
 on:
   workflow_run:
     workflows:
@@ -30,6 +16,10 @@ on:
         description: "Evaluate this run id; empty sends a test message instead"
         required: false
         type: string
+      run_attempt:
+        description: "Evaluate this attempt; empty selects the latest attempt"
+        required: false
+        type: string
       post_for_real:
         description: "Post to Slack instead of printing the message"
         required: false
@@ -38,87 +28,15 @@ on:
 
 permissions:
   actions: read
-  contents: read
 
 jobs:
   alert:
     if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' || github.event.workflow_run.conclusion == 'failure'
-    runs-on: ubuntu-latest
-    steps:
-      - name: Evaluate and alert
-        env:
-          GH_TOKEN: ${{ github.token }}
-          REPO: ${{ github.repository }}
-          SERVER: ${{ github.server_url }}
-          RUN_JSON: ${{ toJson(github.event.workflow_run) }}
-          DISPATCH_RUN_ID: ${{ inputs.run_id }}
-          ACTOR: ${{ github.actor }}
-          THIS_RUN: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-          RELEASE_WORKFLOWS: ".github/workflows/publish.yml,.github/workflows/publish-aauth.yml"
-          SLACK_WEBHOOK_URL: ${{ (github.event_name != 'workflow_dispatch' || inputs.post_for_real) && secrets.MAIN_STATUS_SLACK_WEBHOOK_URL || '' }}
-        run: |
-          set -euo pipefail
-          send() {
-            echo "$1"
-            if [ -n "${SLACK_WEBHOOK_URL:-}" ]; then
-              jq -n --arg text "$1" '{text: $text}' | curl -fsS -X POST -H 'Content-Type: application/json' --data @- "$SLACK_WEBHOOK_URL" >/dev/null
-              echo "Posted to Slack."
-            else
-              echo "Slack post withheld (rehearsal or no secret)."
-            fi
-          }
-          if [ "$GITHUB_EVENT_NAME" = workflow_dispatch ]; then
-            if [ -z "$DISPATCH_RUN_ID" ]; then
-              send "🧪 ${REPO#*/}: Main Status test message from $ACTOR, not an alert"$'\n'"<$THIS_RUN|this run>"
-              exit 0
-            fi
-            RUN_JSON=$(gh api "repos/$REPO/actions/runs/$DISPATCH_RUN_ID")
-          fi
-          # Every field is read with jq and posted through jq, so commit text
-          # never reaches the shell.
-          field() { jq -r "$1" <<<"$RUN_JSON"; }
-          path=$(field .path); conclusion=$(field .conclusion); event=$(field .event)
-          branch=$(field .head_branch); created=$(field .created_at); sha=$(field .head_sha)
-          head_repo=$(field .head_repository.full_name); workflow_id=$(field .workflow_id)
-          # A run's name can be its run-name; the message names the workflow.
-          name=$(gh api "repos/$REPO/actions/workflows/$workflow_id" --jq .name)
-          release=false
-          IFS=',' read -ra releases <<<"$RELEASE_WORKFLOWS"
-          for r in "${releases[@]}"; do [ "$r" = "$path" ] && release=true; done
-          if [ "$event" = pull_request ] || [ "$event" = pull_request_target ] || [ "$head_repo" != "$REPO" ]; then
-            echo "A pull request run; nothing to report."; exit 0
-          fi
-          if [ "$release" = false ] && [ "$branch" != main ]; then
-            echo "Not main ($branch); nothing to report."; exit 0
-          fi
-          # The previous verdict of the same class: the newest earlier run that
-          # concluded success or failure. The unfiltered list is walked page by
-          # page, since pull request runs can push main's last verdict off the
-          # first; its branch and event parameters make it a search that can
-          # answer from a stale snapshot.
-          previous=none
-          for page in 1 2 3 4 5; do
-            found=$(gh api "repos/$REPO/actions/workflows/$workflow_id/runs?per_page=100&page=$page" | jq -r \
-              --arg created "$created" --argjson release "$release" '
-              [.workflow_runs[]
-               | select(.created_at < $created)
-               | select(.event != "pull_request" and .event != "pull_request_target")
-               | select($release or .head_branch == "main")
-               | select(.conclusion == "success" or .conclusion == "failure")][0].conclusion // empty')
-            if [ -n "$found" ]; then previous=$found; break; fi
-          done
-          echo "workflow=$name conclusion=$conclusion previous=$previous ref=$branch sha=${sha:0:8}"
-          scope=main; [ "$release" = true ] && scope=release
-          if [ "$conclusion" = failure ] && [ "$previous" != failure ]; then
-            headline="🚨 ${REPO#*/}: $scope is red: $name failed"
-          elif [ "$conclusion" = success ] && [ "$previous" = failure ]; then
-            headline="✅ ${REPO#*/}: $name is green again"
-          else
-            echo "No change; nothing to report."; exit 0
-          fi
-          text=$(jq -rn --arg h "$headline" --arg run "$(field .html_url)" \
-            --arg commit "$SERVER/$REPO/commit/$sha" --arg short "${sha:0:8}" --arg ref "$branch" \
-            --arg subject "$(field '.head_commit.message // "" | split("\n")[0]')" \
-            --arg author "$(field '.head_commit.author.name // "unknown"')" \
-            '"\($h)\n<\($commit)|\($short)> on \($ref) by \($author): \($subject)\n<\($run)|the run>"')
-          send "$text"
+    uses: introspection-org/introspection-action/.github/workflows/main-status.yml@9a3ec92c0d09530a2193a484b56ff9ea61e5482c
+    with:
+      run_id: ${{ inputs.run_id || '' }}
+      run_attempt: ${{ inputs.run_attempt || '' }}
+      release_workflows: ".github/workflows/publish.yml,.github/workflows/publish-aauth.yml"
+      post_for_real: ${{ github.event_name == 'workflow_run' || inputs.post_for_real == true }}
+    secrets:
+      slack_webhook_url: ${{ secrets.MAIN_STATUS_SLACK_WEBHOOK_URL }}
