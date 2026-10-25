@@ -19,6 +19,7 @@
     "test:cov:check": "vitest run --coverage --coverage.reporter=text --coverage.reporter=json-summary"
   },
   "devDependencies": {
+    "@aauth/agent": "^4.1.1",
     "@aauth/resource": "^3.0.0",
     "@earendil-works/pi-agent-core": "^0.99.2",
     "@earendil-works/pi-ai": "^0.99.2",
@@ -30,6 +31,7 @@
     "@introspection-sdk/aauth-resource": "workspace:*",
     "@introspection-sdk/introspection-node": "workspace:*",
     "@introspection-sdk/introspection-pi": "workspace:*",
+    "@introspection-sdk/types": "workspace:*",
     "@opentelemetry/api": "^1.9.1",
     "@opentelemetry/api-logs": "^0.223.0",
     "@opentelemetry/context-async-hooks": "^2.12.0",

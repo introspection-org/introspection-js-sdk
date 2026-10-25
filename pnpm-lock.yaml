@@ -659,6 +659,9 @@ importers:
 
   tests:
     devDependencies:
+      '@aauth/agent':
+        specifier: ^4.1.1
+        version: 4.1.1
       '@aauth/resource':
         specifier: ^3.0.0
         version: 3.0.0
@@ -692,6 +695,9 @@ importers:
       '@introspection-sdk/introspection-pi':
         specifier: workspace:*
         version: link:../packages/introspection-pi
+      '@introspection-sdk/types':
+        specifier: workspace:*
+        version: link:../packages/introspection-types
       '@opentelemetry/api':
         specifier: ^1.9.1
         version: 1.9.1

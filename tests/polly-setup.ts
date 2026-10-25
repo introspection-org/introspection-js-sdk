@@ -63,6 +63,8 @@ const SENSITIVE_HEADERS = [
   "set-cookie",
   "openai-organization",
   "openai-project",
+  // AAuth: the agent token rides here (draft-hardt-aauth).
+  "signature-key",
 ];
 
 // Belt-and-suspenders over the explicit list: any header whose name *looks*
