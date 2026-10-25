@@ -793,7 +793,11 @@ walk("SDK end-to-end walk", () => {
           issuer: WALK.mcpIssuer,
           api_hosts: [new URL(WALK.mcpEndpoint).host],
         } as Parameters<typeof sa.connectors.create>[0]);
-        expect(stable(connector)).toMatchInlineSnapshot(`
+        // Create is idempotent on the slug, and the login's project keeps the
+        // connector between runs: pending when new, active once granted.
+        const { status, ...created } = connector;
+        expect(["pending", "active"]).toContain(status);
+        expect(stable(created)).toMatchInlineSnapshot(`
           {
             "agent_member_id": "[uuid]",
             "api_hosts": [
@@ -831,7 +835,6 @@ walk("SDK end-to-end walk", () => {
             "requires_runtime": false,
             "scopes": [],
             "slug": "hello-mcp",
-            "status": "active",
             "token_endpoint": "[url]",
             "updated_at": "[timestamp]",
             "webhook_url": null,
@@ -1557,26 +1560,26 @@ walk("SDK end-to-end walk", () => {
         });
         const tag = await member.tags.create({
           kind: "access",
-          name: "walk",
+          name: WALK.tagName,
           description: "the walk's tag",
         } as Parameters<typeof sa.tags.create>[0]);
         expect(stable(tag)).toMatchInlineSnapshot(`
           {
             "color": null,
             "created_at": "[timestamp]",
-            "description": "the walk's tag, updated",
+            "description": "the walk's tag",
             "kind": "access",
-            "name": "walk",
+            "name": "walk-[run]",
             "updated_at": "[timestamp]",
           }
         `);
-        await member.tags.get("access", "walk");
-        await member.tags.update("access", "walk", {
+        await member.tags.get("access", WALK.tagName);
+        await member.tags.update("access", WALK.tagName, {
           description: "the walk's tag, updated",
         });
         let seenTag = false;
         for await (const item of member.tags.list("access"))
-          if (item.name === "walk") seenTag = true;
+          if (item.name === WALK.tagName) seenTag = true;
         expect(seenTag).toBe(true);
 
         // A tag share's grantor must hold the tag, so the file is shared to
@@ -2572,7 +2575,11 @@ walk("SDK end-to-end walk", () => {
         );
         expect(me.org_id).toBe(project.org_id);
         apiKey = await sa.apiKeys.create(
-          { name: "walk", environment: "development", allow: ["runtimes"] },
+          {
+            name: WALK.apiKeyName,
+            environment: "development",
+            allow: ["runtimes"],
+          },
           project.id,
         );
         expect(
@@ -2596,7 +2603,7 @@ walk("SDK end-to-end walk", () => {
               "key_suffix": "[redacted]",
               "last_used_at": null,
               "member_id": "[uuid]",
-              "name": "walk",
+              "name": "walk-[run]",
               "org_id": "[uuid]",
               "prefix": "[redacted]",
               "project_id": "[uuid]",
