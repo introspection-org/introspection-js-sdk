@@ -31,7 +31,7 @@
     "@opentelemetry/resources": "^2.12.0",
     "@supabase/supabase-js": "^2.118.0",
     "@types/node": "^22.20.5",
-    "mcporter": "^0.15.0",
+    "mcporter": "^0.16.0",
     "tsx": "^4.23.15",
     "typebox": "^1.4.3",
     "typescript": "^5.9.3",
