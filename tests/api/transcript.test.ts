@@ -456,6 +456,45 @@ describe("foldSpans replayed history", () => {
     expect(userTexts(entries)).toEqual(["question", "and a follow-up"]);
   });
 
+  it("joins tool results even when the following model call is aborted", () => {
+    const entries = foldSpans([
+      modelCall(
+        "s1",
+        "2026-01-01T00:00:01Z",
+        [user("which role?")],
+        [
+          {
+            role: "assistant",
+            parts: [{ type: "tool_call", id: "card-1", name: "ask_user" }],
+          },
+        ],
+      ),
+      modelCall(
+        "s2",
+        "2026-01-01T00:00:02Z",
+        [
+          {
+            role: "tool",
+            parts: [
+              {
+                type: "tool_call_response",
+                id: "card-1",
+                response: { answer: "Staff engineer" },
+              },
+            ],
+          },
+        ],
+        [{ role: "assistant", finish_reason: "aborted" }],
+      ),
+    ]);
+    expect(userTexts(entries)).toEqual(["which role?"]);
+    expect(entries.find((entry) => entry.kind === "tool")).toMatchObject({
+      callId: "card-1",
+      status: "complete",
+      result: { answer: "Staff engineer" },
+    });
+  });
+
   it("reads an output message without parts as empty", () => {
     const entries = foldSpans([
       modelCall(
