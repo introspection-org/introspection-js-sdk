@@ -222,7 +222,12 @@ export interface InputMessage {
  */
 export interface OutputMessage {
   role: MessageRole;
-  parts: MessagePart[];
+  /**
+   * Content parts. May be absent: a model call cut off before it produced
+   * anything is recorded with an `aborted` output and no parts. Read a
+   * missing value as empty.
+   */
+  parts?: MessagePart[];
   /** Model-reported finish reason (e.g. `"stop"`, `"length"`, `"tool_use"`). */
   finish_reason?: string;
   /** Optional tool name when `role` is `"tool"`. */
