@@ -1,4 +1,5 @@
 import {
+  ConflictError,
   IntrospectionAPIError,
   NetworkError,
   RateLimitError,
@@ -28,9 +29,16 @@ const IDEMPOTENT_RETRY_STATUSES = new Set([502, 503, 504]);
  * (the request was rejected and never processed, so re-sending is safe even
  * for writes); transient gateway/upstream errors (`502`/`503`/`504`) are
  * retried only for idempotent `GET` requests.
+ *
+ * A `409` that carries `Retry-After` is the server saying "not yet", not a
+ * real conflict: `POST /v1/tasks/{id}/runs` answers it while the previous
+ * turn is still settling ("A previous reply is still being delivered"), and
+ * the request was never processed, so it is retried for any method like a
+ * `429`. A plain `409` is a real conflict and surfaces at once.
  */
 function isRetryableError(err: unknown, method: string): boolean {
   if (err instanceof RateLimitError) return true;
+  if (err instanceof ConflictError && err.retryAfter != null) return true;
   if (err instanceof IntrospectionAPIError && method.toUpperCase() === "GET") {
     return IDEMPOTENT_RETRY_STATUSES.has(err.status);
   }
@@ -90,8 +98,8 @@ export interface BaseHttpConfig {
   /** Custom `fetch` (for tests or non-standard runtimes). */
   fetch?: typeof fetch;
   /**
-   * Automatic retries on a `429 Too Many Requests` for unary requests
-   * (honouring `Retry-After`). `0` disables retrying. Default
+   * Automatic retries on a `429 Too Many Requests`, or a `409` carrying
+   * `Retry-After`, for unary requests (honouring `Retry-After`). `0` disables retrying. Default
    * {@link DEFAULT_MAX_RETRIES}. Streaming has its own resume budget.
    */
   maxRetries?: number;
@@ -224,10 +232,11 @@ export class BaseHttpClient {
       return headers;
     };
     const expect = opts.expect ?? "json";
-    // Auto-retry on a `429 Too Many Requests`, honouring `Retry-After` as the
-    // floor of a capped-exponential backoff, so a spammed status poll slows
-    // down instead of erroring. A `429` means the request was rejected and
-    // never processed, so retrying is side-effect-safe for writes too.
+    // Auto-retry on a `429 Too Many Requests` (or a `409` with `Retry-After`),
+    // honouring `Retry-After` as the floor of a capped-exponential backoff, so
+    // a spammed status poll slows down instead of erroring. Both mean the
+    // request was rejected and never processed, so retrying is
+    // side-effect-safe for writes too.
     // Multipart uploads aren't retried (the body would have to be rebuilt).
     const maxRetries = isMultipart
       ? 0
