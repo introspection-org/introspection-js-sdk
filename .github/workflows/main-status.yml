@@ -32,7 +32,7 @@ permissions:
 jobs:
   alert:
     if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' || github.event.workflow_run.conclusion == 'failure'
-    uses: introspection-org/introspection-action/.github/workflows/main-status.yml@9a3ec92c0d09530a2193a484b56ff9ea61e5482c
+    uses: introspection-org/introspection-action/.github/workflows/main-status.yml@v0.1.0
     with:
       run_id: ${{ inputs.run_id || '' }}
       run_attempt: ${{ inputs.run_attempt || '' }}
