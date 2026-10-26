@@ -417,18 +417,43 @@ describe("foldSpans replayed history", () => {
     expect(entries).toEqual([]);
   });
 
-  it("hides a call cut off before it produced anything, with or without parts", () => {
+  it("keeps the prompt of a call stopped before it produced anything", () => {
+    // Stop right after sending: the call is recorded with an `aborted` output
+    // and no parts, and its input is the only record of the prompt.
     const aborted = (output: OutputMessage) =>
       modelCall("s1", "2026-01-01T00:00:01Z", [user("which role?")], [output]);
     // The per-user read returns `parts: []`; a project-key read omits it.
-    expect(
-      foldSpans([
-        aborted({ role: "assistant", parts: [], finish_reason: "aborted" }),
-      ]),
-    ).toEqual([]);
-    expect(
-      foldSpans([aborted({ role: "assistant", finish_reason: "aborted" })]),
-    ).toEqual([]);
+    for (const output of [
+      { role: "assistant", parts: [], finish_reason: "aborted" },
+      { role: "assistant", finish_reason: "aborted" },
+    ] satisfies OutputMessage[]) {
+      const entries = foldSpans([aborted(output)]);
+      expect(userTexts(entries)).toEqual(["which role?"]);
+      expect(entries).toHaveLength(1);
+    }
+  });
+
+  it("keeps new prompts followed or separated by system messages", () => {
+    const system = (content: string): InputMessage => ({
+      role: "system",
+      parts: [{ type: "text", content }],
+    });
+    const entries = foldSpans([
+      modelCall(
+        "s1",
+        "2026-01-01T00:00:01Z",
+        [
+          user("earlier"),
+          { role: "assistant", parts: [{ type: "text", content: "Sure." }] },
+          user("question"),
+          system("context"),
+          user("and a follow-up"),
+          system("answer in French"),
+        ],
+        [assistant("Oui.")],
+      ),
+    ]);
+    expect(userTexts(entries)).toEqual(["question", "and a follow-up"]);
   });
 
   it("reads an output message without parts as empty", () => {

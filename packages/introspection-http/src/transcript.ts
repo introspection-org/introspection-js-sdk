@@ -109,18 +109,24 @@ const COMPACTION_INPUT_PREFIX = "<conversation>";
  * "new messages" range sometimes re-includes earlier turns (after a history
  * cache expires, the full history is recorded again). Folding every `user`
  * input then rendered earlier prompts twice. What the user just sent is
- * always the trailing run of user messages, after the last assistant or tool
- * message, so only those count. Runtime notices in the user role are not the
- * user speaking and are skipped.
+ * always the user messages after the last assistant or tool message, so only
+ * those count; `system` messages may sit between or after them. Runtime
+ * notices in the user role are not the user speaking and are skipped.
  */
 function newUserPrompts(
   messages: InputMessage[],
 ): Array<{ index: number; text: string }> {
   let start = messages.length;
-  while (start > 0 && messages[start - 1]?.role === "user") start -= 1;
+  while (start > 0) {
+    const role = messages[start - 1]?.role;
+    if (role === "assistant" || role === "tool") break;
+    start -= 1;
+  }
   const prompts: Array<{ index: number; text: string }> = [];
   for (let index = start; index < messages.length; index++) {
-    const text = textOf(messages[index]?.parts ?? []);
+    const message = messages[index];
+    if (message?.role !== "user") continue;
+    const text = textOf(message.parts ?? []);
     if (!text || text.trimStart().startsWith(RUNTIME_NOTICE_PREFIX)) continue;
     prompts.push({ index, text });
   }
@@ -128,26 +134,17 @@ function newUserPrompts(
 }
 
 /**
- * Model calls that are part of the run but never part of the chat:
+ * A compaction call: the agent summarising its own history to free up
+ * context. Its one input is the whole conversation wrapped in
+ * `<conversation>` and its output is the summary; neither is part of the
+ * chat.
  *
- * - a call cut off before it produced anything (the call straight after a
- *   question card), recorded with an `aborted` output and no parts;
- * - a compaction call, whose one input is the whole conversation wrapped in
- *   `<conversation>` and whose output is the summary.
+ * A call cut off before it produced anything (an `aborted` output with no
+ * parts) needs no rule of its own: its empty output folds to nothing, and its
+ * input still carries the prompt and tool results that may be recorded only
+ * there.
  */
-function isHiddenModelCall(
-  inputs: InputMessage[],
-  outputs: OutputMessage[],
-): boolean {
-  if (
-    outputs.length > 0 &&
-    outputs.every(
-      (output) =>
-        output.finish_reason === "aborted" && !(output.parts ?? []).length,
-    )
-  ) {
-    return true;
-  }
+function isCompactionCall(inputs: InputMessage[]): boolean {
   const [only] = inputs;
   return (
     inputs.length === 1 &&
@@ -254,7 +251,7 @@ export function foldSpans(spans: GenAiSpan[]): TranscriptEntry[] {
 
     const inputMessages: InputMessage[] = genAiInputMessages(span);
     const outputMessages: OutputMessage[] = genAiOutputMessages(span);
-    if (isHiddenModelCall(inputMessages, outputMessages)) continue;
+    if (isCompactionCall(inputMessages)) continue;
 
     // Tool results come from every `tool`-role input, replayed history
     // included: they upsert by call id, so a replay cannot duplicate them,
