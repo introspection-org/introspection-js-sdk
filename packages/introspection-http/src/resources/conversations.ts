@@ -333,7 +333,7 @@ function normalizeSpan(span: GenAiSpan): GenAiSpan {
   };
 }
 
-function normalizeMessages<T extends { parts: MessagePart[] }>(
+function normalizeMessages<T extends { parts?: MessagePart[] }>(
   messages: T[],
 ): T[] {
   return messages.map((message) => ({

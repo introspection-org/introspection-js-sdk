@@ -101,7 +101,7 @@ describe("pi-session-spans", () => {
       { role: "user", parts: [{ type: "text", content: "Read the file" }] },
     ]);
     expect(
-      genAi?.output?.messages?.[0]?.parts.map((part) => part.type),
+      genAi?.output?.messages?.[0]?.parts?.map((part) => part.type),
     ).toEqual(["reasoning", "text", "tool_call"]);
 
     expect(tool.status).toEqual({ code: "Error" });

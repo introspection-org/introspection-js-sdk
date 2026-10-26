@@ -554,7 +554,7 @@ describe("ConversationsApi", () => {
       type: "text",
       content: "unrelated",
     });
-    expect(span!.attributes.gen_ai?.output?.messages?.[0].parts[0]).toEqual({
+    expect(span!.attributes.gen_ai?.output?.messages?.[0].parts?.[0]).toEqual({
       type: "tool_call_response",
       id: "call-2",
       response: "already-semconv",

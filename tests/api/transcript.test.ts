@@ -16,7 +16,12 @@ import {
   mergeTranscripts,
 } from "@introspection-sdk/http";
 import type { AGUIEvent } from "@introspection-sdk/types";
-import type { GenAiSpan, TranscriptEntry } from "@introspection-sdk/types";
+import type {
+  GenAiSpan,
+  InputMessage,
+  OutputMessage,
+  TranscriptEntry,
+} from "@introspection-sdk/types";
 
 function chatSpan(overrides: Partial<GenAiSpan> = {}): GenAiSpan {
   return {
@@ -253,6 +258,191 @@ describe("foldSpans", () => {
     const second = foldSpans([errored]);
     expect(first).toEqual(second);
     expect(first[0]?.id).toBe("span:span-err:assistant:0");
+  });
+});
+
+/** A chat span recording `inputs` and `outputs`, as the platform stores it. */
+function modelCall(
+  spanId: string,
+  startTime: string,
+  inputs: InputMessage[],
+  outputs: OutputMessage[],
+): GenAiSpan {
+  return {
+    trace_id: "trace-1",
+    span_id: spanId,
+    start_time: startTime,
+    end_time: startTime,
+    status: { code: "Ok" },
+    attributes: {
+      gen_ai: {
+        operation: { name: "chat" },
+        response: { id: `resp-${spanId}` },
+        input: { messages: inputs },
+        output: { messages: outputs },
+      },
+    },
+  };
+}
+
+const user = (content: string): InputMessage => ({
+  role: "user",
+  parts: [{ type: "text", content }],
+});
+const assistant = (content: string): OutputMessage => ({
+  role: "assistant",
+  parts: [{ type: "text", content }],
+  finish_reason: "stop",
+});
+
+function userTexts(entries: TranscriptEntry[]): string[] {
+  return entries.flatMap((entry) =>
+    entry.kind === "message" && entry.role === "user" ? [entry.text] : [],
+  );
+}
+
+describe("foldSpans replayed history", () => {
+  it("adds each prompt once when a later call re-records the whole history", () => {
+    // After the history cache expires the platform records the full history
+    // as the next call's "new messages": earlier prompts come back in input.
+    const entries = foldSpans([
+      modelCall(
+        "s1",
+        "2026-01-01T00:00:01Z",
+        [user("find react devs")],
+        [assistant("Here are five.")],
+      ),
+      modelCall(
+        "s2",
+        "2026-01-01T00:01:00Z",
+        [
+          user("find react devs"),
+          {
+            role: "assistant",
+            parts: [{ type: "text", content: "Here are five." }],
+          },
+          user("only in Berlin"),
+        ],
+        [assistant("Two are in Berlin.")],
+      ),
+    ]);
+    expect(userTexts(entries)).toEqual(["find react devs", "only in Berlin"]);
+  });
+
+  it("adds no prompt for a call whose input ends with a tool result, and joins the result", () => {
+    const entries = foldSpans([
+      modelCall(
+        "s1",
+        "2026-01-01T00:00:01Z",
+        [user("which role?")],
+        [
+          {
+            role: "assistant",
+            parts: [{ type: "tool_call", id: "card-1", name: "ask_user" }],
+            finish_reason: "tool_use",
+          },
+        ],
+      ),
+      modelCall(
+        "s2",
+        "2026-01-01T00:00:05Z",
+        [
+          user("which role?"),
+          {
+            role: "assistant",
+            parts: [{ type: "tool_call", id: "card-1", name: "ask_user" }],
+          },
+          {
+            role: "tool",
+            parts: [
+              {
+                type: "tool_call_response",
+                id: "card-1",
+                response: { answer: "Staff engineer" },
+              },
+            ],
+          },
+        ],
+        [assistant("Searching for staff engineers.")],
+      ),
+    ]);
+    expect(userTexts(entries)).toEqual(["which role?"]);
+    expect(entries.find((entry) => entry.kind === "tool")).toMatchObject({
+      callId: "card-1",
+      status: "complete",
+      result: { answer: "Staff engineer" },
+    });
+  });
+
+  it("keeps every message of a trailing run of prompts", () => {
+    const entries = foldSpans([
+      modelCall(
+        "s1",
+        "2026-01-01T00:00:01Z",
+        [user("first"), user("and also this")],
+        [assistant("On it.")],
+      ),
+    ]);
+    expect(userTexts(entries)).toEqual(["first", "and also this"]);
+  });
+
+  it("skips the runtime's background-runs notice", () => {
+    const entries = foldSpans([
+      modelCall(
+        "s1",
+        "2026-01-01T00:00:01Z",
+        [
+          user("research acme"),
+          { role: "assistant", parts: [{ type: "text", content: "Started." }] },
+          user(
+            "<agent_run_completions>\nThis is a runtime notification, not a user message.\n</agent_run_completions>",
+          ),
+        ],
+        [assistant("The research is done.")],
+      ),
+    ]);
+    expect(userTexts(entries)).toEqual([]);
+    expect(entries).toHaveLength(1);
+  });
+
+  it("hides a compaction call: its input and its summary", () => {
+    const entries = foldSpans([
+      modelCall(
+        "s1",
+        "2026-01-01T00:00:01Z",
+        [user("<conversation>\nuser: hi\nassistant: hello\n</conversation>")],
+        [assistant("Summary: the user said hi.")],
+      ),
+    ]);
+    expect(entries).toEqual([]);
+  });
+
+  it("hides a call cut off before it produced anything, with or without parts", () => {
+    const aborted = (output: OutputMessage) =>
+      modelCall("s1", "2026-01-01T00:00:01Z", [user("which role?")], [output]);
+    // The per-user read returns `parts: []`; a project-key read omits it.
+    expect(
+      foldSpans([
+        aborted({ role: "assistant", parts: [], finish_reason: "aborted" }),
+      ]),
+    ).toEqual([]);
+    expect(
+      foldSpans([aborted({ role: "assistant", finish_reason: "aborted" })]),
+    ).toEqual([]);
+  });
+
+  it("reads an output message without parts as empty", () => {
+    const entries = foldSpans([
+      modelCall(
+        "s1",
+        "2026-01-01T00:00:01Z",
+        [user("hi")],
+        [{ role: "assistant", finish_reason: "stop" }],
+      ),
+    ]);
+    expect(entries).toEqual([
+      expect.objectContaining({ kind: "message", role: "user", text: "hi" }),
+    ]);
   });
 });
 
