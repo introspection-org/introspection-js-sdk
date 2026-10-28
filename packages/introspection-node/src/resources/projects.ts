@@ -19,8 +19,8 @@ function peeringsPath(project: ProjectRef): string {
 /**
  * `/v1/projects/{project}/peerings`: the runtime groups a project offers to
  * other projects, and those other projects offer to it. Read-only, gated on
- * `runtime_peerings:read`; creating or revoking a peering is a member's act
- * in the web app, and no API key carries `runtime_peerings:write`.
+ * `projects:read`; creating or revoking a peering is a person's act in the
+ * web app, and no API key carries `projects:write`.
  */
 export class ProjectPeeringsApi {
   constructor(private readonly http: HttpClient) {}

@@ -221,9 +221,8 @@ await client.apiKeys.delete(created.id, {
 ```
 
 `client.projects.peerings` reads a project's runtime peerings, the runtime
-groups it offers to other projects (`runtime_peerings:read`). Creating or
-revoking a peering is a member's act in the web app, so the SDK has no write
-methods.
+groups it offers to other projects (`projects:read`). Creating or revoking a
+peering is a person's act in the web app, so the SDK has no write methods.
 
 ```typescript
 // Offered by my-project, optionally narrowed to one runtime group.
