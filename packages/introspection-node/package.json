@@ -48,8 +48,8 @@
     "@opentelemetry/api-logs": "^0.223.0",
     "@opentelemetry/context-async-hooks": "^2.12.0",
     "@opentelemetry/core": "^2.12.0",
-    "@opentelemetry/exporter-logs-otlp-proto": "^0.223.0",
-    "@opentelemetry/exporter-trace-otlp-proto": "^0.223.0",
+    "@opentelemetry/exporter-logs-otlp-proto": "^0.300.0",
+    "@opentelemetry/exporter-trace-otlp-proto": "^0.300.0",
     "@opentelemetry/resources": "^2.12.0",
     "@opentelemetry/sdk-logs": "^0.223.0",
     "@opentelemetry/sdk-trace-base": "^2.12.0",
@@ -114,6 +114,6 @@
     "@introspection-sdk/introspection-pi": "workspace:*",
     "@introspection-sdk/introspection-proxy": "workspace:*",
     "@introspection-sdk/types": "workspace:*",
-    "@opentelemetry/api": "^1.9.1"
+    "@opentelemetry/api": "^1.10.0"
   }
 }
