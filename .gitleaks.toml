@@ -1,8 +1,9 @@
 [extend]
 useDefault = true
 
-[[allowlists]]
+[allowlist]
 description = "AAuth resource-token challenges in recorded walk HARs: a local, expired challenge to the Person Server, not a credential"
 paths = ['''^tests/recordings/.*\.har$''']
 regexTarget = "line"
 regexes = ['''resource-token=\\"eyJ''']
+condition = "AND"
