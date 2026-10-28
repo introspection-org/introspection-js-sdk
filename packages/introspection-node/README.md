@@ -220,6 +220,23 @@ await client.apiKeys.delete(created.id, {
 });
 ```
 
+`client.projects.peerings` reads a project's runtime peerings, the runtime
+groups it offers to other projects (`runtime_peerings:read`). Creating or
+revoking a peering is a member's act in the web app, so the SDK has no write
+methods.
+
+```typescript
+// Offered by my-project, optionally narrowed to one runtime group.
+const offered = await client.projects.peerings.list(
+  "my-project",
+  "support-bot",
+);
+// Offered to my-project by other projects.
+for await (const p of client.projects.peerings.granted("my-project"))
+  console.log(p.project_id, p.runtime_group_id);
+const one = await client.projects.peerings.get("my-project", peeringId);
+```
+
 ### Eval images and task commands
 
 `images` builds or mirrors the images an eval task's compose services run as,

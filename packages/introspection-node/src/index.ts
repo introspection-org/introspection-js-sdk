@@ -121,7 +121,7 @@ export {
 export type { RepositoryContentsApi } from "./resources/repositories.js";
 export { AnnotationsApi, attachAnnotations } from "./resources/annotations.js";
 export { TagsApi, attachTags } from "./resources/tags.js";
-export { ProjectsApi } from "./resources/projects.js";
+export { ProjectPeeringsApi, ProjectsApi } from "./resources/projects.js";
 export { ApiKeysApi } from "./resources/api-keys.js";
 export {
   ApplicationIdpsApi,
