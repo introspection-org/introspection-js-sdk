@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.42.0](https://github.com/introspection-org/introspection-js-sdk/compare/v0.41.1...v0.42.0) (2026-10-26)
+
+
+### Features
+
+* approvals and missions resources for the Data Plane's AAuth routes ([#531](https://github.com/introspection-org/introspection-js-sdk/issues/531)) ([42e98e4](https://github.com/introspection-org/introspection-js-sdk/commit/42e98e48b3a896decfba9e9142c5ee0b4e5bc863))
+
+
+### Bug Fixes
+
+* **http:** retry a 409 that carries Retry-After ([#552](https://github.com/introspection-org/introspection-js-sdk/issues/552)) ([c7befdd](https://github.com/introspection-org/introspection-js-sdk/commit/c7befdd1ffde7529ec8c11299c780631df798161))
+* **transcript:** fold each prompt once when history is replayed ([#553](https://github.com/introspection-org/introspection-js-sdk/issues/553)) ([3348a05](https://github.com/introspection-org/introspection-js-sdk/commit/3348a058ce062070837e46390f33844b6952abce))
+* **walk:** the connector's status is pending on a fresh project, active after a run ([#540](https://github.com/introspection-org/introspection-js-sdk/issues/540)) ([769b03a](https://github.com/introspection-org/introspection-js-sdk/commit/769b03a9625b3f4af279add65e8af58a2e1e957d))
+
 ## [0.41.1](https://github.com/introspection-org/introspection-js-sdk/compare/v0.41.0...v0.41.1) (2026-10-24)
 
 

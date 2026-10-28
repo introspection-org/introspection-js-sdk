@@ -168,7 +168,7 @@ describe("Pi chat spans — real Agent against a Polly-recorded Anthropic call",
     expect(output).toHaveLength(1);
     expect(output[0]!.role).toBe("assistant");
     expect(output[0]!.finish_reason).toBe("stop");
-    const text = output[0]!.parts.find((p) => p.type === "text");
+    const text = output[0]!.parts?.find((p) => p.type === "text");
     expect(text).toBeDefined();
     // The recorded answer is a real completion — assert it carries the
     // content rather than pinning the model's exact wording.

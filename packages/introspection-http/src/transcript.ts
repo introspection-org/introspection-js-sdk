@@ -22,7 +22,7 @@
  *   transport-local ids.
  *
  * The span fold's rules are the ones every consumer previously reimplemented:
- * chronological span ordering with a fixed within-span order (user inputs,
+ * chronological span ordering with a fixed within-span order (new user inputs,
  * then one assistant entry, then tool calls in their original part order),
  * the two-source tool-call dedupe (a call appears both as an `execute_tool`
  * span and as an assistant `tool_call` output part), tool results joined from
@@ -94,6 +94,63 @@ function thinkingOf(parts: MessagePart[]): string {
     .filter((part) => part.type === "thinking" || part.type === "reasoning")
     .map((part) => String((part as { content?: unknown }).content ?? ""))
     .join("\n");
+}
+
+/** The runtime's "background runs finished" notice, sent in the user role. */
+const RUNTIME_NOTICE_PREFIX = "<agent_run_completions>";
+
+/** The single input of a compaction call: the whole history, wrapped. */
+const COMPACTION_INPUT_PREFIX = "<conversation>";
+
+/**
+ * The user prompts a chat span adds to the conversation.
+ *
+ * A span's input is the whole history the model saw, and the platform's
+ * "new messages" range sometimes re-includes earlier turns (after a history
+ * cache expires, the full history is recorded again). Folding every `user`
+ * input then rendered earlier prompts twice. What the user just sent is
+ * always the user messages after the last assistant or tool message, so only
+ * those count; `system` messages may sit between or after them. Runtime
+ * notices in the user role are not the user speaking and are skipped.
+ */
+function newUserPrompts(
+  messages: InputMessage[],
+): Array<{ index: number; text: string }> {
+  let start = messages.length;
+  while (start > 0) {
+    const role = messages[start - 1]?.role;
+    if (role === "assistant" || role === "tool") break;
+    start -= 1;
+  }
+  const prompts: Array<{ index: number; text: string }> = [];
+  for (let index = start; index < messages.length; index++) {
+    const message = messages[index];
+    if (message?.role !== "user") continue;
+    const text = textOf(message.parts ?? []);
+    if (!text || text.trimStart().startsWith(RUNTIME_NOTICE_PREFIX)) continue;
+    prompts.push({ index, text });
+  }
+  return prompts;
+}
+
+/**
+ * A compaction call: the agent summarising its own history to free up
+ * context. Its one input is the whole conversation wrapped in
+ * `<conversation>` and its output is the summary; neither is part of the
+ * chat.
+ *
+ * A call cut off before it produced anything (an `aborted` output with no
+ * parts) needs no rule of its own: its empty output folds to nothing, and its
+ * input still carries the prompt and tool results that may be recorded only
+ * there.
+ */
+function isCompactionCall(inputs: InputMessage[]): boolean {
+  const [only] = inputs;
+  return (
+    inputs.length === 1 &&
+    only?.role === "user" &&
+    textOf(only.parts ?? []).startsWith(COMPACTION_INPUT_PREFIX)
+  );
 }
 
 /**
@@ -193,34 +250,36 @@ export function foldSpans(spans: GenAiSpan[]): TranscriptEntry[] {
     }
 
     const inputMessages: InputMessage[] = genAiInputMessages(span);
-    inputMessages.forEach((message, index) => {
-      if (message.role === "user") {
-        const text = textOf(message.parts ?? []);
-        if (!text) return;
-        const entry: TranscriptMessageEntry = {
-          kind: "message",
-          id: `span:${spanId ?? span.trace_id}:user:${index}`,
-          role: "user",
-          text,
-          ...(spanId ? { spanId } : {}),
-        };
-        entries.push(entry);
-        return;
-      }
-      if (message.role === "tool") {
-        for (const part of message.parts ?? []) {
-          if (part.type !== "tool_call_response" || !part.id) continue;
-          upsertTool(part.id, {
-            name: part.name,
-            result: part.response,
-            status: responseIsError(part.response) ? "error" : "complete",
-            spanId,
-          });
-        }
-      }
-    });
-
     const outputMessages: OutputMessage[] = genAiOutputMessages(span);
+    if (isCompactionCall(inputMessages)) continue;
+
+    // Tool results come from every `tool`-role input, replayed history
+    // included: they upsert by call id, so a replay cannot duplicate them,
+    // and a card's answer may only ever appear there. They precede the new
+    // prompts, as in the input.
+    for (const message of inputMessages) {
+      if (message.role !== "tool") continue;
+      for (const part of message.parts ?? []) {
+        if (part.type !== "tool_call_response" || !part.id) continue;
+        upsertTool(part.id, {
+          name: part.name,
+          result: part.response,
+          status: responseIsError(part.response) ? "error" : "complete",
+          spanId,
+        });
+      }
+    }
+    for (const { index, text } of newUserPrompts(inputMessages)) {
+      const entry: TranscriptMessageEntry = {
+        kind: "message",
+        id: `span:${spanId ?? span.trace_id}:user:${index}`,
+        role: "user",
+        text,
+        ...(spanId ? { spanId } : {}),
+      };
+      entries.push(entry);
+    }
+
     outputMessages.forEach((message, index) => {
       if (message.role !== "assistant") return;
       const parts = message.parts ?? [];

@@ -11,6 +11,7 @@ export * from "./api/files.js";
 export * from "./api/shares.js";
 export * from "./api/aauth.js";
 export * from "./api/runtimes.js";
+export * from "./api/runtime-peerings.js";
 export * from "./api/recipes.js";
 export * from "./api/experiments.js";
 export * from "./api/members.js";

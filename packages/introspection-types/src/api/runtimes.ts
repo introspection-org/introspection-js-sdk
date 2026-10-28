@@ -11,6 +11,12 @@ import type { CursorParams, IsoDate, Uuid } from "./common.js";
  */
 export type RuntimeLlmMode = "managed" | "byok";
 
+/**
+ * Who a runtime group belongs to: `"managed"` for a first-party runtime
+ * Introspection owns, otherwise `"custom"`.
+ */
+export type RuntimeGroupType = "managed" | "custom";
+
 /** One declared MCP server requirement resolved for one Runtime environment. */
 export interface RuntimeMcpRequirement {
   slug?: string | null;
@@ -50,6 +56,10 @@ export interface Runtime {
   metadata?: Record<string, unknown> | null;
   /** The group this version belongs to; versions share a slug within it. */
   runtime_group_id?: Uuid;
+  /** Projected from the runtime group. */
+  runtime_group_type?: RuntimeGroupType;
+  /** The template the runtime group was created from, projected from the group. */
+  template_ref?: string | null;
   recipe_kind?: string;
   recipe_ref?: string;
   environments?: string[];
@@ -57,6 +67,12 @@ export interface Runtime {
   image_build_status?: string;
   image_build_error_message?: string | null;
   image_build_metadata?: Record<string, unknown> | null;
+  /** The recipe commit this version's image carries, for an image version. */
+  image_revision?: string | null;
+  /** That commit's subject line, for an image version. */
+  image_commit_subject?: string | null;
+  /** The recipe's GitHub repository (`owner/name`), for an image version. */
+  image_repository?: string | null;
   /** Every declared MCP server resolved for the environment, non-secret. */
   mcp_requirements?: RuntimeMcpRequirement[] | null;
 }
