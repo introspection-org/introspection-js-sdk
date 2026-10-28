@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.43.0](https://github.com/introspection-org/introspection-js-sdk/compare/v0.42.0...v0.43.0) (2026-10-28)
+
+
+### Features
+
+* read runtime peerings ([#556](https://github.com/introspection-org/introspection-js-sdk/issues/556)) ([f2d62ea](https://github.com/introspection-org/introspection-js-sdk/commit/f2d62eae327f0a8bb674f10691f2d6382f6fa1c9))
+
+
+### Bug Fixes
+
+* **types:** model the runtime's image and group fields ([#554](https://github.com/introspection-org/introspection-js-sdk/issues/554)) ([fef7c64](https://github.com/introspection-org/introspection-js-sdk/commit/fef7c6490e45783c00a0e353498ae1cbb81450d8))
+
 ## [0.42.0](https://github.com/introspection-org/introspection-js-sdk/compare/v0.41.1...v0.42.0) (2026-10-26)
 
 
