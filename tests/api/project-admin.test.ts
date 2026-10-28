@@ -127,6 +127,77 @@ describe("projects", () => {
   });
 });
 
+describe("project peerings", () => {
+  const PEERING = {
+    id: ROW_ID,
+    org_id: CHILD_ID,
+    project_id: APP_ID,
+    runtime_group_id: KEY_ID,
+    granted_org_id: null,
+    granted_project_id: CHILD_ID,
+    granted_deployment_id: null,
+    expires_at: null,
+    created_by_member_id: null,
+    created_at: "2026-10-01T00:00:00Z",
+    updated_at: "2026-10-01T00:00:00Z",
+    deleted_at: null,
+  };
+
+  it("lists offered peerings, narrowed by runtime group, and pages on next", async () => {
+    const { sent, fetch } = fakeControlPlane((call) =>
+      json(
+        call.url.includes("next=")
+          ? page([])
+          : page([PEERING], call.url.includes("runtime=") ? "cur2" : null),
+      ),
+    );
+    const peerings = openClient(fetch).projects.peerings;
+
+    const first = await peerings.list("sdk tests");
+    const rows = [];
+    for await (const row of peerings.list("sdk-tests", "support-bot", {
+      limit: 1,
+    })) {
+      rows.push(row);
+    }
+
+    expect(first.records).toEqual([PEERING]);
+    expect(rows).toEqual([PEERING]);
+    expect(sent.map((s) => s.url)).toEqual([
+      `${CP}/v1/projects/sdk%20tests/peerings`,
+      `${CP}/v1/projects/sdk-tests/peerings?runtime=support-bot&limit=1`,
+      `${CP}/v1/projects/sdk-tests/peerings?runtime=support-bot&limit=1&next=cur2`,
+    ]);
+  });
+
+  it("lists the peerings granted to a project", async () => {
+    const { sent, fetch } = fakeControlPlane(() => json(page([PEERING])));
+
+    await openClient(fetch).projects.peerings.granted(APP_ID, { limit: 5 });
+
+    expect(sent.map((s) => s.url)).toEqual([
+      `${CP}/v1/projects/${APP_ID}/peerings?granted=true&limit=5`,
+    ]);
+  });
+
+  it("reads one peering by id, and surfaces 404 as NotFoundError", async () => {
+    let n = 0;
+    const { sent, fetch } = fakeControlPlane(() =>
+      n++ === 0 ? json(PEERING) : json({ detail: "not found" }, 404),
+    );
+    const peerings = openClient(fetch).projects.peerings;
+
+    expect(await peerings.get("sdk-tests", ROW_ID)).toEqual(PEERING);
+    await expect(peerings.get("sdk-tests", KEY_ID)).rejects.toBeInstanceOf(
+      NotFoundError,
+    );
+    expect(calls(sent)).toEqual([
+      ["GET", `${CP}/v1/projects/sdk-tests/peerings/${ROW_ID}`, undefined],
+      ["GET", `${CP}/v1/projects/sdk-tests/peerings/${KEY_ID}`, undefined],
+    ]);
+  });
+});
+
 describe("endpoints", () => {
   it("lists with filters, reads, renames and deletes with the project selector", async () => {
     const { sent, fetch } = fakeControlPlane((call) =>
