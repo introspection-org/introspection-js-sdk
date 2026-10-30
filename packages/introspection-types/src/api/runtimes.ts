@@ -56,6 +56,8 @@ export interface Runtime {
   metadata?: Record<string, unknown> | null;
   /** The group this version belongs to; versions share a slug within it. */
   runtime_group_id?: Uuid;
+  /** The runtime peering this group's sessions take their configuration from, or null. */
+  peering_id?: Uuid | null;
   /** Projected from the runtime group. */
   runtime_group_type?: RuntimeGroupType;
   /** The template the runtime group was created from, projected from the group. */

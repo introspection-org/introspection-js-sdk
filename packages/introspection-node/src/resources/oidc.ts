@@ -1,15 +1,13 @@
 import type { OidcMe } from "@introspection-sdk/types";
-import type { HttpClient } from "../http.js";
+import { ReadResource } from "./read-resource.js";
 
 /** `/v1/oidc` (Control Plane): who the client's credential signs in as. */
-export class OidcApi {
-  constructor(private readonly http: HttpClient) {}
-
+export class OidcApi extends ReadResource {
   /**
    * The member and org a member session or access token belongs to, with the
    * org's resolved feature flags.
    */
   me(): Promise<OidcMe> {
-    return this.http.request<OidcMe>({ method: "GET", path: "/v1/oidc/me" });
+    return this.read<OidcMe>("/v1/oidc/me");
   }
 }

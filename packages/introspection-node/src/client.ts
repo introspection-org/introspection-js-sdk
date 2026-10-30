@@ -69,6 +69,9 @@ import { EndpointsApi } from "./resources/endpoints.js";
 import { IntegrationsApi } from "./resources/integrations.js";
 import { JudgesApi } from "./resources/judges.js";
 import { OidcApi } from "./resources/oidc.js";
+import { OrganizationsApi } from "./resources/organizations.js";
+import { RemotesApi } from "./resources/remotes.js";
+import { TokensApi } from "./resources/tokens.js";
 import type { DataPlaneResources } from "./data-plane.js";
 import { DEV_TARGET_HEADER, resolveDevTarget } from "./dev-target.js";
 
@@ -177,6 +180,12 @@ export class IntrospectionClient implements DataPlaneResources {
   /** `oidc.me()`: who the credential signs in as. */
   readonly oidc: OidcApi;
 
+  /** `organizations.me()`: the credential's organization. */
+  readonly organizations: OrganizationsApi;
+
+  /** `tokens.create()`: a Data Plane token for one project. */
+  readonly tokens: TokensApi;
+
   /** Read folded span annotations and append one annotation mutation. */
   readonly annotations: AnnotationsApi;
 
@@ -213,6 +222,9 @@ export class IntrospectionClient implements DataPlaneResources {
 
   /** `/v1/images` (Data Plane), what eval compose services run as. */
   readonly images: ImagesApi;
+
+  /** The `introspection dev` remote connection's protocol (Data Plane). */
+  readonly remotes: RemotesApi;
 
   /**
    * CRUD on `/v1/connections` (Data Plane), the apps members connected for
@@ -294,6 +306,9 @@ export class IntrospectionClient implements DataPlaneResources {
     this.integrations = new IntegrationsApi(this.cpHttp);
     this.judges = new JudgesApi(this.cpHttp);
     this.oidc = new OidcApi(this.cpHttp);
+    this.organizations = new OrganizationsApi(this.cpHttp);
+    this.tokens = new TokensApi(this.cpHttp);
+    this.remotes = new RemotesApi(this.dpHttp);
     this.annotations = attachAnnotations(this.cpHttp, this.dpHttp);
     this.tags = attachTags(this.dpHttp);
     this.events = new EventsApi(this.dpHttp);

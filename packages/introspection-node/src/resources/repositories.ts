@@ -3,6 +3,8 @@ import {
   ValidationError,
   type Paginated,
   type Repository,
+  type RepositoryAccessGrant,
+  type RepositoryAccessTokenParams,
   type RepositoryBranch,
   type RepositoryBranchesParams,
   type RepositoryCommit,
@@ -12,6 +14,7 @@ import {
   type RepositoryContent,
   type RepositoryContentGetParams,
   type RepositoryContentsParams,
+  type RepositoryCreateParams,
   type RepositoryDirectory,
   type RepositoryEntry,
   type RepositoryGetParams,
@@ -164,6 +167,39 @@ export class RepositoriesApi {
       body: params,
     });
     return merge ?? null;
+  }
+
+  /**
+   * `POST /v1/repositories?project=…` — create a repository hosted on the
+   * project's Data Plane (idempotent on `slug`), or link a GitHub one through
+   * an integration. Linking the same GitHub URL twice is a `ConflictError`.
+   */
+  create(
+    params: RepositoryCreateParams,
+    query: RepositoryGetParams,
+  ): Promise<Repository> {
+    return this.cpHttp.request<Repository>({
+      method: "POST",
+      path: "/v1/repositories",
+      query: { ...query },
+      body: params,
+    });
+  }
+
+  /**
+   * Mint a short-lived access token to a repository for the session's
+   * Runtime, which the Data Plane reads from the credential's claims: only a
+   * runner's token, on a Runtime granted the repository, qualifies.
+   */
+  accessToken(
+    repositoryId: Uuid,
+    params: RepositoryAccessTokenParams = {},
+  ): Promise<RepositoryAccessGrant> {
+    return this.dpHttp.request<RepositoryAccessGrant>({
+      method: "POST",
+      path: `/v1/repositories/${encodeURIComponent(repositoryId)}/access-token`,
+      body: params,
+    });
   }
 
   get(repositoryId: Uuid, params: RepositoryGetParams): Promise<Repository> {

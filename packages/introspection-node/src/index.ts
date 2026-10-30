@@ -24,8 +24,23 @@ export type {
   TokenExchangeParams,
   AuthorizationCodeParams,
   OAuthToken,
+  ActorClaim,
   TokenEndpointOptions,
 } from "./auth.js";
+
+// Device-code login (`introspection login`) and sign-out.
+export {
+  DeviceCodeAuth,
+  DEVICE_CODE_GRANT_TYPE,
+  DEVICE_FLOW_CLIENT_ID,
+  oidcLogout,
+} from "./device-code.js";
+export type {
+  DeviceCodeAuthOptions,
+  DeviceCodeParams,
+  DeviceCodeResponse,
+  DeviceTokenPoll,
+} from "./device-code.js";
 
 // Native email-code sign-in (a `native` Application's end users).
 export {
@@ -138,6 +153,9 @@ export {
 export { IntegrationsApi } from "./resources/integrations.js";
 export { JudgesApi } from "./resources/judges.js";
 export { OidcApi } from "./resources/oidc.js";
+export { OrganizationsApi } from "./resources/organizations.js";
+export { RemotesApi } from "./resources/remotes.js";
+export { TokensApi } from "./resources/tokens.js";
 
 // REST API wire types
 // jscpd:ignore-start -- re-export list of wire type names
@@ -191,6 +209,11 @@ export type {
   RepositoryProvider,
   RepositoryListParams,
   RepositoryGetParams,
+  RepositoryCreateParams,
+  HostedRepositoryCreateParams,
+  GithubRepositoryCreateParams,
+  RepositoryAccessTokenParams,
+  RepositoryAccessGrant,
   RepositoryEntry,
   RepositoryEntryType,
   RepositoryDirectory,
@@ -243,6 +266,9 @@ export type {
   AnnotationListParams,
   AnnotationMutation,
   AnnotationEventOptions,
+  AnnotationFacet,
+  AnnotationNavigation,
+  AnnotationNavigationParams,
   Tag,
   TagKind,
   TagListParams,
@@ -398,6 +424,13 @@ export type {
   JudgeUpdateParams,
   FeatureFlagValue,
   OidcMe,
+  Organization,
+  TokenCreateParams,
+  DataPlaneToken,
+  RemotesConnectDocs,
+  WsAuthenticationDocs,
+  WsFrameDocs,
+  WsMessageProtocolDocs,
   Image,
   ImageKind,
   ImageStatus,

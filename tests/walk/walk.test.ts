@@ -13,9 +13,12 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { Polly } from "@pollyjs/core";
 import {
+  DeviceCodeAuth,
+  IntrospectionAPIError,
   IntrospectionClient,
   NotFoundError,
   ValidationError,
+  oidcLogout,
   serviceAccountToken,
   type Runner,
 } from "@introspection-sdk/introspection-node";
@@ -49,7 +52,6 @@ import {
   pushBranch,
   pushRecipe,
   secondTurn,
-  raw,
   NATIVE_FETCH,
   settled,
   spanEventId,
@@ -74,6 +76,8 @@ const RECORDINGS_DIR =
   path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../recordings");
 const recordingDir = `${RECORDINGS_DIR}/${RECORDING}`;
 const mode = getPollyMode();
+/** An id no resource has: the reads that find nothing to read in a fresh project. */
+const NIL_UUID = "00000000-0000-0000-0000-000000000000";
 
 /**
  * Every scope a service-account application may hold that the walk uses:
@@ -225,10 +229,10 @@ walk("SDK end-to-end walk", () => {
         // The owner's Data Plane token for the project: it carries
         // `git:push`, which no service account can, and the member-only
         // Data Plane writes (access tags, annotations).
-        const minted = await raw(owner.cpHttp).post<{
-          access_token: string;
-          project_id: string;
-        }>("/v1/tokens", { project: project.id, expires_hours: 24 });
+        const minted = await owner.tokens.create({
+          project: project.id,
+          expires_hours: 24,
+        });
         memberToken = minted.access_token;
         expect(minted.project_id).toBe(project.id);
         member = new IntrospectionClient({
@@ -310,6 +314,16 @@ walk("SDK end-to-end walk", () => {
         `);
         await owner.projects.delete(sibling.id);
         await expectNotFound(() => owner.projects.get(sibling.id));
+
+        // Peerings are offered in the web app; the walk's project offers
+        // none and is granted none, so the reads come back empty.
+        const offered = await owner.projects.peerings.list(project.id);
+        expect(offered.records).toEqual([]);
+        const granted = await owner.projects.peerings.granted(project.id);
+        expect(granted.records).toEqual([]);
+        await expectNotFound(() =>
+          owner.projects.peerings.get(project.id, NIL_UUID),
+        );
       });
     },
     STEP_TIMEOUT,
@@ -487,6 +501,37 @@ walk("SDK end-to-end walk", () => {
           `);
         await owner.applications.secrets.delete(application.id, first.id);
         expect(second.id).not.toBe(first.id);
+
+        // A signing key: minted, listed with its public half, revoked.
+        const key = await owner.applications.keys.create(application.id);
+        expect(key.public_key).toBeTruthy();
+        const keys = await owner.applications.keys.list(application.id);
+        expect(keys.map((k) => k.id)).toContain(key.id);
+        await owner.applications.keys.delete(application.id, key.id);
+        expect(
+          (await owner.applications.keys.list(application.id)).map((k) => k.id),
+        ).not.toContain(key.id);
+
+        // A federated (`jwks`) application takes an external issuer as an
+        // identity provider; a service account takes none.
+        const federated = await owner.applications.create(
+          { name: `${WALK.applicationName}-jwks`, application_type: "jwks" },
+          project.id,
+        );
+        expect(
+          (await owner.applications.idps.list(federated.id)).records,
+        ).toEqual([]);
+        const idp = await owner.applications.idps.create(federated.id, {
+          issuer: WALK.federatedIssuer,
+        });
+        expect(idp.application_id).toBe(federated.id);
+        expect(idp.status, "a direct federation has nothing to provision").toBe(
+          "active",
+        );
+        const idps = await owner.applications.idps.list(federated.id);
+        expect(idps.records.map((i) => i.id)).toContain(idp.id);
+        await owner.applications.idps.delete(federated.id, idp.id);
+        await owner.applications.delete(federated.id, project.id);
       });
     },
     STEP_TIMEOUT,
@@ -496,10 +541,7 @@ walk("SDK end-to-end walk", () => {
     "3: repository — a hosted repository the walk pushes the recipe into",
     async (ctx) => {
       await steps.run(ctx, "repository", async () => {
-        // `POST /v1/repositories` is documented for the CLI only, so this
-        // is the one write the walk sends by hand.
-        const created = await raw(sa.cpHttp).post<Repository>(
-          "/v1/repositories",
+        const created = await sa.repositories.create(
           { provider: "hosted", slug: WALK.recipeSlug, default_branch: "main" },
           { project: project.id },
         );
@@ -540,6 +582,9 @@ walk("SDK end-to-end walk", () => {
           { timeoutMs: 180_000, intervalMs: 2_000, label: "hosted repository" },
         );
         expect(repository.provisioning_status).toBe("ready");
+        // A repository access token is minted for a session's Runtime, read
+        // from the credential's claims; a service account's token names none.
+        await expectRefused(() => sa.repositories.accessToken(repository.id));
         const seeded = await settled(
           mode,
           async () => {
@@ -861,6 +906,16 @@ walk("SDK end-to-end walk", () => {
           limit: 5,
         });
         expect(Array.isArray(registry)).toBe(true);
+
+        // The `hello-mcp` connector stays with the project; one the walk
+        // makes only to remove shows the delete.
+        const throwaway = await sa.connectors.create({
+          name: WALK.throwawayConnectorName,
+          provider: "walk",
+          auth_mode: "static",
+        });
+        await sa.connectors.delete(throwaway.id);
+        await expectNotFound(() => sa.connectors.get(throwaway.id));
       });
     },
     STEP_TIMEOUT,
@@ -941,6 +996,7 @@ walk("SDK end-to-end walk", () => {
             "llm_mode": "managed",
             "name": "hello-mcp-[run]",
             "org_id": "[uuid]",
+            "peering_id": null,
             "project_id": "[uuid]",
             "recipe_id": "[uuid]",
             "recipe_kind": "production",
@@ -1097,9 +1153,24 @@ walk("SDK end-to-end walk", () => {
         );
         expect(renamed.name).toBe("hello-mcp (walk)");
 
-        const token = await sa.connectors.connections.getToken(connector.id, {
-          runtime: runtime.runtime_group_id,
-        } as Parameters<typeof sa.connectors.connections.getToken>[1]);
+        // A plain upstream API the runtime may reach, added and removed; the
+        // binding's MCP endpoint came from the grant.
+        const api = await sa.endpoints.create(
+          {
+            name: "The walk's API",
+            host: WALK.endpointHost,
+            kind: "api",
+            headers: {},
+            runtime_group_id: runtime.runtime_group_id,
+          },
+          project.id,
+        );
+        expect(api.host).toBe(WALK.endpointHost);
+        expect(api.kind).toBe("api");
+        await sa.endpoints.delete(api.id, project.id);
+        await expectNotFound(() => sa.endpoints.get(api.id, project.id));
+
+        const token = await sa.connectors.connections.getToken(connector.id);
         expect(stable(token)).toMatchInlineSnapshot(`
           {
             "expires_at": "[timestamp]",
@@ -1704,8 +1775,13 @@ walk("SDK end-to-end walk", () => {
               label: "annotation events",
             },
           );
+          // The local stack lands no annotation event (see above), so there
+          // the read by id is of one that does not exist.
           if (events.length > 0) {
-            await sa.events.get((events[0] as { id: string }).id);
+            const id = (events[0] as { id: string }).id;
+            expect((await sa.events.get(id)).id).toBe(id);
+          } else {
+            await expectNotFound(() => sa.events.get(NIL_UUID));
           }
           const eventTable = await sa.events
             .listArrow({
@@ -1714,21 +1790,13 @@ walk("SDK end-to-end walk", () => {
             } as Parameters<typeof sa.events.listArrow>[0])
             .readAll();
           expect(eventTable.numRows).toBeGreaterThanOrEqual(events.length);
-          const facets = await raw(member.dpHttp).get<unknown>(
-            "/v1/annotations/facets",
-            {
-              conversation_id: conversationId,
-            },
-          );
-          expect(facets).toBeTruthy();
-          const navigation = await raw(member.dpHttp).get<unknown>(
-            "/v1/annotations/navigation",
-            {
-              trace_id: target.trace_id,
-              span_id: target.span_id,
-            },
-          );
-          expect(navigation).toBeTruthy();
+          const facets = await member.annotations.facets();
+          expect(Array.isArray(facets)).toBe(true);
+          const navigation = await member.annotations.navigation({
+            trace_id: target.trace_id,
+            span_id: target.span_id,
+          });
+          expect(navigation.total_count).toBeGreaterThanOrEqual(0);
         }
         shareId = share.id;
 
@@ -1772,6 +1840,15 @@ walk("SDK end-to-end walk", () => {
         const images = await sa.images.list();
         if (images.records.length > 0)
           await sa.images.get(images.records[0]!.id);
+        // A mirror of an upstream image, recorded and queued, then deleted
+        // before its copy runs: the build is not what the walk checks.
+        const mirror = await sa.images.create({
+          name: WALK.mirrorImageName,
+          source: { kind: "mirror", reference: WALK.mirrorReference },
+        });
+        expect(mirror.source_kind).toBe("mirror");
+        await sa.images.delete(mirror.id);
+        await expectNotFound(() => sa.images.get(mirror.id));
         await owner.integrations.list();
         const judges = await sa.judges.list({
           project: project.id,
@@ -2177,6 +2254,9 @@ walk("SDK end-to-end walk", () => {
         for await (const a of sa.automations.list())
           if (a.id === automation.id) seen = true;
         expect(seen).toBe(true);
+        // Deleting takes `automations:delete`, which no application holds.
+        await member.automations.delete(automation.id);
+        await expectNotFound(() => sa.automations.get(automation.id));
       });
     },
     STEP_TIMEOUT,
@@ -2554,9 +2634,7 @@ walk("SDK end-to-end walk", () => {
         for await (const m of owner.members.list()) members.push(m);
         expect(members.length).toBeGreaterThan(0);
         await owner.members.get(members[0]!.id);
-        const org = await raw(owner.cpHttp).get<{ id: string; slug: string }>(
-          "/v1/organizations/me",
-        );
+        const org = await owner.organizations.me();
         // An invite outlives the project (members are the organisation's), so
         // a repeat run finds the one the last run sent rather than minting
         // another; and a person belongs to one organisation, so the address
@@ -2575,10 +2653,9 @@ walk("SDK end-to-end walk", () => {
           name: "Walk member (renamed)",
         });
         expect(renamed.name).toBe("Walk member (renamed)");
-        const me = await raw(owner.cpHttp).get<{ org_id: string }>(
-          "/v1/oidc/me",
-        );
+        const me = await owner.oidc.me();
         expect(me.org_id).toBe(project.org_id);
+        await signInRoutes(settings, project, member);
         apiKey = await sa.apiKeys.create(
           {
             name: WALK.apiKeyName,
@@ -2656,7 +2733,7 @@ walk("SDK end-to-end walk", () => {
           member,
           project,
           sa,
-          (name) => !!name?.includes(settings.run),
+          ownRun(settings.run),
         );
         await expectNotFound(() => sa.tasks.get(task.id));
         await expectNotFound(() => sa.files.get(inputFile.id));
@@ -2766,6 +2843,77 @@ async function removeWalkResources(
       await owner.projects.delete(other.id).catch(ignore404);
     }
   }
+}
+
+/**
+ * The server reached and refusing: what the walk asserts for a route only a
+ * credential it cannot hold (a runtime session, an approved login) passes.
+ */
+async function expectRefused(
+  call: () => Promise<unknown>,
+): Promise<IntrospectionAPIError> {
+  const outcome = await call().then(
+    () => new Error("the call succeeded"),
+    (err: unknown) => err,
+  );
+  expect(outcome).toBeInstanceOf(IntrospectionAPIError);
+  const refused = outcome as IntrospectionAPIError;
+  expect(refused.status).toBeGreaterThanOrEqual(400);
+  expect(refused.status).toBeLessThan(500);
+  return refused;
+}
+
+/**
+ * What `introspection login`, `logout` and `dev` reach through the SDK, short
+ * of a person approving in a browser: a device code, one poll that finds it
+ * still pending, a refresh and a development-credential exchange the server
+ * refuses (only an approved login holds what they take), revoking and
+ * signing out a session that does not exist (the owner's own would end the
+ * walk's), and the remote connection's protocol. The WebSocket itself is not
+ * recorded: attaching needs a development login.
+ */
+async function signInRoutes(
+  settings: WalkSettings,
+  project: Project,
+  member: IntrospectionClient,
+): Promise<void> {
+  const login = new DeviceCodeAuth({ baseApiUrl: settings.baseApiUrl });
+  const device = await login.requestCode();
+  expect(device.user_code).toBeTruthy();
+  expect(
+    device.verification_uri_complete.startsWith(device.verification_uri),
+  ).toBe(true);
+  const poll = await login.pollToken(device.device_code);
+  expect(poll.status, "nobody approved the code").toBe("pending");
+  const refresh = await expectRefused(() =>
+    login.refresh({
+      refreshToken: "walk-no-refresh-token",
+      sessionId: NIL_UUID,
+      orgId: project.org_id,
+    }),
+  );
+  expect([refresh.status, refresh.code]).toEqual([400, "invalid_grant"]);
+  const exchange = await expectRefused(() =>
+    login.developmentCredential("walk-not-a-login"),
+  );
+  expect([exchange.status, exchange.code]).toEqual([400, "invalid_grant"]);
+  await login.revoke({ sessionId: NIL_UUID, orgId: project.org_id });
+  await oidcLogout({
+    baseApiUrl: settings.baseApiUrl,
+    cpSession: "walk-no-session",
+  });
+
+  const docs = await member.remotes.connectDocs();
+  expect(docs.endpoint).toBe("/v1/remotes/connect");
+  expect(docs.message_protocol.remote_to_cloud.map((f) => f.frame)).toContain(
+    "attach_request",
+  );
+}
+
+/** This run's names, whatever their case or separator (`WALK_SECRET_<RUN>`). */
+function ownRun(run: string): (name: string | null | undefined) => boolean {
+  const own = new RegExp(run.replace("-", "[-_]"), "i");
+  return (name) => !!name && own.test(name);
 }
 
 async function expectNotFound(read: () => Promise<unknown>): Promise<void> {

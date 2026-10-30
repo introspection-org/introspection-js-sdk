@@ -367,6 +367,11 @@ export interface ConnectionMissionConstraints {
 export interface ConnectionTokenParams {
   /** Defaults to `"app"`. */
   subject?: ConnectionBrokerSubjectType;
+  /**
+   * The exact connection to use. When omitted, the platform resolves it from
+   * the authenticated subject.
+   */
+  connection_id?: Uuid;
   /** Mission label shown to the human for person-authorized connectors. */
   action?: string;
   requested_permissions?: ConnectionMissionConstraints;
