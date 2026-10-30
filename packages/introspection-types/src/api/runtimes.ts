@@ -71,6 +71,8 @@ export interface Runtime {
   image_build_metadata?: Record<string, unknown> | null;
   /** The recipe commit this version's image carries, for an image version. */
   image_revision?: string | null;
+  /** The recipe release this image carries (e.g. `1.4.0`), for an image version. */
+  image_version?: string | null;
   /** That commit's subject line, for an image version. */
   image_commit_subject?: string | null;
   /** The recipe's GitHub repository (`owner/name`), for an image version. */

@@ -335,6 +335,12 @@ export interface Connection {
   provider_app?: string | null;
   /** The provider's own id for the connected account — an opaque routing id, not a secret. */
   provider_account_id?: string | null;
+  /** The provider's display name for the account. */
+  provider_account_name?: string | null;
+  /** The project the connection serves. */
+  project_id?: Uuid | null;
+  /** When the grant was last confirmed usable. */
+  last_verified_at?: IsoDate | null;
   /** Non-secret provider label captured on connection or re-consent. */
   metadata?: { name?: string };
   scopes_granted: string[];
