@@ -340,6 +340,61 @@ describe("recipes, runtimes and repositories", () => {
   });
 });
 
+describe("organizations, tokens and remotes", () => {
+  it("reads the credential's organization, and surfaces 404 as NotFoundError", async () => {
+    const org = { id: ROW_ID, slug: "acme", name: "Acme" };
+    let n = 0;
+    const { sent, fetch } = fakeControlPlane(() =>
+      n++ === 0 ? json(org) : json({ detail: "not found" }, 404),
+    );
+    const organizations = openClient(fetch).organizations;
+
+    expect(await organizations.me()).toEqual(org);
+    await expect(organizations.me()).rejects.toBeInstanceOf(NotFoundError);
+    expect(calls(sent)).toEqual([
+      ["GET", `${CP}/v1/organizations/me`, undefined],
+      ["GET", `${CP}/v1/organizations/me`, undefined],
+    ]);
+  });
+
+  it("mints a Data Plane token for one project, and surfaces a refusal", async () => {
+    const minted = {
+      access_token: "intro_dp",
+      token_type: "bearer",
+      expires_at: "2026-09-01T01:00:00Z",
+      project_id: ROW_ID,
+      org_id: KEY_ID,
+    };
+    let n = 0;
+    const { sent, fetch } = fakeControlPlane(() =>
+      n++ === 0 ? json(minted) : json({ detail: "forbidden" }, 403),
+    );
+    const tokens = openClient(fetch).tokens;
+    const params = { project: "sdk-tests", expires_hours: 24 };
+
+    expect(await tokens.create(params)).toEqual(minted);
+    await expect(tokens.create(params)).rejects.toMatchObject({ status: 403 });
+    expect(calls(sent)[0]).toEqual(["POST", `${CP}/v1/tokens`, params]);
+  });
+
+  it("reads the remote protocol from the Data Plane, and surfaces 404", async () => {
+    const docs = { endpoint: "/v1/remotes/connect", schema_version: 1 };
+    let n = 0;
+    const { sent, fetch } = fakeControlPlane(() =>
+      n++ === 0 ? json(docs) : json({ detail: "not found" }, 404),
+    );
+    const remotes = openClient(fetch).remotes;
+
+    expect(await remotes.connectDocs()).toEqual(docs);
+    await expect(remotes.connectDocs()).rejects.toBeInstanceOf(NotFoundError);
+    expect(calls(sent)[0]).toEqual([
+      "GET",
+      "https://dp.example.com/v1/remotes/connect",
+      undefined,
+    ]);
+  });
+});
+
 describe("apiKeys", () => {
   it("unwraps the unpaginated api_keys envelope", async () => {
     const { sent, fetch } = fakeControlPlane(() =>
