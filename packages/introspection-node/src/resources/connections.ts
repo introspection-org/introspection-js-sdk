@@ -59,7 +59,7 @@ export class AppConnectionsApi<
     return this.http.request<ConnectPage>({
       method: "POST",
       path: "/v1/connections",
-      body: { app: params.app, runtime },
+      body: { app: params.app, runtime, return_url: params.return_url },
     });
   }
 

@@ -1817,10 +1817,21 @@ walk("SDK end-to-end walk", () => {
         expect(missions.records).toEqual([]);
         const approvals = await sa.approvals.list();
         expect(approvals.records).toEqual([]);
-        // `/v1/connections` is the apps a member connects through an app
-        // (Pipedream) connector, which needs that provider's credentials; with
-        // none on the project every route answers 404 (member-connections.md).
-        await expectNotFound(async () => await member.connections.list());
+        // `/v1/connections` is every connection on the project's connectors:
+        // here its own account on `hello-mcp`. Connecting an app needs an app
+        // (Pipedream) connector, and with none on the project that answers 404.
+        const connections = await member.connections.list({
+          connector_id: connector.id,
+        });
+        const projectConnection = connections.records[0]!;
+        expect(projectConnection).toMatchObject({
+          owner: "project",
+          member_id: null,
+          app: connector.slug,
+        });
+        expect((await member.connections.get(projectConnection.id)).id).toBe(
+          projectConnection.id,
+        );
         await expectNotFound(() =>
           member.connections.get("019a1000-0000-7000-8000-0000000000c1"),
         );

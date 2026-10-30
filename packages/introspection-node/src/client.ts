@@ -231,7 +231,9 @@ export class IntrospectionClient implements DataPlaneResources {
    * themselves. `create` takes the `runtime` explicitly, since the client
    * has no runtime context.
    */
-  readonly connections: AppConnectionsApi<Required<AppConnectionCreateParams>>;
+  readonly connections: AppConnectionsApi<
+    AppConnectionCreateParams & { runtime: string }
+  >;
   // jscpd:ignore-end
 
   constructor(options: IntrospectionClientOptions = {}) {
