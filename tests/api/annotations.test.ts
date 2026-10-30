@@ -70,7 +70,6 @@ let baseUrl: string;
 let requests: CapturedRequest[] = [];
 let memberScenario: "normal" | "unknown" | "ambiguous" = "normal";
 let rateLimitNextAnnotation = false;
-let refuseReviewReads = false;
 
 function page<T>(records: T[], next: string | null = null) {
   return { records, count: records.length, total_count: records.length, next };
@@ -113,21 +112,6 @@ beforeAll(async () => {
       ? url.pathname.slice(3)
       : url.pathname;
 
-    if (path.startsWith("/v1/annotations/") && refuseReviewReads) {
-      return json(res, 404, { detail: "Annotations are not enabled" });
-    }
-    if (path === "/v1/annotations/facets" && method === "GET") {
-      return json(res, 200, [{ dimension: "label", value: "good", count: 2 }]);
-    }
-    if (path === "/v1/annotations/navigation" && method === "GET") {
-      return json(res, 200, {
-        previous: null,
-        current: ANNOTATION,
-        next: null,
-        current_position: 1,
-        total_count: 1,
-      });
-    }
     if (path === "/v1/annotations" && method === "GET") {
       const second = url.searchParams.get("next") === "annotation-page-2";
       return json(
@@ -235,7 +219,6 @@ beforeEach(() => {
   requests = [];
   memberScenario = "normal";
   rateLimitNextAnnotation = false;
-  refuseReviewReads = false;
 });
 
 function client(dpUrl?: string): IntrospectionClient {
@@ -377,42 +360,6 @@ describe("annotations", () => {
     await expect(
       client().annotations.create(TARGET, { reviewerEmails: emails }),
     ).rejects.toMatchObject({ code: "too_many_annotation_reviewers" });
-  });
-
-  it("reads the review queue's facets from the Data Plane", async () => {
-    const facets = await client(`${baseUrl}/dp`).annotations.facets();
-    expect(facets).toEqual([{ dimension: "label", value: "good", count: 2 }]);
-    expect(requests[0]).toMatchObject({
-      method: "GET",
-      path: "/dp/v1/annotations/facets",
-    });
-  });
-
-  it("reads the review order around one target with its filters", async () => {
-    const navigation = await client(`${baseUrl}/dp`).annotations.navigation({
-      ...TARGET,
-      status: "reviewed",
-      label: ["good-structure", "needs-work"],
-    });
-    expect(navigation.current).toEqual(ANNOTATION);
-    expect(navigation.total_count).toBe(1);
-    expect(requests[0]!.path).toBe("/dp/v1/annotations/navigation");
-    expect(requests[0]!.query.get("trace_id")).toBe(TARGET.trace_id);
-    expect(requests[0]!.query.get("status")).toBe("reviewed");
-    expect(requests[0]!.query.getAll("label")).toEqual([
-      "good-structure",
-      "needs-work",
-    ]);
-  });
-
-  it("surfaces a refused review read as NotFoundError", async () => {
-    refuseReviewReads = true;
-    await expect(client().annotations.facets()).rejects.toBeInstanceOf(
-      NotFoundError,
-    );
-    await expect(
-      client().annotations.navigation(TARGET),
-    ).rejects.toBeInstanceOf(NotFoundError);
   });
 
   it("reads immutable annotation history through generic events", async () => {

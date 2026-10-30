@@ -8,12 +8,15 @@
  *
  * Optional env:
  *   INTROSPECTION_BASE_API_URL  - CP API host (default https://api.introspection.dev)
+ *   INTROSPECTION_DP_URL        - the project's Data Plane, when it is not on the CP host
  */
 
 import { IntrospectionClient } from "@introspection-sdk/introspection-node";
 
 async function main() {
-  const client = new IntrospectionClient();
+  const client = new IntrospectionClient({
+    advanced: { dpUrl: process.env.INTROSPECTION_DP_URL },
+  });
 
   for (const facet of await client.annotations.facets()) {
     console.log(`${facet.dimension}=${facet.value}: ${facet.count}`);

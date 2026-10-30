@@ -344,10 +344,7 @@ in that IdP's SDK; exchange its token with `tokenExchange()` instead.
 a code, show it to the member, and poll until they approve in the browser.
 
 ```typescript
-import {
-  DeviceCodeAuth,
-  oidcLogout,
-} from "@introspection-sdk/introspection-node";
+import { DeviceCodeAuth } from "@introspection-sdk/introspection-node";
 
 const login = new DeviceCodeAuth();
 const device = await login.requestCode({ project: "my-project" });
@@ -360,11 +357,16 @@ const renewed = await login.refresh({
   orgId: token.org_id!,
 });
 const dev = await login.developmentCredential(renewed.access_token);
-await oidcLogout({ cpSession: token.cp_session! }); // or login.revoke(...)
+await login.revoke({
+  sessionId: token.session_id!,
+  orgId: token.org_id!,
+  token: renewed.refresh_token ?? token.refresh_token!,
+});
 ```
 
-`pollToken()` makes one poll and reports `pending`, `slow_down`, `denied`,
-`expired` or `approved`. `client.remotes.connectDocs()` reads the protocol of
+`revoke()` ends this login alone; `oidcLogout({ cpSession })` signs the member
+out of every session, their browser's included. `pollToken()` makes one poll
+and reports `pending`, `slow_down`, `denied`, `expired` or `approved`. `client.remotes.connectDocs()` reads the protocol of
 the `/v1/remotes/connect` WebSocket that `introspection dev` dials with such a
 login.
 

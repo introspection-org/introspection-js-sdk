@@ -17,6 +17,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { Polly } from "@pollyjs/core";
 import {
+  ConflictError,
   IntrospectionClient,
   NotFoundError,
 } from "@introspection-sdk/introspection-node";
@@ -198,6 +199,17 @@ lane("SDK walk: GitHub write-back", () => {
             { project: project.id },
           ));
         expect(repository.provider).toBe("github");
+        await expect(
+          owner.repositories.create(
+            {
+              provider: "github",
+              integration_id: integrationId!,
+              url: GITHUB.url,
+              name: GITHUB.repo,
+            },
+            { project: project.id },
+          ),
+        ).rejects.toBeInstanceOf(ConflictError);
       });
     },
     STEP_TIMEOUT,

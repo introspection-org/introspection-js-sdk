@@ -290,74 +290,27 @@ describe("RepositoriesApi", () => {
     );
   });
 
-  describe("create()", () => {
-    it("posts a hosted repository to the control plane with the project", async () => {
-      const { c, fetchImpl } = respondingClient(
-        Response.json(REPOSITORY, { status: 201 }),
-      );
-
-      const created = await c.repositories.create(
-        { provider: "hosted", slug: "acme/agent", default_branch: "main" },
-        { project: "sdk-tests" },
-      );
-
-      expect(created).toEqual(REPOSITORY);
-      const [url, init] = fetchImpl.mock.calls[0]!;
-      expect(String(url)).toBe(`${CP}/v1/repositories?project=sdk-tests`);
-      expect(init?.method).toBe("POST");
-      expect(JSON.parse(String(init?.body))).toEqual({
-        provider: "hosted",
-        slug: "acme/agent",
-        default_branch: "main",
-      });
-    });
-
-    it("throws a ConflictError for a GitHub URL already linked", async () => {
-      const { c } = respondingClient(
-        Response.json({ detail: "Already linked" }, { status: 409 }),
-      );
-
-      await expect(
-        c.repositories.create(
-          { integration_id: REPO_ID, url: "https://github.com/a/b", name: "b" },
-          { project: "sdk-tests" },
-        ),
-      ).rejects.toBeInstanceOf(ConflictError);
-    });
-  });
-
-  describe("accessToken()", () => {
-    const GRANT: RepositoryAccessGrant = {
+  // Only a runner's token on a Runtime granted the repository qualifies, which
+  // the walk cannot hold: it records the 403, and this stands in for the grant.
+  it("accessToken() posts the permissions to the data plane", async () => {
+    const grant: RepositoryAccessGrant = {
       provider: "github",
       token: "ghs_test",
       expires_at: "2026-09-01T01:00:00Z",
       repository: "acme/agent",
     };
+    const { c, fetchImpl } = respondingClient(Response.json(grant));
 
-    it("posts the permissions to the data plane", async () => {
-      const { c, fetchImpl } = respondingClient(Response.json(GRANT));
-
-      const grant = await c.repositories.accessToken(REPO_ID, {
+    await expect(
+      c.repositories.accessToken(REPO_ID, {
         permissions: { contents: "read" },
-      });
-
-      expect(grant).toEqual(GRANT);
-      const [url, init] = fetchImpl.mock.calls[0]!;
-      expect(String(url)).toBe(`${DP}/v1/repositories/${REPO_ID}/access-token`);
-      expect(init?.method).toBe("POST");
-      expect(JSON.parse(String(init?.body))).toEqual({
-        permissions: { contents: "read" },
-      });
-    });
-
-    it("surfaces the 403 of a credential with no runtime", async () => {
-      const { c } = respondingClient(
-        Response.json({ detail: "No runtime" }, { status: 403 }),
-      );
-
-      await expect(c.repositories.accessToken(REPO_ID)).rejects.toMatchObject({
-        status: 403,
-      });
+      }),
+    ).resolves.toEqual(grant);
+    const [url, init] = fetchImpl.mock.calls[0]!;
+    expect(String(url)).toBe(`${DP}/v1/repositories/${REPO_ID}/access-token`);
+    expect(init?.method).toBe("POST");
+    expect(JSON.parse(String(init?.body))).toEqual({
+      permissions: { contents: "read" },
     });
   });
 

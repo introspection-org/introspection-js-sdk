@@ -541,6 +541,35 @@ export async function followAuthorization(
 }
 
 /**
+ * What a person does on the `/activate` page: approve or deny a device code
+ * with their Control Plane cookie. The page's route is not in the API, so no
+ * SDK method calls it; the walk does the browser's part by hand.
+ */
+export async function decideDeviceCode(
+  cp: { baseApiUrl: string; cookie: string },
+  decision: { userCode: string; approve: boolean; project?: string },
+): Promise<void> {
+  const form = new URLSearchParams({
+    user_code: decision.userCode,
+    approve: String(decision.approve),
+  });
+  if (decision.project) form.set("project", decision.project);
+  const res = await fetch(`${cp.baseApiUrl}/v1/oauth/device/authorization`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded",
+      Cookie: `intro_cp_session=${cp.cookie}`,
+    },
+    body: form.toString(),
+  });
+  if (!res.ok) {
+    throw new Error(
+      `the device decision answered ${res.status}: ${(await res.text()).slice(0, 300)}`,
+    );
+  }
+}
+
+/**
  * The recipe the walk pushes, cloned at `ref` and checked before the walk
  * creates anything: `introspection check` passes and the walk's agent is
  * there. A checkout is read at `ref`, not its working tree, since that commit

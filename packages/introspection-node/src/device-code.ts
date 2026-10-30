@@ -146,16 +146,25 @@ export class DeviceCodeAuth {
 
   /**
    * One `POST /v1/oauth/token` with the device-code grant. The four RFC 8628
-   * answers come back as a {@link DeviceTokenPoll}; any other error (an
-   * unknown `device_code` is `invalid_grant`) is thrown.
+   * answers come back as a {@link DeviceTokenPoll}, and an unknown
+   * `device_code` reads as `expired`; any other error is thrown. `signal`
+   * cancels the request.
    */
-  async pollToken(deviceCode: string): Promise<DeviceTokenPoll> {
+  async pollToken(
+    deviceCode: string,
+    options: { signal?: AbortSignal } = {},
+  ): Promise<DeviceTokenPoll> {
     try {
-      const token = await postTokenForm(this.options, {
-        grant_type: DEVICE_CODE_GRANT_TYPE,
-        device_code: deviceCode,
-        client_id: this.clientId,
-      });
+      const token = await postTokenForm(
+        this.options,
+        {
+          grant_type: DEVICE_CODE_GRANT_TYPE,
+          device_code: deviceCode,
+          client_id: this.clientId,
+        },
+        undefined,
+        options.signal,
+      );
       return { status: "approved", token };
     } catch (err) {
       const status =
@@ -172,7 +181,9 @@ export class DeviceCodeAuth {
    * `interval` between polls (bounded to 1–60 s), five seconds longer after
    * each `slow_down`. Throws an `IntrospectionAPIError` with code
    * `access_denied` when the member refuses, and one with code
-   * `expired_token` when the code runs out. Abort with `signal`.
+   * `expired_token` when the code runs out. Abort with `signal`, which also
+   * cancels a poll in flight: an aborted wait rejects with the signal's reason
+   * whatever that poll answered.
    */
   async waitForToken(
     device: DeviceCodeResponse,
@@ -192,7 +203,8 @@ export class DeviceCodeAuth {
     for (;;) {
       await sleep(interval * 1000, options.signal);
       if (Date.now() >= deadline) throw expired();
-      const poll = await this.pollToken(device.device_code);
+      const poll = await this.pollToken(device.device_code, options);
+      options.signal?.throwIfAborted();
       switch (poll.status) {
         case "approved":
           return poll.token;
@@ -281,10 +293,11 @@ export class DeviceCodeAuth {
 }
 
 /**
- * `GET /v1/oidc/logout`: end the Control Plane session behind a `cp_session`
- * cookie (the one {@link OAuthToken.cp_session} carries), and with it the
- * session's Data Plane tokens. The first response has already revoked the
- * session; its redirect starts the browser's sign-out at the identity
+ * `GET /v1/oidc/logout`: sign out the member behind a `cp_session` cookie (the
+ * one {@link OAuthToken.cp_session} carries). The session behind the cookie is
+ * revoked, and every other session of that member follows, their browser's
+ * included; to end one login alone, use {@link DeviceCodeAuth.revoke}. The
+ * first response has already revoked the session; its redirect starts the browser's sign-out at the identity
  * provider, which a headless client has no use for, so it is not followed.
  * A cookie that names no live session revokes nothing and answers the same.
  */

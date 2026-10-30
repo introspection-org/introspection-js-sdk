@@ -56,6 +56,7 @@ export async function postTokenForm(
   endpoint: TokenEndpointOptions,
   fields: Record<string, string>,
   scope?: string,
+  signal?: AbortSignal,
 ): Promise<OAuthToken> {
   const form = new URLSearchParams(fields);
   if (scope) form.set("scope", scope);
@@ -66,6 +67,7 @@ export async function postTokenForm(
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: form.toString(),
     cache: "no-store",
+    signal,
   });
   if (!res.ok) throw await toApiError(res);
   return (await res.json()) as OAuthToken;

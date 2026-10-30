@@ -14,7 +14,6 @@
 import {
   DeviceCodeAuth,
   IntrospectionClient,
-  oidcLogout,
 } from "@introspection-sdk/introspection-node";
 
 async function main() {
@@ -26,19 +25,32 @@ async function main() {
   console.log(`Open ${device.verification_uri} and enter ${device.user_code}`);
   const token = await login.waitForToken(device);
 
-  const client = new IntrospectionClient({ token: token.access_token });
+  // A login's Control Plane routes go through its cookie, and its Data Plane
+  // is the one it resolved, which need not be on the Control Plane's host.
+  const dpUrl = token.dp_url ?? undefined;
+  const client = new IntrospectionClient({
+    cpSession: token.cp_session ?? undefined,
+    advanced: { dpUrl },
+  });
   const org = await client.organizations.me();
   console.log(`signed in to ${org.slug}`);
 
   const minted = await client.tokens.create({ project, expires_hours: 1 });
   console.log(`Data Plane token, expires ${minted.expires_at}`);
 
-  const member = new IntrospectionClient({ token: minted.access_token });
+  const member = new IntrospectionClient({
+    token: minted.access_token,
+    advanced: { dpUrl },
+  });
   const docs = await member.remotes.connectDocs();
   console.log(`remote protocol v${docs.schema_version} at ${docs.endpoint}`);
 
-  // The login's cookie, kept from the first token: a refresh may not repeat it.
-  if (token.cp_session) await oidcLogout({ cpSession: token.cp_session });
+  // Ends this login alone; `oidcLogout` would sign the member out everywhere.
+  await login.revoke({
+    sessionId: token.session_id!,
+    orgId: token.org_id!,
+    token: token.refresh_token!,
+  });
 }
 
 main().catch((err) => {

@@ -11,6 +11,7 @@
  *   INTROSPECTION_RUNNER_TOKEN  - a runner's token, inside a sandbox; only that
  *                                 credential qualifies for an access token
  *   INTROSPECTION_BASE_API_URL  - CP API host (default https://api.introspection.dev)
+ *   INTROSPECTION_DP_URL        - the project's Data Plane, when it is not on the CP host
  */
 
 import { IntrospectionClient } from "@introspection-sdk/introspection-node";
@@ -29,7 +30,10 @@ async function main() {
 
   const runnerToken = process.env.INTROSPECTION_RUNNER_TOKEN;
   if (runnerToken) {
-    const sandbox = new IntrospectionClient({ token: runnerToken });
+    const sandbox = new IntrospectionClient({
+      token: runnerToken,
+      advanced: { dpUrl: process.env.INTROSPECTION_DP_URL },
+    });
     const grant = await sandbox.repositories.accessToken(repository.id, {
       permissions: { contents: "read" },
     });

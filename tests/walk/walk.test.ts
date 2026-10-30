@@ -45,6 +45,7 @@ import { fileURLToPath } from "node:url";
 import { getPollyMode, setupPolly } from "../polly-setup";
 import {
   BOOTSTRAP_FILE,
+  decideDeviceCode,
   followAuthorization,
   hasCompleteRecording,
   prompt,
@@ -585,7 +586,9 @@ walk("SDK end-to-end walk", () => {
         // A repository access token is minted for a session's Runtime, read
         // from the credential's claims; a service account's token names none.
         const noRuntime = await expectRefused(() =>
-          sa.repositories.accessToken(repository.id),
+          sa.repositories.accessToken(repository.id, {
+            permissions: { contents: "read" },
+          }),
         );
         expect(noRuntime.status).toBe(403);
         const seeded = await settled(
@@ -1809,6 +1812,23 @@ walk("SDK end-to-end walk", () => {
             span_id: target.span_id,
           });
           expect(navigation.total_count).toBeGreaterThanOrEqual(0);
+          const filtered = await member.annotations.navigation({
+            trace_id: target.trace_id,
+            span_id: target.span_id,
+            status: "reviewed",
+            label: ["walk", "walk-other"],
+          });
+          expect(filtered.total_count).toBeGreaterThanOrEqual(0);
+          // The route's own check of the target, before any read.
+          await expect(
+            member.annotations.navigation({
+              trace_id: "not-a-trace",
+              span_id: "not-a-span",
+            }),
+          ).rejects.toBeInstanceOf(ValidationError);
+          await expectRefused(() =>
+            noCredential(settings).annotations.facets(),
+          );
         }
         shareId = share.id;
 
@@ -2677,7 +2697,15 @@ walk("SDK end-to-end walk", () => {
         expect(renamed.name).toBe("Walk member (renamed)");
         const me = await owner.oidc.me();
         expect(me.org_id).toBe(project.org_id);
-        await signInRoutes(settings, project, member);
+        const noOrg = await expectRefused(() =>
+          noCredential(settings).organizations.me(),
+        );
+        expect(noOrg.status).toBe(401);
+        const noProject = await expectRefused(() =>
+          owner.tokens.create({ project: NIL_UUID, expires_hours: 1 }),
+        );
+        expect(noProject.status).toBe(404);
+        await signInRoutes(settings, project);
         apiKey = await sa.apiKeys.create(
           {
             name: WALK.apiKeyName,
@@ -2868,8 +2896,9 @@ async function removeWalkResources(
 }
 
 /**
- * The server reached and refusing: what the walk asserts for a route only a
- * credential it cannot hold (a runtime session, an approved login) passes.
+ * The server reached and refusing: what the walk asserts for a credential or
+ * input a route turns away, and for a route only a credential it cannot hold
+ * (a runtime session) passes.
  */
 async function expectRefused(
   call: () => Promise<unknown>,
@@ -2885,28 +2914,102 @@ async function expectRefused(
   return refused;
 }
 
+/** A client whose token no plane issued: every authenticated route refuses it. */
+function noCredential(settings: WalkSettings): IntrospectionClient {
+  return new IntrospectionClient({
+    token: "walk-not-a-token",
+    advanced: {
+      baseApiUrl: settings.baseApiUrl,
+      dpUrl: settings.dpUrl ?? undefined,
+    },
+  });
+}
+
 /**
- * What `introspection login`, `logout` and `dev` reach through the SDK, short
- * of a person approving in a browser: a device code, one poll that finds it
- * still pending, a refresh and a development-credential exchange the server
- * refuses (only an approved login holds what they take), revoking and
- * signing out a session that does not exist (the owner's own would end the
- * walk's), and the remote connection's protocol. The WebSocket itself is not
- * recorded: attaching needs a development login.
+ * What `introspection login`, `logout` and `dev` reach through the SDK: the
+ * owner's cookie answers the activation page in place of a person, so one
+ * login is denied and two are approved. The first is renewed, traded for the
+ * development credential and revoked; the second reads through its cookie and
+ * is revoked with it. The WebSocket itself is not recorded: attaching needs the local
+ * machine `introspection dev` runs on.
  */
 async function signInRoutes(
   settings: WalkSettings,
   project: Project,
-  member: IntrospectionClient,
 ): Promise<void> {
-  const login = new DeviceCodeAuth({ baseApiUrl: settings.baseApiUrl });
-  const device = await login.requestCode();
+  const { baseApiUrl, cpSession } = settings;
+  const browser = { baseApiUrl, cookie: cpSession };
+  const login = new DeviceCodeAuth({ baseApiUrl });
+
+  // Refused before any code exists.
+  const notTheCli = new DeviceCodeAuth({
+    baseApiUrl,
+    clientId: "walk-not-a-client",
+  });
+  expect((await expectRefused(() => notTheCli.requestCode())).status).toBe(400);
+  const unknownCapability = await expectRefused(() =>
+    login.requestCode({ capabilities: ["walk-not-a-capability"] }),
+  );
+  expect(unknownCapability.status).toBe(400);
+  const notAClient = await expectRefused(() =>
+    notTheCli.revoke({ sessionId: NIL_UUID, orgId: project.org_id }),
+  );
+  expect(notAClient.status).toBe(400);
+  // A code no server issued reads like one that ran out.
+  const unknownCode = "walk-not-a-device-code";
+  expect((await login.pollToken(unknownCode)).status).toBe("expired");
+
+  const device = await login.requestCode({
+    project: project.id,
+    capabilities: ["runtimes"],
+  });
   expect(device.user_code).toBeTruthy();
   expect(
     device.verification_uri_complete.startsWith(device.verification_uri),
   ).toBe(true);
+  expect(device.interval).toBeGreaterThan(1);
+  const ranOut = await expectRefused(() =>
+    login.waitForToken({ ...device, device_code: unknownCode, interval: 1 }),
+  );
+  expect(ranOut.code).toBe("expired_token");
   const poll = await login.pollToken(device.device_code);
   expect(poll.status, "nobody approved the code").toBe("pending");
+  const tooSoon = await login.pollToken(device.device_code);
+  expect(tooSoon.status, "polled inside the interval").toBe("slow_down");
+
+  await decideDeviceCode(browser, {
+    userCode: device.user_code,
+    approve: true,
+    project: project.id,
+  });
+  // Waiting a second is inside the server's interval, so the wait's first poll
+  // is told to slow down and its second finds the approval.
+  const token = await login.waitForToken({ ...device, interval: 1 });
+  expect(token).toMatchObject({
+    org_id: project.org_id,
+    project_id: project.id,
+  });
+  expect(token.refresh_token).toBeTruthy();
+  expect(token.cp_session).toBeTruthy();
+  expect(token.dp_url).toBeTruthy();
+
+  const development = await login.developmentCredential(token.access_token);
+  expect(development.scope).toContain("remotes:connect");
+  const exchange = await expectRefused(() =>
+    login.developmentCredential("walk-not-a-login"),
+  );
+  expect([exchange.status, exchange.code]).toEqual([400, "invalid_grant"]);
+
+  const session = {
+    sessionId: token.session_id!,
+    orgId: token.org_id!,
+  };
+  const renewed = await login.refresh({
+    ...session,
+    refreshToken: token.refresh_token!,
+  });
+  expect(renewed.access_token).toBeTruthy();
+  const refreshToken = renewed.refresh_token ?? token.refresh_token!;
   const refresh = await expectRefused(() =>
     login.refresh({
       refreshToken: "walk-no-refresh-token",
@@ -2915,21 +3018,73 @@ async function signInRoutes(
     }),
   );
   expect([refresh.status, refresh.code]).toEqual([400, "invalid_grant"]);
-  const exchange = await expectRefused(() =>
-    login.developmentCredential("walk-not-a-login"),
-  );
-  expect([exchange.status, exchange.code]).toEqual([400, "invalid_grant"]);
-  await login.revoke({ sessionId: NIL_UUID, orgId: project.org_id });
-  await oidcLogout({
-    baseApiUrl: settings.baseApiUrl,
-    cpSession: "walk-no-session",
-  });
 
-  const docs = await member.remotes.connectDocs();
+  // A session behind a cookie ends only with proof of it.
+  const noProof = await expectRefused(() => login.revoke(session));
+  expect(noProof.status).toBe(400);
+  await login.revoke({ ...session, token: refreshToken });
+  const ended = await expectRefused(() =>
+    login.refresh({ ...session, refreshToken }),
+  );
+  expect([ended.status, ended.code]).toEqual([400, "invalid_grant"]);
+  // Revoking and signing out what does not exist answer the same as what does.
+  // A real sign-out is not recorded: it ends every session of the member, the
+  // owner's cookie with them, and the walks after this one use that cookie.
+  await login.revoke({ sessionId: NIL_UUID, orgId: project.org_id });
+  await oidcLogout({ baseApiUrl, cpSession: "walk-no-session" });
+
+  // The second login, as `examples/api/device-login.ts` uses one.
+  const second = await login.requestCode({ project: project.id });
+  await decideDeviceCode(browser, {
+    userCode: second.user_code,
+    approve: true,
+    project: project.id,
+  });
+  const signedIn = await login.waitForToken({ ...second, interval: 1 });
+  const dpUrl = signedIn.dp_url ?? undefined;
+  const viaCookie = new IntrospectionClient({
+    cpSession: signedIn.cp_session ?? undefined,
+    advanced: { baseApiUrl, dpUrl },
+  });
+  expect((await viaCookie.organizations.me()).id).toBe(project.org_id);
+  const minted = await viaCookie.tokens.create({
+    project: project.id,
+    expires_hours: 1,
+  });
+  expect(minted.project_id).toBe(project.id);
+  const docs = await new IntrospectionClient({
+    token: minted.access_token,
+    advanced: { baseApiUrl, dpUrl },
+  }).remotes.connectDocs();
   expect(docs.endpoint).toBe("/v1/remotes/connect");
   expect(docs.message_protocol.remote_to_cloud.map((f) => f.frame)).toContain(
     "attach_request",
   );
+  // Its cookie proves the session as well as its refresh token does.
+  await login.revoke({
+    sessionId: signedIn.session_id!,
+    orgId: signedIn.org_id!,
+    token: signedIn.cp_session!,
+  });
+  const signedOut = await expectRefused(() =>
+    login.refresh({
+      refreshToken: signedIn.refresh_token!,
+      sessionId: signedIn.session_id!,
+      orgId: signedIn.org_id!,
+    }),
+  );
+  expect(signedOut.code).toBe("invalid_grant");
+
+  // The member says no.
+  const refused = await login.requestCode();
+  await decideDeviceCode(browser, {
+    userCode: refused.user_code,
+    approve: false,
+  });
+  const denied = await expectRefused(() =>
+    login.waitForToken({ ...refused, interval: 1 }),
+  );
+  expect([denied.status, denied.code]).toEqual([400, "access_denied"]);
 }
 
 /** This run's names, whatever their case or separator (`WALK_SECRET_<RUN>`). */
