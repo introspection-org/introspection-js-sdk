@@ -584,7 +584,10 @@ walk("SDK end-to-end walk", () => {
         expect(repository.provisioning_status).toBe("ready");
         // A repository access token is minted for a session's Runtime, read
         // from the credential's claims; a service account's token names none.
-        await expectRefused(() => sa.repositories.accessToken(repository.id));
+        const noRuntime = await expectRefused(() =>
+          sa.repositories.accessToken(repository.id),
+        );
+        expect(noRuntime.status).toBe(403);
         const seeded = await settled(
           mode,
           async () => {
@@ -914,7 +917,8 @@ walk("SDK end-to-end walk", () => {
           provider: "walk",
           auth_mode: "static",
         });
-        await sa.connectors.delete(throwaway.id);
+        // No application holds `connectors:delete`, so the owner removes it.
+        await owner.connectors.delete(throwaway.id, project.id);
         await expectNotFound(() => sa.connectors.get(throwaway.id));
       });
     },
@@ -1113,7 +1117,10 @@ walk("SDK end-to-end walk", () => {
         endpoint = endpoints.records.find(
           (e) => e.runtime_group_id === runtime.runtime_group_id,
         )!;
-        expect(stable(endpoint)).toMatchInlineSnapshot(`
+        // Tool discovery runs behind the grant, so its state is a matter of
+        // timing and stays out of the snapshot.
+        expect(stable({ ...endpoint, mcp_check: undefined }))
+          .toMatchInlineSnapshot(`
           {
             "assertion_claims": null,
             "authorized_application_id": null,
@@ -1128,6 +1135,7 @@ walk("SDK end-to-end walk", () => {
             "id": "[uuid]",
             "kind": "mcp",
             "last_verified_at": null,
+            "mcp_check": undefined,
             "metadata": {
               "auth_audience": null,
               "connector_id": "[uuid]",
@@ -2254,8 +2262,7 @@ walk("SDK end-to-end walk", () => {
         for await (const a of sa.automations.list())
           if (a.id === automation.id) seen = true;
         expect(seen).toBe(true);
-        // Deleting takes `automations:delete`, which no application holds.
-        await member.automations.delete(automation.id);
+        await sa.automations.delete(automation.id);
         await expectNotFound(() => sa.automations.get(automation.id));
       });
     },
