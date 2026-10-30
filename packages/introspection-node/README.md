@@ -202,8 +202,10 @@ for (const ev of page.records)
 
 `client.apiKeys`, `client.applications` (with `.idps`, `.secrets` and
 `.keys`), `client.credentials`, `client.variables`, `client.integrations`,
-`client.judges`, `client.projects` (list and get only) and `client.oidc.me()`
-cover the Control Plane's project administration. They need an org credential,
+`client.judges`, `client.projects` (with read-only `.peerings`),
+`client.organizations.me()`, `client.oidc.me()` and `client.tokens.create()`
+(a Data Plane token for one project) cover the Control Plane's project
+administration. They need an org credential,
 such as a member's Control Plane session (`cpSession`); a project API key
 carries none of their scopes. Project-scoped methods take an optional
 `project` (slug or id) for a credential that names no project.
@@ -335,6 +337,36 @@ console.log(await run.text());
 See [`examples/api/native-email-code.ts`](../../examples/api/native-email-code.ts).
 Federated sign-in through your own IdP (a `jwks` Application) keeps its session
 in that IdP's SDK; exchange its token with `tokenExchange()` instead.
+
+### Device-code login
+
+`DeviceCodeAuth` runs the login `introspection login` does (RFC 8628): request
+a code, show it to the member, and poll until they approve in the browser.
+
+```typescript
+import {
+  DeviceCodeAuth,
+  oidcLogout,
+} from "@introspection-sdk/introspection-node";
+
+const login = new DeviceCodeAuth();
+const device = await login.requestCode({ project: "my-project" });
+console.log(`Open ${device.verification_uri} and enter ${device.user_code}`);
+const token = await login.waitForToken(device);
+
+const renewed = await login.refresh({
+  refreshToken: token.refresh_token!,
+  sessionId: token.session_id!,
+  orgId: token.org_id!,
+});
+const dev = await login.developmentCredential(renewed.access_token);
+await oidcLogout({ cpSession: token.cp_session! }); // or login.revoke(...)
+```
+
+`pollToken()` makes one poll and reports `pending`, `slow_down`, `denied`,
+`expired` or `approved`. `client.remotes.connectDocs()` reads the protocol of
+the `/v1/remotes/connect` WebSocket that `introspection dev` dials with such a
+login.
 
 ### Repositories
 
