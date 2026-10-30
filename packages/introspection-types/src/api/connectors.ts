@@ -335,6 +335,12 @@ export interface Connection {
   provider_app?: string | null;
   /** The provider's own id for the connected account — an opaque routing id, not a secret. */
   provider_account_id?: string | null;
+  /** The provider's display name for the account. */
+  provider_account_name?: string | null;
+  /** The project the connection serves. */
+  project_id?: Uuid | null;
+  /** When the grant was last confirmed usable. */
+  last_verified_at?: IsoDate | null;
   /** Non-secret provider label captured on connection or re-consent. */
   metadata?: { name?: string };
   scopes_granted: string[];
@@ -367,6 +373,11 @@ export interface ConnectionMissionConstraints {
 export interface ConnectionTokenParams {
   /** Defaults to `"app"`. */
   subject?: ConnectionBrokerSubjectType;
+  /**
+   * The exact connection to use. When omitted, the platform resolves it from
+   * the authenticated subject.
+   */
+  connection_id?: Uuid;
   /** Mission label shown to the human for person-authorized connectors. */
   action?: string;
   requested_permissions?: ConnectionMissionConstraints;
@@ -390,20 +401,41 @@ export type ConnectionTokenResult =
 
 // --- app connections (`/v1/connections`, Data Plane) ---
 
+/** The connector an {@link AppConnection} is on, as the project sees it. */
+export interface AppConnectionConnector {
+  id: Uuid;
+  slug: string;
+  provider: string;
+  /** The peering the project reaches the connector through, if any. */
+  peering?: string | null;
+}
+
 /**
- * One app a member connected for themself. Distinct from {@link Connection},
+ * One connection on the project's connectors: an app a member connected for
+ * themself, or the project's own account. Distinct from {@link Connection},
  * which is a Control Plane connection nested under a connector.
  */
 export interface AppConnection {
-  id: Uuid;
-  /** The member who connected the app. */
-  member_id: Uuid;
-  /** Provider application slug, such as `gmail`. */
+  /** The connection's id. Get and delete also take `provider_account_id`. */
+  id: string;
+  /** A member's own grant, or the project's. */
+  owner?: "member" | "project";
+  /** The member whose grant this is; null for the project's own. */
+  member_id: Uuid | null;
+  connector?: AppConnectionConnector | null;
+  subject_type?: string | null;
+  /** Provider application slug, such as `gmail`, or the connector's slug. */
   app: string;
+  /** The provider's id for the account, such as `apn_...`. */
+  provider_account_id?: string | null;
   /** The provider's label for the connected account, when it has one. */
   account_name?: string | null;
   healthy: boolean;
+  status?: string | null;
+  last_verified_at?: IsoDate | null;
+  created_by_member_id?: Uuid | null;
   created_at: IsoDate;
+  updated_at?: IsoDate | null;
 }
 
 /**
@@ -415,6 +447,12 @@ export interface AppConnectionListParams extends CursorParams {
   member_id?: Uuid;
   /** Only connections to this app slug. */
   app?: string;
+  /** Only connections on this connector. */
+  connector_id?: Uuid;
+  /** Only connections of this subject. */
+  subject_type?: "user" | "federated" | "workspace" | "person" | "app";
+  /** Only connectors reached through this peering. */
+  peering?: string;
 }
 
 /** `POST /v1/connections` body: connect one app for yourself. */
@@ -426,11 +464,17 @@ export interface AppConnectionCreateParams {
    * fills in its own runtime group when this is omitted; the client needs it.
    */
   runtime?: string;
+  /**
+   * The app's own link the connect page ends on, such as `ark://connected`.
+   * The Control Plane admits only the app schemes it allows.
+   */
+  return_url?: string | null;
 }
 
 /**
- * A connect page for one app. The URL is single-use and ends on a page saying
- * the app is connected, so it must never be cached.
+ * A connect page for one app. The URL is single-use and ends on the request's
+ * `return_url` or on a page saying the app is connected, so it must never be
+ * cached.
  */
 export interface ConnectPage {
   authorize_url: string;

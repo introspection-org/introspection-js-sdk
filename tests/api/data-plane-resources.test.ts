@@ -15,6 +15,7 @@ import {
   Runner,
 } from "@introspection-sdk/introspection-node";
 import type {
+  AppConnectionCreateParams,
   AppConnection,
   ConnectPage,
   DataPlaneResources,
@@ -310,7 +311,7 @@ describe("connections", () => {
     });
     expectTypeOf(client.connections.create)
       .parameter(0)
-      .toEqualTypeOf<{ app: string; runtime: string }>();
+      .toEqualTypeOf<AppConnectionCreateParams & { runtime: string }>();
   });
 
   it("DataPlaneClient create() takes the runtime explicitly", async () => {
@@ -327,7 +328,7 @@ describe("connections", () => {
     });
     expectTypeOf(dp.connections.create)
       .parameter(0)
-      .toEqualTypeOf<{ app: string; runtime: string }>();
+      .toEqualTypeOf<AppConnectionCreateParams & { runtime: string }>();
   });
 
   it("create() without a runtime from either source fails before a request", async () => {

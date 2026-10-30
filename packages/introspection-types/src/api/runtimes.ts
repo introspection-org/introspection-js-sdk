@@ -56,6 +56,8 @@ export interface Runtime {
   metadata?: Record<string, unknown> | null;
   /** The group this version belongs to; versions share a slug within it. */
   runtime_group_id?: Uuid;
+  /** The runtime peering this group's sessions take their configuration from, or null. */
+  peering_id?: Uuid | null;
   /** Projected from the runtime group. */
   runtime_group_type?: RuntimeGroupType;
   /** The template the runtime group was created from, projected from the group. */
@@ -69,6 +71,8 @@ export interface Runtime {
   image_build_metadata?: Record<string, unknown> | null;
   /** The recipe commit this version's image carries, for an image version. */
   image_revision?: string | null;
+  /** The recipe release this image carries (e.g. `1.4.0`), for an image version. */
+  image_version?: string | null;
   /** That commit's subject line, for an image version. */
   image_commit_subject?: string | null;
   /** The recipe's GitHub repository (`owner/name`), for an image version. */

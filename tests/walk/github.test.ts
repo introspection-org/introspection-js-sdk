@@ -17,6 +17,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { Polly } from "@pollyjs/core";
 import {
+  ConflictError,
   IntrospectionClient,
   NotFoundError,
 } from "@introspection-sdk/introspection-node";
@@ -33,7 +34,6 @@ import { getPollyMode, setupPolly } from "../polly-setup";
 import {
   BOOTSTRAP_FILE,
   NATIVE_FETCH,
-  raw,
   settled,
   Steps,
   ownOrStale,
@@ -146,10 +146,10 @@ lane("SDK walk: GitHub write-back", () => {
           );
         }
         // The owner's Data Plane token for the project, for the merge.
-        const minted = await raw(owner.cpHttp).post<{ access_token: string }>(
-          "/v1/tokens",
-          { project: project.id, expires_hours: 24 },
-        );
+        const minted = await owner.tokens.create({
+          project: project.id,
+          expires_hours: 24,
+        });
         member = new IntrospectionClient({
           token: minted.access_token,
           advanced: {
@@ -189,18 +189,27 @@ lane("SDK walk: GitHub write-back", () => {
         });
         repository =
           linked[0] ??
-          // `POST /v1/repositories` is documented for the CLI only.
-          (await raw(owner.cpHttp).post<Repository>(
-            "/v1/repositories",
+          (await owner.repositories.create(
             {
               provider: "github",
-              integration_id: integrationId,
+              integration_id: integrationId!,
               url: GITHUB.url,
               name: GITHUB.repo,
             },
             { project: project.id },
           ));
         expect(repository.provider).toBe("github");
+        await expect(
+          owner.repositories.create(
+            {
+              provider: "github",
+              integration_id: integrationId!,
+              url: GITHUB.url,
+              name: GITHUB.repo,
+            },
+            { project: project.id },
+          ),
+        ).rejects.toBeInstanceOf(ConflictError);
       });
     },
     STEP_TIMEOUT,
