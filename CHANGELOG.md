@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.44.0](https://github.com/introspection-org/introspection-js-sdk/compare/v0.43.0...v0.44.0) (2026-11-02)
+
+
+### ⚠ BREAKING CHANGES
+
+* **walk:** AppConnection.member_id is now Uuid | null.
+
+### Features
+
+* **walk:** call every platform route through a typed SDK method ([#557](https://github.com/introspection-org/introspection-js-sdk/issues/557)) ([9bfcce7](https://github.com/introspection-org/introspection-js-sdk/commit/9bfcce7369175692d108a539e192a1ae7ec93e89))
+
 ## [0.43.0](https://github.com/introspection-org/introspection-js-sdk/compare/v0.42.0...v0.43.0) (2026-10-28)
 
 
