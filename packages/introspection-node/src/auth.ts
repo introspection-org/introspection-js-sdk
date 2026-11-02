@@ -17,12 +17,12 @@ import { stripTrailingSlash, toApiError } from "@introspection-sdk/http";
 
 const DEFAULT_BASE_API_URL = "https://api.introspection.dev";
 const GRANT_TYPE_CLIENT_CREDENTIALS = "client_credentials";
-const GRANT_TYPE_TOKEN_EXCHANGE =
+export const GRANT_TYPE_TOKEN_EXCHANGE =
   "urn:ietf:params:oauth:grant-type:token-exchange";
 const GRANT_TYPE_AUTHORIZATION_CODE = "authorization_code";
 const SUBJECT_TOKEN_TYPE_ID_TOKEN = "urn:ietf:params:oauth:token-type:id_token";
 
-function resolveBaseApiUrl(baseApiUrl?: string): string {
+export function resolveBaseApiUrl(baseApiUrl?: string): string {
   return stripTrailingSlash(
     baseApiUrl ??
       process.env.INTROSPECTION_BASE_API_URL ??
@@ -30,7 +30,7 @@ function resolveBaseApiUrl(baseApiUrl?: string): string {
   );
 }
 
-function resolveFetch(custom?: typeof fetch): typeof fetch {
+export function resolveFetch(custom?: typeof fetch): typeof fetch {
   const fetchImpl = custom ?? globalThis.fetch;
   if (!fetchImpl) {
     throw new Error(
@@ -52,10 +52,11 @@ export interface TokenEndpointOptions {
 }
 
 /** POST `fields` (plus `scope`, when set) as a token-endpoint form. */
-async function postTokenForm(
+export async function postTokenForm(
   endpoint: TokenEndpointOptions,
   fields: Record<string, string>,
   scope?: string,
+  signal?: AbortSignal,
 ): Promise<OAuthToken> {
   const form = new URLSearchParams(fields);
   if (scope) form.set("scope", scope);
@@ -66,6 +67,7 @@ async function postTokenForm(
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: form.toString(),
     cache: "no-store",
+    signal,
   });
   if (!res.ok) throw await toApiError(res);
   return (await res.json()) as OAuthToken;
@@ -77,6 +79,7 @@ async function postTokenForm(
  * and native `email_code` grants add `refresh_token` and the session fields
  * the `refresh_token` grant is keyed on.
  */
+// jscpd:ignore-start -- field declarations mirroring the token response schema
 export interface OAuthToken {
   /** Project-scoped RS256 access token (`Authorization: Bearer …`). */
   access_token: string;
@@ -101,6 +104,30 @@ export interface OAuthToken {
   project_id?: string | null;
   /** The member the token was minted for. */
   member_id?: string | null;
+  member_name?: string | null;
+  /**
+   * The encoded `intro_cp_session` cookie of the session a login created,
+   * for a headless client with no cookie jar of its own.
+   */
+  cp_session?: string | null;
+  /** The Control Plane (issuer) base URL a login resolved. */
+  cp_url?: string | null;
+  /** The Git host base URL a login resolved. */
+  git_url?: string | null;
+  /** The web app base URL a login resolved. */
+  platform_url?: string | null;
+  /** RFC 8693 actor claim on a delegated (token-exchange) token. */
+  act?: ActorClaim | null;
+}
+// jscpd:ignore-end
+
+/** RFC 8693 actor claim: the party acting for the token's subject. */
+export interface ActorClaim {
+  sub: string;
+  /** The capacity the actor acts in: `agent`, `dev` or `impersonation`. */
+  type?: string | null;
+  /** The prior actor in a delegation chain. */
+  act?: ActorClaim | null;
 }
 
 export interface ServiceAccountTokenParams extends TokenEndpointOptions {

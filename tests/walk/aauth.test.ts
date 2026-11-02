@@ -33,13 +33,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { getPollyMode, setupPolly } from "../polly-setup";
-import {
-  BOOTSTRAP_FILE,
-  NATIVE_FETCH,
-  raw,
-  Steps,
-  walkSettings,
-} from "./support";
+import { BOOTSTRAP_FILE, NATIVE_FETCH, Steps, walkSettings } from "./support";
 import type { WalkSettings } from "./support";
 
 const RECORDING = "aauth-walk";
@@ -378,10 +372,10 @@ lane("SDK walk: AAuth on the hosted Person Server", () => {
               "\n",
           );
         }
-        const minted = await raw(owner.cpHttp).post<{ access_token: string }>(
-          "/v1/tokens",
-          { project: project.id, expires_hours: 24 },
-        );
+        const minted = await owner.tokens.create({
+          project: project.id,
+          expires_hours: 24,
+        });
         member = new IntrospectionClient({
           token: minted.access_token,
           advanced: {

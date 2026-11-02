@@ -73,6 +73,54 @@ export interface RepositoryListParams {
   slug?: string;
 }
 
+/**
+ * `POST /v1/repositories` body for a repository hosted on the project's Data
+ * Plane. Idempotent on `slug`: a repeat returns the live row. The hosted copy
+ * exists once the first push lands.
+ */
+export interface HostedRepositoryCreateParams {
+  /** `hosted` is accepted as an alias of `introspection`. */
+  provider: "introspection" | "hosted";
+  slug: string;
+  /** Defaults to `main`. */
+  default_branch?: string;
+  /**
+   * A template baked into the deployment's worker image, rendered to this
+   * slug as the first commit. Omit for the deployment's default; `null` for
+   * an empty repository.
+   */
+  seed_template?: string | null;
+}
+
+/** `POST /v1/repositories` body linking a GitHub repository. */
+export interface GithubRepositoryCreateParams {
+  /** Defaults to `github`. */
+  provider?: "github";
+  /** The GitHub integration that reaches the repository. */
+  integration_id: Uuid;
+  url: string;
+  name: string;
+}
+
+export type RepositoryCreateParams =
+  HostedRepositoryCreateParams | GithubRepositoryCreateParams;
+
+/** `POST /v1/repositories/{id}/access-token` body. */
+export interface RepositoryAccessTokenParams {
+  /** Permissions the minted token should carry, such as `{ contents: "read" }`. */
+  permissions?: Record<string, string>;
+}
+
+/** A short-lived repository access token, minted for a session's Runtime. */
+export interface RepositoryAccessGrant {
+  /** The integration provider that minted the token. */
+  provider: string;
+  token: string;
+  expires_at: IsoDate;
+  /** Canonical GitHub `owner/name`. */
+  repository: string;
+}
+
 export interface RepositoryGetParams {
   /** Project id or slug. */
   project: string;

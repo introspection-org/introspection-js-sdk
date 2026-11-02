@@ -28,4 +28,7 @@ export * from "./api/integrations.js";
 export * from "./api/judges.js";
 export * from "./api/endpoints.js";
 export * from "./api/oidc.js";
+export * from "./api/organizations.js";
+export * from "./api/remotes.js";
+export * from "./api/tokens.js";
 export * from "./api/images.js";

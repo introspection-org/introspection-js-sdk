@@ -16,6 +16,29 @@ export interface EndpointMetadata {
  * may reach, with the headers the egress adds. Header values are returned
  * to an operator; `header_names` lists them for everyone else.
  */
+/** Where an MCP endpoint's tool discovery stands. */
+export type McpCheckStatus = "pending" | "ok" | "failed" | "skipped";
+
+/**
+ * The last `initialize` + `tools/list` run against a `kind: mcp` endpoint.
+ * A worker owns the result; a client can only ask for a fresh check.
+ */
+export interface EndpointMcpCheck {
+  /** Identifies one requested check; a result lands only on its own check. */
+  check_id: Uuid;
+  status: McpCheckStatus;
+  requested_at: IsoDate;
+  /** The member whose connection authenticates a connector-backed binding during the check. */
+  requested_by_member_id?: Uuid | null;
+  checked_at?: IsoDate | null;
+  /** `serverInfo.name` the server reported. Display only. */
+  server_name?: string | null;
+  /** Tool names the server listed; null until a check succeeds. */
+  tools?: string[] | null;
+  /** Why the check failed or was skipped. */
+  error_message?: string | null;
+}
+
 export interface Endpoint {
   id: Uuid;
   org_id: Uuid;
@@ -35,6 +58,8 @@ export interface Endpoint {
   verify_path: string | null;
   last_verified_at: IsoDate | null;
   authorized_application_id: Uuid | null;
+  /** The last tool discovery run against a `kind: mcp` endpoint; null for other kinds. */
+  mcp_check?: EndpointMcpCheck | null;
   created_by_member_id: Uuid;
   created_at: IsoDate;
   updated_at: IsoDate;
@@ -70,4 +95,7 @@ export interface EndpointCreateParams {
 }
 
 /** `PATCH /v1/endpoints/{id}`; a change to the host or headers re-verifies. */
-export type EndpointUpdateParams = Partial<EndpointCreateParams>;
+export type EndpointUpdateParams = Partial<EndpointCreateParams> & {
+  /** Send `{}` to re-run tool discovery on a `kind: mcp` endpoint as the calling member. */
+  mcp_check?: Record<string, never> | null;
+};

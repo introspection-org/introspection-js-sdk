@@ -90,7 +90,9 @@ export class DataPlaneClient implements DataPlaneResources {
    * `create` takes the `runtime` explicitly, since this client has no
    * runtime context.
    */
-  readonly connections: AppConnectionsApi<Required<AppConnectionCreateParams>>;
+  readonly connections: AppConnectionsApi<
+    AppConnectionCreateParams & { runtime: string }
+  >;
   // jscpd:ignore-end
 
   constructor(options: DataPlaneClientOptions) {

@@ -103,6 +103,10 @@ const SECRET_PATTERNS: [RegExp, string][] = [
     "$1REDACTED_SECRET$2",
   ],
   [/(client_secret=)[^&\s]+/g, "$1REDACTED_SECRET"],
+  // An approved device login's own tokens, which are not JWTs. JS only so far:
+  // the Python walk records no approved login.
+  [/("(?:refresh_token|cp_session)"\s*:\s*")[^"]+(")/g, "$1REDACTED_SECRET$2"],
+  [/((?:^|&)(?:refresh_token|token)=)[^&\s]+/g, "$1REDACTED_SECRET"],
 ];
 
 function scrubSecrets(text: string | undefined | null): string | undefined {

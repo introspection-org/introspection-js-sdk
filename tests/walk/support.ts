@@ -1,8 +1,8 @@
 /**
  * Support for the SDK end-to-end walk (introspection-cloud
  * `docs/design/sdk-end-to-end-walk.md`): the target's settings, the
- * normaliser the inline snapshots go through, the step runner, and the one
- * place a documented route the SDK is exempt from is called by hand.
+ * normaliser the inline snapshots go through, and the step runner. The walk
+ * makes no raw calls: every route goes through an SDK method.
  */
 
 import { execFileSync } from "node:child_process";
@@ -12,10 +12,7 @@ import path from "node:path";
 import os from "node:os";
 import { fileURLToPath } from "node:url";
 import type { TestContext } from "vitest";
-import {
-  NotFoundError,
-  type HttpClient,
-} from "@introspection-sdk/introspection-node";
+import { NotFoundError } from "@introspection-sdk/introspection-node";
 import type { PollyMode } from "../polly-setup";
 
 type WalkTarget = "compose" | "staging" | "production";
@@ -61,6 +58,16 @@ const WALK = {
   secondTurn: "Reply with the single word done.",
   variableName: "WALK_MARKER",
   variableValue: "walk-marker-7f3a",
+  /** The external issuer the federated application trusts; never fetched. */
+  federatedIssuer: "https://issuer.walk.example.com",
+  /**
+   * An upstream image pinned by digest, which the walk mirrors and deletes.
+   * The digest is the walk's own: the mirror is queued, not awaited.
+   */
+  mirrorReference:
+    "docker.io/library/busybox@sha256:0000000000000000000000000000000000000000000000000000000000000001",
+  /** A connector the walk creates only to delete it. */
+  throwawayConnectorName: "walk-throwaway",
   connectorName: "hello-mcp",
   mcpServerId: "hello-mcp",
   mcpIssuer: "https://example-server.modelcontextprotocol.io/",
@@ -153,6 +160,9 @@ export function walkNames(run: string) {
     tagName: `walk-${run}`,
     apiKeyName: `walk-${run}`,
     automationName: `The walk's automation ${run}`,
+    throwawayConnectorName: `walk-throwaway-${run}`,
+    mirrorImageName: `walk-mirror-${run}`,
+    endpointHost: `walk-${run}.example.com`,
     experimentNames: WALK.experimentNames.map((name) => `${name} ${run}`),
     credentialName: `WALK_SECRET_${env}`,
     variableName,
@@ -415,24 +425,6 @@ export class Steps {
 }
 
 /**
- * A documented route the SDK is exempt from today (`x-introspection.clients`
- * omits `sdk`), called through the SDK's own client so it is recorded and
- * counted like every other; see the design doc §3.
- */
-export function raw(http: HttpClient) {
-  return {
-    get: <T>(path: string, query?: Record<string, unknown>) =>
-      http.request<T>({ method: "GET", path, query }),
-    post: <T>(path: string, body?: unknown, query?: Record<string, unknown>) =>
-      http.request<T>({ method: "POST", path, body, query }),
-    patch: <T>(path: string, body: unknown, query?: Record<string, unknown>) =>
-      http.request<T>({ method: "PATCH", path, body, query }),
-    delete: (path: string, query?: Record<string, unknown>) =>
-      http.request<void>({ method: "DELETE", path, query, expect: "empty" }),
-  };
-}
-
-/**
  * The fetch Node had before Polly patched it, for the clients that poll:
  * nothing they send is recorded, and nothing they send counts toward the
  * order in which identical recorded requests are matched.
@@ -546,6 +538,35 @@ export async function followAuthorization(
   throw new Error(
     "authorization did not reach the return URL within 8 redirects",
   );
+}
+
+/**
+ * What a person does on the `/activate` page: approve or deny a device code
+ * with their Control Plane cookie. The page's route is not in the API, so no
+ * SDK method calls it; the walk does the browser's part by hand.
+ */
+export async function decideDeviceCode(
+  cp: { baseApiUrl: string; cookie: string },
+  decision: { userCode: string; approve: boolean; project?: string },
+): Promise<void> {
+  const form = new URLSearchParams({
+    user_code: decision.userCode,
+    approve: String(decision.approve),
+  });
+  if (decision.project) form.set("project", decision.project);
+  const res = await fetch(`${cp.baseApiUrl}/v1/oauth/device/authorization`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded",
+      Cookie: `intro_cp_session=${cp.cookie}`,
+    },
+    body: form.toString(),
+  });
+  if (!res.ok) {
+    throw new Error(
+      `the device decision answered ${res.status}: ${(await res.text()).slice(0, 300)}`,
+    );
+  }
 }
 
 /**
