@@ -23,7 +23,7 @@
   "dependencies": {
     "@introspection-sdk/introspection-node": "workspace:*",
     "@introspection-sdk/introspection-proxy": "workspace:*",
-    "@opentelemetry/semantic-conventions": "^1.43.0"
+    "@opentelemetry/semantic-conventions": "^1.44.0"
   },
   "devDependencies": {
     "@modelcontextprotocol/sdk": "^1.32.1",
