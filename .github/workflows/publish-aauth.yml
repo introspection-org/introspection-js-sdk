@@ -1,0 +1,82 @@
+name: Publish the AAuth packages to npm
+
+run-name: "Publish ${{ inputs.tag || github.ref_name }}"
+
+# aauth-protocol, aauth-person-server and aauth-access-server release together
+# on their own version: release-please links them and tags each, and this runs
+# on aauth-protocol's tag. Their package.json versions are the release; nothing
+# is stamped. npm trusts this workflow for each of the three.
+on:
+  push:
+    tags:
+      - "aauth-protocol-v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to publish, e.g. aauth-protocol-v0.1.0"
+        required: true
+        type: string
+
+concurrency:
+  group: release-publish-aauth
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  publish:
+    name: Publish ${{ inputs.tag || github.ref_name }} to npm
+    runs-on: ubuntu-latest
+    environment: publish
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: "pnpm"
+          registry-url: "https://registry.npmjs.org"
+
+      # npm trusted publishing (OIDC) needs npm 11.5.1 or later, and Node 22
+      # ships npm 10. pnpm publish hands each packed tarball to the npm on PATH.
+      - name: Upgrade npm for trusted publishing
+        run: npm install -g npm@11
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: The tag names the packages' version
+        env:
+          TAG: ${{ inputs.tag || github.ref_name }}
+        run: |
+          for pkg in packages/introspection-aauth-{protocol,person-server,access-server}/package.json; do
+            VERSION=$(jq -r .version "$pkg")
+            if [ "${TAG}" != "aauth-protocol-v${VERSION}" ]; then
+              echo "::error::${TAG} does not name $(jq -r .name "$pkg")'s version ${VERSION}"
+              exit 1
+            fi
+          done
+
+      - name: Build packages
+        run: pnpm build
+
+      - name: Run tests
+        run: pnpm test:replay
+
+      # No NODE_AUTH_TOKEN: an _authToken in .npmrc takes precedence over OIDC
+      # and would bypass the trusted publisher.
+      - name: Publish to npm
+        run: >-
+          pnpm -r
+          --filter @introspection-sdk/aauth-protocol
+          --filter @introspection-sdk/aauth-person-server
+          --filter @introspection-sdk/aauth-access-server
+          publish --access public --provenance --no-git-checks

@@ -1,4 +1,4 @@
-import type { CursorParams, IsoDate, ListParams, Uuid } from "./api.js";
+import type { IsoDate, ListParams, Uuid } from "./api.js";
 
 /** One trace/span target for a member-authored annotation. IDs use OTel hex encoding. */
 export interface AnnotationTarget {
@@ -12,13 +12,45 @@ export interface AnnotationState extends AnnotationTarget {
   labels: string[];
   assignee_member_ids: Uuid[];
   annotator_member_ids: Uuid[];
+  commenter_member_ids?: Uuid[];
   has_comment: boolean;
+  /** Members who commented in person, not through an agent. */
+  human_commenter_member_ids?: Uuid[];
+  has_human_comment?: boolean;
   comment_count: number;
   latest_comment: string | null;
   latest_comment_member_id: Uuid | null;
+  latest_comment_actor_member_id?: Uuid | null;
+  latest_comment_actor_type?: string | null;
   updated_at: IsoDate;
   updated_by_member_id: Uuid;
   assignment_event_id: Uuid | null;
+}
+
+/** One filter bucket over current annotation state (`GET /v1/annotations/facets`). */
+export interface AnnotationFacet {
+  /** `annotator`, `assignee`, `label` or `status`. */
+  dimension: string;
+  value: string;
+  count: number;
+}
+
+/** `GET /v1/annotations/navigation` filters: the review order around one target. */
+export interface AnnotationNavigationParams extends AnnotationTarget {
+  annotated_by_member_id?: Uuid;
+  assignee_member_id?: Uuid;
+  /** Only targets carrying every one of these labels. */
+  label?: string[];
+  status?: "backlog" | "assigned" | "reviewed";
+}
+
+/** A bounded window around one annotation in the filtered review order. */
+export interface AnnotationNavigation {
+  previous: AnnotationState | null;
+  current: AnnotationState | null;
+  next: AnnotationState | null;
+  current_position: number | null;
+  total_count: number;
 }
 
 /** Filters for folded annotation state. */
@@ -60,28 +92,4 @@ export type AnnotationMutation =
 export interface AnnotationEventOptions {
   /** Must be UUIDv7. Omit to have the SDK mint one before the first attempt. */
   event_id?: Uuid;
-}
-
-/** Presentation metadata for a reusable project label. */
-export interface ProjectLabel {
-  slug: string;
-  color: string;
-  description: string | null;
-  created_at: IsoDate;
-  updated_at: IsoDate;
-}
-
-export interface ProjectLabelListParams extends CursorParams {
-  search?: string;
-}
-
-export interface ProjectLabelCreate {
-  slug: string;
-  color: string;
-  description?: string | null;
-}
-
-/** Label slugs and colors are immutable after creation. */
-export interface ProjectLabelUpdate {
-  description: string | null;
 }

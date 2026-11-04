@@ -1,5 +1,217 @@
 # Changelog
 
+## [0.44.0](https://github.com/introspection-org/introspection-js-sdk/compare/v0.43.0...v0.44.0) (2026-11-02)
+
+
+### ⚠ BREAKING CHANGES
+
+* **walk:** AppConnection.member_id is now Uuid | null.
+
+### Features
+
+* **walk:** call every platform route through a typed SDK method ([#557](https://github.com/introspection-org/introspection-js-sdk/issues/557)) ([9bfcce7](https://github.com/introspection-org/introspection-js-sdk/commit/9bfcce7369175692d108a539e192a1ae7ec93e89))
+
+## [0.43.0](https://github.com/introspection-org/introspection-js-sdk/compare/v0.42.0...v0.43.0) (2026-10-28)
+
+
+### Features
+
+* read runtime peerings ([#556](https://github.com/introspection-org/introspection-js-sdk/issues/556)) ([f2d62ea](https://github.com/introspection-org/introspection-js-sdk/commit/f2d62eae327f0a8bb674f10691f2d6382f6fa1c9))
+
+
+### Bug Fixes
+
+* **types:** model the runtime's image and group fields ([#554](https://github.com/introspection-org/introspection-js-sdk/issues/554)) ([fef7c64](https://github.com/introspection-org/introspection-js-sdk/commit/fef7c6490e45783c00a0e353498ae1cbb81450d8))
+
+## [0.42.0](https://github.com/introspection-org/introspection-js-sdk/compare/v0.41.1...v0.42.0) (2026-10-26)
+
+
+### Features
+
+* approvals and missions resources for the Data Plane's AAuth routes ([#531](https://github.com/introspection-org/introspection-js-sdk/issues/531)) ([42e98e4](https://github.com/introspection-org/introspection-js-sdk/commit/42e98e48b3a896decfba9e9142c5ee0b4e5bc863))
+
+
+### Bug Fixes
+
+* **http:** retry a 409 that carries Retry-After ([#552](https://github.com/introspection-org/introspection-js-sdk/issues/552)) ([c7befdd](https://github.com/introspection-org/introspection-js-sdk/commit/c7befdd1ffde7529ec8c11299c780631df798161))
+* **transcript:** fold each prompt once when history is replayed ([#553](https://github.com/introspection-org/introspection-js-sdk/issues/553)) ([3348a05](https://github.com/introspection-org/introspection-js-sdk/commit/3348a058ce062070837e46390f33844b6952abce))
+* **walk:** the connector's status is pending on a fresh project, active after a run ([#540](https://github.com/introspection-org/introspection-js-sdk/issues/540)) ([769b03a](https://github.com/introspection-org/introspection-js-sdk/commit/769b03a9625b3f4af279add65e8af58a2e1e957d))
+
+## [0.41.1](https://github.com/introspection-org/introspection-js-sdk/compare/v0.41.0...v0.41.1) (2026-10-24)
+
+
+### Bug Fixes
+
+* **walk:** a poll reads a 404 as not yet ([#534](https://github.com/introspection-org/introspection-js-sdk/issues/534)) ([d0fc7c3](https://github.com/introspection-org/introspection-js-sdk/commit/d0fc7c396d5140b5be5c2e7f9404118088c0f5c6))
+* **walk:** every run in a project of its own, so reruns and concurrent walks hold ([#533](https://github.com/introspection-org/introspection-js-sdk/issues/533)) ([857e31a](https://github.com/introspection-org/introspection-js-sdk/commit/857e31a2729f35a505e554e1a8e107039a7e5838))
+
+## [0.41.0](https://github.com/introspection-org/introspection-js-sdk/compare/v0.40.0...v0.41.0) (2026-10-23)
+
+
+### Features
+
+* add the project administration and eval resources the CLI calls ([#519](https://github.com/introspection-org/introspection-js-sdk/issues/519)) ([be286ce](https://github.com/introspection-org/introspection-js-sdk/commit/be286ce79b70a3c13ae476b3d7cfeaf14d713fa2))
+
+## [0.40.0](https://github.com/introspection-org/introspection-js-sdk/compare/v0.39.0...v0.40.0) (2026-10-23)
+
+
+### ⚠ BREAKING CHANGES
+
+* `ConversationsClient.turns`, `ConversationTurn`, `ConversationTurnMessage`, `ConversationTurnList` and `ConversationTurnListParams` are removed.
+
+### Features
+
+* filter conversation items with contains=&lt;semconv path&gt;:&lt;value&gt; (name prefix wildcard) and drop turns ([#516](https://github.com/introspection-org/introspection-js-sdk/issues/516)) ([629ce0c](https://github.com/introspection-org/introspection-js-sdk/commit/629ce0c5d99cc685336a73aa23bbe29c9c9b2737))
+
+## [0.39.0](https://github.com/introspection-org/introspection-js-sdk/compare/v0.38.1...v0.39.0) (2026-10-22)
+
+
+### ⚠ BREAKING CHANGES
+
+* **aauth:** import from @introspection-sdk/aauth-person-server. The old name is deprecated on npm and receives no further releases.
+* **aauth:** import from @introspection-sdk/aauth-person-server. The old name is deprecated on npm and receives no further releases.
+
+### Features
+
+* **aauth:** federated access with a resource's own Access Server ([#505](https://github.com/introspection-org/introspection-js-sdk/issues/505)) ([1449245](https://github.com/introspection-org/introspection-js-sdk/commit/144924559f34c4f298b40717f4e21b5616d5215e))
+
+
+### Bug Fixes
+
+* **examples:** the travel demo signs in before it starts, and stops without a session ([#520](https://github.com/introspection-org/introspection-js-sdk/issues/520)) ([3818c9a](https://github.com/introspection-org/introspection-js-sdk/commit/3818c9a4d76e87bc4700a7dc1e0d72c3cfb951b3))
+
+
+### Code Refactoring
+
+* **aauth:** rename @introspection-sdk/person-server to aauth-person-server ([#517](https://github.com/introspection-org/introspection-js-sdk/issues/517)) ([844e1be](https://github.com/introspection-org/introspection-js-sdk/commit/844e1be67597f19ce39c294c1085d3f423554e83))
+
+## [0.38.1](https://github.com/introspection-org/introspection-js-sdk/compare/v0.38.0...v0.38.1) (2026-10-21)
+
+
+### Bug Fixes
+
+* **examples:** show the helpers each docs region calls ([#513](https://github.com/introspection-org/introspection-js-sdk/issues/513)) ([023ef77](https://github.com/introspection-org/introspection-js-sdk/commit/023ef77b5c09dac93ffa86c8fc100950bdb97195))
+
+## [0.38.0](https://github.com/introspection-org/introspection-js-sdk/compare/v0.37.0...v0.38.0) (2026-10-21)
+
+
+### Features
+
+* **examples:** docs reference snippet regions and a region check ([#500](https://github.com/introspection-org/introspection-js-sdk/issues/500)) ([a3cb0ca](https://github.com/introspection-org/introspection-js-sdk/commit/a3cb0ca916636b6d2e784da3000c471af3ec3b5e))
+* **examples:** docs snippet regions for the pattern, observe and identity pages ([#501](https://github.com/introspection-org/introspection-js-sdk/issues/501)) ([4aef725](https://github.com/introspection-org/introspection-js-sdk/commit/4aef7257a054b979b85bd100c258851d62c51245))
+
+## [0.37.0](https://github.com/introspection-org/introspection-js-sdk/compare/v0.36.0...v0.37.0) (2026-10-20)
+
+
+### ⚠ BREAKING CHANGES
+
+* **person-server:** every Store method takes `tenant: string | undefined` as its first parameter.
+
+### Features
+
+* **aauth-travel:** cancel a booking, on the person token of the agent that made it ([#503](https://github.com/introspection-org/introspection-js-sdk/issues/503)) ([f5df993](https://github.com/introspection-org/introspection-js-sdk/commit/f5df993a7ce661c44a1d2cd3db12e5d33fbe6085))
+
+
+### Bug Fixes
+
+* **aauth-travel:** name the approver as an identity when deciding on the hosted Person Server ([#502](https://github.com/introspection-org/introspection-js-sdk/issues/502)) ([a356844](https://github.com/introspection-org/introspection-js-sdk/commit/a356844280f356be2aab6a14b195a1d95d2d91a3))
+* fail live runs on missing settings and multipart-encode FormData through the proxy ([#499](https://github.com/introspection-org/introspection-js-sdk/issues/499)) ([946c665](https://github.com/introspection-org/introspection-js-sdk/commit/946c665f94efd650b1039a6e0a308d17e92c7645))
+* **person-server:** stop approval reuse, issuing under ended missions, and mission hash collisions ([#491](https://github.com/introspection-org/introspection-js-sdk/issues/491)) ([b713975](https://github.com/introspection-org/introspection-js-sdk/commit/b7139759579751a8b0ace9012e9c5f4d94c44733))
+
+## [0.36.0](https://github.com/introspection-org/introspection-js-sdk/compare/v0.35.1...v0.36.0) (2026-10-19)
+
+
+### Features
+
+* @introspection-sdk/aauth-resource, with the travel booking provider built on it ([#489](https://github.com/introspection-org/introspection-js-sdk/issues/489)) ([9530f4e](https://github.com/introspection-org/introspection-js-sdk/commit/9530f4ee7ac35117c48fed7c79839aff05fa65ea))
+* **examples:** the AAuth demo runs a named tunnel by its token, sets up idempotently, and can serve without setup ([#472](https://github.com/introspection-org/introspection-js-sdk/issues/472)) ([12f25a7](https://github.com/introspection-org/introspection-js-sdk/commit/12f25a75271af066d7b626c2e35a508cf892f74e))
+
+
+### Bug Fixes
+
+* **examples:** the AAuth demo's dev script names its temp files portably, so it runs on Linux ([#474](https://github.com/introspection-org/introspection-js-sdk/issues/474)) ([d542140](https://github.com/introspection-org/introspection-js-sdk/commit/d542140b6fefcacf1c10ced3f56bfcfc941aa4a9))
+* **examples:** the AAuth demo's dev script reads a minted secret's JSON apart from the CLI's notices ([#475](https://github.com/introspection-org/introspection-js-sdk/issues/475)) ([f4c72fc](https://github.com/introspection-org/introspection-js-sdk/commit/f4c72fc1332b44af7658214285e90527ef19aab1))
+
+## [0.35.1](https://github.com/introspection-org/introspection-js-sdk/compare/v0.35.0...v0.35.1) (2026-10-17)
+
+
+### Bug Fixes
+
+* **examples:** the AAuth demo books against the provider's real host and shows tool errors ([#469](https://github.com/introspection-org/introspection-js-sdk/issues/469)) ([0338dd2](https://github.com/introspection-org/introspection-js-sdk/commit/0338dd22ffa31aa3280a0f03c09cb1b2ec6661d6))
+
+## [0.35.0](https://github.com/introspection-org/introspection-js-sdk/compare/v0.34.0...v0.35.0) (2026-10-16)
+
+
+### Features
+
+* **examples:** the AAuth travel demo sets itself up reliably, signs in with applications, and opens on the demo ([#464](https://github.com/introspection-org/introspection-js-sdk/issues/464)) ([551820d](https://github.com/introspection-org/introspection-js-sdk/commit/551820d79fcc0c4aa258857212a09378f2fbb9b6))
+* **pi:** record the MCP server behind a tool on its execute_tool span ([#461](https://github.com/introspection-org/introspection-js-sdk/issues/461)) ([ed95ea8](https://github.com/introspection-org/introspection-js-sdk/commit/ed95ea8776774a7b65c9c915fca6d80571312d1f))
+
+
+### Bug Fixes
+
+* **examples:** AAuth travel demo polish after the first rehearsals ([#466](https://github.com/introspection-org/introspection-js-sdk/issues/466)) ([822af5e](https://github.com/introspection-org/introspection-js-sdk/commit/822af5e53c94d5c31ca60509a1c06914047ed358))
+* **examples:** the AAuth demo header shows the Introspection mark beside its name ([#467](https://github.com/introspection-org/introspection-js-sdk/issues/467)) ([824a273](https://github.com/introspection-org/introspection-js-sdk/commit/824a273dde06d971d5dab5ecd2685fefc2c75977))
+* let person-server publish, and state what a new published package needs ([#468](https://github.com/introspection-org/introspection-js-sdk/issues/468)) ([1ec5cf4](https://github.com/introspection-org/introspection-js-sdk/commit/1ec5cf4f80cd8e92721e36faa6278e0e280b01ef))
+
+## [0.34.0](https://github.com/introspection-org/introspection-js-sdk/compare/v0.33.0...v0.34.0) (2026-10-15)
+
+
+### ⚠ BREAKING CHANGES
+
+* **tags:** `client.projectLabels` is now `client.tags`, `ProjectLabelsApi`/`attachProjectLabels` are `TagsApi`/`attachTags`, and `ProjectLabel{,Create,Update,ListParams}` are replaced by `Tag`, `TagCreate`, `TagUpdate` and `TagListParams`, which take a `TagKind`.
+
+### Features
+
+* **tags:** the tag catalogue, keyed by access or annotation ([#462](https://github.com/introspection-org/introspection-js-sdk/issues/462)) ([670d247](https://github.com/introspection-org/introspection-js-sdk/commit/670d247267165ca81f870f0d807cd292f307c56e))
+
+## [0.33.0](https://github.com/introspection-org/introspection-js-sdk/compare/v0.32.0...v0.33.0) (2026-10-15)
+
+
+### ⚠ BREAKING CHANGES
+
+* **repositories:** `RepositoryProvider` is now `"github" | "introspection"`; `"hosted"` is no longer a member.
+
+### Features
+
+* **examples:** the AAuth travel demo ([#435](https://github.com/introspection-org/introspection-js-sdk/issues/435)) ([32ec303](https://github.com/introspection-org/introspection-js-sdk/commit/32ec303e9c1df1a5fe01b5fa1b307a1ccf88dbae))
+
+
+### Bug Fixes
+
+* **repositories:** the platform-served provider is `introspection` ([#459](https://github.com/introspection-org/introspection-js-sdk/issues/459)) ([390c5a8](https://github.com/introspection-org/introspection-js-sdk/commit/390c5a8c7383ae300598835883a1eaf8fa814707))
+
+## [0.32.0](https://github.com/introspection-org/introspection-js-sdk/compare/v0.31.0...v0.32.0) (2026-10-14)
+
+
+### ⚠ BREAKING CHANGES
+
+* **connectors:** Connector.approval_policy and Connector.person_server_mode are removed, along with the ConnectorApprovalPolicy and ConnectorPersonServerMode types and the matching create params. The control plane no longer serves or accepts them.
+
+### Features
+
+* **browser:** send ?project_id= so the DP picks the session cookie for the connected project ([#456](https://github.com/introspection-org/introspection-js-sdk/issues/456)) ([202ecda](https://github.com/introspection-org/introspection-js-sdk/commit/202ecdae2b9b4b4005b653f277b69cbf162416b1))
+* **connectors:** AAuth connectors with Cedar policy entities, and member policy attributes ([#458](https://github.com/introspection-org/introspection-js-sdk/issues/458)) ([69e0951](https://github.com/introspection-org/introspection-js-sdk/commit/69e095143b2efeaa055cc5a341c20e36dd6edf1f))
+* **proxy:** route proxy-native runtimes through HTTPS_PROXY ([#442](https://github.com/introspection-org/introspection-js-sdk/issues/442)) ([df43c00](https://github.com/introspection-org/introspection-js-sdk/commit/df43c00a075dab86da3038c279422edd984c428b))
+
+
+### Bug Fixes
+
+* declare repository on each published package for npm provenance ([#445](https://github.com/introspection-org/introspection-js-sdk/issues/445)) ([1d7c8ad](https://github.com/introspection-org/introspection-js-sdk/commit/1d7c8ad5727dd7f66503080d651cd51aeabd897e))
+* **node:** honour HTTPS_PROXY on REST calls and name the host in network errors ([#457](https://github.com/introspection-org/introspection-js-sdk/issues/457)) ([117d710](https://github.com/introspection-org/introspection-js-sdk/commit/117d710e59fa7cf5a936e4c8df22c343e74654cc))
+
+## [0.31.0](https://github.com/introspection-org/introspection-js-sdk/compare/v0.30.0...v0.31.0) (2026-10-12)
+
+
+### Features
+
+* **pi:** render a Pi session file as GenAI spans ([#443](https://github.com/introspection-org/introspection-js-sdk/issues/443)) ([2554025](https://github.com/introspection-org/introspection-js-sdk/commit/2554025544ef6c2a762b787644618bcf5e6b6ae6))
+
+
+### Bug Fixes
+
+* **pi:** hydrate tool-result images as images ([#439](https://github.com/introspection-org/introspection-js-sdk/issues/439)) ([9910ad8](https://github.com/introspection-org/introspection-js-sdk/commit/9910ad8c131648e6cfcc6e35da91447d5ab949d6))
+
 ## [0.30.0](https://github.com/introspection-org/introspection-js-sdk/compare/v0.29.0...v0.30.0) (2026-10-10)
 
 

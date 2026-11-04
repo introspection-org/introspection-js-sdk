@@ -1,15 +1,18 @@
 import {
+  ApprovalsApi,
   AutomationsApi,
   ConversationsApi,
   EventsApi,
   FilesApi,
+  ImagesApi,
   MetricsApi,
+  MissionsApi,
   SharesApi,
   TasksApi,
 } from "@introspection-sdk/http";
 import type { AppConnectionCreateParams } from "@introspection-sdk/types";
 import { HttpClient, type BearerCredentials } from "./http.js";
-import { AppConnectionsApi } from "./resources/app-connections.js";
+import { AppConnectionsApi } from "./resources/connections.js";
 import { USER_AGENT } from "./utils.js";
 
 /**
@@ -28,7 +31,13 @@ export interface DataPlaneResources {
   readonly events: EventsApi;
   readonly metrics: MetricsApi;
   readonly shares: SharesApi;
+  /** The hosted Person Server's approvals (`/v1/aauth/approvals`). */
+  readonly approvals: ApprovalsApi;
+  /** The missions the hosted Person Server approved (`/v1/aauth/missions`). */
+  readonly missions: MissionsApi;
   readonly automations: AutomationsApi;
+  /** `/v1/images`, what an eval task's compose services run as. */
+  readonly images: ImagesApi;
   /** Apps members connected for themselves (`/v1/connections`). */
   readonly connections: AppConnectionsApi;
 }
@@ -63,20 +72,28 @@ export class DataPlaneClient implements DataPlaneResources {
   /** @internal */
   readonly http: HttpClient;
 
+  // jscpd:ignore-start -- field declarations of the resource namespaces
   readonly tasks: TasksApi;
   readonly files: FilesApi;
   readonly conversations: ConversationsApi;
   readonly shares: SharesApi;
+  readonly approvals: ApprovalsApi;
+  readonly missions: MissionsApi;
   readonly events: EventsApi;
   readonly metrics: MetricsApi;
   /** `/v1/automations`; needs `automations:read` / `automations:write`. */
   readonly automations: AutomationsApi;
+  /** `/v1/images`; needs `images:read` / `images:write`. */
+  readonly images: ImagesApi;
   /**
    * CRUD on `/v1/connections`, the apps members connected for themselves.
    * `create` takes the `runtime` explicitly, since this client has no
    * runtime context.
    */
-  readonly connections: AppConnectionsApi<Required<AppConnectionCreateParams>>;
+  readonly connections: AppConnectionsApi<
+    AppConnectionCreateParams & { runtime: string }
+  >;
+  // jscpd:ignore-end
 
   constructor(options: DataPlaneClientOptions) {
     if (!options.dpUrl) throw new Error("DataPlaneClient requires a dpUrl");
@@ -97,9 +114,12 @@ export class DataPlaneClient implements DataPlaneResources {
     this.files = new FilesApi(this.http);
     this.conversations = new ConversationsApi(this.http);
     this.shares = new SharesApi(this.http);
+    this.approvals = new ApprovalsApi(this.http);
+    this.missions = new MissionsApi(this.http);
     this.events = new EventsApi(this.http);
     this.metrics = new MetricsApi(this.http);
     this.automations = new AutomationsApi(this.http);
+    this.images = new ImagesApi(this.http);
     this.connections = new AppConnectionsApi(this.http);
   }
 }

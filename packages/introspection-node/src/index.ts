@@ -24,7 +24,23 @@ export type {
   TokenExchangeParams,
   AuthorizationCodeParams,
   OAuthToken,
+  ActorClaim,
+  TokenEndpointOptions,
 } from "./auth.js";
+
+// Device-code login (`introspection login`) and sign-out.
+export {
+  DeviceCodeAuth,
+  DEVICE_CODE_GRANT_TYPE,
+  DEVICE_FLOW_CLIENT_ID,
+  oidcLogout,
+} from "./device-code.js";
+export type {
+  DeviceCodeAuthOptions,
+  DeviceCodeParams,
+  DeviceCodeResponse,
+  DeviceTokenPoll,
+} from "./device-code.js";
 
 // Native email-code sign-in (a `native` Application's end users).
 export {
@@ -53,14 +69,19 @@ export type {
 // Runner-bound REST namespaces (runner.tasks, runner.files,
 // runner.conversations) + HTTP.
 export {
+  ApprovalsApi,
   ConversationItemsApi,
   ConversationsApi,
   EventsApi,
   FileVersionsApi,
   FilesApi,
+  ImagesApi,
+  MAX_COMMAND_WAIT_SECONDS,
   MetricsApi,
+  MissionsApi,
   RunHandle,
   SharesApi,
+  TaskCommandsApi,
   TaskRunsApi,
   TasksApi,
 } from "@introspection-sdk/http";
@@ -106,21 +127,38 @@ export {
 } from "./resources/connectors.js";
 export { MembersApi, attachMembers } from "./resources/members.js";
 export { AutomationsApi, attachAutomations } from "./resources/automations.js";
-export { AppConnectionsApi } from "./resources/app-connections.js";
+export { AppConnectionsApi } from "./resources/connections.js";
 export type { DataPlaneResources } from "./data-plane.js";
 export {
   RepositoriesApi,
   attachRepositories,
 } from "./resources/repositories.js";
 export type { RepositoryContentsApi } from "./resources/repositories.js";
+export { AnnotationsApi, attachAnnotations } from "./resources/annotations.js";
+export { TagsApi, attachTags } from "./resources/tags.js";
+export { ProjectPeeringsApi, ProjectsApi } from "./resources/projects.js";
+export { ApiKeysApi } from "./resources/api-keys.js";
 export {
-  AnnotationsApi,
-  ProjectLabelsApi,
-  attachAnnotations,
-  attachProjectLabels,
-} from "./resources/annotations.js";
+  ApplicationIdpsApi,
+  ApplicationKeysApi,
+  ApplicationSecretsApi,
+  ApplicationsApi,
+} from "./resources/applications.js";
+export { CredentialsApi, VariablesApi } from "./resources/runtime-settings.js";
+export { EndpointsApi } from "./resources/endpoints.js";
+export {
+  ProjectScopedCollection,
+  ProjectScopedResource,
+} from "./resources/project-scoped.js";
+export { IntegrationsApi } from "./resources/integrations.js";
+export { JudgesApi } from "./resources/judges.js";
+export { OidcApi } from "./resources/oidc.js";
+export { OrganizationsApi } from "./resources/organizations.js";
+export { RemotesApi } from "./resources/remotes.js";
+export { TokensApi } from "./resources/tokens.js";
 
 // REST API wire types
+// jscpd:ignore-start -- re-export list of wire type names
 export type {
   AGUIEvent,
   BaseEvent,
@@ -171,6 +209,11 @@ export type {
   RepositoryProvider,
   RepositoryListParams,
   RepositoryGetParams,
+  RepositoryCreateParams,
+  HostedRepositoryCreateParams,
+  GithubRepositoryCreateParams,
+  RepositoryAccessTokenParams,
+  RepositoryAccessGrant,
   RepositoryEntry,
   RepositoryEntryType,
   RepositoryDirectory,
@@ -192,8 +235,8 @@ export type {
   ConnectorAppListParams,
   ConnectorAuthMode,
   ConnectorStatus,
-  ConnectorPersonServerMode,
-  ConnectorApprovalPolicy,
+  EntityUid,
+  PolicyEntity,
   ConnectorCreateParams,
   ConnectorUpdateParams,
   ConnectorListParams,
@@ -223,10 +266,16 @@ export type {
   AnnotationListParams,
   AnnotationMutation,
   AnnotationEventOptions,
-  ProjectLabel,
-  ProjectLabelListParams,
-  ProjectLabelCreate,
-  ProjectLabelUpdate,
+  AnnotationFacet,
+  AnnotationNavigation,
+  AnnotationNavigationParams,
+  Tag,
+  TagKind,
+  TagListParams,
+  TagCreate,
+  AccessTagCreate,
+  AnnotationTagCreate,
+  TagUpdate,
   RunnerSpec,
   RunnerDeployment,
   RunnerContext,
@@ -236,6 +285,8 @@ export type {
   MemberType,
   MemberListParams,
   MemberCreateParams,
+  BusinessMemberCreateParams,
+  CustomerMemberCreateParams,
   MemberUpdateParams,
   Automation,
   AutomationKind,
@@ -263,14 +314,21 @@ export type {
   ConversationUsage,
   ConversationCost,
   ConversationMetrics,
+  ConversationRuntime,
+  ConversationExperiment,
+  ConversationRecipe,
+  ConversationOwner,
   IntrospectionSpanAttributes,
-  IntrospectionConversation,
+  IntrospectionHistory,
+  IntrospectionHistoryNewMessages,
+  IntrospectionContains,
   SpanAttributes,
   SpanResource,
   ConversationItemInclude,
   ConversationSortField,
   ConversationListParams,
   ConversationItemListParams,
+  ConversationContains,
   ConversationExportParams,
   Trajectory,
   TrajectoryRecord,
@@ -322,7 +380,79 @@ export type {
   MetricEffectiveWindow,
   MetricQueryMeta,
   MetricQueryResponse,
+  ProjectRef,
+  Project,
+  ProjectListParams,
+  ApiKey,
+  ApiKeyCapability,
+  ApiKeyStatus,
+  ApiKeyCreated,
+  ApiKeyListParams,
+  ApiKeyCreateParams,
+  ApiKeyUpdateParams,
+  ApiKeyDeleteParams,
+  ApiKeyAcknowledgement,
+  Application,
+  ApplicationType,
+  ApplicationGrant,
+  ApplicationListParams,
+  ApplicationCreateParams,
+  ApplicationUpdateParams,
+  ApplicationIdp,
+  ApplicationIdpProvider,
+  ApplicationIdpStatus,
+  ApplicationIdpCreateParams,
+  ApplicationSecret,
+  ApplicationSecretStatus,
+  ApplicationSecretCreateParams,
+  ApplicationKey,
+  RuntimeSettingListParams,
+  Credential,
+  CredentialCreateParams,
+  CredentialUpdateParams,
+  Variable,
+  VariableKind,
+  VariableCreateParams,
+  VariableUpdateParams,
+  Integration,
+  IntegrationType,
+  IntegrationStatus,
+  IntegrationCreateParams,
+  IntegrationUpdateParams,
+  Judge,
+  JudgeListParams,
+  JudgeUpdateParams,
+  FeatureFlagValue,
+  OidcMe,
+  Organization,
+  TokenCreateParams,
+  DataPlaneToken,
+  RemotesConnectDocs,
+  WsAuthenticationDocs,
+  WsFrameDocs,
+  WsMessageProtocolDocs,
+  Image,
+  ImageKind,
+  ImageStatus,
+  ImageScanStatus,
+  ImageSourceKind,
+  ImageListParams,
+  ImageSource,
+  ContextImageSource,
+  MirrorImageSource,
+  ImageProvenance,
+  ImageCreateParams,
+  TaskCommandKind,
+  TaskCommandStatus,
+  ExecTaskCommand,
+  UploadTaskCommand,
+  DownloadTaskCommand,
+  TaskCommandSpec,
+  TaskCommand,
+  TaskCommandListParams,
+  TaskCommandGetOptions,
 } from "@introspection-sdk/types";
+// jscpd:ignore-end
 export {
   ConversationsMethods,
   IntrospectionEventNames,

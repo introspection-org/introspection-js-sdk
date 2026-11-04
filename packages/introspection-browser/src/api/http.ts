@@ -10,13 +10,15 @@
  * credential ever lives in JavaScript. A 401 (expired session cookie)
  * triggers a single `onUnauthorized` refresh + retry.
  *
- * The session cookie is named for its environment lane
- * (`intro_dp_development` / `intro_dp_staging` / `intro_dp_production`), so an
- * app running several lanes holds a live session for each in one browser. When
- * more than one is present the DP cannot tell which a request means, so we name
- * it in the {@link LANE_QUERY_PARAM} query parameter. A query parameter rather
- * than a header because a custom header makes every cross-origin request pay a
- * CORS preflight.
+ * The session cookie is a CP-signed `browser_session` JWT named per lane and
+ * project — `intro_dp_{lane}_{base64url(project_uuid_bytes)}`, e.g.
+ * `intro_dp_production_AZLVpGw-ehCAAAAAAAAAAQ` — so one browser holds a live
+ * session for each lane and project it connected to. When more than one is
+ * present the DP cannot tell which a request means, so we name it in the
+ * {@link LANE_QUERY_PARAM} and {@link PROJECT_ID_QUERY_PARAM} query parameters;
+ * with only the lane, the DP falls back to that lane's most recently issued
+ * cookie. Query parameters rather than headers because a custom header makes
+ * every cross-origin request pay a CORS preflight.
  */
 
 import {
@@ -41,6 +43,16 @@ export { stripTrailingSlash, toApiError };
  * nothing rather than granting anything.
  */
 export const LANE_QUERY_PARAM = "lane";
+
+/**
+ * Query parameter naming which project's session cookie, within the lane, the
+ * DP should resolve.
+ *
+ * A selector, not a credential: the cookie's own signed project is checked
+ * against it server-side, so naming a project this browser holds no cookie for
+ * is a 401 rather than access to that project.
+ */
+export const PROJECT_ID_QUERY_PARAM = "project_id";
 
 /**
  * Header form of the lane selector, which the DP still accepts.
@@ -71,6 +83,12 @@ export interface BrowserHttpConfig {
    * re-exchange.
    */
   environment?: () => Environment | undefined;
+  /**
+   * Reads the project established by the most recent exchange, read per
+   * request for the same reason as {@link environment}. `undefined` against a
+   * DP that does not return one, in which case only the lane is sent.
+   */
+  projectId?: () => string | undefined;
 }
 
 /**
@@ -86,11 +104,15 @@ export class BrowserHttpClient extends BaseHttpClient {
       additionalHeaders: cfg.additionalHeaders,
       transport: {
         // No bearer token and no header — the HttpOnly cookie is the
-        // credential, and the lane selector rides the URL.
+        // credential, and the lane and project selectors ride the URL.
         authHeaders: (): Record<string, string> => ({}),
         authQuery: (): Record<string, string> => {
+          const query: Record<string, string> = {};
           const environment = cfg.environment?.();
-          return environment ? { [LANE_QUERY_PARAM]: environment } : {};
+          if (environment) query[LANE_QUERY_PARAM] = environment;
+          const projectId = cfg.projectId?.();
+          if (projectId) query[PROJECT_ID_QUERY_PARAM] = projectId;
+          return query;
         },
         credentials: "include",
         onUnauthorized: cfg.onUnauthorized,

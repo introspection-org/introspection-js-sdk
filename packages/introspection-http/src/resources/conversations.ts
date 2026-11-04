@@ -123,11 +123,8 @@ export class ConversationsClient {
    * `ValidationError` before any request is sent.
    */
   list(params?: ConversationListParams): Paginator<Conversation> {
-    return listRead<Conversation>(
-      this.http,
-      "/v1/conversations",
-      encodeMetadataFilter(params),
-    );
+    const query = encodeMetadataFilter(params);
+    return listRead<Conversation>(this.http, "/v1/conversations", query);
   }
 
   /** Fetch one conversation summary with its complete agent index. */
@@ -336,7 +333,7 @@ function normalizeSpan(span: GenAiSpan): GenAiSpan {
   };
 }
 
-function normalizeMessages<T extends { parts: MessagePart[] }>(
+function normalizeMessages<T extends { parts?: MessagePart[] }>(
   messages: T[],
 ): T[] {
   return messages.map((message) => ({

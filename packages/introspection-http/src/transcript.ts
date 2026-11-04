@@ -22,7 +22,7 @@
  *   transport-local ids.
  *
  * The span fold's rules are the ones every consumer previously reimplemented:
- * chronological span ordering with a fixed within-span order (user inputs,
+ * chronological span ordering with a fixed within-span order (new user inputs,
  * then one assistant entry, then tool calls in their original part order),
  * the two-source tool-call dedupe (a call appears both as an `execute_tool`
  * span and as an assistant `tool_call` output part), tool results joined from
@@ -94,6 +94,63 @@ function thinkingOf(parts: MessagePart[]): string {
     .filter((part) => part.type === "thinking" || part.type === "reasoning")
     .map((part) => String((part as { content?: unknown }).content ?? ""))
     .join("\n");
+}
+
+/** The runtime's "background runs finished" notice, sent in the user role. */
+const RUNTIME_NOTICE_PREFIX = "<agent_run_completions>";
+
+/** The single input of a compaction call: the whole history, wrapped. */
+const COMPACTION_INPUT_PREFIX = "<conversation>";
+
+/**
+ * The user prompts a chat span adds to the conversation.
+ *
+ * A span's input is the whole history the model saw, and the platform's
+ * "new messages" range sometimes re-includes earlier turns (after a history
+ * cache expires, the full history is recorded again). Folding every `user`
+ * input then rendered earlier prompts twice. What the user just sent is
+ * always the user messages after the last assistant or tool message, so only
+ * those count; `system` messages may sit between or after them. Runtime
+ * notices in the user role are not the user speaking and are skipped.
+ */
+function newUserPrompts(
+  messages: InputMessage[],
+): Array<{ index: number; text: string }> {
+  let start = messages.length;
+  while (start > 0) {
+    const role = messages[start - 1]?.role;
+    if (role === "assistant" || role === "tool") break;
+    start -= 1;
+  }
+  const prompts: Array<{ index: number; text: string }> = [];
+  for (let index = start; index < messages.length; index++) {
+    const message = messages[index];
+    if (message?.role !== "user") continue;
+    const text = textOf(message.parts ?? []);
+    if (!text || text.trimStart().startsWith(RUNTIME_NOTICE_PREFIX)) continue;
+    prompts.push({ index, text });
+  }
+  return prompts;
+}
+
+/**
+ * A compaction call: the agent summarising its own history to free up
+ * context. Its one input is the whole conversation wrapped in
+ * `<conversation>` and its output is the summary; neither is part of the
+ * chat.
+ *
+ * A call cut off before it produced anything (an `aborted` output with no
+ * parts) needs no rule of its own: its empty output folds to nothing, and its
+ * input still carries the prompt and tool results that may be recorded only
+ * there.
+ */
+function isCompactionCall(inputs: InputMessage[]): boolean {
+  const [only] = inputs;
+  return (
+    inputs.length === 1 &&
+    only?.role === "user" &&
+    textOf(only.parts ?? []).startsWith(COMPACTION_INPUT_PREFIX)
+  );
 }
 
 /**
@@ -193,44 +250,36 @@ export function foldSpans(spans: GenAiSpan[]): TranscriptEntry[] {
     }
 
     const inputMessages: InputMessage[] = genAiInputMessages(span);
-    const clientMessageId =
-      span.attributes.introspection?.conversation?.client_message_id;
-    const userMessages = inputMessages.filter((m) => m.role === "user");
-    inputMessages.forEach((message, index) => {
-      if (message.role === "user") {
-        const text = textOf(message.parts ?? []);
-        if (!text) return;
-        // client_message_id names the turn's optimistic user message; it can
-        // only be the id when the delta carries exactly one candidate.
-        const stableId =
-          clientMessageId && userMessages.length === 1
-            ? clientMessageId
-            : `span:${spanId ?? span.trace_id}:user:${index}`;
-        const entry: TranscriptMessageEntry = {
-          kind: "message",
-          id: stableId,
-          role: "user",
-          text,
-          ...(clientMessageId ? { clientMessageId } : {}),
-          ...(spanId ? { spanId } : {}),
-        };
-        entries.push(entry);
-        return;
-      }
-      if (message.role === "tool") {
-        for (const part of message.parts ?? []) {
-          if (part.type !== "tool_call_response" || !part.id) continue;
-          upsertTool(part.id, {
-            name: part.name,
-            result: part.response,
-            status: responseIsError(part.response) ? "error" : "complete",
-            spanId,
-          });
-        }
-      }
-    });
-
     const outputMessages: OutputMessage[] = genAiOutputMessages(span);
+    if (isCompactionCall(inputMessages)) continue;
+
+    // Tool results come from every `tool`-role input, replayed history
+    // included: they upsert by call id, so a replay cannot duplicate them,
+    // and a card's answer may only ever appear there. They precede the new
+    // prompts, as in the input.
+    for (const message of inputMessages) {
+      if (message.role !== "tool") continue;
+      for (const part of message.parts ?? []) {
+        if (part.type !== "tool_call_response" || !part.id) continue;
+        upsertTool(part.id, {
+          name: part.name,
+          result: part.response,
+          status: responseIsError(part.response) ? "error" : "complete",
+          spanId,
+        });
+      }
+    }
+    for (const { index, text } of newUserPrompts(inputMessages)) {
+      const entry: TranscriptMessageEntry = {
+        kind: "message",
+        id: `span:${spanId ?? span.trace_id}:user:${index}`,
+        role: "user",
+        text,
+        ...(spanId ? { spanId } : {}),
+      };
+      entries.push(entry);
+    }
+
     outputMessages.forEach((message, index) => {
       if (message.role !== "assistant") return;
       const parts = message.parts ?? [];
@@ -283,6 +332,21 @@ export interface TranscriptAccumulatorOptions {
 }
 
 /**
+ * The fields the text, reasoning and tool-call events carry. Each case of
+ * {@link TranscriptAccumulator.push} reads the ones its event type defines;
+ * the `*_CHUNK` and reasoning forms may omit any of them.
+ */
+interface StreamEventFields {
+  messageId: string;
+  role?: string;
+  delta: string;
+  toolCallId: string;
+  toolCallName: string;
+  content: string;
+  isError?: boolean;
+}
+
+/**
  * Incremental AG-UI → transcript fold for the live path.
  *
  * Push events as they stream; read {@link entries} at any point for the
@@ -318,43 +382,24 @@ export class TranscriptAccumulator {
   }
 
   push(event: AGUIEvent): void {
+    // Each case reads only the fields its event type defines.
+    const fields = event as unknown as StreamEventFields;
     switch (event.type) {
-      case EventType.TEXT_MESSAGE_START: {
-        const { messageId, role } = event as {
-          messageId: string;
-          role?: string;
-        };
-        this.openMessage(messageId, role === "user" ? "user" : "assistant");
+      case EventType.TEXT_MESSAGE_CONTENT:
+        this.appendText(fields.messageId, fields.delta);
         return;
-      }
-      case EventType.TEXT_MESSAGE_CONTENT: {
-        const { messageId, delta } = event as {
-          messageId: string;
-          delta: string;
-        };
-        this.appendText(messageId, delta);
+      // START carries no delta; CHUNK is START + CONTENT in one frame.
+      case EventType.TEXT_MESSAGE_START:
+      case EventType.TEXT_MESSAGE_CHUNK:
+        this.streamText(fields);
         return;
-      }
-      case EventType.TEXT_MESSAGE_CHUNK: {
-        const { messageId, delta, role } = event as {
-          messageId?: string;
-          delta?: string;
-          role?: string;
-        };
-        if (!messageId) return;
-        this.openMessage(messageId, role === "user" ? "user" : "assistant");
-        if (delta) this.appendText(messageId, delta);
-        return;
-      }
       // The runtime streams reasoning *before* the text message it belongs
       // to, so deltas buffer until the next assistant message opens rather
       // than attaching to whichever message happened to stream last.
       case EventType.REASONING_MESSAGE_CONTENT:
-      case EventType.REASONING_MESSAGE_CHUNK: {
-        const { delta } = event as { delta?: string };
-        if (delta) this.pendingThinking += delta;
+      case EventType.REASONING_MESSAGE_CHUNK:
+        if (fields.delta) this.pendingThinking += fields.delta;
         return;
-      }
       case EventType.REASONING_START:
       case EventType.REASONING_MESSAGE_START:
       case EventType.REASONING_MESSAGE_END:
@@ -363,7 +408,7 @@ export class TranscriptAccumulator {
       // Compatibility input: legacy emitters stream thinking against the
       // already-open assistant message rather than ahead of it.
       case EventType.THINKING_TEXT_MESSAGE_CONTENT: {
-        const { delta } = event as { delta: string };
+        const { delta } = fields;
         if (this.lastAssistant) {
           this.lastAssistant.thinking =
             (this.lastAssistant.thinking ?? "") + delta;
@@ -376,47 +421,23 @@ export class TranscriptAccumulator {
         this.applyMessagesSnapshot(event);
         return;
       }
-      case EventType.TOOL_CALL_START: {
-        const { toolCallId, toolCallName } = event as {
-          toolCallId: string;
-          toolCallName: string;
-        };
-        this.openTool(toolCallId, toolCallName);
+      case EventType.TOOL_CALL_ARGS:
+        this.appendArgs(fields.toolCallId, fields.delta);
         return;
-      }
-      case EventType.TOOL_CALL_ARGS: {
-        const { toolCallId, delta } = event as {
-          toolCallId: string;
-          delta: string;
-        };
-        this.appendArgs(toolCallId, delta);
+      // START carries no delta; CHUNK is START + ARGS in one frame.
+      case EventType.TOOL_CALL_START:
+      case EventType.TOOL_CALL_CHUNK:
+        this.streamTool(fields);
         return;
-      }
-      case EventType.TOOL_CALL_CHUNK: {
-        const { toolCallId, toolCallName, delta } = event as {
-          toolCallId?: string;
-          toolCallName?: string;
-          delta?: string;
-        };
-        if (!toolCallId) return;
-        this.openTool(toolCallId, toolCallName ?? "");
-        if (delta) this.appendArgs(toolCallId, delta);
-        return;
-      }
       // END seals the arguments only — execution is still in flight, so the
       // status stays `running`. It is also the earliest point the sealed
       // args can reveal an `agent` start call, i.e. a delegation.
-      case EventType.TOOL_CALL_END: {
-        const { toolCallId } = event as { toolCallId: string };
-        this.maybeConvertToDelegation(toolCallId);
+      case EventType.TOOL_CALL_END:
+        this.maybeConvertToDelegation(fields.toolCallId);
         return;
-      }
       case EventType.TOOL_CALL_RESULT: {
-        const { toolCallId, content } = event as {
-          toolCallId: string;
-          content: string;
-        };
-        const isError = (event as { isError?: boolean }).isError === true;
+        const { toolCallId, content } = fields;
+        const isError = fields.isError === true;
         this.maybeConvertToDelegation(toolCallId);
         const delegation = this.delegationsByCallId.get(toolCallId);
         if (delegation) {
@@ -519,6 +540,26 @@ export class TranscriptAccumulator {
       this.messagesById.get(messageId) ??
       this.openMessage(messageId, "assistant");
     entry.text += delta;
+  }
+
+  private streamText({
+    messageId,
+    role,
+    delta,
+  }: Partial<StreamEventFields>): void {
+    if (!messageId) return;
+    this.openMessage(messageId, role === "user" ? "user" : "assistant");
+    if (delta) this.appendText(messageId, delta);
+  }
+
+  private streamTool({
+    toolCallId,
+    toolCallName,
+    delta,
+  }: Partial<StreamEventFields>): void {
+    if (!toolCallId) return;
+    this.openTool(toolCallId, toolCallName ?? "");
+    if (delta) this.appendArgs(toolCallId, delta);
   }
 
   private openTool(callId: string, name: string): TranscriptToolEntry {
@@ -648,7 +689,6 @@ export function foldAgui(events: Iterable<AGUIEvent>): TranscriptEntry[] {
 function messageKeys(entry: TranscriptMessageEntry): string[] {
   const keys = [entry.id];
   if (entry.responseId) keys.push(entry.responseId);
-  if (entry.clientMessageId) keys.push(entry.clientMessageId);
   return keys;
 }
 
@@ -659,7 +699,7 @@ function messageKeys(entry: TranscriptMessageEntry): string[] {
  * when nothing stored correlates with it:
  *
  * - **messages** — every alias on both sides participates (`id`,
- *   `gen_ai.response.id`, `client_message_id`); the live id is
+ *   `gen_ai.response.id`); the live id is
  *   transport-local, and the `introspection.message_identity` frame is what
  *   gives a live entry the `responseId` its hydrated twin folds under.
  * - **tools** — `callId`.

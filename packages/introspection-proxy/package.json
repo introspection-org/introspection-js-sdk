@@ -2,6 +2,11 @@
   "name": "@introspection-sdk/introspection-proxy",
   "version": "0.1.0",
   "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/introspection-org/introspection-js-sdk.git",
+    "directory": "packages/introspection-proxy"
+  },
   "description": "Outbound HTTP proxy helpers for routing fetch-based clients through the Introspection egress proxy or a standard forward proxy",
   "engines": {
     "node": ">=22"
@@ -17,6 +22,10 @@
     "./lazy": {
       "types": "./dist/lazy.d.ts",
       "default": "./dist/lazy.js"
+    },
+    "./otlp": {
+      "types": "./dist/otlp.d.ts",
+      "default": "./dist/otlp.js"
     }
   },
   "files": [
@@ -27,11 +36,14 @@
     "check-types": "tsc --noEmit",
     "build": "rm -rf dist && tsc",
     "clean": "rm -rf dist",
-    "prepare": "rm -rf dist && tsc"
+    "prepare": "rm -rf dist && tsc",
+    "check:package": "publint --strict && attw --pack . --profile esm-only"
   },
   "dependencies": {
-    "@opentelemetry/api": "^1.9.0",
-    "undici": "^8.11.2"
+    "@opentelemetry/api": "^1.10.0",
+    "https-proxy-agent": "^7.0.6",
+    "proxy-from-env": "^2.1.0",
+    "undici": "^8.12.3"
   },
   "devDependencies": {
     "@repo/eslint-config": "workspace:*",

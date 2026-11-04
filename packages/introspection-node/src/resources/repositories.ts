@@ -1,6 +1,12 @@
+// jscpd:ignore-start -- import list: the same names as every resource client's
 import {
   ValidationError,
+  type Paginated,
   type Repository,
+  type RepositoryAccessGrant,
+  type RepositoryAccessTokenParams,
+  type RepositoryBranch,
+  type RepositoryBranchesParams,
   type RepositoryCommit,
   type RepositoryCommitDetail,
   type RepositoryCommitPage,
@@ -8,6 +14,7 @@ import {
   type RepositoryContent,
   type RepositoryContentGetParams,
   type RepositoryContentsParams,
+  type RepositoryCreateParams,
   type RepositoryDirectory,
   type RepositoryEntry,
   type RepositoryGetParams,
@@ -16,6 +23,7 @@ import {
   type RepositoryMergeParams,
   type Uuid,
 } from "@introspection-sdk/types";
+// jscpd:ignore-end
 import type { HttpClient } from "../http.js";
 import { Paginator } from "../pagination.js";
 
@@ -161,11 +169,75 @@ export class RepositoriesApi {
     return merge ?? null;
   }
 
+  /**
+   * `POST /v1/repositories?project=…` — create a repository hosted on the
+   * project's Data Plane (idempotent on `slug`), or link a GitHub one through
+   * an integration. Linking the same GitHub URL twice is a `ConflictError`.
+   */
+  create(
+    params: RepositoryCreateParams,
+    query: RepositoryGetParams,
+  ): Promise<Repository> {
+    return this.cpHttp.request<Repository>({
+      method: "POST",
+      path: "/v1/repositories",
+      query: { ...query },
+      body: params,
+    });
+  }
+
+  /**
+   * Mint a short-lived access token to a repository for the session's
+   * Runtime, which the Data Plane reads from the credential's claims: only a
+   * runner's token, on a Runtime granted the repository, qualifies.
+   */
+  accessToken(
+    repositoryId: Uuid,
+    params: RepositoryAccessTokenParams = {},
+  ): Promise<RepositoryAccessGrant> {
+    return this.dpHttp.request<RepositoryAccessGrant>({
+      method: "POST",
+      path: `/v1/repositories/${encodeURIComponent(repositoryId)}/access-token`,
+      body: params,
+    });
+  }
+
   get(repositoryId: Uuid, params: RepositoryGetParams): Promise<Repository> {
     return this.cpHttp.request<Repository>({
       method: "GET",
       path: `/v1/repositories/${encodeURIComponent(repositoryId)}`,
       query: { ...params },
+    });
+  }
+
+  /**
+   * Unlink a repository from its project. A hosted repository's content goes
+   * with it; a GitHub one is merely unlinked. Needs `repositories:delete`,
+   * which a member's session carries.
+   */
+  delete(repositoryId: Uuid, params: RepositoryGetParams): Promise<void> {
+    return this.cpHttp.request<void>({
+      method: "DELETE",
+      path: `/v1/repositories/${encodeURIComponent(repositoryId)}`,
+      query: { ...params },
+      expect: "empty",
+    });
+  }
+
+  /** The repository's branches, through the Data Plane that hosts or mirrors it. */
+  branches(
+    repositoryId: Uuid,
+    params: RepositoryBranchesParams = {},
+  ): Paginator<RepositoryBranch> {
+    return new Paginator<RepositoryBranch>({
+      fetch: (cursor) =>
+        this.dpHttp.request<Paginated<RepositoryBranch>>({
+          method: "GET",
+          path: `/v1/repositories/${encodeURIComponent(repositoryId)}/branches`,
+          query: { ...params, cursor },
+        }),
+      items: (page) => page.records,
+      next: (page) => page.next || undefined,
     });
   }
 }

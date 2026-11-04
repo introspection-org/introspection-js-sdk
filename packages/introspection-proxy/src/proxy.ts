@@ -1,7 +1,13 @@
 /**
  * Outbound HTTP proxy helpers for `fetch`-based clients.
  *
- * Two proxy modes, selected per-request:
+ * On a proxy-native runtime (`INTROSPECTION_EGRESS_PROXY_NATIVE=1`) every
+ * proxied request goes through `EnvHttpProxyAgent`: `HTTPS_PROXY` carries the
+ * session credential as userinfo, which undici sends as `Proxy-Authorization`
+ * on CONNECT, and the platform CA reaches the default trust store through
+ * `NODE_EXTRA_CA_CERTS`. The legacy egress dispatcher below is never used.
+ *
+ * Otherwise, two proxy modes, selected per-request:
  *
  *  - **Egress credential-injection proxy** (`INTROSPECTION_EGRESS_URL`):
  *    plain-HTTP reverse proxy that routes by `Host` header and injects upstream
@@ -35,6 +41,7 @@ import {
 const EGRESS_KEEP_ALIVE_TIMEOUT_MS = 10 * 60 * 1000;
 
 export interface ProxyFetchOptions {
+  /** Ignored, with `egressProxyHosts`, when `INTROSPECTION_EGRESS_PROXY_NATIVE=1`. */
   egressProxyUrl?: string;
   egressProxyHosts?: string;
   /**
@@ -60,6 +67,7 @@ export interface ProxyFetchOptions {
 }
 
 function resolveEgressUrl(options: ProxyFetchOptions): string | undefined {
+  if (process.env.INTROSPECTION_EGRESS_PROXY_NATIVE === "1") return undefined;
   return options.egressProxyUrl ?? process.env.INTROSPECTION_EGRESS_URL;
 }
 
@@ -139,6 +147,28 @@ function withInjectedTraceContext(
   return { ...opts, headers };
 }
 
+/**
+ * The undici package multipart-encodes only its own `FormData`, and sends
+ * Node's global one (what callers build) as the text "[object FormData]".
+ * Encode it here, through the global `Response`, so the boundary in the
+ * content type matches the body.
+ */
+async function withEncodedFormData(
+  opts: Record<string, unknown>,
+): Promise<Record<string, unknown>> {
+  if (typeof FormData === "undefined" || !(opts.body instanceof FormData)) {
+    return opts;
+  }
+  const encoded = new Response(opts.body);
+  const headers = new Headers(opts.headers as HeadersInit | undefined);
+  headers.set("content-type", encoded.headers.get("content-type") as string);
+  return {
+    ...opts,
+    headers,
+    body: new Uint8Array(await encoded.arrayBuffer()),
+  };
+}
+
 /** @internal Used by the lazy installer to preserve the pre-install fetch. */
 export function createProxyFetchWithBase(
   options: ProxyFetchOptions = {},
@@ -155,8 +185,17 @@ export function createProxyFetchWithBase(
     !!egressUrl && new URL(egressUrl).protocol === "http:";
 
   const egress = egressUrl ? buildEgressDispatcher(egressUrl) : undefined;
+  // Without an egress dispatcher the forward agent carries the provider calls,
+  // so it takes over the egress keep-alive.
   const forward = resolveForwardProxyUrl()
-    ? new EnvHttpProxyAgent()
+    ? new EnvHttpProxyAgent(
+        egress
+          ? undefined
+          : {
+              keepAliveTimeout: EGRESS_KEEP_ALIVE_TIMEOUT_MS,
+              keepAliveMaxTimeout: EGRESS_KEEP_ALIVE_TIMEOUT_MS,
+            },
+      )
     : undefined;
 
   if (!egress && !forward) return base;
@@ -210,11 +249,11 @@ export function createProxyFetchWithBase(
       opts.headers = headers;
     }
 
-    const execute = () =>
+    const execute = async () =>
       undiciFetch(
         target as unknown as Parameters<typeof undiciFetch>[0],
         withInjectedTraceContext(
-          opts,
+          await withEncodedFormData(opts),
           options.propagateBaggage ?? false,
         ) as unknown as Parameters<typeof undiciFetch>[1],
       ) as unknown as Promise<Response>;

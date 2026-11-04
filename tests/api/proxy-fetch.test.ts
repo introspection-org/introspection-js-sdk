@@ -304,6 +304,39 @@ describe("introspection-proxy-call spans", () => {
     expect(exporter.getFinishedSpans()).toHaveLength(0);
   });
 
+  it("encodes a global FormData body as multipart through the forward proxy", async () => {
+    clearProxyEnv();
+    let received: { contentType?: string; body: string } | undefined;
+    server = createServer((req, res) => {
+      const chunks: Buffer[] = [];
+      req.on("data", (chunk: Buffer) => chunks.push(chunk));
+      req.on("end", () => {
+        received = {
+          contentType: req.headers["content-type"],
+          body: Buffer.concat(chunks).toString(),
+        };
+        res.end("ok");
+      });
+    });
+    await new Promise<void>((resolve) => server?.listen(0, resolve));
+    const port = (server.address() as AddressInfo).port;
+    process.env.HTTP_PROXY = `http://127.0.0.1:${port}`;
+
+    // The SDK builds uploads with Node's global FormData, which the undici
+    // package does not recognise as its own.
+    const form = new FormData();
+    form.append("file", new Blob(["file bytes"]), "upload.txt");
+    const response = await createProxyFetch({ tracing: false })(
+      "http://forwarded.example.test/v1/files",
+      { method: "POST", body: form },
+    );
+
+    expect(response.status).toBe(200);
+    expect(received?.contentType).toMatch(/^multipart\/form-data; boundary=/);
+    expect(received?.body).toContain('filename="upload.txt"');
+    expect(received?.body).toContain("file bytes");
+  });
+
   it("does not span when tracing is disabled", async () => {
     clearProxyEnv();
     const port = await listen(200);

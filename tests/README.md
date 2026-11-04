@@ -36,6 +36,7 @@ of the Anthropic response — no mocked pi events, no mocked stream.
 | `test-pi-recorded-run.test.ts`    | `pi-run`     | `invoke_agent` run span parenting the whole trace, and GenAI client metrics         |
 | `test-pi-recorded-errors.test.ts` | `pi-errors`  | a real provider 404 (status ERROR) vs. a real mid-stream abort (Unset + cancelled)  |
 | `test-pi-baggage.test.ts`         | `pi-baggage` | baggage overriding `AgentMeta` across concurrent agents                             |
+| `test-pi-recorded-mcp.test.ts`    | `pi-mcp`     | `mcp.*` on an MCP tool's span, none on a built-in tool                              |
 
 The remaining `test-pi-*.test.ts` files are unit tests over the attribute
 builders, converters, and wrappers; they need no network and no cassette.
@@ -66,7 +67,44 @@ pnpm test:observability
 
 # Run in watch mode
 pnpm test:watch
+
+# Any vitest filter works through the script: a directory, a file or a name
+pnpm test walk/
+pnpm test api/tasks.test.ts
 ```
+
+### The SDK end-to-end walk
+
+`walk/` is one ordered scenario from a clean project to its teardown, recorded
+against a live stack and replayed in CI (design:
+`introspection-cloud/docs/design/sdk-end-to-end-walk.md`). The scripts below
+also exist at the repository root.
+
+```bash
+# Replay the committed recording: no stack, no network (what `pnpm test` runs)
+pnpm test:walk
+
+# Live against the stack `introspection login` chose, writing the recording
+# and the inline snapshots. Needs the recipe checkout on disk.
+RECIPE_DIR=~/introspection/recipe-harbor-mcp-agent pnpm test:walk:record
+
+# Live without touching the recording, for checking a stack
+RECIPE_DIR=~/introspection/recipe-harbor-mcp-agent pnpm test:walk:live
+
+# The SDK coverage the walk alone reaches: Vitest's text report of the
+# resource clients in the terminal, the HTML report in coverage/walk/index.html. The replay reaches
+# the same SDK code a record does; add POLLY_MODE=record and -u to measure
+# while recording.
+pnpm test:walk:cov
+```
+
+A live run reads `~/.introspection/credentials.json` (or the file
+`INTROSPECTION_CREDENTIALS` names), pushes the recipe at the head of `main`
+(`RECIPE_GIT_REF` overrides) after checking it with `introspection check`,
+runs inside the project the login chose (the
+project stays; everything the walk makes under its fixed names is removed
+first and after), and must be the only walk in that project. Scan the
+recording for credentials before committing it.
 
 ## Code coverage
 

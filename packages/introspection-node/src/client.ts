@@ -17,10 +17,13 @@ import type {
   AppConnectionCreateParams,
 } from "@introspection-sdk/types";
 import {
+  ApprovalsApi,
   ConversationsApi,
   EventsApi,
   FilesApi,
+  ImagesApi,
   MetricsApi,
+  MissionsApi,
   SharesApi,
   TasksApi,
 } from "@introspection-sdk/http";
@@ -50,15 +53,25 @@ import {
 } from "./resources/automations.js";
 import {
   attachAnnotations,
-  attachProjectLabels,
   type AnnotationsApi,
-  type ProjectLabelsApi,
 } from "./resources/annotations.js";
+import { attachTags, type TagsApi } from "./resources/tags.js";
 import {
   attachRepositories,
   type RepositoriesApi,
 } from "./resources/repositories.js";
-import { AppConnectionsApi } from "./resources/app-connections.js";
+import { AppConnectionsApi } from "./resources/connections.js";
+import { ProjectsApi } from "./resources/projects.js";
+import { ApiKeysApi } from "./resources/api-keys.js";
+import { ApplicationsApi } from "./resources/applications.js";
+import { CredentialsApi, VariablesApi } from "./resources/runtime-settings.js";
+import { EndpointsApi } from "./resources/endpoints.js";
+import { IntegrationsApi } from "./resources/integrations.js";
+import { JudgesApi } from "./resources/judges.js";
+import { OidcApi } from "./resources/oidc.js";
+import { OrganizationsApi } from "./resources/organizations.js";
+import { RemotesApi } from "./resources/remotes.js";
+import { TokensApi } from "./resources/tokens.js";
 import type { DataPlaneResources } from "./data-plane.js";
 import { DEV_TARGET_HEADER, resolveDevTarget } from "./dev-target.js";
 
@@ -88,6 +101,7 @@ export class IntrospectionClient implements DataPlaneResources {
   /** @internal — HTTP client pointed at the project Data Plane. */
   readonly dpHttp: HttpClient;
   /** @internal — passed through to Runner so it can build its own DP HTTP client. */
+  // jscpd:ignore-start -- field declarations of the resource namespaces
   readonly advancedOptions: AdvancedOptions;
 
   /**
@@ -134,11 +148,49 @@ export class IntrospectionClient implements DataPlaneResources {
    */
   readonly repositories: RepositoriesApi;
 
+  // The project-administration namespaces below need an org credential (a
+  // member's Control Plane session or access token); a project API key
+  // carries none of their scopes. Their project-scoped methods take an
+  // optional `project` (slug or id) for a credential that names none.
+
+  /** Reads on `/v1/projects`, by slug or id. */
+  readonly projects: ProjectsApi;
+
+  /** `/v1/api-keys`, plus `apiKeys.acknowledge(id)`. */
+  readonly apiKeys: ApiKeysApi;
+
+  /** `/v1/applications`, with `.idps`, `.secrets` and `.keys`. */
+  readonly applications: ApplicationsApi;
+
+  /** `/v1/credentials`; the secret is write-only. */
+  readonly credentials: CredentialsApi;
+
+  /** `/v1/endpoints`: the hosts a runtime may reach; read, rename, remove. */
+  readonly endpoints: EndpointsApi;
+
+  /** `/v1/variables`. */
+  readonly variables: VariablesApi;
+
+  /** The org's provider installs on `/v1/integrations`. */
+  readonly integrations: IntegrationsApi;
+
+  /** Read judges and change whether and how often they run (`/v1/judges`). */
+  readonly judges: JudgesApi;
+
+  /** `oidc.me()`: who the credential signs in as. */
+  readonly oidc: OidcApi;
+
+  /** `organizations.me()`: the credential's organization. */
+  readonly organizations: OrganizationsApi;
+
+  /** `tokens.create()`: a Data Plane token for one project. */
+  readonly tokens: TokensApi;
+
   /** Read folded span annotations and append one annotation mutation. */
   readonly annotations: AnnotationsApi;
 
-  /** Manage reusable project labels. */
-  readonly projectLabels: ProjectLabelsApi;
+  /** The project tag catalogue, keyed by `access` or `annotation`. */
+  readonly tags: TagsApi;
 
   /** Read immutable annotation activity and other typed platform events. */
   readonly events: EventsApi;
@@ -162,12 +214,27 @@ export class IntrospectionClient implements DataPlaneResources {
   /** `/v1/shares` sharing grants (Data Plane). */
   readonly shares: SharesApi;
 
+  /** The hosted Person Server's approvals, `/v1/aauth/approvals` (Data Plane). */
+  readonly approvals: ApprovalsApi;
+
+  /** Approved missions and their spend, `/v1/aauth/missions` (Data Plane). */
+  readonly missions: MissionsApi;
+
+  /** `/v1/images` (Data Plane), what eval compose services run as. */
+  readonly images: ImagesApi;
+
+  /** The `introspection dev` remote connection's protocol (Data Plane). */
+  readonly remotes: RemotesApi;
+
   /**
    * CRUD on `/v1/connections` (Data Plane), the apps members connected for
    * themselves. `create` takes the `runtime` explicitly, since the client
    * has no runtime context.
    */
-  readonly connections: AppConnectionsApi<Required<AppConnectionCreateParams>>;
+  readonly connections: AppConnectionsApi<
+    AppConnectionCreateParams & { runtime: string }
+  >;
+  // jscpd:ignore-end
 
   constructor(options: IntrospectionClientOptions = {}) {
     const token = options.token || process.env.INTROSPECTION_TOKEN || "";
@@ -181,9 +248,10 @@ export class IntrospectionClient implements DataPlaneResources {
     // as `dpUrl` and fromServiceAccount wires it automatically.
     const dpUrl = advanced.dpUrl || baseApiUrl;
 
-    if (!token) {
+    // A Control Plane session cookie authenticates on its own.
+    if (!token && !options.cpSession) {
       sdkLogger.warn(
-        "IntrospectionClient: No token provided. REST calls will fail.",
+        "IntrospectionClient: No token or cpSession provided. REST calls will fail.",
       );
     }
 
@@ -228,16 +296,31 @@ export class IntrospectionClient implements DataPlaneResources {
     this.recipes = attachRecipes(this.cpHttp);
     this.connectors = attachConnectors(this.cpHttp);
     this.members = attachMembers(this.cpHttp);
+    this.projects = new ProjectsApi(this.cpHttp);
+    this.apiKeys = new ApiKeysApi(this.cpHttp);
+    this.applications = new ApplicationsApi(this.cpHttp);
+    this.credentials = new CredentialsApi(this.cpHttp);
+    this.endpoints = new EndpointsApi(this.cpHttp);
     this.automations = attachAutomations(this.dpHttp);
+    this.images = new ImagesApi(this.dpHttp);
     this.repositories = attachRepositories(this.cpHttp, this.dpHttp);
+    this.variables = new VariablesApi(this.cpHttp);
+    this.integrations = new IntegrationsApi(this.cpHttp);
+    this.judges = new JudgesApi(this.cpHttp);
+    this.oidc = new OidcApi(this.cpHttp);
+    this.organizations = new OrganizationsApi(this.cpHttp);
+    this.tokens = new TokensApi(this.cpHttp);
+    this.remotes = new RemotesApi(this.dpHttp);
     this.annotations = attachAnnotations(this.cpHttp, this.dpHttp);
-    this.projectLabels = attachProjectLabels(this.dpHttp);
+    this.tags = attachTags(this.dpHttp);
     this.events = new EventsApi(this.dpHttp);
     this.tasks = new TasksApi(this.dpHttp);
     this.files = new FilesApi(this.dpHttp);
     this.conversations = new ConversationsApi(this.dpHttp);
     this.metrics = new MetricsApi(this.dpHttp);
     this.shares = new SharesApi(this.dpHttp);
+    this.approvals = new ApprovalsApi(this.dpHttp);
+    this.missions = new MissionsApi(this.dpHttp);
     this.connections = new AppConnectionsApi(this.dpHttp);
 
     sdkLogger.info(`IntrospectionClient initialized: api=${baseApiUrl}`);

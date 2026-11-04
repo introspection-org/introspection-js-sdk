@@ -32,7 +32,7 @@ export class IncrementalIdGenerator implements IdGenerator {
 /**
  * Span context in dictionary format for snapshot comparison
  */
-export interface SpanContext {
+interface SpanContext {
   trace_id: string;
   span_id: string;
   is_remote: boolean;

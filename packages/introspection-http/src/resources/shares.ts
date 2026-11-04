@@ -1,11 +1,10 @@
 import type {
-  Paginated,
   ResourceShare,
   ShareCreateParams,
   ShareListParams,
   ShareUpdateParams,
 } from "@introspection-sdk/types";
-import { Paginator, cursorPaginate } from "../pagination.js";
+import { Paginator, paginateGet } from "../pagination.js";
 import type { ResourceHttpClient } from "./types.js";
 
 /**
@@ -26,13 +25,10 @@ export class SharesClient {
    * page, or `for await` to stream every grant across pages.
    */
   list(params?: ShareListParams): Paginator<ResourceShare> {
-    return cursorPaginate(
-      (next) =>
-        this.http.request<Paginated<ResourceShare>>({
-          method: "GET",
-          path: "/v1/shares",
-          query: { ...params, next } as Record<string, unknown>,
-        }),
+    return paginateGet<ResourceShare>(
+      this.http,
+      "/v1/shares",
+      params,
       params?.next,
     );
   }

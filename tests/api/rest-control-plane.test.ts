@@ -82,7 +82,6 @@ const CONNECTOR = {
   environment: "production",
   scopes: ["chat:write"],
   api_hosts: ["slack.com"],
-  approval_policy: "human",
   status: "active",
   requires_runtime: true,
 };
@@ -390,11 +389,11 @@ describe("IntrospectionClient (REST control-plane, real server)", () => {
   });
 
   describe("runtimes", () => {
-    it("does not expose runtime operator mutations", () => {
+    it("exposes the version CRUD and no operator mutation", () => {
       const client = makeClient();
-      expect(client.runtimes).not.toHaveProperty("create");
-      expect(client.runtimes).not.toHaveProperty("update");
-      expect(client.runtimes).not.toHaveProperty("delete");
+      expect(client.runtimes).toHaveProperty("create");
+      expect(client.runtimes).toHaveProperty("update");
+      expect(client.runtimes).toHaveProperty("delete");
       expect(client.runtimes).not.toHaveProperty("yank");
       expect(client.runtimes).not.toHaveProperty("unyank");
       expect(client.runtimes).not.toHaveProperty("activateById");

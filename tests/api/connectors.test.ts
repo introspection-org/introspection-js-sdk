@@ -1,4 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
+import type {
+  Connector,
+  ConnectorCreateParams,
+  PolicyEntity,
+} from "@introspection-sdk/introspection-node";
 import {
   ConnectorsApi,
   ConnectionsApi,
@@ -28,9 +33,28 @@ const CONNECTOR_FIXTURE = {
   environment: "production" as const,
   scopes: ["chat:write"],
   api_hosts: ["slack.com"],
-  approval_policy: "human" as const,
   status: "active" as const,
   requires_runtime: true,
+};
+
+const AAUTH_CONNECTOR_FIXTURE: Connector = {
+  ...CONNECTOR_FIXTURE,
+  slug: "travel-aauth",
+  name: "Travel (AAuth)",
+  provider: "travel",
+  auth_mode: "aauth",
+  scopes: [],
+  api_hosts: ["api.travel.example.com"],
+  person_server_url: "https://ps.example.com",
+  application_id: "66666666-6666-6666-6666-666666666666",
+  policy_entities: [
+    {
+      uid: { type: "Company", id: "acme" },
+      attrs: { business_min_level: 5 },
+      parents: [{ type: "Region", id: "emea" }],
+    },
+  ],
+  requires_runtime: false,
 };
 
 const CONNECTION_FIXTURE = {
@@ -103,6 +127,68 @@ describe("ConnectorsApi", () => {
         client_id: "client-abc",
         client_secret: "secret-xyz",
       },
+    });
+  });
+
+  it("create() POSTs an aauth connector with its Cedar policy entities", async () => {
+    const policyEntities: PolicyEntity[] = [
+      {
+        uid: { type: "Company", id: "acme" },
+        attrs: { business_min_level: 5 },
+        parents: [{ type: "Region", id: "emea" }],
+      },
+    ];
+    const params: ConnectorCreateParams = {
+      name: "Travel (AAuth)",
+      provider: "travel",
+      auth_mode: "aauth",
+      person_server_url: "https://ps.example.com",
+      application_id: "66666666-6666-6666-6666-666666666666",
+      api_hosts: ["api.travel.example.com"],
+      policy_entities: policyEntities,
+    };
+    const http = mockHttp({ requestResult: AAUTH_CONNECTOR_FIXTURE });
+
+    const connector = await new ConnectorsApi(http).create(params);
+
+    expect(http.request).toHaveBeenCalledWith({
+      method: "POST",
+      path: "/v1/connectors",
+      body: params,
+    });
+    expect(connector.auth_mode).toBe("aauth");
+    expect(connector).not.toHaveProperty("approval_policy");
+    expect(connector).not.toHaveProperty("person_server_mode");
+  });
+
+  it("get() returns the connector's policy entities", async () => {
+    const http = mockHttp({ requestResult: AAUTH_CONNECTOR_FIXTURE });
+    const connector = await new ConnectorsApi(http).get(CONNECTOR_ID);
+
+    expect(connector.person_server_url).toBe("https://ps.example.com");
+    expect(connector.policy_entities?.[0].uid).toEqual({
+      type: "Company",
+      id: "acme",
+    });
+    expect(connector.policy_entities?.[0].attrs).toEqual({
+      business_min_level: 5,
+    });
+  });
+
+  it("update() PATCHes replacement policy entities", async () => {
+    const http = mockHttp({ requestResult: AAUTH_CONNECTOR_FIXTURE });
+    const policy_entities: PolicyEntity[] = [
+      {
+        uid: { type: "Company", id: "acme" },
+        attrs: { business_min_level: 7 },
+      },
+    ];
+    await new ConnectorsApi(http).update(CONNECTOR_ID, { policy_entities });
+
+    expect(http.request).toHaveBeenCalledWith({
+      method: "PATCH",
+      path: `/v1/connectors/${CONNECTOR_ID}`,
+      body: { policy_entities },
     });
   });
 

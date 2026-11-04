@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { HttpClient } from "@introspection-sdk/introspection-node";
 import {
+  ConflictError,
   IntrospectionAPIError,
   NetworkError,
   RateLimitError,
@@ -414,6 +415,78 @@ describe("HttpClient", () => {
         client.request({ method: "GET", path: "/v1/tasks/task_1" }),
       ).rejects.toBeInstanceOf(RateLimitError);
       expect(fetchImpl).toHaveBeenCalledTimes(1); // no retry
+    });
+  });
+
+  describe("409 retry (Retry-After only)", () => {
+    // The DP's answer to a reply sent while the previous turn still settles.
+    const settling = () =>
+      makeResponse({
+        status: 409,
+        headers: { "content-type": "application/json", "retry-after": "0" },
+        json: {
+          detail:
+            "A previous reply is still being delivered; retry this reply shortly",
+        },
+      });
+
+    it("retries a POST on 409 with Retry-After, then returns the run", async () => {
+      const fetchImpl = seqFetch([
+        settling(),
+        makeResponse({ status: 200, json: { run_id: "run_1" } }),
+      ]);
+      const client = new HttpClient({
+        apiUrl: "https://api.example.com",
+        token: "t",
+        retryBaseMs: 1,
+        fetch: fetchImpl as unknown as typeof fetch,
+      });
+
+      const out = await client.request<{ run_id: string }>({
+        method: "POST",
+        path: "/v1/tasks/task_1/runs",
+        body: { message: "hi" },
+      });
+      expect(out.run_id).toBe("run_1");
+      expect(fetchImpl).toHaveBeenCalledTimes(2);
+    });
+
+    it("surfaces ConflictError once the retry budget is spent", async () => {
+      const fetchImpl = seqFetch([settling()]);
+      const client = new HttpClient({
+        apiUrl: "https://api.example.com",
+        token: "t",
+        maxRetries: 2,
+        retryBaseMs: 1,
+        fetch: fetchImpl as unknown as typeof fetch,
+      });
+
+      await expect(
+        client.request({
+          method: "POST",
+          path: "/v1/tasks/task_1/runs",
+          body: {},
+        }),
+      ).rejects.toBeInstanceOf(ConflictError);
+      expect(fetchImpl).toHaveBeenCalledTimes(3); // initial + 2 retries
+    });
+
+    it("does NOT retry a plain 409 (a real conflict)", async () => {
+      const fetchImpl = seqFetch([
+        makeResponse({ status: 409, json: { detail: "already exists" } }),
+        makeResponse({ status: 200, json: {} }),
+      ]);
+      const client = new HttpClient({
+        apiUrl: "https://api.example.com",
+        token: "t",
+        retryBaseMs: 1,
+        fetch: fetchImpl as unknown as typeof fetch,
+      });
+
+      await expect(
+        client.request({ method: "POST", path: "/v1/tasks", body: {} }),
+      ).rejects.toBeInstanceOf(ConflictError);
+      expect(fetchImpl).toHaveBeenCalledTimes(1);
     });
   });
 

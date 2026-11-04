@@ -34,6 +34,9 @@
         "packages/introspection-coding-agent/src/index.ts"
       ],
       "@introspection-sdk/http": ["packages/introspection-http/src/index.ts"],
+      "@introspection-sdk/types/logs": [
+        "packages/introspection-types/src/logs.ts"
+      ],
       "@introspection-sdk/types": ["packages/introspection-types/src/index.ts"]
     }
   },

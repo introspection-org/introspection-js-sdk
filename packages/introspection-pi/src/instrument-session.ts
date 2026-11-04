@@ -22,7 +22,7 @@ import {
 } from "@opentelemetry/api";
 import type { Agent, StreamFn } from "@earendil-works/pi-agent-core";
 import { type AbortTerminationReason } from "@introspection-sdk/types";
-import { type AgentMeta } from "./attributes.js";
+import { type AgentMeta, type McpToolOrigin } from "./attributes.js";
 import { instrumentAgent } from "./instrument-agent.js";
 import { instrumentStream } from "./instrument-stream.js";
 
@@ -63,6 +63,8 @@ export interface InstrumentSessionOptions {
   abortTerminationReason?: () => AbortTerminationReason | null;
   /** Host attributes (tenant labels, correlation ids) added to every span. */
   extraAttributes?: () => Attributes;
+  /** The MCP server serving a tool; read when each tool span starts. */
+  mcpTool?: (toolName: string) => McpToolOrigin | undefined;
 }
 
 export interface SessionInstrumentation {
@@ -119,6 +121,7 @@ export function instrumentSession(
       ? { getParentContext: opts.getParentContext }
       : {}),
     ...(extraAttributes ? { extraAttributes: () => extraAttributes() } : {}),
+    ...(opts.mcpTool ? { mcpTool: opts.mcpTool } : {}),
   });
 
   agent[key] = instrumentStream(original, {

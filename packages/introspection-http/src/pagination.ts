@@ -1,4 +1,5 @@
 import { Paginated } from "@introspection-sdk/types";
+import type { ResourceHttpClient } from "./resources/types.js";
 
 /**
  * Adapts a wire pagination protocol for {@link Paginator}: how to fetch
@@ -73,6 +74,27 @@ export function cursorPaginate<T>(
       // than `null` paged forever.
       next: (page) => page.next || undefined,
     },
+    start,
+  );
+}
+
+/**
+ * {@link cursorPaginate} over `GET path`: each page request sends `query`
+ * plus the page's `next` cursor.
+ */
+export function paginateGet<T>(
+  http: Pick<ResourceHttpClient, "request">,
+  path: string,
+  query: object | undefined,
+  start?: string,
+): Paginator<T, Paginated<T>> {
+  return cursorPaginate(
+    (next) =>
+      http.request<Paginated<T>>({
+        method: "GET",
+        path,
+        query: { ...query, next } as Record<string, unknown>,
+      }),
     start,
   );
 }

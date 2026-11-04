@@ -8,7 +8,7 @@ import {
   ValidationError,
   type AnnotationState,
   type AnnotationTarget,
-  type ProjectLabel,
+  type Tag,
 } from "@introspection-sdk/introspection-node";
 
 interface CapturedRequest {
@@ -45,8 +45,9 @@ const ANNOTATION: AnnotationState = {
   assignment_event_id: "33333333-3333-3333-3333-333333333333",
 };
 
-const LABEL: ProjectLabel = {
-  slug: "good-structure",
+const LABEL: Tag = {
+  kind: "annotation",
+  name: "good-structure",
   color: "#f97316",
   description: "Preserves the useful answer structure",
   created_at: "2026-08-25T01:00:00Z",
@@ -153,24 +154,28 @@ beforeAll(async () => {
         ]),
       );
     }
-    if (path === "/v1/project-labels" && method === "GET") {
+    if (path === "/v1/tags" && method === "GET") {
       const second = url.searchParams.get("next") === "label-page-2";
       return json(
         res,
         200,
         second
-          ? page([{ ...LABEL, slug: "bad-citation" }])
+          ? page([{ ...LABEL, name: "bad-citation" }])
           : page([LABEL], "label-page-2"),
       );
     }
-    if (path === "/v1/project-labels" && method === "POST") {
-      return json(res, 201, { ...LABEL, ...(body as object) });
+    if (path === "/v1/tags" && method === "POST") {
+      return json(res, 201, { ...LABEL, color: null, ...(body as object) });
     }
-    if (path === `/v1/project-labels/${LABEL.slug}` && method === "GET") {
+    if (path === `/v1/tags/annotation/${LABEL.name}` && method === "GET") {
       return json(res, 200, LABEL);
     }
-    if (path === `/v1/project-labels/${LABEL.slug}` && method === "PATCH") {
+    if (path === `/v1/tags/annotation/${LABEL.name}` && method === "PATCH") {
       return json(res, 200, { ...LABEL, ...(body as object) });
+    }
+    if (path === "/v1/tags/access/acme%2Feu" && method === "DELETE") {
+      res.writeHead(204);
+      return res.end();
     }
     if (path === "/v1/members" && method === "GET") {
       const second = url.searchParams.get("next") === "member-page-2";
@@ -370,26 +375,70 @@ describe("annotations", () => {
   });
 });
 
-describe("project labels", () => {
-  it("lists, creates, gets, and updates through the first-class resource", async () => {
-    const labels = client().projectLabels;
-    const listing = labels.list({ search: "structure", limit: 1 });
+describe("tags", () => {
+  it("lists one kind, creates, gets, and patches only what is set", async () => {
+    const tags = client().tags;
+    const listing = tags.list("annotation", { search: "structure", limit: 1 });
     expect((await listing).records[0]).toEqual(LABEL);
-    const slugs: string[] = [];
-    for await (const label of listing) slugs.push(label.slug);
-    expect(slugs).toEqual(["good-structure", "bad-citation"]);
-    await labels.create({ slug: LABEL.slug, color: "#F97316" });
-    expect(await labels.get(LABEL.slug)).toEqual(LABEL);
-    expect(
-      await labels.update(LABEL.slug, { description: null }),
-    ).toMatchObject({
-      description: null,
+    const names: string[] = [];
+    for await (const tag of listing) names.push(tag.name);
+    expect(names).toEqual(["good-structure", "bad-citation"]);
+    expect(requests[0]!.query.get("kind")).toBe("annotation");
+    expect(requests[0]!.query.get("search")).toBe("structure");
+
+    requests = [];
+    await tags.create({
+      kind: "annotation",
+      name: " good-structure ",
+      color: "#F97316",
     });
+    expect(requests[0]!.body).toEqual({
+      kind: "annotation",
+      name: "good-structure",
+      color: "#f97316",
+    });
+    expect(await tags.get("annotation", LABEL.name)).toEqual(LABEL);
+
+    requests = [];
+    expect(
+      await tags.update("annotation", LABEL.name, { description: null }),
+    ).toMatchObject({ description: null });
+    // Only the key that was set: an absent key leaves the value alone.
+    expect(requests[0]!.body).toEqual({ description: null });
+    await tags.update("annotation", LABEL.name, { color: "#ABCDEF" });
+    expect(requests[1]!.body).toEqual({ color: "#abcdef" });
   });
 
-  it("rejects invalid managed presentation metadata locally", () => {
+  it("sends an access tag with no color and encodes its opaque name", async () => {
+    const tags = client().tags;
+    const created = await tags.create({ kind: "access", name: "acme/eu" });
+    expect(created.kind).toBe("access");
+    expect(created.color).toBeNull();
+    expect(requests[0]!.body).toEqual({ kind: "access", name: "acme/eu" });
+    await tags.delete("access", "acme/eu");
+    // The opaque name is encoded, so it cannot add a path segment.
+    expect(requests[1]!.path).toBe("/v1/tags/access/acme%2Feu");
+    expect(requests[1]!.method).toBe("DELETE");
+  });
+
+  it("refuses locally what the API would refuse", () => {
+    const tags = client().tags;
     expect(() =>
-      client().projectLabels.create({ slug: "unsafe", color: "orange" }),
+      tags.create({ kind: "annotation", name: "unsafe", color: "orange" }),
     ).toThrow(ValidationError);
+    expect(() =>
+      // @ts-expect-error An access tag has no color.
+      tags.create({ kind: "access", name: "acme/eu", color: "#f97316" }),
+    ).toThrow(ValidationError);
+    expect(() => tags.create({ kind: "access", name: "  " })).toThrow(
+      ValidationError,
+    );
+    expect(() =>
+      tags.update("access", "acme/eu", { color: "#f97316" }),
+    ).toThrow(ValidationError);
+    expect(() => tags.update("annotation", LABEL.name, {})).toThrow(
+      ValidationError,
+    );
+    expect(requests).toHaveLength(0);
   });
 });

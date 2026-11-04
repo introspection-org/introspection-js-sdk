@@ -10,10 +10,4 @@ export type {
   LogEventSeverity,
 } from "@introspection-sdk/types";
 
-export type { GenAiContext, IdentityContext } from "@introspection-sdk/types";
-
-export {
-  generateEventId,
-  reservedEventNamePrefix,
-  toAttributeValue,
-} from "@introspection-sdk/types";
+export type { IdentityContext } from "@introspection-sdk/types";

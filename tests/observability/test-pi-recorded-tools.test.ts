@@ -167,7 +167,7 @@ describe("Pi tool calling — real Agent against a Polly-recorded Anthropic call
     // Turn 1 output: the model asked for the tool.
     const output = jsonAttr<OutputMessage[]>(first!, "gen_ai.output.messages");
     expect(output[0]!.finish_reason).toBe("tool_call");
-    const call = output[0]!.parts.find((p) => p.type === "tool_call");
+    const call = output[0]!.parts?.find((p) => p.type === "tool_call");
     expect(call).toMatchObject({
       type: "tool_call",
       name: "get_weather",

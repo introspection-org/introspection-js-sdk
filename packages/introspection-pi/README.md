@@ -50,6 +50,19 @@ instrumentSession(session, {
 });
 ```
 
+A host that registers MCP tools names the server behind each one, so its
+`execute_tool` span carries `mcp.server.id`, `mcp.tool.name` and
+`mcp.server.binding`. The lookup is read when the span starts; a tool it returns
+nothing for carries none of them:
+
+```ts
+instrumentSession(session, {
+  tracer,
+  meta,
+  mcpTool: (toolName) => mcpTools.get(toolName),
+});
+```
+
 ### Composing the pieces yourself
 
 ```ts
@@ -158,6 +171,19 @@ For each tool call (`execute_tool ${tool_name}` span):
   `setStatus(ERROR)`. Tool calls cut short by a
   requested abort are marked with `introspection.termination_reason =
 "cancelled"` and are not marked as errors.
+
+## Rendering a Pi run offline
+
+A Pi run that was not instrumented leaves only Pi's session file.
+`pi-session-spans` renders that file as the GenAI span list the platform's
+conversation export returns, using the same attribute builders as the live
+instrumentation:
+
+```bash
+pi-session-spans ~/.pi/agent/sessions/<session>.jsonl my-conversation > spans.json
+```
+
+The same is available in code as `piSessionToSpans`.
 
 ## Content scrubbing
 

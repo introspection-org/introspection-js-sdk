@@ -5,7 +5,7 @@
  */
 import { describe, expect, it } from "vitest";
 
-import { isModuleNotFound } from "../../packages/introspection-node/src/otel/integrations/index";
+import { isModuleNotFound } from "../../packages/introspection-node/src/otel/integrations/base";
 
 describe("isModuleNotFound", () => {
   it("treats absent peer packages as module-not-found", () => {

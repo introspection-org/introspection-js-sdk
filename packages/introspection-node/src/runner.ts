@@ -7,16 +7,20 @@ import {
   type Uuid,
 } from "@introspection-sdk/types";
 import {
+  ApprovalsApi,
   ConversationsApi,
   EventsApi,
   FilesApi,
+  ImagesApi,
   MetricsApi,
+  MissionsApi,
   SharesApi,
   TasksApi,
+  toRunRequestBody,
 } from "@introspection-sdk/http";
 import { HttpClient } from "./http.js";
 import { AutomationsApi } from "./resources/automations.js";
-import { AppConnectionsApi } from "./resources/app-connections.js";
+import { AppConnectionsApi } from "./resources/connections.js";
 import type { DataPlaneResources } from "./data-plane.js";
 import type { IntrospectionClient } from "./client.js";
 
@@ -33,8 +37,8 @@ export type RunnerSource =
  * Live handle to a Data Plane sandbox. Holds the bearer JWT, the DP
  * endpoint URL, and the runtime/experiment context, and exposes the
  * runner-bound Data Plane namespaces ({@link DataPlaneResources}: `tasks`,
- * `files`, `conversations`, `events`, `metrics`, `shares`, `automations`
- * and `connections`), which send the runner's bearer and use its
+ * `files`, `conversations`, `events`, `metrics`, `shares`, `approvals`,
+ * `missions`, `automations`, `images` and `connections`), which send the runner's bearer and use its
  * runtime context.
  *
  * A runner a member opens for themself carries `automations:read` and
@@ -52,19 +56,25 @@ export class Runner implements DataPlaneResources {
   private closed = false;
 
   // Public API surfaces.
+  // jscpd:ignore-start -- field declarations of the resource namespaces
   readonly tasks: TasksApi;
   readonly files: FilesApi;
   readonly conversations: ConversationsApi;
   readonly events: EventsApi;
   readonly metrics: MetricsApi;
   readonly shares: SharesApi;
+  readonly approvals: ApprovalsApi;
+  readonly missions: MissionsApi;
   /** CRUD on `/v1/automations` plus `trigger(id)`, on the runner's token. */
   readonly automations: AutomationsApi;
+  /** `/v1/images`, on the runner's token. */
+  readonly images: ImagesApi;
   /**
    * CRUD on `/v1/connections`. `create` defaults `runtime` to this runner's
    * runtime group.
    */
   readonly connections: AppConnectionsApi;
+  // jscpd:ignore-end
 
   constructor(
     private readonly client: IntrospectionClient,
@@ -73,17 +83,22 @@ export class Runner implements DataPlaneResources {
   ) {
     this.spec = spec;
     this.http = this.buildHttp();
+    // jscpd:ignore-start — one line per resource, alike only in shape.
     this.tasks = new TasksApi(this.guardedHttp());
     this.files = new FilesApi(this.guardedHttp());
     this.conversations = new ConversationsApi(this.guardedHttp());
     this.events = new EventsApi(this.guardedHttp());
     this.metrics = new MetricsApi(this.guardedHttp());
     this.shares = new SharesApi(this.guardedHttp());
+    this.approvals = new ApprovalsApi(this.guardedHttp());
+    this.missions = new MissionsApi(this.guardedHttp());
     this.automations = new AutomationsApi(this.guardedHttp());
+    this.images = new ImagesApi(this.guardedHttp());
     this.connections = new AppConnectionsApi(
       this.guardedHttp(),
       () => this.spec.runtime_context?.runtime_group_id,
     );
+    // jscpd:ignore-end
   }
 
   // --- public accessors ---
@@ -212,7 +227,7 @@ export class Runner implements DataPlaneResources {
 
   private async requestFreshSpec(): Promise<RunnerSpec> {
     const http = this.client.cpHttp;
-    const body = toRunBody(this.source.options);
+    const body = toRunRequestBody(this.source.options);
     if (this.source.kind === "runtime") {
       return await http.request<RunnerSpec>({
         method: "POST",
@@ -226,15 +241,4 @@ export class Runner implements DataPlaneResources {
       body,
     });
   }
-}
-
-function toRunBody(opts?: RunRequest): Record<string, unknown> {
-  if (!opts) return {};
-  const out: Record<string, unknown> = {};
-  if (opts.identity) out.identity = opts.identity;
-  if (opts.caller) out.caller = opts.caller;
-  if (opts.agent_name !== undefined) out.agent_name = opts.agent_name;
-  if (opts.ttl_seconds !== undefined) out.ttl_seconds = opts.ttl_seconds;
-  if (opts.scope !== undefined) out.scope = opts.scope;
-  return out;
 }

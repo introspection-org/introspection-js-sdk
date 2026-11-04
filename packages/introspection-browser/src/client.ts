@@ -6,13 +6,18 @@
  * browser SDK with Zone.js for automatic propagation) or via client instance.
  */
 
-import { SeverityNumber, type LogAttributes } from "@opentelemetry/api-logs";
+import type { LogAttributes } from "@opentelemetry/api-logs";
 import {
   LoggerProvider,
   BatchLogRecordProcessor,
 } from "@opentelemetry/sdk-logs";
 import { OTLPLogExporter } from "@opentelemetry/exporter-logs-otlp-http";
-import { propagation, context } from "@opentelemetry/api";
+import {
+  LogEventClient,
+  activeBaggageValue,
+  logBatchConfig,
+  logsEndpoint,
+} from "@introspection-sdk/types/logs";
 import {
   defaultResource,
   resourceFromAttributes,
@@ -20,24 +25,10 @@ import {
 import { ATTR_SERVICE_NAME } from "@opentelemetry/semantic-conventions";
 import { VERSION } from "./version.js";
 import {
-  generateEventId,
-  reservedEventNamePrefix,
-  toAttributeValue,
   type IntrospectionClientOptions,
-  type FeedbackOptions,
-  type LogEventOptions,
-  type LogEventSeverity,
   type UserTraits,
-  type GenAiContext,
   type IdentityContext,
 } from "./types.js";
-
-const SEVERITY_NUMBERS: Record<LogEventSeverity, SeverityNumber> = {
-  DEBUG: SeverityNumber.DEBUG,
-  INFO: SeverityNumber.INFO,
-  WARN: SeverityNumber.WARN,
-  ERROR: SeverityNumber.ERROR,
-};
 
 const ANONYMOUS_ID_KEY = "introspection_anonymous_id";
 const USER_ID_KEY = "introspection_user_id";
@@ -133,9 +124,9 @@ function attachFlushListeners(flush: () => void): () => void {
   };
 }
 
-export class IntrospectionClient {
+export class IntrospectionClient extends LogEventClient {
   private loggerProvider: LoggerProvider;
-  private otelLogger: ReturnType<LoggerProvider["getLogger"]>;
+  protected otelLogger: ReturnType<LoggerProvider["getLogger"]>;
   /** Removes the page-unload flush listeners; set only in a browser. */
   private detachFlushListeners?: () => void;
   private userId: string | undefined;
@@ -147,6 +138,7 @@ export class IntrospectionClient {
    * @param options - Client configuration (token, service name, advanced settings).
    */
   constructor(options: IntrospectionClientOptions = {}) {
+    super();
     const token = options.token || "";
     const advanced = options.advanced || {};
     const baseUrl =
@@ -166,12 +158,7 @@ export class IntrospectionClient {
     }
 
     // Construct endpoint URL for logs
-    let endpoint: string;
-    if (baseUrl.endsWith("/v1/logs")) {
-      endpoint = baseUrl;
-    } else {
-      endpoint = `${baseUrl.replace(/\/$/, "")}/v1/logs`;
-    }
+    const endpoint = logsEndpoint(baseUrl);
 
     // Build headers
     const headers: Record<string, string> = {
@@ -195,20 +182,7 @@ export class IntrospectionClient {
     // Create batch processor
     const processor = new BatchLogRecordProcessor({
       exporter,
-      // maxBatchSize is the export batch size, not the queue bound. Wired to
-      // maxQueueSize it left the queue at 100 while the batch size kept its
-      // default of 512, which OTel warns about and clamps on every
-      // construction.
-      maxExportBatchSize: advanced.maxBatchSize ?? 100,
-      scheduledDelayMillis: advanced.flushInterval ?? 5000,
-      // Passed only when set, so an unset option leaves the OTel SDK's own
-      // default (and its env-var override) in charge.
-      ...(advanced.maxQueueSize != null
-        ? { maxQueueSize: advanced.maxQueueSize }
-        : {}),
-      ...(advanced.exportTimeoutMillis != null
-        ? { exportTimeoutMillis: advanced.exportTimeoutMillis }
-        : {}),
+      ...logBatchConfig(advanced),
     });
 
     // Merge onto the default resource rather than replacing it: the default
@@ -320,26 +294,12 @@ export class IntrospectionClient {
     }
   }
 
-  /** Get gen_ai context from baggage */
-  private getGenAiFromContext(): GenAiContext {
-    const baggage = propagation.getBaggage(context.active());
-    return {
-      conversationId: baggage?.getEntry("gen_ai.conversation.id")?.value,
-      previousResponseId: baggage?.getEntry(
-        "gen_ai.request.previous_response_id",
-      )?.value,
-      agentName: baggage?.getEntry("gen_ai.agent.name")?.value,
-      agentId: baggage?.getEntry("gen_ai.agent.id")?.value,
-    };
-  }
-
   /** Get identity from baggage or client instance */
-  private getIdentityFromContext(): IdentityContext {
-    const baggage = propagation.getBaggage(context.active());
+  protected getIdentityFromContext(): IdentityContext {
     return {
-      userId: baggage?.getEntry("identity.user_id")?.value || this.userId,
+      userId: activeBaggageValue("identity.user_id") || this.userId,
       anonymousId:
-        baggage?.getEntry("identity.anonymous_id")?.value || this.anonymousId,
+        activeBaggageValue("identity.anonymous_id") || this.anonymousId,
     };
   }
 
@@ -347,7 +307,7 @@ export class IntrospectionClient {
    * Get current timestamp as OpenTelemetry HrTime.
    * Uses performance.now() for high-resolution timing in browsers.
    */
-  private getTimestamp(): [number, number] {
+  protected getTimestamp(): [number, number] {
     const timeOrigin = performance.timeOrigin;
     const now = performance.now();
     const epochMs = timeOrigin + now;
@@ -356,231 +316,26 @@ export class IntrospectionClient {
     return [seconds, nanos];
   }
 
-  /**
-   * Build log record attributes.
-   */
-  private buildAttributes(
-    eventName: string,
-    options: {
-      properties?: Record<string, unknown>;
-      traits?: Record<string, unknown>;
-      conversationId?: string;
-      previousResponseId?: string;
-      eventId?: string;
-      /** Identity known at the call site, overriding the context. */
-      identity?: IdentityContext;
-    } = {},
-  ): LogAttributes {
-    const { properties, traits, conversationId, previousResponseId, eventId } =
-      options;
+  protected debugLog(message: string): void {
+    this.logger.log(message);
+  }
 
-    // Core fields
-    const attributes: LogAttributes = {
-      "event.name": eventName,
-      "event.id": eventId || generateEventId(),
+  /** Browser page, locale and screen context. */
+  protected platformAttributes(): LogAttributes | undefined {
+    if (typeof window === "undefined") return undefined;
+    return {
+      "context.page.path": window.location.pathname,
+      "context.page.url": window.location.href,
+      "context.page.title": document.title,
+      "context.page.referrer": document.referrer,
+      "context.page.search": window.location.search,
+      "context.userAgent": navigator.userAgent,
+      "context.locale": navigator.language,
+      "context.timezone": Intl.DateTimeFormat().resolvedOptions().timeZone,
+      "context.screen.width": window.screen.width,
+      "context.screen.height": window.screen.height,
+      "context.screen.density": window.devicePixelRatio,
     };
-
-    // Browser context
-    if (typeof window !== "undefined") {
-      attributes["context.page.path"] = window.location.pathname;
-      attributes["context.page.url"] = window.location.href;
-      attributes["context.page.title"] = document.title;
-      attributes["context.page.referrer"] = document.referrer;
-      attributes["context.page.search"] = window.location.search;
-      attributes["context.userAgent"] = navigator.userAgent;
-      attributes["context.locale"] = navigator.language;
-      attributes["context.timezone"] =
-        Intl.DateTimeFormat().resolvedOptions().timeZone;
-      attributes["context.screen.width"] = window.screen.width;
-      attributes["context.screen.height"] = window.screen.height;
-      attributes["context.screen.density"] = window.devicePixelRatio;
-    }
-
-    // Identity
-    const identity = options.identity ?? this.getIdentityFromContext();
-    if (identity.userId) {
-      attributes["identity.user.id"] = identity.userId;
-    }
-    if (identity.anonymousId) {
-      attributes["identity.anonymous.id"] = identity.anonymousId;
-    }
-
-    // Gen AI context (explicit params override baggage)
-    const genAi = this.getGenAiFromContext();
-    const finalConversationId = conversationId || genAi.conversationId;
-    const finalPreviousResponseId =
-      previousResponseId || genAi.previousResponseId;
-
-    if (finalConversationId) {
-      attributes["gen_ai.conversation.id"] = finalConversationId;
-    }
-    if (finalPreviousResponseId) {
-      attributes["gen_ai.request.previous_response_id"] =
-        finalPreviousResponseId;
-    }
-    if (genAi.agentName) {
-      attributes["gen_ai.agent.name"] = genAi.agentName;
-    }
-    if (genAi.agentId) {
-      attributes["gen_ai.agent.id"] = genAi.agentId;
-    }
-
-    // Flatten properties with "properties." prefix
-    if (properties) {
-      for (const [key, value] of Object.entries(properties)) {
-        if (value != null) {
-          const attrKey = `properties.${key}`;
-          attributes[attrKey] = toAttributeValue(value);
-        }
-      }
-    }
-
-    // Flatten traits with "context.traits." prefix
-    if (traits) {
-      for (const [key, value] of Object.entries(traits)) {
-        if (value != null) {
-          const attrKey = `context.traits.${key}`;
-          attributes[attrKey] = toAttributeValue(value);
-        }
-      }
-    }
-
-    return attributes;
-  }
-
-  /**
-   * Log an app event under any custom name, e.g. `"ark.feed.entry"`.
-   *
-   * `attributes` land under `properties.*`, which is where the platform's
-   * `introspection.track` read projection finds them. Identity comes from
-   * baggage, then the client instance, unless `options.identity` overrides it.
-   *
-   * Pass a stable `options.eventId` when delivery may repeat: consumers
-   * dedupe on it, so re-sending the same id is safe.
-   *
-   * @throws Error when `name` is empty or falls under a reserved namespace
-   *   (`introspection.*`, `gen_ai.*`).
-   *
-   * @example
-   * ```ts
-   * client.logEvent("checkout.completed", { orderId: "o_1", total: 42 });
-   * ```
-   */
-  logEvent(
-    name: string,
-    attributes?: Record<string, unknown>,
-    options: LogEventOptions = {},
-  ): void {
-    if (!name) {
-      throw new Error("logEvent: event name must be a non-empty string.");
-    }
-    const reserved = reservedEventNamePrefix(name);
-    if (reserved) {
-      throw new Error(
-        `logEvent: event name "${name}" is in the reserved "${reserved}*" namespace, which belongs to the platform and OpenTelemetry. Use your own prefix, e.g. "myapp.${name.slice(reserved.length)}".`,
-      );
-    }
-    const contextIdentity = this.getIdentityFromContext();
-    const severity = options.severity ?? "INFO";
-
-    this.otelLogger.emit({
-      timestamp: options.timestamp ?? this.getTimestamp(),
-      context: context.active(),
-      severityNumber: SEVERITY_NUMBERS[severity],
-      severityText: severity,
-      attributes: this.buildAttributes(name, {
-        properties: attributes,
-        eventId: options.eventId,
-        identity: {
-          userId: options.identity?.userId ?? contextIdentity.userId,
-          anonymousId:
-            options.identity?.anonymousId ?? contextIdentity.anonymousId,
-        },
-      }),
-    });
-
-    this.logger.log(`Logged event: ${name}`);
-  }
-
-  /**
-   * Track a custom event. A thin alias of {@link logEvent}.
-   *
-   * @param eventName - The event name (e.g., `"Button Clicked"`).
-   * @param properties - Optional properties to attach to the event.
-   * @param options - Optional overrides (e.g., custom `eventId`).
-   *
-   * @example
-   * ```ts
-   * client.track("Button Clicked", { buttonId: "submit" });
-   * ```
-   */
-  track(
-    eventName: string,
-    properties?: Record<string, unknown>,
-    options?: { eventId?: string },
-  ): void {
-    this.logEvent(eventName, properties, { eventId: options?.eventId });
-  }
-
-  /**
-   * Track feedback on a message or response.
-   *
-   * gen_ai.conversation.id, gen_ai.request.previous_response_id, and agent context
-   * are automatically extracted from baggage if not provided explicitly.
-   *
-   * @param name - Feedback name/action (e.g., "thumbs_up", "thumbs_down")
-   * @param options - Optional feedback options
-   *
-   * @example
-   * ```typescript
-   * // Simple feedback
-   * client.feedback("thumbs_up");
-   *
-   * // With comments
-   * client.feedback("thumbs_down", { comments: "Off topic" });
-   *
-   * // With explicit gen_ai context
-   * client.feedback("thumbs_up", {
-   *   conversationId: "conv_456",
-   *   previousResponseId: "msg_123",
-   * });
-   *
-   * // With baggage context
-   * await client.withConversation("conv_456", undefined, async () => {
-   *   client.feedback("thumbs_up"); // auto-includes conversation_id
-   * });
-   * ```
-   */
-  feedback(name: string, options: FeedbackOptions = {}): void {
-    const { comments, conversationId, previousResponseId, eventId, ...extra } =
-      options;
-
-    // `name` last: it is the positional argument, so an `extra` key that
-    // happens to be called `name` must not silently replace the feedback
-    // name the caller passed.
-    const properties: Record<string, unknown> = { ...extra, name };
-    // `!= null`, not truthiness: `comments: ""` is a comment the caller
-    // supplied.
-    if (comments != null) {
-      properties.comments = comments;
-    }
-
-    const attributes = this.buildAttributes("introspection.feedback", {
-      properties,
-      conversationId: conversationId as string | undefined,
-      previousResponseId: previousResponseId as string | undefined,
-      eventId: eventId as string | undefined,
-    });
-
-    this.otelLogger.emit({
-      timestamp: this.getTimestamp(),
-      context: context.active(),
-      severityNumber: SeverityNumber.INFO,
-      severityText: "INFO",
-      attributes,
-    });
-
-    this.logger.log(`Feedback: ${name}`);
   }
 
   /**
@@ -614,15 +369,7 @@ export class IntrospectionClient {
       this.persistTraits(this.traits);
     }
 
-    const attributes = this.buildAttributes("identify", { traits, eventId });
-
-    this.otelLogger.emit({
-      timestamp: this.getTimestamp(),
-      context: context.active(),
-      severityNumber: SeverityNumber.INFO,
-      severityText: "INFO",
-      attributes,
-    });
+    this.emit(this.buildAttributes("identify", { traits, eventId }));
 
     this.logger.log(`Identified: ${userId}`);
   }
@@ -684,186 +431,6 @@ export class IntrospectionClient {
    */
   getUserId(): string | undefined {
     return this.userId;
-  }
-
-  /**
-   * Create a context with baggage values set.
-   * Use with context.with() to run code in that context.
-   *
-   * Note: In browsers, automatic context propagation requires Zone.js.
-   * Without it, you must manually pass context through async operations.
-   *
-   * @param values - Key/value pairs to set as baggage
-   * @returns Context with baggage set
-   *
-   * @example
-   * ```typescript
-   * const ctx = client.createBaggageContext({
-   *   "gen_ai.agent.name": "support-bot",
-   *   "gen_ai.conversation.id": "conv_456"
-   * });
-   *
-   * await context.with(ctx, async () => {
-   *   client.feedback("thumbs_up"); // picks up baggage
-   * });
-   * ```
-   */
-  createBaggageContext(values: Record<string, string>) {
-    const ctx = context.active();
-    let bag = propagation.getBaggage(ctx) || propagation.createBaggage();
-
-    for (const [key, value] of Object.entries(values)) {
-      bag = bag.setEntry(key, { value });
-    }
-
-    return propagation.setBaggage(ctx, bag);
-  }
-
-  /**
-   * Helper to set multiple baggage values and run a callback.
-   *
-   * @param values - Key/value pairs to set as baggage.
-   * @param callback - Function to run with baggage context.
-   * @returns The return value of the callback.
-   *
-   * @example
-   * ```typescript
-   * await client.withBaggage({
-   *   "gen_ai.conversation.id": "conv_456",
-   *   "gen_ai.request.previous_response_id": "resp_123"
-   * }, async () => {
-   *   client.feedback("thumbs_up");
-   * });
-   * ```
-   */
-  async withBaggage<T>(
-    values: Record<string, string>,
-    callback: () => T | Promise<T>,
-  ): Promise<T> {
-    const ctx = this.createBaggageContext(values);
-    return await context.with(ctx, callback);
-  }
-
-  /**
-   * Helper to set agent baggage and run a callback.
-   *
-   * @param agentName - Name of the agent.
-   * @param agentId - Optional unique identifier for the agent.
-   * @param callback - Function to run with agent context.
-   * @returns The return value of the callback.
-   *
-   * @example
-   * ```typescript
-   * await client.withAgent("support-bot", "agent_123", async () => {
-   *   client.feedback("thumbs_up");
-   * });
-   * ```
-   */
-  async withAgent<T>(
-    agentName: string,
-    agentId: string | undefined,
-    callback: () => T | Promise<T>,
-  ): Promise<T> {
-    const values: Record<string, string> = {
-      "gen_ai.agent.name": agentName,
-    };
-    if (agentId) {
-      values["gen_ai.agent.id"] = agentId;
-    }
-    const ctx = this.createBaggageContext(values);
-    return await context.with(ctx, callback);
-  }
-
-  /**
-   * Helper to set conversation baggage and run a callback.
-   *
-   * @param conversationId - Unique identifier for the conversation (optional).
-   * @param previousResponseId - Previous response ID for conversation continuity (optional).
-   * @param callback - Function to run with conversation context.
-   * @returns The return value of the callback.
-   *
-   * @example
-   * ```typescript
-   * // Simple conversation context
-   * await client.withConversation("conv_456", undefined, async () => {
-   *   client.feedback("thumbs_up");
-   * });
-   *
-   * // With previous response for conversation continuity
-   * await client.withConversation("conv_456", "resp_123", async () => {
-   *   client.feedback("thumbs_up");
-   * });
-   *
-   * // Just previousResponseId when already in a conversation
-   * await client.withConversation("conv_456", undefined, async () => {
-   *   await client.withConversation(undefined, "resp_1", async () => {
-   *     client.feedback("thumbs_up");
-   *   });
-   * });
-   * ```
-   */
-  async withConversation<T>(
-    conversationId: string | undefined,
-    previousResponseId: string | undefined,
-    callback: () => T | Promise<T>,
-  ): Promise<T> {
-    const values: Record<string, string> = {};
-    if (conversationId) {
-      values["gen_ai.conversation.id"] = conversationId;
-    }
-    if (previousResponseId) {
-      values["gen_ai.request.previous_response_id"] = previousResponseId;
-    }
-    const ctx = this.createBaggageContext(values);
-    return await context.with(ctx, callback);
-  }
-
-  /**
-   * Helper to set user ID baggage and run a callback.
-   *
-   * @param userId - User identifier.
-   * @param callback - Function to run with user context.
-   * @returns The return value of the callback.
-   *
-   * @example
-   * ```typescript
-   * await client.withUserId("user_123", async () => {
-   *   client.feedback("thumbs_up");
-   * });
-   * ```
-   */
-  async withUserId<T>(
-    userId: string,
-    callback: () => T | Promise<T>,
-  ): Promise<T> {
-    const ctx = this.createBaggageContext({
-      "identity.user_id": userId,
-    });
-    return await context.with(ctx, callback);
-  }
-
-  /**
-   * Helper to set anonymous ID baggage and run a callback.
-   *
-   * @param anonymousId - Anonymous visitor identifier.
-   * @param callback - Function to run with anonymous context.
-   * @returns The return value of the callback.
-   *
-   * @example
-   * ```ts
-   * await client.withAnonymousId("anon-abc", async () => {
-   *   client.feedback("thumbs_up");
-   * });
-   * ```
-   */
-  async withAnonymousId<T>(
-    anonymousId: string,
-    callback: () => T | Promise<T>,
-  ): Promise<T> {
-    const ctx = this.createBaggageContext({
-      "identity.anonymous_id": anonymousId,
-    });
-    return await context.with(ctx, callback);
   }
 
   /**

@@ -222,7 +222,12 @@ export interface InputMessage {
  */
 export interface OutputMessage {
   role: MessageRole;
-  parts: MessagePart[];
+  /**
+   * Content parts. May be absent: a model call cut off before it produced
+   * anything is recorded with an `aborted` output and no parts. Read a
+   * missing value as empty.
+   */
+  parts?: MessagePart[];
   /** Model-reported finish reason (e.g. `"stop"`, `"length"`, `"tool_use"`). */
   finish_reason?: string;
   /** Optional tool name when `role` is `"tool"`. */
@@ -428,6 +433,26 @@ export const IntrospectionAttr = {
 } as const;
 
 /**
+ * Attributes on an `execute_tool` span for a tool an MCP server serves. A
+ * built-in tool's span carries none of them.
+ */
+export const McpAttr = {
+  /** The server id the Recipe declares. */
+  SERVER_ID: "mcp.server.id",
+  /** The tool's name in the server's contract, before any prefix the client adds. */
+  TOOL_NAME: "mcp.tool.name",
+  /** Where the server was bound from; see {@link McpServerBinding}. */
+  SERVER_BINDING: "mcp.server.binding",
+} as const;
+
+/**
+ * Where an MCP server was bound from: `live` is a project `kind: mcp`
+ * endpoint, `recipe` an eval task's committed binding to a fake, `local` an
+ * `introspection dev` session's local binding.
+ */
+export type McpServerBinding = "live" | "recipe" | "local";
+
+/**
  * Extract provider-reported cost attributes from a raw LLM usage block.
  *
  * OpenAI-compatible gateways (e.g. OpenRouter with `usage: {include: true}`)
@@ -455,25 +480,30 @@ export function providerCostAttributes(usage: unknown): Record<string, number> {
     attrs[IntrospectionAttr.LLM_COST_USD] = usageRecord.cost;
   }
 
-  const costDetails = usageRecord.cost_details;
-  if (costDetails !== null && typeof costDetails === "object") {
-    const upstreamCost = (costDetails as Record<string, unknown>)
-      .upstream_inference_cost;
-    if (isFiniteNumber(upstreamCost)) {
-      attrs[IntrospectionAttr.LLM_UPSTREAM_COST_USD] = upstreamCost;
-    }
+  const upstreamCost = nestedValue(
+    usageRecord.cost_details,
+    "upstream_inference_cost",
+  );
+  if (isFiniteNumber(upstreamCost)) {
+    attrs[IntrospectionAttr.LLM_UPSTREAM_COST_USD] = upstreamCost;
   }
 
-  const completionDetails = usageRecord.completion_tokens_details;
-  if (completionDetails !== null && typeof completionDetails === "object") {
-    const reasoningTokens = (completionDetails as Record<string, unknown>)
-      .reasoning_tokens;
-    if (isFiniteNumber(reasoningTokens)) {
-      attrs[GenAi.USAGE_REASONING_TOKENS] = reasoningTokens;
-    }
+  const reasoningTokens = nestedValue(
+    usageRecord.completion_tokens_details,
+    "reasoning_tokens",
+  );
+  if (isFiniteNumber(reasoningTokens)) {
+    attrs[GenAi.USAGE_REASONING_TOKENS] = reasoningTokens;
   }
 
   return attrs;
+}
+
+/** `container[key]` when `container` is an object, else `undefined`. */
+function nestedValue(container: unknown, key: string): unknown {
+  return container !== null && typeof container === "object"
+    ? (container as Record<string, unknown>)[key]
+    : undefined;
 }
 
 function isFiniteNumber(value: unknown): value is number {

@@ -7,6 +7,53 @@ export interface StreamFrame {
   retry?: number;
 }
 
+/** The fields of the frame being read, until a blank line ends it. */
+interface FrameDraft {
+  name: string;
+  data: string[];
+  id?: string;
+  retry?: number;
+}
+
+const emptyDraft = (): FrameDraft => ({ name: "message", data: [] });
+
+/**
+ * End the frame in `draft` and reset it. An empty draft yields no frame and
+ * keeps its `retry`.
+ */
+function flushDraft(draft: FrameDraft): StreamFrame | null {
+  if (
+    draft.data.length === 0 &&
+    draft.name === "message" &&
+    draft.id === undefined
+  ) {
+    return null;
+  }
+  const frame: StreamFrame = { name: draft.name, data: draft.data.join("\n") };
+  if (draft.id !== undefined) frame.id = draft.id;
+  if (draft.retry !== undefined) frame.retry = draft.retry;
+  draft.name = "message";
+  draft.data = [];
+  draft.id = undefined;
+  draft.retry = undefined;
+  return frame;
+}
+
+/** Apply one non-blank stream line to `draft`; comment lines are ignored. */
+function applyLine(draft: FrameDraft, line: string): void {
+  if (line.startsWith(":")) return;
+  const colon = line.indexOf(":");
+  const field = colon < 0 ? line : line.slice(0, colon);
+  const valueRaw = colon < 0 ? "" : line.slice(colon + 1).replace(/^ /, "");
+  if (field === "event") draft.name = valueRaw;
+  else if (field === "data") draft.data.push(valueRaw);
+  else if (field === "id") draft.id = valueRaw;
+  else if (field === "retry") {
+    const n = Number(valueRaw);
+    if (Number.isFinite(n)) draft.retry = n;
+  }
+}
+
 /**
  * Parse the HTTP stream transport frames. Package-internal: the public task
  * streaming surface yields AG-UI events, but the resumable consumer
@@ -20,23 +67,7 @@ export async function* parseStreamFrames(
   const reader = res.body.getReader();
   const decoder = new TextDecoder();
   let buf = "";
-  let name = "message";
-  let data: string[] = [];
-  let id: string | undefined;
-  let retry: number | undefined;
-  const flush = (): StreamFrame | null => {
-    if (data.length === 0 && name === "message" && id === undefined) {
-      return null;
-    }
-    const frame: StreamFrame = { name, data: data.join("\n") };
-    if (id !== undefined) frame.id = id;
-    if (retry !== undefined) frame.retry = retry;
-    name = "message";
-    data = [];
-    id = undefined;
-    retry = undefined;
-    return frame;
-  };
+  const draft = emptyDraft();
   try {
     while (true) {
       const { value, done } = await reader.read();
@@ -46,23 +77,12 @@ export async function* parseStreamFrames(
       while ((nl = buf.indexOf("\n")) >= 0) {
         const line = buf.slice(0, nl).replace(/\r$/, "");
         buf = buf.slice(nl + 1);
-        if (line === "") {
-          const frame = flush();
-          if (frame) yield frame;
+        if (line !== "") {
+          applyLine(draft, line);
           continue;
         }
-        if (line.startsWith(":")) continue;
-        const colon = line.indexOf(":");
-        const field = colon < 0 ? line : line.slice(0, colon);
-        const valueRaw =
-          colon < 0 ? "" : line.slice(colon + 1).replace(/^ /, "");
-        if (field === "event") name = valueRaw;
-        else if (field === "data") data.push(valueRaw);
-        else if (field === "id") id = valueRaw;
-        else if (field === "retry") {
-          const n = Number(valueRaw);
-          if (Number.isFinite(n)) retry = n;
-        }
+        const frame = flushDraft(draft);
+        if (frame) yield frame;
       }
     }
     // Anything still in `buf` at EOF is a frame with no terminating blank

@@ -1,3 +1,4 @@
+// jscpd:ignore-start -- import list: the same names as every resource client's
 import type {
   Connection,
   ConnectionCreateParams,
@@ -14,11 +15,13 @@ import type {
   ConnectorOAuthDiscoveryResponse,
   ConnectorUpdateParams,
   CursorParams,
-  Paginated,
+  ProjectRef,
   Uuid,
 } from "@introspection-sdk/types";
+// jscpd:ignore-end
 import type { HttpClient } from "../http.js";
-import { Paginator, cursorPaginate } from "../pagination.js";
+import { Paginator, paginateGet } from "../pagination.js";
+import { projectQuery } from "./project-scoped.js";
 
 /**
  * Connections nested under a connector
@@ -36,13 +39,10 @@ export class ConnectionsApi {
    * (fetched lazily; stop early to stop fetching).
    */
   list(connectorId: Uuid, params: CursorParams = {}): Paginator<Connection> {
-    return cursorPaginate(
-      (next) =>
-        this.http.request<Paginated<Connection>>({
-          method: "GET",
-          path: `/v1/connectors/${encodeURIComponent(connectorId)}/connections`,
-          query: { ...params, next } as Record<string, unknown>,
-        }),
+    return paginateGet<Connection>(
+      this.http,
+      `/v1/connectors/${encodeURIComponent(connectorId)}/connections`,
+      params,
       params.next,
     );
   }
@@ -76,10 +76,15 @@ export class ConnectionsApi {
    * destroys the provider token behind it — the subject must re-consent
    * to connect again.
    */
-  revoke(connectorId: Uuid, connectionId: Uuid): Promise<void> {
+  revoke(
+    connectorId: Uuid,
+    connectionId: Uuid,
+    project?: ProjectRef,
+  ): Promise<void> {
     return this.http.request<void>({
       method: "DELETE",
       path: `/v1/connectors/${encodeURIComponent(connectorId)}/connections/${encodeURIComponent(connectionId)}`,
+      query: projectQuery(project),
       expect: "empty",
     });
   }
@@ -125,13 +130,10 @@ export class ConnectorsApi {
    * cursor; stop early to stop fetching).
    */
   list(params: ConnectorListParams = {}): Paginator<Connector> {
-    return cursorPaginate(
-      (next) =>
-        this.http.request<Paginated<Connector>>({
-          method: "GET",
-          path: "/v1/connectors",
-          query: { ...params, next } as Record<string, unknown>,
-        }),
+    return paginateGet<Connector>(
+      this.http,
+      "/v1/connectors",
+      params,
       params.next,
     );
   }
@@ -164,10 +166,12 @@ export class ConnectorsApi {
   }
 
   /** Soft-delete a connector; the server revokes its connections. */
-  delete(connectorId: Uuid): Promise<void> {
+  /** `project` selects the project for a credential that names none. */
+  delete(connectorId: Uuid, project?: ProjectRef): Promise<void> {
     return this.http.request<void>({
       method: "DELETE",
       path: `/v1/connectors/${encodeURIComponent(connectorId)}`,
+      query: projectQuery(project),
       expect: "empty",
     });
   }

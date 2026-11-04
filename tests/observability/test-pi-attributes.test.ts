@@ -20,6 +20,7 @@ import {
   chatResponseAttributes,
   executeToolAttributes,
   executeToolResultAttribute,
+  mcpToolAttributes,
   type AgentMeta,
 } from "../../packages/introspection-pi/src/attributes";
 
@@ -388,6 +389,47 @@ describe("executeToolAttributes / executeToolResultAttribute", () => {
     });
     expect(JSON.parse(String(attrs["gen_ai.tool.call.arguments"]))).toEqual({
       cmd: "ls",
+    });
+  });
+
+  it("records the MCP origin of a tool an MCP server serves", () => {
+    const attrs = executeToolAttributes(
+      "mcp_attio_list-records_0123456789",
+      "call-1",
+      {},
+      META,
+      undefined,
+      {
+        serverId: "attio",
+        toolName: "list-records",
+        binding: "recipe",
+      },
+    );
+    expect(
+      Object.fromEntries(
+        Object.entries(attrs).filter(([key]) => key.startsWith("mcp.")),
+      ),
+    ).toEqual({
+      "mcp.server.id": "attio",
+      "mcp.tool.name": "list-records",
+      "mcp.server.binding": "recipe",
+    });
+  });
+
+  it("records no MCP attributes for a built-in tool", () => {
+    const attrs = executeToolAttributes("bash", "call-1", {}, META);
+    expect(Object.keys(attrs).filter((key) => key.startsWith("mcp."))).toEqual(
+      [],
+    );
+    expect(mcpToolAttributes(undefined)).toEqual({});
+  });
+
+  it("leaves out the binding when the host does not know it", () => {
+    expect(
+      mcpToolAttributes({ serverId: "attio", toolName: "list-records" }),
+    ).toEqual({
+      "mcp.server.id": "attio",
+      "mcp.tool.name": "list-records",
     });
   });
 

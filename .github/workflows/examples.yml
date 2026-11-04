@@ -57,3 +57,28 @@ jobs:
           OTEL_EXPORTER_OTLP_ENDPOINT: ${{ vars.OTEL_EXPORTER_OTLP_ENDPOINT }}
           OTEL_EXPORTER_OTLP_HEADERS: ${{ secrets.OTEL_EXPORTER_OTLP_HEADERS }}
         run: ./run_all.sh
+
+      # Docs snippets. Left out: files whose regions hardcode the docs'
+      # runtime slugs (reference/javascript-run-task, identity/agents,
+      # patterns/multi-tenant, patterns/trigger), files that need
+      # service-account secrets (reference/auth-service-account,
+      # patterns/add-to-your-app, patterns/web-chat), a browser redirect code
+      # (reference/auth-hosted-login) or a Pipedream connector
+      # (patterns/per-user-tools*). browser/ is typecheck-only.
+      - name: Run docs snippets
+        if: inputs.run_examples
+        working-directory: examples
+        env:
+          INTROSPECTION_TOKEN: ${{ secrets.INTROSPECTION_TOKEN }}
+          INTROSPECTION_BASE_OTEL_URL: ${{ vars.INTROSPECTION_BASE_OTEL_URL }}
+        run: |
+          node --import tsx reference/auth-api-key.ts
+          node --import tsx reference/javascript.ts
+          node --import tsx reference/javascript-feedback.ts
+          node --import tsx observe/feedback-events.ts
+          node --import tsx identity/sharing.ts
+          node --import tsx patterns/agent-follow-ups.ts
+          node --import tsx patterns/approve-outside.ts
+          node --import tsx patterns/ask-the-user.ts
+          node --import tsx patterns/files.ts
+          node --import tsx patterns/structured-output.ts

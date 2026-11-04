@@ -27,6 +27,8 @@ open coverage/index.html
 
 Tests run in vitest with `isolate: true` + `pool: "forks"`, so each test file gets its own worker process. OTel global state cannot leak between files. Within a single file, use `installTestOTelGlobals()` from `tests/polly-setup.ts` to keep the per-test state clean.
 
+On Node 25+, run the tests and the pre-commit hook with `NODE_OPTIONS=--no-experimental-webstorage`: Node's built-in `localStorage` breaks the browser tests. CI uses Node 22.
+
 ---
 
 ## 2. Pre-commit hook expectations
@@ -49,6 +51,55 @@ If your branch is intentionally adding code that can't be covered by unit tests 
 ## 3. CI gating
 
 `.github/workflows/ci.yml` runs the same coverage check on every PR and uploads the HTML report as a downloadable artifact. CI is the source of truth — if your local hook passes but CI fails, CI wins (your local has stale builds or stale deps).
+
+### Required check (All green)
+
+Branch rulesets require only the `All green` check (job `all-green` in `ci.yml`). It runs `re-actors/alls-green` over every other job in the file and fails when any of them fails, is cancelled or is skipped. So the ruleset never has to change when jobs are added, renamed or split.
+
+- **Add every new `ci.yml` job to `all-green`'s `needs`.** A job left out is not gated: it can fail and the PR still merges.
+- A job that skips by design (a job-level `if:`) goes into `allowed-skips` too, with the reason in a comment. Today none does, so `allowed-skips` is unset.
+
+### Unused code (Knip)
+
+The `knip` job in `ci.yml` runs `knip` and `knip --production` and fails on any finding. Run them locally with `pnpm knip` and `pnpm knip:production`. `knip.json` sets what counts as used:
+
+- Package entries come from each package's `exports` and `bin`, so a symbol is public API only when an entry exports it. Production mode checks only shipped code: each package's `src/**` and the runnable examples. Tests don't count in it.
+- `tests` is found through its Vitest configs, and `fixtures/*.mjs` are child scripts that tests spawn. `examples/{api,otel,proxy}` are runnable entries; the Next.js apps `examples/auth` and `examples/aauth-travel` are not checked.
+
+When Knip reports an export as unused, first check whether a package entry exports it or a README documents it:
+
+- If it's public API, keep it public by exporting it from the entry. A type in a public signature counts as public API.
+- If it's internal, remove the `export` keyword or the dead code.
+- If only tests use it, mark it `/** @internal */` (production mode skips those), or import it in the test from the module that defines it.
+
+Don't hide a finding in checked code with an `ignore*` option. Use those options only for code Knip doesn't check (the two Next.js apps) or can't see (a system binary such as `openssl`), and give the reason in the PR.
+
+### Size limits ratchet
+
+`packages/eslint-config/base.js` caps code size for every package that lints with it. Each limit sits at today's worst value across all packages, `introspection-types` included, so the current code passes; the targets are where we're heading:
+
+| Rule                                                     | Limit | Target |
+| -------------------------------------------------------- | ----: | -----: |
+| `complexity`                                             |    45 |     10 |
+| `max-lines` (per file, blank lines and comments skipped) |   993 |    400 |
+| `max-lines-per-function` (same skips)                    |   856 |     80 |
+| `max-params`                                             |     6 |      4 |
+| `max-depth`                                              |     4 |      4 |
+
+`eslint-plugin-only-warn` turns these into warnings, and every package's `lint` script runs `--max-warnings 0`, so a finding fails `pnpm lint:limits`, `pnpm lint` and the CI "Check size limits" step.
+
+Later PRs lower a limit step by step as they refactor the worst offenders, updating this table in the same PR. **Never raise a limit.** If new code exceeds one, split it.
+
+### Duplicate code (jscpd)
+
+```bash
+pnpm jscpd           # exact clones
+pnpm jscpd:renamed   # clones that differ only in identifier names
+```
+
+Both run a pinned `jscpd@5.4.1` over `packages/*/src` TypeScript (`.jscpd.json`: weak mode, `dist/` and `*.d.ts` ignored, 53 tokens / 9 lines minimum), and the `Duplicate Code` CI job fails on any clone from either. There is no threshold and no baseline: the count is zero and stays there.
+
+When one fires, extract the shared code: a helper in the package both copies already depend on (`@introspection-sdk/http` for resources, `@introspection-sdk/types` for pure helpers, a subpath such as `@introspection-sdk/types/logs` when the helper needs an OTel import the main entry must not take). Wrap a block in `// jscpd:ignore-start -- <reason>` / `// jscpd:ignore-end` only when it is declarations, not logic: a re-export list, an import list, or interface or field declarations that mirror a wire schema. Never use the markers on code that runs.
 
 ---
 
@@ -75,6 +126,8 @@ Examples:
 Example folders are top-level peers under `otel/`. Do not nest one under
 another.
 
+A docs region (`// #region docs:<id>`) must show every helper it calls that is defined in its example file: put SDK-work helpers inside the region before their first use, and stand-ins for the reader's own code as a minimal stub inside the region with a one-line "your app's code" comment.
+
 ### Tests folder layout
 
 ```
@@ -97,6 +150,13 @@ tests/recordings/<name>/recording.har
 ```
 
 Polly appends a `_<hash>` suffix to the cassette name (`pi-chat_3668022627/`). The files are HAR 1.2 and inspectable in any HAR viewer.
+
+### Import cycles and the browser boundary
+
+CI fails the `Lint & Type Check` job on either of these:
+
+- **Runtime import cycles.** `pnpm check-cycles` runs `madge --circular` over `packages/*/src`. `.madgerc` skips `import type`, so a type-only back-edge (such as `resources/*.ts` importing the `IntrospectionClient` type from `client.ts`) is allowed. To break a runtime cycle, move the shared code into a module both sides import, or make the back-edge `import type`.
+- **Node built-ins in browser-safe packages.** `introspection-browser`, `introspection-http` and `introspection-types` ship to browsers, so their `eslint.config.mjs` forbids importing `node:*` and every bare built-in name (`fs`, `path`, `crypto`, …) through `no-restricted-imports`. Node-only code belongs in `introspection-node`.
 
 ---
 
@@ -222,3 +282,35 @@ span processor on the provider receives the same spans (see
 `examples/otel/pi/dual-export.ts`, which is deliberately vendor-neutral —
 point it at any OTLP endpoint). What was removed were the vendor-specific
 tests and fixtures for frameworks that no longer exist, not the capability.
+
+## 9. Publishing packages
+
+`publish.yml` publishes every non-private package under `packages/` through npm trusted publishing (repository `introspection-org/introspection-js-sdk`, workflow `publish.yml`, environment `publish`). Never add an npm token: an `_authToken` overrides OIDC.
+
+Before a new package's first release:
+
+- **Declare `repository`** in its `package.json`, copied from a sibling with its own `directory`. Without it npm rejects the provenance (`E422`).
+- **Create it on npm and add its trusted publisher.** npm accepts a publisher only on an existing package, so publish a stub, then add the publisher above on the package's Settings page with Allow `npm publish` ticked. Without it the publish fails with `E404`.
+
+```bash
+d=$(mktemp -d) && cd "$d" && echo '{"name":"@introspection-sdk/<package>","version":"0.0.0"}' > package.json && npm publish --access public --tag placeholder
+```
+
+Mark a package `"private": true` to keep it off npm.
+
+### Package checks
+
+CI runs `pnpm check:packages` after `pnpm build` and fails on any finding. It runs each public package's `check:package` script: `publint --strict`, then `attw --pack . --profile esm-only` (`@arethetypeswrong/cli`). Run it locally after `pnpm build`. A new public package needs the same `check:package` script.
+
+The packages are ESM-only (`"type": "module"`, no CommonJS build). The `esm-only` profile ignores the `node10` and `node16`-from-CJS resolutions, because `require()` and the legacy `moduleResolution: "node"` are unsupported; supporting them would need a dual build. Every other attw problem in `node16`-from-ESM and `bundler` still fails the check.
+
+<!-- BEGIN:turborepo-agent-rules -->
+
+# This is NOT the Turborepo you know
+
+Turborepo configuration, task behavior, and CLI commands can vary between installed versions and may differ from your training data. Resolve the `turbo` package from this file's directory or relevant workspace; in monorepos, it may not be visible from the repository root. For example, run `node -p "require.resolve('turbo/package.json')"` from a workspace that depends on `turbo`.
+
+Read `docs/README.md` inside that installed package first, then read the relevant pages from its `docs/` directory before changing Turborepo configuration or commands. Heed deprecation notices. These bundled docs match the installed package version and are available without network access.
+
+This block is written and re-added by `turbo` before repository-scoped commands when an AI agent is detected. In the Turborepo source repository, its template is defined in `crates/turborepo-cli/src/cli/agent_guidance.rs`. Removing the managed block while updates are enabled means a later qualifying invocation will add it again. Set `"agentGuidance": false` in the root `turbo.json` or `turbo.jsonc` to opt out; this does not remove an existing block. Keep the block committed with your work to avoid an uncommitted change on the next agent invocation.
+<!-- END:turborepo-agent-rules -->

@@ -1,6 +1,6 @@
 # @introspection-sdk/introspection-proxy
 
-Route outbound `fetch` calls through the Introspection egress proxy for credential injection, or through a standard CONNECT forward proxy.
+Route outbound `fetch` calls through the sandbox's standard CONNECT forward proxy (`HTTPS_PROXY`), or, on runtimes that predate proxy-native egress, through the legacy Introspection egress proxy for credential injection.
 
 ## Quick start
 
@@ -16,6 +16,20 @@ const res = await fetch("https://api.openai.com/v1/models");
 ```
 
 ## Environment variables
+
+On a proxy-native runtime (`INTROSPECTION_EGRESS_PROXY_NATIVE=1`), or whenever
+`INTROSPECTION_EGRESS_URL` is unset, every request goes through undici's
+`EnvHttpProxyAgent`:
+
+| Variable                            | Purpose                                                                                                                                                                       |
+| ----------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `INTROSPECTION_EGRESS_PROXY_NATIVE` | `1` ignores `INTROSPECTION_EGRESS_URL`, `INTROSPECTION_ENDPOINT_HOSTS` and the `egressProxyUrl` / `egressProxyHosts` options.                                                 |
+| `HTTPS_PROXY` / `HTTP_PROXY`        | Forward proxy. Userinfo in the URL (`http://session:<locator>@gateway:8080`) is sent as `Proxy-Authorization: Basic` on CONNECT; an `https://` proxy URL is dialled over TLS. |
+| `NO_PROXY`                          | Hosts reached directly, without a proxy span.                                                                                                                                 |
+| `NODE_EXTRA_CA_CERTS`               | Extra CA bundle (the platform CA) trusted for the proxy and for upstreams the egress terminates.                                                                              |
+
+The legacy path, used only when `INTROSPECTION_EGRESS_URL` is set without the
+native flag:
 
 | Variable                       | Purpose                                                                                                                                                                                                                                    |
 | ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -66,7 +80,11 @@ bypassed or duplicated.
 
 ## How it works
 
-Two proxy modes, selected per-request:
+On a proxy-native runtime every proxied request is a CONNECT tunnel through
+`HTTPS_PROXY`; the egress sees the session credential on the CONNECT and, for
+credentialed hosts, swaps the placeholder in the request for the real secret.
+
+On a legacy runtime, two proxy modes are selected per-request:
 
 - **Egress credential-injection proxy** (`INTROSPECTION_EGRESS_URL`): plain-HTTP reverse proxy that routes by `Host` header and injects upstream credentials via ext_proc. Only used for hosts in `INTROSPECTION_ENDPOINT_HOSTS`.
 

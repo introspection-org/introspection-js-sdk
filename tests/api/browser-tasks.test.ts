@@ -572,10 +572,10 @@ describe("IntrospectionApiClient", () => {
 });
 
 describe("environment-scoped sessions", () => {
-  // The DP session cookie is named for its environment lane, so an app running
-  // several lanes holds a live session for each in one browser. When more than
-  // one is present the server cannot tell which a request means, so the
-  // client names it.
+  // The DP session cookie is named for its environment lane and project, so an
+  // app holds a live session for each in one browser. When more than one is
+  // present the server cannot tell which a request means, so the client names
+  // it.
 
   const laneOf = (url: string) => new URL(url).searchParams.get("lane");
   const sentEnvironmentHeader = (init: RequestInit) =>
@@ -749,6 +749,112 @@ describe("environment-scoped sessions", () => {
     const [rejectedUrl] = fetchImpl.mock.calls[1];
     const [retryUrl] = fetchImpl.mock.calls[3];
     expect(laneOf(rejectedUrl)).toBe("development");
+    expect(laneOf(retryUrl)).toBe("production");
+  });
+
+  const projectOf = (url: string) =>
+    new URL(url).searchParams.get("project_id");
+  const PROJECT_A = "0192d5a4-6c3e-7a10-8000-000000000001";
+  const PROJECT_B = "0192d5a4-6c3e-7a10-8000-000000000002";
+
+  function exchangeThenTask(exchange: Record<string, unknown>) {
+    return vi.fn(async (url: string) => ({
+      ok: true,
+      status: 200,
+      headers: new Headers({ "content-type": "application/json" }),
+      json: () =>
+        Promise.resolve(
+          url.endsWith("/v1/oauth/exchange") ? exchange : TASK_FIXTURE,
+        ),
+    }));
+  }
+
+  it("names its project alongside its lane on every request", async () => {
+    // With only a lane the DP picks that lane's newest cookie, so a page that
+    // connected to two projects on one lane would read the wrong one.
+    const fetchImpl = exchangeThenTask({
+      success: true,
+      environment: "production",
+      project_id: PROJECT_A,
+    });
+    const client = new IntrospectionApiClient({
+      dpUrl: "https://dp.example.com",
+      getToken: () => "t",
+      fetch: fetchImpl as unknown as typeof fetch,
+    });
+
+    expect(client.projectId).toBeUndefined();
+    await client.connect();
+    expect(client.projectId).toBe(PROJECT_A);
+    await client.tasks.get("task-1");
+
+    const calls = fetchImpl.mock.calls as unknown as [string, RequestInit][];
+    const [url, init] = calls[1]!;
+    expect(laneOf(url)).toBe("production");
+    expect(projectOf(url)).toBe(PROJECT_A);
+    expect(sentEnvironmentHeader(init)).toBe(false);
+  });
+
+  it("sends only the lane when the exchange returns no project", async () => {
+    // Migration window: a DP that predates the project_id field.
+    const fetchImpl = exchangeThenTask({
+      success: true,
+      environment: "staging",
+    });
+    const client = new IntrospectionApiClient({
+      dpUrl: "https://dp.example.com",
+      getToken: () => "t",
+      fetch: fetchImpl as unknown as typeof fetch,
+    });
+
+    await client.connect();
+    await client.tasks.get("task-1");
+
+    expect(client.projectId).toBeUndefined();
+    const calls = fetchImpl.mock.calls as unknown as [string, RequestInit][];
+    const [url] = calls[1]!;
+    expect(laneOf(url)).toBe("staging");
+    expect(new URL(url).searchParams.has("project_id")).toBe(false);
+  });
+
+  it("refreshes the project when a 401 re-exchange switches it", async () => {
+    const json = (body: unknown) => ({
+      ok: true,
+      status: 200,
+      headers: new Headers({ "content-type": "application/json" }),
+      json: () => Promise.resolve(body),
+    });
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValueOnce(
+        json({ environment: "production", project_id: PROJECT_A }),
+      )
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 401,
+        headers: new Headers({ "content-type": "application/json" }),
+        json: () => Promise.resolve({ detail: "expired" }),
+        text: () => Promise.resolve("expired"),
+      })
+      .mockResolvedValueOnce(
+        json({ environment: "production", project_id: PROJECT_B }),
+      )
+      .mockResolvedValueOnce(json(TASK_FIXTURE));
+
+    const client = new IntrospectionApiClient({
+      dpUrl: "https://dp.example.com",
+      getToken: () => "t",
+      fetch: fetchImpl as unknown as typeof fetch,
+    });
+
+    await client.connect();
+    await client.tasks.get("task-1");
+
+    expect(client.projectId).toBe(PROJECT_B);
+    const [rejectedUrl] = fetchImpl.mock.calls[1];
+    const [retryUrl] = fetchImpl.mock.calls[3];
+    expect(projectOf(rejectedUrl)).toBe(PROJECT_A);
+    expect(projectOf(retryUrl)).toBe(PROJECT_B);
     expect(laneOf(retryUrl)).toBe("production");
   });
 

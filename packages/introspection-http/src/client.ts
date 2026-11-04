@@ -1,4 +1,5 @@
 import {
+  ConflictError,
   IntrospectionAPIError,
   NetworkError,
   RateLimitError,
@@ -28,9 +29,16 @@ const IDEMPOTENT_RETRY_STATUSES = new Set([502, 503, 504]);
  * (the request was rejected and never processed, so re-sending is safe even
  * for writes); transient gateway/upstream errors (`502`/`503`/`504`) are
  * retried only for idempotent `GET` requests.
+ *
+ * A `409` that carries `Retry-After` is the server saying "not yet", not a
+ * real conflict: `POST /v1/tasks/{id}/runs` answers it while the previous
+ * turn is still settling ("A previous reply is still being delivered"), and
+ * the request was never processed, so it is retried for any method like a
+ * `429`. A plain `409` is a real conflict and surfaces at once.
  */
 function isRetryableError(err: unknown, method: string): boolean {
   if (err instanceof RateLimitError) return true;
+  if (err instanceof ConflictError && err.retryAfter != null) return true;
   if (err instanceof IntrospectionAPIError && method.toUpperCase() === "GET") {
     return IDEMPOTENT_RETRY_STATUSES.has(err.status);
   }
@@ -90,8 +98,8 @@ export interface BaseHttpConfig {
   /** Custom `fetch` (for tests or non-standard runtimes). */
   fetch?: typeof fetch;
   /**
-   * Automatic retries on a `429 Too Many Requests` for unary requests
-   * (honouring `Retry-After`). `0` disables retrying. Default
+   * Automatic retries on a `429 Too Many Requests`, or a `409` carrying
+   * `Retry-After`, for unary requests (honouring `Retry-After`). `0` disables retrying. Default
    * {@link DEFAULT_MAX_RETRIES}. Streaming has its own resume budget.
    */
   maxRetries?: number;
@@ -137,7 +145,22 @@ export class BaseHttpClient {
     );
   }
 
-  private async attempt(doFetch: () => Promise<Response>): Promise<Response> {
+  // `METHOD host/path`, without the query: it can carry auth selectors.
+  private requestLabel(method: string, path: string): string {
+    const target = joinUrl(this.cfg.apiUrl, path);
+    try {
+      const url = new URL(target);
+      return `${method} ${url.host}${url.pathname}`;
+    } catch {
+      // A relative base (a same-origin browser client) has no host to name.
+      return `${method} ${target}`;
+    }
+  }
+
+  private async attempt(
+    label: string,
+    doFetch: () => Promise<Response>,
+  ): Promise<Response> {
     try {
       return await doFetch();
     } catch (err) {
@@ -147,7 +170,7 @@ export class BaseHttpClient {
       // user cancellation reported it as a transport problem instead.
       if (isAbort(err)) throw err;
       throw new NetworkError({
-        message: err instanceof Error ? err.message : "network request failed",
+        message: `${label} failed: ${describeNetworkFailure(err)}`,
         code: null,
         requestId: null,
         body: err,
@@ -161,6 +184,7 @@ export class BaseHttpClient {
    * a typed {@link IntrospectionAPIError}.
    */
   private async send(
+    label: string,
     buildHeaders: () => Promise<Record<string, string>>,
     doFetch: (headers: Record<string, string>) => Promise<Response>,
   ): Promise<Response> {
@@ -170,13 +194,13 @@ export class BaseHttpClient {
     // bearer token, or a session-lane selector naming a cookie the client no
     // longer holds.
     const headers = await buildHeaders();
-    let res = await this.attempt(() => doFetch(headers));
+    let res = await this.attempt(label, () => doFetch(headers));
     const { onUnauthorized } = this.cfg.transport;
     if (res.status === 401 && onUnauthorized) {
       const refreshed = await onUnauthorized(headers);
       if (refreshed) {
         const retried = await buildHeaders();
-        res = await this.attempt(() => doFetch(retried));
+        res = await this.attempt(label, () => doFetch(retried));
       }
     }
     if (!res.ok) throw await toApiError(res);
@@ -208,10 +232,11 @@ export class BaseHttpClient {
       return headers;
     };
     const expect = opts.expect ?? "json";
-    // Auto-retry on a `429 Too Many Requests`, honouring `Retry-After` as the
-    // floor of a capped-exponential backoff, so a spammed status poll slows
-    // down instead of erroring. A `429` means the request was rejected and
-    // never processed, so retrying is side-effect-safe for writes too.
+    // Auto-retry on a `429 Too Many Requests` (or a `409` with `Retry-After`),
+    // honouring `Retry-After` as the floor of a capped-exponential backoff, so
+    // a spammed status poll slows down instead of erroring. Both mean the
+    // request was rejected and never processed, so retrying is
+    // side-effect-safe for writes too.
     // Multipart uploads aren't retried (the body would have to be rebuilt).
     const maxRetries = isMultipart
       ? 0
@@ -219,14 +244,17 @@ export class BaseHttpClient {
     const baseMs = this.cfg.retryBaseMs ?? DEFAULT_RETRY_BASE_MS;
     for (let attempt = 0; ; attempt++) {
       try {
-        const res = await this.send(buildHeaders, (headers) =>
-          this.fetchImpl(this.url(opts.path, opts.query), {
-            method: opts.method,
-            headers,
-            body,
-            credentials: this.cfg.transport.credentials,
-            signal: opts.signal,
-          }),
+        const res = await this.send(
+          this.requestLabel(opts.method, opts.path),
+          buildHeaders,
+          (headers) =>
+            this.fetchImpl(this.url(opts.path, opts.query), {
+              method: opts.method,
+              headers,
+              body,
+              credentials: this.cfg.transport.credentials,
+              signal: opts.signal,
+            }),
         );
         if (expect === "empty" || res.status === 204) return undefined as T;
         if (expect === "bytes")
@@ -259,6 +287,7 @@ export class BaseHttpClient {
     signal?: AbortSignal;
   }): Promise<Response> {
     return this.send(
+      this.requestLabel("GET", opts.path),
       () =>
         this.headers({
           Accept: "text/event-stream",
@@ -273,4 +302,24 @@ export class BaseHttpClient {
         }),
     );
   }
+}
+
+/**
+ * Node's fetch reports every transport failure as "fetch failed" and keeps
+ * the reason (a refused proxy CONNECT, `ECONNREFUSED`, a TLS error) on
+ * `cause`, so the reason has to be read from the chain.
+ */
+function describeNetworkFailure(err: unknown): string {
+  const parts: string[] = [];
+  let current: unknown = err;
+  for (let depth = 0; depth < 4 && current instanceof Error; depth++) {
+    const code = (current as { code?: unknown }).code;
+    const text =
+      typeof code === "string" && !current.message.includes(code)
+        ? `${current.message} (${code})`
+        : current.message;
+    if (text && !parts.includes(text)) parts.push(text);
+    current = current.cause;
+  }
+  return parts.length > 0 ? parts.join(": ") : "network request failed";
 }

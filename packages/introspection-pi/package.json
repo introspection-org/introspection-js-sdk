@@ -2,6 +2,11 @@
   "name": "@introspection-sdk/introspection-pi",
   "version": "0.1.0",
   "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/introspection-org/introspection-js-sdk.git",
+    "directory": "packages/introspection-pi"
+  },
   "description": "Introspection observability extension for the Pi Agent SDK \u2014 OTEL GenAI semantic-convention spans for chat completions and tool execution",
   "type": "module",
   "main": "./dist/index.js",
@@ -12,6 +17,9 @@
       "import": "./dist/index.js"
     }
   },
+  "bin": {
+    "pi-session-spans": "./dist/bin.js"
+  },
   "files": [
     "dist/"
   ],
@@ -20,11 +28,12 @@
     "check-types": "tsc --noEmit",
     "lint": "eslint . --max-warnings 0",
     "prepare": "rm -rf dist && tsc",
-    "clean": "rm -rf dist"
+    "clean": "rm -rf dist",
+    "check:package": "publint --strict && attw --pack . --profile esm-only"
   },
   "dependencies": {
     "@introspection-sdk/types": "workspace:*",
-    "@opentelemetry/api": "^1.9.1"
+    "@opentelemetry/api": "^1.10.0"
   },
   "peerDependencies": {
     "@earendil-works/pi-agent-core": ">=0.75.0",

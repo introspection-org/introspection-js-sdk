@@ -3,10 +3,13 @@ import {
   StreamIncompleteError,
 } from "@introspection-sdk/types";
 import type {
-  Paginated,
   Task,
   TaskCancelResponse,
   TaskCancelOptions,
+  TaskCommand,
+  TaskCommandGetOptions,
+  TaskCommandListParams,
+  TaskCommandSpec,
   TaskCreateParams,
   TaskCreateResponse,
   TaskListParams,
@@ -17,7 +20,7 @@ import type {
   TaskUpdateParams,
 } from "@introspection-sdk/types";
 import { EventType, type AGUIEvent } from "@ag-ui/core";
-import { Paginator, cursorPaginate } from "../pagination.js";
+import { Paginator, paginateGet } from "../pagination.js";
 import { streamResumable, type StreamOptions } from "../resumable.js";
 import type { ResourceHttpClient } from "./types.js";
 
@@ -92,16 +95,18 @@ export class RunHandle {
 export class TaskRunsClient {
   constructor(private readonly http: ResourceHttpClient) {}
 
-  async create(taskId: string, body: TaskRunCreateParams): Promise<RunHandle> {
-    const res = await this.http.request<TaskRunResponse>({
-      method: "POST",
-      path: `/v1/tasks/${encodeURIComponent(taskId)}/runs`,
-      body,
-    });
-    return new RunHandle(null, res.run, this);
+  create(taskId: string, body: TaskRunCreateParams): Promise<RunHandle> {
+    return this.postRun(taskId, body);
   }
 
-  async resume(taskId: string, body: TaskRunResumeParams): Promise<RunHandle> {
+  resume(taskId: string, body: TaskRunResumeParams): Promise<RunHandle> {
+    return this.postRun(taskId, body);
+  }
+
+  private async postRun(
+    taskId: string,
+    body: TaskRunCreateParams | TaskRunResumeParams,
+  ): Promise<RunHandle> {
     const res = await this.http.request<TaskRunResponse>({
       method: "POST",
       path: `/v1/tasks/${encodeURIComponent(taskId)}/runs`,
@@ -142,11 +147,78 @@ export class TaskRunsClient {
   }
 }
 
+/**
+ * The longest {@link TaskCommandsClient.get} asks the API to hold a read: the
+ * API's own maximum. This client sets no request timeout of its own; a
+ * `fetch` or proxy that does must outlast it.
+ */
+export const MAX_COMMAND_WAIT_SECONDS = 60;
+
+/**
+ * `tasks.commands`: `exec`, `upload` and `download` against an eval task's
+ * live sandbox.
+ *
+ * A command is a row the task's workflow executes and stamps: `create`
+ * returns it `queued`, and `get` reads its outcome, optionally holding the
+ * read until it finishes. Eval tasks only (created with `kind: "eval"` and
+ * `commands: true`), behind `tasks:exec` (an org admin or owner, or the
+ * `operator` role), on a plane with evals enabled.
+ */
+export class TaskCommandsClient {
+  constructor(private readonly http: ResourceHttpClient) {}
+
+  /** Record a command and send it to the task's workflow. */
+  create(taskId: string, spec: TaskCommandSpec): Promise<TaskCommand> {
+    return this.http.request<TaskCommand>({
+      method: "POST",
+      path: `/v1/tasks/${encodeURIComponent(taskId)}/commands`,
+      body: spec,
+    });
+  }
+
+  /** List a task's commands, newest first. */
+  list(taskId: string, params?: TaskCommandListParams): Paginator<TaskCommand> {
+    return paginateGet<TaskCommand>(
+      this.http,
+      `/v1/tasks/${encodeURIComponent(taskId)}/commands`,
+      params,
+      params?.next,
+    );
+  }
+
+  /**
+   * Read a command. `wait_seconds` holds the read until it finishes, capped
+   * at {@link MAX_COMMAND_WAIT_SECONDS}.
+   */
+  get(
+    taskId: string,
+    commandId: string,
+    options: TaskCommandGetOptions = {},
+  ): Promise<TaskCommand> {
+    const wait = options.wait_seconds;
+    return this.http.request<TaskCommand>({
+      method: "GET",
+      path: `/v1/tasks/${encodeURIComponent(taskId)}/commands/${encodeURIComponent(commandId)}`,
+      query:
+        wait === undefined
+          ? undefined
+          : {
+              wait_seconds: Math.min(
+                Math.max(wait, 0),
+                MAX_COMMAND_WAIT_SECONDS,
+              ),
+            },
+    });
+  }
+}
+
 export class TasksClient<
   TCreate extends object = TaskCreateParams,
   TStart extends TCreate & { prompt: string } = TCreate & { prompt: string },
 > {
   readonly runs: TaskRunsClient;
+  /** Eval sandbox operations; see {@link TaskCommandsClient}. */
+  readonly commands: TaskCommandsClient;
   private readonly mapTaskBody: TaskBodyMapper<TCreate>;
 
   constructor(
@@ -154,6 +226,7 @@ export class TasksClient<
     mapTaskBody: TaskBodyMapper<TCreate> = identityTaskBody,
   ) {
     this.runs = new TaskRunsClient(http);
+    this.commands = new TaskCommandsClient(http);
     this.mapTaskBody = mapTaskBody;
   }
 
@@ -164,15 +237,7 @@ export class TasksClient<
    * stop fetching).
    */
   list(params?: TaskListParams): Paginator<Task> {
-    return cursorPaginate(
-      (next) =>
-        this.http.request<Paginated<Task>>({
-          method: "GET",
-          path: "/v1/tasks",
-          query: { ...params, next } as Record<string, unknown>,
-        }),
-      params?.next,
-    );
+    return paginateGet<Task>(this.http, "/v1/tasks", params, params?.next);
   }
 
   create(body: TCreate): Promise<TaskCreateResponse> {
@@ -229,4 +294,8 @@ export class TasksClient<
   }
 }
 
-export { TasksClient as TasksApi, TaskRunsClient as TaskRunsApi };
+export {
+  TasksClient as TasksApi,
+  TaskRunsClient as TaskRunsApi,
+  TaskCommandsClient as TaskCommandsApi,
+};

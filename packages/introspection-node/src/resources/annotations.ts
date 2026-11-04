@@ -4,19 +4,18 @@ import {
   NotFoundError,
   ValidationError,
   type Paginated,
-  type ProjectLabel,
-  type ProjectLabelCreate,
-  type ProjectLabelListParams,
-  type ProjectLabelUpdate,
   type AnnotationListParams,
   type AnnotationEventOptions,
+  type AnnotationFacet,
+  type AnnotationNavigation,
+  type AnnotationNavigationParams,
   type AnnotationMutation,
   type AnnotationState,
   type AnnotationTarget,
   type Uuid,
 } from "@introspection-sdk/types";
 import type { HttpClient } from "../http.js";
-import { Paginator, cursorPaginate } from "../pagination.js";
+import { Paginator, cursorPaginate, paginateGet } from "../pagination.js";
 
 interface AnnotationMember {
   id: Uuid;
@@ -69,71 +68,6 @@ function normalizedEmails(emails: string | readonly string[]): string[] {
     );
   }
   return normalized;
-}
-
-/** Managed project label catalog used by annotations. */
-export class ProjectLabelsApi {
-  constructor(private readonly dpHttp: HttpClient) {}
-
-  list(params: ProjectLabelListParams = {}): Paginator<ProjectLabel> {
-    return cursorPaginate(
-      (next) =>
-        this.dpHttp.request<Paginated<ProjectLabel>>({
-          method: "GET",
-          path: "/v1/project-labels",
-          query: { ...params, next } as Record<string, unknown>,
-        }),
-      params.next,
-    );
-  }
-
-  create(body: ProjectLabelCreate): Promise<ProjectLabel> {
-    const slug = body.slug.trim();
-    if (!slug || slug.length > 128) {
-      throw clientValidationError(
-        "Project label slug must contain 1 to 128 characters",
-        "invalid_project_label_slug",
-      );
-    }
-    if (!/^#[0-9a-f]{6}$/i.test(body.color)) {
-      throw clientValidationError(
-        "Project label color must be a six-digit hex color such as #f97316",
-        "invalid_project_label_color",
-      );
-    }
-    if (body.description != null && body.description.length > 2_000) {
-      throw clientValidationError(
-        "Project label description must not exceed 2000 characters",
-        "invalid_project_label_description",
-      );
-    }
-    return this.dpHttp.request<ProjectLabel>({
-      method: "POST",
-      path: "/v1/project-labels",
-      body: { ...body, slug, color: body.color.toLowerCase() },
-    });
-  }
-
-  get(slug: string): Promise<ProjectLabel> {
-    return this.dpHttp.request<ProjectLabel>({
-      method: "GET",
-      path: `/v1/project-labels/${encodeURIComponent(slug)}`,
-    });
-  }
-
-  update(slug: string, body: ProjectLabelUpdate): Promise<ProjectLabel> {
-    if (body.description != null && body.description.length > 2_000) {
-      throw clientValidationError(
-        "Project label description must not exceed 2000 characters",
-        "invalid_project_label_description",
-      );
-    }
-    return this.dpHttp.request<ProjectLabel>({
-      method: "PATCH",
-      path: `/v1/project-labels/${encodeURIComponent(slug)}`,
-      body,
-    });
-  }
 }
 
 /**
@@ -196,6 +130,31 @@ export class AnnotationsApi {
     );
   }
 
+  /**
+   * The current annotator, assignee, label and status counts across the
+   * project's annotations: the buckets a review queue filters by.
+   */
+  facets(): Promise<AnnotationFacet[]> {
+    return this.dpHttp.request<AnnotationFacet[]>({
+      method: "GET",
+      path: "/v1/annotations/facets",
+    });
+  }
+
+  /**
+   * The annotations before and after one target in the review order the
+   * filters select, with the target's position in it.
+   */
+  navigation(
+    params: AnnotationNavigationParams,
+  ): Promise<AnnotationNavigation> {
+    return this.dpHttp.request<AnnotationNavigation>({
+      method: "GET",
+      path: "/v1/annotations/navigation",
+      query: { ...params },
+    });
+  }
+
   /** Append exactly one annotation mutation. */
   async create(
     target: AnnotationTarget,
@@ -228,13 +187,10 @@ export class AnnotationsApi {
     const matches = new Map<string, AnnotationMember[]>();
     for (const email of requested) matches.set(email, []);
 
-    const members = cursorPaginate((next) =>
-      this.cpHttp.request<Paginated<AnnotationMember>>({
-        method: "GET",
-        path: "/v1/members",
-        query: { limit: 1000, member_type: "business", next },
-      }),
-    );
+    const members = paginateGet<AnnotationMember>(this.cpHttp, "/v1/members", {
+      limit: 1000,
+      member_type: "business",
+    });
     for await (const member of members) {
       if (member.is_deactivated || !member.email) continue;
       matches.get(member.email.trim().toLowerCase())?.push(member);
@@ -271,8 +227,4 @@ export function attachAnnotations(
   dpHttp: HttpClient,
 ): AnnotationsApi {
   return new AnnotationsApi(cpHttp, dpHttp);
-}
-
-export function attachProjectLabels(dpHttp: HttpClient): ProjectLabelsApi {
-  return new ProjectLabelsApi(dpHttp);
 }

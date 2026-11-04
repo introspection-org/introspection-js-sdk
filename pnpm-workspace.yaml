@@ -1,6 +1,8 @@
 packages:
   - "packages/*"
   - "examples"
+  - "examples/browser"
   - "examples/auth"
+  - "examples/aauth-travel"
   - "examples/pap-travel"
   - "tests"

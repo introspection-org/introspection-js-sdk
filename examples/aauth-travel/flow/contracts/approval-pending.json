@@ -1,0 +1,22 @@
+{
+  "from_acme": {
+    "status": 202,
+    "headers": {
+      "AAuth-Requirement": "requirement=approval",
+      "Location": "https://ps.acme.example/ps/pending/0199…",
+      "Retry-After": "5",
+      "Cache-Control": "no-store"
+    },
+    "body": { "status": "pending" }
+  },
+  "to_the_agent": {
+    "status": 428,
+    "content-type": "application/problem+json",
+    "body": {
+      "type": "https://introspection.dev/problems/approval-pending",
+      "reason": "Awaiting approval from the person's organisation",
+      "pending_id": "0199…"
+    }
+  },
+  "note": "Egress keeps the Location and hands the wait to the data plane's aauth_pending watcher; the agent only learns that approval is pending."
+}

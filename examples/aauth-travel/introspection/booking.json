@@ -1,0 +1,32 @@
+{
+  "name": "Flight Sector booking",
+  "slug": "booking",
+  "provider": "flightsector",
+  "auth_mode": "aauth",
+  "policy_entities": [
+    {
+      "uid": {
+        "type": "Company",
+        "id": "acme"
+      },
+      "attrs": {
+        "business_min_level": 5,
+        "booking_limit_cents": 200000,
+        "senior_booking_limit_cents": 800000
+      },
+      "parents": []
+    },
+    {
+      "uid": {
+        "type": "Company",
+        "id": "globex"
+      },
+      "attrs": {
+        "business_min_level": 7,
+        "booking_limit_cents": 200000,
+        "senior_booking_limit_cents": 800000
+      },
+      "parents": []
+    }
+  ]
+}

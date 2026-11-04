@@ -5,6 +5,7 @@ import {
   IntrospectionClient,
   ValidationError,
   type Repository,
+  type RepositoryAccessGrant,
   type RepositoryCommit,
   type RepositoryCommitDetail,
   type RepositoryDirectory,
@@ -82,6 +83,21 @@ function client(responses: unknown[]) {
   const urls = () =>
     fetchImpl.mock.calls.map((call) => new URL(String(call[0])));
   return { c, urls };
+}
+
+function respondingClient(response: Response) {
+  const fetchImpl = vi.fn(
+    async (_input: RequestInfo | URL, _init?: RequestInit) => response,
+  );
+  const c = new IntrospectionClient({
+    token: "t",
+    advanced: {
+      baseApiUrl: CP,
+      dpUrl: DP,
+      fetch: fetchImpl as unknown as typeof fetch,
+    },
+  });
+  return { c, fetchImpl };
 }
 
 function commit(sha: string): RepositoryCommit {
@@ -274,6 +290,30 @@ describe("RepositoriesApi", () => {
     );
   });
 
+  // Only a runner's token on a Runtime granted the repository qualifies, which
+  // the walk cannot hold: it records the 403, and this stands in for the grant.
+  it("accessToken() posts the permissions to the data plane", async () => {
+    const grant: RepositoryAccessGrant = {
+      provider: "github",
+      token: "ghs_test",
+      expires_at: "2026-09-01T01:00:00Z",
+      repository: "acme/agent",
+    };
+    const { c, fetchImpl } = respondingClient(Response.json(grant));
+
+    await expect(
+      c.repositories.accessToken(REPO_ID, {
+        permissions: { contents: "read" },
+      }),
+    ).resolves.toEqual(grant);
+    const [url, init] = fetchImpl.mock.calls[0]!;
+    expect(String(url)).toBe(`${DP}/v1/repositories/${REPO_ID}/access-token`);
+    expect(init?.method).toBe("POST");
+    expect(JSON.parse(String(init?.body))).toEqual({
+      permissions: { contents: "read" },
+    });
+  });
+
   describe("merge()", () => {
     const MERGE: RepositoryMerge = {
       sha: "m".repeat(40),
@@ -283,23 +323,8 @@ describe("RepositoriesApi", () => {
       parents: ["b".repeat(40), "h".repeat(40)],
     };
 
-    function mergeClient(response: Response) {
-      const fetchImpl = vi.fn(
-        async (_input: RequestInfo | URL, _init?: RequestInit) => response,
-      );
-      const c = new IntrospectionClient({
-        token: "t",
-        advanced: {
-          baseApiUrl: CP,
-          dpUrl: DP,
-          fetch: fetchImpl as unknown as typeof fetch,
-        },
-      });
-      return { c, fetchImpl };
-    }
-
     it("posts base, head and message to the data plane", async () => {
-      const { c, fetchImpl } = mergeClient(
+      const { c, fetchImpl } = respondingClient(
         Response.json(MERGE, { status: 201 }),
       );
 
@@ -323,7 +348,7 @@ describe("RepositoriesApi", () => {
     });
 
     it("resolves to null when base already contains head", async () => {
-      const { c } = mergeClient(new Response(null, { status: 204 }));
+      const { c } = respondingClient(new Response(null, { status: 204 }));
 
       await expect(
         c.repositories.merge(REPO_ID, { base: "main", head: "feature" }),
@@ -331,7 +356,7 @@ describe("RepositoriesApi", () => {
     });
 
     it("throws a ConflictError on a merge conflict", async () => {
-      const { c } = mergeClient(
+      const { c } = respondingClient(
         Response.json({ detail: "Merge conflict" }, { status: 409 }),
       );
 

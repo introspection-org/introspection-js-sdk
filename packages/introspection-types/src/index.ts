@@ -21,6 +21,7 @@ export * from "./genai.js";
 export * from "./api.js";
 export * from "./conversations.js";
 export * from "./annotations.js";
+export * from "./tags.js";
 export * from "./transcript.js";
 export * from "./errors.js";
 

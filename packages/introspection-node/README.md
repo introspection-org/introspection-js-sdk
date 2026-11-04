@@ -2,7 +2,9 @@
 
 Node.js platform SDK for [Introspection](https://introspection.dev) — open runtimes,
 drive tasks, and manage experiments, recipes, repositories, members,
-automations, app connections, files, conversations, and shares.
+automations, app connections, files, conversations, shares, project
+administration (API keys, Applications, credentials, variables, integrations,
+judges) and eval images and task commands.
 
 ## Install
 
@@ -70,8 +72,8 @@ const runner = await client.runtimes("customer-agent").run({
 
 `IntrospectionClient` and `Runner` expose the same Data Plane namespaces, and
 both implement the exported `DataPlaneResources` interface: `tasks` (with
-`tasks.runs`), `files`, `conversations`, `events`, `metrics`, `shares`,
-`automations` and `connections`. So does the `DataPlaneClient` that
+`tasks.runs` and `tasks.commands`), `files`, `conversations`, `events`,
+`metrics`, `shares`, `automations`, `images` and `connections`. So does the `DataPlaneClient` that
 `AuthClient.dataPlane()` returns. Code written against `DataPlaneResources`
 runs against any of them.
 
@@ -196,6 +198,69 @@ for (const ev of page.records)
   console.log(ev.payload.task_id, ev.payload.posted);
 ```
 
+### Project administration
+
+`client.apiKeys`, `client.applications` (with `.idps`, `.secrets` and
+`.keys`), `client.credentials`, `client.variables`, `client.integrations`,
+`client.judges`, `client.projects` (with read-only `.peerings`),
+`client.organizations.me()`, `client.oidc.me()` and `client.tokens.create()`
+(a Data Plane token for one project) cover the Control Plane's project
+administration. They need an org credential,
+such as a member's Control Plane session (`cpSession`); a project API key
+carries none of their scopes. Project-scoped methods take an optional
+`project` (slug or id) for a credential that names no project.
+
+```typescript
+const client = new IntrospectionClient({ cpSession: process.env.CP_SESSION });
+const created = await client.apiKeys.create({ name: "ci" }, "my-project");
+saveSecret(created.api_key); // returned once
+await client.apiKeys.acknowledge(created.id, "my-project");
+// Rotate: keep the old key working for an hour.
+await client.apiKeys.delete(created.id, {
+  project: "my-project",
+  expires_in: 3600,
+});
+```
+
+`client.projects.peerings` reads a project's runtime peerings, the runtime
+groups it offers to other projects (`projects:read`). Creating or revoking a
+peering is a person's act in the web app, so the SDK has no write methods.
+
+```typescript
+// Offered by my-project, optionally narrowed to one runtime group.
+const offered = await client.projects.peerings.list(
+  "my-project",
+  "support-bot",
+);
+// Offered to my-project by other projects.
+for await (const p of client.projects.peerings.granted("my-project"))
+  console.log(p.project_id, p.runtime_group_id);
+const one = await client.projects.peerings.get("my-project", peeringId);
+```
+
+### Eval images and task commands
+
+`images` builds or mirrors the images an eval task's compose services run as,
+and `tasks.commands` runs `exec` / `upload` / `download` against an eval task's
+live sandbox (a task created with `kind: "eval"` and `commands: true`). Both
+need an admin, owner or `operator` credential on a plane with evals enabled.
+
+```typescript
+const image = await client.images.create({
+  name: "hello-mcp/mcp-server",
+  source: { kind: "mirror", reference: "ghcr.io/acme/mcp@sha256:…" },
+});
+const command = await client.tasks.commands.create(taskId, {
+  kind: "exec",
+  command: ["pytest", "-q"],
+});
+// Holds the read up to MAX_COMMAND_WAIT_SECONDS for the command to finish.
+const done = await client.tasks.commands.get(taskId, command.id, {
+  wait_seconds: 30,
+});
+console.log(done.status, done.exit_code, done.stdout);
+```
+
 ### Connections
 
 `connections` lists, reads, creates and deletes the apps members connected for
@@ -272,6 +337,38 @@ console.log(await run.text());
 See [`examples/api/native-email-code.ts`](../../examples/api/native-email-code.ts).
 Federated sign-in through your own IdP (a `jwks` Application) keeps its session
 in that IdP's SDK; exchange its token with `tokenExchange()` instead.
+
+### Device-code login
+
+`DeviceCodeAuth` runs the login `introspection login` does (RFC 8628): request
+a code, show it to the member, and poll until they approve in the browser.
+
+```typescript
+import { DeviceCodeAuth } from "@introspection-sdk/introspection-node";
+
+const login = new DeviceCodeAuth();
+const device = await login.requestCode({ project: "my-project" });
+console.log(`Open ${device.verification_uri} and enter ${device.user_code}`);
+const token = await login.waitForToken(device);
+
+const renewed = await login.refresh({
+  refreshToken: token.refresh_token!,
+  sessionId: token.session_id!,
+  orgId: token.org_id!,
+});
+const dev = await login.developmentCredential(renewed.access_token);
+await login.revoke({
+  sessionId: token.session_id!,
+  orgId: token.org_id!,
+  token: renewed.refresh_token ?? token.refresh_token!,
+});
+```
+
+`revoke()` ends this login alone; `oidcLogout({ cpSession })` signs the member
+out of every session, their browser's included. `pollToken()` makes one poll
+and reports `pending`, `slow_down`, `denied`, `expired` or `approved`. `client.remotes.connectDocs()` reads the protocol of
+the `/v1/remotes/connect` WebSocket that `introspection dev` dials with such a
+login.
 
 ### Repositories
 
@@ -354,8 +451,9 @@ const span = {
   span_id: "0123456789abcdef",
 };
 
-await client.projectLabels.create({
-  slug: "strong-structure",
+await client.tags.create({
+  kind: "annotation",
+  name: "strong-structure",
   color: "#f97316",
   description: "A useful structure to preserve during distillation",
 });
@@ -373,8 +471,12 @@ Labels and reviewers are complete snapshots; pass `[]` to clear one. Comments
 append. Every mutation gets a UUIDv7 `event_id` before its
 first transport attempt, so an automatic retry remains one event. Supply
 `{ event_id }` as the final method argument when retrying across processes.
-`client.annotations.list()` and `client.projectLabels.list()` are both awaitable
-for the first page and async-iterable across every cursor page.
+`client.annotations.list()` and `client.tags.list("annotation")` are both
+awaitable for the first page and async-iterable across every cursor page.
+Tags come in two catalogues — `annotation` tags (the labels above, each with a
+color) and `access` tags (the values shares and member tags carry, which have
+no color) — so `list` takes the kind, and `get`, `update` and `delete` take the
+kind and the name.
 Read immutable annotation history with
 `client.events.list({ event_name: "introspection.annotation", trace_id, span_id })`.
 
@@ -626,3 +728,23 @@ export INTROSPECTION_SERVICE_NAME="my-service"                      # optional
 # SDK diagnostics: error, warn, info, debug, verbose. Default: warn.
 export INTROSPECTION_LOG_LEVEL="debug"                              # optional
 ```
+
+## Running behind a proxy
+
+REST calls honour `HTTPS_PROXY` / `HTTP_PROXY` and `NO_PROXY`, which Node's
+built-in `fetch` ignores on its own. Nothing else needs setting, apart from a
+proxy that re-signs TLS with a private CA: Node only trusts that CA through
+`NODE_EXTRA_CA_CERTS`.
+
+```shell
+export HTTPS_PROXY="http://proxy.internal:3128"
+export NODE_EXTRA_CA_CERTS="/etc/ssl/certs/proxy-ca.pem"   # only for a re-signing proxy
+```
+
+An allowlist must admit the control plane (`api.introspection.dev`) and your
+project's data plane, which is a regional host such as
+`api.syd01.ap-southeast-2.aws.introspection.dev`; `introspection whoami` prints
+both. A failed call names the host it could not reach, for example
+`GET api.syd01.ap-southeast-2.aws.introspection.dev/v1/tasks failed: fetch failed: …`.
+A `fetch` you pass in `advanced.fetch`, or one installed globally after the
+SDK loads, is used as is.

@@ -1,19 +1,21 @@
 import type {
-  Paginated,
   RunRequest,
   RunnerSpec,
   Runtime,
+  RuntimeCreateParams,
+  RuntimeGetParams,
   RuntimeListParams,
+  RuntimeUpdateParams,
   Uuid,
 } from "@introspection-sdk/types";
 import { NotFoundError } from "@introspection-sdk/types";
-import { Paginator, cursorPaginate } from "../pagination.js";
+import { Paginator, paginateGet } from "../pagination.js";
 import type { ResourceHttpClient } from "./types.js";
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-export function isUuid(value: string): boolean {
+function isUuid(value: string): boolean {
   return UUID_RE.test(value);
 }
 
@@ -37,7 +39,8 @@ export type RuntimeRunnerFactory<TRunner> = (
   spec: RunnerSpec,
 ) => TRunner;
 
-function toRunBody(opts?: RunRequest): RuntimeRunRequestBody {
+/** The `/run` request body for `opts`: only the fields the caller set. */
+export function toRunRequestBody(opts?: RunRequest): RuntimeRunRequestBody {
   if (!opts) return {};
   const out: RuntimeRunRequestBody = {};
   if (opts.identity) out.identity = opts.identity;
@@ -64,22 +67,50 @@ export class RuntimesClient<TRunner> {
    * page, or `for await` it to stream every runtime across pages.
    */
   list(params: RuntimeListParams = {}): Paginator<Runtime> {
-    return cursorPaginate(
-      (next) =>
-        this.http.request<Paginated<Runtime>>({
-          method: "GET",
-          path: "/v1/runtimes",
-          query: { ...params, next } as Record<string, unknown>,
-        }),
-      params.next,
-    );
+    return paginateGet<Runtime>(this.http, "/v1/runtimes", params, params.next);
   }
 
-  get(id: Uuid, params?: { project?: string }): Promise<Runtime> {
+  get(id: Uuid, params?: RuntimeGetParams): Promise<Runtime> {
     return this.http.request<Runtime>({
       method: "GET",
       path: `/v1/runtimes/${encodeURIComponent(id)}`,
       query: params as Record<string, unknown> | undefined,
+    });
+  }
+
+  /**
+   * A new version in the group `slug` names (a new slug starts a group),
+   * built from `recipe_id`. The version bakes after the call answers; poll
+   * `get` for `image_build_status`. Needs `runtimes:write`.
+   */
+  create(params: RuntimeCreateParams): Promise<Runtime> {
+    return this.http.request<Runtime>({
+      method: "POST",
+      path: "/v1/runtimes",
+      body: params,
+    });
+  }
+
+  update(
+    id: Uuid,
+    params: RuntimeUpdateParams,
+    project?: string,
+  ): Promise<Runtime> {
+    return this.http.request<Runtime>({
+      method: "PATCH",
+      path: `/v1/runtimes/${encodeURIComponent(id)}`,
+      query: project === undefined ? undefined : { project },
+      body: params,
+    });
+  }
+
+  /** Retire one version; needs `runtimes:delete`, which a member's session carries. */
+  delete(id: Uuid, project?: string): Promise<void> {
+    return this.http.request<void>({
+      method: "DELETE",
+      path: `/v1/runtimes/${encodeURIComponent(id)}`,
+      query: project === undefined ? undefined : { project },
+      expect: "empty",
     });
   }
 
@@ -122,7 +153,7 @@ export class RuntimesClient<TRunner> {
     return this.http.request<RunnerSpec>({
       method: "POST",
       path: `/v1/runtimes/${encodeURIComponent(id)}/run`,
-      body: toRunBody(opts),
+      body: toRunRequestBody(opts),
     });
   }
 }
@@ -174,6 +205,9 @@ export function attachRuntimes<TRunner>(
   hybrid.resolve = api.resolve.bind(api);
   hybrid.runById = api.runById.bind(api);
   hybrid.openRunner = api.openRunner.bind(api);
+  hybrid.create = api.create.bind(api);
+  hybrid.update = api.update.bind(api);
+  hybrid.delete = api.delete.bind(api);
   return hybrid;
 }
 

@@ -15,7 +15,12 @@ import type {
   SimpleStreamOptions,
   Tool,
 } from "@earendil-works/pi-ai";
-import { GenAi, type ToolDefinition } from "@introspection-sdk/types";
+import {
+  GenAi,
+  McpAttr,
+  type McpServerBinding,
+  type ToolDefinition,
+} from "@introspection-sdk/types";
 import {
   assistantToOutputMessages,
   messagesToInputMessages,
@@ -28,7 +33,8 @@ import {
  * `server.address` / `server.port` derived from the model's base URL.
  * Returns an empty record when the URL cannot be parsed.
  */
-export function serverAttributes(baseUrl: string): Attributes {
+export function serverAttributes(baseUrl: string | undefined): Attributes {
+  if (!baseUrl) return {};
   try {
     const url = new URL(baseUrl);
     const port = url.port
@@ -93,7 +99,7 @@ function requestTools(
 
 /** Attributes set on a chat span at request time, before the model has streamed. */
 export function chatRequestAttributes(
-  model: Model<string>,
+  model: Pick<Model<string>, "provider" | "id"> & { baseUrl?: string },
   context: ChatRequestContext,
   meta: AgentMeta,
   options?: ChatRequestAttributeOptions,
@@ -193,6 +199,28 @@ export function chatResponseAttributes(message: AssistantMessage): Attributes {
   return attributes;
 }
 
+/** The MCP server a tool is served by, as the host that registered the tool knows it. */
+export interface McpToolOrigin {
+  /** The server id the Recipe declares. */
+  serverId: string;
+  /** The tool's name in the server's contract, not the client-prefixed tool name. */
+  toolName: string;
+  binding?: McpServerBinding;
+}
+
+/** The `mcp.*` attributes for a tool an MCP server serves; empty for any other tool. */
+export function mcpToolAttributes(
+  origin: McpToolOrigin | undefined,
+): Attributes {
+  if (!origin) return {};
+  const attributes: Attributes = {
+    [McpAttr.SERVER_ID]: origin.serverId,
+    [McpAttr.TOOL_NAME]: origin.toolName,
+  };
+  if (origin.binding) attributes[McpAttr.SERVER_BINDING] = origin.binding;
+  return attributes;
+}
+
 /** Common attributes for an execute_tool span (set at start). */
 export function executeToolAttributes(
   toolName: string,
@@ -200,6 +228,7 @@ export function executeToolAttributes(
   args: unknown,
   meta: AgentMeta,
   description?: string,
+  mcp?: McpToolOrigin,
 ): Attributes {
   const attributes: Attributes = {
     [GenAi.CONVERSATION_ID]: meta.conversationId,
@@ -209,6 +238,7 @@ export function executeToolAttributes(
     [GenAi.TOOL_NAME]: toolName,
     [GenAi.TOOL_TYPE]: "function",
     [GenAi.TOOL_CALL_ID]: toolCallId,
+    ...mcpToolAttributes(mcp),
   };
   if (description) {
     attributes[GenAi.TOOL_DESCRIPTION] = description;

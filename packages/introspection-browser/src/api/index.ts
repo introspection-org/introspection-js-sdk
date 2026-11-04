@@ -26,7 +26,7 @@
  *   getToken: () => token,
  * });
  *
- * await client.connect(); // -> intro_dp_<environment> session cookie
+ * await client.connect(); // -> intro_dp_<lane>_<project> session cookie
  * const run = await client.tasks.start({
  *   prompt: "Summarize my latest order",
  *   runtime_id: runtimeId,
@@ -59,6 +59,7 @@ export {
   BrowserHttpClient,
   ENVIRONMENT_HEADER,
   LANE_QUERY_PARAM,
+  PROJECT_ID_QUERY_PARAM,
   type BrowserHttpConfig,
 } from "./http.js";
 export {
@@ -80,6 +81,7 @@ export {
 } from "@introspection-sdk/types";
 
 // Re-exported wire types for convenience.
+// jscpd:ignore-start -- re-export list of wire type names
 export type {
   AGUIEvent,
   BaseEvent,
@@ -115,10 +117,15 @@ export type {
   ConversationUsage,
   ConversationCost,
   ConversationMetrics,
+  ConversationRuntime,
+  ConversationExperiment,
+  ConversationRecipe,
+  ConversationOwner,
   SpanAttributes,
   ConversationSortField,
   ConversationListParams,
   ConversationItemListParams,
+  ConversationContains,
   ConversationItemInclude,
   ResourceShare,
   ShareResourceType,
@@ -131,6 +138,7 @@ export type {
   AutomationTriggerResponse,
   AutomationUpdateParams,
 } from "@introspection-sdk/types";
+// jscpd:ignore-end
 export {
   IntrospectionAPIError,
   AuthenticationError,

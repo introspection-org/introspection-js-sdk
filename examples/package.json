@@ -14,6 +14,9 @@
     "api-connectors-custom-app": "node --import tsx api/connectors-custom-app.ts",
     "api-runtimes": "node --import tsx api/runtimes.ts",
     "api-native-email-code": "node --import tsx api/native-email-code.ts",
+    "api-device-login": "node --import tsx api/device-login.ts",
+    "api-repositories": "node --import tsx api/repositories.ts",
+    "api-annotations-review": "node --import tsx api/annotations-review.ts",
     "proxy-supabase-global": "node --import tsx proxy/supabase-global.ts",
     "proxy-supabase-manual": "node --import tsx proxy/supabase-manual.ts",
     "proxy-typesense": "node --import tsx proxy/typesense.ts",
@@ -23,24 +26,25 @@
   "dependencies": {
     "@introspection-sdk/introspection-node": "workspace:*",
     "@introspection-sdk/introspection-proxy": "workspace:*",
-    "@opentelemetry/semantic-conventions": "^1.43.0"
+    "@opentelemetry/semantic-conventions": "^1.44.0"
   },
   "devDependencies": {
-    "@modelcontextprotocol/sdk": "^1.31.0",
-    "@opentelemetry/exporter-trace-otlp-proto": "^0.222.0",
-    "@opentelemetry/resources": "^2.11.0",
-    "@supabase/supabase-js": "^2.117.2",
+    "@modelcontextprotocol/sdk": "^1.32.1",
+    "@opentelemetry/exporter-trace-otlp-proto": "^0.300.0",
+    "@opentelemetry/resources": "^2.12.0",
+    "@supabase/supabase-js": "^2.118.0",
     "@types/node": "^22.20.5",
-    "mcporter": "^0.14.2",
+    "mcporter": "^0.16.1",
     "tsx": "^4.23.15",
+    "typebox": "^1.4.3",
     "typescript": "^5.9.3",
-    "typesense": "^3.1.0"
+    "typesense": "^3.2.0"
   },
   "optionalDependencies": {
     "@earendil-works/pi-agent-core": "^0.99.2",
     "@earendil-works/pi-ai": "^0.99.2",
-    "@opentelemetry/api": "^1.9.1",
-    "@opentelemetry/sdk-trace-base": "^2.11.0",
-    "@opentelemetry/sdk-trace-node": "^2.11.0"
+    "@opentelemetry/api": "^1.10.0",
+    "@opentelemetry/sdk-trace-base": "^2.12.0",
+    "@opentelemetry/sdk-trace-node": "^2.12.0"
   }
 }

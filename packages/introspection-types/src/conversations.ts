@@ -227,6 +227,7 @@ export interface GenAiCost {
   [key: string]: unknown;
 }
 
+// jscpd:ignore-start -- interface field list mirroring the semconv tree
 /** The `gen_ai.*` attribute family, nested as the convention names it. */
 export interface GenAiSpanAttributes {
   operation?: GenAiOperation;
@@ -244,6 +245,7 @@ export interface GenAiSpanAttributes {
   system_instructions?: SystemInstruction[];
   [key: string]: unknown;
 }
+// jscpd:ignore-end
 
 // --- introspection.* ------------------------------------------------------
 
@@ -269,40 +271,30 @@ export interface IntrospectionRecipe {
   [key: string]: unknown;
 }
 
+/** `introspection.history.new_messages` — the span's new input-message range. */
+export interface IntrospectionHistoryNewMessages {
+  /** Inclusive start index of newly added input messages in the full history. */
+  start?: number;
+  /** Exclusive end index of newly added input messages in the full history. */
+  end?: number;
+  [key: string]: unknown;
+}
+
 /**
- * `introspection.conversation.*`.
- *
- * On an item these describe the turn's place in the conversation. On a
- * summary the counts describe the conversation as a whole — these are the
- * rollups with no semantic-convention name, which is why they live here
- * rather than under `gen_ai`: claiming a `gen_ai.*` name for them would
- * assert a standard meaning that does not exist.
+ * `introspection.history.*` — where a model call's input history sits in the
+ * conversation. Absent on spans the linker never placed (tool, proxy and API
+ * calls), and every field is optional.
  */
-export interface IntrospectionConversation {
-  /** Position of this turn in the conversation (0-based). */
+export interface IntrospectionHistory {
+  /** One-based position of this call in the conversation. */
   position?: number;
-  /** Whether this is the first turn of a conversation. */
+  /** Whether this call opened the conversation. */
   is_new?: boolean;
   /** How this span was linked to a conversation (e.g. `"conversation_id"`). */
   continuation_method?: string;
   /** Whether the history hash lookup matched an existing conversation. */
-  history_hash_hit?: boolean;
-  /** Inclusive start index of newly added input messages in the full history. */
-  new_messages_start?: number;
-  /** Exclusive end index of newly added input messages in the full history. */
-  new_messages_end?: number;
-  /** Client-generated message ID for optimistic turn reconciliation. */
-  client_message_id?: string;
-  /** Number of traces in the conversation (summary rollup). */
-  trace_count?: number;
-  /** Number of spans in the conversation (summary rollup). */
-  span_count?: number;
-  /** Number of `execute_tool` spans in the conversation (summary rollup). */
-  tool_use_count?: number;
-  /** Number of failed `execute_tool` spans (summary rollup). */
-  failed_tool_use_count?: number;
-  /** Whether any span in the conversation has errors (summary rollup). */
-  has_errors?: boolean;
+  hash_hit?: boolean;
+  new_messages?: IntrospectionHistoryNewMessages;
   [key: string]: unknown;
 }
 
@@ -320,7 +312,11 @@ export interface ConversationAgent {
 }
 
 export interface ConversationUsage {
-  input_tokens: number;
+  /**
+   * Every input token the model read: uncached input plus cache reads plus
+   * cache writes. Not the sum of the items' `gen_ai.usage.input_tokens`.
+   */
+  total_input_tokens: number;
   output_tokens: number;
   total_tokens: number;
 }
@@ -332,10 +328,32 @@ export interface ConversationCost {
 export interface ConversationMetrics {
   duration_ms: number;
   trace_count: number;
+  /** Highest `introspection.turn` stamped on the conversation; null when none. */
+  max_turn: number | null;
   span_count: number;
   tool_use_count: number;
   failed_tool_use_count: number;
+  llm_call_count: number;
+  failed_llm_call_count: number;
   has_errors: boolean;
+}
+
+/** Each identity group below is omitted when it has no value, never `{}`. */
+export interface ConversationRuntime {
+  id?: Uuid;
+  group_id?: Uuid;
+}
+
+export interface ConversationExperiment {
+  id?: Uuid;
+}
+
+export interface ConversationRecipe {
+  git_commit_sha?: string;
+}
+
+export interface ConversationOwner {
+  key?: string;
 }
 
 /** Aggregated conversation resource returned by summary reads. */
@@ -352,11 +370,10 @@ export interface Conversation {
   metrics: ConversationMetrics;
   environment?: string;
   service_name?: string;
-  runtime_id?: Uuid;
-  runtime_group_id?: Uuid;
-  experiment_id?: Uuid;
-  recipe_git_commit_sha?: string;
-  owner_key?: string;
+  runtime?: ConversationRuntime;
+  experiment?: ConversationExperiment;
+  recipe?: ConversationRecipe;
+  owner?: ConversationOwner;
   /**
    * Customer-defined dimensions, stamped at ingest via `introspection.metadata.<key>`
    * span attributes. Folded wholesale from the earliest span of the conversation
@@ -384,8 +401,31 @@ export interface IntrospectionSpanAttributes {
   recipe?: IntrospectionRecipe;
   /** Runtime environment lane. */
   environment?: string;
-  conversation?: IntrospectionConversation;
+  /** The runtime's application-level turn, numbered from 1 per conversation. */
+  turn?: number | null;
+  history?: IntrospectionHistory;
   agent?: IntrospectionAgent;
+  contains?: IntrospectionContains;
+  [key: string]: unknown;
+}
+
+/**
+ * `introspection.contains` — the processor's plaintext summary of what a
+ * chat span's sealed `gen_ai.input.messages` delta and
+ * `gen_ai.output.messages` contain, stamped at ingest. Absent on non-chat
+ * spans; what `ConversationItemListParams.contains` selects on.
+ */
+export interface IntrospectionContains {
+  /** Summary schema version; `0` or absent means the span was never summarized. */
+  version?: number;
+  /**
+   * The {@link ConversationContains} values this span answers, spelled
+   * exactly as a client passes them to `contains=`, e.g.
+   * `"gen_ai.input.messages.role:user"` or
+   * `"gen_ai.output.messages.parts.name:search"`. A name list the processor
+   * cut at its bound carries `"<path>:*"`.
+   */
+  values?: string[];
   [key: string]: unknown;
 }
 
@@ -413,6 +453,40 @@ export interface SpanAttributes {
   gen_ai?: GenAiSpanAttributes;
   introspection?: IntrospectionSpanAttributes;
   [key: string]: unknown;
+}
+
+// Stored as JSON strings on a span, returned parsed by the conversation read.
+const JSON_ATTRIBUTES = new Set([
+  "gen_ai.input.messages",
+  "gen_ai.output.messages",
+  "gen_ai.system_instructions",
+  "gen_ai.tool.definitions",
+]);
+
+/**
+ * Flat OTel span attributes (`"gen_ai.usage.input_tokens": 3`) as the nested
+ * tree a conversation read returns (`{ gen_ai: { usage: { input_tokens: 3 } } }`).
+ * The JSON-encoded message attributes are parsed; `undefined` values are
+ * dropped.
+ */
+export function nestAttributes(flat: Record<string, unknown>): SpanAttributes {
+  const tree: Record<string, unknown> = {};
+  for (const [key, raw] of Object.entries(flat)) {
+    if (raw === undefined) continue;
+    const value =
+      JSON_ATTRIBUTES.has(key) && typeof raw === "string"
+        ? JSON.parse(raw)
+        : raw;
+    const path = key.split(".");
+    const leaf = path.pop() ?? key;
+    let node = tree;
+    for (const part of path) {
+      node[part] ??= {};
+      node = node[part] as Record<string, unknown>;
+    }
+    node[leaf] = value;
+  }
+  return tree;
 }
 
 /** OTel resource attributes, nested the way the resource names them. */
@@ -612,8 +686,31 @@ export interface ConversationItemListParams {
   agent?: string;
   /** Filter items by service name (exact match). */
   service_name?: string;
-  /** Filter items by operation name (exact match). */
-  operation_name?: string;
+  /**
+   * Return only the items whose messages contain the named part, as
+   * `<path>:<value>` over the GenAI semconv attributes, resolved on the
+   * server before anything is decrypted; values match any of them. A
+   * `gen_ai.input.messages.*` value returns only the item's new input
+   * messages and a `gen_ai.output.messages.*` value only its output; a
+   * `gen_ai.tool.name` or `gen_ai.operation.name` value returns the whole
+   * item, as does a chat item written before the summary existed. A tool
+   * name may end in one `*` to match by prefix (see
+   * {@link ConversationContains}). At most 20 values. A chat client passes
+   * what it renders:
+   *
+   * ```ts
+   * client.conversations.items.list(id, {
+   *   agent: "root",
+   *   contains: [
+   *     "gen_ai.input.messages.role:user",
+   *     "gen_ai.output.messages.parts.type:text",
+   *     // every call to a Browserbase MCP tool
+   *     "gen_ai.output.messages.parts.name:mcp_browserbase_*",
+   *   ],
+   * });
+   * ```
+   */
+  contains?: ConversationContains[];
   /** Lower bound on item start time (RFC 3339). */
   start_date?: string;
   /** Upper bound on item start time (RFC 3339). */
@@ -621,6 +718,45 @@ export interface ConversationItemListParams {
   /** Relative window in days (1-365), instead of `start_date`/`end_date`. */
   lookback_days?: number;
 }
+
+/**
+ * One value of {@link ConversationItemListParams.contains}: a GenAI semconv
+ * path over the sealed payload and the value it must contain. The set is
+ * closed because every value is resolved from the plaintext summary
+ * (`introspection.contains.values`) or a plaintext column, never from the payload.
+ *
+ * A value on one of the four name paths (`gen_ai.input.messages.parts.name`,
+ * `gen_ai.output.messages.parts.name`, `gen_ai.tool.name`,
+ * `gen_ai.operation.name`) may end in a single `*`, which matches by prefix:
+ * `"gen_ai.tool.name:mcp_*"` selects every MCP tool's `execute_tool` item,
+ * and `"gen_ai.output.messages.parts.name:*"` any tool call. The server
+ * rejects with 422 a `*` anywhere else, or on the role and part-type paths.
+ *
+ * @example
+ * ```ts
+ * const contains: ConversationContains[] = [
+ *   "gen_ai.output.messages.parts.name:mcp_browserbase_*",
+ *   "gen_ai.tool.name:mcp_*",
+ * ];
+ * ```
+ */
+export type ConversationContains =
+  /** A chat item whose new input carries a user-authored part. */
+  | "gen_ai.input.messages.role:user"
+  /** A chat item whose new input carries any tool's response. */
+  | "gen_ai.input.messages.parts.type:tool_call_response"
+  /** A chat item whose new input carries the named tool's response (`name*` = prefix). */
+  | `gen_ai.input.messages.parts.name:${string}`
+  /** A chat item whose output carries assistant text. */
+  | "gen_ai.output.messages.parts.type:text"
+  /** A chat item whose output calls any tool. */
+  | "gen_ai.output.messages.parts.type:tool_call"
+  /** A chat item whose output calls the named tool (`name*` = prefix). */
+  | `gen_ai.output.messages.parts.name:${string}`
+  /** The `execute_tool` item for the named tool (`name*` = prefix). */
+  | `gen_ai.tool.name:${string}`
+  /** Every item of the named operation, e.g. `invoke_agent` (`name*` = prefix). */
+  | `gen_ai.operation.name:${string}`;
 
 /**
  * Query params for `GET /v1/conversations/{id}/export`.

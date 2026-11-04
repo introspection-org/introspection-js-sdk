@@ -9,7 +9,10 @@
  * statuses, which methods, readiness vs severance) stays in each caller.
  */
 
-/** Cap on the exponential/jitter component of a backoff step (ms). */
+/**
+ * Cap on the exponential/jitter component of a backoff step (ms).
+ * @internal Exported for tests only.
+ */
 export const MAX_BACKOFF_MS = 10000;
 
 /**

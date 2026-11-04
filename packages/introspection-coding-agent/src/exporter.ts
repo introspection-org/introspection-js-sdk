@@ -30,8 +30,7 @@ import {
   resourceFromAttributes,
 } from "@opentelemetry/resources";
 import { ExportResultCode, type ExportResult } from "@opentelemetry/core";
-import { HttpsProxyAgent } from "https-proxy-agent";
-import { getProxyForUrl } from "proxy-from-env";
+import { withOtlpHttpsProxy } from "@introspection-sdk/introspection-proxy/otlp";
 import type { Attributes } from "@opentelemetry/api";
 import type { ReadableSpan } from "@opentelemetry/sdk-trace-base";
 
@@ -95,24 +94,6 @@ export interface CaptureTracing {
 }
 
 /**
- * Attach a forward-proxy agent when one is configured for the endpoint.
- *
- * Mirrors `@introspection-sdk/introspection-node`'s `withOtlpHttpsProxy`: the
- * OTLP proto exporter uses Node's `https` stack, so this needs an `http.Agent`,
- * and `getProxyForUrl` is what honours `NO_PROXY` (which `HttpsProxyAgent`
- * ignores on its own). Developer machines behind a corporate proxy are common
- * enough that omitting this would silently disable capture for them.
- */
-function withProxy<T extends { url?: string }>(options: T): T {
-  const proxyUrl = options.url ? getProxyForUrl(options.url) : "";
-  if (!proxyUrl) return options;
-  return {
-    ...options,
-    httpAgentOptions: () => new HttpsProxyAgent(proxyUrl),
-  } as T;
-}
-
-/**
  * Build a tracer provider that exports to `endpoint` as `token`.
  *
  * The token is the CLI login's project-scoped access token. Tenancy is *not*
@@ -129,7 +110,7 @@ export function createTracing(
   const exporter =
     exporterOverride ??
     new OTLPTraceExporter(
-      withProxy({
+      withOtlpHttpsProxy({
         url: endpoint,
         headers: {
           Authorization: `Bearer ${token}`,

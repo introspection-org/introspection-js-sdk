@@ -17,11 +17,17 @@ export {
   foldAgui,
   foldSpans,
   mergeTranscripts,
+  type TranscriptAccumulatorOptions,
 } from "./transcript.js";
 export type { StreamOptions } from "./resumable.js";
 export { EventType } from "@ag-ui/core";
 export type { AGUIEvent, BaseEvent } from "@ag-ui/core";
-export { Paginator, cursorPaginate, type PageSource } from "./pagination.js";
+export {
+  Paginator,
+  cursorPaginate,
+  paginateGet,
+  type PageSource,
+} from "./pagination.js";
 export {
   BaseHttpClient,
   type BaseHttpConfig,
@@ -30,7 +36,10 @@ export {
 export type { ResourceHttpClient } from "./resources/types.js";
 export { encodeMetadataFilter } from "./resources/metadata-filter.js";
 export {
+  MAX_COMMAND_WAIT_SECONDS,
   RunHandle,
+  TaskCommandsApi,
+  TaskCommandsClient,
   TaskRunsApi,
   TaskRunsClient,
   TasksApi,
@@ -66,12 +75,21 @@ export {
 } from "./resources/reads.js";
 export type { ListReadParams } from "./resources/reads.js";
 export { SharesApi, SharesClient } from "./resources/shares.js";
+export {
+  ApprovalsApi,
+  ApprovalsClient,
+  MissionsApi,
+  MissionsClient,
+} from "./resources/aauth.js";
+export { CollectionClient } from "./resources/collection.js";
+export { ImagesApi, ImagesClient } from "./resources/images.js";
 export { AutomationsApi, AutomationsClient } from "./resources/automations.js";
 export {
   RuntimeHandle,
   RuntimesApi,
   RuntimesClient,
   attachRuntimes,
+  toRunRequestBody,
 } from "./resources/runtimes.js";
 export type {
   RuntimeHandleFactory,

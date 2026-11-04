@@ -1,0 +1,5 @@
+{
+  "poll": "the data plane's aauth_pending watcher asks the auth service, which GETs https://ps.acme.example/ps/pending/0199… signed with the session key, honouring Retry-After, until 200 { auth_token } or 403",
+  "on_200": "egress caches the auth token for this resource and session key",
+  "turn_posted_into_the_chat": "[platform] The person's organisation approved the request that was awaiting approval. Retry that exact request now, then tell the person it went through."
+}

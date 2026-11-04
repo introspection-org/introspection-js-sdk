@@ -14,10 +14,12 @@
  *      is needed, resolves its `runtime_id` server-side. The SPA fetches
  *      the token through the `getToken` callback.
  *   2. `connect()` redeems the token at the DP `POST /v1/oauth/exchange`
- *      for an HttpOnly session cookie, named for the token's environment lane
- *      (`intro_dp_development` / `intro_dp_staging` / `intro_dp_production`).
- *      Distinct names mean an app running several lanes holds a live session
- *      for each in one browser instead of the newest evicting the last.
+ *      for an HttpOnly session cookie named for the token's environment lane
+ *      and project (`intro_dp_{lane}_{base64url(project_uuid_bytes)}`).
+ *      Distinct names mean an app running several lanes or projects holds a
+ *      live session for each in one browser instead of the newest evicting
+ *      the last. Every request names the lane and project it means in the
+ *      `?lane=` / `?project_id=` query — selectors, not credentials.
  *   3. Every subsequent call rides that cookie (`credentials: "include"`)
  *      — `client.tasks.start({ runtime_id })`, `.get(...)`, run streaming,
  *      etc.
@@ -37,14 +39,6 @@ import {
 } from "@introspection-sdk/http";
 import type { Environment } from "@introspection-sdk/types";
 import { TasksClient } from "./tasks.js";
-
-type CookieClients = {
-  tasks: TasksClient;
-  files: FilesClient;
-  conversations: ConversationsClient;
-  shares: SharesClient;
-  automations: AutomationsClient;
-};
 
 export interface IntrospectionApiClientOptions {
   /**
@@ -82,12 +76,23 @@ export interface IntrospectionApiClientOptions {
 
 export class IntrospectionApiClient {
   private readonly fetchImpl: typeof fetch;
-  private readonly cookieClients: CookieClients;
+  /** `/v1/tasks` operations bound to the DP session cookie. */
+  readonly tasks: TasksClient;
+  /** `/v1/files` operations bound to the DP session cookie. */
+  readonly files: FilesClient;
+  /** Read-only `/v1/conversations` projection bound to the session cookie. */
+  readonly conversations: ConversationsClient;
+  /** `/v1/shares` sharing grants bound to the session cookie. */
+  readonly shares: SharesClient;
+  /** `/v1/automations` operations bound to the DP session cookie. */
+  readonly automations: AutomationsClient;
   /**
    * Lane established by the most recent exchange. Per instance, never module
    * scope — two clients on one page holding different lanes is the point.
    */
   private resolvedEnvironment?: Environment;
+  /** Project established by the most recent exchange; per instance likewise. */
+  private resolvedProjectId?: string;
   /** The exchange currently in flight, shared by every concurrent 401. */
   private inFlightExchange?: Promise<boolean>;
 
@@ -107,39 +112,13 @@ export class IntrospectionApiClient {
       fetch: this.fetchImpl,
       onUnauthorized: () => this.reexchange(),
       environment: () => this.resolvedEnvironment,
+      projectId: () => this.resolvedProjectId,
     });
-    this.cookieClients = {
-      tasks: new TasksClient(http),
-      files: new FilesClient(http),
-      conversations: new ConversationsClient(http),
-      shares: new SharesClient(http),
-      automations: new AutomationsClient(http),
-    };
-  }
-
-  /** `/v1/tasks` operations bound to the DP session cookie. */
-  get tasks(): TasksClient {
-    return this.cookieClients.tasks;
-  }
-
-  /** `/v1/files` operations bound to the DP session cookie. */
-  get files(): FilesClient {
-    return this.cookieClients.files;
-  }
-
-  /** Read-only `/v1/conversations` projection bound to the session cookie. */
-  get conversations(): ConversationsClient {
-    return this.cookieClients.conversations;
-  }
-
-  /** `/v1/shares` sharing grants bound to the session cookie. */
-  get shares(): SharesClient {
-    return this.cookieClients.shares;
-  }
-
-  /** `/v1/automations` operations bound to the DP session cookie. */
-  get automations(): AutomationsClient {
-    return this.cookieClients.automations;
+    this.tasks = new TasksClient(http);
+    this.files = new FilesClient(http);
+    this.conversations = new ConversationsClient(http);
+    this.shares = new SharesClient(http);
+    this.automations = new AutomationsClient(http);
   }
 
   /**
@@ -149,6 +128,15 @@ export class IntrospectionApiClient {
    */
   get environment(): Environment | undefined {
     return this.resolvedEnvironment;
+  }
+
+  /**
+   * Project this client is connected to, once `connect()` has resolved.
+   * `undefined` before the first exchange, or against a DP that does not
+   * return `project_id`, in which case requests name only the lane.
+   */
+  get projectId(): string | undefined {
+    return this.resolvedProjectId;
   }
 
   /**
@@ -181,6 +169,7 @@ export class IntrospectionApiClient {
     // switched lanes, a stale value would name a cookie we no longer hold.
     const body = (await res.json().catch(() => ({}))) as {
       environment?: Environment;
+      project_id?: string;
     };
     if (body.environment) {
       if (this.opts.environment && this.opts.environment !== body.environment) {
@@ -192,6 +181,10 @@ export class IntrospectionApiClient {
       }
       this.resolvedEnvironment = body.environment;
     }
+    // Overwritten, not kept, when absent: naming a project whose cookie this
+    // exchange did not establish would be a 401/409, while omitting it falls
+    // back to the lane's newest cookie, which is the one just issued.
+    this.resolvedProjectId = body.project_id || undefined;
   }
 
   /**

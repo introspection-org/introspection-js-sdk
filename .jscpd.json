@@ -1,0 +1,12 @@
+{
+  "path": ["packages"],
+  "pattern": "*/src/**/*.ts",
+  "format": ["typescript"],
+  "mode": "weak",
+  "ignore": ["**/node_modules/**", "**/dist/**", "**/*.d.ts"],
+  "gitignore": true,
+  "minTokens": 53,
+  "minLines": 9,
+  "exitCode": 1,
+  "reporters": ["console"]
+}
