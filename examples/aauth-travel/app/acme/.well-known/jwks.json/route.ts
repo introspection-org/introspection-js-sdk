@@ -1,7 +1,3 @@
-import { personServer } from "@/lib/acme/person-server";
+export { jwksGET as GET } from "introspection-example-travel-demo-flow/routes/acme";
 
 export const dynamic = "force-dynamic";
-
-export async function GET() {
-  return Response.json((await personServer()).jwks());
-}
