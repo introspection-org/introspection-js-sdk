@@ -2,22 +2,26 @@
   "name": "introspection-example-pap-travel",
   "version": "0.1.0",
   "private": true,
-  "description": "Flight Sector, a Personal Agent Protocol (draft 0.3) demo: Sam's assistant Atlas rebooks a delayed flight by talking to Flight Sector's agent, with every request on the wire beside the conversation.",
+  "description": "Flight Sector over the Personal Agent Protocol (draft 0.3): Sam's assistant Atlas rebooks a delayed flight by talking to Flight Sector's agent, the travel-agent recipe on Introspection, which books over AAuth behind it. Every request is on the wire beside the conversation.",
   "scripts": {
-    "dev": "portless alias atlas 3500 --force && portless alias pap.flightsector 3500 --force && NODE_EXTRA_CA_CERTS=${NODE_EXTRA_CA_CERTS:-$HOME/.portless/ca.pem} next dev --turbopack --port 3500",
+    "dev": "DEMO_PORT=3500 DEMO_PORTLESS_NAMES='atlas pap.flightsector' ../travel-demo-flow/dev.sh",
     "build": "next build",
     "start": "next start --port 3500",
     "lint": "eslint .",
     "check-types": "tsc --noEmit",
-    "e2e": "NODE_EXTRA_CA_CERTS=${NODE_EXTRA_CA_CERTS:-$HOME/.portless/ca.pem} node scripts/e2e-pap.mjs",
-    "clean": "rm -rf .next .turbo node_modules"
+    "e2e": "node scripts/e2e-pap.mjs",
+    "clean": "rm -rf .next .turbo node_modules",
+    "test": "node --conditions=react-server --import tsx --test \"lib/**/*.test.ts\""
   },
   "dependencies": {
+    "introspection-example-travel-demo-flow": "workspace:*",
     "introspection-example-travel-demo-ui": "workspace:*",
     "jose": "^6.2.12",
     "next": "^16.4.3",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
+    "react-markdown": "^10.1.0",
+    "remark-gfm": "^4.0.1",
     "server-only": "^0.0.1"
   },
   "devDependencies": {
@@ -27,6 +31,7 @@
     "eslint": "^9.39.5",
     "eslint-config-next": "^16.4.3",
     "portless": "^0.15.7",
+    "tsx": "^4.23.15",
     "typescript": "^5.7.2"
   }
 }

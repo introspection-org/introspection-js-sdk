@@ -6,36 +6,35 @@
 import "server-only";
 
 import { decodeJwt, decodeProtectedHeader } from "jose";
-import type { Exchange } from "introspection-example-travel-demo-ui";
+import {
+  exchanges,
+  note,
+} from "introspection-example-travel-demo-flow/demo/wire";
 
-import { once } from "../once";
 import { reachable } from "../origins";
 import { type SessionClaims, sessionJwt } from "./identity";
 
-export type { Exchange };
+type Entry = Parameters<typeof note>[0];
 
-const wire = once("atlas_wire", () => ({
-  seq: 0,
-  turn: 0,
-  exchanges: [] as Exchange[],
-}));
-
-export const exchanges = () => wire.exchanges;
-export function clearWire() {
-  wire.exchanges = [];
-  wire.turn = 0;
-}
-/** Requests from here on belong under chat line `turn`. */
-export function setTurn(turn: number) {
-  wire.turn = turn;
-}
-export function record(entry: Omit<Exchange, "id" | "repeats" | "turn">) {
-  wire.exchanges.push({
-    id: ++wire.seq,
-    repeats: 1,
-    turn: wire.turn,
-    ...entry,
-  });
+/**
+ * Atlas's requests go on the page's one wire, beside the agent's tools and the
+ * AAuth exchanges behind it. A read that brought nothing new, the same as the
+ * one before, adds to that row instead of a new one.
+ */
+export function record(entry: Entry, quiet = false) {
+  const last = exchanges().at(-1);
+  if (
+    quiet &&
+    last?.label === entry.label &&
+    last.status === entry.status &&
+    last.from === entry.from
+  ) {
+    last.repeats += 1;
+    last.request = entry.request;
+    last.response = entry.response;
+    return;
+  }
+  note(entry);
 }
 
 const SECRET_FIELDS = new Set([
@@ -85,6 +84,8 @@ export type Call = {
   session?: SessionClaims;
   /** Sent signed in. */
   accessToken?: string;
+  /** A read that may bring nothing new, folded into the row before it if so. */
+  quiet?: boolean;
 };
 
 export type Answer = {
@@ -145,27 +146,35 @@ export async function call(spec: Call): Promise<Answer> {
       ? pretty(spec.json)
       : undefined;
   const challenge = response.headers.get("www-authenticate");
-  record({
-    from: "Atlas",
-    to: "Flight Sector",
-    label: spec.label,
-    status: response.status,
-    request: [
-      `${spec.method} ${spec.url}`,
-      ...Object.entries(headers).map(([k, v]) => `${k}: ${shownHeader(k, v)}`),
-      ...(shownBody ? ["", shownBody] : []),
-      ...(headers["Poppy-Session"]
-        ? ["", decoded(headers["Poppy-Session"])]
-        : []),
-    ].join("\n"),
-    response: [
-      `HTTP/1.1 ${response.status} ${response.statusText}`,
-      ...(challenge ? [`WWW-Authenticate: ${challenge}`] : []),
-      ...(parsed !== null && parsed !== ""
-        ? ["", typeof parsed === "string" ? parsed : pretty(parsed)]
-        : []),
-    ].join("\n"),
-  });
+  record(
+    {
+      from: "Atlas",
+      to: "Flight Sector",
+      label: spec.label,
+      status: response.status,
+      request: [
+        `${spec.method} ${spec.url}`,
+        ...Object.entries(headers).map(
+          ([k, v]) => `${k}: ${shownHeader(k, v)}`,
+        ),
+        ...(shownBody ? ["", shownBody] : []),
+        ...(headers["Poppy-Session"]
+          ? ["", decoded(headers["Poppy-Session"])]
+          : []),
+      ].join("\n"),
+      response: [
+        `HTTP/1.1 ${response.status} ${response.statusText}`,
+        ...(challenge ? [`WWW-Authenticate: ${challenge}`] : []),
+        ...(parsed !== null && parsed !== ""
+          ? ["", typeof parsed === "string" ? parsed : pretty(parsed)]
+          : []),
+      ].join("\n"),
+    },
+    // Folded only when it brought no events.
+    Boolean(spec.quiet) &&
+      Array.isArray((parsed as { events?: unknown[] })?.events) &&
+      (parsed as { events: unknown[] }).events.length === 0,
+  );
   const location = response.headers.get("location") ?? undefined;
   if (response.status >= 300 && response.status < 400) {
     if (spec.session || spec.accessToken || spec.form)

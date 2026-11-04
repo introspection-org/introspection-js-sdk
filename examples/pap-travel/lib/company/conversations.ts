@@ -1,14 +1,16 @@
 /**
  * Flight Sector's Poppy conversations (spec 8): start, send, read events,
  * hand off and close. A conversation belongs to the client and User ID that
- * started it, and to the account once it uses one (8.2). The replies come
- * from `agent.ts`.
+ * started it, and to the account once it uses one (8.2). Its Company Agent
+ * is a task on Introspection, through `bridge.ts`.
  */
 import "server-only";
 
 import { random, sha256 } from "../crypto";
 import { once } from "../once";
-import { reply } from "./agent";
+import { createBridge, type Link } from "./bridge";
+import { introspectionAgent } from "./driver";
+import { stubAgent } from "./stub-agent";
 import { challenge, PoppyError } from "./errors";
 import { CONVERSATIONS } from "./oauth";
 import type { Caller } from "./session";
@@ -44,8 +46,8 @@ export type Conversation = {
   account?: string;
   status: Status;
   events: ConversationEvent[];
-  /** What the scripted agent has done so far. */
-  memory: { shared?: boolean; offered?: boolean; rebooked?: string };
+  /** The task behind it. */
+  link?: Link;
 };
 
 type Reply = { status: number; body: unknown; challenge?: string };
@@ -57,7 +59,11 @@ const state = once("company_conversations", () => ({
 }));
 
 const ID = /^[A-Za-z0-9_-]{1,256}$/;
-const READ_SCOPE = "bookings:read";
+/** Flight Sector's agent can change bookings, so talking to it takes both scopes. */
+const SCOPES = ["bookings:read", "bookings:write"];
+const NEEDED = SCOPES.join(" ");
+/** How long a read holds for the agent's next event. */
+const MAX_WAIT_SECONDS = 25;
 
 export function addEvent(conversation: Conversation, event: NewEvent) {
   conversation.events.push({
@@ -89,7 +95,7 @@ function owned(caller: Caller, id: string): Conversation {
         401,
         null,
         "this conversation uses the user's account",
-        challenge(READ_SCOPE),
+        challenge(NEEDED),
       );
     if (caller.account !== conversation.account)
       throw new PoppyError(
@@ -134,7 +140,7 @@ function waitParam(url: URL) {
     );
 }
 
-/** A read of events after `cursor` (8.5). Replies are scripted, so `wait` never has to wait. */
+/** A read of events after `cursor` (8.5). */
 function read(conversation: Conversation, cursor: string | null) {
   let start = 0;
   if (cursor) {
@@ -153,14 +159,30 @@ function read(conversation: Conversation, cursor: string | null) {
   };
 }
 
-function answer(
+/** Reads after `cursor`, holding up to `wait` seconds for the agent's next event (8.5). */
+async function waitFor(conversation: Conversation, url: URL) {
+  const cursor = url.searchParams.get("cursor");
+  const wait = Math.min(
+    Number(url.searchParams.get("wait") ?? 0),
+    MAX_WAIT_SECONDS,
+  );
+  const until = Date.now() + wait * 1000;
+  for (;;) {
+    await bridge.sync(conversation);
+    const result = read(conversation, cursor);
+    if (result.events.length || Date.now() >= until) return result;
+    await new Promise((resolve) => setTimeout(resolve, 500));
+  }
+}
+
+async function answer(
   conversation: Conversation,
   url: URL,
   status: number,
   challengeHeader?: string,
-): Reply {
+): Promise<Reply> {
   const body = url.searchParams.has("wait")
-    ? read(conversation, url.searchParams.get("cursor"))
+    ? await waitFor(conversation, url)
     : {
         conversation_id: conversation.id,
         status: conversation.status,
@@ -200,8 +222,19 @@ async function accept(
   status: number,
 ) {
   addEvent(conversation, { type: "message", message });
-  const { challenge: header } = await reply(caller, conversation, message);
-  const result = answer(conversation, url, status, header);
+  let header: string | undefined;
+  if (SCOPES.every((s) => caller.scopes.includes(s)))
+    await bridge.deliver(caller, conversation, message);
+  else {
+    // Signed in without both scopes: the conversation asks for them (8.11).
+    addEvent(conversation, {
+      type: "authorization",
+      error: "insufficient_scope",
+      scope: NEEDED,
+    });
+    header = challenge(NEEDED, "insufficient_scope");
+  }
+  const result = await answer(conversation, url, status, header);
   state.accepted.set(messageKey(caller, message), {
     hash: await sha256(JSON.stringify(message)),
     reply: result,
@@ -222,6 +255,15 @@ export async function start(
       "invalid_request",
       "Flight Sector doesn't offer Direct Conversations",
     );
+  // `access: signed_in` (poppy.json): the agent acts on an account, so there is
+  // no conversation with it signed out.
+  if (!caller.account)
+    throw new PoppyError(
+      401,
+      null,
+      "Flight Sector's agent works with the user's account",
+      challenge(NEEDED),
+    );
   const message = readMessage(body);
   const again = await retried(caller, message);
   if (again) return toResponse(again);
@@ -232,7 +274,6 @@ export async function start(
     account: caller.account,
     status: "working",
     events: [],
-    memory: {},
   };
   state.conversations.set(conversation.id, conversation);
   return accept(caller, conversation, message, url, 201);
@@ -260,9 +301,9 @@ export async function send(
 }
 
 /** `GET {endpoint}/{id}/events` (8.5). */
-export function events(caller: Caller, id: string, url: URL) {
+export async function events(caller: Caller, id: string, url: URL) {
   waitParam(url);
-  return Response.json(read(owned(caller, id), url.searchParams.get("cursor")));
+  return Response.json(await waitFor(owned(caller, id), url));
 }
 
 /** `POST {endpoint}/{id}/handoff` (8.9): no one is free in this demo, so it goes back to idle. */
@@ -301,6 +342,14 @@ export function close(caller: Caller, id: string) {
     responder: "agent",
   });
 }
+
+/** The Company Agent: the recipe on Introspection, or, for `pnpm e2e` only, a stub. */
+const bridge = once("company_bridge", () =>
+  createBridge(
+    process.env.POPPY_AGENT === "stub" ? stubAgent : introspectionAgent,
+    { addEvent, setStatus },
+  ),
+);
 
 export const conversationUrl = (id?: string, tail = "") =>
   `${CONVERSATIONS}${id ? `/${id}` : ""}${tail}`;

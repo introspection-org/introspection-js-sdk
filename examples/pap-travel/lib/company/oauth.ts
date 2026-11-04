@@ -55,7 +55,7 @@ export function poppyDocument() {
     auth: { issuer: ISSUER, scopes: SCOPES, scope_hints: SCOPE_HINTS },
     agent: {
       protocols: [
-        { type: "poppy", endpoint: CONVERSATIONS, access: "session" },
+        { type: "poppy", endpoint: CONVERSATIONS, access: "signed_in" },
       ],
     },
     extensions: { operations: { version: "2" } },

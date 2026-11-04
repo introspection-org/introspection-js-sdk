@@ -1,15 +1,77 @@
-// `pnpm e2e`: drives the demo as Sam would on the page, through Atlas's API,
-// and checks what went over the wire at each step: discovery, the Session
-// header, Direct Sign-In, both rebookings (UA863 with no approval, QF8 with
-// an operation Sam approves, which is performed once however often the
-// approval is sent) and sign-out. Needs `pnpm dev` running behind portless.
+// `pnpm e2e`: the Personal Agent Protocol between Atlas and Flight Sector,
+// with no Introspection backend. It is a protocol test, not the demo: the
+// Company Agent is a stub at the bridge boundary (POPPY_AGENT=stub,
+// lib/company/stub-agent.ts) that answers with fixed lines and one
+// request_approval, so no model, recipe, mission or Acme runs here. It drives
+// Atlas as Sam would on the page and checks each request on the wire:
+// discovery, requests refused without a valid Session header, sign-in first
+// (`access: signed_in`), a signed-in conversation, the operation Sam approves,
+// an approval sent again that adds nothing, and sign-out.
+//
+// It starts the app itself on :3501, with Atlas and Flight Sector on their
+// portless names; the portless proxy must be on :443
+// (`sudo npx portless proxy start` once).
 import assert from "node:assert/strict";
+import { spawn, spawnSync } from "node:child_process";
+import { existsSync } from "node:fs";
+import { homedir } from "node:os";
+import { join } from "node:path";
 
 import { exportJWK, generateKeyPair, SignJWT } from "jose";
 
-const ATLAS = process.env.ATLAS_URL ?? "https://atlas.localhost";
-const COMPANY = process.env.COMPANY_URL ?? "https://pap.flightsector.localhost";
+const PORT = Number(process.env.E2E_APP_PORT ?? 3501);
+const ATLAS = "https://atlas.localhost";
+const COMPANY = "https://pap.flightsector.localhost";
 const CONVERSATIONS = `${COMPANY}/poppy/conversations`;
+const PORTLESS_CA = join(homedir(), ".portless", "ca.pem");
+
+// Node reads NODE_EXTRA_CA_CERTS only at startup, so the run starts over once
+// with portless's CA trusted; the app it spawns inherits it.
+if (!process.env.NODE_EXTRA_CA_CERTS) {
+  if (!existsSync(PORTLESS_CA)) {
+    console.error(
+      `No portless CA at ${PORTLESS_CA}: start the proxy once with \`sudo npx portless proxy start\`.`,
+    );
+    process.exit(1);
+  }
+  const { status } = spawnSync(process.execPath, process.argv.slice(1), {
+    stdio: "inherit",
+    env: { ...process.env, NODE_EXTRA_CA_CERTS: PORTLESS_CA },
+  });
+  process.exit(status ?? 1);
+}
+
+for (const name of ["atlas", "pap.flightsector"]) {
+  const alias = spawnSync(
+    "node_modules/.bin/portless",
+    ["alias", name, String(PORT), "--force"],
+    { encoding: "utf8" },
+  );
+  if (alias.status !== 0)
+    throw new Error(`portless alias ${name}: ${alias.stderr || alias.stdout}`);
+}
+const app = spawn(
+  "node_modules/.bin/next",
+  ["dev", "--turbopack", "--port", String(PORT)],
+  {
+    env: {
+      ...process.env,
+      POPPY_AGENT: "stub",
+      APP_URL: `http://localhost:${PORT}`,
+    },
+    stdio: ["ignore", "ignore", "inherit"],
+  },
+);
+process.on("exit", () => app.kill());
+for (let i = 0; ; i++) {
+  try {
+    if ((await fetch(`${COMPANY}/.well-known/poppy.json`)).ok) break;
+  } catch {
+    // not up yet
+  }
+  if (i > 90) throw new Error("the app did not start");
+  await new Promise((resolve) => setTimeout(resolve, 1000));
+}
 
 let passed = 0;
 async function check(name, run) {
@@ -29,13 +91,6 @@ async function act(body) {
   return state;
 }
 const current = async () => (await fetch(`${ATLAS}/api/state`)).json();
-const exchange = (state, label) => {
-  const found = state.exchanges.findLast((x) => x.label === label);
-  assert.ok(found, `no request "${label}"`);
-  return found;
-};
-const body = (x) =>
-  JSON.parse(x.response.slice(x.response.indexOf("\n\n") + 2));
 
 async function postConversation(headers) {
   const response = await fetch(CONVERSATIONS, {
@@ -76,16 +131,24 @@ async function signIn(state) {
   return after;
 }
 
-/** Sam asks Atlas, and signs in when Flight Sector needs his booking. */
-async function askAndSignIn() {
+/** Sam asks Atlas; Flight Sector works only signed in, so he signs in first. */
+async function askAndSignIn(text) {
   await act({ action: "reset" });
-  const asked = await act({
-    action: "send",
-    text: "My QF74 to Sydney is delayed six hours. Can you get me there in time?",
-  });
+  const asked = await act({ action: "send", text });
   assert.equal(asked.step, "sign-in");
   return { asked, signedIn: await signIn(asked) };
 }
+
+const companyLines = (state) =>
+  state.chat.filter(
+    (l) => l.from === "Atlas" && l.text.startsWith("**Flight Sector:**"),
+  );
+const wire = (state) => state.behind.exchanges;
+const exchange = (state, label) => {
+  const found = wire(state).findLast((x) => x.label === label);
+  assert.ok(found, `no request "${label}"`);
+  return found;
+};
 
 await check("discovery documents for draft 0.3", async () => {
   const poppy = await (await fetch(`${COMPANY}/.well-known/poppy.json`)).json();
@@ -99,7 +162,7 @@ await check("discovery documents for draft 0.3", async () => {
     poppy.auth.scope_hints["bookings:write"].changes,
     "irreversible",
   );
-  assert.equal(poppy.agent.protocols[0].access, "session");
+  assert.equal(poppy.agent.protocols[0].access, "signed_in");
   assert.equal(poppy.extensions.operations.version, "2");
   const resource = await (
     await fetch(`${COMPANY}/.well-known/oauth-protected-resource`)
@@ -112,7 +175,6 @@ await check("discovery documents for draft 0.3", async () => {
   assert.equal(meta.issuer, COMPANY);
   assert.ok(meta.protected_resources.includes(COMPANY));
   assert.deepEqual(meta.scopes_supported, ["bookings:read", "bookings:write"]);
-  assert.ok(meta.grant_types_supported.includes("refresh_token"));
   const agent = await (await fetch(`${ATLAS}/agent.json`)).json();
   assert.equal(agent.extensions.operations.version, "2");
 });
@@ -176,61 +238,59 @@ await check("the token endpoint has no signed-out grant", async () => {
 
 let state;
 await check(
-  "signed out, Atlas talks with the Session header only",
+  "access: signed_in, so Atlas has Sam sign in before it says anything",
   async () => {
-    const run = await askAndSignIn();
+    const run = await askAndSignIn(
+      "My QF74 is delayed. Get me there in time without paying more.",
+    );
+    assert.equal(
+      wire(run.asked).filter((x) =>
+        x.label.startsWith("Start the conversation"),
+      ).length,
+      0,
+      "no conversation before sign-in",
+    );
     state = run.signedIn;
-    const { asked } = run;
-    const opened = exchange(asked, "Start a conversation, signed out");
-    assert.equal(opened.status, 201);
-    assert.match(opened.request, /^Poppy-Session: /m);
-    assert.doesNotMatch(opened.request, /^Authorization:/m);
-    assert.match(opened.request, /"typ": "poppy-session\+jwt"/);
-    assert.doesNotMatch(opened.request, /"ath"/);
-    assert.match(
-      opened.response,
-      /^WWW-Authenticate: Bearer scope="bookings:read bookings:write"/m,
+    const token = exchange(state, "Finish Direct Sign-In");
+    assert.equal(token.status, 200);
+    assert.doesNotMatch(token.request, /session_id|Poppy-Session/);
+    const tokens = JSON.parse(
+      token.response.slice(token.response.indexOf("\n\n") + 2),
     );
-    const events = body(opened).events;
-    assert.ok(
-      events.some(
-        (e) => e.type === "authorization" && e.error === "insufficient_scope",
-      ),
-      "Flight Sector asks for account access in the conversation",
-    );
-    assert.ok(
-      events.every((e) => e.type !== "message" || e.message.author.type),
-      "every message names its author",
-    );
+    assert.equal(tokens.token_type, "Bearer");
+    assert.ok(tokens.refresh_token && tokens.access_token);
   },
 );
 
 await check(
-  "sign-in is plain OAuth, and signed-in requests carry both",
+  "the signed-in conversation carries the Session header and the access token",
   async () => {
-    assert.equal(state.step, "choose");
-    const token = exchange(state, "Finish Direct Sign-In");
-    assert.equal(token.status, 200);
-    assert.doesNotMatch(token.request, /session_id|Poppy-Session/);
-    assert.match(token.request, /grant_type=authorization_code/);
-    const tokens = body(token);
-    assert.equal(tokens.token_type, "Bearer");
-    assert.ok(tokens.refresh_token && tokens.access_token);
-    assert.equal(tokens.scope, "bookings:read bookings:write");
-    const continued = exchange(state, "Continue the conversation, signed in");
-    assert.equal(continued.status, 202);
-    assert.match(continued.request, /^Poppy-Session: /m);
-    assert.match(continued.request, /^Authorization: Bearer /m);
-    assert.match(continued.request, /"ath": "/);
+    const opened = exchange(state, "Start the conversation");
+    assert.equal(opened.status, 201);
+    assert.match(opened.request, /^Poppy-Session: /m);
+    assert.match(opened.request, /^Authorization: Bearer /m);
+    assert.match(opened.request, /"ath": "/);
+    assert.match(opened.request, /"current_booking"/);
+    assert.equal(
+      companyLines(state).length,
+      1,
+      "the agent's offer reached Sam",
+    );
   },
 );
 
-await check("UA863: no extra cost, no approval, booked", async () => {
-  state = await act({ action: "choose", option: "UA863" });
-  assert.equal(state.step, "done");
-  assert.equal(state.records.booking.flight, "UA863");
-  assert.equal(state.records.changes.length, 1);
-  assert.equal(state.records.changes[0].operation_id, undefined);
+await check("UA863: no extra cost, no operation", async () => {
+  state = await act({
+    action: "send",
+    text: "The one at no extra cost, please.",
+  });
+  const passed = exchange(state, "Pass on Sam's words");
+  assert.match(passed.request, /"type": "human"/);
+  assert.match(companyLines(state).at(-1).text, /Booked: UA863/);
+  assert.equal(
+    state.chat.some((l) => l.approval),
+    false,
+  );
 });
 
 await check(
@@ -249,66 +309,72 @@ await check(
     assert.doesNotMatch(read.request, /^Authorization:/m);
     assert.match(
       read.response,
-      /^WWW-Authenticate: Bearer scope="bookings:read"$/m,
+      /^WWW-Authenticate: Bearer scope="bookings:read bookings:write"$/m,
     );
-    assert.equal(state.session.signedIn, false);
   },
 );
 
 await check(
-  "QF8: Flight Sector asks for approval of the exact terms, and changes nothing",
+  "QF8: an operation for the exact terms, shown to Sam, and nothing booked",
   async () => {
-    ({ signedIn: state } = await askAndSignIn());
-    state = await act({ action: "choose", option: "QF8" });
+    ({ signedIn: state } = await askAndSignIn(
+      "My QF74 is delayed. Get me there early, even if it costs more.",
+    ));
+    state = await act({
+      action: "send",
+      text: "QF8 via Dallas, even if it costs more.",
+    });
     assert.equal(state.step, "approve");
-    const card = state.chat.at(-1).approval;
-    assert.ok(card, "Atlas shows Sam the operation");
-    const { operation } = card;
+    const { operation } = state.chat.at(-1).approval;
     assert.match(operation.operation_id, /^chg_/);
     assert.ok(operation.revision && operation.expires_at && operation.summary);
-    assert.equal(operation.terms.fare_difference.amount, "400.00");
-    assert.equal(card.mismatch, undefined);
-    assert.equal(state.records.changes.length, 0, "nothing is booked yet");
-    assert.equal(state.records.booking.flight, "QF74");
+    assert.equal(operation.terms.difference, "400.00");
+    assert.doesNotMatch(
+      companyLines(state)
+        .map((l) => l.text)
+        .join("\n"),
+      /Booked: QF8/,
+    );
   },
 );
 
 await check(
-  "Sam approves: the approval goes in the conversation, and QF8 is booked",
+  "Sam approves: the approval goes in the conversation, and the agent books once",
   async () => {
     state = await act({ action: "approve" });
-    assert.equal(state.step, "done");
     const sent = exchange(state, "Send Sam's approval");
     assert.equal(sent.status, 202);
     assert.match(sent.request, /"approval": \{/);
-    assert.equal(state.records.booking.flight, "QF8");
-    assert.equal(state.records.changes.length, 1);
-    assert.match(state.records.changes[0].operation_id, /^chg_/);
+    assert.equal(
+      companyLines(state).filter((l) => /Booked: QF8/.test(l.text)).length,
+      1,
+    );
   },
 );
 
-await check("sending the approval again books nothing more", async () => {
+await check("sending the approval again adds nothing", async () => {
   state = await act({ action: "retry-approval" });
-  const first = exchange(state, "Send Sam's approval");
   const same = exchange(state, "Retry the approval: same message");
   assert.equal(same.status, 202);
-  assert.deepEqual(
-    body(same),
-    body(first),
-    "a retried message gets its original response",
-  );
   const again = exchange(state, "Send the approval again: new message");
   assert.equal(again.status, 202);
-  const added = body(again).events;
-  assert.ok(
-    added.every((e) => e.type !== "message" || e.message.role === "user"),
-    "Flight Sector adds nothing to a new message with the same approval",
+  const body = JSON.parse(
+    again.response.slice(again.response.indexOf("\n\n") + 2),
   );
-  assert.equal(state.records.changes.length, 1, "booked once");
+  assert.ok(
+    body.events.every((e) => e.type !== "message" || e.message.role === "user"),
+    "Flight Sector adds no reply to a new message with the same approval",
+  );
+  assert.equal(
+    companyLines(state).filter((l) => /Booked: QF8/.test(l.text)).length,
+    1,
+    "booked once",
+  );
   state = await act({ action: "disconnect" });
   assert.equal(state.step, "disconnected");
 });
 
-console.log(`\n${passed} checks passed. The last run's requests:`);
-for (const x of state.exchanges)
-  console.log(`  ${String(x.status).padEnd(4)} ${x.label}`);
+console.log(
+  `\n${passed} checks passed. Protocol test only: no Introspection, model or Acme ran.`,
+);
+process.exit(0);

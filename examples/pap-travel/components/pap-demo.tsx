@@ -10,16 +10,21 @@ import {
 import {
   BehindTheChat,
   Composer,
+  ConversationBar,
+  type Decide,
+  type Email,
   type Exchange,
   Header,
   Ideas,
+  Inbox,
   Moment,
   type Parties,
   Phone,
   RequestDetails,
-  Sees,
   useFollow,
 } from "introspection-example-travel-demo-ui";
+import Markdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 
 type Operation = {
   operation_id: string;
@@ -38,47 +43,58 @@ type ChatLine = {
   from: "Sam" | "Atlas";
   text: string;
   signIn?: string;
-  choices?: { id: string; label: string }[];
   approval?: Card;
 };
-type Seen = {
-  turn: number;
-  from: string;
-  text: string;
-  kind?: "authorization" | "operation" | "approval";
-};
 type Scenario = { id: string; title: string; prompt: string; hint: string };
+/** Flight Sector's side: the task its agent runs on Introspection, and Acme behind it. */
+type Behind = {
+  chat: { from: string; text: string }[];
+  exchanges: Exchange[];
+  inbox: Email[];
+  taskId?: string;
+  conversations?: string;
+  hosts?: Record<string, string>;
+  busy: boolean;
+  mission?: {
+    s256: string;
+    budget_cents: number;
+    spent_cents: number;
+    terminated?: string;
+  };
+};
 type Snapshot = {
-  step: "start" | "sign-in" | "choose" | "approve" | "done" | "disconnected";
+  step: "start" | "sign-in" | "talking" | "approve" | "disconnected";
   prompt?: string;
   busy: boolean;
   chat: ChatLine[];
-  seen: Seen[];
-  exchanges: Exchange[];
   session?: {
     sid: string;
     signedIn: boolean;
     scopes: string[];
     conversation?: string;
   };
-  records: {
-    booking: { reference: string; flight: string; seat: string };
-    changes: { flight: string; operation_id?: string }[];
-  };
+  behind: Behind;
   error?: string;
 };
 
 const PARTY: Parties = {
   "Flight Sector": { name: "Flight Sector", mark: "F" },
   Atlas: { name: "Atlas", mark: "A" },
+  Tools: {
+    name: "Tools",
+    mark: "T",
+    host: "travel-agent recipe, in its sandbox",
+  },
+  Acme: { name: "Acme", mark: "A" },
+  "Booking provider": { name: "Booking provider", mark: "B" },
+  Browserbase: { name: "Browserbase", mark: "W" },
 };
 
-/** What each kind of event in the agents' conversation is, as a pill. */
-const KIND = {
-  authorization: { label: "sign-in", tone: "ask" },
-  operation: { label: "approve?", tone: "wait" },
-  approval: { label: "approved", tone: "ok" },
-};
+/** What Sam might say next, once Flight Sector's agent has offered flights. */
+const REPLIES = [
+  "The one at no extra cost, please.",
+  "QF8 via Dallas, even if it costs more.",
+];
 
 /**
  * The demo's own lines and an operation's `summary`: bold and lists only.
@@ -121,13 +137,15 @@ function Rich({ text }: { text: string }) {
 }
 
 const TERMS: Record<string, string> = {
-  booking_reference: "Booking",
-  from_flight: "From",
-  to_flight: "To",
-  departs: "Departs",
-  arrives: "Arrives",
-  fare_difference: "Fare difference",
-  charged_to: "Charged to",
+  flight: "Flight",
+  from: "From",
+  to: "To",
+  date: "Date",
+  depart: "Departs",
+  arrive: "Arrives",
+  total: "Fare",
+  currency: "Currency",
+  difference: "More than Sam paid",
 };
 const shownTerm = (value: unknown) => {
   const money = value as { amount?: string; currency?: string } | null;
@@ -204,15 +222,7 @@ function Approval({
   );
 }
 
-export function PapDemo({
-  scenarios,
-  hosts,
-  companyUrl,
-}: {
-  scenarios: Scenario[];
-  hosts: Record<string, string>;
-  companyUrl: string;
-}) {
+export function PapDemo({ scenarios }: { scenarios: Scenario[] }) {
   const [state, setState] = useState<Snapshot | null>(null);
   const [prompt, setPrompt] = useState("");
   const [sending, setSending] = useState(false);
@@ -231,7 +241,11 @@ export function PapDemo({
   const chatSize =
     state?.chat.reduce((n, line) => n + line.text.length, 0) ?? 0;
   const { chatBox, seenPane, detailsPane, onSeenScroll, onDetailsScroll } =
-    useFollow(`${state?.chat.length}:${chatSize}:${sending}`, state, picked);
+    useFollow(
+      `${state?.chat.length}:${chatSize}:${state?.busy}`,
+      state,
+      picked,
+    );
 
   const act = async (body: Record<string, unknown>) => {
     setSending(true);
@@ -248,27 +262,29 @@ export function PapDemo({
   };
 
   if (!state) return null;
+  const { behind, session } = state;
   const started = state.chat.length > 0;
+  const working = sending || state.busy;
   const hint = scenarios.find(
     (s) => s.prompt === (state.prompt ?? prompt),
   )?.hint;
   const turns = [
     ...new Set([
-      ...state.exchanges.map((x) => x.turn),
-      ...state.seen.map((s) => s.turn),
+      ...behind.exchanges.map((x) => x.turn),
+      ...behind.inbox.map((e) => e.turn),
     ]),
   ].sort((a, b) => a - b);
-  const shownTurn = picked ?? state.exchanges.at(-1)?.turn;
-  const details = state.exchanges.filter((x) => x.turn === shownTurn);
+  const shownTurn = picked ?? behind.exchanges.at(-1)?.turn;
+  const details = behind.exchanges.filter((x) => x.turn === shownTurn);
   const lastAtlas = state.chat.findLastIndex((line) => line.from === "Atlas");
-  const send = () => {
-    if (!prompt.trim()) return;
+  const say = (text: string) => {
+    if (!text.trim()) return;
     if (!started) setPicked(null);
-    act({ action: "send", text: prompt });
+    act({ action: "send", text });
     setPrompt("");
   };
-  const { session } = state;
-  const { booking, changes } = state.records;
+  const decide: Decide = (email, verdict, budget) =>
+    act({ action: "decide", email: email.index, verdict, budget });
 
   return (
     <div className="ademo pap">
@@ -277,11 +293,12 @@ export function PapDemo({
           <>
             <span className="poppy-mark">
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src="/poppy.png" alt="" width={22} height={22} />
+              <img src="/atlas/poppy.png" alt="" width={22} height={22} />
               Poppy
             </span>
             <span className="step-label">
-              draft 0.3 · a Personal Agent, signed in, with operations
+              draft 0.3 · in front of AAuth · on{" "}
+              <span className="on-introspection">Introspection</span>
             </span>
           </>
         }
@@ -296,12 +313,12 @@ export function PapDemo({
               Spec
             </a>
             <a
-              href={`${companyUrl}/.well-known/poppy.json`}
+              href="https://github.com/introspection-recipes/recipe-travel-agent/blob/main/agents/poppy.yaml"
               target="_blank"
               rel="noopener noreferrer"
               className="control"
             >
-              poppy.json
+              Recipe
             </a>
             {started && (
               <button
@@ -318,6 +335,16 @@ export function PapDemo({
           </>
         }
         title={<>Atlas rebooks Sam&apos;s delayed flight with Flight Sector</>}
+        aside={
+          <ConversationBar
+            base={behind.conversations}
+            taskId={behind.taskId}
+            onLoad={(id) => {
+              setPicked(null);
+              act({ action: "join", taskId: id });
+            }}
+          />
+        }
       />
 
       <div className="stage">
@@ -330,7 +357,7 @@ export function PapDemo({
             <Composer
               value={prompt}
               onChange={setPrompt}
-              onSend={send}
+              onSend={() => say(prompt)}
               placeholder={started ? "Reply as Sam" : "Message Atlas as Sam"}
               label="Sam's message"
               busy={sending}
@@ -359,41 +386,54 @@ export function PapDemo({
                   onAnswer={(verdict) => act({ action: verdict })}
                 />
               )}
-              {line.choices && i === lastAtlas && (
-                <div className="choices">
-                  {line.choices.map((c) => (
-                    <button
-                      key={c.id}
-                      className="secondary"
-                      disabled={sending}
-                      onClick={() => act({ action: "choose", option: c.id })}
-                    >
-                      {c.label}
-                    </button>
-                  ))}
-                </div>
-              )}
             </Fragment>
           ))}
-          {sending && <div className="bubble agent working">…</div>}
+          {working && <div className="bubble agent working">…</div>}
+          {state.step === "talking" && session?.signedIn && !working && (
+            <div className="choices">
+              {REPLIES.map((reply) => (
+                <button
+                  key={reply}
+                  className="secondary"
+                  onClick={() => say(reply)}
+                >
+                  {reply}
+                </button>
+              ))}
+              <button
+                className="secondary"
+                onClick={() => act({ action: "disconnect" })}
+              >
+                Disconnect from Flight Sector
+              </button>
+            </div>
+          )}
           {state.error && <div className="error">{state.error}</div>}
           {/* The chat's end: its gap keeps the last bubble off the composer. */}
           <div />
         </Phone>
 
         <BehindTheChat
-          status={started ? (state.busy ? "In progress" : "Done") : "Ready"}
+          status={
+            started
+              ? working || behind.busy
+                ? "In progress"
+                : "Done"
+              : "Ready"
+          }
           intro={
-            (!started || hint || session) && (
+            (!started || hint || session || behind.mission) && (
               <>
                 {!started && (
                   <p>
                     Pick a sample or type your own. Atlas is Sam&apos;s own
                     agent, and Flight Sector has never seen it before: Atlas
-                    finds it from its <code>poppy.json</code>, names its Session
-                    in a signed header on every request, has Sam sign in with
-                    plain OAuth when it needs his booking, and asks Sam before
-                    it approves anything that costs more.
+                    finds it from its <code>poppy.json</code>, has Sam sign in
+                    with plain OAuth, and talks to Flight Sector&apos;s agent,
+                    the travel-agent recipe on Introspection, in a Session it
+                    signs on every request. Behind it, the agent books over
+                    AAuth, so Acme&apos;s Dana approves the trip and anything
+                    over its budget.
                   </p>
                 )}
                 {hint && (
@@ -406,13 +446,23 @@ export function PapDemo({
                     Session <code>{session.sid.slice(0, 10)}…</code> ·{" "}
                     {session.signedIn
                       ? `signed in, ${session.scopes.join(" ")}`
-                      : "signed out"}{" "}
-                    · {booking.reference} on {booking.flight},{" "}
-                    {changes.length === 0
-                      ? "unchanged"
-                      : changes.length === 1
-                        ? "changed once"
-                        : `changed ${changes.length} times`}
+                      : "signed out"}
+                    {session.conversation && ` · ${session.conversation}`}
+                  </div>
+                )}{" "}
+                {behind.mission && (
+                  <div className="mission">
+                    Mission <code>{behind.mission.s256.slice(0, 10)}…</code> ·
+                    budget $
+                    {Math.round(
+                      behind.mission.budget_cents / 100,
+                    ).toLocaleString("en-US")}{" "}
+                    · spent $
+                    {Math.round(
+                      behind.mission.spent_cents / 100,
+                    ).toLocaleString("en-US")}
+                    {behind.mission.terminated &&
+                      ` · ${behind.mission.terminated}`}
                   </div>
                 )}
               </>
@@ -421,44 +471,43 @@ export function PapDemo({
           paneRef={seenPane}
           onScroll={onSeenScroll}
         >
-          {turns.map((turn) => {
-            const lines = state.seen.filter((s) => s.turn === turn);
-            return (
-              <Moment
-                key={turn}
-                title={<Rich text={state.chat[turn]?.text ?? "Working…"} />}
-                calls={state.exchanges.filter((x) => x.turn === turn)}
-                parties={PARTY}
-                shown={turn === shownTurn}
-                onShow={() => setPicked(turn)}
-              >
-                {lines.length > 0 && (
-                  <div className="talk">
-                    <Sees
-                      mark="F"
-                      title="Flight Sector's agent, in the conversation"
-                      rows={lines.map((line, i) => ({
-                        key: i,
-                        who: line.from,
-                        what: line.text,
-                        pill: line.kind && KIND[line.kind],
-                      }))}
-                    />
-                  </div>
-                )}
-              </Moment>
-            );
-          })}
+          {turns.map((turn) => (
+            <Moment
+              key={turn}
+              title={
+                <Markdown remarkPlugins={[remarkGfm]}>
+                  {behind.chat[turn]?.text ?? "Working…"}
+                </Markdown>
+              }
+              calls={behind.exchanges.filter((x) => x.turn === turn)}
+              parties={PARTY}
+              shown={turn === shownTurn}
+              onShow={() => setPicked(turn)}
+            >
+              {behind.inbox
+                .filter((e) => e.turn === turn)
+                .map((email) => (
+                  <Inbox
+                    key={email.index}
+                    email={email}
+                    busy={sending}
+                    onDecide={decide}
+                  />
+                ))}
+            </Moment>
+          ))}
         </BehindTheChat>
 
         <RequestDetails
           exchanges={details}
           parties={PARTY}
-          hosts={hosts}
+          hosts={behind.hosts}
           empty={
             <p>
-              Each request Atlas sends Flight Sector appears here, as it went,
-              with its Session header decoded.
+              Each request Atlas sends Flight Sector appears here, with its
+              Session header decoded, and behind it each call Flight
+              Sector&apos;s agent makes through Introspection&apos;s egress,
+              signed.
             </p>
           }
           onFollow={picked !== null ? () => setPicked(null) : undefined}

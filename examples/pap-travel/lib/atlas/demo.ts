@@ -1,33 +1,25 @@
 /**
- * Atlas, scripted: it understands only this story, and each step makes the
- * real Poppy requests to Flight Sector: discovery (spec 3), Sessions (5),
- * Direct Sign-In and revocation (4), conversations (8) and an operation the
- * user approves (Operations v2). The page reads `snapshot()`.
+ * Atlas, Sam's Personal Agent. Its own lines are scripted, but everything it
+ * does at Flight Sector is real Poppy: discovery (spec 3), Direct Sign-In (4),
+ * a Session header on every request (5), a conversation with Flight Sector's
+ * Company Agent (8), which is the travel-agent recipe on Introspection, and
+ * Operations v2 for terms Sam approves here. Atlas relays Sam's words and the
+ * agent's replies; it reads the conversation in the background while the
+ * agent works. The page reads `snapshot()`.
  */
 import "server-only";
 
-import { random, sha256 } from "../crypto";
-import { records, resetRecords } from "../company/agent";
-import { once } from "../once";
-import { COMPANY_URL } from "../origins";
-import { CLIENT_ID, clientAssertion, REDIRECT_URI } from "./identity";
 import {
-  type Answer,
-  type Call,
-  call,
-  clearWire,
-  discover,
-  exchanges,
-  record,
-  setTurn,
-} from "./wire";
+  reset as resetRun,
+  snapshot as runSnapshot,
+} from "introspection-example-travel-demo-flow/demo/run";
+import { startRecording } from "introspection-example-travel-demo-flow/demo/wire";
 
-type Option = {
-  id: string;
-  flight: string;
-  arrives: string;
-  fare_difference: number;
-};
+import { random, sha256 } from "../crypto";
+import { once } from "../once";
+import { ATLAS_URL, COMPANY_URL } from "../origins";
+import { CLIENT_ID, clientAssertion, REDIRECT_URI } from "./identity";
+import { type Answer, type Call, call, discover, record } from "./wire";
 
 type Operation = {
   operation_id: string;
@@ -41,7 +33,7 @@ type Operation = {
 type ApprovalCard = {
   company: string;
   operation: Operation;
-  /** Where the terms differ from what Atlas asked for. */
+  /** Where the terms differ from what Sam holds, as Atlas reads them. */
   mismatch?: string;
   answer?: "approved" | "declined";
 };
@@ -50,17 +42,7 @@ type ChatLine = {
   from: "Sam" | "Atlas";
   text: string;
   signIn?: string;
-  choices?: { id: string; label: string }[];
   approval?: ApprovalCard;
-};
-
-/** One line of the conversation between the two agents, as Flight Sector sees it. */
-type Seen = {
-  turn: number;
-  from: "Atlas" | "Flight Sector";
-  text: string;
-  /** What the event carried beyond text. */
-  kind?: "authorization" | "operation" | "approval";
 };
 
 type Company = {
@@ -77,13 +59,11 @@ type Company = {
   hints: Record<string, { changes: string; personal_data: boolean }>;
 };
 
-type Step =
-  "start" | "sign-in" | "choose" | "approve" | "done" | "disconnected";
+type Step = "start" | "sign-in" | "talking" | "approve" | "disconnected";
 
 type Demo = {
   step: Step;
   chat: ChatLine[];
-  seen: Seen[];
   company?: Company;
   /** Sam's User ID at Flight Sector: random, and not derived from anything about Sam (spec 5.1). */
   userId: string;
@@ -91,22 +71,51 @@ type Demo = {
   tokens?: { access: string; refresh: string; scopes: string[] };
   conversation?: { id: string; cursor?: string; handled: Set<string> };
   pending?: { state: string; verifier: string };
-  options?: Option[];
-  asked?: Option;
+  /** What Sam first asked, which Atlas opens the conversation with once signed in. */
+  asked?: string;
   /** The last approval Atlas sent, kept to retry it as it was. */
   sentApproval?: Record<string, unknown>;
+  /** Atlas is reading the conversation while Flight Sector's agent works. */
+  reading: boolean;
+  /** Bumped on reset, so a stale reader stops. */
+  epoch: number;
   error?: string;
 };
 
-const fresh = (): Demo => ({
+const fresh = (epoch = 0): Demo => ({
   step: "start",
   chat: [],
-  seen: [],
   userId: `usr_${random(12)}`,
+  reading: false,
+  epoch,
 });
 
 const store = once("atlas_demo", () => ({ demo: fresh() }));
 const demo = () => store.demo;
+
+/** The booking Sam holds, which Atlas knows as his assistant: three days out, so never in the past. */
+function sams() {
+  const day = new Date();
+  day.setDate(day.getDate() + 3);
+  const meeting = new Date(day);
+  meeting.setDate(meeting.getDate() + 2);
+  const iso = (d: Date) => d.toISOString().slice(0, 10);
+  const spoken = (d: Date) =>
+    d.toLocaleDateString("en-GB", { day: "numeric", month: "long" });
+  return {
+    booking: {
+      reference: "FS-8Q2M",
+      flight: "QF74",
+      from: "SFO",
+      to: "SYD",
+      date: iso(day),
+      cabin: "economy",
+      paid: { amount: "1650.00", currency: "USD" },
+    },
+    meeting: { date: iso(meeting), time: "09:00", spoken: spoken(meeting) },
+    departs: spoken(day),
+  };
+}
 
 /** The page's sample prompts, each with what to do next. */
 export const SCENARIOS = [
@@ -114,34 +123,33 @@ export const SCENARIOS = [
     id: "ua863",
     title: "UA863: no extra cost",
     prompt:
-      "My QF74 to Sydney is delayed six hours, and I have a 9am meeting on the 20th. Can you get me there in time?",
-    hint: "Sign in at Flight Sector when Atlas asks, then pick UA863. It costs nothing more, so Flight Sector rebooks with no approval.",
+      "My QF74 to Sydney is delayed six hours and I have a 9am meeting when I land. Can you get me there in time without paying more?",
+    hint: "Sign in at Flight Sector when Atlas asks. Its agent finds flights that land in time; pick the one at no extra cost, and Dana approves the trip at Acme behind the chat.",
   },
   {
     id: "qf8",
     title: "QF8: Sam approves the exact terms (Operations)",
     prompt:
-      "My QF74 to Sydney is delayed six hours, and I have a 9am meeting on the 20th. Get me there as early as you can, even if it costs more.",
-    hint: "Sign in, then pick QF8 via Dallas. Flight Sector returns an operation for $400 more and changes nothing until Sam approves those exact terms in Atlas.",
+      "My QF74 to Sydney is delayed six hours and I have a 9am meeting when I land. Get me there as early as you can, even if it costs more.",
+    hint: "Sign in, then choose QF8 via Dallas. Flight Sector sends its exact terms for you to approve here, then Dana approves the trip's budget at Acme, and anything over it.",
   },
   {
     id: "declined",
     title: "QF8 declined: nothing changes",
     prompt:
-      "My QF74 to Sydney is delayed six hours, so I land after my 9am meeting on the 20th. What are my options, and what do they cost?",
-    hint: "Sign in, pick QF8 via Dallas, then decline its terms. Flight Sector changes nothing, and UA863 is still there.",
+      "My QF74 to Sydney is delayed six hours and I land after my 9am meeting. What are my options, and what do they cost?",
+    hint: "Sign in, choose QF8 via Dallas, then decline its terms here. Nothing is booked, and the agent offers what costs no more.",
   },
 ];
 
 export function snapshot() {
   const d = demo();
+  const run = runSnapshot();
   return {
     step: d.step,
     prompt: d.chat.find((line) => line.from === "Sam")?.text,
-    busy: d.chat.length > 0 && !["done", "disconnected"].includes(d.step),
+    busy: d.reading,
     chat: d.chat,
-    seen: d.seen,
-    exchanges: exchanges(),
     session: d.sid
       ? {
           sid: d.sid,
@@ -150,31 +158,27 @@ export function snapshot() {
           conversation: d.conversation?.id,
         }
       : undefined,
-    records: records,
     error: d.error,
+    // Behind the chat: Flight Sector's side, the task its agent runs on
+    // Introspection, and Acme deciding for Sam's company.
+    behind: {
+      ...run,
+      hosts: {
+        ...run.hosts,
+        "Flight Sector": new URL(COMPANY_URL).host,
+        Atlas: new URL(ATLAS_URL).host,
+      },
+    },
   };
 }
 
 export function reset() {
-  store.demo = fresh();
-  clearWire();
-  resetRecords();
-  turns.turn = 0;
+  store.demo = fresh(demo().epoch + 1);
+  resetRun();
+  startRecording();
 }
 
-/** What Atlas does next is told in its next line, so the requests go under that one, as in aauth-travel. */
-const turns = once("atlas_turn", () => ({ turn: 0 }));
-const currentTurn = () => turns.turn;
-function turnAt(turn: number) {
-  turns.turn = turn;
-  setTurn(turn);
-}
-
-function sam(text: string) {
-  const d = demo();
-  d.chat.push({ from: "Sam", text });
-  turnAt(d.chat.length);
-}
+const sam = (text: string) => demo().chat.push({ from: "Sam", text });
 const atlas = (line: Omit<ChatLine, "from">) =>
   demo().chat.push({ from: "Atlas", ...line });
 
@@ -341,111 +345,6 @@ async function refresh(): Promise<boolean> {
   };
   return true;
 }
-
-type Heard = {
-  /** The scopes an `authorization` event or a challenge asked for (8.11). */
-  needs?: string;
-  operation?: Operation;
-  confirmed?: Record<string, unknown>;
-  options?: Option[];
-  status?: Record<string, string>;
-};
-
-const messageId = () => `msg_${random(12)}`;
-
-/** Sends one message to Flight Sector's agent and reads what comes back with it (8.3, 8.5). */
-async function tell(
-  label: string,
-  message: Record<string, unknown>,
-): Promise<Heard> {
-  const d = demo();
-  const company = d.company!;
-  const conversation = d.conversation;
-  const query = `?${conversation?.cursor ? `cursor=${conversation.cursor}&` : ""}wait=10`;
-  const url = conversation
-    ? `${company.conversations}/${conversation.id}/messages${query}`
-    : `${company.conversations}${query}`;
-  const answer = await resource({
-    label,
-    method: "POST",
-    url,
-    json: {
-      message: { id: message.id, author: { type: "agent" }, ...message },
-    },
-  });
-  return heard(answer);
-}
-
-/** Handles the events in a response, each once, in order, and keeps the cursor (8.5). */
-function heard(answer: Answer): Heard {
-  const d = demo();
-  const turn = currentTurn();
-  const result: Heard = {};
-  if (answer.status === 401) {
-    result.needs = answer.challenge?.match(/scope="([^"]+)"/)?.[1] ?? "";
-    return result;
-  }
-  if (answer.status >= 400)
-    throw new Error(
-      `Flight Sector refused: ${String(answer.body.error ?? answer.status)}`,
-    );
-  const read = answer.body as {
-    conversation_id: string;
-    cursor: string;
-    events?: {
-      id: string;
-      type: string;
-      scope?: string;
-      message?: {
-        role: string;
-        text?: string;
-        data?: Record<string, unknown>;
-        extensions?: {
-          operations?: { operation?: Operation; approval?: unknown };
-        };
-      };
-    }[];
-  };
-  d.conversation ??= { id: read.conversation_id, handled: new Set() };
-  d.conversation.cursor = read.cursor ?? d.conversation.cursor;
-  for (const event of read.events ?? []) {
-    if (d.conversation.handled.has(event.id)) continue;
-    d.conversation.handled.add(event.id);
-    if (event.type === "authorization") {
-      result.needs = event.scope;
-      d.seen.push({
-        turn,
-        from: "Flight Sector",
-        text: `Needs ${event.scope}`,
-        kind: "authorization",
-      });
-    }
-    const message = event.message;
-    if (event.type !== "message" || !message) continue;
-    const from = message.role === "company" ? "Flight Sector" : "Atlas";
-    const op = message.extensions?.operations?.operation;
-    d.seen.push({
-      turn,
-      from,
-      text: message.text ?? "",
-      kind: op
-        ? "operation"
-        : message.extensions?.operations?.approval
-          ? "approval"
-          : undefined,
-    });
-    if (from === "Atlas") continue;
-    if (op && d.company?.operations) result.operation = op;
-    const data = message.data ?? {};
-    if (Array.isArray(data.options)) result.options = data.options as Option[];
-    if (data.flight_status)
-      result.status = data.flight_status as Record<string, string>;
-    if (data.booking_reference && data.flight) result.confirmed = data;
-  }
-  return result;
-}
-
-/** The Direct Sign-In link for these scopes (spec 4.2). */
 async function signInUrl(company: Company, scope: string) {
   const verifier = random(32);
   const state = random(12);
@@ -484,43 +383,118 @@ async function askToSignIn(scope: string, lead: string) {
   });
 }
 
-function offer(options: Option[]) {
+const messageId = () => `msg_${random(12)}`;
+
+/** Handles the events of a read, each once, in order, and keeps the cursor (8.5). */
+async function heard(answer: Answer) {
   const d = demo();
-  d.options = options;
-  d.step = "choose";
-  const label = (o: Option) =>
-    `**${o.flight}**, landing ${o.arrives}, ${o.fare_difference ? `$${o.fare_difference} more` : "at no extra cost"}`;
-  atlas({
-    text: `You're on booking FS-8Q2M. ${d.company!.name} can move you to ${options.map(label).join(", or ")}. Which would you like?`,
-    choices: options.map((o) => ({ id: o.id, label: o.flight })),
-  });
+  if (answer.status === 401) {
+    const scope = answer.challenge?.match(/scope="([^"]+)"/)?.[1];
+    return { needs: scope ?? "bookings:read bookings:write", idle: true };
+  }
+  if (answer.status >= 400)
+    throw new Error(
+      `Flight Sector refused: ${String(answer.body.error ?? answer.status)}`,
+    );
+  const read = answer.body as {
+    conversation_id: string;
+    cursor: string;
+    status: string;
+    events?: {
+      id: string;
+      type: string;
+      scope?: string;
+      message?: {
+        role: string;
+        text?: string;
+        extensions?: { operations?: { operation?: Operation } };
+      };
+    }[];
+  };
+  d.conversation ??= { id: read.conversation_id, handled: new Set() };
+  d.conversation.cursor = read.cursor ?? d.conversation.cursor;
+  let needs: string | undefined;
+  for (const event of read.events ?? []) {
+    if (d.conversation.handled.has(event.id)) continue;
+    d.conversation.handled.add(event.id);
+    if (event.type === "authorization") needs = event.scope;
+    const message = event.message;
+    if (event.type !== "message" || message?.role !== "company") continue;
+    const op = message.extensions?.operations?.operation;
+    if (message.text)
+      atlas({ text: `**${d.company!.name}:** ${message.text}` });
+    if (op && d.company?.operations) askApproval(op);
+  }
+  if (needs)
+    await askToSignIn(needs, "Flight Sector's agent needs more access.");
+  return { needs, idle: read.status === "idle" };
 }
 
-function confirm(confirmed: Record<string, unknown>) {
+/** Says something to Flight Sector's agent, then reads its replies until it is done (8.3, 8.5). */
+async function tell(label: string, message: Record<string, unknown>) {
   const d = demo();
-  d.step = "done";
-  atlas({
-    text: `Done. You're on ${String(confirmed.flight)}, seat ${String(confirmed.seat)}, landing ${String(confirmed.arrives)}. ${d.company!.name} has emailed your new itinerary.`,
-    choices: [{ id: "disconnect", label: "Disconnect from Flight Sector" }],
+  const company = d.company!;
+  const conversation = d.conversation;
+  const query = `?${conversation?.cursor ? `cursor=${conversation.cursor}&` : ""}wait=2`;
+  const url = conversation
+    ? `${company.conversations}/${conversation.id}/messages${query}`
+    : `${company.conversations}${query}`;
+  const answer = await resource({
+    label,
+    method: "POST",
+    url,
+    json: { message: { id: message.id, ...message } },
   });
+  const { idle } = await heard(answer);
+  if (!idle && answer.status < 400) void readUntilIdle(d.epoch);
 }
 
-/** Checks the terms against what Atlas asked for, before Sam sees them (Operations 5). */
-function mismatch(operation: Operation, asked: Option): string | undefined {
+const READ_FOR_MS = 20 * 60 * 1000;
+
+/**
+ * Reads the conversation while the agent works, holding each read up to 25
+ * seconds (8.5): a booking can wait minutes on Acme, and the agent's replies
+ * arrive as it finishes them.
+ */
+async function readUntilIdle(epoch: number) {
+  const d = demo();
+  if (d.reading) return;
+  d.reading = true;
+  const until = Date.now() + READ_FOR_MS;
+  try {
+    while (demo().epoch === epoch && d.conversation && Date.now() < until) {
+      const answer = await resource({
+        label: "Read the conversation",
+        method: "GET",
+        url: `${d.company!.conversations}/${d.conversation.id}/events?${d.conversation.cursor ? `cursor=${d.conversation.cursor}&` : ""}wait=25`,
+        quiet: true,
+      });
+      const { idle, needs } = await heard(answer);
+      if (idle || needs || answer.status >= 400) break;
+    }
+  } catch (err) {
+    if (demo().epoch === epoch)
+      d.error = err instanceof Error ? err.message : String(err);
+  } finally {
+    if (demo().epoch === epoch) d.reading = false;
+  }
+}
+
+/** Checks the terms against the booking Sam holds, before Sam sees them (Operations 5). */
+function mismatch(operation: Operation): string | undefined {
   const terms = operation.terms as
-    | {
-        to_flight?: string;
-        fare_difference?: { amount?: string; currency?: string };
-      }
-    | undefined;
+    { from?: string; to?: string; currency?: string } | undefined;
+  const { booking } = sams();
   if (!terms) return undefined;
   const differences = [
-    terms.to_flight !== asked.id && `the flight is ${terms.to_flight}`,
-    Number(terms.fare_difference?.amount) !== asked.fare_difference &&
-      `the fare difference is ${terms.fare_difference?.amount} ${terms.fare_difference?.currency}`,
+    terms.from && terms.from !== booking.from && `it leaves from ${terms.from}`,
+    terms.to && terms.to !== booking.to && `it flies to ${terms.to}`,
+    terms.currency &&
+      terms.currency !== booking.paid.currency &&
+      `it is priced in ${terms.currency}`,
   ].filter(Boolean);
   return differences.length
-    ? `These terms differ from what I asked for: ${differences.join(", ")}.`
+    ? `These terms differ from the trip you hold: ${differences.join(", ")}.`
     : undefined;
 }
 
@@ -532,54 +506,50 @@ function askApproval(operation: Operation) {
     approval: {
       company: d.company!.name,
       operation,
-      mismatch: mismatch(operation, d.asked!),
+      mismatch: mismatch(operation),
     },
   });
 }
 
-/** What Atlas does with an answer to Sam's request: confirm, ask for approval, or ask to sign in. */
-async function follow(result: Heard) {
-  if (result.confirmed) return confirm(result.confirmed);
-  if (result.operation) return askApproval(result.operation);
-  if (result.needs !== undefined)
-    return askToSignIn(
-      result.needs || "bookings:read bookings:write",
-      "Flight Sector needs more access first.",
-    );
-  if (result.options) return offer(result.options);
-  atlas({ text: "Flight Sector didn't say. Want me to ask again?" });
-}
-
-/** Sam asks; Atlas finds Flight Sector, starts a signed-out Session, and opens a conversation. */
+/** Sam asks; Atlas finds Flight Sector, which works only with Sam's account, so Sam signs in first. */
 async function ask(text: string) {
   const d = demo();
   sam(text);
+  d.asked = text;
+  startRecording();
   d.company = await find();
   // No request starts a Session: the first one with a new `sid` does (5).
   d.sid = newSid();
+  const scopes =
+    Object.keys(d.company.scopes).join(" ") || "bookings:read bookings:write";
   if (d.company.access === "signed_in")
     return askToSignIn(
-      "bookings:read bookings:write",
-      "Flight Sector works only with your account.",
+      scopes,
+      `${d.company.name}'s agent works with your ${d.company.name} account.`,
     );
-  const result = await tell("Start a conversation, signed out", {
+  await open();
+}
+
+/** Opens the conversation with what Sam asked and the booking he holds. */
+async function open() {
+  const d = demo();
+  const { booking, meeting, departs } = sams();
+  d.step = "talking";
+  atlas({ text: `I'll ask ${d.company!.name}'s agent.` });
+  await tell("Start the conversation", {
     id: messageId(),
-    text: "The user's flight QF74 to Sydney is delayed six hours. They need to land before their 9am meeting on Mon 20 Oct.",
+    author: { type: "agent" },
+    text: `Sam's flight ${booking.flight} from San Francisco to Sydney on ${departs} is delayed six hours, so it lands after his 9am meeting on ${meeting.spoken}. Please find him a flight that lands in time. He asked me: "${d.asked}"`,
+    data: { current_booking: booking, must_arrive_by: meeting },
     context: {
       locale: "en-US",
       time_zone: "America/Los_Angeles",
       user_available: true,
     },
   });
-  const lead = result.status
-    ? `QF74 now lands ${result.status.arrives}, after your meeting. UA863 and QF8 via Dallas both land before 9am.`
-    : "Flight Sector can help.";
-  if (result.needs !== undefined)
-    return askToSignIn(result.needs || "bookings:read bookings:write", lead);
-  return follow(result);
 }
 
-/** The browser is back from Flight Sector: exchange the code (spec 4.2) and continue the same conversation. */
+/** The browser is back from Flight Sector: exchange the code (spec 4.2), then talk to its agent. */
 export async function signedIn(query: URLSearchParams) {
   await guarded(async () => {
     const d = demo();
@@ -603,9 +573,9 @@ export async function signedIn(query: URLSearchParams) {
       throw new Error("sign-in came back from another issuer");
     d.pending = undefined;
     if (query.get("error")) {
-      d.step = "choose";
+      d.step = "start";
       atlas({
-        text: "You didn't sign in, so I can't change the booking. I can still ask Flight Sector general questions.",
+        text: "You didn't sign in, so I can't ask Flight Sector's agent about your booking.",
       });
       return;
     }
@@ -630,25 +600,25 @@ export async function signedIn(query: URLSearchParams) {
         .split(" ")
         .filter(Boolean),
     };
-    const result = await tell("Continue the conversation, signed in", {
-      id: messageId(),
-      text: "The user has signed in. Please find their booking.",
-    });
-    await follow(result);
+    if (d.conversation) {
+      d.step = "talking";
+      await tell("Continue the conversation, signed in", {
+        id: messageId(),
+        author: { type: "agent" },
+        text: "Sam has signed in again. Please go on.",
+      });
+    } else await open();
   });
 }
 
-async function choose(option: Option) {
-  const d = demo();
-  sam(`${option.flight}, please.`);
-  d.asked = option;
-  await follow(
-    await tell("Pass on Sam's choice", {
-      id: messageId(),
-      text: `The user would like ${option.flight}.`,
-      data: { option: option.id },
-    }),
-  );
+/** Sam's own words, as he wrote them (8.8). */
+async function relay(text: string) {
+  sam(text);
+  await tell("Pass on Sam's words", {
+    id: messageId(),
+    author: { type: "human" },
+    text,
+  });
 }
 
 /** Sam's answer to an operation, which Atlas sends only if Sam approved (Operations 5, 6). */
@@ -658,56 +628,52 @@ async function decide(verdict: "approve" | "decline") {
   if (d.step !== "approve" || !card || card.answer)
     throw new Error("nothing to approve");
   card.answer = verdict === "approve" ? "approved" : "declined";
+  d.step = "talking";
   const { operation_id, revision } = card.operation;
   if (verdict === "decline") {
     sam("Decline.");
     await tell("Say Sam declined", {
       id: messageId(),
-      text: "The user declined the change. Please leave the booking as it is.",
-    });
-    d.step = "choose";
-    atlas({
-      text: "I didn't change anything. UA863 is still there at no extra cost.",
-      choices: (d.options ?? []).map((o) => ({ id: o.id, label: o.flight })),
+      author: { type: "agent" },
+      text: "Sam declined those terms. Please book nothing that costs more.",
     });
     return;
   }
   sam("Approve.");
   d.sentApproval = {
     id: messageId(),
-    text: "The user approved the change.",
+    author: { type: "agent" },
+    text: "Sam approved the change.",
     extensions: { operations: { approval: { operation_id, revision } } },
   };
-  await follow(await tell("Send Sam's approval", d.sentApproval));
+  await tell("Send Sam's approval", d.sentApproval);
 }
 
 /**
  * Sends the approval again, as after a lost response: the same message, which
  * gets its original response, then a new message with the same approval,
- * which adds nothing. Flight Sector changes the booking at most once (Operations 7).
+ * which adds nothing. Flight Sector acts on it at most once (Operations 7).
  */
 async function retryApproval() {
   const d = demo();
-  if (!d.sentApproval) throw new Error("no approval was sent");
-  turnAt(d.chat.length - 1);
-  heard(
+  if (!d.sentApproval || !d.conversation)
+    throw new Error("no approval was sent");
+  await heard(
     await resource({
       label: "Retry the approval: same message",
       method: "POST",
-      url: `${d.company!.conversations}/${d.conversation!.id}/messages?wait=10`,
-      json: {
-        message: {
-          id: d.sentApproval.id,
-          author: { type: "agent" },
-          ...d.sentApproval,
-        },
-      },
+      url: `${d.company!.conversations}/${d.conversation.id}/messages?wait=0`,
+      json: { message: d.sentApproval },
     }),
   );
-  await tell("Send the approval again: new message", {
-    ...d.sentApproval,
-    id: messageId(),
-  });
+  await heard(
+    await resource({
+      label: "Send the approval again: new message",
+      method: "POST",
+      url: `${d.company!.conversations}/${d.conversation.id}/messages?cursor=${d.conversation.cursor}&wait=0`,
+      json: { message: { ...d.sentApproval, id: messageId() } },
+    }),
+  );
 }
 
 /** Sam signs Atlas out: close the conversation, revoke the refresh token (4.6), and carry on signed out (5.5). */
@@ -715,6 +681,8 @@ async function disconnect() {
   const d = demo();
   if (!d.tokens || !d.company) throw new Error("not signed in");
   sam("Disconnect from Flight Sector.");
+  d.epoch += 1;
+  d.reading = false;
   if (d.conversation)
     await resource({
       label: "Close the conversation",
@@ -748,47 +716,38 @@ async function disconnect() {
   });
 }
 
-/** Sam's typed message, as this scripted Atlas understands it. */
+/** Sam's typed message: the first starts it all; later ones go to Flight Sector's agent as Sam wrote them. */
 export async function send(text: string) {
   await guarded(async () => {
     const d = demo();
-    const lower = text.toLowerCase();
-    if (d.step === "start") return ask(text);
-    if (/disconnect|sign out|log out/.test(lower) && d.tokens)
+    const lower = text.trim().toLowerCase();
+    if (!lower) return;
+    if (d.step === "start") return ask(text.trim());
+    if (/^(disconnect|sign out|log out)\b/.test(lower) && d.tokens)
       return disconnect();
-    if (d.step === "approve" && /^(approve|yes)/.test(lower))
+    if (d.step === "approve" && /^(approve|yes)\b/.test(lower))
       return decide("approve");
-    if (d.step === "approve" && /^(decline|no)/.test(lower))
+    if (d.step === "approve" && /^(decline|no)\b/.test(lower))
       return decide("decline");
-    const option = d.options?.find(
-      (o) =>
-        lower.includes(o.id.toLowerCase()) ||
-        (o.id === "QF8" && lower.includes("dallas")) ||
-        (o.id === "UA863" && lower.includes("united")),
-    );
-    if (d.step === "choose" && option) return choose(option);
-    sam(text);
-    atlas({
-      text:
-        d.step === "sign-in"
-          ? "Sign in at Flight Sector first, with the button above."
-          : d.step === "choose"
-            ? "Which one: UA863 or QF8 via Dallas?"
-            : "That's all I can do in this demo. Restart to try the other flight.",
-    });
+    if (d.step === "sign-in") {
+      sam(text.trim());
+      atlas({ text: "Sign in at Flight Sector first, with the button above." });
+      return;
+    }
+    if (d.step === "disconnected" || !d.tokens) {
+      sam(text.trim());
+      atlas({
+        text: "I'm signed out of Flight Sector. Restart to begin again.",
+      });
+      return;
+    }
+    return relay(text.trim());
   });
 }
 
 /** The page's buttons. */
-export async function act(action: string, option?: string) {
+export async function act(action: string) {
   await guarded(async () => {
-    const d = demo();
-    if (action === "choose") {
-      if (option === "disconnect") return disconnect();
-      const picked = d.options?.find((o) => o.id === option);
-      if (d.step !== "choose" || !picked) throw new Error("nothing to choose");
-      return choose(picked);
-    }
     if (action === "approve" || action === "decline") return decide(action);
     if (action === "retry-approval") return retryApproval();
     if (action === "disconnect") return disconnect();
