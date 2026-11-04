@@ -4,7 +4,16 @@
  * its own state and cards; its styles are `demo.css`, under `.ademo`.
  */
 export { useFollow } from "./follow";
-export { Composer, Moment, Phone } from "./stage";
+export {
+  BehindTheChat,
+  Composer,
+  Header,
+  Ideas,
+  Moment,
+  Phone,
+  Sees,
+  type SeenRow,
+} from "./stage";
 export {
   CopyButton,
   type Exchange,

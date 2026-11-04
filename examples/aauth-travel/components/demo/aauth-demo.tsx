@@ -2,8 +2,11 @@
 
 import { Fragment, useCallback, useEffect, useState } from "react";
 import {
+  BehindTheChat,
   Composer,
   type Exchange,
+  Header,
+  Ideas,
   Moment,
   type Parties,
   Phone,
@@ -326,9 +329,9 @@ export function AAuthDemo({ scenarios }: { scenarios: Scenario[] }) {
 
   return (
     <div className="ademo">
-      <header className="ademo-head">
-        <div className="ademo-row">
-          <div className="brand">
+      <Header
+        brand={
+          <>
             <AAuthLogo />
             <span className="step-label">
               -11 · three-party, with a mission · on{" "}
@@ -337,8 +340,10 @@ export function AAuthDemo({ scenarios }: { scenarios: Scenario[] }) {
                 Introspection
               </span>
             </span>
-          </div>
-          <div className="ademo-controls">
+          </>
+        }
+        controls={
+          <>
             <a
               href={`${recipe.repository}/tree/${recipe.ref}`}
               target="_blank"
@@ -367,10 +372,10 @@ export function AAuthDemo({ scenarios }: { scenarios: Scenario[] }) {
                 <span aria-hidden>↺</span> Restart
               </button>
             )}
-          </div>
-        </div>
-        <div className="ademo-title">
-          <h1>Flight Sector&apos;s agent books Sam&apos;s trip for Acme</h1>
+          </>
+        }
+        title={<>Flight Sector&apos;s agent books Sam&apos;s trip for Acme</>}
+        aside={
           <ConversationBar
             base={state?.conversations}
             taskId={state?.taskId}
@@ -379,8 +384,8 @@ export function AAuthDemo({ scenarios }: { scenarios: Scenario[] }) {
               act({ action: "join", taskId: id });
             }}
           />
-        </div>
-      </header>
+        }
+      />
 
       <div className="stage">
         <Phone
@@ -404,19 +409,7 @@ export function AAuthDemo({ scenarios }: { scenarios: Scenario[] }) {
           }
         >
           {!started && (
-            <div className="ideas">
-              <span className="muted">Try asking for…</span>
-              {scenarios.map((s) => (
-                <button
-                  key={s.id}
-                  className={`idea ${s.prompt === prompt ? "idea-on" : ""}`}
-                  onClick={() => setPrompt(s.prompt)}
-                >
-                  <span className="idea-title">{s.title}</span>
-                  {s.prompt}
-                </button>
-              ))}
-            </div>
+            <Ideas prompts={scenarios} value={prompt} onPick={setPrompt} />
           )}
           {state.chat.map((line, i) => {
             // Under the agent's reply that follows them, or ahead of Sam's.
@@ -454,78 +447,73 @@ export function AAuthDemo({ scenarios }: { scenarios: Scenario[] }) {
           <div />
         </Phone>
 
-        <div className="pane">
-          <div className="pane-head">
-            <div className="step-label">Behind the chat</div>
-            <span className="pane-status">
-              {started ? (state.busy ? "In progress" : "Done") : "Ready"}
-            </span>
-          </div>
-          {(!started || hint || state.mission) && (
-            <div className="pane-intro">
-              {!started && (
-                <p>
-                  Pick a sample or type your own: where, when, cabin, hotel and
-                  a budget. Flight Sector&apos;s travel-agent recipe runs on
-                  Introspection: its egress signs every call and runs Flight
-                  Sector&apos;s Cedar rails before Acme is asked, and
-                  Acme&apos;s Person Server speaks for Sam, so Dana approves the
-                  trip once and anything over its budget.
-                </p>
-              )}
-              {hint && (
-                <p className="hint">
-                  <strong>Next:</strong> {hint}
-                </p>
-              )}
-              {state.mission && (
-                <div className="mission">
-                  Mission <code>{state.mission.s256.slice(0, 10)}…</code> ·
-                  budget $
-                  {Math.round(state.mission.budget_cents / 100).toLocaleString(
-                    "en-US",
-                  )}{" "}
-                  · spent $
-                  {Math.round(state.mission.spent_cents / 100).toLocaleString(
-                    "en-US",
-                  )}
-                  {state.mission.terminated && ` · ${state.mission.terminated}`}
-                </div>
-              )}
-            </div>
-          )}
-          <div
-            className="pane-body"
-            ref={seenPane}
-            onScroll={(e) => onSeenScroll(e.currentTarget)}
-          >
-            {turns.map((turn) => (
-              <Moment
-                key={turn}
-                title={
-                  <Markdown remarkPlugins={[remarkGfm]}>
-                    {state.chat[turn]?.text ?? "Working…"}
-                  </Markdown>
-                }
-                calls={state.exchanges.filter((x) => x.turn === turn)}
-                parties={PARTY}
-                shown={turn === shownTurn}
-                onShow={() => setPicked(turn)}
-              >
-                {state.inbox
-                  .filter((e) => e.turn === turn)
-                  .map((email) => (
-                    <Inbox
-                      key={email.index}
-                      email={email}
-                      busy={sending}
-                      onDecide={decide}
-                    />
-                  ))}
-              </Moment>
-            ))}
-          </div>
-        </div>
+        <BehindTheChat
+          status={started ? (state.busy ? "In progress" : "Done") : "Ready"}
+          intro={
+            (!started || hint || state.mission) && (
+              <>
+                {!started && (
+                  <p>
+                    Pick a sample or type your own: where, when, cabin, hotel
+                    and a budget. Flight Sector&apos;s travel-agent recipe runs
+                    on Introspection: its egress signs every call and runs
+                    Flight Sector&apos;s Cedar rails before Acme is asked, and
+                    Acme&apos;s Person Server speaks for Sam, so Dana approves
+                    the trip once and anything over its budget.
+                  </p>
+                )}
+                {hint && (
+                  <p className="hint">
+                    <strong>Next:</strong> {hint}
+                  </p>
+                )}
+                {state.mission && (
+                  <div className="mission">
+                    Mission <code>{state.mission.s256.slice(0, 10)}…</code> ·
+                    budget $
+                    {Math.round(
+                      state.mission.budget_cents / 100,
+                    ).toLocaleString("en-US")}{" "}
+                    · spent $
+                    {Math.round(state.mission.spent_cents / 100).toLocaleString(
+                      "en-US",
+                    )}
+                    {state.mission.terminated &&
+                      ` · ${state.mission.terminated}`}
+                  </div>
+                )}
+              </>
+            )
+          }
+          paneRef={seenPane}
+          onScroll={onSeenScroll}
+        >
+          {turns.map((turn) => (
+            <Moment
+              key={turn}
+              title={
+                <Markdown remarkPlugins={[remarkGfm]}>
+                  {state.chat[turn]?.text ?? "Working…"}
+                </Markdown>
+              }
+              calls={state.exchanges.filter((x) => x.turn === turn)}
+              parties={PARTY}
+              shown={turn === shownTurn}
+              onShow={() => setPicked(turn)}
+            >
+              {state.inbox
+                .filter((e) => e.turn === turn)
+                .map((email) => (
+                  <Inbox
+                    key={email.index}
+                    email={email}
+                    busy={sending}
+                    onDecide={decide}
+                  />
+                ))}
+            </Moment>
+          ))}
+        </BehindTheChat>
 
         <RequestDetails
           exchanges={details}

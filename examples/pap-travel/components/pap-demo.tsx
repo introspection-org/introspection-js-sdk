@@ -8,12 +8,16 @@ import {
   useState,
 } from "react";
 import {
+  BehindTheChat,
   Composer,
   type Exchange,
+  Header,
+  Ideas,
   Moment,
   type Parties,
   Phone,
   RequestDetails,
+  Sees,
   useFollow,
 } from "introspection-example-travel-demo-ui";
 
@@ -24,21 +28,30 @@ type Operation = {
   terms?: Record<string, unknown>;
   expires_at: string;
 };
+type Card = {
+  company: string;
+  operation: Operation;
+  mismatch?: string;
+  answer?: "approved" | "declined";
+};
 type ChatLine = {
   from: "Sam" | "Atlas";
   text: string;
   signIn?: string;
   choices?: { id: string; label: string }[];
-  approval?: {
-    company: string;
-    operation: Operation;
-    mismatch?: string;
-    answer?: "approved" | "declined";
-  };
+  approval?: Card;
 };
-type Seen = { turn: number; from: string; text: string; note?: string };
+type Seen = {
+  turn: number;
+  from: string;
+  text: string;
+  kind?: "authorization" | "operation" | "approval";
+};
+type Scenario = { id: string; title: string; prompt: string; hint: string };
 type Snapshot = {
   step: "start" | "sign-in" | "choose" | "approve" | "done" | "disconnected";
+  prompt?: string;
+  busy: boolean;
   chat: ChatLine[];
   seen: Seen[];
   exchanges: Exchange[];
@@ -55,10 +68,22 @@ type Snapshot = {
   error?: string;
 };
 
+const PARTY: Parties = {
+  "Flight Sector": { name: "Flight Sector", mark: "F" },
+  Atlas: { name: "Atlas", mark: "A" },
+};
+
+/** What each kind of event in the agents' conversation is, as a pill. */
+const KIND = {
+  authorization: { label: "sign-in", tone: "ask" },
+  operation: { label: "approve?", tone: "wait" },
+  approval: { label: "approved", tone: "ok" },
+};
+
 /**
- * Text from the demo's own lines and from an operation's `summary`: bold and
- * lists only. Links, images and HTML stay text, so a summary can't send Sam
- * elsewhere while he decides (Operations 3).
+ * The demo's own lines and an operation's `summary`: bold and lists only.
+ * Links, images and HTML stay text, so a summary can't send Sam elsewhere
+ * while he decides (Operations 3).
  */
 function Rich({ text }: { text: string }) {
   const inline = (line: string) =>
@@ -95,7 +120,7 @@ function Rich({ text }: { text: string }) {
   return <>{blocks}</>;
 }
 
-const TERM_LABELS: Record<string, string> = {
+const TERMS: Record<string, string> = {
   booking_reference: "Booking",
   from_flight: "From",
   to_flight: "To",
@@ -111,13 +136,17 @@ const shownTerm = (value: unknown) => {
     : String(value);
 };
 
-/** Sam's approval, in Atlas's own interface: the Company's name and the exact terms. */
+/**
+ * Sam's approval of an operation, in Atlas's own interface (Operations 5):
+ * the Company's name, its summary and terms. A sibling of aauth-travel's
+ * Inbox card, with no emailed code: Sam is in the app that asks.
+ */
 function Approval({
   card,
   busy,
   onAnswer,
 }: {
-  card: NonNullable<ChatLine["approval"]>;
+  card: Card;
   busy: boolean;
   onAnswer: (verdict: "approve" | "decline") => void;
 }) {
@@ -127,38 +156,33 @@ function Approval({
       <div className="mail-head">
         <span className="mail-to">
           <span className="mail-avatar" aria-hidden>
-            {card.company.charAt(0)}
+            S
           </span>
-          {card.company} asks you to approve
+          Sam&apos;s approval
         </span>
+        <span>from {card.company}</span>
       </div>
       <div className="mail-item">
         <Rich text={operation.summary} />
       </div>
-      {operation.terms && (
-        <table className="terms">
-          <tbody>
-            {Object.entries(operation.terms).map(([k, v]) => (
-              <tr key={k}>
-                <td>{TERM_LABELS[k] ?? k}</td>
-                <td>{shownTerm(v)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
-      {card.mismatch && <p className="error">{card.mismatch}</p>}
-      <p className="approval-meta">
-        <code>{operation.operation_id}</code> · revision{" "}
-        <code>{operation.revision}</code> · until{" "}
-        {new Date(operation.expires_at).toLocaleTimeString("en-US", {
-          hour: "numeric",
-          minute: "2-digit",
-        })}
-      </p>
+      <ul>
+        {Object.entries(operation.terms ?? {}).map(([k, v]) => (
+          <li key={k}>
+            {TERMS[k] ?? k}: {shownTerm(v)}
+          </li>
+        ))}
+        <li>
+          Operation <code>{operation.operation_id}</code>, until{" "}
+          {new Date(operation.expires_at).toLocaleTimeString("en-US", {
+            hour: "numeric",
+            minute: "2-digit",
+          })}
+        </li>
+      </ul>
+      {card.mismatch && <div className="error">{card.mismatch}</div>}
       {card.answer ? (
         <div className="mail-status">
-          {card.answer === "approved" ? "Approved" : "Declined"}
+          Answered: {card.answer === "approved" ? "approved" : "declined"}
         </div>
       ) : (
         <div className="mail-actions">
@@ -180,17 +204,12 @@ function Approval({
   );
 }
 
-const PARTY: Parties = {
-  "Flight Sector": { name: "Flight Sector", mark: "F" },
-  Atlas: { name: "Atlas", mark: "A" },
-};
-
 export function PapDemo({
-  prompts,
+  scenarios,
   hosts,
   companyUrl,
 }: {
-  prompts: { title: string; prompt: string }[];
+  scenarios: Scenario[];
   hosts: Record<string, string>;
   companyUrl: string;
 }) {
@@ -230,6 +249,9 @@ export function PapDemo({
 
   if (!state) return null;
   const started = state.chat.length > 0;
+  const hint = scenarios.find(
+    (s) => s.prompt === (state.prompt ?? prompt),
+  )?.hint;
   const turns = [
     ...new Set([
       ...state.exchanges.map((x) => x.turn),
@@ -241,24 +263,30 @@ export function PapDemo({
   const lastAtlas = state.chat.findLastIndex((line) => line.from === "Atlas");
   const send = () => {
     if (!prompt.trim()) return;
+    if (!started) setPicked(null);
     act({ action: "send", text: prompt });
     setPrompt("");
   };
+  const { session } = state;
   const { booking, changes } = state.records;
 
   return (
     <div className="ademo pap">
-      <header className="ademo-head">
-        <div className="ademo-row">
-          <div className="brand">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/poppy.png" alt="" width={26} height={26} />
-            <span className="step-label">
-              Personal Agent Protocol · draft 0.3 · Session header, OAuth
-              sign-in, Operations v2
+      <Header
+        brand={
+          <>
+            <span className="poppy-mark">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/poppy.png" alt="" width={22} height={22} />
+              Poppy
             </span>
-          </div>
-          <div className="ademo-controls">
+            <span className="step-label">
+              draft 0.3 · a Personal Agent, signed in, with operations
+            </span>
+          </>
+        }
+        controls={
+          <>
             <a
               href="https://personalagentprotocol.org/docs/0.3/spec"
               target="_blank"
@@ -268,12 +296,12 @@ export function PapDemo({
               Spec
             </a>
             <a
-              href={`${companyUrl}/`}
+              href={`${companyUrl}/.well-known/poppy.json`}
               target="_blank"
               rel="noopener noreferrer"
               className="control"
             >
-              Flight Sector
+              poppy.json
             </a>
             {started && (
               <button
@@ -287,18 +315,16 @@ export function PapDemo({
                 <span aria-hidden>↺</span> Restart
               </button>
             )}
-          </div>
-        </div>
-        <div className="ademo-title">
-          <h1>Atlas rebooks Sam&apos;s delayed flight with Flight Sector</h1>
-        </div>
-      </header>
+          </>
+        }
+        title={<>Atlas rebooks Sam&apos;s delayed flight with Flight Sector</>}
+      />
 
       <div className="stage">
         <Phone
           avatar="A"
           name="Atlas"
-          subtitle="Sam's assistant"
+          subtitle="Sam's personal agent"
           chatRef={chatBox}
           composer={
             <Composer
@@ -312,19 +338,7 @@ export function PapDemo({
           }
         >
           {!started && (
-            <div className="ideas">
-              <span className="muted">Try asking for…</span>
-              {prompts.map((s) => (
-                <button
-                  key={s.title}
-                  className={`idea ${s.prompt === prompt ? "idea-on" : ""}`}
-                  onClick={() => setPrompt(s.prompt)}
-                >
-                  <span className="idea-title">{s.title}</span>
-                  {s.prompt}
-                </button>
-              ))}
-            </div>
+            <Ideas prompts={scenarios} value={prompt} onPick={setPrompt} />
           )}
           {state.chat.map((line, i) => (
             <Fragment key={i}>
@@ -363,85 +377,79 @@ export function PapDemo({
           ))}
           {sending && <div className="bubble agent working">…</div>}
           {state.error && <div className="error">{state.error}</div>}
+          {/* The chat's end: its gap keeps the last bubble off the composer. */}
           <div />
         </Phone>
 
-        <div className="pane">
-          <div className="pane-head">
-            <div className="step-label">Behind the chat</div>
-            <span className="pane-status">
-              {started ? (sending ? "In progress" : "Done") : "Ready"}
-            </span>
-          </div>
-          <div className="pane-intro">
-            {!started && (
-              <p>
-                Atlas is Sam&apos;s own assistant, and Flight Sector has never
-                seen it before. It finds Flight Sector from its{" "}
-                <code>poppy.json</code>, talks to its agent in a Session it
-                names in a signed header on every request, has Sam sign in with
-                plain OAuth when it needs his booking, and asks Sam before it
-                approves anything that costs more.
-              </p>
-            )}
-            {state.session && (
-              <div className="mission">
-                Session <code>{state.session.sid.slice(0, 10)}…</code> ·{" "}
-                {state.session.signedIn
-                  ? `signed in: ${state.session.scopes.join(" ")}`
-                  : "signed out"}
-                {state.session.conversation &&
-                  ` · ${state.session.conversation}`}
-              </div>
-            )}
-            <div className="mission records">
-              Flight Sector&apos;s records: {booking.reference} on{" "}
-              {booking.flight}, seat {booking.seat} · {changes.length}{" "}
-              {changes.length === 1 ? "change" : "changes"}
-            </div>
-          </div>
-          <div
-            className="pane-body"
-            ref={seenPane}
-            onScroll={(e) => onSeenScroll(e.currentTarget)}
-          >
-            {turns.map((turn) => {
-              const lines = state.seen.filter((s) => s.turn === turn);
-              return (
-                <Moment
-                  key={turn}
-                  title={<p>{state.chat[turn]?.text ?? "Working…"}</p>}
-                  calls={state.exchanges.filter((x) => x.turn === turn)}
-                  parties={PARTY}
-                  shown={turn === shownTurn}
-                  onShow={() => setPicked(turn)}
-                >
-                  {lines.length > 0 && (
-                    <div className="talk">
-                      <div className="talk-head">
-                        The conversation, as Flight Sector sees it
-                      </div>
-                      {lines.map((line, i) => (
-                        <div
-                          key={i}
-                          className={`talk-line ${line.from === "Atlas" ? "talk-atlas" : "talk-company"}`}
-                        >
-                          <span className="talk-who">{line.from}</span>
-                          <span>
-                            {line.text}
-                            {line.note && (
-                              <code className="talk-note">{line.note}</code>
-                            )}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </Moment>
-              );
-            })}
-          </div>
-        </div>
+        <BehindTheChat
+          status={started ? (state.busy ? "In progress" : "Done") : "Ready"}
+          intro={
+            (!started || hint || session) && (
+              <>
+                {!started && (
+                  <p>
+                    Pick a sample or type your own. Atlas is Sam&apos;s own
+                    agent, and Flight Sector has never seen it before: Atlas
+                    finds it from its <code>poppy.json</code>, names its Session
+                    in a signed header on every request, has Sam sign in with
+                    plain OAuth when it needs his booking, and asks Sam before
+                    it approves anything that costs more.
+                  </p>
+                )}
+                {hint && (
+                  <p className="hint">
+                    <strong>Next:</strong> {hint}
+                  </p>
+                )}
+                {session && (
+                  <div className="mission">
+                    Session <code>{session.sid.slice(0, 10)}…</code> ·{" "}
+                    {session.signedIn
+                      ? `signed in, ${session.scopes.join(" ")}`
+                      : "signed out"}{" "}
+                    · {booking.reference} on {booking.flight},{" "}
+                    {changes.length === 0
+                      ? "unchanged"
+                      : changes.length === 1
+                        ? "changed once"
+                        : `changed ${changes.length} times`}
+                  </div>
+                )}
+              </>
+            )
+          }
+          paneRef={seenPane}
+          onScroll={onSeenScroll}
+        >
+          {turns.map((turn) => {
+            const lines = state.seen.filter((s) => s.turn === turn);
+            return (
+              <Moment
+                key={turn}
+                title={<Rich text={state.chat[turn]?.text ?? "Working…"} />}
+                calls={state.exchanges.filter((x) => x.turn === turn)}
+                parties={PARTY}
+                shown={turn === shownTurn}
+                onShow={() => setPicked(turn)}
+              >
+                {lines.length > 0 && (
+                  <div className="talk">
+                    <Sees
+                      mark="F"
+                      title="Flight Sector's agent, in the conversation"
+                      rows={lines.map((line, i) => ({
+                        key: i,
+                        who: line.from,
+                        what: line.text,
+                        pill: line.kind && KIND[line.kind],
+                      }))}
+                    />
+                  </div>
+                )}
+              </Moment>
+            );
+          })}
+        </BehindTheChat>
 
         <RequestDetails
           exchanges={details}
@@ -449,8 +457,8 @@ export function PapDemo({
           hosts={hosts}
           empty={
             <p>
-              Each request Atlas sends appears here as it went, credentials
-              shortened, with its Session header decoded.
+              Each request Atlas sends Flight Sector appears here, as it went,
+              with its Session header decoded.
             </p>
           }
           onFollow={picked !== null ? () => setPicked(null) : undefined}

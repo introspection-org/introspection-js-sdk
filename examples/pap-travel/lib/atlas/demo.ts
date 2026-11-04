@@ -59,7 +59,8 @@ type Seen = {
   turn: number;
   from: "Atlas" | "Flight Sector";
   text: string;
-  note?: string;
+  /** What the event carried beyond text. */
+  kind?: "authorization" | "operation" | "approval";
 };
 
 type Company = {
@@ -107,13 +108,37 @@ const fresh = (): Demo => ({
 const store = once("atlas_demo", () => ({ demo: fresh() }));
 const demo = () => store.demo;
 
-export const SAM_ASKS =
-  "My QF74 to Sydney is delayed six hours, and I have a 9am meeting on the 20th. Can you get me there in time?";
+/** The page's sample prompts, each with what to do next. */
+export const SCENARIOS = [
+  {
+    id: "ua863",
+    title: "UA863: no extra cost",
+    prompt:
+      "My QF74 to Sydney is delayed six hours, and I have a 9am meeting on the 20th. Can you get me there in time?",
+    hint: "Sign in at Flight Sector when Atlas asks, then pick UA863. It costs nothing more, so Flight Sector rebooks with no approval.",
+  },
+  {
+    id: "qf8",
+    title: "QF8: Sam approves the exact terms (Operations)",
+    prompt:
+      "My QF74 to Sydney is delayed six hours, and I have a 9am meeting on the 20th. Get me there as early as you can, even if it costs more.",
+    hint: "Sign in, then pick QF8 via Dallas. Flight Sector returns an operation for $400 more and changes nothing until Sam approves those exact terms in Atlas.",
+  },
+  {
+    id: "declined",
+    title: "QF8 declined: nothing changes",
+    prompt:
+      "My QF74 to Sydney is delayed six hours, so I land after my 9am meeting on the 20th. What are my options, and what do they cost?",
+    hint: "Sign in, pick QF8 via Dallas, then decline its terms. Flight Sector changes nothing, and UA863 is still there.",
+  },
+];
 
 export function snapshot() {
   const d = demo();
   return {
     step: d.step,
+    prompt: d.chat.find((line) => line.from === "Sam")?.text,
+    busy: d.chat.length > 0 && !["done", "disconnected"].includes(d.step),
     chat: d.chat,
     seen: d.seen,
     exchanges: exchanges(),
@@ -134,12 +159,21 @@ export function reset() {
   store.demo = fresh();
   clearWire();
   resetRecords();
+  turns.turn = 0;
+}
+
+/** What Atlas does next is told in its next line, so the requests go under that one, as in aauth-travel. */
+const turns = once("atlas_turn", () => ({ turn: 0 }));
+const currentTurn = () => turns.turn;
+function turnAt(turn: number) {
+  turns.turn = turn;
+  setTurn(turn);
 }
 
 function sam(text: string) {
   const d = demo();
   d.chat.push({ from: "Sam", text });
-  setTurn(d.chat.length - 1);
+  turnAt(d.chat.length);
 }
 const atlas = (line: Omit<ChatLine, "from">) =>
   demo().chat.push({ from: "Atlas", ...line });
@@ -345,7 +379,7 @@ async function tell(
 /** Handles the events in a response, each once, in order, and keeps the cursor (8.5). */
 function heard(answer: Answer): Heard {
   const d = demo();
-  const turn = d.chat.length - 1;
+  const turn = currentTurn();
   const result: Heard = {};
   if (answer.status === 401) {
     result.needs = answer.challenge?.match(/scope="([^"]+)"/)?.[1] ?? "";
@@ -382,8 +416,8 @@ function heard(answer: Answer): Heard {
       d.seen.push({
         turn,
         from: "Flight Sector",
-        text: "",
-        note: `authorization · insufficient_scope · ${event.scope}`,
+        text: `Needs ${event.scope}`,
+        kind: "authorization",
       });
     }
     const message = event.message;
@@ -394,8 +428,8 @@ function heard(answer: Answer): Heard {
       turn,
       from,
       text: message.text ?? "",
-      note: op
-        ? `operation ${op.operation_id} · revision ${op.revision}`
+      kind: op
+        ? "operation"
         : message.extensions?.operations?.approval
           ? "approval"
           : undefined,
@@ -655,7 +689,7 @@ async function decide(verdict: "approve" | "decline") {
 async function retryApproval() {
   const d = demo();
   if (!d.sentApproval) throw new Error("no approval was sent");
-  setTurn(d.chat.length - 1);
+  turnAt(d.chat.length - 1);
   heard(
     await resource({
       label: "Retry the approval: same message",

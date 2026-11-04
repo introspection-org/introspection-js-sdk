@@ -99,6 +99,38 @@ export function Composer(props: {
   );
 }
 
+/** A row in a box of what a party sees: who, what, and an optional pill. */
+export type SeenRow = {
+  key: string | number;
+  who: string;
+  what: ReactNode;
+  pill?: { label: ReactNode; tone: string };
+};
+
+/** A party's mark and name over the rows of what it sees. */
+export function Sees(props: { mark: string; title: string; rows: SeenRow[] }) {
+  const { mark, title, rows } = props;
+  return (
+    <>
+      <div className="sees-head">
+        <span className="mark">{mark}</span>
+        {title}
+      </div>
+      <div className="sees-box">
+        {rows.map((row) => (
+          <div key={row.key} className="seen">
+            <span className="seen-who">{row.who}</span>
+            <span>{row.what}</span>
+            {row.pill && (
+              <span className={`pill ${row.pill.tone}`}>{row.pill.label}</span>
+            )}
+          </div>
+        ))}
+      </div>
+    </>
+  );
+}
+
 /** One turn of the chat, behind it: who was called, and anything a person must answer. */
 export function Moment(props: {
   title: ReactNode;
@@ -114,24 +146,21 @@ export function Moment(props: {
     <section className={`moment ${shown ? "moment-shown" : ""}`}>
       <div className="moment-title">{title}</div>
       {called.length > 0 && (
-        <>
-          <div className="sees-head">
-            <span className="mark">{parties[called[0]]?.mark ?? "?"}</span>
-            {called.map((p) => parties[p]?.name ?? p).join(" · ")}
-          </div>
-          <div className="sees-box">
-            {calls.map((x) => (
-              <div key={x.id} className="seen">
-                <span className="seen-who">{parties[x.to]?.name ?? x.to}</span>
-                <span>
-                  {x.label}
-                  {x.repeats > 1 && ` ×${x.repeats}`}
-                </span>
-                <span className={`pill ${tone(x.status)}`}>{x.status}</span>
-              </div>
-            ))}
-          </div>
-        </>
+        <Sees
+          mark={parties[called[0]]?.mark ?? "?"}
+          title={called.map((p) => parties[p]?.name ?? p).join(" · ")}
+          rows={calls.map((x) => ({
+            key: x.id,
+            who: parties[x.to]?.name ?? x.to,
+            what: (
+              <>
+                {x.label}
+                {x.repeats > 1 && ` ×${x.repeats}`}
+              </>
+            ),
+            pill: { label: x.status, tone: tone(x.status) },
+          }))}
+        />
       )}
       {children}
       {calls.length > 0 && (
@@ -141,5 +170,79 @@ export function Moment(props: {
         </button>
       )}
     </section>
+  );
+}
+
+/** The page's header: the protocol's mark and line, its links, and the title. */
+export function Header(props: {
+  brand: ReactNode;
+  controls: ReactNode;
+  title: ReactNode;
+  /** Beside the title, such as aauth-travel's conversation bar. */
+  aside?: ReactNode;
+}) {
+  const { brand, controls, title, aside } = props;
+  return (
+    <header className="ademo-head">
+      <div className="ademo-row">
+        <div className="brand">{brand}</div>
+        <div className="ademo-controls">{controls}</div>
+      </div>
+      <div className="ademo-title">
+        <h1>{title}</h1>
+        {aside}
+      </div>
+    </header>
+  );
+}
+
+/** Sample prompts on an empty chat, each under a caption of what it shows. */
+export function Ideas(props: {
+  prompts: { id: string; title: string; prompt: string }[];
+  value: string;
+  onPick: (prompt: string) => void;
+}) {
+  const { prompts, value, onPick } = props;
+  return (
+    <div className="ideas">
+      <span className="muted">Try asking for…</span>
+      {prompts.map((s) => (
+        <button
+          key={s.id}
+          className={`idea ${s.prompt === value ? "idea-on" : ""}`}
+          onClick={() => onPick(s.prompt)}
+        >
+          <span className="idea-title">{s.title}</span>
+          {s.prompt}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/** The middle pane: its status, an intro, and a moment per turn of the chat. */
+export function BehindTheChat(props: {
+  status: string;
+  intro?: ReactNode;
+  paneRef: RefObject<HTMLDivElement | null>;
+  onScroll: (pane: HTMLDivElement) => void;
+  children: ReactNode;
+}) {
+  const { status, intro, paneRef, onScroll, children } = props;
+  return (
+    <div className="pane">
+      <div className="pane-head">
+        <div className="step-label">Behind the chat</div>
+        <span className="pane-status">{status}</span>
+      </div>
+      {intro && <div className="pane-intro">{intro}</div>}
+      <div
+        className="pane-body"
+        ref={paneRef}
+        onScroll={(e) => onScroll(e.currentTarget)}
+      >
+        {children}
+      </div>
+    </div>
   );
 }

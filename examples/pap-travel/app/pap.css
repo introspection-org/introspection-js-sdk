@@ -44,76 +44,25 @@ body {
   background: var(--panel);
 }
 
-.pap .approval {
-  font-size: 14px;
-}
-.pap .approval .mail-item p {
-  margin: 0;
-}
-.pap .terms {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 13px;
-}
-.pap .terms td {
-  padding: 3px 0;
-  border-top: 1px solid var(--line);
-  vertical-align: top;
-}
-.pap .terms td:first-child {
-  color: var(--muted);
-  padding-right: 10px;
-  white-space: nowrap;
-}
-.pap .approval-meta {
-  margin: 0;
+.pap .approval code {
   font-size: 12px;
-  color: var(--muted);
-  overflow-wrap: anywhere;
 }
 
-/* Behind the chat: the agents' conversation, and Flight Sector's records. */
-.pap .records {
-  margin-top: 6px;
+/* The protocol's mark, the height of aauth-travel's wordmark. */
+.poppy-mark {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 21px;
+  font-weight: 700;
+  font-size: 20px;
+  letter-spacing: -0.01em;
+  color: #d9480f;
 }
 
+/* The agents' conversation, under the turn's requests. */
 .pap .talk {
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  background: var(--panel);
-  font-size: 13px;
-}
-.pap .talk-head {
-  padding: 6px 10px;
-  font-family: var(--mono);
-  font-size: 12px;
-  color: var(--muted);
-  border-bottom: 1px solid var(--line);
-}
-.pap .talk-line {
-  display: grid;
-  grid-template-columns: 92px 1fr;
-  gap: 8px;
-  padding: 6px 10px;
-}
-.pap .talk-line + .talk-line {
-  border-top: 1px solid var(--line);
-}
-.pap .talk-who {
-  font-weight: 600;
-}
-.pap .talk-atlas .talk-who {
-  color: var(--sam);
-}
-.pap .talk-company .talk-who {
-  color: var(--ok);
-}
-.pap .talk-note {
-  display: block;
-  margin-top: 2px;
-  font-size: 12px;
-  color: var(--ask);
-  overflow-wrap: anywhere;
+  margin-top: 12px;
 }
 
 /* Flight Sector's own pages: its home and the consent page of Direct Sign-In. */
@@ -217,4 +166,10 @@ body {
   background: var(--company);
   border-color: var(--company);
   color: #fff;
+}
+
+/* Messages wrap: a call's label fits one line, a message doesn't. */
+.pap .talk .seen > span:nth-child(2) {
+  white-space: normal;
+  overflow: visible;
 }
