@@ -1,11 +1,11 @@
 import type { Metadata } from "next";
 
-import "./globals.css";
+import "./pap.css";
 
 export const metadata: Metadata = {
   title: "Atlas · PAP travel",
   description:
-    "Sam's assistant rebooks a delayed flight with Flight Sector over the Personal Agent Protocol.",
+    "Sam's assistant rebooks a delayed flight with Flight Sector over the Personal Agent Protocol, draft 0.3.",
 };
 
 export default function RootLayout({

@@ -1,11 +1,12 @@
-/** Start a conversation with Flight Sector's agent (spec §7.3). */
+/** Start a conversation with Flight Sector's agent (spec 8.3). */
 import { conversationUrl, start } from "@/lib/company/conversations";
-import { caller } from "@/lib/company/oauth";
-import { respond } from "@/lib/company/respond";
+import { respond } from "@/lib/company/errors";
+import { verify } from "@/lib/company/session";
 
 export async function POST(request: Request) {
   return respond(async () => {
-    const who = await caller(request, conversationUrl());
-    return start(who, await request.json(), new URL(request.url));
+    const caller = await verify(request, conversationUrl());
+    const body = await request.json().catch(() => ({}));
+    return start(caller, body, new URL(request.url));
   });
 }

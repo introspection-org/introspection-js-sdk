@@ -1,5 +1,5 @@
+import { respond } from "@/lib/company/errors";
 import { token } from "@/lib/company/oauth";
-import { respond } from "@/lib/company/respond";
 
 export async function POST(request: Request) {
   return respond(async () =>

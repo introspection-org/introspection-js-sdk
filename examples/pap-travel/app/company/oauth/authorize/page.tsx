@@ -1,11 +1,18 @@
-/** Direct Sign-In on Flight Sector's own page (spec §4.5): Sam is signed in already, and chooses what Atlas may do. */
-import { ACCOUNT, authorizeRequest, OAuthError } from "@/lib/company/oauth";
+/** Direct Sign-In on Flight Sector's own page (spec 4.2): Sam is signed in already, and chooses what Atlas may do. */
+import { redirect } from "next/navigation";
+
+import { PoppyError } from "@/lib/company/errors";
+import {
+  ACCOUNT,
+  type AuthorizeRequest,
+  authorizeRequest,
+  SCOPES,
+} from "@/lib/company/oauth";
 
 export const dynamic = "force-dynamic";
 
-const SCOPE_TEXT: Record<string, string> = {
-  "poppy:read": "See your bookings",
-  "poppy:write": "Change your bookings",
+const HINT: Record<string, string> = {
+  "bookings:write": "Changes can cost money, and can't always be undone.",
 };
 
 export default async function Authorize({
@@ -19,7 +26,7 @@ export default async function Authorize({
       typeof v === "string" ? [[k, v]] : [],
     ),
   );
-  let checked;
+  let checked: AuthorizeRequest | { redirect: string };
   try {
     checked = await authorizeRequest(query);
   } catch (err) {
@@ -29,13 +36,14 @@ export default async function Authorize({
           <div className="company-brand">Flight Sector</div>
           <p>
             This sign-in request can&apos;t be used:{" "}
-            {err instanceof OAuthError ? err.message : "unknown error"}.
+            {err instanceof PoppyError ? err.message : "unknown error"}.
           </p>
         </div>
       </main>
     );
   }
-  const { metadata, request } = checked;
+  if ("redirect" in checked) redirect(checked.redirect);
+  const { metadata, scopes } = checked;
   return (
     <main className="company">
       <form
@@ -51,7 +59,7 @@ export default async function Authorize({
         <input type="hidden" name="query" value={query.toString()} />
         <fieldset>
           <legend>Allow {metadata.client_name} to</legend>
-          {request.scopes.map((scope) => (
+          {scopes.map((scope) => (
             <label key={scope}>
               <input
                 type="checkbox"
@@ -59,7 +67,10 @@ export default async function Authorize({
                 value={scope}
                 defaultChecked
               />
-              {SCOPE_TEXT[scope] ?? scope}
+              <span>
+                {SCOPES[scope]}
+                {HINT[scope] && <small>{HINT[scope]}</small>}
+              </span>
             </label>
           ))}
         </fieldset>

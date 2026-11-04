@@ -11,6 +11,10 @@ const hosts = [
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
+  // A page to present: no dev badge over the phone.
+  devIndicators: false,
+  // The page it shares with aauth-travel, as TypeScript source.
+  transpilePackages: ["introspection-example-travel-demo-ui"],
   allowedDevOrigins: hosts.map((h) => h.host),
   async rewrites() {
     return {

@@ -1,6 +1,6 @@
 /** Sam's answer on the consent page; the browser goes back to Atlas with a code or a refusal. */
+import { respond } from "@/lib/company/errors";
 import { decide } from "@/lib/company/oauth";
-import { respond } from "@/lib/company/respond";
 
 export async function POST(request: Request) {
   return respond(async () => {

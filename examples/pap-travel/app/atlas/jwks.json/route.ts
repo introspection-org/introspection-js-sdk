@@ -1,5 +1,5 @@
-/** The public key Atlas signs its assertions with. Its DPoP keys are never published. */
-import { jwks } from "@/lib/atlas/client";
+/** The key that signs Atlas's client assertions and delegations. Delegated keys, which sign Session JWTs, are never published. */
+import { jwks } from "@/lib/atlas/identity";
 
 export async function GET() {
   return Response.json(await jwks());

@@ -1,17 +1,14 @@
 import { conversationUrl, events } from "@/lib/company/conversations";
-import { caller } from "@/lib/company/oauth";
-import { respond } from "@/lib/company/respond";
+import { respond } from "@/lib/company/errors";
+import { verify } from "@/lib/company/session";
 
 export async function GET(
   request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
-  return respond(async () =>
-    events(
-      await caller(request, conversationUrl(id, "/events")),
-      id,
-      new URL(request.url),
-    ),
-  );
+  return respond(async () => {
+    const caller = await verify(request, conversationUrl(id, "/events"));
+    return events(caller, id, new URL(request.url));
+  });
 }

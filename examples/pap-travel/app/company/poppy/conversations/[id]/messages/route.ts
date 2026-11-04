@@ -1,6 +1,6 @@
 import { conversationUrl, send } from "@/lib/company/conversations";
-import { caller } from "@/lib/company/oauth";
-import { respond } from "@/lib/company/respond";
+import { respond } from "@/lib/company/errors";
+import { verify } from "@/lib/company/session";
 
 export async function POST(
   request: Request,
@@ -8,7 +8,12 @@ export async function POST(
 ) {
   const { id } = await params;
   return respond(async () => {
-    const who = await caller(request, conversationUrl(id, "/messages"));
-    return send(who, id, await request.json(), new URL(request.url));
+    const caller = await verify(request, conversationUrl(id, "/messages"));
+    return send(
+      caller,
+      id,
+      await request.json().catch(() => ({})),
+      new URL(request.url),
+    );
   });
 }

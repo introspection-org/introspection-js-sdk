@@ -1,15 +1,14 @@
-/** The page's buttons: Sam's side of the chat. */
-import { ask, choose, disconnect, reset, snapshot } from "@/lib/atlas/demo";
+/** The page's buttons and composer: Sam's side of the chat. */
+import { act, reset, send, snapshot } from "@/lib/atlas/demo";
 
 export async function POST(request: Request) {
-  const { action, option } = (await request.json().catch(() => ({}))) as {
+  const body = (await request.json().catch(() => ({}))) as {
     action?: string;
     option?: string;
+    text?: string;
   };
-  if (action === "ask") await ask();
-  else if (action === "choose") await choose(String(option));
-  else if (action === "disconnect") await disconnect();
-  else if (action === "reset") reset();
-  else return Response.json({ error: "unknown action" }, { status: 400 });
+  if (body.action === "send") await send(String(body.text ?? ""));
+  else if (body.action === "reset") reset();
+  else await act(String(body.action), body.option);
   return Response.json(snapshot());
 }
