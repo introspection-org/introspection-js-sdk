@@ -5,4 +5,5 @@ packages:
   - "examples/auth"
   - "examples/aauth-travel"
   - "examples/pap-travel"
+  - "examples/travel-demo-ui"
   - "tests"

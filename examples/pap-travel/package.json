@@ -2,7 +2,7 @@
   "name": "introspection-example-pap-travel",
   "version": "0.1.0",
   "private": true,
-  "description": "Flight Sector, a Personal Agent Protocol demo: Sam's assistant Atlas rebooks a delayed flight by talking to Flight Sector's agent, with every request on the wire beside the conversation.",
+  "description": "Flight Sector, a Personal Agent Protocol (draft 0.3) demo: Sam's assistant Atlas rebooks a delayed flight by talking to Flight Sector's agent, with every request on the wire beside the conversation.",
   "scripts": {
     "dev": "portless alias atlas 3500 --force && portless alias pap.flightsector 3500 --force && NODE_EXTRA_CA_CERTS=${NODE_EXTRA_CA_CERTS:-$HOME/.portless/ca.pem} next dev --turbopack --port 3500",
     "build": "next build",
@@ -13,10 +13,11 @@
     "clean": "rm -rf .next .turbo node_modules"
   },
   "dependencies": {
+    "introspection-example-travel-demo-ui": "workspace:*",
     "jose": "^6.2.12",
-    "next": "^16.3.6",
-    "react": "^19.3.0",
-    "react-dom": "^19.3.0",
+    "next": "^16.4.3",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
     "server-only": "^0.0.1"
   },
   "devDependencies": {
@@ -24,7 +25,7 @@
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "eslint": "^9.39.5",
-    "eslint-config-next": "^16.3.6",
+    "eslint-config-next": "^16.4.3",
     "portless": "^0.15.7",
     "typescript": "^5.7.2"
   }

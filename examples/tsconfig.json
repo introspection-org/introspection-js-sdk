@@ -15,6 +15,7 @@
     "auth",
     "aauth-travel",
     "browser",
-    "pap-travel"
+    "pap-travel",
+    "travel-demo-ui"
   ]
 }

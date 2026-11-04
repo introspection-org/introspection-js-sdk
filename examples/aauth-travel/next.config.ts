@@ -29,6 +29,8 @@ const passthrough = [...prefixes, "_next"].map((p) => `${p}/`).join("|");
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
+  // The page it shares with pap-travel, as TypeScript source.
+  transpilePackages: ["introspection-example-travel-demo-ui"],
   // A page to present: no dev badge over the phone.
   devIndicators: false,
   // The walkthrough reads these files at request time.
