@@ -4,13 +4,18 @@ import { Fragment, useCallback, useEffect, useState } from "react";
 import {
   BehindTheChat,
   Composer,
+  ConversationBar,
+  type Decide,
+  type Email,
   type Exchange,
   Header,
   Ideas,
+  Inbox,
   Moment,
   type Parties,
   Phone,
   RequestDetails,
+  StatusCard,
   useFollow,
 } from "introspection-example-travel-demo-ui";
 
@@ -20,16 +25,6 @@ import { AAuthLogo, IntrospectionMark } from "./aauth-logo";
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
-type Email = {
-  index: number;
-  turn: number;
-  to: string;
-  item: string;
-  reasons: string[];
-  code: string;
-  budget: { suggested: number | null } | null;
-  decided: boolean;
-};
 type ToolError = { turn: number; tool: string; text: string };
 type Scenario = { id: string; title: string; prompt: string; hint: string };
 type Snapshot = {
@@ -55,12 +50,6 @@ type Snapshot = {
   exchanges: Exchange[];
   inbox: Email[];
 };
-type Decide = (
-  email: Email,
-  verdict: "approve" | "decline",
-  budget?: number,
-) => void;
-
 const PARTY: Parties = {
   Tools: {
     name: "Tools",
@@ -72,106 +61,37 @@ const PARTY: Parties = {
   Browserbase: { name: "Browserbase", mark: "W" },
 };
 
-function Inbox({
-  email,
-  busy,
-  onDecide,
-}: {
-  email: Email;
-  busy: boolean;
-  onDecide: Decide;
-}) {
-  const [budget, setBudget] = useState(email.budget?.suggested ?? 3000);
-  // The approver types the code Acme emailed; the page plays that out, a
-  // digit at a time, before it sends the answer.
-  const [typed, setTyped] = useState<string | null>(null);
-  const answer = (verdict: "approve" | "decline") => {
-    if (typed !== null) return;
-    setTyped("");
-    const digits = email.code.split("");
-    digits.forEach((_, i) =>
-      setTimeout(() => setTyped(email.code.slice(0, i + 1)), (i + 1) * 120),
-    );
-    setTimeout(
-      () => {
-        onDecide(
-          email,
-          verdict,
-          verdict === "approve" && email.budget ? budget : undefined,
-        );
-        // A refused answer leaves the card open: let it be tried again.
-        setTimeout(() => setTyped(null), 3000);
-      },
-      digits.length * 120 + 300,
-    );
-  };
-  // Sam is the traveller, Dana his manager: each in their own colour.
-  const who = email.to.startsWith("Sam") ? "mail-sam" : "mail-dana";
-  return (
-    <div className={`mail ${who} ${email.decided ? "mail-done" : ""}`}>
-      <div className="mail-head">
-        <span className="mail-to">
-          <span className="mail-avatar" aria-hidden>
-            {email.to.charAt(0)}
-          </span>
-          {email.to}&apos;s inbox
-        </span>
-        <span>from Acme Travel Approvals</span>
-      </div>
-      <div className="mail-item">
-        <Markdown remarkPlugins={[remarkGfm]}>
-          {email.item.replace(/^#+\s*/gm, "")}
-        </Markdown>
-      </div>
-      <ul>
-        {email.reasons.map((reason) => (
-          <li key={reason}>{reason}</li>
-        ))}
-      </ul>
-      {email.decided ? (
-        <div className="mail-status">Answered</div>
-      ) : (
-        <div className="mail-actions">
-          {email.budget && (
-            <label>
-              Budget $
-              <input
-                type="number"
-                min={1}
-                value={budget}
-                onChange={(e) => setBudget(Number(e.target.value))}
-              />
-            </label>
-          )}
-          <div className="mail-answer">
-            <span className="mail-code" aria-label="Code from the email">
-              {Array.from({ length: 6 }, (_, i) => (
-                <span
-                  key={i}
-                  className={typed && typed.length > i ? "filled" : undefined}
-                >
-                  {typed?.[i] ?? ""}
-                </span>
-              ))}
-            </span>
-            <button
-              disabled={busy || typed !== null}
-              onClick={() => answer("approve")}
-            >
-              {email.to.startsWith("Sam") ? "Accept" : "Approve"}
-            </button>
-            <button
-              className="secondary"
-              disabled={busy || typed !== null}
-              onClick={() => answer("decline")}
-            >
-              Decline
-            </button>
-          </div>
-        </div>
-      )}
-    </div>
-  );
+/**
+ * Sam's side of a decision Dana makes at Acme, in his phone: where it stands,
+ * with nothing to press. Dana answers in her own inbox, behind the chat.
+ */
+function Waits({ emails }: { emails: Email[] }) {
+  return emails
+    .filter((email) => !email.to.startsWith("Sam"))
+    .map((email) => {
+      const what = email.budget
+        ? "the trip and its budget"
+        : "a booking over what is left of the budget";
+      const [title, tone] =
+        email.status === "approved"
+          ? ["Approved: booking now", "ok" as const]
+          : email.status === "denied"
+            ? [`${email.to} declined ${what}`, "no" as const]
+            : [
+                `Waiting on ${email.to} at Acme to approve ${what}`,
+                "wait" as const,
+              ];
+      return (
+        <StatusCard
+          key={email.index}
+          who={`${email.to} · Acme`}
+          title={title}
+          detail={email.reasons[0]}
+          tone={tone}
+          className="mail-dana"
+        />
+      );
+    });
 }
 
 /** The agent's failed tool calls, folded away under its reply. */
@@ -186,83 +106,6 @@ function Why({ errors }: { errors: ToolError[] }) {
         </div>
       ))}
     </details>
-  );
-}
-
-/**
- * The run's conversation in Introspection, as an address bar: its URL to copy
- * or open, or another conversation's URL or id to paste and open.
- */
-function ConversationBar({
-  base,
-  taskId,
-  onLoad,
-}: {
-  base?: string;
-  taskId?: string;
-  onLoad: (taskId: string) => void;
-}) {
-  // Shown as a browser shows an address: no scheme, the host set off from the path.
-  const scheme = base?.match(/^https?:\/\//)?.[0] ?? "https://";
-  // Before a run, the project's conversations; during one, that run's.
-  const current = base
-    ? `${base}${taskId ?? ""}`.slice(scheme.length)
-    : (taskId ?? "");
-  const [text, setText] = useState(current);
-  useEffect(() => setText(current), [current]);
-  const open = () => {
-    const value = text.trim();
-    if (!value) return;
-    const url = /^https?:\/\//.test(value)
-      ? value
-      : value.includes("/")
-        ? `${scheme}${value}`
-        : `${base}${value}`;
-    window.open(url, "_blank", "noreferrer");
-  };
-  // Enter loads (or reloads) the conversation a URL or id names; only the icon
-  // opens it. The id is the last one: a project's id can come first.
-  const pasted = text
-    .match(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi)
-    ?.at(-1);
-  return (
-    <form
-      className="conversation-bar"
-      onSubmit={(e) => {
-        e.preventDefault();
-        if (pasted) onLoad(pasted);
-      }}
-    >
-      <span className="conversation-bar-icon" aria-hidden>
-        ⓘ
-      </span>
-      <input
-        value={text}
-        onChange={(e) => setText(e.target.value)}
-        onFocus={(e) => e.target.select()}
-        spellCheck={false}
-        placeholder="Paste a conversation URL or id"
-        aria-label="This run's conversation in Introspection, or another to load"
-      />
-      <button
-        type="button"
-        onClick={open}
-        disabled={!text.trim()}
-        title="Open in Introspection"
-        aria-label="Open in Introspection"
-      >
-        <svg viewBox="0 0 16 16" width="15" height="15" aria-hidden>
-          <path
-            d="M9 2h5v5M14 2 7.5 8.5M12 9.5V13a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1h3.5"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.5"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-        </svg>
-      </button>
-    </form>
   );
 }
 
@@ -412,6 +255,9 @@ export function AAuthDemo({ scenarios }: { scenarios: Scenario[] }) {
             <Ideas prompts={scenarios} value={prompt} onPick={setPrompt} />
           )}
           {state.chat.map((line, i) => {
+            const waits = (
+              <Waits emails={state.inbox.filter((e) => e.turn === i)} />
+            );
             // Under the agent's reply that follows them, or ahead of Sam's.
             const why = (
               <Why
@@ -431,9 +277,13 @@ export function AAuthDemo({ scenarios }: { scenarios: Scenario[] }) {
                   )}
                 </div>
                 {line.from === "Agent" && why}
+                {waits}
               </Fragment>
             );
           })}
+          <Waits
+            emails={state.inbox.filter((e) => e.turn >= state.chat.length)}
+          />
           <Why
             errors={(state.toolErrors ?? []).filter(
               (e) => e.turn >= state.chat.length,

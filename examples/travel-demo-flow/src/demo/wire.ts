@@ -10,10 +10,13 @@ import "server-only";
 export type Party =
   | "Agent"
   | "Acme"
+  | "Atlas"
   | "Booking provider"
   | "Browserbase"
   | "Dana"
+  | "Flight Sector"
   | "Sam"
+  | "Sam's browser"
   | "Tools";
 
 export type Exchange = {

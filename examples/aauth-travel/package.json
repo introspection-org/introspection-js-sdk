@@ -4,7 +4,7 @@
   "private": true,
   "description": "Flight Sector, an AAuth demo: a travel agent books company travel from a chat over AAuth inside each customer's own policy, escalating to the manager when it must. Hosts Flight Sector's booking provider and Acme's Person Server, and walks through every step beside the code behind it.",
   "scripts": {
-    "dev": "scripts/dev.sh",
+    "dev": "../travel-demo-flow/dev.sh",
     "e2e": "node scripts/e2e.mjs",
     "build": "next build",
     "start": "next start --port 3400",
@@ -19,6 +19,7 @@
     "@introspection-sdk/aauth-person-server": "workspace:*",
     "@introspection-sdk/aauth-resource": "workspace:*",
     "@introspection-sdk/introspection-node": "workspace:*",
+    "introspection-example-travel-demo-flow": "workspace:*",
     "introspection-example-travel-demo-ui": "workspace:*",
     "jose": "^6.2.12",
     "next": "^16.4.3",

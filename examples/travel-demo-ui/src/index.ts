@@ -3,6 +3,9 @@
  * party sees behind the chat, and the requests on the wire. Each demo keeps
  * its own state and cards; its styles are `demo.css`, under `.ademo`.
  */
+export { StatusCard } from "./cards";
+export { ConversationBar } from "./conversation-bar";
+export { type Decide, type Email, Inbox } from "./inbox";
 export { useFollow } from "./follow";
 export {
   BehindTheChat,

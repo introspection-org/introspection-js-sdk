@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react";
 
-import { fetchRetrying } from "@/lib/retry";
+import { fetchRetrying } from "../retry";
 
 const DIGITS = 6;
 

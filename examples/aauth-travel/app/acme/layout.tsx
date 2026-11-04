@@ -1,25 +1,9 @@
-import type { Metadata } from "next";
+import {
+  AcmeLayout,
+  acmeMetadata,
+} from "introspection-example-travel-demo-flow/acme/layout";
 
-import "./acme.css";
+import "introspection-example-travel-demo-flow/acme.css";
 
-export const metadata: Metadata = {
-  title: "Acme · Travel approvals",
-  description: "Approve or decline travel outside Acme's policy.",
-};
-
-export default function AcmeLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="acme">
-      <header className="acme-bar">
-        <span className="acme-mark">A</span>
-        <span>Acme</span>
-        <span className="acme-bar-sub">Travel approvals</span>
-      </header>
-      <main className="acme-main">{children}</main>
-    </div>
-  );
-}
+export const metadata = acmeMetadata;
+export default AcmeLayout;

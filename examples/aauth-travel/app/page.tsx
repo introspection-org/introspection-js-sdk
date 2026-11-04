@@ -1,5 +1,5 @@
 import { AAuthDemo } from "@/components/demo/aauth-demo";
-import { scenarios } from "@/lib/demo/run";
+import { scenarios } from "@/lib/scenarios";
 
 import "introspection-example-travel-demo-ui/demo.css";
 

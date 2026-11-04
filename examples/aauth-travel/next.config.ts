@@ -6,7 +6,7 @@ import {
   BROWSERBASE_MCP_URL,
   PERSON_SERVER_MODE,
   PERSON_SERVER_URL,
-} from "./lib/origins";
+} from "introspection-example-travel-demo-flow/origins";
 
 // Each AAuth server is its own host (an identifier has no path); this one
 // process answers for each by rewriting its host to its routes. A party served
@@ -30,7 +30,10 @@ const passthrough = [...prefixes, "_next"].map((p) => `${p}/`).join("|");
 const nextConfig: NextConfig = {
   reactStrictMode: true,
   // The page it shares with pap-travel, as TypeScript source.
-  transpilePackages: ["introspection-example-travel-demo-ui"],
+  transpilePackages: [
+    "introspection-example-travel-demo-ui",
+    "introspection-example-travel-demo-flow",
+  ],
   // A page to present: no dev badge over the phone.
   devIndicators: false,
   // The walkthrough reads these files at request time.

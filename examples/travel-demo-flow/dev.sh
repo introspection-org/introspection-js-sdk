@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# `pnpm dev`: the Flight Sector demo app on :3400, its parties on public https
+# `pnpm dev` in a travel example: the Flight Sector demo app on its port (3400
+# for aauth-travel, 3500 for pap-travel), its parties on public https
 # URLs, and your Introspection project set up to use them.
 #
 # It installs the introspection CLI, or upgrades it, first.
@@ -38,10 +39,24 @@
 #   FLIGHTSECTOR_NO_SETUP=1  serve the app and its tunnel only, from .env.local as
 #                        it stands: no CLI, and nothing in the project changes
 #   RECIPE_URL           the recipe to seed from (default the public one)
+#   RECIPE_REF           a branch, tag or commit of RECIPE_URL to put in the
+#                        hosted repository on every start (default: none, so the
+#                        repository keeps what it was seeded with, the recipe's
+#                        default branch); the runtime is rebuilt when it changes
+#
+# The example calls it from its own directory (its .env.local, .keys/ and
+# .introspection-work/ live there), with DEMO_PORT set. DEMO_PORTLESS_NAMES
+# names hosts portless serves on that port too, for parties only this machine
+# calls (pap-travel's Atlas and Flight Sector's Poppy host).
 set -euo pipefail
-cd "$(dirname "$0")/.."
+FLOW="$(cd "$(dirname "$0")" && pwd)"
 
-PORT=3400
+PORT="${DEMO_PORT:-3400}"
+DEMO_NAME="$(basename "$PWD")"
+PACKAGE="$(node -p 'require("./package.json").name')"
+# aauth-travel keeps the names it has always minted secrets under.
+SUFFIX=""
+[ "$DEMO_NAME" = aauth-travel ] || SUFFIX=" ($DEMO_NAME)"
 ENV_FILE=.env.local
 WORK=.introspection-work
 RUNTIME=travel-agent
@@ -131,6 +146,7 @@ fi
 
 command -v cloudflared >/dev/null 2>&1 || fail "install cloudflared first: brew install cloudflared"
 FLIGHTSECTOR_DOMAIN="${FLIGHTSECTOR_DOMAIN:-$(read_env FLIGHTSECTOR_DOMAIN)}"
+RECIPE_REF="${RECIPE_REF:-$(read_env RECIPE_REF)}"
 MODE="${PERSON_SERVER:-$(read_env PERSON_SERVER)}"
 MODE="${MODE:-hosted}"
 case "$MODE" in hosted | acme) ;; *) fail "PERSON_SERVER is hosted or acme" ;; esac
@@ -231,13 +247,22 @@ export ACME_PS_SUBJECT_SECRET="${ACME_PS_SUBJECT_SECRET:-$(secret acme-ps-subjec
 # makes this quick when nothing changed.
 say "building the workspace packages the app uses"
 (cd ../.. && pnpm install --frozen-lockfile --prefer-offline --reporter=silent &&
-  pnpm exec turbo run build --filter "introspection-example-aauth-travel^..." --output-logs=errors-only) ||
+  pnpm exec turbo run build --filter "$PACKAGE^..." --output-logs=errors-only) ||
   fail "could not build the workspace packages; run \`pnpm build\` at the repository root to see why"
 
 # The app starts first: the runtime's first build reaches the mock it serves.
 # Until setup is done it says so, rather than that the project isn't set up.
 remove_env DEMO_SETUP
 if [ -z "${FLIGHTSECTOR_NO_SETUP:-}" ]; then upsert_env DEMO_SETUP pending; fi
+# Parties only this machine calls get https names from portless, whose CA the
+# app trusts for its calls between them.
+if [ -n "${DEMO_PORTLESS_NAMES:-}" ]; then
+  for name in $DEMO_PORTLESS_NAMES; do
+    node_modules/.bin/portless alias "$name" "$PORT" --force >/dev/null ||
+      fail "portless could not serve $name.localhost: start its proxy once with \`sudo npx portless proxy start\`"
+  done
+  export NODE_EXTRA_CA_CERTS="${NODE_EXTRA_CA_CERTS:-$HOME/.portless/ca.pem}"
+fi
 node_modules/.bin/next dev --turbopack --port "$PORT" &
 PIDS+=($!)
 APP=$!
@@ -260,7 +285,7 @@ apply_connector() {
   ' "$BOOKING" "$TENANT")"
   # The booking provider's host changes with its tunnel, so the connector's
   # api_hosts and the recipe's BOOKING_API_URL are set here, not in booking.json.
-  introspection connectors create @introspection/booking.json \
+  introspection connectors create "@$FLOW/introspection/booking.json" \
     --api-host "${BOOKING#https://}" \
     --person-server-url "$PERSON_SERVER_URL" \
     --application-id "$(read_env AGENT_APPLICATION_ID)" \
@@ -325,12 +350,38 @@ ensure_acme_app() {
   [ -n "$acme_id" ] || fail "could not create the $acme_name application"
   if [ -z "$(read_env ACME_CLIENT_SECRET)" ]; then
     local acme_secret
-    acme_secret="$(mint_secret "$acme_id" "Acme approvals")"
+    acme_secret="$(mint_secret "$acme_id" "Acme approvals$SUFFIX")"
     [ -n "$acme_secret" ] || fail "could not create a client secret for the $acme_name application"
     upsert_env ACME_CLIENT_SECRET "$acme_secret"
   fi
   upsert_env ACME_CLIENT_ID "$(json 'v.client_id' <<<"$acme")"
   upsert_env ACME_PROJECT "$project_id"
+}
+
+# RECIPE_REF: the recipe at that ref in the hosted repository, and the runtime
+# built again when that changed anything. A plain commit on top of what is
+# there, so nothing is force-pushed.
+sync_recipe_ref() {
+  [ -n "${RECIPE_REF:-}" ] || return 0
+  mkdir -p "$WORK"
+  rm -rf "${WORK:?}/$RUNTIME"
+  git clone -q "$(introspection repositories list -o json | json "v.find((r) => r.slug === '$RUNTIME').url")" "$WORK/$RUNTIME"
+  (cd "$WORK/$RUNTIME" &&
+    git fetch -q "$RECIPE_URL" "$RECIPE_REF" &&
+    git rm -rq --ignore-unmatch . &&
+    git checkout FETCH_HEAD -- .) ||
+    fail "could not fetch $RECIPE_REF from $RECIPE_URL"
+  if (cd "$WORK/$RUNTIME" && git diff --cached --quiet); then
+    say "$RUNTIME has the recipe at $RECIPE_REF"
+    return 0
+  fi
+  say "putting the recipe at $RECIPE_REF in $RUNTIME, and building it"
+  (cd "$WORK/$RUNTIME" &&
+    git -c user.name="$DEMO_NAME" -c user.email="$DEMO_NAME@example.invalid" \
+      commit -q -m "chore: the recipe at $RECIPE_REF" &&
+    git push -q origin HEAD:main &&
+    introspection runtimes create --yes >/dev/null) ||
+    fail "could not put the recipe at $RECIPE_REF in $RUNTIME"
 }
 
 full_setup() {
@@ -354,10 +405,12 @@ full_setup() {
     # push came before the runtime existed, so push once more to check it.
     say "pushing to $RUNTIME so the platform checks the recipe"
     (cd "$WORK/$RUNTIME" &&
-      git -c user.name=aauth-travel -c user.email=aauth-travel@example.invalid \
+      git -c user.name="$DEMO_NAME" -c user.email="$DEMO_NAME@example.invalid" \
         commit -q --allow-empty -m "chore: check the recipe" &&
       git push -q origin HEAD:main)
   fi
+
+  sync_recipe_ref
 
   # 2. Flight search.
   bind_flight_search
@@ -381,13 +434,13 @@ full_setup() {
   apply_connector
 
   # 4. Sam, before his first session, so the rails can read his seniority.
-  introspection members create @introspection/sam.json >/dev/null
+  introspection members create "@$FLOW/introspection/sam.json" >/dev/null
   say "Sam is user:$SAM_USER_ID"
 
   # 5. The demo page signs in as that application, with a client secret.
   if [ -z "$(read_env INTROSPECTION_CLIENT_SECRET)" ]; then
     local secret
-    secret="$(mint_secret "$app_id" "Flight Sector demo")"
+    secret="$(mint_secret "$app_id" "Flight Sector demo$SUFFIX")"
     [ -n "$secret" ] || fail "could not create a client secret for the $app_name application"
     upsert_env INTROSPECTION_CLIENT_SECRET "$secret"
   fi
@@ -482,6 +535,7 @@ connect() {
   app_id="$(read_env AGENT_APPLICATION_ID)"
   if [ -n "$app_id" ] && [ -n "$(read_env INTROSPECTION_CLIENT_SECRET)" ] &&
     introspection applications list -o json | json "(v.records ?? v).some((a) => a.id === '$app_id')" | grep -q true; then
+    sync_recipe_ref
     apply_connector
     bind_flight_search
     if [ "$MODE" = hosted ]; then ensure_acme_app "$(read_env INTROSPECTION_PROJECT)"; fi

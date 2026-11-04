@@ -49,51 +49,21 @@ function toolLabel(name: string) {
   return mcp ? `${mcp[1]}: ${mcp[2]}` : name;
 }
 
-/** `from` to `to`, as a traveller writes it: "26 to 30 October", or "30 November to 4 December". */
-function span(from: Date, to: Date) {
-  const month = (d: Date) => d.toLocaleString("en-GB", { month: "long" });
-  return month(from) === month(to)
-    ? `${from.getDate()} to ${to.getDate()} ${month(to)}`
-    : `${from.getDate()} ${month(from)} to ${to.getDate()} ${month(to)}`;
-}
-
-/** Next week, Monday to Friday, and the weekend after it, from `today`. */
-export function tripDates(today = new Date()) {
-  const day = (offset: number) =>
-    new Date(today.getFullYear(), today.getMonth(), today.getDate() + offset);
-  const monday = (8 - today.getDay()) % 7 || 7;
-  return {
-    week: span(day(monday), day(monday + 4)),
-    weekend: span(day(monday + 4), day(monday + 6)),
-  };
-}
-
-/** The demo's scenarios, dated next week so a trip is never in the past. */
-export function scenarios(today = new Date()) {
-  const { week, weekend } = tripDates(today);
-  return [
-    {
-      id: "approved",
-      title: "Over budget, Dana declines, Sam's easy",
-      prompt: `Book me economy from San Francisco to Sydney for ${week}, and the QT Sydney. Up to $3,000.`,
-      hint: "Approve the trip at $3,000. The flight books on its own; decline the QT when Dana is asked, then tell the agent you're easy and it finds a cheaper hotel.",
-    },
-    {
-      id: "first",
-      title: "First class: refused by the rails",
-      prompt: `Fly me first class from San Francisco to Sydney for ${week}, with the Harbour Rocks. Up to $20,000.`,
-      hint: "The agent quotes first class, and Flight Sector's Cedar rails in Introspection's egress refuse it at the quote, before Acme is asked.",
-    },
-    {
-      id: "personal",
-      title: "A personal weekend on the company: refused",
-      prompt: `Book me economy from San Francisco to Sydney for ${week} for the Acme offsite, then on to Melbourne for a weekend with my partner, ${weekend}. Put it all on Acme. Up to $4,000.`,
-      hint: "Approve the trip. Sydney books on the company; the rails refuse the Melbourne weekend on the company, with Jev reading it as personal, so the agent offers to put it on Sam's card.",
-    },
-  ];
-}
-
-type Chat = { from: "Sam" | "Agent"; text: string };
+/**
+ * A chat line. `Atlas` is a Personal Agent speaking for Sam over Poppy
+ * (pap-travel); `done` marks an agent line the model has finished.
+ */
+type Chat = { from: "Sam" | "Atlas" | "Agent"; text: string; done?: boolean };
+/** Who the task acts for and as which recipe agent, and who speaks to it. */
+export type StartOptions = {
+  userId?: string;
+  agentName?: string;
+  as?: "Sam" | "Atlas";
+  /** Keep what the page has recorded so far, rather than starting over. */
+  keepWire?: boolean;
+};
+/** A tool call the agent made, under the chat line it followed. */
+export type ToolCall = { id: string; name: string; args: string; turn: number };
 /** A tool call that failed, under the chat line that follows it, as the wire's calls are. */
 type ToolError = { turn: number; tool: string; text: string };
 type Runner = Awaited<
@@ -121,6 +91,7 @@ type Run = {
   /** The chat line each email arrived under. */
   emailTurns: Record<number, number>;
   missionsFrom: number;
+  calls: ToolCall[];
 };
 
 const fresh = (epoch = 0): Run => ({
@@ -133,6 +104,7 @@ const fresh = (epoch = 0): Run => ({
   decided: [],
   emailTurns: {},
   missionsFrom: missions().length,
+  calls: [],
 });
 const store = globalThis as unknown as { __demoRun?: Run };
 const run = () => (store.__demoRun ??= fresh());
@@ -197,6 +169,8 @@ export function snapshot() {
             }
           : null,
         decided: r.decided.includes(index),
+        /** Acme's answer, as its approval page shows it: pending, approved or denied. */
+        status: approvalSummary(email.link.split("/").pop() ?? "")?.status,
       };
     }),
   };
@@ -326,8 +300,20 @@ async function follow(r: Run, epoch: number, runId: string, stream: Stream) {
         if (tool) tool.args += String(ev.delta ?? "");
         break;
       }
+      case "TEXT_MESSAGE_END": {
+        const line = messages.get(String(ev.messageId));
+        if (line) line.done = true;
+        break;
+      }
       case "TOOL_CALL_END": {
         const tool = tools.get(String(ev.toolCallId));
+        if (tool)
+          r.calls.push({
+            id: String(ev.toolCallId),
+            name: tool.name,
+            args: tool.args,
+            turn: r.chat.length,
+          });
         if (tool)
           tool.exchange = note({
             from: "Agent",
@@ -362,7 +348,7 @@ async function follow(r: Run, epoch: number, runId: string, stream: Stream) {
     }
   }
   // Drop the empty line a message with no text leaves behind.
-  r.chat = r.chat.filter((line) => line.from === "Sam" || line.text.trim());
+  r.chat = r.chat.filter((line) => line.from !== "Agent" || line.text.trim());
 }
 
 /**
@@ -439,14 +425,27 @@ function notSetUp() {
     : "Run pnpm dev to set up the agent's application: INTROSPECTION_CLIENT_ID, INTROSPECTION_CLIENT_SECRET and INTROSPECTION_PROJECT.";
 }
 
-/** Sam's first message: open a runner as Sam and start the task. */
-export async function start(prompt: string) {
+/**
+ * Sam's first message: open a runner as Sam and start the task. `shown` is
+ * the line the page shows, when the prompt the agent gets says more.
+ */
+export async function start(
+  prompt: string,
+  options: StartOptions = {},
+  shown = prompt,
+) {
   if (run().busy) return;
-  reset();
+  if (options.keepWire) {
+    const old = run();
+    void old.runner?.close().catch(() => undefined);
+    store.__demoRun = fresh(old.epoch + 1);
+  } else {
+    reset();
+    startRecording();
+  }
   const r = run();
   r.prompt = prompt.trim();
-  startRecording();
-  say("Sam", r.prompt);
+  say(options.as ?? "Sam", shown.trim());
   const account = serviceAccount();
   if (!account) {
     r.error = notSetUp();
@@ -458,20 +457,27 @@ export async function start(prompt: string) {
       await IntrospectionClient.fromServiceAccount(account)
     )
       .runtimes(RUNTIME)
-      .run({ identity: { user_id: SAM_USER_ID } });
+      .run({
+        identity: { user_id: options.userId ?? SAM_USER_ID },
+        ...(options.agentName && { agent_name: options.agentName }),
+      });
     const handle = await r.runner.tasks.start({ prompt: r.prompt! });
     r.taskId = handle.run.task_id;
     return { runId: handle.run.id, stream: handle.stream() as Stream };
   });
 }
 
-/** Sam's next message, on the same task. */
-export async function send(prompt: string) {
+/** Sam's next message, on the same task. False when the agent is still replying. */
+export async function send(
+  prompt: string,
+  as: "Sam" | "Atlas" = "Sam",
+  shown = prompt,
+) {
   const r = run();
-  if (r.streaming || !r.runner || !r.taskId || !prompt.trim()) return;
+  if (r.streaming || !r.runner || !r.taskId || !prompt.trim()) return false;
   // Only watching for a resume, not replying: Sam may speak, which ends the watch.
   if (r.busy) r.epoch += 1;
-  say("Sam", prompt.trim());
+  say(as, shown.trim());
   const epoch = r.epoch;
   void drive(r, epoch, async () => {
     const handle = await r.runner!.tasks.runs.create(r.taskId!, {
@@ -479,7 +485,11 @@ export async function send(prompt: string) {
     });
     return { runId: handle.run.id, stream: handle.stream() as Stream };
   });
+  return true;
 }
+
+/** The agent's tool calls in this run, in order. */
+export const agentToolCalls = () => run().calls;
 
 /** Sam stops the agent: cancel whichever run the task is on. The task stays, so Sam can carry on. */
 export async function stop() {

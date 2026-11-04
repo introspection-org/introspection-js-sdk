@@ -939,3 +939,26 @@
 .on-introspection svg {
   color: var(--ink);
 }
+
+/* Where a decision someone else makes stands, in the phone of the person
+   waiting on it: an approval card's sibling, without its buttons. */
+.status-card {
+  align-self: stretch;
+  margin-top: 0;
+}
+.status-card.status-wait {
+  border-color: var(--wait);
+}
+.status-card.status-ok {
+  border-color: var(--ok);
+}
+.status-card.status-no {
+  border-color: var(--no);
+}
+.status-title {
+  font-weight: 500;
+}
+.status-detail {
+  font-size: 13px;
+  color: var(--muted);
+}

@@ -121,6 +121,9 @@ importers:
       '@introspection-sdk/introspection-node':
         specifier: workspace:*
         version: link:../../packages/introspection-node
+      introspection-example-travel-demo-flow:
+        specifier: workspace:*
+        version: link:../travel-demo-flow
       introspection-example-travel-demo-ui:
         specifier: workspace:*
         version: link:../travel-demo-ui
@@ -229,6 +232,9 @@ importers:
 
   examples/pap-travel:
     dependencies:
+      introspection-example-travel-demo-flow:
+        specifier: workspace:*
+        version: link:../travel-demo-flow
       introspection-example-travel-demo-ui:
         specifier: workspace:*
         version: link:../travel-demo-ui
@@ -244,6 +250,12 @@ importers:
       react-dom:
         specifier: ^19.3.1
         version: 19.3.1(react@19.3.1)
+      react-markdown:
+        specifier: ^10.1.0
+        version: 10.1.0(@types/react@19.3.0)(react@19.3.1)
+      remark-gfm:
+        specifier: ^4.0.1
+        version: 4.0.1
       server-only:
         specifier: ^0.0.1
         version: 0.0.1
@@ -266,11 +278,64 @@ importers:
       portless:
         specifier: ^0.15.7
         version: 0.15.13
+      tsx:
+        specifier: ^4.23.15
+        version: 4.23.15
+      typescript:
+        specifier: ^5.7.2
+        version: 5.9.3
+
+  examples/travel-demo-flow:
+    dependencies:
+      '@aauth/resource':
+        specifier: ^3.0.0
+        version: 3.0.0
+      '@introspection-sdk/aauth-person-server':
+        specifier: workspace:*
+        version: link:../../packages/introspection-aauth-person-server
+      '@introspection-sdk/aauth-resource':
+        specifier: workspace:*
+        version: link:../../packages/introspection-aauth-resource
+      '@introspection-sdk/introspection-node':
+        specifier: workspace:*
+        version: link:../../packages/introspection-node
+      jose:
+        specifier: ^6.2.12
+        version: 6.2.15
+      server-only:
+        specifier: ^0.0.1
+        version: 0.0.1
+    devDependencies:
+      '@types/node':
+        specifier: ^22.20.4
+        version: 22.20.5
+      '@types/react':
+        specifier: ^19.3.0
+        version: 19.3.0
+      eslint:
+        specifier: ^9.39.5
+        version: 9.39.5(jiti@2.7.0)
+      eslint-config-next:
+        specifier: ^16.4.3
+        version: 16.4.3(@typescript-eslint/parser@8.72.1(eslint@9.39.5(jiti@2.7.0))(typescript@5.9.3))(eslint@9.39.5(jiti@2.7.0))(typescript@5.9.3)
+      next:
+        specifier: ^16.4.3
+        version: 16.4.3(@babel/core@7.29.7)(@opentelemetry/api@1.10.0)(@types/node@22.20.5)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
+      react:
+        specifier: ^19.3.1
+        version: 19.3.1
       typescript:
         specifier: ^5.7.2
         version: 5.9.3
 
   examples/travel-demo-ui:
+    dependencies:
+      react-markdown:
+        specifier: ^10.1.0
+        version: 10.1.0(@types/react@19.3.0)(react@19.3.1)
+      remark-gfm:
+        specifier: ^4.0.1
+        version: 4.0.1
     devDependencies:
       '@types/react':
         specifier: ^19.3.0
@@ -5833,7 +5898,7 @@ snapshots:
     dependencies:
       '@aauth/interaction-code': 0.1.1
       '@aauth/protocol': 2.0.0
-      jose: 6.2.12
+      jose: 6.2.15
 
   '@ag-ui/core@0.0.59':
     dependencies:
