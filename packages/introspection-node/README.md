@@ -235,6 +235,16 @@ const { token, expires_at } = await client.integrations.accessToken(
 );
 ```
 
+`client.integrations.repositories(id)` lists every repository a GitHub
+integration's installation can reach, in one response (`integrations:read`).
+The Control Plane reads them with its own credential, so no token reaches
+the caller.
+
+```typescript
+const { records } = await client.integrations.repositories(integration.id);
+for (const repo of records) console.log(repo.full_name, repo.default_branch);
+```
+
 `client.projects.peerings` reads a project's runtime peerings, the runtime
 groups it offers to other projects (`projects:read`). Creating or revoking a
 peering is a person's act in the web app, so the SDK has no write methods.

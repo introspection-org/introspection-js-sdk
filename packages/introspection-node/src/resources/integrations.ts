@@ -4,6 +4,7 @@ import type {
   IntegrationAccessToken,
   IntegrationAccessTokenParams,
   IntegrationCreateParams,
+  IntegrationRepositories,
   IntegrationUpdateParams,
   Uuid,
 } from "@introspection-sdk/types";
@@ -55,6 +56,19 @@ export class IntegrationsApi extends CollectionClient<
       method: "POST",
       path: `${this.itemPath(integrationId)}/access-token`,
       body: params,
+    });
+  }
+
+  /**
+   * The repositories the integration's installation can reach, all in one
+   * response (`integrations:read`). The Control Plane reads them with its
+   * own credential, so no provider token reaches the caller. A non-GitHub
+   * integration is a `ValidationError`; an inactive one a `ConflictError`.
+   */
+  repositories(integrationId: Uuid): Promise<IntegrationRepositories> {
+    return this.http.request<IntegrationRepositories>({
+      method: "GET",
+      path: `${this.itemPath(integrationId)}/repositories`,
     });
   }
 }

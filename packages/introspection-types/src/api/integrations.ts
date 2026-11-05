@@ -81,3 +81,29 @@ export interface IntegrationAccessToken {
   /** The permissions the provider granted. */
   permissions: Record<string, string>;
 }
+
+/** A repository a GitHub App installation can reach. */
+export interface GithubInstallationRepository {
+  /** GitHub's numeric repository id. */
+  id: number;
+  name: string;
+  /** `owner/name`. */
+  full_name: string;
+  html_url: string;
+  default_branch: string;
+  private: boolean;
+  description: string | null;
+  pushed_at: IsoDate | null;
+}
+
+/** The repositories a GitHub integration's installation can reach. */
+export interface GithubInstallationRepositories {
+  type: Extract<IntegrationType, "github">;
+  records: GithubInstallationRepository[];
+}
+
+/**
+ * `GET /v1/integrations/{id}/repositories` response, discriminated on
+ * `type`. Add a member per provider the server lists repositories for.
+ */
+export type IntegrationRepositories = GithubInstallationRepositories;

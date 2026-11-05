@@ -13,6 +13,7 @@ import {
   IntrospectionAPIError,
   IntrospectionClient,
   NotFoundError,
+  ValidationError,
 } from "@introspection-sdk/introspection-node";
 
 const CP = "https://api.example.com";
@@ -681,6 +682,52 @@ describe("integrations.accessToken", () => {
 
     expect(err).toBeInstanceOf(ConflictError);
     expect((err as ConflictError).code).toBe("github_integration_expired");
+  });
+});
+
+describe("integrations.repositories", () => {
+  it("reads the installation's repositories in one response", async () => {
+    const listed = {
+      type: "github",
+      records: [
+        {
+          id: 1,
+          name: "recipes",
+          full_name: "acme/recipes",
+          html_url: "https://github.com/acme/recipes",
+          default_branch: "main",
+          private: true,
+          description: null,
+          pushed_at: "2026-11-01T00:00:00Z",
+        },
+      ],
+    };
+    const { sent, fetch } = fakeControlPlane(() => json(listed));
+
+    const repos = await openClient(fetch).integrations.repositories(ROW_ID);
+
+    expect(repos).toEqual(listed);
+    expect(repos.type).toBe("github");
+    expect(repos.records[0]?.full_name).toBe("acme/recipes");
+    expect(calls(sent)).toEqual([
+      ["GET", `${CP}/v1/integrations/${ROW_ID}/repositories`, undefined],
+    ]);
+  });
+
+  it("maps a non-GitHub integration's 400 to a ValidationError", async () => {
+    const { fetch } = fakeControlPlane(() =>
+      json({ detail: "Integration is not a GitHub integration" }, 400),
+    );
+
+    const err = await openClient(fetch)
+      .integrations.repositories(ROW_ID)
+      .catch((e: unknown) => e);
+
+    expect(err).toBeInstanceOf(ValidationError);
+    expect((err as ValidationError).status).toBe(400);
+    expect((err as ValidationError).message).toBe(
+      "Integration is not a GitHub integration",
+    );
   });
 });
 
