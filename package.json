@@ -19,6 +19,7 @@
     "knip:production": "knip --production",
     "pre-commit": "pnpm lint && pnpm format:check && pnpm check-types",
     "prepare": "husky install",
+    "record-walk": "scripts/record-walk.sh",
     "test": "pnpm --filter introspection-tests test",
     "test:replay": "pnpm --filter introspection-tests test:replay",
     "test:record": "pnpm --filter introspection-tests test:record",

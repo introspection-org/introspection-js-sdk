@@ -14,6 +14,8 @@ node_modules
 
 # Testing
 coverage
+# scripts/record-walk.sh keeps each run's sdk-coverage artifact here
+.record-walk
 
 # Turbo
 .turbo

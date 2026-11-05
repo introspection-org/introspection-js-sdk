@@ -151,6 +151,8 @@ tests/recordings/<name>/recording.har
 
 Polly appends a `_<hash>` suffix to the cassette name (`pi-chat_3668022627/`). The files are HAR 1.2 and inspectable in any HAR viewer.
 
+The SDK walk's recordings (`walk`, `github-walk`, `aauth-walk`) also keep a `bootstrap.json` in `tests/recordings/<name>/`, beside the cassette in `<name>_<hash>/`. **Re-record them only with `scripts/record-walk.sh`** (`pnpm record-walk`). It dispatches introspection-cloud's `sdk-walks.yml` with this branch as the JS ref, waits for the run, and copies every JS walk recording from its `sdk-coverage` artifact into `tests/recordings`. Push the branch first, then replay the copies (`pnpm test:walk`) before committing them. `pnpm test:walk:record` and `pnpm test:walk:live` only check a local stack; never record against staging or with your own `introspection login`.
+
 ### Import cycles and the browser boundary
 
 CI fails the `Lint & Type Check` job on either of these:

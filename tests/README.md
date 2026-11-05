@@ -77,18 +77,51 @@ pnpm test api/tasks.test.ts
 
 `walk/` is one ordered scenario from a clean project to its teardown, recorded
 against a live stack and replayed in CI (design:
-`introspection-cloud/docs/design/sdk-end-to-end-walk.md`). The scripts below
-also exist at the repository root.
+`introspection-cloud/docs/design/sdk-end-to-end-walk.md`). Beside it run the
+GitHub write-back suite (`github.test.ts`) and the AAuth suite
+(`aauth.test.ts`), each with its own recording. The scripts below also exist
+at the repository root.
+
+#### Re-recording
+
+`scripts/record-walk.sh` is the way to re-record the walk. It dispatches
+introspection-cloud's `CI: SDK Walks` workflow (`sdk-walks.yml`), which builds
+the cloud's Compose stack and runs every SDK's walk on it, with this SDK at the
+branch you name. It then downloads the run's `sdk-coverage` artifact and
+copies every JS walk recording in it (`walk`, `github-walk`, and any other
+suite the run walked) into `tests/recordings`: `<name>/bootstrap.json` and the
+cassette `<name>_<hash>/recording.har`. A recording the run did not make (the
+AAuth suite, which the workflow does not walk) stays as it is. The cassettes
+are scrubbed by `polly-setup.ts` as they are written in the run, the same as
+any other recording.
+
+```bash
+# Push the branch first: the workflow checks it out from GitHub.
+scripts/record-walk.sh                       # cloud main, the current branch
+scripts/record-walk.sh --cloud-ref <cloud-branch> --sdk-ref <sdk-branch>
+WALK_RECORD_LOCK=<dir> scripts/record-walk.sh   # one recording at a time on this machine
+
+# Then replay the copies before committing them
+pnpm test:walk
+```
+
+The artifact stays in `.record-walk/<run id>/` (`walk-js.log`, `summary.md`,
+`recordings/js/`). The script copies nothing when the JS walk failed in the run.
+
+#### Running
 
 ```bash
 # Replay the committed recording: no stack, no network (what `pnpm test` runs)
 pnpm test:walk
 
-# Live against the stack `introspection login` chose, writing the recording
-# and the inline snapshots. Needs the recipe checkout on disk.
+# Live against a LOCAL stack, writing the recording and the inline snapshots.
+# Only for checking a local stack: never record against staging or with your
+# own `introspection login`, and never commit what it writes; re-record with
+# scripts/record-walk.sh. Needs the recipe checkout on disk.
 RECIPE_DIR=~/introspection/recipe-harbor-mcp-agent pnpm test:walk:record
 
-# Live without touching the recording, for checking a stack
+# Live against a LOCAL stack without touching the recording, for checking it.
+# Never against staging.
 RECIPE_DIR=~/introspection/recipe-harbor-mcp-agent pnpm test:walk:live
 
 # The SDK coverage the walk alone reaches: Vitest's text report of the
