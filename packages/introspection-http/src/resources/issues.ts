@@ -100,7 +100,7 @@ export class IssuesClient {
     if (options.ifMatch !== undefined) {
       return Promise.reject(
         new TypeError(
-          "ifMatch applies to a brief edit only; a request mutation carries its own expected_revision",
+          "ifMatch applies to a brief edit only, not a request mutation",
         ),
       );
     }

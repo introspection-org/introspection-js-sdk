@@ -152,15 +152,14 @@ export interface IssueUpdateParams {
   request?: never;
 }
 
-/** Create one human request on an issue, or change one. */
+/**
+ * Create one human request on an issue, or change one. An `id` the issue
+ * does not have yet creates the request; an existing one changes it, and the
+ * last write wins.
+ */
 export interface IssueRequestMutation {
   /** The request's id. Mint a new UUIDv7 to create one. */
   id: Uuid;
-  /**
-   * `0` creates the request; otherwise the request's current revision (a
-   * stale one is refused with 409).
-   */
-  expected_revision: number;
   /** What the assignee is asked; required to create. */
   question?: string;
   /** The member the request is assigned to; required to create, set again to reassign. */
@@ -210,10 +209,7 @@ export interface IssueListParams extends ListParams {
   metadata?: Record<string, string>;
 }
 
-/**
- * Options for an issue brief edit or delete. A request mutation takes none:
- * it carries its own `expected_revision`.
- */
+/** Options for an issue brief edit or delete. A request mutation takes none. */
 export interface IssuePreconditionOptions {
   /**
    * Sent as `If-Match`: the `ETag` the issue was read at, from

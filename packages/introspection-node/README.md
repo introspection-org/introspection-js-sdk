@@ -235,12 +235,11 @@ await client.issues.update(
   { ifMatch: issueEtag(issue) },
 );
 
-// Or create one human request (`expected_revision: 0`, with a new UUIDv7
-// `id`), and later resolve it at its own revision.
+// Or create one human request with a new UUIDv7 `id`; the same `id` later
+// changes or resolves it.
 await client.issues.update(issue.id, {
   request: {
     id: requestId,
-    expected_revision: 0,
     question: "Can we raise the gateway timeout?",
     assignee_id: memberId,
   },
@@ -253,8 +252,8 @@ await client.issues.delete(issue.id);
 `updated_at` exactly as the API renders it, quoted). A brief edit and a delete take an
 optional `{ ifMatch }`, sent as `If-Match`; a stale one is refused with 412
 (an `IntrospectionAPIError` with `status` 412), and leaving it out writes
-without the check. A request mutation takes no `ifMatch`: it carries its own
-`expected_revision`, and a stale one is a 409 (`ConflictError`).
+without the check. A request mutation takes no `ifMatch`: a new request `id` creates the
+request and an existing one changes it, last write wins.
 
 ### Project administration
 

@@ -217,12 +217,12 @@ describe("IssuesApi", () => {
     expect(calls(http)[0].body).not.toHaveProperty("title");
   });
 
-  it("update() creates a human request at expected_revision 0", async () => {
+  it("update() creates a human request under a new id", async () => {
     const http = mockHttp();
     await new IssuesApi(http).update(ISSUE_ID, {
       request: {
         id: REQUEST_ID,
-        expected_revision: 0,
+
         question: "Can we raise the gateway timeout?",
         assignee_id: MEMBER_ID,
         status: undefined,
@@ -232,7 +232,7 @@ describe("IssuesApi", () => {
     expect(calls(http)[0].body).toEqual({
       request: {
         id: REQUEST_ID,
-        expected_revision: 0,
+
         question: "Can we raise the gateway timeout?",
         assignee_id: MEMBER_ID,
       },
@@ -244,7 +244,7 @@ describe("IssuesApi", () => {
     await new IssuesApi(http).update(ISSUE_ID, {
       request: {
         id: REQUEST_ID,
-        expected_revision: 2,
+
         status: "resolved",
         resolution: "Raised to 60s; the timeouts stopped.",
       },
@@ -253,7 +253,7 @@ describe("IssuesApi", () => {
     expect(calls(http)[0].body).toEqual({
       request: {
         id: REQUEST_ID,
-        expected_revision: 2,
+
         status: "resolved",
         resolution: "Raised to 60s; the timeouts stopped.",
       },
@@ -292,7 +292,7 @@ describe("IssuesApi", () => {
   it("update() refuses ifMatch with a request mutation before sending", async () => {
     const http = mockHttp();
     const patch: IssuePatch = {
-      request: { id: REQUEST_ID, expected_revision: 0 },
+      request: { id: REQUEST_ID },
     };
     const issues = new IssuesApi(http);
 
@@ -323,16 +323,20 @@ describe("IssuesApi", () => {
     expectTypeOf<IssueMutation>().toMatchTypeOf<IssuePatch>();
     const edit: IssuePatch = { title: "t" };
     const mutation: IssuePatch = {
-      request: { id: REQUEST_ID, expected_revision: 0 },
+      request: { id: REQUEST_ID },
     };
     const mixed: IssuePatch = {
       // @ts-expect-error a request rides on its own, not in a brief edit
       title: "t",
+      request: { id: REQUEST_ID },
+    };
+    // @ts-expect-error a brief edit carries no revision
+    const versioned: IssueUpdateParams = { expected_revision: 1, title: "t" };
+    const requestRevision: IssueMutation = {
+      // @ts-expect-error nor does a request
       request: { id: REQUEST_ID, expected_revision: 0 },
     };
-    // @ts-expect-error a brief edit no longer carries a revision
-    const versioned: IssueUpdateParams = { expected_revision: 1, title: "t" };
-    expect([edit, mutation, mixed, versioned]).toHaveLength(4);
+    expect([edit, mutation, mixed, versioned, requestRevision]).toHaveLength(5);
   });
 });
 
@@ -458,7 +462,7 @@ describe("client.issues", () => {
 
     await expect(
       sdk.issues.update(ISSUE_ID, {
-        request: { id: REQUEST_ID, expected_revision: 2, status: "cancelled" },
+        request: { id: REQUEST_ID, status: "cancelled" },
       }),
     ).rejects.toBeInstanceOf(ConflictError);
     await sdk.shutdown();
