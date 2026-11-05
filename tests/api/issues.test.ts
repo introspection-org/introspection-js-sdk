@@ -277,15 +277,15 @@ describe("IssuesApi", () => {
     await issues.update(
       ISSUE_ID,
       { priority: "urgent" },
-      { ifMatch: '"1730764800123"' },
+      { ifMatch: '"2026-11-04T01:00:00.123456Z"' },
     );
     await issues.update(ISSUE_ID, { priority: "low" });
-    await issues.delete(ISSUE_ID, { ifMatch: '"1730764800456"' });
+    await issues.delete(ISSUE_ID, { ifMatch: '"2026-11-04T01:00:01.654321Z"' });
 
     expect(calls(http).map((call) => call.headers)).toEqual([
-      { "If-Match": '"1730764800123"' },
+      { "If-Match": '"2026-11-04T01:00:00.123456Z"' },
       undefined,
-      { "If-Match": '"1730764800456"' },
+      { "If-Match": '"2026-11-04T01:00:01.654321Z"' },
     ]);
   });
 
@@ -303,11 +303,11 @@ describe("IssuesApi", () => {
     expect(http.request).not.toHaveBeenCalled();
   });
 
-  it("issueEtag() quotes updated_at as epoch milliseconds", () => {
+  it("issueEtag() quotes updated_at verbatim, microseconds kept", () => {
     expect(
-      issueEtag({ ...ISSUE, updated_at: "2024-11-05T00:00:00.123Z" }),
-    ).toBe('"1730764800123"');
-    expect(issueEtag(ISSUE)).toBe(`"${Date.UTC(2026, 10, 1, 10)}"`);
+      issueEtag({ ...ISSUE, updated_at: "2026-11-04T01:00:00.123456Z" }),
+    ).toBe('"2026-11-04T01:00:00.123456Z"');
+    expect(issueEtag(ISSUE)).toBe('"2026-11-01T10:00:00Z"');
     expect(browserIssueEtag).toBe(issueEtag);
   });
 
@@ -425,7 +425,7 @@ describe("client.issues", () => {
     );
     await sdk.issues.delete(ISSUE_ID, { ifMatch: issueEtag(created) });
 
-    const tag = `"${Date.parse(ISSUE.updated_at)}"`;
+    const tag = `"${ISSUE.updated_at}"`;
     expect(sent.map((s) => [s.method, s.ifMatch])).toEqual([
       ["POST", null],
       ["PATCH", null],

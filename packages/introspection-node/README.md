@@ -250,7 +250,7 @@ await client.issues.delete(issue.id);
 ```
 
 `issueEtag(issue)` is the `ETag` the Data Plane returns for an issue (its
-`updated_at` as epoch milliseconds, quoted). A brief edit and a delete take an
+`updated_at` exactly as the API renders it, quoted). A brief edit and a delete take an
 optional `{ ifMatch }`, sent as `If-Match`; a stale one is refused with 412
 (an `IntrospectionAPIError` with `status` 412), and leaving it out writes
 without the check. A request mutation takes no `ifMatch`: it carries its own

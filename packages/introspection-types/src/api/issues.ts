@@ -101,12 +101,13 @@ export interface Issue {
 }
 
 /**
- * The `ETag` the Data Plane returns for `issue`: its `updated_at` as epoch
- * milliseconds, quoted. Pass it as `ifMatch` to an update or a delete so a
- * write against a stale read is refused with 412.
+ * The `ETag` the Data Plane returns for `issue`: its `updated_at` exactly as
+ * the API renders it, quoted. It is never parsed into a `Date`, which would
+ * drop the microseconds the server compares. Pass it as `ifMatch` to an
+ * update or a delete so a write against a stale read is refused with 412.
  */
 export function issueEtag(issue: Issue): string {
-  return `"${Date.parse(issue.updated_at)}"`;
+  return `"${issue.updated_at}"`;
 }
 
 /**
