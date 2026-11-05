@@ -35,6 +35,7 @@ import {
   AutomationsClient,
   ConversationsClient,
   FilesClient,
+  IssuesClient,
   SharesClient,
 } from "@introspection-sdk/http";
 import type { Environment } from "@introspection-sdk/types";
@@ -86,6 +87,8 @@ export class IntrospectionApiClient {
   readonly shares: SharesClient;
   /** `/v1/automations` operations bound to the DP session cookie. */
   readonly automations: AutomationsClient;
+  /** `/v1/issues` operations bound to the DP session cookie. */
+  readonly issues: IssuesClient;
   /**
    * Lane established by the most recent exchange. Per instance, never module
    * scope — two clients on one page holding different lanes is the point.
@@ -119,6 +122,7 @@ export class IntrospectionApiClient {
     this.conversations = new ConversationsClient(http);
     this.shares = new SharesClient(http);
     this.automations = new AutomationsClient(http);
+    this.issues = new IssuesClient(http);
   }
 
   /**

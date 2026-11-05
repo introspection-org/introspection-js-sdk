@@ -52,6 +52,7 @@ export {
   ConversationsClient,
   FileVersionsClient,
   FilesClient,
+  IssuesClient,
   SharesClient,
   type FileUploadBody,
 } from "@introspection-sdk/http";
@@ -78,6 +79,7 @@ export {
   genAiConversationId,
   genAiInputMessages,
   genAiOutputMessages,
+  issueEtag,
 } from "@introspection-sdk/types";
 
 // Re-exported wire types for convenience.
@@ -137,6 +139,14 @@ export type {
   AutomationListParams,
   AutomationTriggerResponse,
   AutomationUpdateParams,
+  Issue,
+  IssueCreateParams,
+  IssueListParams,
+  IssueMutation,
+  IssuePatch,
+  IssuePreconditionOptions,
+  IssueRequestMutation,
+  IssueUpdateParams,
 } from "@introspection-sdk/types";
 // jscpd:ignore-end
 export {

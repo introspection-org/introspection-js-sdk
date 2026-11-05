@@ -12,6 +12,7 @@ import {
   EventsApi,
   FilesApi,
   ImagesApi,
+  IssuesApi,
   MetricsApi,
   MissionsApi,
   SharesApi,
@@ -38,7 +39,7 @@ export type RunnerSource =
  * endpoint URL, and the runtime/experiment context, and exposes the
  * runner-bound Data Plane namespaces ({@link DataPlaneResources}: `tasks`,
  * `files`, `conversations`, `events`, `metrics`, `shares`, `approvals`,
- * `missions`, `automations`, `images` and `connections`), which send the runner's bearer and use its
+ * `missions`, `automations`, `issues`, `images` and `connections`), which send the runner's bearer and use its
  * runtime context.
  *
  * A runner a member opens for themself carries `automations:read` and
@@ -67,6 +68,8 @@ export class Runner implements DataPlaneResources {
   readonly missions: MissionsApi;
   /** CRUD on `/v1/automations` plus `trigger(id)`, on the runner's token. */
   readonly automations: AutomationsApi;
+  /** CRUD on `/v1/issues`, on the runner's token. */
+  readonly issues: IssuesApi;
   /** `/v1/images`, on the runner's token. */
   readonly images: ImagesApi;
   /**
@@ -93,6 +96,7 @@ export class Runner implements DataPlaneResources {
     this.approvals = new ApprovalsApi(this.guardedHttp());
     this.missions = new MissionsApi(this.guardedHttp());
     this.automations = new AutomationsApi(this.guardedHttp());
+    this.issues = new IssuesApi(this.guardedHttp());
     this.images = new ImagesApi(this.guardedHttp());
     this.connections = new AppConnectionsApi(
       this.guardedHttp(),

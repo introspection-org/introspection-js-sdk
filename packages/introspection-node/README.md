@@ -2,7 +2,7 @@
 
 Node.js platform SDK for [Introspection](https://introspection.dev) — open runtimes,
 drive tasks, and manage experiments, recipes, repositories, members,
-automations, app connections, files, conversations, shares, project
+automations, issues, app connections, files, conversations, shares, project
 administration (API keys, Applications, credentials, variables, integrations,
 judges) and eval images and task commands.
 
@@ -73,7 +73,7 @@ const runner = await client.runtimes("customer-agent").run({
 `IntrospectionClient` and `Runner` expose the same Data Plane namespaces, and
 both implement the exported `DataPlaneResources` interface: `tasks` (with
 `tasks.runs` and `tasks.commands`), `files`, `conversations`, `events`,
-`metrics`, `shares`, `automations`, `images` and `connections`. So does the `DataPlaneClient` that
+`metrics`, `shares`, `automations`, `issues`, `images` and `connections`. So does the `DataPlaneClient` that
 `AuthClient.dataPlane()` returns. Code written against `DataPlaneResources`
 runs against any of them.
 
@@ -197,6 +197,63 @@ const page = await client.events.list({
 for (const ev of page.records)
   console.log(ev.payload.task_id, ev.payload.posted);
 ```
+
+### Issues
+
+`client.issues` (and `runner.issues`, `dataPlaneClient.issues`) lists, reads,
+creates, updates and deletes issues on the Data Plane's `/v1/issues`. An issue
+is a brief on a fixed worker task: a title, a description, a priority and a
+status, the evidence it cites (files, links, events and spans) and its open
+human requests. Reading needs `issues:read`, creating and updating
+`issues:write`, and deleting `issues:delete`.
+
+```typescript
+const issue = await client.issues.create({
+  task_id: taskId,
+  title: "Checkout times out for EU customers",
+  description: "Three conversations hit a 30s timeout on /checkout.",
+  priority: "high",
+  tags: ["customer:acme"],
+  links: [{ url: "https://github.com/acme/app/pull/7" }],
+});
+
+// Repeatable filters take one value or several (ORed); metadata pairs are ANDed.
+for await (const open of client.issues.list({
+  status: ["open", "waiting"],
+  owner: "project",
+  metadata: { region: "eu" },
+})) {
+  console.log(open.display_index, open.title, open.open_requests.length);
+}
+
+// Edit the brief. Omitted fields are unchanged, and each list replaces its
+// list wholesale, so `links: []` clears the links. `ifMatch` is optional:
+// with the issue's ETag, an edit against a stale read is refused with 412.
+await client.issues.update(
+  issue.id,
+  { status: "closed", links: [] },
+  { ifMatch: issueEtag(issue) },
+);
+
+// Or create one human request with a new UUIDv7 `id`; the same `id` later
+// changes or resolves it.
+await client.issues.update(issue.id, {
+  request: {
+    id: requestId,
+    question: "Can we raise the gateway timeout?",
+    assignee_id: memberId,
+  },
+});
+
+await client.issues.delete(issue.id);
+```
+
+`issueEtag(issue)` is the `ETag` the Data Plane returns for an issue (its
+`updated_at` exactly as the API renders it, quoted). A brief edit and a delete take an
+optional `{ ifMatch }`, sent as `If-Match`; a stale one is refused with 412
+(an `IntrospectionAPIError` with `status` 412), and leaving it out writes
+without the check. A request mutation takes no `ifMatch`: a new request `id` creates the
+request and an existing one changes it, last write wins.
 
 ### Project administration
 
@@ -352,8 +409,8 @@ console.log(await run.text());
   Plane routes on `IntrospectionClient` (runtimes, connectors, members) reject
   it. Pass the runtime as `runtime_id` when creating a task. `auth.dataPlane()`
   returns a `DataPlaneClient`, which implements `DataPlaneResources`: `tasks`,
-  `files`, `conversations`, `shares`, `events`, `metrics`, `automations` and
-  `connections` (where `create` takes the `runtime`).
+  `files`, `conversations`, `shares`, `events`, `metrics`, `automations`,
+  `issues` and `connections` (where `create` takes the `runtime`).
 - **Sign-out** clears the local session, then revokes it with
   `POST /v1/oauth/revoke`; the local session is gone even if revocation fails.
 
