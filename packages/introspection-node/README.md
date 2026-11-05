@@ -222,6 +222,19 @@ await client.apiKeys.delete(created.id, {
 });
 ```
 
+`client.integrations.accessToken(id, { type, permissions })` mints a
+short-lived provider token (at most an hour, never stored) for an
+integration (`integrations:token`). GitHub is the only type today, capped at
+`{ metadata: "read" }`; a request beyond the cap is refused with a 403 whose
+`code` is `integration_token_cap_exceeded`, never narrowed.
+
+```typescript
+const { token, expires_at } = await client.integrations.accessToken(
+  integration.id,
+  { type: "github", permissions: { metadata: "read" } },
+);
+```
+
 `client.projects.peerings` reads a project's runtime peerings, the runtime
 groups it offers to other projects (`projects:read`). Creating or revoking a
 peering is a person's act in the web app, so the SDK has no write methods.

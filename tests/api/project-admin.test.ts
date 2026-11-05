@@ -9,6 +9,8 @@
  */
 import { describe, expect, it } from "vitest";
 import {
+  ConflictError,
+  IntrospectionAPIError,
   IntrospectionClient,
   NotFoundError,
 } from "@introspection-sdk/introspection-node";
@@ -605,6 +607,80 @@ describe("integrations", () => {
       ],
       ["DELETE", `${CP}/v1/integrations/${ROW_ID}`, undefined],
     ]);
+  });
+});
+
+describe("integrations.accessToken", () => {
+  it("posts the typed body and reads the minted token", async () => {
+    const minted = {
+      token: "ghs_example",
+      expires_at: "2026-11-05T11:02:00Z",
+      type: "github",
+      permissions: { metadata: "read" },
+    };
+    const { sent, fetch } = fakeControlPlane(() => json(minted, 201));
+
+    const token = await openClient(fetch).integrations.accessToken(ROW_ID, {
+      type: "github",
+      permissions: { metadata: "read" },
+    });
+
+    expect(token).toEqual(minted);
+    expect(calls(sent)).toEqual([
+      [
+        "POST",
+        `${CP}/v1/integrations/${ROW_ID}/access-token`,
+        { type: "github", permissions: { metadata: "read" } },
+      ],
+    ]);
+    expect(sent[0]?.auth).toBe("Bearer org-token");
+  });
+
+  it("surfaces a cap refusal with its code and allowed permissions", async () => {
+    const detail = {
+      code: "integration_token_cap_exceeded",
+      message: "contents is not allowed for github",
+      allowed: { metadata: "read" },
+    };
+    const { fetch } = fakeControlPlane(() => json({ detail }, 403));
+
+    const err = await openClient(fetch)
+      .integrations.accessToken(ROW_ID, {
+        type: "github",
+        permissions: { contents: "read" },
+      })
+      .catch((e: unknown) => e);
+
+    expect(err).toBeInstanceOf(IntrospectionAPIError);
+    const api = err as IntrospectionAPIError;
+    expect(api.status).toBe(403);
+    expect(api.code).toBe("integration_token_cap_exceeded");
+    expect(api.message).toBe("contents is not allowed for github");
+    expect(api.body).toEqual({ detail });
+  });
+
+  it("maps an inactive integration to a ConflictError with its code", async () => {
+    const { fetch } = fakeControlPlane(() =>
+      json(
+        {
+          detail: {
+            code: "github_integration_expired",
+            message: "Reconnect GitHub",
+          },
+        },
+        409,
+      ),
+    );
+
+    const err = await openClient(fetch)
+      .integrations.accessToken(ROW_ID, {
+        type: "github",
+        permissions: { metadata: "read" },
+      })
+      .catch((e: unknown) => e);
+
+    expect(err).toBeInstanceOf(ConflictError);
+    expect((err as ConflictError).code).toBe("github_integration_expired");
   });
 });
 

@@ -14,6 +14,9 @@ import {
  */
 function renderDetail(detail: unknown): string | undefined {
   if (typeof detail === "string") return detail;
+  if (isRecord(detail)) {
+    return typeof detail.message === "string" ? detail.message : undefined;
+  }
   if (!Array.isArray(detail) || detail.length === 0) return undefined;
   const parts = detail.map((entry) => {
     if (typeof entry === "string") return entry;
@@ -24,6 +27,21 @@ function renderDetail(detail: unknown): string | undefined {
     return where ? `${where}: ${what}` : what;
   });
   return parts.join("; ");
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+/**
+ * The machine-readable code of a structured `detail`
+ * (`{ code, message, ... }`), which the Control Plane sends on refusals a
+ * caller is meant to tell apart.
+ */
+function detailCode(detail: unknown): string | null {
+  return isRecord(detail) && typeof detail.code === "string"
+    ? detail.code
+    : null;
 }
 
 /**
@@ -87,7 +105,7 @@ export async function toApiError(
       const obj = body as Record<string, unknown>;
       const detail = renderDetail(obj.detail);
       if (detail) message = detail;
-      if (typeof obj.code === "string") code = obj.code;
+      code = typeof obj.code === "string" ? obj.code : detailCode(obj.detail);
       if (typeof obj.message === "string" && message === `HTTP ${res.status}`) {
         message = obj.message;
       }

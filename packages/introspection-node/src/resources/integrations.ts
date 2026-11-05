@@ -1,6 +1,8 @@
 import type {
   CursorParams,
   Integration,
+  IntegrationAccessToken,
+  IntegrationAccessTokenParams,
   IntegrationCreateParams,
   IntegrationUpdateParams,
   Uuid,
@@ -35,6 +37,23 @@ export class IntegrationsApi extends CollectionClient<
     return this.http.request<Integration>({
       method: "PATCH",
       path: this.itemPath(integrationId),
+      body: params,
+    });
+  }
+
+  /**
+   * Mint a short-lived provider token for the integration
+   * (`integrations:token`). A request beyond the server's cap is refused,
+   * never narrowed: a 403 whose `code` is `integration_token_cap_exceeded`,
+   * with the allowed permissions in the error body's `detail.allowed`.
+   */
+  accessToken(
+    integrationId: Uuid,
+    params: IntegrationAccessTokenParams,
+  ): Promise<IntegrationAccessToken> {
+    return this.http.request<IntegrationAccessToken>({
+      method: "POST",
+      path: `${this.itemPath(integrationId)}/access-token`,
       body: params,
     });
   }

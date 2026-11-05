@@ -49,3 +49,35 @@ export interface IntegrationUpdateParams {
   /** Only `false` is accepted: turns Slack interactivity off. */
   slack_interactivity_enabled?: false;
 }
+
+/** The level a provider permission is granted at. */
+export type IntegrationPermissionLevel = "read" | "write";
+
+/**
+ * `POST /v1/integrations/{id}/access-token` body for a GitHub integration.
+ * The server's cap allows only `{ metadata: "read" }` today.
+ */
+export interface GithubIntegrationAccessTokenParams {
+  type: Extract<IntegrationType, "github">;
+  /** GitHub App permission names, such as `metadata`. */
+  permissions: Record<string, IntegrationPermissionLevel>;
+}
+
+/**
+ * `POST /v1/integrations/{id}/access-token` body, discriminated on `type`,
+ * which must match the integration's own. Add a member per provider the
+ * server mints for (a `LinearIntegrationAccessTokenParams`, say).
+ */
+export type IntegrationAccessTokenParams = GithubIntegrationAccessTokenParams;
+
+/**
+ * A short-lived provider token (at most an hour), minted per request and
+ * never stored by the server, so keep it only as long as it is needed.
+ */
+export interface IntegrationAccessToken {
+  token: string;
+  expires_at: IsoDate;
+  type: IntegrationType;
+  /** The permissions the provider granted. */
+  permissions: Record<string, string>;
+}
