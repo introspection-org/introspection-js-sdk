@@ -356,6 +356,8 @@ const SHA_ANYWHERE = /\b[0-9a-f]{40}\b/gi;
 const DIGEST_ANYWHERE = /\b[0-9a-f]{64}\b/gi;
 const JWT = /^eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/;
 const MEASURED_KEY = /(_ms$|_count$|_tokens$|^max_turn$|^display_index$)/;
+// A dependency version the server reports moves with the server's pin, not the API.
+const VERSION_KEY = /^validator_version$/;
 const VOLATILE_KEY =
   /(^id$|_at$|_sha$|token$|secret$|^key$|_key$|cookie$|^url$|_url$|^expires_in$|^client_id$|_prefix$|_suffix$|^prefix$|^key_display$|image_tag$|_image_name$|_bytes$)/;
 
@@ -374,6 +376,7 @@ export function stable(value: unknown, key = ""): unknown {
     return out;
   }
   if (typeof value === "string") {
+    if (VERSION_KEY.test(key)) return "[version]";
     if (UUID.test(value)) return "[uuid]";
     if (TIMESTAMP.test(value)) return "[timestamp]";
     if (SHA.test(value)) return "[sha]";

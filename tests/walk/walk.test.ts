@@ -717,7 +717,7 @@ walk("SDK end-to-end walk", () => {
               "error_message": null,
               "status": "valid",
               "validator_name": "introspection-recipe-check",
-              "validator_version": "0.12.0",
+              "validator_version": "[version]",
             },
           }
         `);
