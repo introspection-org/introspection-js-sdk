@@ -5,6 +5,7 @@ import {
   EventsApi,
   FilesApi,
   ImagesApi,
+  IssuesApi,
   MetricsApi,
   MissionsApi,
   SharesApi,
@@ -24,6 +25,7 @@ import { USER_AGENT } from "./utils.js";
  * The Swift, Python and Rust SDKs expose the same set.
  */
 export interface DataPlaneResources {
+  // jscpd:ignore-start -- field declarations of the resource namespaces
   /** `/v1/tasks`, with `tasks.runs` for runs. */
   readonly tasks: TasksApi;
   readonly files: FilesApi;
@@ -36,10 +38,13 @@ export interface DataPlaneResources {
   /** The missions the hosted Person Server approved (`/v1/aauth/missions`). */
   readonly missions: MissionsApi;
   readonly automations: AutomationsApi;
+  /** `/v1/issues`: briefs on a worker task, their evidence and human requests. */
+  readonly issues: IssuesApi;
   /** `/v1/images`, what an eval task's compose services run as. */
   readonly images: ImagesApi;
   /** Apps members connected for themselves (`/v1/connections`). */
   readonly connections: AppConnectionsApi;
+  // jscpd:ignore-end
 }
 
 export interface DataPlaneClientOptions {
@@ -83,6 +88,8 @@ export class DataPlaneClient implements DataPlaneResources {
   readonly metrics: MetricsApi;
   /** `/v1/automations`; needs `automations:read` / `automations:write`. */
   readonly automations: AutomationsApi;
+  /** `/v1/issues`; needs `issues:read` / `issues:write` / `issues:delete`. */
+  readonly issues: IssuesApi;
   /** `/v1/images`; needs `images:read` / `images:write`. */
   readonly images: ImagesApi;
   /**
@@ -119,6 +126,7 @@ export class DataPlaneClient implements DataPlaneResources {
     this.events = new EventsApi(this.http);
     this.metrics = new MetricsApi(this.http);
     this.automations = new AutomationsApi(this.http);
+    this.issues = new IssuesApi(this.http);
     this.images = new ImagesApi(this.http);
     this.connections = new AppConnectionsApi(this.http);
   }

@@ -52,6 +52,7 @@ export {
   ConversationsClient,
   FileVersionsClient,
   FilesClient,
+  IssuesClient,
   SharesClient,
   type FileUploadBody,
 } from "@introspection-sdk/http";
@@ -137,6 +138,14 @@ export type {
   AutomationListParams,
   AutomationTriggerResponse,
   AutomationUpdateParams,
+  Issue,
+  IssueCreateParams,
+  IssueListParams,
+  IssueMutation,
+  IssuePatch,
+  IssueRequestMutation,
+  IssueUpdateParams,
+  IssueWriteOptions,
 } from "@introspection-sdk/types";
 // jscpd:ignore-end
 export {

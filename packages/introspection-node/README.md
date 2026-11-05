@@ -2,7 +2,7 @@
 
 Node.js platform SDK for [Introspection](https://introspection.dev) — open runtimes,
 drive tasks, and manage experiments, recipes, repositories, members,
-automations, app connections, files, conversations, shares, project
+automations, issues, app connections, files, conversations, shares, project
 administration (API keys, Applications, credentials, variables, integrations,
 judges) and eval images and task commands.
 
@@ -73,7 +73,7 @@ const runner = await client.runtimes("customer-agent").run({
 `IntrospectionClient` and `Runner` expose the same Data Plane namespaces, and
 both implement the exported `DataPlaneResources` interface: `tasks` (with
 `tasks.runs` and `tasks.commands`), `files`, `conversations`, `events`,
-`metrics`, `shares`, `automations`, `images` and `connections`. So does the `DataPlaneClient` that
+`metrics`, `shares`, `automations`, `issues`, `images` and `connections`. So does the `DataPlaneClient` that
 `AuthClient.dataPlane()` returns. Code written against `DataPlaneResources`
 runs against any of them.
 
@@ -197,6 +197,64 @@ const page = await client.events.list({
 for (const ev of page.records)
   console.log(ev.payload.task_id, ev.payload.posted);
 ```
+
+### Issues
+
+`client.issues` (and `runner.issues`, `dataPlaneClient.issues`) lists, reads,
+creates, updates and deletes issues on the Data Plane's `/v1/issues`. An issue
+is a brief on a fixed worker task: a title, a description, a priority and a
+status, the evidence it cites (files, links, events and spans) and its open
+human requests. Reading needs `issues:read`, creating and updating
+`issues:write`, and deleting `issues:delete`.
+
+```typescript
+const issue = await client.issues.create(
+  {
+    task_id: taskId,
+    title: "Checkout times out for EU customers",
+    description: "Three conversations hit a 30s timeout on /checkout.",
+    priority: "high",
+    tags: ["customer:acme"],
+    links: [{ url: "https://github.com/acme/app/pull/7" }],
+  },
+  { idempotencyKey: crypto.randomUUID() },
+);
+
+// Repeatable filters take one value or several (ORed); metadata pairs are ANDed.
+for await (const open of client.issues.list({
+  status: ["open", "waiting"],
+  owner: "project",
+  metadata: { region: "eu" },
+})) {
+  console.log(open.display_index, open.title, open.open_requests.length);
+}
+
+// Edit the brief at the revision it was read at; a stale one is a 409
+// (`ConflictError`). Omitted fields are unchanged, and each list replaces
+// its list wholesale, so `links: []` clears the links.
+await client.issues.update(issue.id, {
+  expected_revision: issue.revision,
+  status: "closed",
+  links: [],
+});
+
+// Or create one human request (`expected_revision: 0`, with a new UUIDv7
+// `id`), and later resolve it at its own revision.
+await client.issues.update(issue.id, {
+  request: {
+    id: requestId,
+    expected_revision: 0,
+    question: "Can we raise the gateway timeout?",
+    assignee_id: memberId,
+  },
+});
+
+await client.issues.delete(issue.id);
+```
+
+Every write takes an optional `{ idempotencyKey }`, sent as `Idempotency-Key`:
+use one key per deliberate write and resend it unchanged when retrying, so the
+write applies once.
 
 ### Project administration
 
@@ -352,8 +410,8 @@ console.log(await run.text());
   Plane routes on `IntrospectionClient` (runtimes, connectors, members) reject
   it. Pass the runtime as `runtime_id` when creating a task. `auth.dataPlane()`
   returns a `DataPlaneClient`, which implements `DataPlaneResources`: `tasks`,
-  `files`, `conversations`, `shares`, `events`, `metrics`, `automations` and
-  `connections` (where `create` takes the `runtime`).
+  `files`, `conversations`, `shares`, `events`, `metrics`, `automations`,
+  `issues` and `connections` (where `create` takes the `runtime`).
 - **Sign-out** clears the local session, then revokes it with
   `POST /v1/oauth/revoke`; the local session is gone even if revocation fails.
 

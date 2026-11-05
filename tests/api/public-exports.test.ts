@@ -86,6 +86,7 @@ describe("public export barrels", () => {
       "JudgesApi",
       "OidcApi",
       "ImagesApi",
+      "IssuesApi",
       "TaskCommandsApi",
     ] as const) {
       expect(mod[name], name).toBeTypeOf("function");

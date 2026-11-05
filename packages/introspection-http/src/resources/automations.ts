@@ -7,14 +7,8 @@ import type {
   Uuid,
 } from "@introspection-sdk/types";
 import { Paginator, paginateGet } from "../pagination.js";
+import { setFields } from "./set-fields.js";
 import type { ResourceHttpClient } from "./types.js";
-
-/** The fields of `params` that are set, so a PATCH never sends an absent one. */
-function setFields<T extends object>(params: T): Partial<T> {
-  return Object.fromEntries(
-    Object.entries(params).filter(([, value]) => value !== undefined),
-  ) as Partial<T>;
-}
 
 /**
  * CRUD on `/v1/automations` (Data Plane) plus `trigger(id)`, which runs one

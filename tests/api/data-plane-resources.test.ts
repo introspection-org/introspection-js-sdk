@@ -178,6 +178,7 @@ const NAMESPACES: NamespaceCall[] = [
     `/v1/connections/${CONNECTION_ID}`,
   ],
   ["images", (dp) => dp.images.get("image-1"), "GET", "/v1/images/image-1"],
+  ["issues", (dp) => dp.issues.get("issue-1"), "GET", "/v1/issues/issue-1"],
   [
     "tasks.commands",
     (dp) => dp.tasks.commands.get(TASK_ID, "command-1"),

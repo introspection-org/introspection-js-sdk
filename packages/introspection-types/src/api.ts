@@ -18,6 +18,7 @@ export * from "./api/members.js";
 export * from "./api/runner.js";
 export * from "./api/connectors.js";
 export * from "./api/automations.js";
+export * from "./api/issues.js";
 export * from "./api/events.js";
 export * from "./api/metrics.js";
 export * from "./api/projects.js";

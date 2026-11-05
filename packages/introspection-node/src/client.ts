@@ -22,6 +22,7 @@ import {
   EventsApi,
   FilesApi,
   ImagesApi,
+  IssuesApi,
   MetricsApi,
   MissionsApi,
   SharesApi,
@@ -220,6 +221,9 @@ export class IntrospectionClient implements DataPlaneResources {
   /** Approved missions and their spend, `/v1/aauth/missions` (Data Plane). */
   readonly missions: MissionsApi;
 
+  /** CRUD on `/v1/issues` (Data Plane). */
+  readonly issues: IssuesApi;
+
   /** `/v1/images` (Data Plane), what eval compose services run as. */
   readonly images: ImagesApi;
 
@@ -303,6 +307,7 @@ export class IntrospectionClient implements DataPlaneResources {
     this.endpoints = new EndpointsApi(this.cpHttp);
     this.automations = attachAutomations(this.dpHttp);
     this.images = new ImagesApi(this.dpHttp);
+    this.issues = new IssuesApi(this.dpHttp);
     this.repositories = attachRepositories(this.cpHttp, this.dpHttp);
     this.variables = new VariablesApi(this.cpHttp);
     this.integrations = new IntegrationsApi(this.cpHttp);
