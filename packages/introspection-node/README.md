@@ -208,17 +208,14 @@ human requests. Reading needs `issues:read`, creating and updating
 `issues:write`, and deleting `issues:delete`.
 
 ```typescript
-const issue = await client.issues.create(
-  {
-    task_id: taskId,
-    title: "Checkout times out for EU customers",
-    description: "Three conversations hit a 30s timeout on /checkout.",
-    priority: "high",
-    tags: ["customer:acme"],
-    links: [{ url: "https://github.com/acme/app/pull/7" }],
-  },
-  { idempotencyKey: crypto.randomUUID() },
-);
+const issue = await client.issues.create({
+  task_id: taskId,
+  title: "Checkout times out for EU customers",
+  description: "Three conversations hit a 30s timeout on /checkout.",
+  priority: "high",
+  tags: ["customer:acme"],
+  links: [{ url: "https://github.com/acme/app/pull/7" }],
+});
 
 // Repeatable filters take one value or several (ORed); metadata pairs are ANDed.
 for await (const open of client.issues.list({
@@ -229,14 +226,14 @@ for await (const open of client.issues.list({
   console.log(open.display_index, open.title, open.open_requests.length);
 }
 
-// Edit the brief at the revision it was read at; a stale one is a 409
-// (`ConflictError`). Omitted fields are unchanged, and each list replaces
-// its list wholesale, so `links: []` clears the links.
-await client.issues.update(issue.id, {
-  expected_revision: issue.revision,
-  status: "closed",
-  links: [],
-});
+// Edit the brief. Omitted fields are unchanged, and each list replaces its
+// list wholesale, so `links: []` clears the links. `ifMatch` is optional:
+// with the issue's ETag, an edit against a stale read is refused with 412.
+await client.issues.update(
+  issue.id,
+  { status: "closed", links: [] },
+  { ifMatch: issueEtag(issue) },
+);
 
 // Or create one human request (`expected_revision: 0`, with a new UUIDv7
 // `id`), and later resolve it at its own revision.
@@ -252,9 +249,12 @@ await client.issues.update(issue.id, {
 await client.issues.delete(issue.id);
 ```
 
-Every write takes an optional `{ idempotencyKey }`, sent as `Idempotency-Key`:
-use one key per deliberate write and resend it unchanged when retrying, so the
-write applies once.
+`issueEtag(issue)` is the `ETag` the Data Plane returns for an issue (its
+`updated_at` as epoch milliseconds, quoted). A brief edit and a delete take an
+optional `{ ifMatch }`, sent as `If-Match`; a stale one is refused with 412
+(an `IntrospectionAPIError` with `status` 412), and leaving it out writes
+without the check. A request mutation takes no `ifMatch`: it carries its own
+`expected_revision`, and a stale one is a 409 (`ConflictError`).
 
 ### Project administration
 

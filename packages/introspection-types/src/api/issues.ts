@@ -73,10 +73,7 @@ export interface Issue {
   description: string;
   priority: IssuePriority;
   status: IssueStatus;
-  /**
-   * Bumped on every edit of the brief. Send it back as `expected_revision`
-   * on {@link IssueUpdateParams}; a stale one is refused with 409.
-   */
+  /** Bumped on every edit of the brief. */
   revision: number;
   /** Project-scoped display ID. */
   display_index?: number | null;
@@ -99,7 +96,17 @@ export interface Issue {
   /** When the issue last entered `closed` or `cancelled`. */
   closed_at?: IsoDate | null;
   created_at: IsoDate;
+  /** Also the issue's `ETag`; see {@link issueEtag}. */
   updated_at: IsoDate;
+}
+
+/**
+ * The `ETag` the Data Plane returns for `issue`: its `updated_at` as epoch
+ * milliseconds, quoted. Pass it as `ifMatch` to an update or a delete so a
+ * write against a stale read is refused with 412.
+ */
+export function issueEtag(issue: Issue): string {
+  return `"${Date.parse(issue.updated_at)}"`;
 }
 
 /**
@@ -130,11 +137,6 @@ export interface IssueCreateParams {
  * to keep it.
  */
 export interface IssueUpdateParams {
-  /**
-   * The issue's `revision` this edit was made against (at least 1). A stale
-   * revision is refused with 409; read the issue again before retrying.
-   */
-  expected_revision: number;
   title?: string;
   description?: string;
   priority?: IssuePriority;
@@ -174,8 +176,6 @@ export interface IssueRequestMutation {
  */
 export interface IssueMutation {
   request: IssueRequestMutation;
-  /** A request carries its own revision; see {@link IssueRequestMutation}. */
-  expected_revision?: never;
 }
 
 /** The body of `PATCH /v1/issues/{id}`: a brief edit or a request mutation. */
@@ -209,12 +209,15 @@ export interface IssueListParams extends ListParams {
   metadata?: Record<string, string>;
 }
 
-/** Options for an issue write. */
-export interface IssueWriteOptions {
+/**
+ * Options for an issue brief edit or delete. A request mutation takes none:
+ * it carries its own `expected_revision`.
+ */
+export interface IssuePreconditionOptions {
   /**
-   * Sent as `Idempotency-Key` (1 to 200 characters). Use one key per
-   * deliberate write and resend it unchanged when retrying that write, so it
-   * applies once.
+   * Sent as `If-Match`: the `ETag` the issue was read at, from
+   * {@link issueEtag}. A stale one is refused with 412; omit it to write
+   * without the check.
    */
-  idempotencyKey?: string;
+  ifMatch?: string;
 }

@@ -92,6 +92,7 @@ describe("public export barrels", () => {
       expect(mod[name], name).toBeTypeOf("function");
     }
     expect(mod.MAX_COMMAND_WAIT_SECONDS).toBe(60);
+    expect(mod.issueEtag).toBeTypeOf("function");
   });
 
   it("@introspection-sdk/introspection-node/otel (traces surface)", async () => {
@@ -157,5 +158,6 @@ describe("public export barrels", () => {
     const mod = await import("@introspection-sdk/types");
     expect(mod.IntrospectionAPIError).toBeTypeOf("function");
     expect(mod.apiErrorFromResponse).toBeTypeOf("function");
+    expect(mod.issueEtag).toBeTypeOf("function");
   });
 });

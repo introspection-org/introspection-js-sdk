@@ -79,6 +79,7 @@ export {
   genAiConversationId,
   genAiInputMessages,
   genAiOutputMessages,
+  issueEtag,
 } from "@introspection-sdk/types";
 
 // Re-exported wire types for convenience.
@@ -143,9 +144,9 @@ export type {
   IssueListParams,
   IssueMutation,
   IssuePatch,
+  IssuePreconditionOptions,
   IssueRequestMutation,
   IssueUpdateParams,
-  IssueWriteOptions,
 } from "@introspection-sdk/types";
 // jscpd:ignore-end
 export {

@@ -312,13 +312,13 @@ export type {
   IssueOpenRequest,
   IssueOwner,
   IssuePatch,
+  IssuePreconditionOptions,
   IssuePriority,
   IssueRequestMutation,
   IssueRequestStatus,
   IssueSpanReference,
   IssueStatus,
   IssueUpdateParams,
-  IssueWriteOptions,
   RunRequest,
   RunCaller,
   RunCallerLibrary,
@@ -486,6 +486,7 @@ export {
   genAiInputMessages,
   genAiOutputMessages,
   isKnownEvent,
+  issueEtag,
 } from "@introspection-sdk/types";
 export {
   IntrospectionAPIError,

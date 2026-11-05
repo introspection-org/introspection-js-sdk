@@ -2,8 +2,10 @@ import type {
   Issue,
   IssueCreateParams,
   IssueListParams,
+  IssueMutation,
   IssuePatch,
-  IssueWriteOptions,
+  IssuePreconditionOptions,
+  IssueUpdateParams,
   Uuid,
 } from "@introspection-sdk/types";
 import { Paginator, paginateGet } from "../pagination.js";
@@ -11,26 +13,24 @@ import { encodeMetadataFilter } from "./metadata-filter.js";
 import { setFields } from "./set-fields.js";
 import type { ResourceHttpClient } from "./types.js";
 
-/** The `Idempotency-Key` header for a write, when the caller set one. */
-function writeHeaders(
-  options: IssueWriteOptions,
+/** The `If-Match` header, when the caller set one. */
+function preconditionHeaders(
+  options: IssuePreconditionOptions,
 ): { headers: Record<string, string> } | Record<string, never> {
-  return options.idempotencyKey === undefined
+  return options.ifMatch === undefined
     ? {}
-    : { headers: { "Idempotency-Key": options.idempotencyKey } };
+    : { headers: { "If-Match": options.ifMatch } };
 }
 
-/** The PATCH body, with only the fields that are set. */
-function patchBody(patch: IssuePatch): object {
-  return "request" in patch && patch.request !== undefined
-    ? { request: setFields(patch.request) }
-    : setFields(patch);
+function isMutation(patch: IssuePatch): patch is IssueMutation {
+  return "request" in patch && patch.request !== undefined;
 }
 
 /**
  * CRUD on `/v1/issues` (Data Plane). Reading needs `issues:read`, creating
- * and updating `issues:write`, and deleting `issues:delete`. Each write
- * takes an optional `idempotencyKey`, so a retried write applies once.
+ * and updating `issues:write`, and deleting `issues:delete`. A brief edit
+ * and a delete take an optional `ifMatch` (see `issueEtag`), so a write
+ * against a stale read is refused with 412.
  */
 export class IssuesClient {
   constructor(private readonly http: ResourceHttpClient) {}
@@ -52,19 +52,18 @@ export class IssuesClient {
   }
 
   /** Open an issue on its worker task (`201`); see {@link IssueCreateParams}. */
-  create(
-    params: IssueCreateParams,
-    options: IssueWriteOptions = {},
-  ): Promise<Issue> {
+  create(params: IssueCreateParams): Promise<Issue> {
     return this.http.request<Issue>({
       method: "POST",
       path: "/v1/issues",
       body: setFields(params),
-      ...writeHeaders(options),
     });
   }
 
-  /** Read one issue with its evidence, open requests and current `revision`. */
+  /**
+   * Read one issue with its evidence and open requests. Its `ETag` is
+   * `issueEtag(issue)`.
+   */
   get(issueId: Uuid): Promise<Issue> {
     return this.http.request<Issue>({
       method: "GET",
@@ -73,31 +72,52 @@ export class IssuesClient {
   }
 
   /**
-   * Edit the brief ({@link IssueUpdateParams}, at the `expected_revision` it
-   * was read at) or create or change one human request
-   * ({@link IssueMutation}). Only the fields set are sent; a list sent as
-   * `[]` clears it. Returns the updated issue.
+   * Edit the brief ({@link IssueUpdateParams}) or create or change one human
+   * request ({@link IssueMutation}). Only the fields set are sent; a list
+   * sent as `[]` clears it. `ifMatch` applies to a brief edit only; with a
+   * request mutation it throws before anything is sent. Returns the updated
+   * issue.
    */
   update(
     issueId: Uuid,
+    patch: IssueUpdateParams,
+    options?: IssuePreconditionOptions,
+  ): Promise<Issue>;
+  update(issueId: Uuid, patch: IssuePatch): Promise<Issue>;
+  update(
+    issueId: Uuid,
     patch: IssuePatch,
-    options: IssueWriteOptions = {},
+    options: IssuePreconditionOptions = {},
   ): Promise<Issue> {
+    if (!isMutation(patch)) {
+      return this.http.request<Issue>({
+        method: "PATCH",
+        path: `/v1/issues/${encodeURIComponent(issueId)}`,
+        body: setFields(patch),
+        ...preconditionHeaders(options),
+      });
+    }
+    if (options.ifMatch !== undefined) {
+      return Promise.reject(
+        new TypeError(
+          "ifMatch applies to a brief edit only; a request mutation carries its own expected_revision",
+        ),
+      );
+    }
     return this.http.request<Issue>({
       method: "PATCH",
       path: `/v1/issues/${encodeURIComponent(issueId)}`,
-      body: patchBody(patch),
-      ...writeHeaders(options),
+      body: { request: setFields(patch.request) },
     });
   }
 
   /** Soft-delete an issue (`204`). Its activity history is kept. */
-  delete(issueId: Uuid, options: IssueWriteOptions = {}): Promise<void> {
+  delete(issueId: Uuid, options: IssuePreconditionOptions = {}): Promise<void> {
     return this.http.request<void>({
       method: "DELETE",
       path: `/v1/issues/${encodeURIComponent(issueId)}`,
       expect: "empty",
-      ...writeHeaders(options),
+      ...preconditionHeaders(options),
     });
   }
 }

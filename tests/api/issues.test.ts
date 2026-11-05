@@ -1,6 +1,6 @@
 /**
  * `IssuesApi` over `/v1/issues` (Data Plane): list filters and paging,
- * create, get, both PATCH shapes, delete, and the `Idempotency-Key` header.
+ * create, get, both PATCH shapes, delete, and the `If-Match` precondition.
  *
  * A fake `fetch` (or a mocked `request`) stands in for the Data Plane, so no
  * network boundary is crossed (AGENTS.md §6 case 1).
@@ -9,8 +9,10 @@ import { describe, expect, expectTypeOf, it, vi } from "vitest";
 import {
   ConflictError,
   HttpClient,
+  IntrospectionAPIError,
   IntrospectionClient,
   IssuesApi,
+  issueEtag,
 } from "@introspection-sdk/introspection-node";
 import type {
   Issue,
@@ -18,7 +20,10 @@ import type {
   IssuePatch,
   IssueUpdateParams,
 } from "@introspection-sdk/introspection-node";
-import { IntrospectionApiClient } from "@introspection-sdk/introspection-browser/api";
+import {
+  IntrospectionApiClient,
+  issueEtag as browserIssueEtag,
+} from "@introspection-sdk/introspection-browser/api";
 
 const ISSUE_ID = "0199a1b2-0000-7000-8000-000000000101";
 const TASK_ID = "0199a1b2-0000-7000-8000-0000000000ee";
@@ -90,7 +95,7 @@ function calls(http: HttpClient) {
 interface Sent {
   method: string;
   url: URL;
-  idempotencyKey: string | null;
+  ifMatch: string | null;
   body: unknown;
 }
 
@@ -102,7 +107,7 @@ function client(respond: (sent: Sent) => Response) {
     const call: Sent = {
       method: init?.method ?? "GET",
       url: new URL(String(input)),
-      idempotencyKey: headers.get("idempotency-key"),
+      ifMatch: headers.get("if-match"),
       body: init?.body ? JSON.parse(String(init.body)) : undefined,
     };
     sent.push(call);
@@ -191,7 +196,6 @@ describe("IssuesApi", () => {
   it("update() sends a brief edit with omitted fields left out and [] kept", async () => {
     const http = mockHttp();
     await new IssuesApi(http).update(ISSUE_ID, {
-      expected_revision: 3,
       status: "closed",
       title: undefined,
       links: [],
@@ -203,7 +207,6 @@ describe("IssuesApi", () => {
       method: "PATCH",
       path: `/v1/issues/${ISSUE_ID}`,
       body: {
-        expected_revision: 3,
         status: "closed",
         links: [],
         tags: [],
@@ -268,25 +271,44 @@ describe("IssuesApi", () => {
     });
   });
 
-  it("every write passes an Idempotency-Key through as a header", async () => {
+  it("update() and delete() send If-Match only when ifMatch is set", async () => {
     const http = mockHttp();
     const issues = new IssuesApi(http);
-    await issues.create(
-      { task_id: TASK_ID, title: "t", description: "d" },
-      { idempotencyKey: "create-1" },
-    );
     await issues.update(
       ISSUE_ID,
-      { expected_revision: 1, priority: "urgent" },
-      { idempotencyKey: "update-1" },
+      { priority: "urgent" },
+      { ifMatch: '"1730764800123"' },
     );
-    await issues.delete(ISSUE_ID, { idempotencyKey: "delete-1" });
+    await issues.update(ISSUE_ID, { priority: "low" });
+    await issues.delete(ISSUE_ID, { ifMatch: '"1730764800456"' });
 
     expect(calls(http).map((call) => call.headers)).toEqual([
-      { "Idempotency-Key": "create-1" },
-      { "Idempotency-Key": "update-1" },
-      { "Idempotency-Key": "delete-1" },
+      { "If-Match": '"1730764800123"' },
+      undefined,
+      { "If-Match": '"1730764800456"' },
     ]);
+  });
+
+  it("update() refuses ifMatch with a request mutation before sending", async () => {
+    const http = mockHttp();
+    const patch: IssuePatch = {
+      request: { id: REQUEST_ID, expected_revision: 0 },
+    };
+    const issues = new IssuesApi(http);
+
+    await expect(
+      // @ts-expect-error ifMatch is accepted only with a brief edit
+      issues.update(ISSUE_ID, patch, { ifMatch: '"1"' }),
+    ).rejects.toThrow(/ifMatch applies to a brief edit only/);
+    expect(http.request).not.toHaveBeenCalled();
+  });
+
+  it("issueEtag() quotes updated_at as epoch milliseconds", () => {
+    expect(
+      issueEtag({ ...ISSUE, updated_at: "2024-11-05T00:00:00.123Z" }),
+    ).toBe('"1730764800123"');
+    expect(issueEtag(ISSUE)).toBe(`"${Date.UTC(2026, 10, 1, 10)}"`);
+    expect(browserIssueEtag).toBe(issueEtag);
   });
 
   it("percent-encodes the id", async () => {
@@ -299,18 +321,18 @@ describe("IssuesApi", () => {
   it("types the PATCH body as a brief edit or a request mutation", () => {
     expectTypeOf<IssueUpdateParams>().toMatchTypeOf<IssuePatch>();
     expectTypeOf<IssueMutation>().toMatchTypeOf<IssuePatch>();
-    const edit: IssuePatch = { expected_revision: 1, title: "t" };
+    const edit: IssuePatch = { title: "t" };
     const mutation: IssuePatch = {
       request: { id: REQUEST_ID, expected_revision: 0 },
     };
-    // @ts-expect-error a brief edit needs the revision it was read at
-    const unversioned: IssuePatch = { title: "t" };
-    // @ts-expect-error a request rides on its own, not in a brief edit
     const mixed: IssuePatch = {
-      expected_revision: 1,
+      // @ts-expect-error a request rides on its own, not in a brief edit
+      title: "t",
       request: { id: REQUEST_ID, expected_revision: 0 },
     };
-    expect([edit, mutation, unversioned, mixed]).toHaveLength(4);
+    // @ts-expect-error a brief edit no longer carries a revision
+    const versioned: IssueUpdateParams = { expected_revision: 1, title: "t" };
+    expect([edit, mutation, mixed, versioned]).toHaveLength(4);
   });
 });
 
@@ -383,37 +405,61 @@ describe("client.issues", () => {
     await sdk.shutdown();
   });
 
-  it("sends the Idempotency-Key header only when one is set", async () => {
+  it("sends the issue's ETag back as If-Match only when given", async () => {
     const { sdk, sent } = client((s) =>
       s.method === "DELETE"
         ? new Response(null, { status: 204 })
         : json(ISSUE, s.method === "POST" ? 201 : 200),
     );
 
-    const created = await sdk.issues.create(
-      { task_id: TASK_ID, title: "t", description: "d" },
-      { idempotencyKey: "key-1" },
+    const created = await sdk.issues.create({
+      task_id: TASK_ID,
+      title: "t",
+      description: "d",
+    });
+    await sdk.issues.update(ISSUE_ID, { files: [] });
+    await sdk.issues.update(
+      ISSUE_ID,
+      { status: "closed" },
+      { ifMatch: issueEtag(created) },
     );
-    await sdk.issues.update(ISSUE_ID, { expected_revision: 3, files: [] });
-    await sdk.issues.delete(ISSUE_ID, { idempotencyKey: "key-2" });
+    await sdk.issues.delete(ISSUE_ID, { ifMatch: issueEtag(created) });
 
-    expect(created.id).toBe(ISSUE_ID);
-    expect(sent.map((s) => [s.method, s.idempotencyKey])).toEqual([
-      ["POST", "key-1"],
+    const tag = `"${Date.parse(ISSUE.updated_at)}"`;
+    expect(sent.map((s) => [s.method, s.ifMatch])).toEqual([
+      ["POST", null],
       ["PATCH", null],
-      ["DELETE", "key-2"],
+      ["PATCH", tag],
+      ["DELETE", tag],
     ]);
-    expect(sent[1].body).toEqual({ expected_revision: 3, files: [] });
+    expect(sent[1].body).toEqual({ files: [] });
+    expect(sent[2].body).toEqual({ status: "closed" });
     await sdk.shutdown();
   });
 
-  it("surfaces a stale revision as a ConflictError", async () => {
+  it("surfaces a stale If-Match (412) as an IntrospectionAPIError", async () => {
+    const { sdk, sent } = client(() =>
+      json({ detail: "Issue was changed since it was read" }, 412),
+    );
+
+    const err = await sdk.issues
+      .update(ISSUE_ID, { title: "t" }, { ifMatch: '"1"' })
+      .catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(IntrospectionAPIError);
+    expect((err as IntrospectionAPIError).status).toBe(412);
+    expect(sent).toHaveLength(1);
+    await sdk.shutdown();
+  });
+
+  it("surfaces a stale request revision as a ConflictError", async () => {
     const { sdk } = client(() =>
-      json({ detail: "Issue revision is stale" }, 409),
+      json({ detail: "Request revision is stale" }, 409),
     );
 
     await expect(
-      sdk.issues.update(ISSUE_ID, { expected_revision: 1, title: "t" }),
+      sdk.issues.update(ISSUE_ID, {
+        request: { id: REQUEST_ID, expected_revision: 2, status: "cancelled" },
+      }),
     ).rejects.toBeInstanceOf(ConflictError);
     await sdk.shutdown();
   });
