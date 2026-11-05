@@ -222,6 +222,29 @@ await client.apiKeys.delete(created.id, {
 });
 ```
 
+`client.integrations.accessToken(id, { type, permissions })` mints a
+short-lived provider token (at most an hour, never stored) for an
+integration (`integrations:token`). GitHub is the only type today, capped at
+`{ metadata: "read" }`; a request beyond the cap is refused with a 403 whose
+`code` is `integration_token_cap_exceeded`, never narrowed.
+
+```typescript
+const { token, expires_at } = await client.integrations.accessToken(
+  integration.id,
+  { type: "github", permissions: { metadata: "read" } },
+);
+```
+
+`client.integrations.repositories(id)` lists every repository a GitHub
+integration's installation can reach, in one response (`integrations:read`).
+The Control Plane reads them with its own credential, so no token reaches
+the caller.
+
+```typescript
+const { records } = await client.integrations.repositories(integration.id);
+for (const repo of records) console.log(repo.full_name, repo.default_branch);
+```
+
 `client.projects.peerings` reads a project's runtime peerings, the runtime
 groups it offers to other projects (`projects:read`). Creating or revoking a
 peering is a person's act in the web app, so the SDK has no write methods.

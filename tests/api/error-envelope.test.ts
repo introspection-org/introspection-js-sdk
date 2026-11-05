@@ -61,6 +61,34 @@ describe("toApiError renders the error envelope's detail", () => {
   });
 });
 
+describe("toApiError reads a structured detail", () => {
+  it("takes the code and message from `{ code, message }`", async () => {
+    const err = await toApiError(
+      jsonResponse(409, {
+        detail: { code: "github_integration_expired", message: "reconnect" },
+      }),
+    );
+    expect(err.code).toBe("github_integration_expired");
+    expect(err.message).toBe("reconnect");
+  });
+
+  it("keeps a top-level code over the detail's", async () => {
+    const err = await toApiError(
+      jsonResponse(403, {
+        code: "insufficient_scope",
+        detail: { code: "other", message: "no" },
+      }),
+    );
+    expect(err.code).toBe("insufficient_scope");
+  });
+
+  it("falls back to the status line when the detail has no message", async () => {
+    const err = await toApiError(jsonResponse(403, { detail: { code: 7 } }));
+    expect(err.message).toBe("HTTP 403");
+    expect(err.code).toBeNull();
+  });
+});
+
 describe("toApiError parses both Retry-After forms", () => {
   it("reads the seconds form", async () => {
     const err = await toApiError(

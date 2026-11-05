@@ -9,8 +9,11 @@
  */
 import { describe, expect, it } from "vitest";
 import {
+  ConflictError,
+  IntrospectionAPIError,
   IntrospectionClient,
   NotFoundError,
+  ValidationError,
 } from "@introspection-sdk/introspection-node";
 
 const CP = "https://api.example.com";
@@ -605,6 +608,126 @@ describe("integrations", () => {
       ],
       ["DELETE", `${CP}/v1/integrations/${ROW_ID}`, undefined],
     ]);
+  });
+});
+
+describe("integrations.accessToken", () => {
+  it("posts the typed body and reads the minted token", async () => {
+    const minted = {
+      token: "ghs_example",
+      expires_at: "2026-11-05T11:02:00Z",
+      type: "github",
+      permissions: { metadata: "read" },
+    };
+    const { sent, fetch } = fakeControlPlane(() => json(minted, 201));
+
+    const token = await openClient(fetch).integrations.accessToken(ROW_ID, {
+      type: "github",
+      permissions: { metadata: "read" },
+    });
+
+    expect(token).toEqual(minted);
+    expect(calls(sent)).toEqual([
+      [
+        "POST",
+        `${CP}/v1/integrations/${ROW_ID}/access-token`,
+        { type: "github", permissions: { metadata: "read" } },
+      ],
+    ]);
+    expect(sent[0]?.auth).toBe("Bearer org-token");
+  });
+
+  it("surfaces a cap refusal with its code and allowed permissions", async () => {
+    const detail = {
+      code: "integration_token_cap_exceeded",
+      message: "contents is not allowed for github",
+      allowed: { metadata: "read" },
+    };
+    const { fetch } = fakeControlPlane(() => json({ detail }, 403));
+
+    const err = await openClient(fetch)
+      .integrations.accessToken(ROW_ID, {
+        type: "github",
+        permissions: { contents: "read" },
+      })
+      .catch((e: unknown) => e);
+
+    expect(err).toBeInstanceOf(IntrospectionAPIError);
+    const api = err as IntrospectionAPIError;
+    expect(api.status).toBe(403);
+    expect(api.code).toBe("integration_token_cap_exceeded");
+    expect(api.message).toBe("contents is not allowed for github");
+    expect(api.body).toEqual({ detail });
+  });
+
+  it("maps an inactive integration to a ConflictError with its code", async () => {
+    const { fetch } = fakeControlPlane(() =>
+      json(
+        {
+          detail: {
+            code: "github_integration_expired",
+            message: "Reconnect GitHub",
+          },
+        },
+        409,
+      ),
+    );
+
+    const err = await openClient(fetch)
+      .integrations.accessToken(ROW_ID, {
+        type: "github",
+        permissions: { metadata: "read" },
+      })
+      .catch((e: unknown) => e);
+
+    expect(err).toBeInstanceOf(ConflictError);
+    expect((err as ConflictError).code).toBe("github_integration_expired");
+  });
+});
+
+describe("integrations.repositories", () => {
+  it("reads the installation's repositories in one response", async () => {
+    const listed = {
+      type: "github",
+      records: [
+        {
+          id: 1,
+          name: "recipes",
+          full_name: "acme/recipes",
+          html_url: "https://github.com/acme/recipes",
+          default_branch: "main",
+          private: true,
+          description: null,
+          pushed_at: "2026-11-01T00:00:00Z",
+        },
+      ],
+    };
+    const { sent, fetch } = fakeControlPlane(() => json(listed));
+
+    const repos = await openClient(fetch).integrations.repositories(ROW_ID);
+
+    expect(repos).toEqual(listed);
+    expect(repos.type).toBe("github");
+    expect(repos.records[0]?.full_name).toBe("acme/recipes");
+    expect(calls(sent)).toEqual([
+      ["GET", `${CP}/v1/integrations/${ROW_ID}/repositories`, undefined],
+    ]);
+  });
+
+  it("maps a non-GitHub integration's 400 to a ValidationError", async () => {
+    const { fetch } = fakeControlPlane(() =>
+      json({ detail: "Integration is not a GitHub integration" }, 400),
+    );
+
+    const err = await openClient(fetch)
+      .integrations.repositories(ROW_ID)
+      .catch((e: unknown) => e);
+
+    expect(err).toBeInstanceOf(ValidationError);
+    expect((err as ValidationError).status).toBe(400);
+    expect((err as ValidationError).message).toBe(
+      "Integration is not a GitHub integration",
+    );
   });
 });
 

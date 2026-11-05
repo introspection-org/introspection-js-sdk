@@ -1,7 +1,10 @@
 import type {
   CursorParams,
   Integration,
+  IntegrationAccessToken,
+  IntegrationAccessTokenParams,
   IntegrationCreateParams,
+  IntegrationRepositories,
   IntegrationUpdateParams,
   Uuid,
 } from "@introspection-sdk/types";
@@ -36,6 +39,36 @@ export class IntegrationsApi extends CollectionClient<
       method: "PATCH",
       path: this.itemPath(integrationId),
       body: params,
+    });
+  }
+
+  /**
+   * Mint a short-lived provider token for the integration
+   * (`integrations:token`). A request beyond the server's cap is refused,
+   * never narrowed: a 403 whose `code` is `integration_token_cap_exceeded`,
+   * with the allowed permissions in the error body's `detail.allowed`.
+   */
+  accessToken(
+    integrationId: Uuid,
+    params: IntegrationAccessTokenParams,
+  ): Promise<IntegrationAccessToken> {
+    return this.http.request<IntegrationAccessToken>({
+      method: "POST",
+      path: `${this.itemPath(integrationId)}/access-token`,
+      body: params,
+    });
+  }
+
+  /**
+   * The repositories the integration's installation can reach, all in one
+   * response (`integrations:read`). The Control Plane reads them with its
+   * own credential, so no provider token reaches the caller. A non-GitHub
+   * integration is a `ValidationError`; an inactive one a `ConflictError`.
+   */
+  repositories(integrationId: Uuid): Promise<IntegrationRepositories> {
+    return this.http.request<IntegrationRepositories>({
+      method: "GET",
+      path: `${this.itemPath(integrationId)}/repositories`,
     });
   }
 }
