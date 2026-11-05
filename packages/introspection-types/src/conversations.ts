@@ -292,8 +292,6 @@ export interface IntrospectionHistory {
   is_new?: boolean;
   /** How this span was linked to a conversation (e.g. `"conversation_id"`). */
   continuation_method?: string;
-  /** Whether the history hash lookup matched an existing conversation. */
-  hash_hit?: boolean;
   new_messages?: IntrospectionHistoryNewMessages;
   [key: string]: unknown;
 }

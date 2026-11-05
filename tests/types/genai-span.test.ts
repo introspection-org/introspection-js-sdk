@@ -86,7 +86,6 @@ const FULL_SPAN: GenAiSpan = {
       history: {
         position: 1,
         is_new: true,
-        hash_hit: false,
         new_messages: { start: 0, end: 1 },
       },
     },
