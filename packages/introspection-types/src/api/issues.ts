@@ -207,8 +207,6 @@ export interface IssueListParams extends ListParams {
    * `metadata=key:value` param per entry; entries are ANDed, at most 16.
    */
   metadata?: Record<string, string>;
-  /** A case-insensitive substring of the title (at most 200 characters). */
-  search?: string;
 }
 
 /** Options for an issue write. */

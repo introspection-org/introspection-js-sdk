@@ -334,7 +334,6 @@ describe("client.issues", () => {
       display_index: 42,
       tag: "customer:acme",
       metadata: { region: "eu", tier: "gold" },
-      search: "timeout",
       include_total: true,
     })) {
       ids.push(issue.id);
@@ -360,7 +359,7 @@ describe("client.issues", () => {
     expect(query.get("has_open_requests")).toBe("false");
     expect(query.get("display_index")).toBe("42");
     expect(query.get("tag")).toBe("customer:acme");
-    expect(query.get("search")).toBe("timeout");
+    expect(query.has("search")).toBe(false);
     expect(query.get("include_total")).toBe("true");
     expect(query.get("limit")).toBe("1");
     expect(query.has("next")).toBe(false);
