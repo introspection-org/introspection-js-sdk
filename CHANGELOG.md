@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.45.0](https://github.com/introspection-org/introspection-js-sdk/compare/v0.44.0...v0.45.0) (2026-11-05)
+
+
+### ⚠ BREAKING CHANGES
+
+* **issues:** `IssueWriteOptions` and `idempotencyKey` are gone, and `IssueUpdateParams` no longer takes `expected_revision`.
+
+### Features
+
+* **integrations:** add integration access tokens and repositories ([#570](https://github.com/introspection-org/introspection-js-sdk/issues/570)) ([fb138a6](https://github.com/introspection-org/introspection-js-sdk/commit/fb138a67a82606c42535efc4a963f0ee178775ba))
+* **issues:** add the Data Plane issues client ([#571](https://github.com/introspection-org/introspection-js-sdk/issues/571)) ([eeb3983](https://github.com/introspection-org/introspection-js-sdk/commit/eeb398357d31d0f5c195d9459def67baefe69153))
+* **walk:** re-record the walk on introspection-cloud's SDK Walks workflow ([#567](https://github.com/introspection-org/introspection-js-sdk/issues/567)) ([de95a39](https://github.com/introspection-org/introspection-js-sdk/commit/de95a396a7c484195893ec87a51cfc2b069c7425))
+
 ## [0.44.0](https://github.com/introspection-org/introspection-js-sdk/compare/v0.43.0...v0.44.0) (2026-11-02)
 
 
