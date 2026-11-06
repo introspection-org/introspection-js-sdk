@@ -44,6 +44,7 @@ export class FileVersionsClient {
       `/v1/files/${encodeURIComponent(fileId)}/versions`,
       params,
       params?.next,
+      "Paginated<File>",
     );
   }
 
@@ -51,6 +52,7 @@ export class FileVersionsClient {
     return this.http.request<FileResource>({
       method: "GET",
       path: `/v1/files/${encodeURIComponent(fileId)}/versions/${encodeURIComponent(versionId)}`,
+      schema: "File",
     });
   }
 
@@ -59,6 +61,7 @@ export class FileVersionsClient {
     return this.http.request<FileResource>({
       method: "POST",
       path: `/v1/files/${encodeURIComponent(fileId)}/versions`,
+      schema: "File",
       body: form,
     });
   }
@@ -83,6 +86,7 @@ export class FilesClient {
       "/v1/files",
       encodeMetadataFilter(params),
       params?.next,
+      "Paginated<File>",
     );
   }
 
@@ -91,6 +95,7 @@ export class FilesClient {
     return this.http.request<FileResource>({
       method: "POST",
       path: "/v1/files",
+      schema: "File",
       body: form,
     });
   }
@@ -99,6 +104,7 @@ export class FilesClient {
     return this.http.request<FileResource>({
       method: "POST",
       path: "/v1/files",
+      schema: "File",
       body,
     });
   }
@@ -107,6 +113,7 @@ export class FilesClient {
     return this.http.request<FileResource>({
       method: "GET",
       path: `/v1/files/${encodeURIComponent(fileId)}`,
+      schema: "File",
     });
   }
 
@@ -114,6 +121,7 @@ export class FilesClient {
     return this.http.request<FileResource>({
       method: "PATCH",
       path: `/v1/files/${encodeURIComponent(fileId)}`,
+      schema: "File",
       body,
     });
   }

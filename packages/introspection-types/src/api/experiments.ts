@@ -48,9 +48,12 @@ export interface ExperimentGoal {
 
 /** One arm — a runtime version in the experiment's group + display label. */
 export interface ExperimentArm {
+  id?: Uuid | null;
   runtime_id: Uuid;
   arm_label: string;
   agent_overrides?: Record<string, string> | null;
+  /** Share of traffic the arm starts with, before the bandit reweights. */
+  initial_weight?: number | null;
 }
 
 export interface Experiment {
@@ -74,6 +77,8 @@ export interface Experiment {
   ended_at?: IsoDate | null;
   halted_at?: IsoDate | null;
   halted_reason?: string | null;
+  created_by_member_id?: Uuid | null;
+  archived_at?: IsoDate | null;
   created_at: IsoDate;
   updated_at: IsoDate;
 }

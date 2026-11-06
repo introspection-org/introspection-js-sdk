@@ -29,6 +29,7 @@ export class ApprovalsClient {
       "/v1/aauth/approvals",
       params,
       params?.next,
+      "Paginated<Approval>",
     );
   }
 
@@ -36,6 +37,7 @@ export class ApprovalsClient {
     return this.http.request<Approval>({
       method: "GET",
       path: `/v1/aauth/approvals/${segment(approvalId)}`,
+      schema: "Approval",
     });
   }
 
@@ -47,6 +49,7 @@ export class ApprovalsClient {
     return this.http.request<Approval>({
       method: "PATCH",
       path: `/v1/aauth/approvals/${segment(approvalId)}`,
+      schema: "Approval",
       body,
     });
   }
@@ -66,6 +69,7 @@ export class MissionsClient {
       "/v1/aauth/missions",
       params,
       params?.next,
+      "Paginated<Mission>",
     );
   }
 
@@ -73,6 +77,7 @@ export class MissionsClient {
     return this.http.request<Mission>({
       method: "GET",
       path: `/v1/aauth/missions/${segment(missionId)}`,
+      schema: "Mission",
     });
   }
 }

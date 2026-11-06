@@ -52,6 +52,7 @@ describe("EventsApi.list", () => {
         conversation_id: "conv-1",
       },
       signal: undefined,
+      schema: "Paginated<Event | UnknownEvent>",
     });
     expect(events).toHaveLength(1);
     expect(events[0].id).toBe("ev-1");
@@ -278,6 +279,7 @@ describe("MetricsApi.query", () => {
       path: "/v1/metrics",
       body: request,
       signal: undefined,
+      schema: "MetricQueryResponse",
     });
     expect(result.data[0].metrics[0].value).toBe(42);
     expect(result.meta.view).toBe("spans");

@@ -31,6 +31,7 @@ export class ApiKeysApi {
     const response = await this.http.request<{ api_keys: ApiKey[] }>({
       method: "GET",
       path: "/v1/api-keys",
+      schema: "{ api_keys: ApiKey[]; }",
       query: params as Record<string, unknown>,
     });
     return response.api_keys;
@@ -47,6 +48,7 @@ export class ApiKeysApi {
     return this.http.request<ApiKeyCreated>({
       method: "POST",
       path: "/v1/api-keys",
+      schema: "ApiKeyCreated",
       query: projectQuery(project),
       body: params,
     });
@@ -60,6 +62,7 @@ export class ApiKeysApi {
     return this.http.request<ApiKey>({
       method: "PATCH",
       path: apiKeyPath(apiKeyId),
+      schema: "ApiKey",
       query: projectQuery(project),
       body: params,
     });
@@ -86,6 +89,7 @@ export class ApiKeysApi {
     return this.http.request<ApiKeyAcknowledgement>({
       method: "POST",
       path: apiKeyPath(apiKeyId, "/acknowledge"),
+      schema: "ApiKeyAcknowledgement",
       query: projectQuery(project),
     });
   }

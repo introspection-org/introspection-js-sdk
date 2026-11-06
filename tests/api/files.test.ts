@@ -44,6 +44,7 @@ describe("FilesApi", () => {
       method: "GET",
       path: "/v1/files",
       query: { limit: 5 },
+      schema: "Paginated<File>",
     });
     expect(files).toHaveLength(1);
   });
@@ -108,6 +109,7 @@ describe("FilesApi", () => {
       method: "POST",
       path: "/v1/files",
       body: { name: "readme.md", content: "# Hello" },
+      schema: "File",
     });
   });
 
@@ -128,6 +130,7 @@ describe("FilesApi", () => {
         content: "# Hello",
         mime_type: "text/markdown",
       },
+      schema: "File",
     });
   });
 
@@ -152,6 +155,7 @@ describe("FilesApi", () => {
       method: "GET",
       path: "/v1/files",
       query: { task_id: "task-1" },
+      schema: "Paginated<File>",
     });
   });
 
@@ -163,6 +167,7 @@ describe("FilesApi", () => {
     expect(http.request).toHaveBeenCalledWith({
       method: "GET",
       path: "/v1/files/file-1",
+      schema: "File",
     });
   });
 
@@ -175,6 +180,7 @@ describe("FilesApi", () => {
       method: "PATCH",
       path: "/v1/files/file-1",
       body: { name: "renamed.txt" },
+      schema: "File",
     });
   });
 
@@ -222,6 +228,7 @@ describe("FilesApi", () => {
     expect(http.request).toHaveBeenCalledWith({
       method: "GET",
       path: "/v1/files/file%2Fspecial%20id",
+      schema: "File",
     });
   });
 });
@@ -237,6 +244,7 @@ describe("FilesApi tags", () => {
       method: "GET",
       path: "/v1/files",
       query: { tag: "customer:acme", next: undefined },
+      schema: "Paginated<File>",
     });
   });
 
@@ -257,6 +265,7 @@ describe("FilesApi tags", () => {
         metadata: ["source:crm", "ref:a:b"],
         next: undefined,
       },
+      schema: "Paginated<File>",
     });
   });
 
@@ -306,6 +315,7 @@ describe("FilesApi tags", () => {
       method: "PATCH",
       path: "/v1/files/file-1",
       body: { tags: [] },
+      schema: "File",
     });
   });
 
@@ -338,6 +348,7 @@ describe("FilesApi create with tags and metadata", () => {
         metadata: { source: "import" },
         tags: ["customer:acme", "q3"],
       },
+      schema: "File",
     });
   });
 
@@ -409,6 +420,7 @@ describe("FileVersionsApi", () => {
       method: "GET",
       path: "/v1/files/file-1/versions",
       query: {},
+      schema: "Paginated<File>",
     });
     expect(all).toHaveLength(1);
   });
@@ -445,6 +457,7 @@ describe("FileVersionsApi", () => {
     expect(http.request).toHaveBeenCalledWith({
       method: "GET",
       path: "/v1/files/file-1/versions/ver-1",
+      schema: "File",
     });
   });
 

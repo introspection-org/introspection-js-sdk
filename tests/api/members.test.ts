@@ -50,6 +50,7 @@ describe("MembersApi", () => {
         metadata: ["plan:enterprise", "ref:a:b"],
         next: undefined,
       },
+      schema: "Paginated<Member>",
     });
     expect(first.records[0].metadata).toEqual({ plan: "enterprise" });
     expect(first.records[0].tags).toEqual(["team:acme"]);
@@ -102,6 +103,7 @@ describe("MembersApi", () => {
         tags: ["team:acme"],
         metadata: { plan: "enterprise" },
       },
+      schema: "Member",
     });
   });
 
@@ -123,6 +125,7 @@ describe("MembersApi", () => {
         name: "Ada Lovelace",
         policy_attributes: { level: 6 },
       },
+      schema: "Member",
     });
     expect(member.policy_attributes).toEqual({ level: 6 });
   });
@@ -142,6 +145,7 @@ describe("MembersApi", () => {
       method: "PATCH",
       path: `/v1/members/${MEMBER_ID}`,
       body: { policy_attributes: { level: 7, region: "emea" } },
+      schema: "Member",
     });
     expect(member.policy_attributes).toEqual({ level: 7, region: "emea" });
   });
@@ -168,6 +172,7 @@ describe("MembersApi", () => {
         external_user_id: "user:abc",
         policy_attributes: { level: 6 },
       },
+      schema: "Member",
     });
     expect(member.member_type).toBe("customer");
   });
@@ -203,6 +208,7 @@ describe("MembersApi", () => {
     expect(http.request).toHaveBeenCalledWith({
       method: "GET",
       path: `/v1/members/${MEMBER_ID}`,
+      schema: "Member",
     });
     expect(member.metadata).toEqual({ plan: "enterprise" });
   });
@@ -217,6 +223,7 @@ describe("MembersApi", () => {
       method: "PATCH",
       path: `/v1/members/${MEMBER_ID}`,
       body: { metadata: {} },
+      schema: "Member",
     });
   });
 
@@ -228,6 +235,7 @@ describe("MembersApi", () => {
       method: "PATCH",
       path: `/v1/members/${MEMBER_ID}`,
       body: { tags: [] },
+      schema: "Member",
     });
   });
 });

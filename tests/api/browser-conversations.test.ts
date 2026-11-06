@@ -46,6 +46,7 @@ describe("browser ConversationsClient", () => {
       method: "GET",
       path: "/v1/conversations",
       query: { limit: 10, next: undefined },
+      schema: "Paginated<Conversation>",
     });
     expect(page.records).toHaveLength(1);
     expect(page.records[0].id).toBe("conv-1");
@@ -90,6 +91,7 @@ describe("browser ConversationsClient", () => {
       method: "GET",
       path: "/v1/conversations/conv-1/items/span-1",
       query: { include: ["events"] },
+      schema: "GenAiSpan",
     });
   });
 

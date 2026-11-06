@@ -9,11 +9,45 @@ export interface Recipe {
   slug: string;
   git_ref: string;
   git_commit_sha: string;
+  /** The pinned commit's subject line. */
+  git_commit_subject?: string | null;
   sub_path?: string | null;
   description?: string | null;
+  /** MCP servers the recipe declares (`id`, `required`, `tools`). */
+  mcp_servers?: Record<string, unknown>[] | null;
+  /** The recipe's Cedar policies (`schema`, `policies`, `routes`). */
+  policies?: Record<string, unknown> | null;
+  /** The recipe check of the pinned commit. */
+  validation?: RecipeValidation | null;
   created_by_member_id: Uuid;
   created_at: IsoDate;
   updated_at: IsoDate;
+}
+
+/** One finding of a recipe check. */
+export interface RecipeValidationDiagnostic {
+  code: string;
+  /** `error` unless the check says otherwise. */
+  severity?: string;
+  /** The file the diagnostic is about. */
+  path: string;
+  span?: Record<string, unknown> | null;
+  message: string;
+  help?: string | null;
+}
+
+/** The recipe check of a recipe's commit. */
+export interface RecipeValidation {
+  /**
+   * `pending`, `valid`, `invalid` or `failed` (the check could not run;
+   * `error_message` says why).
+   */
+  status?: string;
+  validator_name?: string | null;
+  validator_version?: string | null;
+  checked_at?: IsoDate | null;
+  error_message?: string | null;
+  diagnostics?: RecipeValidationDiagnostic[];
 }
 
 /**
@@ -220,6 +254,8 @@ export interface RepositoryCommitDetail extends RepositoryCommit {
 export interface RepositoryCommitPage {
   records: RepositoryCommit[];
   count: number;
+  /** Commits across every page, when the server counted them. */
+  total_count?: number | null;
   /** Opaque cursor for the next page; null once exhausted. */
   next: string | null;
 }

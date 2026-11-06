@@ -41,6 +41,13 @@ export interface ResolvedApiConfig {
   maxRetries?: number;
   /** Base step (ms) of the capped-exponential `429` retry backoff. */
   retryBaseMs?: number;
+  /**
+   * Fail a JSON response that holds a field this SDK does not model, with a
+   * `SchemaDriftError` naming each field's JSON path. Off by default, so a
+   * server that adds a field never breaks a client. Defaults to
+   * `INTROSPECTION_STRICT_SCHEMA`.
+   */
+  strictSchema?: boolean;
 }
 
 const BEARER_PREFIX = "Bearer ";
@@ -59,6 +66,7 @@ export class HttpClient extends BaseHttpClient {
       fetch: cfg.fetch ?? proxyAwareFetch(),
       maxRetries: cfg.maxRetries,
       retryBaseMs: cfg.retryBaseMs,
+      strictSchema: cfg.strictSchema,
       transport: credentials
         ? {
             authHeaders: async (): Promise<Record<string, string>> => {

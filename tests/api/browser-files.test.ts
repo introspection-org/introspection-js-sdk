@@ -37,6 +37,7 @@ describe("browser FilesClient", () => {
       method: "GET",
       path: "/v1/files",
       query: { task_id: "task-1", next: undefined },
+      schema: "Paginated<File>",
     });
     expect(page.records).toHaveLength(1);
   });
@@ -73,6 +74,7 @@ describe("browser FilesClient", () => {
     expect(http.request).toHaveBeenCalledWith({
       method: "GET",
       path: "/v1/files/file-1",
+      schema: "File",
     });
   });
 
@@ -97,6 +99,7 @@ describe("browser FilesClient", () => {
       method: "POST",
       path: "/v1/files",
       body: { name: "n.txt", content: "hello" },
+      schema: "File",
     });
   });
 
@@ -109,6 +112,7 @@ describe("browser FilesClient", () => {
       method: "PATCH",
       path: "/v1/files/file-1",
       body: { name: "renamed.txt" },
+      schema: "File",
     });
   });
 
@@ -148,6 +152,7 @@ describe("browser FilesClient", () => {
       method: "GET",
       path: "/v1/files/file-1/versions",
       query: { next: undefined },
+      schema: "Paginated<File>",
     });
   });
 

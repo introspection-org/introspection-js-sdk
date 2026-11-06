@@ -5,6 +5,6 @@ import { ReadResource } from "./read-resource.js";
 export class OrganizationsApi extends ReadResource {
   /** The organization the credential belongs to. */
   me(): Promise<Organization> {
-    return this.read<Organization>("/v1/organizations/me");
+    return this.read<Organization>("/v1/organizations/me", "Organization");
   }
 }

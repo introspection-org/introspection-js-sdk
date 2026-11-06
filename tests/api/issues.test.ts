@@ -140,6 +140,7 @@ describe("IssuesApi", () => {
       method: "GET",
       path: "/v1/issues",
       query: { next: undefined },
+      schema: "Paginated<Issue>",
     });
     const issue = first.records[0];
     expect(issue.revision).toBe(3);
@@ -179,6 +180,7 @@ describe("IssuesApi", () => {
         links: [],
         events: [{ event_id: EVENT_ID }],
       },
+      schema: "Issue",
     });
   });
 
@@ -189,6 +191,7 @@ describe("IssuesApi", () => {
     expect(http.request).toHaveBeenCalledWith({
       method: "GET",
       path: `/v1/issues/${ISSUE_ID}`,
+      schema: "Issue",
     });
     expect(issue.display_index).toBe(42);
   });
@@ -212,6 +215,7 @@ describe("IssuesApi", () => {
         tags: [],
         metadata: {},
       },
+      schema: "Issue",
     });
     expect(calls(http)[0].body).not.toHaveProperty("files");
     expect(calls(http)[0].body).not.toHaveProperty("title");

@@ -61,6 +61,13 @@ export interface IntrospectionApiClientOptions {
   /** Extra headers merged into every DP request. */
   additionalHeaders?: Record<string, string>;
   /**
+   * Fail a JSON response that holds a field this SDK does not model, with a
+   * `SchemaDriftError` naming each field's JSON path. Off by default, so a
+   * server that adds a field never breaks a client. Browser bundles
+   * load the schemas only when this is on.
+   */
+  strictSchema?: boolean;
+  /**
    * Environment lane this client talks to.
    *
    * Normally omit it. `connect()` learns the lane from the exchange response,
@@ -112,6 +119,7 @@ export class IntrospectionApiClient {
     const http = new BrowserHttpClient({
       apiUrl: opts.dpUrl,
       additionalHeaders: opts.additionalHeaders,
+      strictSchema: opts.strictSchema,
       fetch: this.fetchImpl,
       onUnauthorized: () => this.reexchange(),
       environment: () => this.resolvedEnvironment,

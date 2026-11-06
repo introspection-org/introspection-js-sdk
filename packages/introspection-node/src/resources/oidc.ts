@@ -8,6 +8,6 @@ export class OidcApi extends ReadResource {
    * org's resolved feature flags.
    */
   me(): Promise<OidcMe> {
-    return this.read<OidcMe>("/v1/oidc/me");
+    return this.read<OidcMe>("/v1/oidc/me", "OidcMe");
   }
 }

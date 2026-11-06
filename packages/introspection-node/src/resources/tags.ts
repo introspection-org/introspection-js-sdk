@@ -58,6 +58,7 @@ export class TagsApi {
       "/v1/tags",
       { ...params, kind },
       params.next,
+      "Paginated<Tag>",
     );
   }
 
@@ -85,13 +86,19 @@ export class TagsApi {
       body = { ...tag, name };
     }
     if (body.description == null) delete body.description;
-    return this.dpHttp.request<Tag>({ method: "POST", path: "/v1/tags", body });
+    return this.dpHttp.request<Tag>({
+      method: "POST",
+      path: "/v1/tags",
+      schema: "Tag",
+      body,
+    });
   }
 
   get(kind: TagKind, name: string): Promise<Tag> {
     return this.dpHttp.request<Tag>({
       method: "GET",
       path: tagPath(kind, name),
+      schema: "Tag",
     });
   }
 
@@ -121,6 +128,7 @@ export class TagsApi {
     return this.dpHttp.request<Tag>({
       method: "PATCH",
       path: tagPath(kind, name),
+      schema: "Tag",
       body,
     });
   }

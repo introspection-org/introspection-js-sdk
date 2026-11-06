@@ -21,13 +21,20 @@ export class JudgesApi {
 
   /** `await` for the first page, or `for await` to stream every judge. */
   list(params: JudgeListParams = {}): Paginator<Judge> {
-    return paginateGet<Judge>(this.http, "/v1/judges", params, params.next);
+    return paginateGet<Judge>(
+      this.http,
+      "/v1/judges",
+      params,
+      params.next,
+      "Paginated<Judge>",
+    );
   }
 
   get(judgeId: Uuid, project?: ProjectRef): Promise<Judge> {
     return this.http.request<Judge>({
       method: "GET",
       path: `/v1/judges/${encodeURIComponent(judgeId)}`,
+      schema: "Judge",
       query: projectQuery(project),
     });
   }
@@ -41,6 +48,7 @@ export class JudgesApi {
     return this.http.request<Judge>({
       method: "PATCH",
       path: `/v1/judges/${encodeURIComponent(judgeId)}`,
+      schema: "Judge",
       query: projectQuery(project),
       body: params,
     });

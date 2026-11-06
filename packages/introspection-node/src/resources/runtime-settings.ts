@@ -28,7 +28,7 @@ export class CredentialsApi extends ProjectScopedResource<
   RuntimeSettingListParams
 > {
   constructor(http: HttpClient) {
-    super(http, "/v1/credentials");
+    super(http, "/v1/credentials", "Credential", "Paginated<Credential>");
   }
 }
 
@@ -45,6 +45,6 @@ export class VariablesApi extends ProjectScopedCollection<
   RuntimeSettingListParams
 > {
   constructor(http: HttpClient) {
-    super(http, "/v1/variables");
+    super(http, "/v1/variables", "Variable", "Paginated<Variable>");
   }
 }

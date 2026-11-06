@@ -67,13 +67,20 @@ export class RuntimesClient<TRunner> {
    * page, or `for await` it to stream every runtime across pages.
    */
   list(params: RuntimeListParams = {}): Paginator<Runtime> {
-    return paginateGet<Runtime>(this.http, "/v1/runtimes", params, params.next);
+    return paginateGet<Runtime>(
+      this.http,
+      "/v1/runtimes",
+      params,
+      params.next,
+      "Paginated<Runtime>",
+    );
   }
 
   get(id: Uuid, params?: RuntimeGetParams): Promise<Runtime> {
     return this.http.request<Runtime>({
       method: "GET",
       path: `/v1/runtimes/${encodeURIComponent(id)}`,
+      schema: "Runtime",
       query: params as Record<string, unknown> | undefined,
     });
   }
@@ -87,6 +94,7 @@ export class RuntimesClient<TRunner> {
     return this.http.request<Runtime>({
       method: "POST",
       path: "/v1/runtimes",
+      schema: "Runtime",
       body: params,
     });
   }
@@ -99,6 +107,7 @@ export class RuntimesClient<TRunner> {
     return this.http.request<Runtime>({
       method: "PATCH",
       path: `/v1/runtimes/${encodeURIComponent(id)}`,
+      schema: "Runtime",
       query: project === undefined ? undefined : { project },
       body: params,
     });
@@ -153,6 +162,7 @@ export class RuntimesClient<TRunner> {
     return this.http.request<RunnerSpec>({
       method: "POST",
       path: `/v1/runtimes/${encodeURIComponent(id)}/run`,
+      schema: "RunnerSpec",
       body: toRunRequestBody(opts),
     });
   }

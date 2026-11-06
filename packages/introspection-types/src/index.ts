@@ -62,6 +62,13 @@ export interface AdvancedOptions {
   /** Additional HTTP headers to include in requests */
   additionalHeaders?: Record<string, string>;
   /**
+   * Fail a JSON response that holds a field this SDK does not model, with a
+   * `SchemaDriftError` naming each field's JSON path. Off by default, so a
+   * server that adds a field never breaks a client. Defaults to
+   * `INTROSPECTION_STRICT_SCHEMA`.
+   */
+  strictSchema?: boolean;
+  /**
    * Custom span exporter (for testing - use InMemorySpanExporter).
    *
    * Node only. The browser client has no span pipeline -- it emits analytics

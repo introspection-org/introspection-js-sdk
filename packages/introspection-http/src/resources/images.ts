@@ -27,7 +27,7 @@ export class ImagesClient extends CollectionClient<
   ImageListParams
 > {
   constructor(http: ResourceHttpClient) {
-    super(http, "/v1/images");
+    super(http, "/v1/images", "Image", "Paginated<Image>");
   }
 }
 

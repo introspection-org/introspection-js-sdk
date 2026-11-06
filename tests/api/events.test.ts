@@ -200,6 +200,7 @@ describe("EventsApi.list — typed families (JSON)", () => {
         include_superseded: false,
       },
       signal: undefined,
+      schema: "Paginated<Event | UnknownEvent>",
     });
     expect(ev.payload.observation_id).toBe(
       "0195fb1a-0000-7000-8000-000000000001",
@@ -394,6 +395,7 @@ describe("EventsApi.list — automation families", () => {
         task_id: TASK_ID,
       },
       signal: undefined,
+      schema: "Paginated<Event | UnknownEvent>",
     });
     expect(ev.payload.automation_id).toBe(AUTOMATION_ID);
     expect(ev.payload.trigger_type).toBe("cron");

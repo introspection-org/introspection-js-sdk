@@ -47,6 +47,11 @@ export interface Runtime {
    */
   yanked_at?: IsoDate | null;
   yanked_reason?: string | null;
+  /** The runtime's kind, as the Control Plane names it. */
+  kind?: string | null;
+  /** The runtime's configuration document. */
+  config_json?: Record<string, unknown> | null;
+  created_by_member_id?: Uuid | null;
   /**
    * Per-environment git ref each lane tracks
    * ({ environment: "main" | "pr/N" | <sha> }); a tracked lane auto-advances

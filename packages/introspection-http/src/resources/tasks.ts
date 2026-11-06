@@ -110,6 +110,7 @@ export class TaskRunsClient {
     const res = await this.http.request<TaskRunResponse>({
       method: "POST",
       path: `/v1/tasks/${encodeURIComponent(taskId)}/runs`,
+      schema: "TaskRunResponse",
       body,
     });
     return new RunHandle(null, res.run, this);
@@ -119,6 +120,7 @@ export class TaskRunsClient {
     return this.http.request<TaskRun>({
       method: "GET",
       path: `/v1/tasks/${encodeURIComponent(taskId)}/runs/${encodeURIComponent(runId)}`,
+      schema: "TaskRun",
     });
   }
 
@@ -130,6 +132,7 @@ export class TaskRunsClient {
     return this.http.request<TaskCancelResponse>({
       method: "POST",
       path: `/v1/tasks/${encodeURIComponent(taskId)}/runs/${encodeURIComponent(runId)}/cancel`,
+      schema: "TaskCancelResponse",
       ...(options ? { body: { mode: "abort", ...options } } : {}),
     });
   }
@@ -172,6 +175,7 @@ export class TaskCommandsClient {
     return this.http.request<TaskCommand>({
       method: "POST",
       path: `/v1/tasks/${encodeURIComponent(taskId)}/commands`,
+      schema: "TaskCommand",
       body: spec,
     });
   }
@@ -183,6 +187,7 @@ export class TaskCommandsClient {
       `/v1/tasks/${encodeURIComponent(taskId)}/commands`,
       params,
       params?.next,
+      "Paginated<TaskCommand>",
     );
   }
 
@@ -199,6 +204,7 @@ export class TaskCommandsClient {
     return this.http.request<TaskCommand>({
       method: "GET",
       path: `/v1/tasks/${encodeURIComponent(taskId)}/commands/${encodeURIComponent(commandId)}`,
+      schema: "TaskCommand",
       query:
         wait === undefined
           ? undefined
@@ -237,13 +243,20 @@ export class TasksClient<
    * stop fetching).
    */
   list(params?: TaskListParams): Paginator<Task> {
-    return paginateGet<Task>(this.http, "/v1/tasks", params, params?.next);
+    return paginateGet<Task>(
+      this.http,
+      "/v1/tasks",
+      params,
+      params?.next,
+      "Paginated<Task>",
+    );
   }
 
   create(body: TCreate): Promise<TaskCreateResponse> {
     return this.http.request<TaskCreateResponse>({
       method: "POST",
       path: "/v1/tasks",
+      schema: "TaskCreateResponse",
       body: this.mapTaskBody(body),
     });
   }
@@ -252,6 +265,7 @@ export class TasksClient<
     return this.http.request<Task>({
       method: "GET",
       path: `/v1/tasks/${encodeURIComponent(taskId)}`,
+      schema: "Task",
     });
   }
 
@@ -259,6 +273,7 @@ export class TasksClient<
     return this.http.request<Task>({
       method: "PATCH",
       path: `/v1/tasks/${encodeURIComponent(taskId)}`,
+      schema: "Task",
       body,
     });
   }

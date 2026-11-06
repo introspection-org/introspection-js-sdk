@@ -34,6 +34,7 @@ export class ExperimentsApi {
       "/v1/experiments",
       params,
       params.next,
+      "Paginated<Experiment>",
     );
   }
 
@@ -41,6 +42,7 @@ export class ExperimentsApi {
     return this.http.request<Experiment>({
       method: "GET",
       path: `/v1/experiments/${encodeURIComponent(id)}`,
+      schema: "Experiment",
     });
   }
 
@@ -48,6 +50,7 @@ export class ExperimentsApi {
     return this.http.request<Experiment>({
       method: "POST",
       path: "/v1/experiments",
+      schema: "Experiment",
       body: document,
     });
   }
@@ -60,6 +63,7 @@ export class ExperimentsApi {
     return this.http.request<Experiment>({
       method: "PATCH",
       path: `/v1/experiments/${encodeURIComponent(id)}`,
+      schema: "Experiment",
       query: project ? { project } : undefined,
       body: document,
     });
@@ -78,6 +82,7 @@ export class ExperimentsApi {
     return this.http.request<Experiment>({
       method: "POST",
       path: `/v1/experiments/${encodeURIComponent(id)}/start`,
+      schema: "Experiment",
       body: {},
     });
   }
@@ -86,6 +91,7 @@ export class ExperimentsApi {
     return this.http.request<Experiment>({
       method: "POST",
       path: `/v1/experiments/${encodeURIComponent(id)}/end`,
+      schema: "Experiment",
       body: {},
     });
   }
@@ -94,6 +100,7 @@ export class ExperimentsApi {
     return this.http.request<Experiment>({
       method: "POST",
       path: `/v1/experiments/${encodeURIComponent(id)}/cancel`,
+      schema: "Experiment",
       body: {},
     });
   }
@@ -102,6 +109,7 @@ export class ExperimentsApi {
     const spec = await this.http.request<RunnerSpec>({
       method: "POST",
       path: `/v1/experiments/${encodeURIComponent(id)}/run`,
+      schema: "RunnerSpec",
       body: toRunRequestBody(opts),
     });
     const source: RunnerSource = {

@@ -33,6 +33,7 @@ export class MembersApi {
       "/v1/members",
       encodeMetadataFilter(params),
       params.next,
+      "Paginated<Member>",
     );
   }
 
@@ -44,6 +45,7 @@ export class MembersApi {
     return this.http.request<Member>({
       method: "POST",
       path: "/v1/members",
+      schema: "Member",
       body: params,
     });
   }
@@ -52,6 +54,7 @@ export class MembersApi {
     return this.http.request<Member>({
       method: "GET",
       path: `/v1/members/${encodeURIComponent(memberId)}`,
+      schema: "Member",
     });
   }
 
@@ -63,6 +66,7 @@ export class MembersApi {
     return this.http.request<Member>({
       method: "PATCH",
       path: `/v1/members/${encodeURIComponent(memberId)}`,
+      schema: "Member",
       body: params,
     });
   }

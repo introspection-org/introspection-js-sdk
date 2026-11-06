@@ -7,6 +7,8 @@ import {
 import { backoffMs, sleep } from "./backoff.js";
 import { buildQuery, joinUrl } from "./url.js";
 import { toApiError } from "./errors.js";
+import type { RequestOptions } from "./resources/types.js";
+import { strictSchemaFromEnv } from "./strict/schema-key.js";
 
 /**
  * Whether a thrown value is an abort rather than a transport failure.
@@ -105,6 +107,13 @@ export interface BaseHttpConfig {
   maxRetries?: number;
   /** Base step (ms) of the capped-exponential `429` retry backoff. Default 500. */
   retryBaseMs?: number;
+  /**
+   * Fail a JSON response that holds a field this SDK does not model, with a
+   * `SchemaDriftError` naming each field's JSON path. Off by default, so a
+   * server that adds a field never breaks a client. Defaults to
+   * `INTROSPECTION_STRICT_SCHEMA` where an environment exists.
+   */
+  strictSchema?: boolean;
 }
 
 /**
@@ -114,9 +123,11 @@ export interface BaseHttpConfig {
  */
 export class BaseHttpClient {
   protected readonly fetchImpl: typeof fetch;
+  private readonly strictSchema: boolean;
 
   constructor(protected readonly cfg: BaseHttpConfig) {
     this.fetchImpl = cfg.fetch ?? globalThis.fetch;
+    this.strictSchema = cfg.strictSchema ?? strictSchemaFromEnv();
     if (!this.fetchImpl) {
       throw new Error(
         "global fetch is unavailable; pass `fetch` or run on Node 18+ / a modern browser",
@@ -207,15 +218,7 @@ export class BaseHttpClient {
     return res;
   }
 
-  async request<T>(opts: {
-    method: string;
-    path: string;
-    query?: Record<string, unknown>;
-    body?: unknown;
-    headers?: Record<string, string>;
-    expect?: "json" | "empty" | "bytes" | "stream";
-    signal?: AbortSignal;
-  }): Promise<T> {
+  async request<T>(opts: RequestOptions<T>): Promise<T> {
     let body: BodyInit | undefined;
     const isMultipart = opts.body instanceof FormData;
     if (isMultipart) {
@@ -260,7 +263,17 @@ export class BaseHttpClient {
         if (expect === "bytes")
           return new Uint8Array(await res.arrayBuffer()) as T;
         if (expect === "stream") return res.body as T;
-        return (await res.json()) as T;
+        const payload: unknown = await res.json();
+        if (this.strictSchema && opts.schema) {
+          // Loaded on first use, so the schemas stay out of a default bundle.
+          const { checkResponse } = await import("./strict/check.js");
+          checkResponse(
+            opts.schema,
+            payload,
+            opts.path.split("?")[0] ?? opts.path,
+          );
+        }
+        return payload as T;
       } catch (err) {
         if (
           isRetryableError(err, opts.method) &&

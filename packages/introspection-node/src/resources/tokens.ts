@@ -17,6 +17,7 @@ export class TokensApi {
     return this.http.request<DataPlaneToken>({
       method: "POST",
       path: "/v1/tokens",
+      schema: "DataPlaneToken",
       body: params,
     });
   }

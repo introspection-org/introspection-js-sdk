@@ -81,6 +81,7 @@ export class RepositoriesApi {
       this.dpHttp.request<RepositoryContent>({
         method: "GET",
         path: contentsPath(repositoryId, path),
+        schema: "RepositoryContent",
         query: { ...params },
       });
     const enumerate = (
@@ -117,6 +118,7 @@ export class RepositoriesApi {
     return this.cpHttp.request<Repository[]>({
       method: "GET",
       path: "/v1/repositories",
+      schema: "Repository[]",
       query: { ...params },
     });
   }
@@ -135,6 +137,7 @@ export class RepositoriesApi {
         this.dpHttp.request<RepositoryCommitPage>({
           method: "GET",
           path: `/v1/repositories/${encodeURIComponent(repositoryId)}/commits`,
+          schema: "RepositoryCommitPage",
           query: { ...params, cursor },
         }),
       items: (page) => page.records,
@@ -147,6 +150,7 @@ export class RepositoriesApi {
     return this.dpHttp.request<RepositoryCommitDetail>({
       method: "GET",
       path: `/v1/repositories/${encodeURIComponent(repositoryId)}/commits/${encodeURIComponent(sha)}`,
+      schema: "RepositoryCommitDetail",
     });
   }
 
@@ -164,6 +168,7 @@ export class RepositoriesApi {
     const merge = await this.dpHttp.request<RepositoryMerge | undefined>({
       method: "POST",
       path: `/v1/repositories/${encodeURIComponent(repositoryId)}/merges`,
+      schema: "RepositoryMerge | undefined",
       body: params,
     });
     return merge ?? null;
@@ -181,6 +186,7 @@ export class RepositoriesApi {
     return this.cpHttp.request<Repository>({
       method: "POST",
       path: "/v1/repositories",
+      schema: "Repository",
       query: { ...query },
       body: params,
     });
@@ -198,6 +204,7 @@ export class RepositoriesApi {
     return this.dpHttp.request<RepositoryAccessGrant>({
       method: "POST",
       path: `/v1/repositories/${encodeURIComponent(repositoryId)}/access-token`,
+      schema: "RepositoryAccessGrant",
       body: params,
     });
   }
@@ -206,6 +213,7 @@ export class RepositoriesApi {
     return this.cpHttp.request<Repository>({
       method: "GET",
       path: `/v1/repositories/${encodeURIComponent(repositoryId)}`,
+      schema: "Repository",
       query: { ...params },
     });
   }
@@ -234,6 +242,7 @@ export class RepositoriesApi {
         this.dpHttp.request<Paginated<RepositoryBranch>>({
           method: "GET",
           path: `/v1/repositories/${encodeURIComponent(repositoryId)}/branches`,
+          schema: "Paginated<RepositoryBranch>",
           query: { ...params, cursor },
         }),
       items: (page) => page.records,

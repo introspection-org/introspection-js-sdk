@@ -15,6 +15,12 @@ import type { TestContext } from "vitest";
 import { NotFoundError } from "@introspection-sdk/introspection-node";
 import type { PollyMode } from "../polly-setup";
 
+// The walk decodes strictly: a response field the SDK does not model fails
+// the step with its JSON path (`SchemaDriftError`). Model the field; don't
+// drop it from the recording. Set here, before any client is built, so
+// introspection-cloud's `scripts/sdk-coverage.sh` needs no flag of its own.
+process.env.INTROSPECTION_STRICT_SCHEMA = "1";
+
 type WalkTarget = "compose" | "staging" | "production";
 
 export interface WalkSettings {

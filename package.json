@@ -14,6 +14,8 @@
     "check-types": "turbo run check-types",
     "check:doc-regions": "node scripts/check-doc-regions.mjs",
     "check-cycles": "madge --circular --extensions ts packages/*/src",
+    "gen:strict-schemas": "node scripts/gen-strict-schemas.mjs",
+    "check:strict-schemas": "node scripts/gen-strict-schemas.mjs --check",
     "check:packages": "pnpm -r --filter \"./packages/*\" run check:package",
     "knip": "knip",
     "knip:production": "knip --production",

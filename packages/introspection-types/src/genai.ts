@@ -18,6 +18,8 @@
  * providers (e.g. OpenAI Responses message metadata) so a replayed
  * conversation can be sent back to the same provider without losing
  * signed continuity.
+ *
+ * @openSchema strict decoding tolerates keys it does not name.
  */
 export interface TextPart {
   /** Discriminator — always `"text"`. */
@@ -46,6 +48,8 @@ export interface TextPart {
  * `signature` / `redacted_thinking`, OpenAI `encrypted_content`).
  * `redacted` is set when the upstream provider redacted the visible
  * content but kept the signed payload.
+ *
+ * @openSchema strict decoding tolerates keys it does not name.
  */
 export interface ThinkingPart {
   /** Discriminator — `"thinking"` as stored, `"reasoning"` per the semantic conventions. */
@@ -66,7 +70,11 @@ export interface ThinkingPart {
  */
 export type ReasoningPart = ThinkingPart;
 
-/** A tool / function-call request part in a message. */
+/**
+ * A tool / function-call request part in a message.
+ *
+ * @openSchema strict decoding tolerates keys it does not name.
+ */
 export interface ToolCallRequestPart {
   /** Discriminator — always `"tool_call"`. */
   type: "tool_call";
@@ -78,7 +86,11 @@ export interface ToolCallRequestPart {
   arguments?: unknown;
 }
 
-/** A tool / function-call response part in a message. */
+/**
+ * A tool / function-call response part in a message.
+ *
+ * @openSchema strict decoding tolerates keys it does not name.
+ */
 export interface ToolCallResponsePart {
   /** Discriminator — always `"tool_call_response"`. */
   type: "tool_call_response";
@@ -95,6 +107,8 @@ export interface ToolCallResponsePart {
  *
  * The `type` discriminator names the media kind (image / audio / video /
  * document); the payload itself lives behind `url`.
+ *
+ * @openSchema strict decoding tolerates keys it does not name.
  */
 export interface MediaUrlPart {
   /** Discriminator — the media kind, or the semantic conventions' `"uri"`. */
@@ -114,6 +128,8 @@ export interface MediaUrlPart {
  *
  * The payload never travels with the span — only the handle the provider
  * issued for it — so this part is a reference, not content.
+ *
+ * @openSchema strict decoding tolerates keys it does not name.
  */
 export interface FilePart {
   /** Discriminator — always `"file"`. */
@@ -131,6 +147,8 @@ export interface FilePart {
  *
  * Used when media is embedded directly in the message instead of being
  * referenced by URL.
+ *
+ * @openSchema strict decoding tolerates keys it does not name.
  */
 export interface BinaryDataPart {
   /** Discriminator — always `"binary"`. */
@@ -148,6 +166,8 @@ export interface BinaryDataPart {
  * `content` (base64) is optional in this SDK: instrumentations omit the
  * payload to keep span attribute sizes bounded, recording only the
  * modality / MIME type so the message structure is preserved.
+ *
+ * @openSchema strict decoding tolerates keys it does not name.
  */
 export interface BlobPart {
   /** Discriminator — always `"blob"`. */
@@ -167,6 +187,8 @@ export interface BlobPart {
  * summary that replaced the compacted messages, without the prose wrapper the
  * agent renders around it (e.g. Pi's "The conversation history before this
  * point was compacted…" preamble).
+ *
+ * @openSchema strict decoding tolerates keys it does not name.
  */
 export interface CompactionPart {
   /** Discriminator — always `"compaction"`. */
@@ -196,7 +218,11 @@ export type MessagePart =
   | BlobPart
   | FilePart;
 
-/** A system instruction entry for `gen_ai.system_instructions`. */
+/**
+ * A system instruction entry for `gen_ai.system_instructions`.
+ *
+ * @openSchema strict decoding tolerates keys it does not name.
+ */
 export interface SystemInstruction {
   /** Part type — always `"text"`. */
   type: "text";
@@ -209,6 +235,8 @@ export type MessageRole = "system" | "user" | "assistant" | "tool";
 
 /**
  * An input message (`gen_ai.input.messages` element).
+ *
+ * @openSchema strict decoding tolerates keys it does not name.
  */
 export interface InputMessage {
   role: MessageRole;
@@ -219,6 +247,8 @@ export interface InputMessage {
 
 /**
  * An output message (`gen_ai.output.messages` element).
+ *
+ * @openSchema strict decoding tolerates keys it does not name.
  */
 export interface OutputMessage {
   role: MessageRole;
@@ -242,7 +272,11 @@ export interface OutputMessage {
   response_id?: string;
 }
 
-/** A tool definition for the `gen_ai.tool.definitions` attribute. */
+/**
+ * A tool definition for the `gen_ai.tool.definitions` attribute.
+ *
+ * @openSchema strict decoding tolerates keys it does not name.
+ */
 export interface ToolDefinition {
   /**
    * Tool type. Function tools use the canonical `"function"` value.

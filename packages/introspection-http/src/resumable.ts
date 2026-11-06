@@ -260,6 +260,7 @@ async function throwIfRunEnded(cfg: ResumeConfig): Promise<void> {
     state = await cfg.http.request<TaskRun>({
       method: "GET",
       path: cfg.runPath,
+      schema: "TaskRun",
       signal: cfg.opts.signal,
     });
   } catch (err) {

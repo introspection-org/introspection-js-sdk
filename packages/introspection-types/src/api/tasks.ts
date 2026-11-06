@@ -43,6 +43,7 @@ export interface Task {
   member_id?: Uuid | null;
   automation_id?: Uuid | null;
   runtime_id?: Uuid | null;
+  runtime_group_id?: Uuid | null;
   is_archived: boolean;
   started_at?: IsoDate | null;
   completed_at?: IsoDate | null;
@@ -245,6 +246,10 @@ export interface TaskRun {
   id: string;
   task_id: Uuid;
   status: TaskStatus;
+  /** Why the run failed; set only on a failed run. */
+  error?: string | null;
+  /** Why the run ended. */
+  completion_reason?: string | null;
   created_at?: IsoDate | null;
   updated_at?: IsoDate | null;
 }

@@ -141,6 +141,11 @@ jobs:
       - name: Check published packages (publint + attw)
         run: pnpm check:packages
 
+      # The strict-decoding schemas are generated from the response types;
+      # a type change without a regenerated schemas.json fails here.
+      - name: Check strict-decoding schemas are current
+        run: pnpm check:strict-schemas
+
       - name: Run tests with coverage
         run: pnpm --filter introspection-tests test:cov
         env:

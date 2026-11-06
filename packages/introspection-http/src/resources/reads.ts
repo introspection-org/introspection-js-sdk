@@ -21,6 +21,7 @@
 import { ValidationError, type Paginated } from "@introspection-sdk/types";
 import type { Table } from "apache-arrow";
 import { Paginator, cursorPaginate } from "../pagination.js";
+import type { SchemaKey } from "../strict/schema-key.js";
 import type { ResourceHttpClient } from "./types.js";
 
 /**
@@ -392,6 +393,7 @@ export function listRead<T>(
   http: ResourceHttpClient,
   path: string,
   params?: ListReadParams,
+  schema?: SchemaKey<Paginated<T>>,
 ): Paginator<T> {
   const source = params as Record<string, unknown> | undefined;
   const useArrow = params?.format === "arrow";
@@ -411,6 +413,7 @@ export function listRead<T>(
       path,
       query,
       signal,
+      schema,
     });
   }, params?.next);
 }
