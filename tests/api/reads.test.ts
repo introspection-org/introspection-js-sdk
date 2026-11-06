@@ -52,6 +52,7 @@ describe("EventsApi.list", () => {
         conversation_id: "conv-1",
       },
       signal: undefined,
+      schema: "Paginated<Event | UnknownEvent>",
     });
     expect(events).toHaveLength(1);
     expect(events[0].id).toBe("ev-1");

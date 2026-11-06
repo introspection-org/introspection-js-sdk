@@ -2359,6 +2359,52 @@
       },
       "additionalProperties": false
     },
+    "Paginated<Event | UnknownEvent>": {
+      "type": "object",
+      "properties": {
+        "count": {},
+        "next": {},
+        "records": {
+          "type": "array",
+          "items": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/AnnotationEvent"
+              },
+              {
+                "$ref": "#/$defs/ObservationEvent"
+              },
+              {
+                "$ref": "#/$defs/PatternEvent"
+              },
+              {
+                "$ref": "#/$defs/PatternAssignmentEvent"
+              },
+              {
+                "$ref": "#/$defs/ClusteringRunEvent"
+              },
+              {
+                "$ref": "#/$defs/FeedbackEvent"
+              },
+              {
+                "$ref": "#/$defs/JudgementEvent"
+              },
+              {
+                "$ref": "#/$defs/AutomationTriggeredEvent"
+              },
+              {
+                "$ref": "#/$defs/AutomationSkippedEvent"
+              },
+              {
+                "$ref": "#/$defs/UnknownEvent"
+              }
+            ]
+          }
+        },
+        "total_count": {}
+      },
+      "additionalProperties": false
+    },
     "Paginated<Experiment>": {
       "type": "object",
       "properties": {
@@ -3773,6 +3819,9 @@
     },
     "Paginated<Endpoint>": {
       "$ref": "#/$defs/Paginated<Endpoint>"
+    },
+    "Paginated<Event | UnknownEvent>": {
+      "$ref": "#/$defs/Paginated<Event | UnknownEvent>"
     },
     "Paginated<Experiment>": {
       "$ref": "#/$defs/Paginated<Experiment>"

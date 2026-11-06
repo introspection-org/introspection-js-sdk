@@ -102,6 +102,12 @@ const typeText = (type) =>
 
 /** `T` when `type` (or a member of it) is `SchemaKey<T>` with a concrete `T`. */
 function schemaTarget(type) {
+  const found = schemaParam(type);
+  return found && !isGeneric(found) ? found : null;
+}
+
+/** `T` when `type` (or a member of it) is `SchemaKey<T>`, generic or not. */
+function schemaParam(type) {
   if (!type) return null;
   for (const member of type.isUnion() ? type.types : [type]) {
     const brand = checker.getPropertyOfType(member, BRAND);
@@ -112,8 +118,7 @@ function schemaTarget(type) {
     const [signature] = brandType.getCallSignatures();
     const [param] = signature?.getParameters() ?? [];
     if (!param) continue;
-    const target = checker.getTypeOfSymbol(param);
-    return isGeneric(target) ? null : target;
+    return checker.getTypeOfSymbol(param);
   }
   return null;
 }
@@ -356,7 +361,7 @@ function checkHelperCall(call) {
   const params = signature.getParameters();
   const missing = [];
   params.forEach((param, index) => {
-    const target = schemaTarget(checker.getTypeOfSymbol(param));
+    const target = schemaParam(checker.getTypeOfSymbol(param));
     if (!target) return;
     const arg = call.arguments?.[index];
     if (
@@ -368,6 +373,13 @@ function checkHelperCall(call) {
     missing.push({ index, target });
   });
   if (missing.length === 0) return;
+  const generic = missing.filter(({ target }) => isGeneric(target));
+  for (const { target } of generic) {
+    problems.push(
+      `${where(call)}: passes no SchemaKey<${typeText(target)}>; pass the caller's key, or one for a concrete wider type (\`"Paginated<X>" as SchemaKey<Paginated<X>>\`)`,
+    );
+  }
+  if (generic.length > 0) return;
   if (!FIX) {
     for (const { target } of missing) {
       problems.push(

@@ -3,15 +3,17 @@
  * true`) a response field the SDK does not model throws `SchemaDriftError`,
  * naming the route and every field by its JSON path.
  *
- * Mock exception 1 (AGENTS.md §6): these tests exercise the HTTP client's
- * decode step against hand-written payloads that carry fields no server
- * sends yet, so there is no real response to record. The stub replaces
- * `fetch` only; every resource method under test is the real one.
+ * A fake `fetch` stands in for the server, so no network boundary is crossed
+ * (AGENTS.md §6 case 1, as in `issues.test.ts`): the payloads carry fields no
+ * server sends, which a recording cannot hold. Every resource method under
+ * test is the real one; the walk replays its recordings strictly for the
+ * real responses.
  */
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   ConnectionsApi,
   ConversationsApi,
+  EventsApi,
   HttpClient,
   ImagesApi,
   IntrospectionAPIError,
@@ -193,6 +195,52 @@ describe("strict decoding on", () => {
       client({ token: "t", token_type: "bearer", scopes: [] }, true),
     );
     await expect(ok.getToken("conn-1")).resolves.toMatchObject({ token: "t" });
+  });
+
+  it("checks a known event family's payload, not only the open fallback", async () => {
+    const event = {
+      id: "e1",
+      timestamp: "2026-11-06T00:00:00Z",
+      event_name: "introspection.feedback",
+      payload: { name: "thumbs_up", novel: 1 },
+    };
+    const events = new EventsApi(client(event, true));
+    await expect(events.get("e1")).rejects.toThrow(
+      "/v1/events/e1: response fields this SDK does not model: $.payload.novel",
+    );
+    const later = new EventsApi(
+      client(
+        {
+          ...event,
+          event_name: "introspection.added_later",
+          payload: { x: 1 },
+        },
+        true,
+      ),
+    );
+    await expect(later.get("e1")).resolves.toMatchObject({ payload: { x: 1 } });
+  });
+
+  it("checks an event page", async () => {
+    const events = new EventsApi(
+      client(
+        page([
+          {
+            id: "e1",
+            timestamp: "2026-11-06T00:00:00Z",
+            event_name: "introspection.feedback",
+            payload: { name: "thumbs_up" },
+            shard: 3,
+          },
+        ]),
+        true,
+      ),
+    );
+    await expect(
+      events.list({ event_name: "introspection.feedback", lookback: "24h" }),
+    ).rejects.toThrow(
+      "/v1/events: response fields this SDK does not model: $.records[0].shard",
+    );
   });
 
   it("leaves a request that names no schema alone", async () => {

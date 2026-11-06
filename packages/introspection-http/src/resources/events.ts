@@ -5,7 +5,9 @@ import type {
   IntrospectionEventName,
   UnknownEvent,
 } from "@introspection-sdk/types";
+import type { Paginated } from "@introspection-sdk/types";
 import type { Paginator } from "../pagination.js";
+import type { SchemaKey } from "../strict/schema-key.js";
 import { ArrowPages, arrowRead, listRead } from "./reads.js";
 import type { ResourceHttpClient } from "./types.js";
 
@@ -56,7 +58,16 @@ export class EventsClient {
   list<
     const N extends IntrospectionEventName | (string & Record<never, never>),
   >(params: EventListParams & { event_name: N }): Paginator<EventForName<N>> {
-    return listRead<EventForName<N>>(this.http, "/v1/events", params);
+    // `N` is the caller's, so the page is checked against every family the
+    // SDK models; `UnknownEvent` keeps a family added later from failing.
+    return listRead<EventForName<N>>(
+      this.http,
+      "/v1/events",
+      params,
+      "Paginated<Event | UnknownEvent>" as SchemaKey<
+        Paginated<Event | UnknownEvent>
+      >,
+    );
   }
 
   /**

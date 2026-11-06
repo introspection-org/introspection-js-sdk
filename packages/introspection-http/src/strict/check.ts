@@ -43,15 +43,41 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-/** Whether an object branch's `const` discriminators agree with `value`. */
-function matches(schema: Schema, value: Record<string, unknown>): boolean {
+/**
+ * How many of an object branch's `const` discriminators `value` carries, or
+ * `-1` when one of them disagrees with it.
+ */
+function discriminators(
+  schema: Schema,
+  value: Record<string, unknown>,
+): number {
+  let matched = 0;
   for (const [key, prop] of Object.entries(schema.properties ?? {})) {
     const target = resolve(prop);
-    if ("const" in target && key in value && value[key] !== target.const) {
-      return false;
-    }
+    if (!("const" in target) || !(key in value)) continue;
+    if (value[key] !== target.const) return -1;
+    matched += 1;
   }
-  return true;
+  return matched;
+}
+
+/**
+ * The branches a value can be. An object prefers the branches whose literal
+ * discriminators it matches over an open fallback (`UnknownEvent`), which
+ * would otherwise accept a new field in a known family.
+ */
+function fitting(branches: Schema[], value: unknown): Schema[] {
+  const kind = Array.isArray(value) ? "array" : "object";
+  const ofKind = branches.map(resolve).filter((b) => b.type === kind);
+  if (kind === "array") return ofKind;
+  const record = value as Record<string, unknown>;
+  const scored = ofKind
+    .map((branch) => ({ branch, score: discriminators(branch, record) }))
+    .filter(({ score }) => score >= 0);
+  const best = Math.max(0, ...scored.map(({ score }) => score));
+  return scored
+    .filter(({ score }) => score === best)
+    .map(({ branch }) => branch);
 }
 
 function unmodelledUnion(
@@ -59,15 +85,8 @@ function unmodelledUnion(
   value: unknown,
   at: string,
 ): string[] {
-  const kind = Array.isArray(value) ? "array" : "object";
-  const fitting = branches
-    .map(resolve)
-    .filter((b) => b.type === kind)
-    .filter(
-      (b) => kind === "array" || matches(b, value as Record<string, unknown>),
-    );
   let best: string[] | null = null;
-  for (const branch of fitting) {
+  for (const branch of fitting(branches, value)) {
     const found = unmodelled(branch, value, at);
     if (best === null || found.length < best.length) best = found;
     if (found.length === 0) break;
