@@ -3,19 +3,12 @@
   "$defs": {
     "AAuthBudget": {
       "type": "object",
-      "properties": {
-        "amount": {},
-        "decimals": {},
-        "unit": {}
-      },
+      "properties": { "amount": {}, "decimals": {}, "unit": {} },
       "additionalProperties": false
     },
     "AgentInfo": {
       "type": "object",
-      "properties": {
-        "sandbox_status": {},
-        "session_id": {}
-      },
+      "properties": { "sandbox_status": {}, "session_id": {} },
       "additionalProperties": false
     },
     "AnnotationEvent": {
@@ -23,14 +16,10 @@
       "properties": {
         "conversation_id": {},
         "environment": {},
-        "event_name": {
-          "const": "introspection.annotation"
-        },
+        "event_name": { "const": "introspection.annotation" },
         "experiment_id": {},
         "id": {},
-        "payload": {
-          "$ref": "#/$defs/AnnotationPayload"
-        },
+        "payload": { "$ref": "#/$defs/AnnotationPayload" },
         "recipe_git_commit_sha": {},
         "runtime_group_id": {},
         "runtime_id": {},
@@ -43,35 +32,21 @@
     },
     "AnnotationFacet": {
       "type": "object",
-      "properties": {
-        "count": {},
-        "dimension": {},
-        "value": {}
-      },
+      "properties": { "count": {}, "dimension": {}, "value": {} },
       "additionalProperties": false
     },
     "AnnotationMember": {
       "type": "object",
-      "properties": {
-        "email": {},
-        "id": {},
-        "is_deactivated": {}
-      },
+      "properties": { "email": {}, "id": {}, "is_deactivated": {} },
       "additionalProperties": false
     },
     "AnnotationNavigation": {
       "type": "object",
       "properties": {
-        "current": {
-          "$ref": "#/$defs/AnnotationState"
-        },
+        "current": { "$ref": "#/$defs/AnnotationState" },
         "current_position": {},
-        "next": {
-          "$ref": "#/$defs/AnnotationState"
-        },
-        "previous": {
-          "$ref": "#/$defs/AnnotationState"
-        },
+        "next": { "$ref": "#/$defs/AnnotationState" },
+        "previous": { "$ref": "#/$defs/AnnotationState" },
         "total_count": {}
       },
       "additionalProperties": false
@@ -79,13 +54,9 @@
     "AnnotationPayload": {
       "type": "object",
       "properties": {
-        "assignee_member_ids": {
-          "type": "array"
-        },
+        "assignee_member_ids": { "type": "array" },
         "comment": {},
-        "labels": {
-          "type": "array"
-        },
+        "labels": { "type": "array" },
         "member_id": {}
       },
       "additionalProperties": false
@@ -93,26 +64,16 @@
     "AnnotationState": {
       "type": "object",
       "properties": {
-        "annotator_member_ids": {
-          "type": "array"
-        },
-        "assignee_member_ids": {
-          "type": "array"
-        },
+        "annotator_member_ids": { "type": "array" },
+        "assignee_member_ids": { "type": "array" },
         "assignment_event_id": {},
         "comment_count": {},
-        "commenter_member_ids": {
-          "type": "array"
-        },
+        "commenter_member_ids": { "type": "array" },
         "conversation_id": {},
         "has_comment": {},
         "has_human_comment": {},
-        "human_commenter_member_ids": {
-          "type": "array"
-        },
-        "labels": {
-          "type": "array"
-        },
+        "human_commenter_member_ids": { "type": "array" },
+        "labels": { "type": "array" },
         "latest_comment": {},
         "latest_comment_actor_member_id": {},
         "latest_comment_actor_type": {},
@@ -128,9 +89,7 @@
       "type": "object",
       "properties": {
         "acknowledged_at": {},
-        "allow": {
-          "type": "array"
-        },
+        "allow": { "type": "array" },
         "created_at": {},
         "environment": {},
         "expires_at": {},
@@ -152,18 +111,14 @@
     },
     "ApiKeyAcknowledgement": {
       "type": "object",
-      "properties": {
-        "acknowledged": {}
-      },
+      "properties": { "acknowledged": {} },
       "additionalProperties": false
     },
     "ApiKeyCreated": {
       "type": "object",
       "properties": {
         "acknowledged_at": {},
-        "allow": {
-          "type": "array"
-        },
+        "allow": { "type": "array" },
         "api_key": {},
         "created_at": {},
         "environment": {},
@@ -189,9 +144,7 @@
       "properties": {
         "account_name": {},
         "app": {},
-        "connector": {
-          "$ref": "#/$defs/AppConnectionConnector"
-        },
+        "connector": { "$ref": "#/$defs/AppConnectionConnector" },
         "created_at": {},
         "created_by_member_id": {},
         "healthy": {},
@@ -208,27 +161,16 @@
     },
     "AppConnectionConnector": {
       "type": "object",
-      "properties": {
-        "id": {},
-        "peering": {},
-        "provider": {},
-        "slug": {}
-      },
+      "properties": { "id": {}, "peering": {}, "provider": {}, "slug": {} },
       "additionalProperties": false
     },
     "Application": {
       "type": "object",
       "properties": {
         "agent_member_id": {},
-        "allowed_grants": {
-          "type": "array"
-        },
-        "allowed_origins": {
-          "type": "array"
-        },
-        "allowed_scopes": {
-          "type": "array"
-        },
+        "allowed_grants": { "type": "array" },
+        "allowed_origins": { "type": "array" },
+        "allowed_scopes": { "type": "array" },
         "application_type": {},
         "client_id": {},
         "created_at": {},
@@ -239,9 +181,7 @@
         "name": {},
         "org_id": {},
         "project_id": {},
-        "redirect_uris": {
-          "type": "array"
-        },
+        "redirect_uris": { "type": "array" },
         "revoked_at": {},
         "updated_at": {}
       },
@@ -264,9 +204,7 @@
         "is_active": {},
         "issuer": {},
         "org_id": {},
-        "scopes": {
-          "type": "array"
-        },
+        "scopes": { "type": "array" },
         "status": {},
         "updated_at": {}
       },
@@ -311,14 +249,10 @@
       "type": "object",
       "properties": {
         "agent_id": {},
-        "budget": {
-          "$ref": "#/$defs/AAuthBudget"
-        },
+        "budget": { "$ref": "#/$defs/AAuthBudget" },
         "created_at": {},
         "decided_at": {},
-        "decided_budget": {
-          "$ref": "#/$defs/AAuthBudget"
-        },
+        "decided_budget": { "$ref": "#/$defs/AAuthBudget" },
         "decided_by_member_id": {},
         "description": {},
         "expires_at": {},
@@ -348,15 +282,11 @@
         "id": {},
         "kind": {
           "type": "object",
-          "properties": {
-            "length": {}
-          },
+          "properties": { "length": {} },
           "additionalProperties": false
         },
         "last_triggered_at": {},
-        "metadata": {
-          "$ref": "#/$defs/AutomationMetadata"
-        },
+        "metadata": { "$ref": "#/$defs/AutomationMetadata" },
         "name": {},
         "next_trigger_at": {},
         "org_id": {},
@@ -364,15 +294,11 @@
         "project_id": {},
         "prompt": {},
         "runtime_group_id": {},
-        "tags": {
-          "type": "array"
-        },
+        "tags": { "type": "array" },
         "task_id": {},
         "trigger_type": {
           "type": "object",
-          "properties": {
-            "length": {}
-          },
+          "properties": { "length": {} },
           "additionalProperties": false
         },
         "updated_at": {}
@@ -385,9 +311,7 @@
         "runtime_group_id": {},
         "type": {
           "type": "object",
-          "properties": {
-            "length": {}
-          },
+          "properties": { "length": {} },
           "additionalProperties": false
         }
       },
@@ -398,18 +322,12 @@
       "properties": {
         "conditions": {
           "type": "array",
-          "items": {
-            "$ref": "#/$defs/AutomationCondition"
-          }
+          "items": { "$ref": "#/$defs/AutomationCondition" }
         },
-        "cron_schedules": {
-          "type": "array"
-        },
+        "cron_schedules": { "type": "array" },
         "repositories": {
           "type": "array",
-          "items": {
-            "$ref": "#/$defs/TaskRepoRequest"
-          }
+          "items": { "$ref": "#/$defs/TaskRepoRequest" }
         },
         "timezone": {}
       },
@@ -420,14 +338,10 @@
       "properties": {
         "conversation_id": {},
         "environment": {},
-        "event_name": {
-          "const": "introspection.automation.skipped"
-        },
+        "event_name": { "const": "introspection.automation.skipped" },
         "experiment_id": {},
         "id": {},
-        "payload": {
-          "$ref": "#/$defs/AutomationSkippedPayload"
-        },
+        "payload": { "$ref": "#/$defs/AutomationSkippedPayload" },
         "recipe_git_commit_sha": {},
         "runtime_group_id": {},
         "runtime_id": {},
@@ -444,18 +358,14 @@
         "automation_id": {},
         "reason": {
           "type": "object",
-          "properties": {
-            "length": {}
-          },
+          "properties": { "length": {} },
           "additionalProperties": false
         },
         "slot": {},
         "task_id": {},
         "trigger_type": {
           "type": "object",
-          "properties": {
-            "length": {}
-          },
+          "properties": { "length": {} },
           "additionalProperties": false
         }
       },
@@ -468,9 +378,7 @@
         "reason": {},
         "status": {
           "type": "object",
-          "properties": {
-            "length": {}
-          },
+          "properties": { "length": {} },
           "additionalProperties": false
         },
         "task_id": {}
@@ -482,14 +390,10 @@
       "properties": {
         "conversation_id": {},
         "environment": {},
-        "event_name": {
-          "const": "introspection.automation.triggered"
-        },
+        "event_name": { "const": "introspection.automation.triggered" },
         "experiment_id": {},
         "id": {},
-        "payload": {
-          "$ref": "#/$defs/AutomationTriggeredPayload"
-        },
+        "payload": { "$ref": "#/$defs/AutomationTriggeredPayload" },
         "recipe_git_commit_sha": {},
         "runtime_group_id": {},
         "runtime_id": {},
@@ -513,9 +417,7 @@
         "task_id": {},
         "trigger_type": {
           "type": "object",
-          "properties": {
-            "length": {}
-          },
+          "properties": { "length": {} },
           "additionalProperties": false
         },
         "triggered_by_member_id": {}
@@ -527,9 +429,7 @@
       "properties": {
         "content": {},
         "media_type": {},
-        "type": {
-          "const": "binary"
-        }
+        "type": { "const": "binary" }
       },
       "additionalProperties": true
     },
@@ -539,9 +439,7 @@
         "content": {},
         "mime_type": {},
         "modality": {},
-        "type": {
-          "const": "blob"
-        }
+        "type": { "const": "blob" }
       },
       "additionalProperties": true
     },
@@ -550,14 +448,10 @@
       "properties": {
         "conversation_id": {},
         "environment": {},
-        "event_name": {
-          "const": "introspection.observation_clustering.run"
-        },
+        "event_name": { "const": "introspection.observation_clustering.run" },
         "experiment_id": {},
         "id": {},
-        "payload": {
-          "$ref": "#/$defs/ClusteringRunPayload"
-        },
+        "payload": { "$ref": "#/$defs/ClusteringRunPayload" },
         "recipe_git_commit_sha": {},
         "runtime_group_id": {},
         "runtime_id": {},
@@ -586,29 +480,17 @@
     },
     "CompactionCounts": {
       "type": "object",
-      "properties": {
-        "tokens": {},
-        "turns": {}
-      },
+      "properties": { "tokens": {}, "turns": {} },
       "additionalProperties": false
     },
     "CompactionPart": {
       "type": "object",
-      "properties": {
-        "content": {},
-        "type": {
-          "const": "compaction"
-        }
-      },
+      "properties": { "content": {}, "type": { "const": "compaction" } },
       "additionalProperties": true
     },
     "ConnectPage": {
       "type": "object",
-      "properties": {
-        "authorize_url": {},
-        "expires_at": {},
-        "expires_in": {}
-      },
+      "properties": { "authorize_url": {}, "expires_at": {}, "expires_in": {} },
       "additionalProperties": false
     },
     "Connection": {
@@ -622,9 +504,7 @@
         "member_id": {},
         "metadata": {
           "type": "object",
-          "properties": {
-            "name": {}
-          },
+          "properties": { "name": {} },
           "additionalProperties": false
         },
         "org_id": {},
@@ -633,9 +513,7 @@
         "provider_account_name": {},
         "provider_app": {},
         "runtime_group_id": {},
-        "scopes_granted": {
-          "type": "array"
-        },
+        "scopes_granted": { "type": "array" },
         "status": {},
         "subject_type": {},
         "token_expires_at": {},
@@ -648,9 +526,7 @@
       "properties": {
         "approval_url": {},
         "mission_id": {},
-        "status": {
-          "const": "authorization_pending"
-        }
+        "status": { "const": "authorization_pending" }
       },
       "additionalProperties": false
     },
@@ -658,9 +534,7 @@
       "type": "object",
       "properties": {
         "expires_at": {},
-        "scopes": {
-          "type": "array"
-        },
+        "scopes": { "type": "array" },
         "token": {},
         "token_type": {}
       },
@@ -670,9 +544,7 @@
       "type": "object",
       "properties": {
         "agent_member_id": {},
-        "api_hosts": {
-          "type": "array"
-        },
+        "api_hosts": { "type": "array" },
         "application_id": {},
         "assertion_audience": {},
         "auth_mode": {},
@@ -688,16 +560,12 @@
         "person_server_url": {},
         "policy_entities": {
           "type": "array",
-          "items": {
-            "$ref": "#/$defs/PolicyEntity"
-          }
+          "items": { "$ref": "#/$defs/PolicyEntity" }
         },
         "project_id": {},
         "provider": {},
         "requires_runtime": {},
-        "scopes": {
-          "type": "array"
-        },
+        "scopes": { "type": "array" },
         "slug": {},
         "status": {},
         "token_endpoint": {},
@@ -721,11 +589,7 @@
     },
     "ConnectorAuthorizeResponse": {
       "type": "object",
-      "properties": {
-        "authorize_url": {},
-        "expires_at": {},
-        "expires_in": {}
-      },
+      "properties": { "authorize_url": {}, "expires_at": {}, "expires_in": {} },
       "additionalProperties": false
     },
     "ConnectorOAuthDiscoveryResponse": {
@@ -736,20 +600,14 @@
         "client_id_metadata_document_supported": {},
         "client_registration": {},
         "client_secret": {},
-        "code_challenge_methods_supported": {
-          "type": "array"
-        },
+        "code_challenge_methods_supported": { "type": "array" },
         "issuer": {},
         "redirect_uri": {},
         "registration_endpoint": {},
         "resource": {},
-        "scopes_supported": {
-          "type": "array"
-        },
+        "scopes_supported": { "type": "array" },
         "token_endpoint": {},
-        "token_endpoint_auth_methods_supported": {
-          "type": "array"
-        }
+        "token_endpoint_auth_methods_supported": { "type": "array" }
       },
       "additionalProperties": false
     },
@@ -758,41 +616,23 @@
       "properties": {
         "agents": {
           "type": "array",
-          "items": {
-            "$ref": "#/$defs/ConversationAgent"
-          }
+          "items": { "$ref": "#/$defs/ConversationAgent" }
         },
-        "cost": {
-          "$ref": "#/$defs/ConversationCost"
-        },
+        "cost": { "$ref": "#/$defs/ConversationCost" },
         "created_at": {},
         "environment": {},
-        "experiment": {
-          "$ref": "#/$defs/ConversationExperiment"
-        },
+        "experiment": { "$ref": "#/$defs/ConversationExperiment" },
         "id": {},
         "metadata": {},
-        "metrics": {
-          "$ref": "#/$defs/ConversationMetrics"
-        },
-        "object": {
-          "const": "conversation"
-        },
-        "owner": {
-          "$ref": "#/$defs/ConversationOwner"
-        },
-        "recipe": {
-          "$ref": "#/$defs/ConversationRecipe"
-        },
-        "runtime": {
-          "$ref": "#/$defs/ConversationRuntime"
-        },
+        "metrics": { "$ref": "#/$defs/ConversationMetrics" },
+        "object": { "const": "conversation" },
+        "owner": { "$ref": "#/$defs/ConversationOwner" },
+        "recipe": { "$ref": "#/$defs/ConversationRecipe" },
+        "runtime": { "$ref": "#/$defs/ConversationRuntime" },
         "service_name": {},
         "task_title": {},
         "updated_at": {},
-        "usage": {
-          "$ref": "#/$defs/ConversationUsage"
-        }
+        "usage": { "$ref": "#/$defs/ConversationUsage" }
       },
       "additionalProperties": false
     },
@@ -814,9 +654,7 @@
         "cursor": {},
         "history": {
           "type": "array",
-          "items": {
-            "$ref": "#/$defs/ConversationCompactionRecord"
-          }
+          "items": { "$ref": "#/$defs/ConversationCompactionRecord" }
         },
         "response_id": {}
       },
@@ -825,28 +663,20 @@
     "ConversationCompactionRecord": {
       "type": "object",
       "properties": {
-        "at_compaction": {
-          "$ref": "#/$defs/CompactionCounts"
-        },
+        "at_compaction": { "$ref": "#/$defs/CompactionCounts" },
         "response_id": {},
-        "since_compaction": {
-          "$ref": "#/$defs/CompactionCounts"
-        }
+        "since_compaction": { "$ref": "#/$defs/CompactionCounts" }
       },
       "additionalProperties": false
     },
     "ConversationCost": {
       "type": "object",
-      "properties": {
-        "usd": {}
-      },
+      "properties": { "usd": {} },
       "additionalProperties": false
     },
     "ConversationExperiment": {
       "type": "object",
-      "properties": {
-        "id": {}
-      },
+      "properties": { "id": {} },
       "additionalProperties": false
     },
     "ConversationMetrics": {
@@ -866,24 +696,17 @@
     },
     "ConversationOwner": {
       "type": "object",
-      "properties": {
-        "key": {}
-      },
+      "properties": { "key": {} },
       "additionalProperties": false
     },
     "ConversationRecipe": {
       "type": "object",
-      "properties": {
-        "git_commit_sha": {}
-      },
+      "properties": { "git_commit_sha": {} },
       "additionalProperties": false
     },
     "ConversationRuntime": {
       "type": "object",
-      "properties": {
-        "group_id": {},
-        "id": {}
-      },
+      "properties": { "group_id": {}, "id": {} },
       "additionalProperties": false
     },
     "ConversationUsage": {
@@ -934,24 +757,16 @@
         "base_url": {},
         "created_at": {},
         "created_by_member_id": {},
-        "credential_refs": {
-          "type": "array"
-        },
+        "credential_refs": { "type": "array" },
         "environment": {},
-        "header_names": {
-          "type": "array"
-        },
+        "header_names": { "type": "array" },
         "headers": {},
         "host": {},
         "id": {},
         "kind": {},
         "last_verified_at": {},
-        "mcp_check": {
-          "$ref": "#/$defs/EndpointMcpCheck"
-        },
-        "metadata": {
-          "$ref": "#/$defs/EndpointMetadata"
-        },
+        "mcp_check": { "$ref": "#/$defs/EndpointMcpCheck" },
+        "metadata": { "$ref": "#/$defs/EndpointMetadata" },
         "name": {},
         "org_id": {},
         "project_id": {},
@@ -972,9 +787,7 @@
         "requested_by_member_id": {},
         "server_name": {},
         "status": {},
-        "tools": {
-          "type": "array"
-        }
+        "tools": { "type": "array" }
       },
       "additionalProperties": false
     },
@@ -983,9 +796,7 @@
       "properties": {
         "auth_audience": {},
         "connector_id": {},
-        "extra_hosts": {
-          "type": "array"
-        },
+        "extra_hosts": { "type": "array" },
         "mcp_server_id": {},
         "provider_app": {}
       },
@@ -993,10 +804,7 @@
     },
     "EntityUid": {
       "type": "object",
-      "properties": {
-        "id": {},
-        "type": {}
-      },
+      "properties": { "id": {}, "type": {} },
       "additionalProperties": false
     },
     "Experiment": {
@@ -1005,23 +813,17 @@
         "archived_at": {},
         "arms": {
           "type": "array",
-          "items": {
-            "$ref": "#/$defs/ExperimentArm"
-          }
+          "items": { "$ref": "#/$defs/ExperimentArm" }
         },
         "created_at": {},
         "created_by_member_id": {},
         "description": {},
         "ended_at": {},
         "environment": {},
-        "goal_json": {
-          "$ref": "#/$defs/ExperimentGoal"
-        },
+        "goal_json": { "$ref": "#/$defs/ExperimentGoal" },
         "halted_at": {},
         "halted_reason": {},
-        "hash_key_fields": {
-          "type": "array"
-        },
+        "hash_key_fields": { "type": "array" },
         "id": {},
         "name": {},
         "org_id": {},
@@ -1056,28 +858,19 @@
           "type": "array",
           "items": {
             "anyOf": [
-              {
-                "$ref": "#/$defs/JudgeGoalComponent"
-              },
-              {
-                "$ref": "#/$defs/TelemetryGoalComponent"
-              }
+              { "$ref": "#/$defs/JudgeGoalComponent" },
+              { "$ref": "#/$defs/TelemetryGoalComponent" }
             ]
           }
         },
         "direction": {},
-        "kind": {
-          "const": "composite"
-        }
+        "kind": { "const": "composite" }
       },
       "additionalProperties": false
     },
     "ExperimentGoalGuard": {
       "type": "object",
-      "properties": {
-        "max": {},
-        "min": {}
-      },
+      "properties": { "max": {}, "min": {} },
       "additionalProperties": false
     },
     "FeedbackEvent": {
@@ -1085,14 +878,10 @@
       "properties": {
         "conversation_id": {},
         "environment": {},
-        "event_name": {
-          "const": "introspection.feedback"
-        },
+        "event_name": { "const": "introspection.feedback" },
         "experiment_id": {},
         "id": {},
-        "payload": {
-          "$ref": "#/$defs/FeedbackPayload"
-        },
+        "payload": { "$ref": "#/$defs/FeedbackPayload" },
         "recipe_git_commit_sha": {},
         "runtime_group_id": {},
         "runtime_id": {},
@@ -1137,9 +926,7 @@
         "size_bytes": {},
         "storage_path": {},
         "storage_version_id": {},
-        "tags": {
-          "type": "array"
-        },
+        "tags": { "type": "array" },
         "task_id": {},
         "updated_at": {},
         "version": {}
@@ -1152,33 +939,23 @@
         "file_id": {},
         "mime_type": {},
         "modality": {},
-        "type": {
-          "const": "file"
-        }
+        "type": { "const": "file" }
       },
       "additionalProperties": true
     },
     "GenAiAgent": {
       "type": "object",
-      "properties": {
-        "description": {},
-        "id": {},
-        "name": {}
-      },
+      "properties": { "description": {}, "id": {}, "name": {} },
       "additionalProperties": true
     },
     "GenAiConversation": {
       "type": "object",
-      "properties": {
-        "id": {}
-      },
+      "properties": { "id": {} },
       "additionalProperties": true
     },
     "GenAiCost": {
       "type": "object",
-      "properties": {
-        "usd": {}
-      },
+      "properties": { "usd": {} },
       "additionalProperties": true
     },
     "GenAiInput": {
@@ -1186,18 +963,14 @@
       "properties": {
         "messages": {
           "type": "array",
-          "items": {
-            "$ref": "#/$defs/InputMessage"
-          }
+          "items": { "$ref": "#/$defs/InputMessage" }
         }
       },
       "additionalProperties": true
     },
     "GenAiOperation": {
       "type": "object",
-      "properties": {
-        "name": {}
-      },
+      "properties": { "name": {} },
       "additionalProperties": true
     },
     "GenAiOutput": {
@@ -1205,18 +978,14 @@
       "properties": {
         "messages": {
           "type": "array",
-          "items": {
-            "$ref": "#/$defs/OutputMessage"
-          }
+          "items": { "$ref": "#/$defs/OutputMessage" }
         }
       },
       "additionalProperties": true
     },
     "GenAiProvider": {
       "type": "object",
-      "properties": {
-        "name": {}
-      },
+      "properties": { "name": {} },
       "additionalProperties": true
     },
     "GenAiRequest": {
@@ -1235,9 +1004,7 @@
     "GenAiResponse": {
       "type": "object",
       "properties": {
-        "finish_reasons": {
-          "type": "array"
-        },
+        "finish_reasons": { "type": "array" },
         "id": {},
         "model": {}
       },
@@ -1246,28 +1013,17 @@
     "GenAiSpan": {
       "type": "object",
       "properties": {
-        "attributes": {
-          "$ref": "#/$defs/SpanAttributes"
-        },
+        "attributes": { "$ref": "#/$defs/SpanAttributes" },
         "duration_ns": {},
         "end_time": {},
-        "events": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/SpanEvent"
-          }
-        },
+        "events": { "type": "array", "items": { "$ref": "#/$defs/SpanEvent" } },
         "kind": {},
         "name": {},
         "parent_span_id": {},
-        "resource": {
-          "$ref": "#/$defs/SpanResource"
-        },
+        "resource": { "$ref": "#/$defs/SpanResource" },
         "span_id": {},
         "start_time": {},
-        "status": {
-          "$ref": "#/$defs/GenAiSpanStatus"
-        },
+        "status": { "$ref": "#/$defs/GenAiSpanStatus" },
         "trace_id": {}
       },
       "additionalProperties": false
@@ -1275,89 +1031,49 @@
     "GenAiSpanAttributes": {
       "type": "object",
       "properties": {
-        "agent": {
-          "$ref": "#/$defs/GenAiAgent"
-        },
-        "conversation": {
-          "$ref": "#/$defs/GenAiConversation"
-        },
-        "cost": {
-          "$ref": "#/$defs/GenAiCost"
-        },
-        "input": {
-          "$ref": "#/$defs/GenAiInput"
-        },
-        "operation": {
-          "$ref": "#/$defs/GenAiOperation"
-        },
-        "output": {
-          "$ref": "#/$defs/GenAiOutput"
-        },
-        "provider": {
-          "$ref": "#/$defs/GenAiProvider"
-        },
-        "request": {
-          "$ref": "#/$defs/GenAiRequest"
-        },
-        "response": {
-          "$ref": "#/$defs/GenAiResponse"
-        },
+        "agent": { "$ref": "#/$defs/GenAiAgent" },
+        "conversation": { "$ref": "#/$defs/GenAiConversation" },
+        "cost": { "$ref": "#/$defs/GenAiCost" },
+        "input": { "$ref": "#/$defs/GenAiInput" },
+        "operation": { "$ref": "#/$defs/GenAiOperation" },
+        "output": { "$ref": "#/$defs/GenAiOutput" },
+        "provider": { "$ref": "#/$defs/GenAiProvider" },
+        "request": { "$ref": "#/$defs/GenAiRequest" },
+        "response": { "$ref": "#/$defs/GenAiResponse" },
         "system_instructions": {
           "type": "array",
-          "items": {
-            "$ref": "#/$defs/SystemInstruction"
-          }
+          "items": { "$ref": "#/$defs/SystemInstruction" }
         },
-        "tool": {
-          "$ref": "#/$defs/GenAiTool"
-        },
-        "usage": {
-          "$ref": "#/$defs/GenAiUsage"
-        }
+        "tool": { "$ref": "#/$defs/GenAiTool" },
+        "usage": { "$ref": "#/$defs/GenAiUsage" }
       },
       "additionalProperties": true
     },
     "GenAiSpanList": {
       "type": "object",
       "properties": {
-        "compaction": {
-          "$ref": "#/$defs/ConversationCompaction"
-        },
-        "data": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/GenAiSpan"
-          }
-        },
+        "compaction": { "$ref": "#/$defs/ConversationCompaction" },
+        "data": { "type": "array", "items": { "$ref": "#/$defs/GenAiSpan" } },
         "first_id": {},
         "has_more": {},
         "last_id": {},
         "next": {},
-        "object": {
-          "const": "list"
-        }
+        "object": { "const": "list" }
       },
       "additionalProperties": false
     },
     "GenAiSpanStatus": {
       "type": "object",
-      "properties": {
-        "code": {},
-        "message": {}
-      },
+      "properties": { "code": {}, "message": {} },
       "additionalProperties": false
     },
     "GenAiTool": {
       "type": "object",
       "properties": {
-        "call": {
-          "$ref": "#/$defs/GenAiToolCall"
-        },
+        "call": { "$ref": "#/$defs/GenAiToolCall" },
         "definitions": {
           "type": "array",
-          "items": {
-            "$ref": "#/$defs/ToolDefinition"
-          }
+          "items": { "$ref": "#/$defs/ToolDefinition" }
         },
         "description": {},
         "name": {},
@@ -1367,21 +1083,14 @@
     },
     "GenAiToolCall": {
       "type": "object",
-      "properties": {
-        "arguments": {},
-        "id": {}
-      },
+      "properties": { "arguments": {}, "id": {} },
       "additionalProperties": true
     },
     "GenAiUsage": {
       "type": "object",
       "properties": {
-        "cache_creation": {
-          "$ref": "#/$defs/TokenCount"
-        },
-        "cache_read": {
-          "$ref": "#/$defs/TokenCount"
-        },
+        "cache_creation": { "$ref": "#/$defs/TokenCount" },
+        "cache_read": { "$ref": "#/$defs/TokenCount" },
         "input_tokens": {},
         "output_tokens": {}
       },
@@ -1392,13 +1101,9 @@
       "properties": {
         "records": {
           "type": "array",
-          "items": {
-            "$ref": "#/$defs/GithubInstallationRepository"
-          }
+          "items": { "$ref": "#/$defs/GithubInstallationRepository" }
         },
-        "type": {
-          "const": "github"
-        }
+        "type": { "const": "github" }
       },
       "additionalProperties": false
     },
@@ -1456,9 +1161,7 @@
         "task_id": {},
         "trigger": {},
         "updated_at": {},
-        "warnings": {
-          "type": "array"
-        }
+        "warnings": { "type": "array" }
       },
       "additionalProperties": false
     },
@@ -1470,33 +1173,15 @@
           "type": "array",
           "items": {
             "anyOf": [
-              {
-                "$ref": "#/$defs/TextPart"
-              },
-              {
-                "$ref": "#/$defs/ThinkingPart"
-              },
-              {
-                "$ref": "#/$defs/ToolCallRequestPart"
-              },
-              {
-                "$ref": "#/$defs/ToolCallResponsePart"
-              },
-              {
-                "$ref": "#/$defs/CompactionPart"
-              },
-              {
-                "$ref": "#/$defs/MediaUrlPart"
-              },
-              {
-                "$ref": "#/$defs/BinaryDataPart"
-              },
-              {
-                "$ref": "#/$defs/BlobPart"
-              },
-              {
-                "$ref": "#/$defs/FilePart"
-              }
+              { "$ref": "#/$defs/BinaryDataPart" },
+              { "$ref": "#/$defs/BlobPart" },
+              { "$ref": "#/$defs/CompactionPart" },
+              { "$ref": "#/$defs/FilePart" },
+              { "$ref": "#/$defs/MediaUrlPart" },
+              { "$ref": "#/$defs/TextPart" },
+              { "$ref": "#/$defs/ThinkingPart" },
+              { "$ref": "#/$defs/ToolCallRequestPart" },
+              { "$ref": "#/$defs/ToolCallResponsePart" }
             ]
           }
         },
@@ -1545,12 +1230,7 @@
     },
     "IntrospectionContains": {
       "type": "object",
-      "properties": {
-        "values": {
-          "type": "array"
-        },
-        "version": {}
-      },
+      "properties": { "values": { "type": "array" }, "version": {} },
       "additionalProperties": false
     },
     "IntrospectionHistory": {
@@ -1559,142 +1239,82 @@
         "continuation_method": {},
         "hash_hit": {},
         "is_new": {},
-        "new_messages": {
-          "$ref": "#/$defs/IntrospectionHistoryNewMessages"
-        },
+        "new_messages": { "$ref": "#/$defs/IntrospectionHistoryNewMessages" },
         "position": {}
       },
       "additionalProperties": false
     },
     "IntrospectionHistoryNewMessages": {
       "type": "object",
-      "properties": {
-        "end": {},
-        "start": {}
-      },
+      "properties": { "end": {}, "start": {} },
       "additionalProperties": false
     },
     "IntrospectionId": {
       "type": "object",
-      "properties": {
-        "id": {}
-      },
+      "properties": { "id": {} },
       "additionalProperties": false
     },
     "IntrospectionIngest": {
       "type": "object",
-      "properties": {
-        "host": {},
-        "ip": {},
-        "node": {},
-        "time": {}
-      },
+      "properties": { "host": {}, "ip": {}, "node": {}, "time": {} },
       "additionalProperties": false
     },
     "IntrospectionInvocation": {
       "type": "object",
-      "properties": {
-        "kind": {}
-      },
+      "properties": { "kind": {} },
       "additionalProperties": false
     },
     "IntrospectionProxy": {
       "type": "object",
-      "properties": {
-        "mode": {}
-      },
+      "properties": { "mode": {} },
       "additionalProperties": false
     },
     "IntrospectionRecipe": {
       "type": "object",
-      "properties": {
-        "git_commit_sha": {}
-      },
+      "properties": { "git_commit_sha": {} },
       "additionalProperties": false
     },
     "IntrospectionRun": {
       "type": "object",
-      "properties": {
-        "id": {},
-        "parent_id": {},
-        "root_id": {}
-      },
+      "properties": { "id": {}, "parent_id": {}, "root_id": {} },
       "additionalProperties": false
     },
     "IntrospectionRuntime": {
       "type": "object",
-      "properties": {
-        "group_id": {},
-        "id": {}
-      },
+      "properties": { "group_id": {}, "id": {} },
       "additionalProperties": false
     },
     "IntrospectionSpanAttributes": {
       "type": "object",
       "properties": {
-        "agent": {
-          "$ref": "#/$defs/IntrospectionAgent"
-        },
+        "agent": { "$ref": "#/$defs/IntrospectionAgent" },
         "byok": {},
         "client": {},
-        "contains": {
-          "$ref": "#/$defs/IntrospectionContains"
-        },
+        "contains": { "$ref": "#/$defs/IntrospectionContains" },
         "cost_usd": {},
         "environment": {},
-        "experiment": {
-          "$ref": "#/$defs/IntrospectionId"
-        },
-        "history": {
-          "$ref": "#/$defs/IntrospectionHistory"
-        },
-        "ingest": {
-          "$ref": "#/$defs/IntrospectionIngest"
-        },
-        "invocation": {
-          "$ref": "#/$defs/IntrospectionInvocation"
-        },
-        "member": {
-          "$ref": "#/$defs/IntrospectionId"
-        },
-        "org": {
-          "$ref": "#/$defs/IntrospectionId"
-        },
-        "project": {
-          "$ref": "#/$defs/IntrospectionId"
-        },
-        "proxy": {
-          "$ref": "#/$defs/IntrospectionProxy"
-        },
-        "recipe": {
-          "$ref": "#/$defs/IntrospectionRecipe"
-        },
-        "run": {
-          "$ref": "#/$defs/IntrospectionRun"
-        },
-        "runtime": {
-          "$ref": "#/$defs/IntrospectionRuntime"
-        },
-        "task": {
-          "$ref": "#/$defs/IntrospectionTask"
-        },
+        "experiment": { "$ref": "#/$defs/IntrospectionId" },
+        "history": { "$ref": "#/$defs/IntrospectionHistory" },
+        "ingest": { "$ref": "#/$defs/IntrospectionIngest" },
+        "invocation": { "$ref": "#/$defs/IntrospectionInvocation" },
+        "member": { "$ref": "#/$defs/IntrospectionId" },
+        "org": { "$ref": "#/$defs/IntrospectionId" },
+        "project": { "$ref": "#/$defs/IntrospectionId" },
+        "proxy": { "$ref": "#/$defs/IntrospectionProxy" },
+        "recipe": { "$ref": "#/$defs/IntrospectionRecipe" },
+        "run": { "$ref": "#/$defs/IntrospectionRun" },
+        "runtime": { "$ref": "#/$defs/IntrospectionRuntime" },
+        "task": { "$ref": "#/$defs/IntrospectionTask" },
         "termination_reason": {},
-        "tool_call_ids": {
-          "type": "array"
-        },
-        "tool_response_ids": {
-          "type": "array"
-        },
+        "tool_call_ids": { "type": "array" },
+        "tool_response_ids": { "type": "array" },
         "turn": {}
       },
       "additionalProperties": false
     },
     "IntrospectionTask": {
       "type": "object",
-      "properties": {
-        "id": {},
-        "run_id": {}
-      },
+      "properties": { "id": {}, "run_id": {} },
       "additionalProperties": false
     },
     "Issue": {
@@ -1706,30 +1326,16 @@
         "display_index": {},
         "events": {
           "type": "array",
-          "items": {
-            "$ref": "#/$defs/IssueEventReference"
-          }
+          "items": { "$ref": "#/$defs/IssueEventReference" }
         },
-        "files": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/IssueFile"
-          }
-        },
+        "files": { "type": "array", "items": { "$ref": "#/$defs/IssueFile" } },
         "id": {},
-        "links": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/IssueLink"
-          }
-        },
+        "links": { "type": "array", "items": { "$ref": "#/$defs/IssueLink" } },
         "member_id": {},
         "metadata": {},
         "open_requests": {
           "type": "array",
-          "items": {
-            "$ref": "#/$defs/IssueOpenRequest"
-          }
+          "items": { "$ref": "#/$defs/IssueOpenRequest" }
         },
         "org_id": {},
         "priority": {},
@@ -1737,14 +1343,10 @@
         "revision": {},
         "spans": {
           "type": "array",
-          "items": {
-            "$ref": "#/$defs/IssueSpanReference"
-          }
+          "items": { "$ref": "#/$defs/IssueSpanReference" }
         },
         "status": {},
-        "tags": {
-          "type": "array"
-        },
+        "tags": { "type": "array" },
         "task_id": {},
         "task_status": {},
         "title": {},
@@ -1754,9 +1356,7 @@
     },
     "IssueEventReference": {
       "type": "object",
-      "properties": {
-        "event_id": {}
-      },
+      "properties": { "event_id": {} },
       "additionalProperties": false
     },
     "IssueFile": {
@@ -1765,18 +1365,13 @@
         "checksum": {},
         "file_id": {},
         "name": {},
-        "source_event_ids": {
-          "type": "array"
-        }
+        "source_event_ids": { "type": "array" }
       },
       "additionalProperties": false
     },
     "IssueLink": {
       "type": "object",
-      "properties": {
-        "title": {},
-        "url": {}
-      },
+      "properties": { "title": {}, "url": {} },
       "additionalProperties": false
     },
     "IssueOpenRequest": {
@@ -1791,10 +1386,7 @@
     },
     "IssueSpanReference": {
       "type": "object",
-      "properties": {
-        "span_id": {},
-        "trace_id": {}
-      },
+      "properties": { "span_id": {}, "trace_id": {} },
       "additionalProperties": false
     },
     "Judge": {
@@ -1822,14 +1414,10 @@
     "JudgeGoalComponent": {
       "type": "object",
       "properties": {
-        "guard": {
-          "$ref": "#/$defs/ExperimentGoalGuard"
-        },
+        "guard": { "$ref": "#/$defs/ExperimentGoalGuard" },
         "judge_definition_hash": {},
         "judge_id": {},
-        "source": {
-          "const": "judge"
-        },
+        "source": { "const": "judge" },
         "weight": {}
       },
       "additionalProperties": false
@@ -1839,14 +1427,10 @@
       "properties": {
         "conversation_id": {},
         "environment": {},
-        "event_name": {
-          "const": "introspection.judgement"
-        },
+        "event_name": { "const": "introspection.judgement" },
         "experiment_id": {},
         "id": {},
-        "payload": {
-          "$ref": "#/$defs/JudgementPayload"
-        },
+        "payload": { "$ref": "#/$defs/JudgementPayload" },
         "recipe_git_commit_sha": {},
         "runtime_group_id": {},
         "runtime_id": {},
@@ -1903,27 +1487,19 @@
         "role": {},
         "seat_tier": {},
         "spend_limit_cents": {},
-        "tags": {
-          "type": "array"
-        },
+        "tags": { "type": "array" },
         "updated_at": {}
       },
       "additionalProperties": false
     },
     "MetricDimensionValue": {
       "type": "object",
-      "properties": {
-        "field": {},
-        "value": {}
-      },
+      "properties": { "field": {}, "value": {} },
       "additionalProperties": false
     },
     "MetricEffectiveWindow": {
       "type": "object",
-      "properties": {
-        "end": {},
-        "start": {}
-      },
+      "properties": { "end": {}, "start": {} },
       "additionalProperties": false
     },
     "MetricOrderBy": {
@@ -1943,9 +1519,7 @@
         "interval": {},
         "order_by": {
           "type": "array",
-          "items": {
-            "$ref": "#/$defs/MetricOrderBy"
-          }
+          "items": { "$ref": "#/$defs/MetricOrderBy" }
         },
         "owner_scoped": {},
         "row_count": {},
@@ -1953,9 +1527,7 @@
         "step_seconds": {},
         "truncated": {},
         "view": {},
-        "window": {
-          "$ref": "#/$defs/MetricEffectiveWindow"
-        }
+        "window": { "$ref": "#/$defs/MetricEffectiveWindow" }
       },
       "additionalProperties": false
     },
@@ -1964,13 +1536,9 @@
       "properties": {
         "data": {
           "type": "array",
-          "items": {
-            "$ref": "#/$defs/MetricResultRow"
-          }
+          "items": { "$ref": "#/$defs/MetricResultRow" }
         },
-        "meta": {
-          "$ref": "#/$defs/MetricQueryMeta"
-        }
+        "meta": { "$ref": "#/$defs/MetricQueryMeta" }
       },
       "additionalProperties": false
     },
@@ -1979,15 +1547,11 @@
       "properties": {
         "dimensions": {
           "type": "array",
-          "items": {
-            "$ref": "#/$defs/MetricDimensionValue"
-          }
+          "items": { "$ref": "#/$defs/MetricDimensionValue" }
         },
         "metrics": {
           "type": "array",
-          "items": {
-            "$ref": "#/$defs/MetricResultValue"
-          }
+          "items": { "$ref": "#/$defs/MetricResultValue" }
         },
         "timestamp": {}
       },
@@ -2007,26 +1571,20 @@
       "type": "object",
       "properties": {
         "agent_id": {},
-        "budget": {
-          "$ref": "#/$defs/AAuthBudget"
-        },
+        "budget": { "$ref": "#/$defs/AAuthBudget" },
         "completed_at": {},
         "created_at": {},
         "expires_at": {},
         "id": {},
         "log": {
           "type": "array",
-          "items": {
-            "$ref": "#/$defs/MissionLogEntry"
-          }
+          "items": { "$ref": "#/$defs/MissionLogEntry" }
         },
         "member_id": {},
         "mission": {},
         "org_id": {},
         "project_id": {},
-        "resources": {
-          "type": "array"
-        },
+        "resources": { "type": "array" },
         "s256": {},
         "spent": {},
         "updated_at": {}
@@ -2035,10 +1593,7 @@
     },
     "MissionLogEntry": {
       "type": "object",
-      "properties": {
-        "at": {},
-        "entry": {}
-      },
+      "properties": { "at": {}, "entry": {} },
       "additionalProperties": false
     },
     "ObservationEvent": {
@@ -2046,14 +1601,10 @@
       "properties": {
         "conversation_id": {},
         "environment": {},
-        "event_name": {
-          "const": "introspection.observation"
-        },
+        "event_name": { "const": "introspection.observation" },
         "experiment_id": {},
         "id": {},
-        "payload": {
-          "$ref": "#/$defs/ObservationPayload"
-        },
+        "payload": { "$ref": "#/$defs/ObservationPayload" },
         "recipe_git_commit_sha": {},
         "runtime_group_id": {},
         "runtime_id": {},
@@ -2070,9 +1621,7 @@
         "assignment_method": {},
         "assignment_score": {},
         "confidence": {},
-        "evidence_refs": {
-          "type": "array"
-        },
+        "evidence_refs": { "type": "array" },
         "label": {},
         "lens": {},
         "metadata": {},
@@ -2128,33 +1677,15 @@
           "type": "array",
           "items": {
             "anyOf": [
-              {
-                "$ref": "#/$defs/TextPart"
-              },
-              {
-                "$ref": "#/$defs/ThinkingPart"
-              },
-              {
-                "$ref": "#/$defs/ToolCallRequestPart"
-              },
-              {
-                "$ref": "#/$defs/ToolCallResponsePart"
-              },
-              {
-                "$ref": "#/$defs/CompactionPart"
-              },
-              {
-                "$ref": "#/$defs/MediaUrlPart"
-              },
-              {
-                "$ref": "#/$defs/BinaryDataPart"
-              },
-              {
-                "$ref": "#/$defs/BlobPart"
-              },
-              {
-                "$ref": "#/$defs/FilePart"
-              }
+              { "$ref": "#/$defs/BinaryDataPart" },
+              { "$ref": "#/$defs/BlobPart" },
+              { "$ref": "#/$defs/CompactionPart" },
+              { "$ref": "#/$defs/FilePart" },
+              { "$ref": "#/$defs/MediaUrlPart" },
+              { "$ref": "#/$defs/TextPart" },
+              { "$ref": "#/$defs/ThinkingPart" },
+              { "$ref": "#/$defs/ToolCallRequestPart" },
+              { "$ref": "#/$defs/ToolCallResponsePart" }
             ]
           }
         },
@@ -2171,9 +1702,7 @@
         "next": {},
         "records": {
           "type": "array",
-          "items": {
-            "$ref": "#/$defs/AnnotationMember"
-          }
+          "items": { "$ref": "#/$defs/AnnotationMember" }
         },
         "total_count": {}
       },
@@ -2186,9 +1715,7 @@
         "next": {},
         "records": {
           "type": "array",
-          "items": {
-            "$ref": "#/$defs/AnnotationState"
-          }
+          "items": { "$ref": "#/$defs/AnnotationState" }
         },
         "total_count": {}
       },
@@ -2201,9 +1728,7 @@
         "next": {},
         "records": {
           "type": "array",
-          "items": {
-            "$ref": "#/$defs/AppConnection"
-          }
+          "items": { "$ref": "#/$defs/AppConnection" }
         },
         "total_count": {}
       },
@@ -2216,9 +1741,7 @@
         "next": {},
         "records": {
           "type": "array",
-          "items": {
-            "$ref": "#/$defs/Application"
-          }
+          "items": { "$ref": "#/$defs/Application" }
         },
         "total_count": {}
       },
@@ -2231,9 +1754,7 @@
         "next": {},
         "records": {
           "type": "array",
-          "items": {
-            "$ref": "#/$defs/ApplicationIdp"
-          }
+          "items": { "$ref": "#/$defs/ApplicationIdp" }
         },
         "total_count": {}
       },
@@ -2246,9 +1767,7 @@
         "next": {},
         "records": {
           "type": "array",
-          "items": {
-            "$ref": "#/$defs/ApplicationSecret"
-          }
+          "items": { "$ref": "#/$defs/ApplicationSecret" }
         },
         "total_count": {}
       },
@@ -2259,12 +1778,7 @@
       "properties": {
         "count": {},
         "next": {},
-        "records": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/Approval"
-          }
-        },
+        "records": { "type": "array", "items": { "$ref": "#/$defs/Approval" } },
         "total_count": {}
       },
       "additionalProperties": false
@@ -2276,9 +1790,7 @@
         "next": {},
         "records": {
           "type": "array",
-          "items": {
-            "$ref": "#/$defs/Automation"
-          }
+          "items": { "$ref": "#/$defs/Automation" }
         },
         "total_count": {}
       },
@@ -2291,9 +1803,7 @@
         "next": {},
         "records": {
           "type": "array",
-          "items": {
-            "$ref": "#/$defs/Connection"
-          }
+          "items": { "$ref": "#/$defs/Connection" }
         },
         "total_count": {}
       },
@@ -2306,9 +1816,7 @@
         "next": {},
         "records": {
           "type": "array",
-          "items": {
-            "$ref": "#/$defs/Connector"
-          }
+          "items": { "$ref": "#/$defs/Connector" }
         },
         "total_count": {}
       },
@@ -2321,9 +1829,7 @@
         "next": {},
         "records": {
           "type": "array",
-          "items": {
-            "$ref": "#/$defs/Conversation"
-          }
+          "items": { "$ref": "#/$defs/Conversation" }
         },
         "total_count": {}
       },
@@ -2336,9 +1842,7 @@
         "next": {},
         "records": {
           "type": "array",
-          "items": {
-            "$ref": "#/$defs/Credential"
-          }
+          "items": { "$ref": "#/$defs/Credential" }
         },
         "total_count": {}
       },
@@ -2349,12 +1853,7 @@
       "properties": {
         "count": {},
         "next": {},
-        "records": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/Endpoint"
-          }
-        },
+        "records": { "type": "array", "items": { "$ref": "#/$defs/Endpoint" } },
         "total_count": {}
       },
       "additionalProperties": false
@@ -2368,36 +1867,16 @@
           "type": "array",
           "items": {
             "anyOf": [
-              {
-                "$ref": "#/$defs/AnnotationEvent"
-              },
-              {
-                "$ref": "#/$defs/ObservationEvent"
-              },
-              {
-                "$ref": "#/$defs/PatternEvent"
-              },
-              {
-                "$ref": "#/$defs/PatternAssignmentEvent"
-              },
-              {
-                "$ref": "#/$defs/ClusteringRunEvent"
-              },
-              {
-                "$ref": "#/$defs/FeedbackEvent"
-              },
-              {
-                "$ref": "#/$defs/JudgementEvent"
-              },
-              {
-                "$ref": "#/$defs/AutomationTriggeredEvent"
-              },
-              {
-                "$ref": "#/$defs/AutomationSkippedEvent"
-              },
-              {
-                "$ref": "#/$defs/UnknownEvent"
-              }
+              { "$ref": "#/$defs/AnnotationEvent" },
+              { "$ref": "#/$defs/AutomationSkippedEvent" },
+              { "$ref": "#/$defs/AutomationTriggeredEvent" },
+              { "$ref": "#/$defs/ClusteringRunEvent" },
+              { "$ref": "#/$defs/FeedbackEvent" },
+              { "$ref": "#/$defs/JudgementEvent" },
+              { "$ref": "#/$defs/ObservationEvent" },
+              { "$ref": "#/$defs/PatternAssignmentEvent" },
+              { "$ref": "#/$defs/PatternEvent" },
+              { "$ref": "#/$defs/UnknownEvent" }
             ]
           }
         },
@@ -2412,9 +1891,7 @@
         "next": {},
         "records": {
           "type": "array",
-          "items": {
-            "$ref": "#/$defs/Experiment"
-          }
+          "items": { "$ref": "#/$defs/Experiment" }
         },
         "total_count": {}
       },
@@ -2425,12 +1902,7 @@
       "properties": {
         "count": {},
         "next": {},
-        "records": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/File"
-          }
-        },
+        "records": { "type": "array", "items": { "$ref": "#/$defs/File" } },
         "total_count": {}
       },
       "additionalProperties": false
@@ -2440,12 +1912,7 @@
       "properties": {
         "count": {},
         "next": {},
-        "records": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/Image"
-          }
-        },
+        "records": { "type": "array", "items": { "$ref": "#/$defs/Image" } },
         "total_count": {}
       },
       "additionalProperties": false
@@ -2457,9 +1924,7 @@
         "next": {},
         "records": {
           "type": "array",
-          "items": {
-            "$ref": "#/$defs/Integration"
-          }
+          "items": { "$ref": "#/$defs/Integration" }
         },
         "total_count": {}
       },
@@ -2470,12 +1935,7 @@
       "properties": {
         "count": {},
         "next": {},
-        "records": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/Issue"
-          }
-        },
+        "records": { "type": "array", "items": { "$ref": "#/$defs/Issue" } },
         "total_count": {}
       },
       "additionalProperties": false
@@ -2485,12 +1945,7 @@
       "properties": {
         "count": {},
         "next": {},
-        "records": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/Judge"
-          }
-        },
+        "records": { "type": "array", "items": { "$ref": "#/$defs/Judge" } },
         "total_count": {}
       },
       "additionalProperties": false
@@ -2500,12 +1955,7 @@
       "properties": {
         "count": {},
         "next": {},
-        "records": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/Member"
-          }
-        },
+        "records": { "type": "array", "items": { "$ref": "#/$defs/Member" } },
         "total_count": {}
       },
       "additionalProperties": false
@@ -2515,12 +1965,7 @@
       "properties": {
         "count": {},
         "next": {},
-        "records": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/Mission"
-          }
-        },
+        "records": { "type": "array", "items": { "$ref": "#/$defs/Mission" } },
         "total_count": {}
       },
       "additionalProperties": false
@@ -2530,12 +1975,7 @@
       "properties": {
         "count": {},
         "next": {},
-        "records": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/Project"
-          }
-        },
+        "records": { "type": "array", "items": { "$ref": "#/$defs/Project" } },
         "total_count": {}
       },
       "additionalProperties": false
@@ -2545,12 +1985,7 @@
       "properties": {
         "count": {},
         "next": {},
-        "records": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/Recipe"
-          }
-        },
+        "records": { "type": "array", "items": { "$ref": "#/$defs/Recipe" } },
         "total_count": {}
       },
       "additionalProperties": false
@@ -2562,9 +1997,7 @@
         "next": {},
         "records": {
           "type": "array",
-          "items": {
-            "$ref": "#/$defs/RepositoryBranch"
-          }
+          "items": { "$ref": "#/$defs/RepositoryBranch" }
         },
         "total_count": {}
       },
@@ -2577,9 +2010,7 @@
         "next": {},
         "records": {
           "type": "array",
-          "items": {
-            "$ref": "#/$defs/ResourceShare"
-          }
+          "items": { "$ref": "#/$defs/ResourceShare" }
         },
         "total_count": {}
       },
@@ -2590,12 +2021,7 @@
       "properties": {
         "count": {},
         "next": {},
-        "records": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/Runtime"
-          }
-        },
+        "records": { "type": "array", "items": { "$ref": "#/$defs/Runtime" } },
         "total_count": {}
       },
       "additionalProperties": false
@@ -2607,9 +2033,7 @@
         "next": {},
         "records": {
           "type": "array",
-          "items": {
-            "$ref": "#/$defs/RuntimePeering"
-          }
+          "items": { "$ref": "#/$defs/RuntimePeering" }
         },
         "total_count": {}
       },
@@ -2620,12 +2044,7 @@
       "properties": {
         "count": {},
         "next": {},
-        "records": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/Tag"
-          }
-        },
+        "records": { "type": "array", "items": { "$ref": "#/$defs/Tag" } },
         "total_count": {}
       },
       "additionalProperties": false
@@ -2635,12 +2054,7 @@
       "properties": {
         "count": {},
         "next": {},
-        "records": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/Task"
-          }
-        },
+        "records": { "type": "array", "items": { "$ref": "#/$defs/Task" } },
         "total_count": {}
       },
       "additionalProperties": false
@@ -2652,9 +2066,7 @@
         "next": {},
         "records": {
           "type": "array",
-          "items": {
-            "$ref": "#/$defs/TaskCommand"
-          }
+          "items": { "$ref": "#/$defs/TaskCommand" }
         },
         "total_count": {}
       },
@@ -2665,12 +2077,7 @@
       "properties": {
         "count": {},
         "next": {},
-        "records": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/Variable"
-          }
-        },
+        "records": { "type": "array", "items": { "$ref": "#/$defs/Variable" } },
         "total_count": {}
       },
       "additionalProperties": false
@@ -2680,14 +2087,10 @@
       "properties": {
         "conversation_id": {},
         "environment": {},
-        "event_name": {
-          "const": "introspection.pattern.assignment"
-        },
+        "event_name": { "const": "introspection.pattern.assignment" },
         "experiment_id": {},
         "id": {},
-        "payload": {
-          "$ref": "#/$defs/PatternAssignmentPayload"
-        },
+        "payload": { "$ref": "#/$defs/PatternAssignmentPayload" },
         "recipe_git_commit_sha": {},
         "runtime_group_id": {},
         "runtime_id": {},
@@ -2714,14 +2117,10 @@
       "properties": {
         "conversation_id": {},
         "environment": {},
-        "event_name": {
-          "const": "introspection.pattern"
-        },
+        "event_name": { "const": "introspection.pattern" },
         "experiment_id": {},
         "id": {},
-        "payload": {
-          "$ref": "#/$defs/PatternPayload"
-        },
+        "payload": { "$ref": "#/$defs/PatternPayload" },
         "recipe_git_commit_sha": {},
         "runtime_group_id": {},
         "runtime_id": {},
@@ -2758,13 +2157,9 @@
         "attrs": {},
         "parents": {
           "type": "array",
-          "items": {
-            "$ref": "#/$defs/EntityUid"
-          }
+          "items": { "$ref": "#/$defs/EntityUid" }
         },
-        "uid": {
-          "$ref": "#/$defs/EntityUid"
-        }
+        "uid": { "$ref": "#/$defs/EntityUid" }
       },
       "additionalProperties": false
     },
@@ -2792,9 +2187,7 @@
         "git_commit_subject": {},
         "git_ref": {},
         "id": {},
-        "mcp_servers": {
-          "type": "array"
-        },
+        "mcp_servers": { "type": "array" },
         "name": {},
         "org_id": {},
         "policies": {},
@@ -2803,9 +2196,7 @@
         "slug": {},
         "sub_path": {},
         "updated_at": {},
-        "validation": {
-          "$ref": "#/$defs/RecipeValidation"
-        }
+        "validation": { "$ref": "#/$defs/RecipeValidation" }
       },
       "additionalProperties": false
     },
@@ -2815,9 +2206,7 @@
         "checked_at": {},
         "diagnostics": {
           "type": "array",
-          "items": {
-            "$ref": "#/$defs/RecipeValidationDiagnostic"
-          }
+          "items": { "$ref": "#/$defs/RecipeValidationDiagnostic" }
         },
         "error_message": {},
         "status": {},
@@ -2841,17 +2230,11 @@
     "RemotesConnectDocs": {
       "type": "object",
       "properties": {
-        "authentication": {
-          "$ref": "#/$defs/WsAuthenticationDocs"
-        },
+        "authentication": { "$ref": "#/$defs/WsAuthenticationDocs" },
         "encoding": {},
         "endpoint": {},
-        "handshake": {
-          "type": "array"
-        },
-        "message_protocol": {
-          "$ref": "#/$defs/WsMessageProtocolDocs"
-        },
+        "handshake": { "type": "array" },
+        "message_protocol": { "$ref": "#/$defs/WsMessageProtocolDocs" },
         "protocol": {},
         "schema_version": {}
       },
@@ -2889,26 +2272,16 @@
     },
     "RepositoryBranch": {
       "type": "object",
-      "properties": {
-        "committed_at": {},
-        "name": {},
-        "sha": {}
-      },
+      "properties": { "committed_at": {}, "name": {}, "sha": {} },
       "additionalProperties": false
     },
     "RepositoryCommit": {
       "type": "object",
       "properties": {
-        "author": {
-          "$ref": "#/$defs/RepositoryCommitPerson"
-        },
-        "committer": {
-          "$ref": "#/$defs/RepositoryCommitPerson"
-        },
+        "author": { "$ref": "#/$defs/RepositoryCommitPerson" },
+        "committer": { "$ref": "#/$defs/RepositoryCommitPerson" },
         "message": {},
-        "parents": {
-          "type": "array"
-        },
+        "parents": { "type": "array" },
         "sha": {}
       },
       "additionalProperties": false
@@ -2916,22 +2289,14 @@
     "RepositoryCommitDetail": {
       "type": "object",
       "properties": {
-        "author": {
-          "$ref": "#/$defs/RepositoryCommitPerson"
-        },
-        "committer": {
-          "$ref": "#/$defs/RepositoryCommitPerson"
-        },
+        "author": { "$ref": "#/$defs/RepositoryCommitPerson" },
+        "committer": { "$ref": "#/$defs/RepositoryCommitPerson" },
         "files": {
           "type": "array",
-          "items": {
-            "$ref": "#/$defs/RepositoryCommitFile"
-          }
+          "items": { "$ref": "#/$defs/RepositoryCommitFile" }
         },
         "message": {},
-        "parents": {
-          "type": "array"
-        },
+        "parents": { "type": "array" },
         "patch": {},
         "sha": {}
       },
@@ -2955,9 +2320,7 @@
         "next": {},
         "records": {
           "type": "array",
-          "items": {
-            "$ref": "#/$defs/RepositoryCommit"
-          }
+          "items": { "$ref": "#/$defs/RepositoryCommit" }
         },
         "total_count": {}
       },
@@ -2965,11 +2328,7 @@
     },
     "RepositoryCommitPerson": {
       "type": "object",
-      "properties": {
-        "date": {},
-        "email": {},
-        "name": {}
-      },
+      "properties": { "date": {}, "email": {}, "name": {} },
       "additionalProperties": false
     },
     "RepositoryDirectory": {
@@ -2981,13 +2340,9 @@
         "path": {},
         "records": {
           "type": "array",
-          "items": {
-            "$ref": "#/$defs/RepositoryEntry"
-          }
+          "items": { "$ref": "#/$defs/RepositoryEntry" }
         },
-        "type": {
-          "const": "dir"
-        }
+        "type": { "const": "dir" }
       },
       "additionalProperties": false
     },
@@ -3013,9 +2368,7 @@
         "sha": {},
         "size": {},
         "truncated": {},
-        "type": {
-          "const": "file"
-        }
+        "type": { "const": "file" }
       },
       "additionalProperties": false
     },
@@ -3025,9 +2378,7 @@
         "base": {},
         "head": {},
         "head_sha": {},
-        "parents": {
-          "type": "array"
-        },
+        "parents": { "type": "array" },
         "sha": {}
       },
       "additionalProperties": false
@@ -3054,23 +2405,16 @@
       "type": "object",
       "properties": {
         "ip": {},
-        "library": {
-          "$ref": "#/$defs/RunCallerLibrary"
-        },
+        "library": { "$ref": "#/$defs/RunCallerLibrary" },
         "locale": {},
-        "page": {
-          "$ref": "#/$defs/RunCallerPage"
-        },
+        "page": { "$ref": "#/$defs/RunCallerPage" },
         "user_agent": {}
       },
       "additionalProperties": false
     },
     "RunCallerLibrary": {
       "type": "object",
-      "properties": {
-        "name": {},
-        "version": {}
-      },
+      "properties": { "name": {}, "version": {} },
       "additionalProperties": false
     },
     "RunCallerPage": {
@@ -3089,16 +2433,10 @@
       "properties": {
         "agent_name": {},
         "arm_label": {},
-        "caller": {
-          "$ref": "#/$defs/RunCaller"
-        },
+        "caller": { "$ref": "#/$defs/RunCaller" },
         "experiment_id": {},
-        "identity": {
-          "$ref": "#/$defs/RunnerIdentity"
-        },
-        "recipe": {
-          "$ref": "#/$defs/RunnerRecipeSummary"
-        },
+        "identity": { "$ref": "#/$defs/RunnerIdentity" },
+        "recipe": { "$ref": "#/$defs/RunnerRecipeSummary" },
         "recipe_git_commit_sha": {},
         "recipe_git_ref": {},
         "recipe_id": {},
@@ -3110,11 +2448,7 @@
     },
     "RunnerDeployment": {
       "type": "object",
-      "properties": {
-        "endpoint": {},
-        "region": {},
-        "slug": {}
-      },
+      "properties": { "endpoint": {}, "region": {}, "slug": {} },
       "additionalProperties": false
     },
     "RunnerIdentity": {
@@ -3123,9 +2457,7 @@
         "anonymous_id": {},
         "conversation_id": {},
         "metadata": {},
-        "tags": {
-          "type": "array"
-        },
+        "tags": { "type": "array" },
         "user_id": {}
       },
       "additionalProperties": false
@@ -3142,13 +2474,9 @@
     "RunnerSpec": {
       "type": "object",
       "properties": {
-        "deployment": {
-          "$ref": "#/$defs/RunnerDeployment"
-        },
+        "deployment": { "$ref": "#/$defs/RunnerDeployment" },
         "expires_at": {},
-        "runtime_context": {
-          "$ref": "#/$defs/RunnerContext"
-        },
+        "runtime_context": { "$ref": "#/$defs/RunnerContext" },
         "session_id": {},
         "session_token": {}
       },
@@ -3162,9 +2490,7 @@
         "created_by_member_id": {},
         "description": {},
         "environment_ref": {},
-        "environments": {
-          "type": "array"
-        },
+        "environments": { "type": "array" },
         "id": {},
         "image_build_error_message": {},
         "image_build_metadata": {},
@@ -3178,9 +2504,7 @@
         "llm_mode": {},
         "mcp_requirements": {
           "type": "array",
-          "items": {
-            "$ref": "#/$defs/RuntimeMcpRequirement"
-          }
+          "items": { "$ref": "#/$defs/RuntimeMcpRequirement" }
         },
         "metadata": {},
         "name": {},
@@ -3234,48 +2558,29 @@
     "SpanAttributes": {
       "type": "object",
       "properties": {
-        "gen_ai": {
-          "$ref": "#/$defs/GenAiSpanAttributes"
-        },
-        "introspection": {
-          "$ref": "#/$defs/IntrospectionSpanAttributes"
-        }
+        "gen_ai": { "$ref": "#/$defs/GenAiSpanAttributes" },
+        "introspection": { "$ref": "#/$defs/IntrospectionSpanAttributes" }
       },
       "additionalProperties": true
     },
     "SpanEvent": {
       "type": "object",
-      "properties": {
-        "attributes": {},
-        "name": {},
-        "timestamp": {}
-      },
+      "properties": { "attributes": {}, "name": {}, "timestamp": {} },
       "additionalProperties": false
     },
     "SpanResource": {
       "type": "object",
-      "properties": {
-        "service": {
-          "$ref": "#/$defs/SpanResourceService"
-        }
-      },
+      "properties": { "service": { "$ref": "#/$defs/SpanResourceService" } },
       "additionalProperties": true
     },
     "SpanResourceService": {
       "type": "object",
-      "properties": {
-        "name": {}
-      },
+      "properties": { "name": {} },
       "additionalProperties": true
     },
     "SystemInstruction": {
       "type": "object",
-      "properties": {
-        "content": {},
-        "type": {
-          "const": "text"
-        }
-      },
+      "properties": { "content": {}, "type": { "const": "text" } },
       "additionalProperties": true
     },
     "Tag": {
@@ -3293,9 +2598,7 @@
     "Task": {
       "type": "object",
       "properties": {
-        "agent": {
-          "$ref": "#/$defs/AgentInfo"
-        },
+        "agent": { "$ref": "#/$defs/AgentInfo" },
         "automation_id": {},
         "completed_at": {},
         "conversation_metadata": {},
@@ -3313,9 +2616,7 @@
         "runtime_id": {},
         "started_at": {},
         "status": {},
-        "tags": {
-          "type": "array"
-        },
+        "tags": { "type": "array" },
         "title": {},
         "updated_at": {}
       },
@@ -3323,9 +2624,7 @@
     },
     "TaskCancelResponse": {
       "type": "object",
-      "properties": {
-        "id": {}
-      },
+      "properties": { "id": {} },
       "additionalProperties": false
     },
     "TaskCommand": {
@@ -3351,22 +2650,14 @@
     "TaskCreateResponse": {
       "type": "object",
       "properties": {
-        "run": {
-          "$ref": "#/$defs/TaskRun"
-        },
-        "task": {
-          "$ref": "#/$defs/Task"
-        }
+        "run": { "$ref": "#/$defs/TaskRun" },
+        "task": { "$ref": "#/$defs/Task" }
       },
       "additionalProperties": false
     },
     "TaskRepoRequest": {
       "type": "object",
-      "properties": {
-        "depth": {},
-        "ref": {},
-        "repo": {}
-      },
+      "properties": { "depth": {}, "ref": {}, "repo": {} },
       "additionalProperties": false
     },
     "TaskRun": {
@@ -3384,11 +2675,7 @@
     },
     "TaskRunResponse": {
       "type": "object",
-      "properties": {
-        "run": {
-          "$ref": "#/$defs/TaskRun"
-        }
-      },
+      "properties": { "run": { "$ref": "#/$defs/TaskRun" } },
       "additionalProperties": false
     },
     "TelemetryGoalComponent": {
@@ -3396,12 +2683,8 @@
       "properties": {
         "aggregation": {},
         "column": {},
-        "guard": {
-          "$ref": "#/$defs/ExperimentGoalGuard"
-        },
-        "source": {
-          "const": "telemetry"
-        },
+        "guard": { "$ref": "#/$defs/ExperimentGoalGuard" },
+        "source": { "const": "telemetry" },
         "weight": {}
       },
       "additionalProperties": false
@@ -3411,9 +2694,7 @@
       "properties": {
         "content": {},
         "text_signature": {},
-        "type": {
-          "const": "text"
-        }
+        "type": { "const": "text" }
       },
       "additionalProperties": true
     },
@@ -3430,9 +2711,7 @@
     },
     "TokenCount": {
       "type": "object",
-      "properties": {
-        "input_tokens": {}
-      },
+      "properties": { "input_tokens": {} },
       "additionalProperties": true
     },
     "ToolCallRequestPart": {
@@ -3441,9 +2720,7 @@
         "arguments": {},
         "id": {},
         "name": {},
-        "type": {
-          "const": "tool_call"
-        }
+        "type": { "const": "tool_call" }
       },
       "additionalProperties": true
     },
@@ -3453,9 +2730,7 @@
         "id": {},
         "name": {},
         "response": {},
-        "type": {
-          "const": "tool_call_response"
-        }
+        "type": { "const": "tool_call_response" }
       },
       "additionalProperties": true
     },
@@ -3473,15 +2748,11 @@
       "type": "object",
       "properties": {
         "content": {},
-        "role": {
-          "const": "assistant"
-        },
+        "role": { "const": "assistant" },
         "timestamp": {},
         "tool_calls": {
           "type": "array",
-          "items": {
-            "$ref": "#/$defs/TrajectoryToolCall"
-          }
+          "items": { "$ref": "#/$defs/TrajectoryToolCall" }
         }
       },
       "additionalProperties": false
@@ -3492,9 +2763,7 @@
         "cwd": {},
         "git_branch": {},
         "model": {},
-        "role": {
-          "const": "meta"
-        },
+        "role": { "const": "meta" },
         "source": {}
       },
       "additionalProperties": false
@@ -3503,20 +2772,14 @@
       "type": "object",
       "properties": {
         "content": {},
-        "role": {
-          "const": "reasoning"
-        },
+        "role": { "const": "reasoning" },
         "timestamp": {}
       },
       "additionalProperties": false
     },
     "TrajectoryToolCall": {
       "type": "object",
-      "properties": {
-        "args": {},
-        "id": {},
-        "name": {}
-      },
+      "properties": { "args": {}, "id": {}, "name": {} },
       "additionalProperties": false
     },
     "TrajectoryToolRecord": {
@@ -3524,9 +2787,7 @@
       "properties": {
         "content": {},
         "ok": {},
-        "role": {
-          "const": "tool"
-        },
+        "role": { "const": "tool" },
         "timestamp": {},
         "tool_call_id": {}
       },
@@ -3536,9 +2797,7 @@
       "type": "object",
       "properties": {
         "content": {},
-        "role": {
-          "const": "user"
-        },
+        "role": { "const": "user" },
         "timestamp": {}
       },
       "additionalProperties": false
@@ -3582,19 +2841,12 @@
     },
     "WsAuthenticationDocs": {
       "type": "object",
-      "properties": {
-        "description": {},
-        "example": {},
-        "method": {}
-      },
+      "properties": { "description": {}, "example": {}, "method": {} },
       "additionalProperties": false
     },
     "WsFrameDocs": {
       "type": "object",
-      "properties": {
-        "description": {},
-        "frame": {}
-      },
+      "properties": { "description": {}, "frame": {} },
       "additionalProperties": false
     },
     "WsMessageProtocolDocs": {
@@ -3602,15 +2854,11 @@
       "properties": {
         "cloud_to_remote": {
           "type": "array",
-          "items": {
-            "$ref": "#/$defs/WsFrameDocs"
-          }
+          "items": { "$ref": "#/$defs/WsFrameDocs" }
         },
         "remote_to_cloud": {
           "type": "array",
-          "items": {
-            "$ref": "#/$defs/WsFrameDocs"
-          }
+          "items": { "$ref": "#/$defs/WsFrameDocs" }
         }
       },
       "additionalProperties": false
@@ -3619,383 +2867,175 @@
   "keys": {
     "AnnotationFacet[]": {
       "type": "array",
-      "items": {
-        "$ref": "#/$defs/AnnotationFacet"
-      }
+      "items": { "$ref": "#/$defs/AnnotationFacet" }
     },
-    "AnnotationNavigation": {
-      "$ref": "#/$defs/AnnotationNavigation"
-    },
-    "ApiKey": {
-      "$ref": "#/$defs/ApiKey"
-    },
-    "ApiKeyAcknowledgement": {
-      "$ref": "#/$defs/ApiKeyAcknowledgement"
-    },
-    "ApiKeyCreated": {
-      "$ref": "#/$defs/ApiKeyCreated"
-    },
-    "AppConnection": {
-      "$ref": "#/$defs/AppConnection"
-    },
-    "Application": {
-      "$ref": "#/$defs/Application"
-    },
-    "ApplicationIdp": {
-      "$ref": "#/$defs/ApplicationIdp"
-    },
-    "ApplicationKey": {
-      "$ref": "#/$defs/ApplicationKey"
-    },
+    "AnnotationNavigation": { "$ref": "#/$defs/AnnotationNavigation" },
+    "ApiKey": { "$ref": "#/$defs/ApiKey" },
+    "ApiKeyAcknowledgement": { "$ref": "#/$defs/ApiKeyAcknowledgement" },
+    "ApiKeyCreated": { "$ref": "#/$defs/ApiKeyCreated" },
+    "AppConnection": { "$ref": "#/$defs/AppConnection" },
+    "Application": { "$ref": "#/$defs/Application" },
+    "ApplicationIdp": { "$ref": "#/$defs/ApplicationIdp" },
+    "ApplicationKey": { "$ref": "#/$defs/ApplicationKey" },
     "ApplicationKey[]": {
       "type": "array",
-      "items": {
-        "$ref": "#/$defs/ApplicationKey"
-      }
+      "items": { "$ref": "#/$defs/ApplicationKey" }
     },
-    "ApplicationSecret": {
-      "$ref": "#/$defs/ApplicationSecret"
-    },
-    "Approval": {
-      "$ref": "#/$defs/Approval"
-    },
-    "Automation": {
-      "$ref": "#/$defs/Automation"
-    },
+    "ApplicationSecret": { "$ref": "#/$defs/ApplicationSecret" },
+    "Approval": { "$ref": "#/$defs/Approval" },
+    "Automation": { "$ref": "#/$defs/Automation" },
     "AutomationTriggerResponse": {
       "$ref": "#/$defs/AutomationTriggerResponse"
     },
-    "ConnectPage": {
-      "$ref": "#/$defs/ConnectPage"
-    },
-    "Connection": {
-      "$ref": "#/$defs/Connection"
-    },
+    "ConnectPage": { "$ref": "#/$defs/ConnectPage" },
+    "Connection": { "$ref": "#/$defs/Connection" },
     "ConnectionTokenResult": {
       "anyOf": [
-        {
-          "$ref": "#/$defs/ConnectionToken"
-        },
-        {
-          "$ref": "#/$defs/ConnectionAuthorizationPending"
-        }
+        { "$ref": "#/$defs/ConnectionAuthorizationPending" },
+        { "$ref": "#/$defs/ConnectionToken" }
       ]
     },
-    "Connector": {
-      "$ref": "#/$defs/Connector"
-    },
+    "Connector": { "$ref": "#/$defs/Connector" },
     "ConnectorAuthorizeResponse": {
       "$ref": "#/$defs/ConnectorAuthorizeResponse"
     },
     "ConnectorOAuthDiscoveryResponse": {
       "$ref": "#/$defs/ConnectorOAuthDiscoveryResponse"
     },
-    "Conversation": {
-      "$ref": "#/$defs/Conversation"
-    },
-    "Credential": {
-      "$ref": "#/$defs/Credential"
-    },
-    "DataPlaneToken": {
-      "$ref": "#/$defs/DataPlaneToken"
-    },
-    "Endpoint": {
-      "$ref": "#/$defs/Endpoint"
-    },
+    "Conversation": { "$ref": "#/$defs/Conversation" },
+    "Credential": { "$ref": "#/$defs/Credential" },
+    "DataPlaneToken": { "$ref": "#/$defs/DataPlaneToken" },
+    "Endpoint": { "$ref": "#/$defs/Endpoint" },
     "Event | UnknownEvent": {
       "anyOf": [
-        {
-          "$ref": "#/$defs/AnnotationEvent"
-        },
-        {
-          "$ref": "#/$defs/ObservationEvent"
-        },
-        {
-          "$ref": "#/$defs/PatternEvent"
-        },
-        {
-          "$ref": "#/$defs/PatternAssignmentEvent"
-        },
-        {
-          "$ref": "#/$defs/ClusteringRunEvent"
-        },
-        {
-          "$ref": "#/$defs/FeedbackEvent"
-        },
-        {
-          "$ref": "#/$defs/JudgementEvent"
-        },
-        {
-          "$ref": "#/$defs/AutomationTriggeredEvent"
-        },
-        {
-          "$ref": "#/$defs/AutomationSkippedEvent"
-        },
-        {
-          "$ref": "#/$defs/UnknownEvent"
-        }
+        { "$ref": "#/$defs/AnnotationEvent" },
+        { "$ref": "#/$defs/AutomationSkippedEvent" },
+        { "$ref": "#/$defs/AutomationTriggeredEvent" },
+        { "$ref": "#/$defs/ClusteringRunEvent" },
+        { "$ref": "#/$defs/FeedbackEvent" },
+        { "$ref": "#/$defs/JudgementEvent" },
+        { "$ref": "#/$defs/ObservationEvent" },
+        { "$ref": "#/$defs/PatternAssignmentEvent" },
+        { "$ref": "#/$defs/PatternEvent" },
+        { "$ref": "#/$defs/UnknownEvent" }
       ]
     },
-    "Experiment": {
-      "$ref": "#/$defs/Experiment"
-    },
-    "File": {
-      "$ref": "#/$defs/File"
-    },
-    "GenAiSpan": {
-      "$ref": "#/$defs/GenAiSpan"
-    },
-    "GenAiSpanList": {
-      "$ref": "#/$defs/GenAiSpanList"
-    },
+    "Experiment": { "$ref": "#/$defs/Experiment" },
+    "File": { "$ref": "#/$defs/File" },
+    "GenAiSpan": { "$ref": "#/$defs/GenAiSpan" },
+    "GenAiSpanList": { "$ref": "#/$defs/GenAiSpanList" },
     "GithubInstallationRepositories": {
       "$ref": "#/$defs/GithubInstallationRepositories"
     },
-    "Image": {
-      "$ref": "#/$defs/Image"
-    },
-    "Integration": {
-      "$ref": "#/$defs/Integration"
-    },
-    "IntegrationAccessToken": {
-      "$ref": "#/$defs/IntegrationAccessToken"
-    },
-    "Issue": {
-      "$ref": "#/$defs/Issue"
-    },
-    "Judge": {
-      "$ref": "#/$defs/Judge"
-    },
-    "Member": {
-      "$ref": "#/$defs/Member"
-    },
-    "MetricQueryResponse": {
-      "$ref": "#/$defs/MetricQueryResponse"
-    },
-    "Mission": {
-      "$ref": "#/$defs/Mission"
-    },
-    "OidcMe": {
-      "$ref": "#/$defs/OidcMe"
-    },
-    "Organization": {
-      "$ref": "#/$defs/Organization"
-    },
+    "Image": { "$ref": "#/$defs/Image" },
+    "Integration": { "$ref": "#/$defs/Integration" },
+    "IntegrationAccessToken": { "$ref": "#/$defs/IntegrationAccessToken" },
+    "Issue": { "$ref": "#/$defs/Issue" },
+    "Judge": { "$ref": "#/$defs/Judge" },
+    "Member": { "$ref": "#/$defs/Member" },
+    "MetricQueryResponse": { "$ref": "#/$defs/MetricQueryResponse" },
+    "Mission": { "$ref": "#/$defs/Mission" },
+    "OidcMe": { "$ref": "#/$defs/OidcMe" },
+    "Organization": { "$ref": "#/$defs/Organization" },
     "Paginated<AnnotationMember>": {
       "$ref": "#/$defs/Paginated<AnnotationMember>"
     },
     "Paginated<AnnotationState>": {
       "$ref": "#/$defs/Paginated<AnnotationState>"
     },
-    "Paginated<AppConnection>": {
-      "$ref": "#/$defs/Paginated<AppConnection>"
-    },
-    "Paginated<Application>": {
-      "$ref": "#/$defs/Paginated<Application>"
-    },
+    "Paginated<AppConnection>": { "$ref": "#/$defs/Paginated<AppConnection>" },
+    "Paginated<Application>": { "$ref": "#/$defs/Paginated<Application>" },
     "Paginated<ApplicationIdp>": {
       "$ref": "#/$defs/Paginated<ApplicationIdp>"
     },
     "Paginated<ApplicationSecret>": {
       "$ref": "#/$defs/Paginated<ApplicationSecret>"
     },
-    "Paginated<Approval>": {
-      "$ref": "#/$defs/Paginated<Approval>"
-    },
-    "Paginated<Automation>": {
-      "$ref": "#/$defs/Paginated<Automation>"
-    },
-    "Paginated<Connection>": {
-      "$ref": "#/$defs/Paginated<Connection>"
-    },
-    "Paginated<Connector>": {
-      "$ref": "#/$defs/Paginated<Connector>"
-    },
-    "Paginated<Conversation>": {
-      "$ref": "#/$defs/Paginated<Conversation>"
-    },
-    "Paginated<Credential>": {
-      "$ref": "#/$defs/Paginated<Credential>"
-    },
-    "Paginated<Endpoint>": {
-      "$ref": "#/$defs/Paginated<Endpoint>"
-    },
+    "Paginated<Approval>": { "$ref": "#/$defs/Paginated<Approval>" },
+    "Paginated<Automation>": { "$ref": "#/$defs/Paginated<Automation>" },
+    "Paginated<Connection>": { "$ref": "#/$defs/Paginated<Connection>" },
+    "Paginated<Connector>": { "$ref": "#/$defs/Paginated<Connector>" },
+    "Paginated<Conversation>": { "$ref": "#/$defs/Paginated<Conversation>" },
+    "Paginated<Credential>": { "$ref": "#/$defs/Paginated<Credential>" },
+    "Paginated<Endpoint>": { "$ref": "#/$defs/Paginated<Endpoint>" },
     "Paginated<Event | UnknownEvent>": {
       "$ref": "#/$defs/Paginated<Event | UnknownEvent>"
     },
-    "Paginated<Experiment>": {
-      "$ref": "#/$defs/Paginated<Experiment>"
-    },
-    "Paginated<File>": {
-      "$ref": "#/$defs/Paginated<File>"
-    },
-    "Paginated<Image>": {
-      "$ref": "#/$defs/Paginated<Image>"
-    },
-    "Paginated<Integration>": {
-      "$ref": "#/$defs/Paginated<Integration>"
-    },
-    "Paginated<Issue>": {
-      "$ref": "#/$defs/Paginated<Issue>"
-    },
-    "Paginated<Judge>": {
-      "$ref": "#/$defs/Paginated<Judge>"
-    },
-    "Paginated<Member>": {
-      "$ref": "#/$defs/Paginated<Member>"
-    },
-    "Paginated<Mission>": {
-      "$ref": "#/$defs/Paginated<Mission>"
-    },
-    "Paginated<Project>": {
-      "$ref": "#/$defs/Paginated<Project>"
-    },
-    "Paginated<Recipe>": {
-      "$ref": "#/$defs/Paginated<Recipe>"
-    },
+    "Paginated<Experiment>": { "$ref": "#/$defs/Paginated<Experiment>" },
+    "Paginated<File>": { "$ref": "#/$defs/Paginated<File>" },
+    "Paginated<Image>": { "$ref": "#/$defs/Paginated<Image>" },
+    "Paginated<Integration>": { "$ref": "#/$defs/Paginated<Integration>" },
+    "Paginated<Issue>": { "$ref": "#/$defs/Paginated<Issue>" },
+    "Paginated<Judge>": { "$ref": "#/$defs/Paginated<Judge>" },
+    "Paginated<Member>": { "$ref": "#/$defs/Paginated<Member>" },
+    "Paginated<Mission>": { "$ref": "#/$defs/Paginated<Mission>" },
+    "Paginated<Project>": { "$ref": "#/$defs/Paginated<Project>" },
+    "Paginated<Recipe>": { "$ref": "#/$defs/Paginated<Recipe>" },
     "Paginated<RepositoryBranch>": {
       "$ref": "#/$defs/Paginated<RepositoryBranch>"
     },
-    "Paginated<ResourceShare>": {
-      "$ref": "#/$defs/Paginated<ResourceShare>"
-    },
-    "Paginated<Runtime>": {
-      "$ref": "#/$defs/Paginated<Runtime>"
-    },
+    "Paginated<ResourceShare>": { "$ref": "#/$defs/Paginated<ResourceShare>" },
+    "Paginated<Runtime>": { "$ref": "#/$defs/Paginated<Runtime>" },
     "Paginated<RuntimePeering>": {
       "$ref": "#/$defs/Paginated<RuntimePeering>"
     },
-    "Paginated<Tag>": {
-      "$ref": "#/$defs/Paginated<Tag>"
-    },
-    "Paginated<Task>": {
-      "$ref": "#/$defs/Paginated<Task>"
-    },
-    "Paginated<TaskCommand>": {
-      "$ref": "#/$defs/Paginated<TaskCommand>"
-    },
-    "Paginated<Variable>": {
-      "$ref": "#/$defs/Paginated<Variable>"
-    },
-    "Project": {
-      "$ref": "#/$defs/Project"
-    },
-    "Recipe": {
-      "$ref": "#/$defs/Recipe"
-    },
-    "RemotesConnectDocs": {
-      "$ref": "#/$defs/RemotesConnectDocs"
-    },
-    "Repository": {
-      "$ref": "#/$defs/Repository"
-    },
-    "RepositoryAccessGrant": {
-      "$ref": "#/$defs/RepositoryAccessGrant"
-    },
-    "RepositoryCommitDetail": {
-      "$ref": "#/$defs/RepositoryCommitDetail"
-    },
-    "RepositoryCommitPage": {
-      "$ref": "#/$defs/RepositoryCommitPage"
-    },
+    "Paginated<Tag>": { "$ref": "#/$defs/Paginated<Tag>" },
+    "Paginated<Task>": { "$ref": "#/$defs/Paginated<Task>" },
+    "Paginated<TaskCommand>": { "$ref": "#/$defs/Paginated<TaskCommand>" },
+    "Paginated<Variable>": { "$ref": "#/$defs/Paginated<Variable>" },
+    "Project": { "$ref": "#/$defs/Project" },
+    "Recipe": { "$ref": "#/$defs/Recipe" },
+    "RemotesConnectDocs": { "$ref": "#/$defs/RemotesConnectDocs" },
+    "Repository": { "$ref": "#/$defs/Repository" },
+    "RepositoryAccessGrant": { "$ref": "#/$defs/RepositoryAccessGrant" },
+    "RepositoryCommitDetail": { "$ref": "#/$defs/RepositoryCommitDetail" },
+    "RepositoryCommitPage": { "$ref": "#/$defs/RepositoryCommitPage" },
     "RepositoryContent": {
       "anyOf": [
-        {
-          "$ref": "#/$defs/RepositoryDirectory"
-        },
-        {
-          "$ref": "#/$defs/RepositoryFile"
-        }
+        { "$ref": "#/$defs/RepositoryDirectory" },
+        { "$ref": "#/$defs/RepositoryFile" }
       ]
     },
-    "RepositoryMerge | undefined": {
-      "$ref": "#/$defs/RepositoryMerge"
-    },
+    "RepositoryMerge | undefined": { "$ref": "#/$defs/RepositoryMerge" },
     "Repository[]": {
       "type": "array",
-      "items": {
-        "$ref": "#/$defs/Repository"
-      }
+      "items": { "$ref": "#/$defs/Repository" }
     },
-    "ResourceShare": {
-      "$ref": "#/$defs/ResourceShare"
-    },
-    "RunnerSpec": {
-      "$ref": "#/$defs/RunnerSpec"
-    },
-    "Runtime": {
-      "$ref": "#/$defs/Runtime"
-    },
-    "RuntimePeering": {
-      "$ref": "#/$defs/RuntimePeering"
-    },
-    "Tag": {
-      "$ref": "#/$defs/Tag"
-    },
-    "Task": {
-      "$ref": "#/$defs/Task"
-    },
-    "TaskCancelResponse": {
-      "$ref": "#/$defs/TaskCancelResponse"
-    },
-    "TaskCommand": {
-      "$ref": "#/$defs/TaskCommand"
-    },
-    "TaskCreateResponse": {
-      "$ref": "#/$defs/TaskCreateResponse"
-    },
-    "TaskRun": {
-      "$ref": "#/$defs/TaskRun"
-    },
-    "TaskRunResponse": {
-      "$ref": "#/$defs/TaskRunResponse"
-    },
+    "ResourceShare": { "$ref": "#/$defs/ResourceShare" },
+    "RunnerSpec": { "$ref": "#/$defs/RunnerSpec" },
+    "Runtime": { "$ref": "#/$defs/Runtime" },
+    "RuntimePeering": { "$ref": "#/$defs/RuntimePeering" },
+    "Tag": { "$ref": "#/$defs/Tag" },
+    "Task": { "$ref": "#/$defs/Task" },
+    "TaskCancelResponse": { "$ref": "#/$defs/TaskCancelResponse" },
+    "TaskCommand": { "$ref": "#/$defs/TaskCommand" },
+    "TaskCreateResponse": { "$ref": "#/$defs/TaskCreateResponse" },
+    "TaskRun": { "$ref": "#/$defs/TaskRun" },
+    "TaskRunResponse": { "$ref": "#/$defs/TaskRunResponse" },
     "Trajectory": {
       "type": "array",
       "items": {
         "anyOf": [
-          {
-            "$ref": "#/$defs/TrajectoryMetaRecord"
-          },
-          {
-            "$ref": "#/$defs/TrajectoryUserRecord"
-          },
-          {
-            "$ref": "#/$defs/TrajectoryReasoningRecord"
-          },
-          {
-            "$ref": "#/$defs/TrajectoryAssistantRecord"
-          },
-          {
-            "$ref": "#/$defs/TrajectoryToolRecord"
-          }
+          { "$ref": "#/$defs/TrajectoryAssistantRecord" },
+          { "$ref": "#/$defs/TrajectoryMetaRecord" },
+          { "$ref": "#/$defs/TrajectoryReasoningRecord" },
+          { "$ref": "#/$defs/TrajectoryToolRecord" },
+          { "$ref": "#/$defs/TrajectoryUserRecord" }
         ]
       }
     },
-    "Variable": {
-      "$ref": "#/$defs/Variable"
-    },
+    "Variable": { "$ref": "#/$defs/Variable" },
     "{ api_keys: ApiKey[]; }": {
       "type": "object",
       "properties": {
-        "api_keys": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/ApiKey"
-          }
-        }
+        "api_keys": { "type": "array", "items": { "$ref": "#/$defs/ApiKey" } }
       },
       "additionalProperties": false
     },
     "{ data: ConnectorApp[]; }": {
       "type": "object",
       "properties": {
-        "data": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/ConnectorApp"
-          }
-        }
+        "data": { "type": "array", "items": { "$ref": "#/$defs/ConnectorApp" } }
       },
       "additionalProperties": false
     }
