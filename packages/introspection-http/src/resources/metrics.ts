@@ -31,6 +31,7 @@ export class MetricsClient {
     return this.http.request<MetricQueryResponse>({
       method: "POST",
       path: "/v1/metrics",
+      schema: "MetricQueryResponse",
       body: request,
       signal: opts?.signal,
     });

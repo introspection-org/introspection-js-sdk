@@ -70,6 +70,13 @@ export interface BrowserHttpConfig {
   /** Custom `fetch` (for tests or non-standard runtimes). */
   fetch?: typeof fetch;
   /**
+   * Fail a JSON response that holds a field this SDK does not model, with a
+   * `SchemaDriftError` naming each field's JSON path. Off by default, so a
+   * server that adds a field never breaks a client. Defaults to
+   * `INTROSPECTION_STRICT_SCHEMA`.
+   */
+  strictSchema?: boolean;
+  /**
    * Invoked when a request comes back `401`. Return `true` if the DP
    * session was refreshed and the request should be retried once;
    * `false` to surface the original error.
@@ -102,6 +109,7 @@ export class BrowserHttpClient extends BaseHttpClient {
       // Resolve a browser-safe `fetch` (native `fetch` brand-checks `this`).
       fetch: resolveBrowserFetch(cfg.fetch),
       additionalHeaders: cfg.additionalHeaders,
+      strictSchema: cfg.strictSchema,
       transport: {
         // No bearer token and no header — the HttpOnly cookie is the
         // credential, and the lane and project selectors ride the URL.

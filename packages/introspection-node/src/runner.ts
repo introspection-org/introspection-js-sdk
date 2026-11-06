@@ -189,6 +189,7 @@ export class Runner implements DataPlaneResources {
       token: this.spec.session_token,
       additionalHeaders: advanced.additionalHeaders,
       fetch: advanced.fetch,
+      strictSchema: advanced.strictSchema,
     });
   }
 
@@ -236,12 +237,14 @@ export class Runner implements DataPlaneResources {
       return await http.request<RunnerSpec>({
         method: "POST",
         path: `/v1/runtimes/${encodeURIComponent(this.source.id)}/run`,
+        schema: "RunnerSpec",
         body,
       });
     }
     return await http.request<RunnerSpec>({
       method: "POST",
       path: `/v1/experiments/${encodeURIComponent(this.source.id)}/run`,
+      schema: "RunnerSpec",
       body,
     });
   }

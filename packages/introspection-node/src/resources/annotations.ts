@@ -124,6 +124,7 @@ export class AnnotationsApi {
         this.dpHttp.request<Paginated<AnnotationState>>({
           method: "GET",
           path: "/v1/annotations",
+          schema: "Paginated<AnnotationState>",
           query: { ...(await resolveFilters()), next },
         }),
       params.next,
@@ -138,6 +139,7 @@ export class AnnotationsApi {
     return this.dpHttp.request<AnnotationFacet[]>({
       method: "GET",
       path: "/v1/annotations/facets",
+      schema: "AnnotationFacet[]",
     });
   }
 
@@ -151,6 +153,7 @@ export class AnnotationsApi {
     return this.dpHttp.request<AnnotationNavigation>({
       method: "GET",
       path: "/v1/annotations/navigation",
+      schema: "AnnotationNavigation",
       query: { ...params },
     });
   }
@@ -187,10 +190,16 @@ export class AnnotationsApi {
     const matches = new Map<string, AnnotationMember[]>();
     for (const email of requested) matches.set(email, []);
 
-    const members = paginateGet<AnnotationMember>(this.cpHttp, "/v1/members", {
-      limit: 1000,
-      member_type: "business",
-    });
+    const members = paginateGet<AnnotationMember>(
+      this.cpHttp,
+      "/v1/members",
+      {
+        limit: 1000,
+        member_type: "business",
+      },
+      undefined,
+      "Paginated<AnnotationMember>",
+    );
     for await (const member of members) {
       if (member.is_deactivated || !member.email) continue;
       matches.get(member.email.trim().toLowerCase())?.push(member);

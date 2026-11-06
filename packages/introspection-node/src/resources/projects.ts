@@ -39,6 +39,7 @@ export class ProjectPeeringsApi {
       peeringsPath(project),
       { runtime, limit: params.limit },
       params.next,
+      "Paginated<RuntimePeering>",
     );
   }
 
@@ -52,6 +53,7 @@ export class ProjectPeeringsApi {
       peeringsPath(project),
       { granted: true, limit: params.limit },
       params.next,
+      "Paginated<RuntimePeering>",
     );
   }
 
@@ -60,6 +62,7 @@ export class ProjectPeeringsApi {
     return this.http.request<RuntimePeering>({
       method: "GET",
       path: `${peeringsPath(project)}/${encodeURIComponent(peeringId)}`,
+      schema: "RuntimePeering",
     });
   }
 }
@@ -84,12 +87,19 @@ export class ProjectsApi {
     return this.http.request<Project>({
       method: "GET",
       path: `/v1/projects/${encodeURIComponent(project)}`,
+      schema: "Project",
     });
   }
 
   /** `await` for the first page, or `for await` to stream every project. */
   list(params: ProjectListParams = {}): Paginator<Project> {
-    return paginateGet<Project>(this.http, "/v1/projects", params, params.next);
+    return paginateGet<Project>(
+      this.http,
+      "/v1/projects",
+      params,
+      params.next,
+      "Paginated<Project>",
+    );
   }
 
   /** Idempotent on `slug`: a repeat answers the live project. */
@@ -97,6 +107,7 @@ export class ProjectsApi {
     return this.http.request<Project>({
       method: "POST",
       path: "/v1/projects",
+      schema: "Project",
       body: params,
     });
   }
@@ -105,6 +116,7 @@ export class ProjectsApi {
     return this.http.request<Project>({
       method: "PATCH",
       path: `/v1/projects/${encodeURIComponent(project)}`,
+      schema: "Project",
       body: params,
     });
   }

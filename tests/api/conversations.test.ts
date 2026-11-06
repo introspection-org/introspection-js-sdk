@@ -118,6 +118,7 @@ describe("ConversationsApi", () => {
       method: "GET",
       path: "/v1/conversations",
       query: { limit: 10, status: "Error", model: "claude-x" },
+      schema: "Paginated<Conversation>",
     });
     expect(summaries).toHaveLength(1);
     expect(summaries[0].id).toBe("conv-1");
@@ -176,6 +177,7 @@ describe("ConversationsApi", () => {
       method: "GET",
       path: "/v1/conversations",
       query: { metadata: ["flow:company", "tenant:acme"] },
+      schema: "Paginated<Conversation>",
     });
   });
 
@@ -231,6 +233,7 @@ describe("ConversationsApi", () => {
     expect(http.request).toHaveBeenCalledWith({
       method: "GET",
       path: "/v1/conversations/conv-1",
+      schema: "Conversation",
     });
     expect(conversation.agents?.[0]?.id).toBe("agent-root");
   });
@@ -252,6 +255,7 @@ describe("ConversationsApi", () => {
       path: "/v1/conversations/conv-1/items",
       // No ordering parameter: the route sorts descending and takes none.
       query: { include: ["events", "resource_attributes"] },
+      schema: "GenAiSpanList",
     });
     expect(items).toHaveLength(1);
   });
@@ -409,6 +413,7 @@ describe("ConversationsApi", () => {
       method: "GET",
       path: "/v1/conversations/conv%2Fwith%20spaces/items/span%3A1",
       query: { include: ["events"] },
+      schema: "GenAiSpan",
     });
   });
 
@@ -440,6 +445,7 @@ describe("ConversationsApi", () => {
       method: "GET",
       path: "/v1/conversations/conv-1/items/span-2",
       query: undefined,
+      schema: "GenAiSpan",
     });
     expect(span).not.toBeNull();
     expect(span!.span_id).toBe("span-2");
@@ -467,6 +473,7 @@ describe("ConversationsApi", () => {
       method: "GET",
       path: "/v1/conversations/conv-1/items/span-7",
       query: undefined,
+      schema: "GenAiSpan",
     });
     expect(span!.span_id).toBe("span-7");
     expect(span!.attributes.gen_ai?.response?.id).toBe("resp-span-7");
@@ -739,6 +746,7 @@ describe("conversations export", () => {
       path: "/v1/conversations/conv%2F1/export",
       query: { agent: "root" },
       headers: { Accept: "application/json" },
+      schema: "GenAiSpanList",
     });
     expect(result.data).toHaveLength(1);
   });

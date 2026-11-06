@@ -48,6 +48,7 @@ export class IssuesClient {
       "/v1/issues",
       encodeMetadataFilter(filters),
       start,
+      "Paginated<Issue>",
     );
   }
 
@@ -56,6 +57,7 @@ export class IssuesClient {
     return this.http.request<Issue>({
       method: "POST",
       path: "/v1/issues",
+      schema: "Issue",
       body: setFields(params),
     });
   }
@@ -68,6 +70,7 @@ export class IssuesClient {
     return this.http.request<Issue>({
       method: "GET",
       path: `/v1/issues/${encodeURIComponent(issueId)}`,
+      schema: "Issue",
     });
   }
 
@@ -93,6 +96,7 @@ export class IssuesClient {
       return this.http.request<Issue>({
         method: "PATCH",
         path: `/v1/issues/${encodeURIComponent(issueId)}`,
+        schema: "Issue",
         body: setFields(patch),
         ...preconditionHeaders(options),
       });
@@ -107,6 +111,7 @@ export class IssuesClient {
     return this.http.request<Issue>({
       method: "PATCH",
       path: `/v1/issues/${encodeURIComponent(issueId)}`,
+      schema: "Issue",
       body: { request: setFields(patch.request) },
     });
   }

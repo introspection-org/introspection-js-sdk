@@ -287,12 +287,14 @@ export class IntrospectionClient implements DataPlaneResources {
       cpSession: options.cpSession,
       additionalHeaders: this.advancedOptions.additionalHeaders,
       fetch: advanced.fetch,
+      strictSchema: advanced.strictSchema,
     });
     this.dpHttp = new HttpClient({
       apiUrl: dpUrl,
       token,
       additionalHeaders: this.advancedOptions.additionalHeaders,
       fetch: advanced.fetch,
+      strictSchema: advanced.strictSchema,
     });
 
     this.runtimes = attachRuntimes(this, this.cpHttp);

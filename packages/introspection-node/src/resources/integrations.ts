@@ -28,7 +28,7 @@ export class IntegrationsApi extends CollectionClient<
   CursorParams
 > {
   constructor(http: HttpClient) {
-    super(http, "/v1/integrations");
+    super(http, "/v1/integrations", "Integration", "Paginated<Integration>");
   }
 
   update(
@@ -38,6 +38,7 @@ export class IntegrationsApi extends CollectionClient<
     return this.http.request<Integration>({
       method: "PATCH",
       path: this.itemPath(integrationId),
+      schema: "Integration",
       body: params,
     });
   }
@@ -55,6 +56,7 @@ export class IntegrationsApi extends CollectionClient<
     return this.http.request<IntegrationAccessToken>({
       method: "POST",
       path: `${this.itemPath(integrationId)}/access-token`,
+      schema: "IntegrationAccessToken",
       body: params,
     });
   }
@@ -69,6 +71,7 @@ export class IntegrationsApi extends CollectionClient<
     return this.http.request<IntegrationRepositories>({
       method: "GET",
       path: `${this.itemPath(integrationId)}/repositories`,
+      schema: "GithubInstallationRepositories",
     });
   }
 }

@@ -37,6 +37,7 @@ export class AutomationsClient {
       "/v1/automations",
       filters,
       start,
+      "Paginated<Automation>",
     );
   }
 
@@ -45,6 +46,7 @@ export class AutomationsClient {
     return this.http.request<Automation>({
       method: "POST",
       path: "/v1/automations",
+      schema: "Automation",
       body: setFields(params),
     });
   }
@@ -54,6 +56,7 @@ export class AutomationsClient {
     return this.http.request<Automation>({
       method: "GET",
       path: `/v1/automations/${encodeURIComponent(automationId)}`,
+      schema: "Automation",
     });
   }
 
@@ -68,6 +71,7 @@ export class AutomationsClient {
     return this.http.request<Automation>({
       method: "PATCH",
       path: `/v1/automations/${encodeURIComponent(automationId)}`,
+      schema: "Automation",
       body: setFields(params),
     });
   }
@@ -92,6 +96,7 @@ export class AutomationsClient {
     return this.http.request<AutomationTriggerResponse>({
       method: "POST",
       path: `/v1/automations/${encodeURIComponent(automationId)}/trigger`,
+      schema: "AutomationTriggerResponse",
     });
   }
 }

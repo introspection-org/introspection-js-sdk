@@ -278,6 +278,7 @@ describe("MetricsApi.query", () => {
       path: "/v1/metrics",
       body: request,
       signal: undefined,
+      schema: "MetricQueryResponse",
     });
     expect(result.data[0].metrics[0].value).toBe(42);
     expect(result.meta.view).toBe("spans");

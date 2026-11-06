@@ -40,6 +40,7 @@ export class AppConnectionsApi<
       "/v1/connections",
       filters,
       start,
+      "Paginated<AppConnection>",
     );
   }
 
@@ -59,6 +60,7 @@ export class AppConnectionsApi<
     return this.http.request<ConnectPage>({
       method: "POST",
       path: "/v1/connections",
+      schema: "ConnectPage",
       body: { app: params.app, runtime, return_url: params.return_url },
     });
   }
@@ -68,6 +70,7 @@ export class AppConnectionsApi<
     return this.http.request<AppConnection>({
       method: "GET",
       path: `/v1/connections/${encodeURIComponent(connectionId)}`,
+      schema: "AppConnection",
     });
   }
 

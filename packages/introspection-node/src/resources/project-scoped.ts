@@ -1,4 +1,10 @@
-import type { CursorParams, ProjectRef, Uuid } from "@introspection-sdk/types";
+import type {
+  CursorParams,
+  Paginated,
+  ProjectRef,
+  Uuid,
+} from "@introspection-sdk/types";
+import type { SchemaKey } from "@introspection-sdk/http";
 import type { HttpClient } from "../http.js";
 import { Paginator, paginateGet } from "../pagination.js";
 
@@ -23,11 +29,21 @@ export class ProjectScopedCollection<
   constructor(
     protected readonly http: HttpClient,
     protected readonly path: string,
+    /** The row type's name, for strict decoding ({@link SchemaKey}). */
+    protected readonly itemSchema?: SchemaKey<T>,
+    /** The page type's name, for strict decoding. */
+    protected readonly pageSchema?: SchemaKey<Paginated<T>>,
   ) {}
 
   /** `await` for the first page, or `for await` to stream every row. */
   list(params?: TList): Paginator<T> {
-    return paginateGet<T>(this.http, this.path, params, params?.next);
+    return paginateGet<T>(
+      this.http,
+      this.path,
+      params,
+      params?.next,
+      this.pageSchema,
+    );
   }
 
   create(params: TCreate, project?: ProjectRef): Promise<T> {
@@ -36,6 +52,7 @@ export class ProjectScopedCollection<
       path: this.path,
       query: projectQuery(project),
       body: params,
+      schema: this.itemSchema,
     });
   }
 
@@ -45,6 +62,7 @@ export class ProjectScopedCollection<
       path: this.itemPath(id),
       query: projectQuery(project),
       body: params,
+      schema: this.itemSchema,
     });
   }
 
@@ -74,6 +92,7 @@ export class ProjectScopedResource<
       method: "GET",
       path: this.itemPath(id),
       query: projectQuery(project),
+      schema: this.itemSchema,
     });
   }
 }

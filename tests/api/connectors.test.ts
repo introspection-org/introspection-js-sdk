@@ -87,6 +87,7 @@ describe("ConnectorsApi", () => {
       method: "GET",
       path: "/v1/connectors",
       query: { limit: 10, next: undefined },
+      schema: "Paginated<Connector>",
     });
     expect(first.records[0].slug).toBe("slack-support");
     expect(first.records[0].requires_runtime).toBe(true);
@@ -100,6 +101,7 @@ describe("ConnectorsApi", () => {
       method: "GET",
       path: "/v1/connectors",
       query: { next: "cursor-2" },
+      schema: "Paginated<Connector>",
     });
   });
 
@@ -127,6 +129,7 @@ describe("ConnectorsApi", () => {
         client_id: "client-abc",
         client_secret: "secret-xyz",
       },
+      schema: "Connector",
     });
   });
 
@@ -155,6 +158,7 @@ describe("ConnectorsApi", () => {
       method: "POST",
       path: "/v1/connectors",
       body: params,
+      schema: "Connector",
     });
     expect(connector.auth_mode).toBe("aauth");
     expect(connector).not.toHaveProperty("approval_policy");
@@ -189,6 +193,7 @@ describe("ConnectorsApi", () => {
       method: "PATCH",
       path: `/v1/connectors/${CONNECTOR_ID}`,
       body: { policy_entities },
+      schema: "Connector",
     });
   });
 
@@ -199,6 +204,7 @@ describe("ConnectorsApi", () => {
     expect(http.request).toHaveBeenCalledWith({
       method: "GET",
       path: `/v1/connectors/${CONNECTOR_ID}`,
+      schema: "Connector",
     });
   });
 
@@ -212,6 +218,7 @@ describe("ConnectorsApi", () => {
       method: "PATCH",
       path: `/v1/connectors/${CONNECTOR_ID}`,
       body: { name: "Slack (renamed)" },
+      schema: "Connector",
     });
   });
 
@@ -246,6 +253,7 @@ describe("ConnectorsApi", () => {
       method: "GET",
       path: `/v1/connectors/${CONNECTOR_ID}/apps`,
       query: { q: "sheets", limit: 5 },
+      schema: "{ data: ConnectorApp[]; }",
     });
     expect(result).toEqual(applications);
   });
@@ -270,6 +278,7 @@ describe("ConnectorsApi", () => {
       method: "GET",
       path: "/v1/connectors/custom/apps",
       query: { q: "linear", limit: 5 },
+      schema: "{ data: ConnectorApp[]; }",
     });
     expect(result).toEqual(applications);
     expect(result[0].mcp_url).toBe("https://mcp.linear.app/mcp");
@@ -301,6 +310,7 @@ describe("ConnectorsApi", () => {
       method: "POST",
       path: "/v1/connectors/discover-oauth",
       body: { issuer: "https://mcp.linear.app/mcp" },
+      schema: "ConnectorOAuthDiscoveryResponse",
     });
     expect(result.client_registration).toBe("dynamic");
     expect(result.client_id).toBe("dyn-client");
@@ -337,6 +347,7 @@ describe("ConnectorsApi", () => {
           url: "https://mcp.linear.app/mcp",
         },
       },
+      schema: "ConnectorAuthorizeResponse",
     });
   });
 
@@ -363,6 +374,7 @@ describe("ConnectorsApi", () => {
         runtime: "support-agent",
         expires_in: 3600,
       },
+      schema: "ConnectorAuthorizeResponse",
     });
     expect(minted.authorize_url).toContain("slack.com");
     expect(minted.expires_in).toBe(3600);
@@ -394,6 +406,7 @@ describe("ConnectorsApi", () => {
         // Only the asserted field rides along.
         identity: { user_id: "u_demo" },
       },
+      schema: "ConnectorAuthorizeResponse",
     });
   });
 
@@ -422,6 +435,7 @@ describe("ConnectorsApi", () => {
         app: "google_sheets",
         allow_progressive_scopes: false,
       },
+      schema: "ConnectorAuthorizeResponse",
     });
   });
 
@@ -439,6 +453,7 @@ describe("ConnectorsApi", () => {
       method: "POST",
       path: "/v1/oauth/connections/authorize",
       body: { connector_id: CONNECTOR_ID },
+      schema: "ConnectorAuthorizeResponse",
     });
   });
 
@@ -460,6 +475,7 @@ describe("ConnectionsApi", () => {
       method: "GET",
       path: `/v1/connectors/${CONNECTOR_ID}/connections`,
       query: { limit: 50, next: undefined },
+      schema: "Paginated<Connection>",
     });
     expect(first.records[0].subject_type).toBe("workspace");
     // The installer is recorded apart from the subject: for a workspace
@@ -483,6 +499,7 @@ describe("ConnectionsApi", () => {
         subject_type: "app",
         scopes_granted: ["chat:write"],
       },
+      schema: "Connection",
     });
   });
 
@@ -493,6 +510,7 @@ describe("ConnectionsApi", () => {
     expect(http.request).toHaveBeenCalledWith({
       method: "GET",
       path: `/v1/connectors/${CONNECTOR_ID}/connections/${CONNECTION_ID}`,
+      schema: "Connection",
     });
   });
 
@@ -531,6 +549,7 @@ describe("ConnectionsApi", () => {
         action: "calendar.list",
         requested_permissions: { host: "calendar.example.com" },
       },
+      schema: "ConnectionTokenResult",
     });
     expect(result).toHaveProperty("token", "provider-token");
   });

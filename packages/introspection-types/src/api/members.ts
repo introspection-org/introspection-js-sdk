@@ -21,6 +21,13 @@ export interface Member {
   member_type: MemberType;
   is_deactivated: boolean;
   /**
+   * The member's Ark seat (`standard` or `pro`); null is a standard seat.
+   * Only an org on the Ark plan is billed by it.
+   */
+  seat_tier?: string | null;
+  /** The member's monthly spend limit override in cents; null takes their seat's default. */
+  spend_limit_cents?: number | null;
+  /**
    * Access-bearing tags: this member receives every tag share
    * (`granted_tag`) naming one of them. It can also still read and write any
    * file or task whose tags intersect these, but that implicit access is

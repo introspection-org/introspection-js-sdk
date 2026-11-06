@@ -30,6 +30,7 @@ export class SharesClient {
       "/v1/shares",
       params,
       params?.next,
+      "Paginated<ResourceShare>",
     );
   }
 
@@ -41,6 +42,7 @@ export class SharesClient {
     return this.http.request<ResourceShare>({
       method: "POST",
       path: "/v1/shares",
+      schema: "ResourceShare",
       body,
     });
   }
@@ -50,6 +52,7 @@ export class SharesClient {
     return this.http.request<ResourceShare>({
       method: "GET",
       path: `/v1/shares/${encodeURIComponent(shareId)}`,
+      schema: "ResourceShare",
     });
   }
 
@@ -61,6 +64,7 @@ export class SharesClient {
     return this.http.request<ResourceShare>({
       method: "PATCH",
       path: `/v1/shares/${encodeURIComponent(shareId)}`,
+      schema: "ResourceShare",
       body,
     });
   }

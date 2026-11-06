@@ -87,28 +87,44 @@ export type ConversationItemInclude =
 
 // --- gen_ai.* -------------------------------------------------------------
 
-/** `gen_ai.operation.name` — `chat`, `execute_tool`, `invoke_agent`. */
+/**
+ * `gen_ai.operation.name` — `chat`, `execute_tool`, `invoke_agent`.
+ *
+ * @openSchema strict decoding tolerates keys it does not name.
+ */
 export interface GenAiOperation {
   /** Operation name. */
   name?: string;
   [key: string]: unknown;
 }
 
-/** `gen_ai.provider.name`. Replaced the older `gen_ai.system`. */
+/**
+ * `gen_ai.provider.name`. Replaced the older `gen_ai.system`.
+ *
+ * @openSchema strict decoding tolerates keys it does not name.
+ */
 export interface GenAiProvider {
   /** Provider name (e.g. `"anthropic"`, `"openai"`). */
   name?: string;
   [key: string]: unknown;
 }
 
-/** `gen_ai.conversation.id`. */
+/**
+ * `gen_ai.conversation.id`.
+ *
+ * @openSchema strict decoding tolerates keys it does not name.
+ */
 export interface GenAiConversation {
   /** GenAI conversation ID — the `/v1/conversations/{id}` path key. */
   id?: string;
   [key: string]: unknown;
 }
 
-/** `gen_ai.agent.*`. */
+/**
+ * `gen_ai.agent.*`.
+ *
+ * @openSchema strict decoding tolerates keys it does not name.
+ */
 export interface GenAiAgent {
   /** Agent ID. */
   id?: string;
@@ -119,7 +135,11 @@ export interface GenAiAgent {
   [key: string]: unknown;
 }
 
-/** `gen_ai.request.*` — what was asked for. */
+/**
+ * `gen_ai.request.*` — what was asked for.
+ *
+ * @openSchema strict decoding tolerates keys it does not name.
+ */
 export interface GenAiRequest {
   /** Requested model. */
   model?: string;
@@ -132,7 +152,11 @@ export interface GenAiRequest {
   [key: string]: unknown;
 }
 
-/** `gen_ai.response.*` — what came back. */
+/**
+ * `gen_ai.response.*` — what came back.
+ *
+ * @openSchema strict decoding tolerates keys it does not name.
+ */
 export interface GenAiResponse {
   /** Provider response identifier. */
   id?: string;
@@ -143,7 +167,11 @@ export interface GenAiResponse {
   [key: string]: unknown;
 }
 
-/** A nested token count, e.g. `gen_ai.usage.cache_read.input_tokens`. */
+/**
+ * A nested token count, e.g. `gen_ai.usage.cache_read.input_tokens`.
+ *
+ * @openSchema strict decoding tolerates keys it does not name.
+ */
 export interface TokenCount {
   input_tokens?: number;
   [key: string]: unknown;
@@ -158,6 +186,8 @@ export interface TokenCount {
  *
  * Cache tokens are standard: they were a local extension until the GenAI
  * conventions adopted them, and the nesting is the adopted spelling.
+ *
+ * @openSchema strict decoding tolerates keys it does not name.
  */
 export interface GenAiUsage {
   input_tokens?: number;
@@ -167,7 +197,11 @@ export interface GenAiUsage {
   [key: string]: unknown;
 }
 
-/** `gen_ai.tool.call.*`. */
+/**
+ * `gen_ai.tool.call.*`.
+ *
+ * @openSchema strict decoding tolerates keys it does not name.
+ */
 export interface GenAiToolCall {
   /** Tool call identifier. */
   id?: string;
@@ -176,7 +210,11 @@ export interface GenAiToolCall {
   [key: string]: unknown;
 }
 
-/** `gen_ai.tool.*`. */
+/**
+ * `gen_ai.tool.*`.
+ *
+ * @openSchema strict decoding tolerates keys it does not name.
+ */
 export interface GenAiTool {
   /** Tool / function name. */
   name?: string;
@@ -195,13 +233,19 @@ export interface GenAiTool {
  * `gen_ai.input.messages`.
  *
  * Full history on item detail; the turn-local delta on the items list.
+ *
+ * @openSchema strict decoding tolerates keys it does not name.
  */
 export interface GenAiInput {
   messages?: InputMessage[];
   [key: string]: unknown;
 }
 
-/** `gen_ai.output.messages`. */
+/**
+ * `gen_ai.output.messages`.
+ *
+ * @openSchema strict decoding tolerates keys it does not name.
+ */
 export interface GenAiOutput {
   messages?: OutputMessage[];
   [key: string]: unknown;
@@ -221,6 +265,8 @@ export interface GenAiOutput {
  * Distinct from `introspection.llm.cost_usd`, which is the *provider*-reported
  * figure (e.g. OpenRouter's `usage.cost`) rather than the SDK's own
  * calculation. Both can be present; they are different measurements.
+ *
+ * @openSchema strict decoding tolerates keys it does not name.
  */
 export interface GenAiCost {
   usd?: number;
@@ -228,7 +274,11 @@ export interface GenAiCost {
 }
 
 // jscpd:ignore-start -- interface field list mirroring the semconv tree
-/** The `gen_ai.*` attribute family, nested as the convention names it. */
+/**
+ * The `gen_ai.*` attribute family, nested as the convention names it.
+ *
+ * @openSchema strict decoding tolerates keys it does not name.
+ */
 export interface GenAiSpanAttributes {
   operation?: GenAiOperation;
   provider?: GenAiProvider;
@@ -394,20 +444,88 @@ export interface IntrospectionSpanAttributes {
   org?: IntrospectionId;
   project?: IntrospectionId;
   member?: IntrospectionId;
-  run?: IntrospectionId;
-  task?: IntrospectionId;
+  run?: IntrospectionRun;
+  task?: IntrospectionTask;
   runtime?: IntrospectionRuntime;
   experiment?: IntrospectionId;
   recipe?: IntrospectionRecipe;
   /** Runtime environment lane. */
   environment?: string;
+  cost_usd?: number;
   /** The runtime's application-level turn, numbered from 1 per conversation. */
   turn?: number | null;
   history?: IntrospectionHistory;
   agent?: IntrospectionAgent;
   contains?: IntrospectionContains;
+  /**
+   * `introspection.tool_response_ids`: the id of each tool response in a chat
+   * span's input delta, which is the id of the tool call it answers. Stamped
+   * from contains version 2; a list the processor cut at its bound ends in
+   * `*`.
+   */
+  tool_response_ids?: string[];
+  /**
+   * `introspection.tool_call_ids`: the id of each tool call a chat span's
+   * output requests. Stamped from contains version 2; a list the processor
+   * cut at its bound ends in `*`.
+   */
+  tool_call_ids?: string[];
+  proxy?: IntrospectionProxy;
+  invocation?: IntrospectionInvocation;
+  /** Whether the call used the customer's own provider key. */
+  byok?: boolean;
+  /** The component that emitted the span (`DP` for the Data Plane). */
+  client?: string;
+  /** Why the agent loop ended (`completed`, ...). */
+  termination_reason?: string;
+  ingest?: IntrospectionIngest;
   [key: string]: unknown;
 }
+
+// jscpd:ignore-start -- interface declarations that mirror the wire schema
+/** `introspection.run.*`: the task run this span belongs to. */
+export interface IntrospectionRun {
+  id?: string;
+  /** The run at the root of a chain of delegated runs. */
+  root_id?: string;
+  parent_id?: string;
+  [key: string]: unknown;
+}
+
+/** `introspection.task.*`. */
+export interface IntrospectionTask {
+  id?: string;
+  run_id?: string;
+  [key: string]: unknown;
+}
+
+/** `introspection.proxy.*`: how the call reached the model provider. */
+export interface IntrospectionProxy {
+  /** `forward` for a call the egress proxy passed through. */
+  mode?: string;
+  [key: string]: unknown;
+}
+
+/** `introspection.invocation.*`. */
+export interface IntrospectionInvocation {
+  /** `turn` for a span that wraps one turn of the agent loop. */
+  kind?: string;
+  [key: string]: unknown;
+}
+
+/** `introspection.ingest.*`: the processor that handled the span. */
+export interface IntrospectionIngest {
+  /** Processor pod name. */
+  host?: string;
+  /** Processor pod IP. */
+  ip?: string;
+  /** Node the pod runs on. */
+  node?: string;
+  /** When the processor handled the span's batch, microseconds since the epoch. */
+  time?: number;
+  [key: string]: unknown;
+}
+// jscpd:ignore-end
 
 /**
  * `introspection.contains` — the processor's plaintext summary of what a
@@ -436,8 +554,13 @@ export interface IntrospectionContains {
  * cross-transport correlation key.
  */
 export interface IntrospectionAgent {
+  /** `session` for the top-level agent. */
+  kind?: string;
+  /** Nesting depth, `"0"` at the top. A string: it travels as baggage. */
+  depth?: string;
   parent_id?: string;
   invocation_id?: string;
+  invocation_index?: number;
   [key: string]: unknown;
 }
 
@@ -448,6 +571,8 @@ export interface IntrospectionAgent {
  *
  * Typed for the two families whose meaning we own; open for everything
  * else, so an attribute nobody modelled survives the round trip.
+ *
+ * @openSchema strict decoding tolerates keys it does not name.
  */
 export interface SpanAttributes {
   gen_ai?: GenAiSpanAttributes;
@@ -489,13 +614,24 @@ export function nestAttributes(flat: Record<string, unknown>): SpanAttributes {
   return tree;
 }
 
-/** OTel resource attributes, nested the way the resource names them. */
+/**
+ * OTel resource attributes, nested the way the resource names them.
+ *
+ * @openSchema strict decoding tolerates keys it does not name.
+ */
 export interface SpanResource {
-  service?: {
-    /** OTel `service.name`. */
-    name?: string;
-    [key: string]: unknown;
-  };
+  service?: SpanResourceService;
+  [key: string]: unknown;
+}
+
+/**
+ * OTel `service.*` resource attributes.
+ *
+ * @openSchema strict decoding tolerates keys it does not name.
+ */
+export interface SpanResourceService {
+  /** OTel `service.name`. */
+  name?: string;
   [key: string]: unknown;
 }
 
@@ -570,6 +706,42 @@ export interface GenAiSpanList {
   has_more: boolean;
   /** Opaque cursor for the next page, or null when exhausted. */
   next: string | null;
+  /**
+   * Where an items read started when it began at the compaction anchor;
+   * absent on a read that did not ask for it.
+   */
+  compaction?: ConversationCompaction;
+}
+
+/** The compaction anchor an items read started from. */
+export interface ConversationCompaction {
+  /**
+   * `false` when no compaction anchor resolved and the read started at the
+   * beginning of the conversation.
+   */
+  applied: boolean;
+  /** The response id the compaction anchor names. */
+  response_id?: string | null;
+  /** Opaque cursor positioned at the anchor item. */
+  cursor?: string | null;
+  /** Recorded compactions, oldest first. */
+  history?: ConversationCompactionRecord[];
+}
+
+/** One recorded compaction. */
+export interface ConversationCompactionRecord {
+  /** The last response recorded before the compaction applied. */
+  response_id?: string | null;
+  /** Turn count and context size when it applied. */
+  at_compaction: CompactionCounts;
+  /** Turns and tokens since the previous compaction. */
+  since_compaction: CompactionCounts;
+}
+
+/** Root-agent turns and tokens, at a compaction or across the segment before it. */
+export interface CompactionCounts {
+  turns?: number | null;
+  tokens?: number | null;
 }
 
 /**

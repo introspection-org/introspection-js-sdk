@@ -32,6 +32,7 @@ export class ApplicationIdpsApi {
       applicationPath(applicationId, "idps"),
       params,
       params.next,
+      "Paginated<ApplicationIdp>",
     );
   }
 
@@ -43,6 +44,7 @@ export class ApplicationIdpsApi {
     return this.http.request<ApplicationIdp>({
       method: "POST",
       path: applicationPath(applicationId, "idps"),
+      schema: "ApplicationIdp",
       body: params,
     });
   }
@@ -70,6 +72,7 @@ export class ApplicationSecretsApi {
       applicationPath(applicationId, "secrets"),
       params,
       params.next,
+      "Paginated<ApplicationSecret>",
     );
   }
 
@@ -81,6 +84,7 @@ export class ApplicationSecretsApi {
     return this.http.request<ApplicationSecret>({
       method: "POST",
       path: applicationPath(applicationId, "secrets"),
+      schema: "ApplicationSecret",
       body: params,
     });
   }
@@ -112,6 +116,7 @@ export class ApplicationKeysApi {
     return this.http.request<ApplicationKey[]>({
       method: "GET",
       path: applicationPath(applicationId, "keys"),
+      schema: "ApplicationKey[]",
     });
   }
 
@@ -120,6 +125,7 @@ export class ApplicationKeysApi {
     return this.http.request<ApplicationKey>({
       method: "POST",
       path: applicationPath(applicationId, "keys"),
+      schema: "ApplicationKey",
     });
   }
 
@@ -151,7 +157,7 @@ export class ApplicationsApi extends ProjectScopedResource<
   readonly keys: ApplicationKeysApi;
 
   constructor(http: HttpClient) {
-    super(http, "/v1/applications");
+    super(http, "/v1/applications", "Application", "Paginated<Application>");
     this.idps = new ApplicationIdpsApi(http);
     this.secrets = new ApplicationSecretsApi(http);
     this.keys = new ApplicationKeysApi(http);

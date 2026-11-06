@@ -20,6 +20,6 @@ export class EndpointsApi extends ProjectScopedResource<
   EndpointListParams
 > {
   constructor(http: HttpClient) {
-    super(http, "/v1/endpoints");
+    super(http, "/v1/endpoints", "Endpoint", "Paginated<Endpoint>");
   }
 }

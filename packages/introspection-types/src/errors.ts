@@ -50,6 +50,30 @@ export class RunFailedError extends IntrospectionAPIError {
   }
 }
 
+/**
+ * A response held fields this SDK does not model (strict decoding only).
+ *
+ * Thrown only with `INTROSPECTION_STRICT_SCHEMA=1` or a client's
+ * `strictSchema: true`. `path` is the route the response came from and
+ * `fields` every unmodelled field by its JSON path, such as
+ * `$.records[0].color`.
+ */
+export class SchemaDriftError extends IntrospectionAPIError {
+  readonly path: string;
+  readonly fields: string[];
+
+  constructor(opts: { path: string; fields: string[] }) {
+    super({
+      message: `${opts.path}: response fields this SDK does not model: ${opts.fields.join(", ")}`,
+      status: 0,
+      code: "schema_drift",
+    });
+    this.name = "SchemaDriftError";
+    this.path = opts.path;
+    this.fields = opts.fields;
+  }
+}
+
 /** 401 — auth missing / invalid. */
 export class AuthenticationError extends IntrospectionAPIError {
   constructor(opts: ConstructorParameters<typeof IntrospectionAPIError>[0]) {

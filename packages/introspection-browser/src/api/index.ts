@@ -158,4 +158,5 @@ export {
   StreamIncompleteError,
   RunFailedError,
   RunnerExpiredError,
+  SchemaDriftError,
 } from "@introspection-sdk/types";

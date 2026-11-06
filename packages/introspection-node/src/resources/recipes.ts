@@ -33,13 +33,20 @@ export class RecipesApi {
    * early to stop fetching).
    */
   list(params: RecipeListParams = {}): Paginator<Recipe> {
-    return paginateGet<Recipe>(this.http, "/v1/recipes", params, params.next);
+    return paginateGet<Recipe>(
+      this.http,
+      "/v1/recipes",
+      params,
+      params.next,
+      "Paginated<Recipe>",
+    );
   }
 
   get(id: Uuid): Promise<Recipe> {
     return this.http.request<Recipe>({
       method: "GET",
       path: `/v1/recipes/${encodeURIComponent(id)}`,
+      schema: "Recipe",
     });
   }
 
@@ -48,6 +55,7 @@ export class RecipesApi {
     return this.http.request<Recipe>({
       method: "POST",
       path: "/v1/recipes",
+      schema: "Recipe",
       body: params,
     });
   }
@@ -60,6 +68,7 @@ export class RecipesApi {
     return this.http.request<Recipe>({
       method: "PATCH",
       path: `/v1/recipes/${encodeURIComponent(id)}`,
+      schema: "Recipe",
       query: projectQuery(project),
       body: params,
     });

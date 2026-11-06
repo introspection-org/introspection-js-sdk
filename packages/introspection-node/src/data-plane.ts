@@ -58,6 +58,13 @@ export interface DataPlaneClientOptions {
   additionalHeaders?: Record<string, string>;
   /** Custom `fetch` (for tests or non-standard runtimes). */
   fetch?: typeof fetch;
+  /**
+   * Fail a JSON response that holds a field this SDK does not model, with a
+   * `SchemaDriftError` naming each field's JSON path. Off by default, so a
+   * server that adds a field never breaks a client. Defaults to
+   * `INTROSPECTION_STRICT_SCHEMA`.
+   */
+  strictSchema?: boolean;
 }
 
 /**
@@ -116,6 +123,7 @@ export class DataPlaneClient implements DataPlaneResources {
         ...options.additionalHeaders,
       },
       fetch: options.fetch,
+      strictSchema: options.strictSchema,
     });
     this.tasks = new TasksApi(this.http);
     this.files = new FilesApi(this.http);

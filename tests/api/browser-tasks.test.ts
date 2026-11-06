@@ -192,6 +192,7 @@ describe("TasksClient", () => {
       method: "POST",
       path: "/v1/tasks",
       body: { prompt: "hello", agent_name: "support-agent" },
+      schema: "TaskCreateResponse",
     });
   });
 
@@ -215,6 +216,7 @@ describe("TasksClient", () => {
         runtime_id: "rt-1",
         metadata: { source: "web", identity: { user_id: "u_42" } },
       },
+      schema: "TaskCreateResponse",
     });
   });
 
@@ -246,6 +248,7 @@ describe("TasksClient", () => {
       method: "GET",
       path: "/v1/tasks",
       query: { limit: 10, tag: "customer:acme" },
+      schema: "Paginated<Task>",
     });
     expect(page.records).toHaveLength(1);
   });
@@ -258,6 +261,7 @@ describe("TasksClient", () => {
     expect(http.request).toHaveBeenCalledWith({
       method: "GET",
       path: "/v1/tasks/task-1",
+      schema: "Task",
     });
   });
 
@@ -270,6 +274,7 @@ describe("TasksClient", () => {
       method: "PATCH",
       path: "/v1/tasks/task-1",
       body: { title: "Renamed" },
+      schema: "Task",
     });
   });
 
@@ -342,6 +347,7 @@ describe("RunHandle / TaskRunsClient", () => {
     expect(http.request).toHaveBeenCalledWith({
       method: "POST",
       path: "/v1/tasks/task-1/runs/run-1/cancel",
+      schema: "TaskCancelResponse",
     });
   });
 
@@ -356,11 +362,13 @@ describe("RunHandle / TaskRunsClient", () => {
       method: "POST",
       path: "/v1/tasks/task-1/runs/run-1/cancel",
       body: { mode: "abort" },
+      schema: "TaskCancelResponse",
     });
     expect(http.request).toHaveBeenNthCalledWith(2, {
       method: "POST",
       path: "/v1/tasks/task-1/runs/run-1/cancel",
       body: { mode: "drain", drain_within_seconds: 20 },
+      schema: "TaskCancelResponse",
     });
   });
 
@@ -373,6 +381,7 @@ describe("RunHandle / TaskRunsClient", () => {
       method: "POST",
       path: "/v1/tasks/task-1/runs",
       body: { prompt: { text: "again" } },
+      schema: "TaskRunResponse",
     });
     expect(handle).toBeInstanceOf(RunHandle);
     expect(handle.task).toBeNull();

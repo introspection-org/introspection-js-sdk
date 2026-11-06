@@ -43,6 +43,7 @@ describe("TasksApi", () => {
       method: "POST",
       path: "/v1/tasks",
       body: { prompt: "go", tags: ["customer:acme", "env:prod"] },
+      schema: "TaskCreateResponse",
     });
   });
 
@@ -57,6 +58,7 @@ describe("TasksApi", () => {
       method: "POST",
       path: "/v1/tasks",
       body: { prompt: "go", conversation_metadata: { flow: "checkout" } },
+      schema: "TaskCreateResponse",
     });
   });
 
@@ -76,6 +78,7 @@ describe("TasksApi", () => {
         metadata: { ticket: "T-1" },
         conversation_metadata: { flow: "checkout" },
       },
+      schema: "TaskCreateResponse",
     });
   });
 
@@ -89,6 +92,7 @@ describe("TasksApi", () => {
       method: "GET",
       path: "/v1/tasks",
       query: { tag: "customer:acme" },
+      schema: "Paginated<Task>",
     });
   });
 
@@ -100,6 +104,7 @@ describe("TasksApi", () => {
       method: "PATCH",
       path: "/v1/tasks/task-1",
       body: { tags: [] },
+      schema: "Task",
     });
   });
 
@@ -120,6 +125,7 @@ describe("TasksApi", () => {
       method: "GET",
       path: "/v1/tasks",
       query: { limit: 10 },
+      schema: "Paginated<Task>",
     });
     expect(tasks).toHaveLength(1);
   });
@@ -166,6 +172,7 @@ describe("TasksApi", () => {
       method: "POST",
       path: "/v1/tasks",
       body: { title: "Test task" },
+      schema: "TaskCreateResponse",
     });
   });
 
@@ -180,6 +187,7 @@ describe("TasksApi", () => {
       method: "POST",
       path: "/v1/tasks",
       body: { title: "Forked task", fork_share_id: "share-1" },
+      schema: "TaskCreateResponse",
     });
   });
 
@@ -191,6 +199,7 @@ describe("TasksApi", () => {
     expect(http.request).toHaveBeenCalledWith({
       method: "GET",
       path: "/v1/tasks/task-1",
+      schema: "Task",
     });
   });
 
@@ -203,6 +212,7 @@ describe("TasksApi", () => {
       method: "PATCH",
       path: "/v1/tasks/task-1",
       body: { title: "Updated" },
+      schema: "Task",
     });
   });
 
@@ -262,6 +272,7 @@ describe("TasksApi", () => {
     expect(http.request).toHaveBeenCalledWith({
       method: "GET",
       path: "/v1/tasks/task%2Fwith%20spaces",
+      schema: "Task",
     });
   });
 });
@@ -276,6 +287,7 @@ describe("TaskRunsApi", () => {
       method: "POST",
       path: "/v1/tasks/task-1/runs",
       body: { prompt: { text: "hello" } },
+      schema: "TaskRunResponse",
     });
     expect(handle).toBeInstanceOf(RunHandle);
     expect(handle.task).toBeNull();
@@ -294,6 +306,7 @@ describe("TaskRunsApi", () => {
       body: {
         resume: [{ interruptId: "plan:tool-1", status: "cancelled" }],
       },
+      schema: "TaskRunResponse",
     });
     expect(handle).toBeInstanceOf(RunHandle);
     expect(handle.task).toBeNull();
@@ -307,6 +320,7 @@ describe("TaskRunsApi", () => {
     expect(http.request).toHaveBeenCalledWith({
       method: "GET",
       path: "/v1/tasks/task-1/runs/run-1",
+      schema: "TaskRun",
     });
   });
 
@@ -318,6 +332,7 @@ describe("TaskRunsApi", () => {
     expect(http.request).toHaveBeenCalledWith({
       method: "POST",
       path: "/v1/tasks/task-1/runs/run-1/cancel",
+      schema: "TaskCancelResponse",
     });
   });
 
@@ -329,6 +344,7 @@ describe("TaskRunsApi", () => {
       method: "POST",
       path: "/v1/tasks/task-1/runs/run-1/cancel",
       body: { mode: "drain" },
+      schema: "TaskCancelResponse",
     });
   });
 
@@ -340,6 +356,7 @@ describe("TaskRunsApi", () => {
       method: "POST",
       path: "/v1/tasks/task-1/runs/run-1/cancel",
       body: { mode: "abort" },
+      schema: "TaskCancelResponse",
     });
   });
 });
@@ -385,6 +402,7 @@ describe("RunHandle", () => {
     expect(http.request).toHaveBeenCalledWith({
       method: "POST",
       path: "/v1/tasks/task-1/runs/run-1/cancel",
+      schema: "TaskCancelResponse",
     });
   });
 
@@ -397,6 +415,7 @@ describe("RunHandle", () => {
       method: "POST",
       path: "/v1/tasks/task-1/runs/run-1/cancel",
       body: { mode: "drain", drain_within_seconds: 15 },
+      schema: "TaskCancelResponse",
     });
   });
 
@@ -409,6 +428,7 @@ describe("RunHandle", () => {
       method: "POST",
       path: "/v1/tasks/task-1/runs/run-1/cancel",
       body: { mode: "abort" },
+      schema: "TaskCancelResponse",
     });
   });
 });

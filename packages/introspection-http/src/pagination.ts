@@ -1,5 +1,6 @@
 import { Paginated } from "@introspection-sdk/types";
 import type { ResourceHttpClient } from "./resources/types.js";
+import type { SchemaKey } from "./strict/schema-key.js";
 
 /**
  * Adapts a wire pagination protocol for {@link Paginator}: how to fetch
@@ -80,13 +81,15 @@ export function cursorPaginate<T>(
 
 /**
  * {@link cursorPaginate} over `GET path`: each page request sends `query`
- * plus the page's `next` cursor.
+ * plus the page's `next` cursor. `schema` names the page type for strict
+ * decoding ({@link SchemaKey}).
  */
 export function paginateGet<T>(
   http: Pick<ResourceHttpClient, "request">,
   path: string,
   query: object | undefined,
   start?: string,
+  schema?: SchemaKey<Paginated<T>>,
 ): Paginator<T, Paginated<T>> {
   return cursorPaginate(
     (next) =>
@@ -94,6 +97,7 @@ export function paginateGet<T>(
         method: "GET",
         path,
         query: { ...query, next } as Record<string, unknown>,
+        schema,
       }),
     start,
   );

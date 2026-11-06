@@ -44,6 +44,7 @@ export class ConnectionsApi {
       `/v1/connectors/${encodeURIComponent(connectorId)}/connections`,
       params,
       params.next,
+      "Paginated<Connection>",
     );
   }
 
@@ -60,6 +61,7 @@ export class ConnectionsApi {
     return this.http.request<Connection>({
       method: "POST",
       path: `/v1/connectors/${encodeURIComponent(connectorId)}/connections`,
+      schema: "Connection",
       body: params,
     });
   }
@@ -68,6 +70,7 @@ export class ConnectionsApi {
     return this.http.request<Connection>({
       method: "GET",
       path: `/v1/connectors/${encodeURIComponent(connectorId)}/connections/${encodeURIComponent(connectionId)}`,
+      schema: "Connection",
     });
   }
 
@@ -101,6 +104,7 @@ export class ConnectionsApi {
     return this.http.request<ConnectionTokenResult>({
       method: "POST",
       path: "/v1/oauth/connections/token",
+      schema: "ConnectionTokenResult",
       body: { connector_id: connectorId, ...params },
     });
   }
@@ -135,6 +139,7 @@ export class ConnectorsApi {
       "/v1/connectors",
       params,
       params.next,
+      "Paginated<Connector>",
     );
   }
 
@@ -146,6 +151,7 @@ export class ConnectorsApi {
     return this.http.request<Connector>({
       method: "POST",
       path: "/v1/connectors",
+      schema: "Connector",
       body: params,
     });
   }
@@ -154,6 +160,7 @@ export class ConnectorsApi {
     return this.http.request<Connector>({
       method: "GET",
       path: `/v1/connectors/${encodeURIComponent(connectorId)}`,
+      schema: "Connector",
     });
   }
 
@@ -161,6 +168,7 @@ export class ConnectorsApi {
     return this.http.request<Connector>({
       method: "PATCH",
       path: `/v1/connectors/${encodeURIComponent(connectorId)}`,
+      schema: "Connector",
       body: params,
     });
   }
@@ -187,6 +195,7 @@ export class ConnectorsApi {
     const response = await this.http.request<{ data: ConnectorApp[] }>({
       method: "GET",
       path: `/v1/connectors/${encodeURIComponent(connectorId)}/apps`,
+      schema: "{ data: ConnectorApp[]; }",
       query: params as Record<string, unknown>,
     });
     return response.data;
@@ -203,6 +212,7 @@ export class ConnectorsApi {
     const response = await this.http.request<{ data: ConnectorApp[] }>({
       method: "GET",
       path: "/v1/connectors/custom/apps",
+      schema: "{ data: ConnectorApp[]; }",
       query: params as unknown as Record<string, unknown>,
     });
     return response.data;
@@ -222,6 +232,7 @@ export class ConnectorsApi {
     return this.http.request<ConnectorOAuthDiscoveryResponse>({
       method: "POST",
       path: "/v1/connectors/discover-oauth",
+      schema: "ConnectorOAuthDiscoveryResponse",
       body: { issuer },
     });
   }
@@ -254,6 +265,7 @@ export class ConnectorsApi {
     return this.http.request<ConnectorAuthorizeResponse>({
       method: "POST",
       path: "/v1/oauth/connections/authorize",
+      schema: "ConnectorAuthorizeResponse",
       body: { connector_id: connectorId, ...params },
     });
   }

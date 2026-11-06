@@ -74,6 +74,7 @@ export class EventsClient {
     return this.http.request<Event | UnknownEvent>({
       method: "GET",
       path: `/v1/events/${encodeURIComponent(eventId)}`,
+      schema: "Event | UnknownEvent",
     });
   }
 

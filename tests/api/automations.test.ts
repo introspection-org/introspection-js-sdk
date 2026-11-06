@@ -86,6 +86,7 @@ describe("AutomationsApi", () => {
         task_id: TASK_ID,
         next: undefined,
       },
+      schema: "Paginated<Automation>",
     });
     const automation = first.records[0];
     expect(automation.kind).toBeNull();
@@ -184,6 +185,7 @@ describe("AutomationsApi", () => {
         runtime_group_id: RUNTIME_GROUP_ID,
         metadata: { cron_schedules: ["0 9 * * 1"], timezone: "UTC" },
       },
+      schema: "Automation",
     });
   });
 
@@ -231,6 +233,7 @@ describe("AutomationsApi", () => {
     expect(http.request).toHaveBeenCalledWith({
       method: "GET",
       path: `/v1/automations/${AUTOMATION_ID}`,
+      schema: "Automation",
     });
     expect(automation.next_trigger_at).toBe("2026-10-05T09:00:00.123456Z");
   });
@@ -247,6 +250,7 @@ describe("AutomationsApi", () => {
       method: "PATCH",
       path: `/v1/automations/${AUTOMATION_ID}`,
       body: { enabled: false },
+      schema: "Automation",
     });
   });
 
@@ -297,6 +301,7 @@ describe("AutomationsApi", () => {
     expect(http.request).toHaveBeenCalledWith({
       method: "POST",
       path: `/v1/automations/${AUTOMATION_ID}/trigger`,
+      schema: "AutomationTriggerResponse",
     });
     expect(result.status).toBe("triggered");
     expect(result.task_id).toBe(TASK_ID);

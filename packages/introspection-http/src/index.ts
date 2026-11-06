@@ -33,7 +33,8 @@ export {
   type BaseHttpConfig,
   type Transport,
 } from "./client.js";
-export type { ResourceHttpClient } from "./resources/types.js";
+export type { RequestOptions, ResourceHttpClient } from "./resources/types.js";
+export { STRICT_SCHEMA_ENV, type SchemaKey } from "./strict/schema-key.js";
 export { encodeMetadataFilter } from "./resources/metadata-filter.js";
 export {
   MAX_COMMAND_WAIT_SECONDS,

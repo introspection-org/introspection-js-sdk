@@ -59,6 +59,7 @@ export class ConversationItemsClient {
           const page = await this.http.request<GenAiSpanList>({
             method: "GET",
             path: `/v1/conversations/${encodeURIComponent(conversationId)}/items`,
+            schema: "GenAiSpanList",
             query: { ...params, next } as Record<string, unknown>,
           });
           return { ...page, data: page.data.map(normalizeSpan) };
@@ -90,6 +91,7 @@ export class ConversationItemsClient {
     const span = await this.http.request<GenAiSpan>({
       method: "GET",
       path: `/v1/conversations/${encodeURIComponent(conversationId)}/items/${encodeURIComponent(itemId)}`,
+      schema: "GenAiSpan",
       query: params as Record<string, unknown> | undefined,
     });
     return normalizeSpan(span);
@@ -124,7 +126,12 @@ export class ConversationsClient {
    */
   list(params?: ConversationListParams): Paginator<Conversation> {
     const query = encodeMetadataFilter(params);
-    return listRead<Conversation>(this.http, "/v1/conversations", query);
+    return listRead<Conversation>(
+      this.http,
+      "/v1/conversations",
+      query,
+      "Paginated<Conversation>",
+    );
   }
 
   /** Fetch one conversation summary with its complete agent index. */
@@ -132,6 +139,7 @@ export class ConversationsClient {
     return this.http.request<Conversation>({
       method: "GET",
       path: `/v1/conversations/${encodeURIComponent(conversationId)}`,
+      schema: "Conversation",
     });
   }
 
@@ -164,6 +172,7 @@ export class ConversationsClient {
     const result = await this.http.request<GenAiSpanList>({
       method: "GET",
       path: `/v1/conversations/${encodeURIComponent(conversationId)}/export`,
+      schema: "GenAiSpanList",
       query: params as Record<string, unknown> | undefined,
       headers: { Accept: "application/json" },
     });
@@ -216,6 +225,7 @@ export class ConversationsClient {
     return this.http.request<Trajectory>({
       method: "GET",
       path: `/v1/conversations/${encodeURIComponent(conversationId)}/export`,
+      schema: "Trajectory",
       query: params as Record<string, unknown> | undefined,
       headers: { Accept: `${TRAJECTORY_MEDIA_TYPE};version=1` },
     });

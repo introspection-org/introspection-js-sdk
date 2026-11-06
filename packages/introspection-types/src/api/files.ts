@@ -19,6 +19,10 @@ export interface File {
   parent_id?: Uuid | null;
   storage_version_id?: string | null;
   task_id?: Uuid | null;
+  /** The task whose run generated this file as an output. */
+  generated_output_task_id?: Uuid | null;
+  /** When the file is deleted; null keeps it. */
+  expires_at?: IsoDate | null;
   /**
    * Grouping tags stamped on this file. Tags belong to the file rather than
    * to a version, so they carry forward when a new version is written.

@@ -161,6 +161,12 @@ export interface MetricQueryMeta {
   /** True when the result hit the row/series limit. */
   truncated: boolean;
   order_by: MetricOrderBy[];
+  /**
+   * The read was confined to the caller's own owner key, not the project. A
+   * project API key reads only its system agent's rows, so expect `true` with
+   * one; a member login reads the whole project.
+   */
+  owner_scoped?: boolean;
 }
 
 /** Response body for `POST /v1/metrics`. */

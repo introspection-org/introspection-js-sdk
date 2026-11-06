@@ -18,6 +18,9 @@ export class RemotesApi extends ReadResource {
    * Data Plane answers a plain `GET` on the same path with this.
    */
   connectDocs(): Promise<RemotesConnectDocs> {
-    return this.read<RemotesConnectDocs>("/v1/remotes/connect");
+    return this.read<RemotesConnectDocs>(
+      "/v1/remotes/connect",
+      "RemotesConnectDocs",
+    );
   }
 }
