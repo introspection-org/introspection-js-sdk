@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.46.0](https://github.com/introspection-org/introspection-js-sdk/compare/v0.45.0...v0.46.0) (2026-11-06)
+
+
+### Features
+
+* **http:** add opt-in strict decoding of responses ([#572](https://github.com/introspection-org/introspection-js-sdk/issues/572)) ([4e9ccd8](https://github.com/introspection-org/introspection-js-sdk/commit/4e9ccd82d3e71e1ceae9b4d945de4a19f0440f0c))
+
 ## [0.45.0](https://github.com/introspection-org/introspection-js-sdk/compare/v0.44.0...v0.45.0) (2026-11-05)
 
 
