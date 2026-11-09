@@ -32,7 +32,7 @@
     "@modelcontextprotocol/sdk": "^1.32.2",
     "@opentelemetry/exporter-trace-otlp-proto": "^0.301.0",
     "@opentelemetry/resources": "^2.12.0",
-    "@supabase/supabase-js": "^2.118.0",
+    "@supabase/supabase-js": "^2.119.0",
     "@types/node": "^22.20.5",
     "mcporter": "^0.17.0",
     "tsx": "^4.23.15",
