@@ -433,8 +433,8 @@ importers:
         specifier: workspace:*
         version: link:../introspection-types
       '@letta-ai/trajectory':
-        specifier: ^0.4.3
-        version: 0.4.3
+        specifier: ^0.4.4
+        version: 0.4.4
       '@opentelemetry/api':
         specifier: ^1.10.0
         version: 1.10.0
@@ -1445,8 +1445,8 @@ packages:
   '@jridgewell/trace-mapping@0.3.31':
     resolution: {integrity: sha512-zzNR+SdQSDJzc8joaeP8QQoCQr8NuYx2dIIytl1QeBEZHJ9uW6hebsrYgbz8hJwUQao3TWCMtmfV8Nu1twOLAw==}
 
-  '@letta-ai/trajectory@0.4.3':
-    resolution: {integrity: sha512-jTk2mOF23usegEAQag/NsgkRNjyRu/bGt9dG03VsSm7IA4R9GWn3cs8amc5Oibydt5vrUmPqlyJ60yOzBzBpzw==}
+  '@letta-ai/trajectory@0.4.4':
+    resolution: {integrity: sha512-vdz4VpbO/wJSl87xazAZRZfR2FvbHOUW+LVN7IWv2W/hyrXS/tw3SwdEc33P7+AqAURF/EVQwpBvk9tNUNneaA==}
     engines: {node: '>=20'}
 
   '@loaderkit/resolve@1.0.6':
@@ -2120,6 +2120,9 @@ packages:
 
   '@rolldown/pluginutils@1.0.1':
     resolution: {integrity: sha512-2j9bGt5Jh8hj+vPtgzPtl72j0yRxHAyumoo6TNfAjsLB04UtpSvPbPcDcBMxz7n+9CYB0c1GxQFxYRg2jimqGw==}
+
+  '@rolldown/pluginutils@1.1.0':
+    resolution: {integrity: sha512-K+NU2HDCEem4sClgHH4ZZXwdJeNFkJo+hRk479DIwdIviAPN2hFJH1KHHwg8CxHQXvi0M5XY4deTXINfIiSG6w==}
 
   '@rtsao/scc@1.1.0':
     resolution: {integrity: sha512-zt6OdqaDoOnJ1ZYsCYGt9YmWzDXl4vQdKTyJev62gFhRGKdx7mcT54V9KIjg+d2wi9EXsPvAPKe7i7WjfVWB8g==}
@@ -6624,7 +6627,7 @@ snapshots:
       '@jridgewell/resolve-uri': 3.1.2
       '@jridgewell/sourcemap-codec': 1.6.0
 
-  '@letta-ai/trajectory@0.4.3': {}
+  '@letta-ai/trajectory@0.4.4': {}
 
   '@loaderkit/resolve@1.0.6':
     dependencies:
@@ -7157,6 +7160,8 @@ snapshots:
     optional: true
 
   '@rolldown/pluginutils@1.0.1': {}
+
+  '@rolldown/pluginutils@1.1.0': {}
 
   '@rtsao/scc@1.1.0': {}
 
@@ -10650,7 +10655,7 @@ snapshots:
   rolldown@1.0.2:
     dependencies:
       '@oxc-project/types': 0.132.0
-      '@rolldown/pluginutils': 1.0.1
+      '@rolldown/pluginutils': 1.1.0
     optionalDependencies:
       '@rolldown/binding-android-arm64': 1.0.2
       '@rolldown/binding-darwin-arm64': 1.0.2
