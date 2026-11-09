@@ -22,6 +22,13 @@ export interface Project {
   description: string | null;
   settings?: Record<string, unknown> | null;
   created_by_member_id?: Uuid | null;
+  /**
+   * Where the project's hosted repositories are served:
+   * `{git_origin}/v1/git/{slug}.git` clones one. Only
+   * `GET /v1/projects/{project}` fills it, and only when the project's data
+   * plane serves hosted Git.
+   */
+  git_origin?: string | null;
 }
 
 /** `GET /v1/projects` filters. The route lists the credential's org only. */

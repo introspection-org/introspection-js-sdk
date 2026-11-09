@@ -17,6 +17,7 @@ import {
   HttpClient,
   ImagesApi,
   IntrospectionAPIError,
+  ProjectsApi,
   SchemaDriftError,
 } from "@introspection-sdk/introspection-node";
 
@@ -167,6 +168,25 @@ describe("strict decoding on", () => {
     expect(spans.data[0]?.attributes.introspection?.tool_call_ids).toEqual([
       "call-1",
     ]);
+  });
+
+  it("models a project's git origin", async () => {
+    const projects = new ProjectsApi(
+      client(
+        {
+          id: "p1",
+          org_id: "o1",
+          deployment_id: "d1",
+          name: "Main",
+          description: null,
+          git_origin: "https://git.example.test",
+        },
+        true,
+      ),
+    );
+    await expect(projects.get("p1")).resolves.toMatchObject({
+      git_origin: "https://git.example.test",
+    });
   });
 
   it("checks the envelope, even around an empty list", async () => {

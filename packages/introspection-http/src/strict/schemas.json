@@ -2169,6 +2169,7 @@
         "created_by_member_id": {},
         "deployment_id": {},
         "description": {},
+        "git_origin": {},
         "id": {},
         "name": {},
         "org_id": {},
