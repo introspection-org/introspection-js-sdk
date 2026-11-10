@@ -1,4 +1,5 @@
 import { EventSchemas, type AGUIEvent } from "@ag-ui/core";
+import { strictSchemaFromEnv } from "./strict/schema-key.js";
 
 export interface StreamFrame {
   name: string;
@@ -99,16 +100,31 @@ export async function* parseStreamFrames(
 }
 
 /**
+ * Decode one AG-UI event. A newer server's event this `@ag-ui/core` does not
+ * know (a new `type`, `role` or key) is returned as received, so the stream
+ * keeps going; consumers skip what they do not recognize. Strict decoding
+ * (`INTROSPECTION_STRICT_SCHEMA`) throws instead, as for every response.
+ */
+export function decodeAgUiEvent(payload: unknown): AGUIEvent {
+  const parsed = EventSchemas.safeParse(payload);
+  if (parsed.success) return parsed.data;
+  const isEvent =
+    typeof (payload as { type?: unknown } | null)?.type === "string";
+  if (!isEvent || strictSchemaFromEnv()) throw parsed.error;
+  return payload as AGUIEvent;
+}
+
+/**
  * Parse the task run stream into AG-UI protocol events. The task stream uses
  * HTTP stream frames as transport only: `ag_ui` carries one AG-UI JSON event
- * in `data`, while transport frames such as `heartbeat` are ignored.
+ * in `data`, while transport frames such as `heartbeat` are ignored. Events
+ * newer than this SDK pass through ({@link decodeAgUiEvent}).
  */
 export async function* parseAgUiEvents(
   res: Response,
 ): AsyncIterable<AGUIEvent> {
   for await (const frame of parseStreamFrames(res)) {
     if (frame.name !== "ag_ui") continue;
-    const payload = JSON.parse(frame.data) as unknown;
-    yield EventSchemas.parse(payload);
+    yield decodeAgUiEvent(JSON.parse(frame.data) as unknown);
   }
 }

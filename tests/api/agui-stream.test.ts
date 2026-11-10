@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { EventType, parseAgUiEvents } from "@introspection-sdk/http";
 
 function textResponse(text: string): Response {
@@ -74,10 +74,37 @@ describe("parseAgUiEvents", () => {
     expect(await collect(res)).toEqual([]);
   });
 
-  it("rejects invalid AG-UI payloads", async () => {
+  it("passes through an event type newer than this SDK", async () => {
+    const res = textResponse('event: ag_ui\ndata: {"type":"NOPE","x":1}\n\n');
+    expect(await collect(res)).toEqual([{ type: "NOPE", x: 1 }]);
+  });
+
+  it("keeps a known event's schema defaults", async () => {
+    const res = textResponse(
+      'event: ag_ui\ndata: {"type":"TEXT_MESSAGE_START","messageId":"m"}\n\n',
+    );
+    expect(await collect(res)).toEqual([
+      { type: "TEXT_MESSAGE_START", messageId: "m", role: "assistant" },
+    ]);
+  });
+
+  describe("under strict decoding", () => {
+    afterEach(() => {
+      vi.unstubAllEnvs();
+    });
+
+    it("rejects an event type newer than this SDK", async () => {
+      vi.stubEnv("INTROSPECTION_STRICT_SCHEMA", "1");
+      await expect(
+        collect(textResponse('event: ag_ui\ndata: {"type":"NOPE"}\n\n')),
+      ).rejects.toThrow();
+    });
+  });
+
+  it("rejects a payload that is not an AG-UI event", async () => {
     await expect(async () => {
       for await (const _ev of parseAgUiEvents(
-        textResponse('event: ag_ui\ndata: {"type":"NOPE"}\n\n'),
+        textResponse('event: ag_ui\ndata: {"kind":"NOPE"}\n\n'),
       )) {
         // consume stream
       }
