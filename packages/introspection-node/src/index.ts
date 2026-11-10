@@ -272,8 +272,6 @@ export type {
   AnnotationListParams,
   AnnotationMutation,
   AnnotationEventOptions,
-  AnnotationNavigation,
-  AnnotationNavigationParams,
   Tag,
   TagKind,
   TagListParams,

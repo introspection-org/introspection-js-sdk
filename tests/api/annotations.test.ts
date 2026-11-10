@@ -130,15 +130,6 @@ beforeAll(async () => {
       ? url.pathname.slice(3)
       : url.pathname;
 
-    if (path === "/v1/annotations/navigation" && method === "GET") {
-      return json(res, 200, {
-        previous: null,
-        current: ANNOTATION,
-        next: null,
-        current_position: 1,
-        total_count: 1,
-      });
-    }
     if (
       path === "/v1/annotations" &&
       method === "GET" &&
@@ -292,16 +283,6 @@ describe("annotations", () => {
     const plain = await client().annotations.list();
     expect(requests[0]!.query.has("include")).toBe(false);
     expect(plain.records[0]!.comments).toBeNull();
-  });
-
-  it("returns the navigation window's current rows untouched", async () => {
-    const window = await client().annotations.navigation({
-      ...TARGET,
-      lookback_days: 7,
-    });
-    expect(requests[0]!.query.get("lookback_days")).toBe("7");
-    expect(window.current).toEqual(ANNOTATION);
-    expect(window.total_count).toBe(1);
   });
 
   it("lists folded state with every filter and cursor pagination", async () => {
