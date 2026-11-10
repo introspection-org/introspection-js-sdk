@@ -377,6 +377,8 @@ export type {
   ClusteringRunPayload,
   FeedbackPayload,
   JudgementPayload,
+  JudgeType,
+  JudgementResultSchema,
   ObservationEvent,
   PatternEvent,
   PatternAssignmentEvent,

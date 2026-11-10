@@ -174,11 +174,17 @@ export interface FeedbackPayload {
   agent_id?: string | null;
   /** Remaining `properties.*` extras. */
   properties?: Record<string, unknown> | null;
+  /** The member who gave the feedback. */
+  author_member_id?: Uuid | null;
 }
 
 /** One member-authored annotation mutation. */
 export interface AnnotationPayload {
   member_id: Uuid;
+  /** Who made the mutation, when not `member_id` itself. */
+  actor_member_id?: Uuid | null;
+  /** The acting member's type (`human`, `agent`, …). */
+  actor_member_type?: string | null;
   /** Complete label snapshot when this event changes labels. */
   labels?: string[] | null;
   /** Immutable qualitative comment when this event adds one. */
@@ -196,7 +202,40 @@ export interface JudgementPayload {
   contract_version?: string | null;
   sequence_hash?: string | null;
   experiment_arm_id?: Uuid | null;
+  judge_slug?: string | null;
+  judge_type?: JudgeType | null;
+  result_schema?: JudgementResultSchema | null;
+  runtime_slug?: string | null;
+  status?: string | null;
+  error_class?: string | null;
+  error_message?: string | null;
+  source_component?: string | null;
+  reasoning?: string | null;
+  reason?: string | null;
+  engine_version?: string | null;
+  judge_provider?: string | null;
+  judge_model?: string | null;
+  input_tokens?: number | null;
+  output_tokens?: number | null;
+  total_tokens?: number | null;
+  /** Score per question id. */
+  scores?: Record<string, number> | null;
+  /** Question text per question id. */
+  questions?: Record<string, string> | null;
+  policy_id?: string | null;
+  policy_action?: string | null;
+  request_host?: string | null;
+  request_method?: string | null;
+  request_path?: string | null;
 }
+
+/** Where a judge runs: on live traffic, on a dataset, or on a mission. */
+export type JudgeType =
+  "online" | "offline" | "mission" | (string & Record<never, never>);
+
+/** The shape of a judgement's `result`. */
+export type JudgementResultSchema =
+  "verdict.v1" | "question_scores.v1" | (string & Record<never, never>);
 
 /** One automation trigger that ran (`introspection.automation.triggered`). */
 export interface AutomationTriggeredPayload {

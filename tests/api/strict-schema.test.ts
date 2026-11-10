@@ -221,6 +221,59 @@ describe("strict decoding on", () => {
     await expect(later.get("e1")).resolves.toMatchObject({ payload: { x: 1 } });
   });
 
+  it("models every annotation, feedback and judgement payload field the API returns", async () => {
+    const event = (event_name: string, payload: Record<string, unknown>) => ({
+      id: "e1",
+      timestamp: "2026-11-10T05:00:00Z",
+      event_name,
+      payload,
+    });
+    const events = new EventsApi(
+      client(
+        page([
+          event("introspection.annotation", {
+            member_id: "m1",
+            actor_member_id: "m2",
+            actor_member_type: "agent",
+          }),
+          event("introspection.feedback", {
+            name: "thumbs_up",
+            author_member_id: "m1",
+          }),
+          event("introspection.judgement", {
+            judgement_id: "j1",
+            judge_slug: "helpful",
+            judge_type: "online",
+            result_schema: "question_scores.v1",
+            runtime_slug: "hello-mcp",
+            status: "completed",
+            error_class: null,
+            error_message: null,
+            source_component: "judge-engine",
+            reasoning: "fine",
+            reason: null,
+            engine_version: "1.2.3",
+            judge_provider: "anthropic",
+            judge_model: "claude",
+            input_tokens: 120,
+            output_tokens: 30,
+            total_tokens: 150,
+            scores: { q1: 1 },
+            questions: { q1: "Is it helpful?" },
+            policy_id: null,
+            policy_action: null,
+            request_host: null,
+            request_method: null,
+            request_path: null,
+          }),
+        ]),
+        true,
+      ),
+    );
+    const listed = await events.list({ event_name: "introspection.judgement" });
+    expect(listed.records).toHaveLength(3);
+  });
+
   it("checks an event page", async () => {
     const events = new EventsApi(
       client(
