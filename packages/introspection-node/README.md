@@ -202,10 +202,11 @@ for (const ev of page.records)
 
 `client.issues` (and `runner.issues`, `dataPlaneClient.issues`) lists, reads,
 creates, updates and deletes issues on the Data Plane's `/v1/issues`. An issue
-is a brief on a fixed worker task: a title, a description, a priority and a
-status, the evidence it cites (files, links, events and spans) and its open
-human requests. Reading needs `issues:read`, creating and updating
-`issues:write`, and deleting `issues:delete`.
+is a brief on a fixed worker task (a title, a description, a priority and a
+status), the people on it (its creator, an assignee, a reviewer and
+followers), its attachments (files, links, events and spans) and its comments.
+Reading needs `issues:read`, creating, updating and commenting `issues:write`,
+and deleting `issues:delete`.
 
 ```typescript
 const issue = await client.issues.create({
@@ -217,43 +218,61 @@ const issue = await client.issues.create({
   links: [{ url: "https://github.com/acme/app/pull/7" }],
 });
 
-// Repeatable filters take one value or several (ORed); metadata pairs are ANDed.
-for await (const open of client.issues.list({
+// Ask a person something: assign the issue, mark it waiting, and comment.
+await client.issues.update(issue.id, {
+  assignee_member_id: memberId,
+  status: "waiting",
+});
+await client.issues.comments.create(issue.id, {
+  comment: "Can we raise the gateway timeout?",
+});
+
+// Read the comments (oldest first, at most 500) and the people with the issue.
+// The lists a read does not include are null.
+const read = await client.issues.get(issue.id, {
+  include: ["comments", "members"],
+});
+for (const c of read.comments ?? []) console.log(c.member_id, c.comment);
+
+// What is waiting on me. Repeatable filters take one value or several (ORed);
+// metadata pairs are ANDed.
+for await (const mine of client.issues.list({
+  relation: ["assignee", "reviewer"],
   status: ["open", "waiting"],
-  owner: "project",
   metadata: { region: "eu" },
 })) {
-  console.log(open.display_index, open.title, open.open_requests.length);
+  console.log(mine.display_index, mine.title, mine.assignee_member_id);
 }
 
-// Edit the brief. Omitted fields are unchanged, and each list replaces its
-// list wholesale, so `links: []` clears the links. `ifMatch` is optional:
-// with the issue's ETag, an edit against a stale read is refused with 412.
+// Edit the issue. Omitted fields are unchanged; each list replaces its list
+// wholesale, so `links: []` clears the links; `assignee_member_id: null`
+// unassigns it. `ifMatch` is optional: with the issue's ETag, an edit against
+// a stale read is refused with 412.
 await client.issues.update(
   issue.id,
-  { status: "closed", links: [] },
-  { ifMatch: issueEtag(issue) },
+  { status: "closed", assignee_member_id: null },
+  { ifMatch: issueEtag(read) },
 );
 
-// Or create one human request with a new UUIDv7 `id`; the same `id` later
-// changes or resolves it.
-await client.issues.update(issue.id, {
-  request: {
-    id: requestId,
-    question: "Can we raise the gateway timeout?",
-    assignee_id: memberId,
-  },
-});
+// The full history, comments included, is the issue's events.
+for await (const ev of client.events.list({
+  event_name: "introspection.issue",
+  issue_id: issue.id,
+})) {
+  if (ev.payload.action === "commented") console.log(ev.payload.comment);
+}
 
 await client.issues.delete(issue.id);
 ```
 
 `issueEtag(issue)` is the `ETag` the Data Plane returns for an issue (its
-`updated_at` exactly as the API renders it, quoted). A brief edit and a delete take an
-optional `{ ifMatch }`, sent as `If-Match`; a stale one is refused with 412
-(an `IntrospectionAPIError` with `status` 412), and leaving it out writes
-without the check. A request mutation takes no `ifMatch`: a new request `id` creates the
-request and an existing one changes it, last write wins.
+`updated_at` exactly as the API renders it, quoted). An update and a delete
+take an optional `{ ifMatch }`, sent as `If-Match`; a stale one is refused
+with 412 (an `IntrospectionAPIError` with `status` 412), and leaving it out
+writes without the check. A comment does not edit the issue, so it leaves the
+`ETag` unchanged. `include` (`members`, `attachments`) is also accepted on
+`list()`, and as `{ include }` on `create()` and `update()`; `comments` is
+read with `get()` only.
 
 ### Project administration
 

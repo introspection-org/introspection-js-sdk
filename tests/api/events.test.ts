@@ -313,31 +313,15 @@ describe("EventsApi.list — typed families (JSON)", () => {
     });
   });
 
-  it("narrows an issue payload on its action", async () => {
-    const request = {
-      id: "0195fb1a-0000-7000-8000-0000000000r1",
-      issue_id: "0195fb1a-0000-7000-8000-0000000000i1",
-      task_id: "0195fb1a-0000-7000-8000-0000000000t1",
-      question: "Ship it?",
-      assignee_id: "0195fb1a-0000-7000-8000-0000000000m1",
-      status: "open",
-      revision: 1,
-      issue_revision: 3,
-      files: [],
-      links: [],
-      events: [],
-      spans: [],
-      created_at: "2025-01-01T00:00:00Z",
-      updated_at: "2025-01-01T00:00:00Z",
-    };
+  it("narrows an issue payload on its action and filters by issue_id", async () => {
     const issue = (payload: Record<string, unknown>) => ({
       ...ENVELOPE,
       id: "ev-i",
       event_name: "introspection.issue",
       payload: {
-        issue_id: "0195fb1a-0000-7000-8000-0000000000i1",
-        resource_id: "0195fb1a-0000-7000-8000-0000000000i1",
+        issue_id: "0195fb1a-0000-7000-8000-0000000000a1",
         revision: 1,
+        member_id: "0195fb1a-0000-7000-8000-0000000000b1",
         ...payload,
       },
     });
@@ -347,46 +331,51 @@ describe("EventsApi.list — typed families (JSON)", () => {
           issue({ action: "created", data: { title: "Checkout times out" } }),
           issue({
             action: "updated",
-            changes: { status: { before: "open", after: "closed" } },
+            // A null side is omitted: the issue had no assignee before.
+            changes: {
+              status: { before: "open", after: "waiting" },
+              assignee_member_id: { after: "m-2" },
+            },
+          }),
+          issue({
+            action: "commented",
+            comment: "Can we raise the timeout?",
+            actor_member_id: "0195fb1a-0000-7000-8000-0000000000c1",
+            actor_member_type: "agent",
           }),
           issue({ action: "deleted" }),
-          issue({ action: "request.created", request }),
-          issue({
-            action: "request.updated",
-            request: { ...request, status: "resolved", resolution: "Yes." },
-            changes: { status: { before: "open", after: "resolved" } },
-          }),
         ],
-        count: 5,
+        count: 4,
         next: null,
       },
     });
     const { records } = await new EventsApi(http).list({
       event_name: "introspection.issue",
+      issue_id: "0195fb1a-0000-7000-8000-0000000000a1",
     });
 
+    const query = (http.request as ReturnType<typeof vi.fn>).mock.calls[0][0]
+      .query;
+    expect(query.issue_id).toBe("0195fb1a-0000-7000-8000-0000000000a1");
     const read = records.map(({ payload }) => {
       switch (payload.action) {
         case "created":
           return `created:${String(payload.data.title)}`;
         case "updated":
-          return `updated:${String(payload.changes.status?.after)}`;
+          return `updated:${String(payload.changes.status?.after)}:${String(payload.changes.assignee_member_id?.before)}`;
+        case "commented":
+          return `commented:${payload.comment}:${payload.actor_member_type}`;
         case "deleted":
           return `deleted:${payload.revision}`;
-        case "request.created":
-          return `request.created:${payload.request.question}`;
-        case "request.updated":
-          return `request.updated:${payload.request.resolution}:${String(payload.changes.status?.before)}`;
         default:
           return "unknown";
       }
     });
     expect(read).toEqual([
       "created:Checkout times out",
-      "updated:closed",
+      "updated:waiting:undefined",
+      "commented:Can we raise the timeout?:agent",
       "deleted:1",
-      "request.created:Ship it?",
-      "request.updated:Yes.:open",
     ]);
   });
 

@@ -1327,8 +1327,14 @@
     "Issue": {
       "type": "object",
       "properties": {
+        "assignee_member_id": {},
         "closed_at": {},
+        "comments": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/IssueComment" }
+        },
         "created_at": {},
+        "created_by_member_id": {},
         "description": {},
         "display_index": {},
         "events": {
@@ -1339,14 +1345,15 @@
         "id": {},
         "links": { "type": "array", "items": { "$ref": "#/$defs/IssueLink" } },
         "member_id": {},
-        "metadata": {},
-        "open_requests": {
+        "members": {
           "type": "array",
-          "items": { "$ref": "#/$defs/IssueOpenRequest" }
+          "items": { "$ref": "#/$defs/IssueMember" }
         },
+        "metadata": {},
         "org_id": {},
         "priority": {},
         "project_id": {},
+        "reviewer_member_id": {},
         "revision": {},
         "spans": {
           "type": "array",
@@ -1371,10 +1378,9 @@
         "id": {},
         "payload": {
           "anyOf": [
+            { "$ref": "#/$defs/IssueCommentedPayload" },
             { "$ref": "#/$defs/IssueCreatedPayload" },
             { "$ref": "#/$defs/IssueDeletedPayload" },
-            { "$ref": "#/$defs/IssueRequestCreatedPayload" },
-            { "$ref": "#/$defs/IssueRequestUpdatedPayload" },
             { "$ref": "#/$defs/IssueUpdatedPayload" }
           ]
         },
@@ -1388,13 +1394,41 @@
       },
       "additionalProperties": false
     },
+    "IssueComment": {
+      "type": "object",
+      "properties": {
+        "actor_member_id": {},
+        "actor_member_type": {},
+        "comment": {},
+        "created_at": {},
+        "id": {},
+        "issue_id": {},
+        "member_id": {}
+      },
+      "additionalProperties": false
+    },
+    "IssueCommentedPayload": {
+      "type": "object",
+      "properties": {
+        "action": { "const": "commented" },
+        "actor_member_id": {},
+        "actor_member_type": {},
+        "comment": {},
+        "issue_id": {},
+        "member_id": {},
+        "revision": {}
+      },
+      "additionalProperties": false
+    },
     "IssueCreatedPayload": {
       "type": "object",
       "properties": {
         "action": { "const": "created" },
+        "actor_member_id": {},
+        "actor_member_type": {},
         "data": {},
         "issue_id": {},
-        "resource_id": {},
+        "member_id": {},
         "revision": {}
       },
       "additionalProperties": false
@@ -1403,8 +1437,10 @@
       "type": "object",
       "properties": {
         "action": { "const": "deleted" },
+        "actor_member_id": {},
+        "actor_member_type": {},
         "issue_id": {},
-        "resource_id": {},
+        "member_id": {},
         "revision": {}
       },
       "additionalProperties": false
@@ -1434,68 +1470,9 @@
       "properties": { "title": {}, "url": {} },
       "additionalProperties": false
     },
-    "IssueOpenRequest": {
+    "IssueMember": {
       "type": "object",
-      "properties": {
-        "assignee_id": {},
-        "created_at": {},
-        "id": {},
-        "question": {}
-      },
-      "additionalProperties": false
-    },
-    "IssueRequest": {
-      "type": "object",
-      "properties": {
-        "assignee_id": {},
-        "created_at": {},
-        "events": {
-          "type": "array",
-          "items": { "$ref": "#/$defs/IssueEventReference" }
-        },
-        "files": { "type": "array", "items": { "$ref": "#/$defs/IssueFile" } },
-        "id": {},
-        "issue_id": {},
-        "issue_member_id": {},
-        "issue_revision": {},
-        "links": { "type": "array", "items": { "$ref": "#/$defs/IssueLink" } },
-        "question": {},
-        "resolution": {},
-        "revision": {},
-        "spans": {
-          "type": "array",
-          "items": { "$ref": "#/$defs/IssueSpanReference" }
-        },
-        "status": {},
-        "task_id": {},
-        "updated_at": {}
-      },
-      "additionalProperties": false
-    },
-    "IssueRequestCreatedPayload": {
-      "type": "object",
-      "properties": {
-        "action": { "const": "request.created" },
-        "issue_id": {},
-        "request": { "$ref": "#/$defs/IssueRequest" },
-        "resource_id": {},
-        "revision": {}
-      },
-      "additionalProperties": false
-    },
-    "IssueRequestUpdatedPayload": {
-      "type": "object",
-      "properties": {
-        "action": { "const": "request.updated" },
-        "changes": {
-          "type": "object",
-          "additionalProperties": { "$ref": "#/$defs/IssueFieldChange" }
-        },
-        "issue_id": {},
-        "request": { "$ref": "#/$defs/IssueRequest" },
-        "resource_id": {},
-        "revision": {}
-      },
+      "properties": { "member_id": {}, "relation": {} },
       "additionalProperties": false
     },
     "IssueSpanReference": {
@@ -1507,12 +1484,14 @@
       "type": "object",
       "properties": {
         "action": { "const": "updated" },
+        "actor_member_id": {},
+        "actor_member_type": {},
         "changes": {
           "type": "object",
           "additionalProperties": { "$ref": "#/$defs/IssueFieldChange" }
         },
         "issue_id": {},
-        "resource_id": {},
+        "member_id": {},
         "revision": {}
       },
       "additionalProperties": false
@@ -3112,6 +3091,7 @@
     "Integration": { "$ref": "#/$defs/Integration" },
     "IntegrationAccessToken": { "$ref": "#/$defs/IntegrationAccessToken" },
     "Issue": { "$ref": "#/$defs/Issue" },
+    "IssueComment": { "$ref": "#/$defs/IssueComment" },
     "Judge": { "$ref": "#/$defs/Judge" },
     "Member": { "$ref": "#/$defs/Member" },
     "MetricQueryResponse": { "$ref": "#/$defs/MetricQueryResponse" },

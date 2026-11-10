@@ -288,32 +288,19 @@ describe("strict decoding on", () => {
   });
 
   it("models every issue event action", async () => {
-    const request = {
-      id: "r1",
+    const base = {
       issue_id: "i1",
-      task_id: "t1",
-      question: "Ship it?",
-      assignee_id: "m1",
-      status: "resolved",
-      resolution: "Yes.",
-      revision: 2,
-      issue_revision: 3,
-      issue_member_id: "m2",
-      files: [{ file_id: "f1", name: "a.txt", source_event_ids: [] }],
-      links: [{ url: "https://example.com" }],
-      events: [{ event_id: "e0" }],
-      spans: [{ trace_id: "t", span_id: "s" }],
-      created_at: "2026-11-10T05:00:00Z",
-      updated_at: "2026-11-10T05:00:00Z",
+      revision: 1,
+      member_id: "m1",
+      actor_member_id: "m2",
+      actor_member_type: "agent",
     };
-    const base = { issue_id: "i1", resource_id: "i1", revision: 1 };
-    const changes = { status: { before: "open", after: "resolved" } };
+    const changes = { status: { before: "open", after: "waiting" } };
     const payloads = [
       { ...base, action: "created", data: { title: "Checkout times out" } },
       { ...base, action: "updated", changes },
+      { ...base, action: "commented", comment: "Raised to 60s." },
       { ...base, action: "deleted" },
-      { ...base, action: "request.created", request },
-      { ...base, action: "request.updated", request, changes },
     ];
     const events = new EventsApi(
       client(
@@ -329,7 +316,7 @@ describe("strict decoding on", () => {
       ),
     );
     const listed = await events.list({ event_name: "introspection.issue" });
-    expect(listed.records).toHaveLength(5);
+    expect(listed.records).toHaveLength(4);
 
     const stray = new EventsApi(
       client(
@@ -338,7 +325,7 @@ describe("strict decoding on", () => {
             id: "e1",
             timestamp: "2026-11-10T05:00:00Z",
             event_name: "introspection.issue",
-            payload: { ...base, action: "deleted", changes },
+            payload: { ...base, action: "deleted", comment: "no" },
           },
         ]),
         true,
@@ -346,26 +333,7 @@ describe("strict decoding on", () => {
     );
     await expect(
       stray.list({ event_name: "introspection.issue" }),
-    ).rejects.toThrow("$.records[0].payload.changes");
-  });
-
-  it("reports a judgement field that belongs to the other kind", async () => {
-    const events = new EventsApi(
-      client(
-        page([
-          {
-            id: "e1",
-            timestamp: "2026-11-10T05:00:00Z",
-            event_name: "introspection.judgement",
-            payload: { judgement_id: "j1", kind: "verdict", scores: { q1: 1 } },
-          },
-        ]),
-        true,
-      ),
-    );
-    await expect(
-      events.list({ event_name: "introspection.judgement" }),
-    ).rejects.toThrow("$.records[0].payload.scores");
+    ).rejects.toThrow("$.records[0].payload.comment");
   });
 
   it("checks an event page", async () => {

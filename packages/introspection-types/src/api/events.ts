@@ -2,7 +2,6 @@ import type {
   AutomationSkipReason,
   AutomationTriggerType,
 } from "./automations.js";
-import type { IssueRequest } from "./issues.js";
 import type {
   CursorParams,
   IsoDate,
@@ -251,7 +250,7 @@ export interface JudgementEgressPayload extends JudgementBasePayload {
 /** One judgement. Narrow on `kind`. */
 export type JudgementPayload = JudgementVerdictPayload | JudgementEgressPayload;
 
-/** One authored field's value on either side of an update. */
+/** One authored field's value on either side of an update; a null side is omitted. */
 export interface IssueFieldChange {
   before?: unknown;
   after?: unknown;
@@ -260,10 +259,14 @@ export interface IssueFieldChange {
 /** What every issue event carries, whichever action it records. */
 interface IssueActivityBasePayload {
   issue_id: Uuid;
-  /** The issue for an issue action, the request for a `request.*` action. */
-  resource_id?: Uuid | null;
-  /** The revision of the resource the action wrote. */
+  /** The revision of the issue the action wrote. */
   revision?: number | null;
+  /** The authenticated member who made the change or comment. */
+  member_id?: Uuid | null;
+  /** The member acting for `member_id`, when the write was delegated. */
+  actor_member_id?: Uuid | null;
+  /** The actor's capacity: `agent`, `dev` or `impersonation`. */
+  actor_member_type?: string | null;
 }
 
 export interface IssueCreatedPayload extends IssueActivityBasePayload {
@@ -274,35 +277,29 @@ export interface IssueCreatedPayload extends IssueActivityBasePayload {
 
 export interface IssueUpdatedPayload extends IssueActivityBasePayload {
   action: "updated";
-  /** Each changed field, by name. */
+  /**
+   * Each changed field, by name; `members` holds the people on the issue
+   * before and after.
+   */
   changes: Record<string, IssueFieldChange>;
+}
+
+/** A comment on its own. Its time is the event's `timestamp`. */
+export interface IssueCommentedPayload extends IssueActivityBasePayload {
+  action: "commented";
+  comment: string;
 }
 
 export interface IssueDeletedPayload extends IssueActivityBasePayload {
   action: "deleted";
 }
 
-export interface IssueRequestCreatedPayload extends IssueActivityBasePayload {
-  action: "request.created";
-  /** The request as created. */
-  request: IssueRequest;
-}
-
-export interface IssueRequestUpdatedPayload extends IssueActivityBasePayload {
-  action: "request.updated";
-  /** The request after the update. */
-  request: IssueRequest;
-  /** Each changed field, by name. */
-  changes: Record<string, IssueFieldChange>;
-}
-
-/** One change to an issue or to a request on it. Narrow on `action`. */
+/** One change to an issue, or a comment on it. Narrow on `action`. */
 export type IssueActivityPayload =
   | IssueCreatedPayload
   | IssueUpdatedPayload
-  | IssueDeletedPayload
-  | IssueRequestCreatedPayload
-  | IssueRequestUpdatedPayload;
+  | IssueCommentedPayload
+  | IssueDeletedPayload;
 
 /** One automation trigger that ran (`introspection.automation.triggered`). */
 export interface AutomationTriggeredPayload {
@@ -520,4 +517,6 @@ export interface EventListParams extends CursorParams, ReadWindowParams {
   automation_id?: Uuid;
   /** automation triggered / skipped: filter by the task created or posted into. */
   task_id?: Uuid;
+  /** issue: the changes to, and comments on, one issue. */
+  issue_id?: Uuid;
 }
