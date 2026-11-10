@@ -18,6 +18,7 @@ import {
   IntrospectionClient,
   NotFoundError,
   ValidationError,
+  issueEtag,
   oidcLogout,
   serviceAccountToken,
   type Runner,
@@ -29,6 +30,7 @@ import type {
   Connector,
   Endpoint,
   Experiment,
+  Issue,
   Judge,
   Project,
   File as IntrospectionFile,
@@ -118,6 +120,9 @@ const APPLICATION_SCOPES = [
   "connections:delete",
   "automations:read",
   "automations:write",
+  "issues:read",
+  "issues:write",
+  "issues:delete",
   "annotations:read",
   "approvals:read",
   "approvals:write",
@@ -381,6 +386,9 @@ walk("SDK end-to-end walk", () => {
               "connections:delete",
               "automations:read",
               "automations:write",
+              "issues:read",
+              "issues:write",
+              "issues:delete",
               "annotations:read",
               "approvals:read",
               "approvals:write",
@@ -1617,6 +1625,64 @@ walk("SDK end-to-end walk", () => {
           contains: ["gen_ai.input.messages.role:user"],
         });
         expect(userTurns.data.length, "a user turn").toBeGreaterThan(0);
+
+        // An issue on the walk's task, citing its output: open, read, list,
+        // close under its etag, refuse the stale etag, delete.
+        const issue = await sa.issues.create({
+          task_id: task.id,
+          title: "The walk's issue",
+          description: "The greeting the walk's task wrote.",
+          priority: "high",
+          tags: ["suite:walk"],
+          files: [{ file_id: outputFile.id }],
+        });
+        expect(stable(issueBrief(issue))).toMatchInlineSnapshot(`
+          {
+            "description": "The greeting the walk's task wrote.",
+            "files": [
+              "[uuid]",
+            ],
+            "priority": "high",
+            "status": "open",
+            "tags": [
+              "suite:walk",
+            ],
+            "task_id": "[uuid]",
+            "title": "The walk's issue",
+          }
+        `);
+        expect(issue.task_id).toBe(task.id);
+        expect(issue.files[0]?.file_id).toBe(outputFile.id);
+
+        const read = await sa.issues.get(issue.id);
+        expect(read.id).toBe(issue.id);
+        let listed = false;
+        for await (const i of sa.issues.list({ tag: "suite:walk" })) {
+          if (i.id === issue.id) listed = true;
+        }
+        expect(listed).toBe(true);
+
+        const closed = await sa.issues.update(
+          issue.id,
+          {
+            status: "closed",
+            description: "The greeting the walk's task wrote, checked.",
+          },
+          { ifMatch: issueEtag(read) },
+        );
+        expect(closed.status).toBe("closed");
+        expect(closed.closed_at).toBeTruthy();
+        const stale = await expectRefused(() =>
+          sa.issues.update(
+            issue.id,
+            { priority: "low" },
+            { ifMatch: issueEtag(read) },
+          ),
+        );
+        expect(stale.status).toBe(412);
+
+        await sa.issues.delete(issue.id, { ifMatch: issueEtag(closed) });
+        await expectNotFound(() => sa.issues.get(issue.id));
       });
     },
     STEP_TIMEOUT,
@@ -3091,6 +3157,19 @@ async function signInRoutes(
 function ownRun(run: string): (name: string | null | undefined) => boolean {
   const own = new RegExp(run.replace("-", "[-_]"), "i");
   return (name) => !!name && own.test(name);
+}
+
+/** What an issue says, without what the server stamps on it. */
+function issueBrief(issue: Issue) {
+  return {
+    title: issue.title,
+    description: issue.description,
+    status: issue.status,
+    priority: issue.priority,
+    task_id: issue.task_id,
+    tags: issue.tags,
+    files: issue.files.map((f) => f.file_id),
+  };
 }
 
 async function expectNotFound(read: () => Promise<unknown>): Promise<void> {
