@@ -80,7 +80,8 @@
         "reviewer_member_ids": { "type": "array" },
         "span_id": {},
         "trace_id": {},
-        "updated_at": {}
+        "updated_at": {},
+        "updated_by_member_id": {}
       },
       "additionalProperties": false
     },

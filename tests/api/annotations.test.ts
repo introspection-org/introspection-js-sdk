@@ -38,6 +38,7 @@ const ANNOTATION: AnnotationState = {
   reviewer_member_ids: [BOB_ID],
   comment_count: 2,
   updated_at: "2026-08-25T01:02:03Z",
+  updated_by_member_id: BOB_ID,
   assignment_event_id: "33333333-3333-3333-3333-333333333333",
 };
 
@@ -55,7 +56,6 @@ const LEGACY_ANNOTATION = {
   latest_comment_member_id: BOB_ID,
   latest_comment_actor_member_id: null,
   latest_comment_actor_type: null,
-  updated_by_member_id: BOB_ID,
 };
 
 const LABEL: Tag = {

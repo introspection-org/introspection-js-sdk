@@ -15,6 +15,7 @@ export interface AnnotationState extends AnnotationTarget {
   reviewer_member_ids: Uuid[];
   comment_count: number;
   updated_at: IsoDate;
+  updated_by_member_id: Uuid;
   assignment_event_id: Uuid | null;
 }
 
