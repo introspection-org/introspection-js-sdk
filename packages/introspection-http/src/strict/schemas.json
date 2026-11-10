@@ -42,19 +42,6 @@
       },
       "additionalProperties": false
     },
-    "AnnotationFacet": {
-      "type": "object",
-      "properties": {
-        "comment_count": {},
-        "conversation_count": {},
-        "count": {},
-        "dimension": {},
-        "reviewer_member_ids": { "type": "array" },
-        "updated_at": {},
-        "value": {}
-      },
-      "additionalProperties": false
-    },
     "AnnotationMember": {
       "type": "object",
       "properties": { "email": {}, "id": {}, "is_deactivated": {} },
@@ -2940,10 +2927,6 @@
     }
   },
   "keys": {
-    "AnnotationFacet[]": {
-      "type": "array",
-      "items": { "$ref": "#/$defs/AnnotationFacet" }
-    },
     "AnnotationNavigation": { "$ref": "#/$defs/AnnotationNavigation" },
     "ApiKey": { "$ref": "#/$defs/ApiKey" },
     "ApiKeyAcknowledgement": { "$ref": "#/$defs/ApiKeyAcknowledgement" },

@@ -1805,8 +1805,6 @@ walk("SDK end-to-end walk", () => {
             } as Parameters<typeof sa.events.listArrow>[0])
             .readAll();
           expect(eventTable.numRows).toBeGreaterThanOrEqual(events.length);
-          const facets = await member.annotations.facets();
-          expect(Array.isArray(facets)).toBe(true);
           const navigation = await member.annotations.navigation({
             trace_id: target.trace_id,
             span_id: target.span_id,
@@ -1826,9 +1824,6 @@ walk("SDK end-to-end walk", () => {
               span_id: "not-a-span",
             }),
           ).rejects.toBeInstanceOf(ValidationError);
-          await expectRefused(() =>
-            noCredential(settings).annotations.facets(),
-          );
         }
         shareId = share.id;
 

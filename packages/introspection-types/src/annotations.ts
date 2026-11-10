@@ -36,19 +36,6 @@ export interface AnnotationState extends AnnotationTarget {
   comments?: AnnotationComment[] | null;
 }
 
-/** One filter bucket over current annotation state (`GET /v1/annotations/facets`). */
-export interface AnnotationFacet {
-  /** `annotator`, `assignee`, `label`, `review_queue` or `status`. */
-  dimension: string;
-  value: string;
-  count: number;
-  /** Set on the `label` and `review_queue` buckets, which summarize a dataset. */
-  conversation_count?: number | null;
-  comment_count?: number | null;
-  reviewer_member_ids?: Uuid[] | null;
-  updated_at?: IsoDate | null;
-}
-
 /** `GET /v1/annotations/navigation` filters: the review order around one target. */
 export interface AnnotationNavigationParams extends AnnotationTarget {
   annotated_by_member_id?: Uuid;
@@ -56,6 +43,8 @@ export interface AnnotationNavigationParams extends AnnotationTarget {
   /** Only targets carrying every one of these labels. */
   label?: string[];
   status?: "backlog" | "assigned" | "reviewed";
+  /** How many days of annotation events the read reaches back (1-90, default 90). */
+  lookback_days?: number;
 }
 
 /** A bounded window around one annotation in the filtered review order. */
@@ -81,6 +70,8 @@ export interface AnnotationListParams extends ListParams {
   /** Only targets carrying this label, or every one of these labels. */
   label?: string | string[];
   status?: "backlog" | "assigned" | "reviewed";
+  /** How many days of annotation events the read reaches back (1-90, default 90). */
+  lookback_days?: number;
   /** Expansions to load on every row; `comments` fills {@link AnnotationState.comments}. */
   include?: AnnotationInclude[];
 }

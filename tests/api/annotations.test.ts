@@ -332,7 +332,11 @@ describe("annotations", () => {
   });
 
   it("returns the navigation window's current rows untouched", async () => {
-    const window = await client().annotations.navigation(TARGET);
+    const window = await client().annotations.navigation({
+      ...TARGET,
+      lookback_days: 7,
+    });
+    expect(requests[0]!.query.get("lookback_days")).toBe("7");
     expect(window.current).toEqual(ANNOTATION);
     expect(window.total_count).toBe(1);
   });
@@ -341,6 +345,7 @@ describe("annotations", () => {
     const listing = client().annotations.list({
       limit: 1,
       include_total: true,
+      lookback_days: 30,
       annotated_by_member_id: BOB_ID,
       assignee_member_id: ALICE_ID,
       trace_id: TARGET.trace_id,
@@ -353,9 +358,11 @@ describe("annotations", () => {
     for await (const annotation of listing) all.push(annotation);
     expect(all).toHaveLength(2);
     expect(requests[0]!.query.get("include_total")).toBe("true");
+    expect(requests[0]!.query.get("lookback_days")).toBe("30");
     expect(requests[0]!.query.get("annotated_by_member_id")).toBe(BOB_ID);
     expect(requests[0]!.query.get("assignee_member_id")).toBe(ALICE_ID);
     expect(requests.at(-1)?.query.get("next")).toBe("annotation-page-2");
+    expect((await listing).total_count).toBe(1);
   });
 
   it("resolves email list filters once before paginating the data plane", async () => {

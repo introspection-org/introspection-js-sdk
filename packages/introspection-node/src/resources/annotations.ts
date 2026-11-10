@@ -6,7 +6,6 @@ import {
   type Paginated,
   type AnnotationListParams,
   type AnnotationEventOptions,
-  type AnnotationFacet,
   type AnnotationNavigation,
   type AnnotationNavigationParams,
   type AnnotationMutation,
@@ -147,18 +146,6 @@ export class AnnotationsApi {
       })();
       return resolvedFilters;
     };
-  }
-
-  /**
-   * The current annotator, assignee, label, status and review-queue counts across the
-   * project's annotations: the buckets a review queue filters by.
-   */
-  facets(): Promise<AnnotationFacet[]> {
-    return this.dpHttp.request<AnnotationFacet[]>({
-      method: "GET",
-      path: "/v1/annotations/facets",
-      schema: "AnnotationFacet[]",
-    });
   }
 
   /**
