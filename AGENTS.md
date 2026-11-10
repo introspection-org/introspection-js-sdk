@@ -153,6 +153,8 @@ Polly appends a `_<hash>` suffix to the cassette name (`pi-chat_3668022627/`). T
 
 The SDK walk's recordings (`walk`, `github-walk`, `aauth-walk`) also keep a `bootstrap.json` in `tests/recordings/<name>/`, beside the cassette in `<name>_<hash>/`. **Re-record them only with `scripts/record-walk.sh`** (`pnpm record-walk`). It dispatches introspection-cloud's `sdk-walks.yml` with this branch as the JS ref, waits for the run, and copies every JS walk recording from its `sdk-coverage` artifact into `tests/recordings`. Push the branch first, then replay the copies (`pnpm test:walk`) before committing them. `pnpm test:walk:record` and `pnpm test:walk:live` only check a local stack; never record against staging or with your own `introspection login`.
 
+**Decoding never fails on what the server adds.** Responses are not validated at runtime outside strict mode, so a new field, enum value or union variant reaches the caller as it came. Keep it that way: no runtime schema check on the default path, and code that switches on a server enum or union tag has a `default` branch. Strict mode is the only place an unmodelled field fails.
+
 The walk decodes strictly (`INTROSPECTION_STRICT_SCHEMA=1`, set in `tests/walk/support.ts`), so a response field the SDK does not model fails the step with its JSON path. Model the field; don't drop it from the recording. A type whose extra keys are open by design (the `gen_ai.*` nodes, the GenAI message and part types) carries `@openSchema` in its JSDoc.
 
 ### Strict-decoding schemas
