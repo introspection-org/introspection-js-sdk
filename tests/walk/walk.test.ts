@@ -120,9 +120,6 @@ const APPLICATION_SCOPES = [
   "connections:delete",
   "automations:read",
   "automations:write",
-  "issues:read",
-  "issues:write",
-  "issues:delete",
   "annotations:read",
   "approvals:read",
   "approvals:write",
@@ -386,9 +383,6 @@ walk("SDK end-to-end walk", () => {
               "connections:delete",
               "automations:read",
               "automations:write",
-              "issues:read",
-              "issues:write",
-              "issues:delete",
               "annotations:read",
               "approvals:read",
               "approvals:write",
@@ -1628,7 +1622,7 @@ walk("SDK end-to-end walk", () => {
 
         // An issue on the walk's task, citing its output: open, read, list,
         // close under its etag, refuse the stale etag, delete.
-        const issue = await sa.issues.create({
+        const issue = await member.issues.create({
           task_id: task.id,
           title: "The walk's issue",
           description: "The greeting the walk's task wrote.",
@@ -1654,15 +1648,15 @@ walk("SDK end-to-end walk", () => {
         expect(issue.task_id).toBe(task.id);
         expect(issue.files[0]?.file_id).toBe(outputFile.id);
 
-        const read = await sa.issues.get(issue.id);
+        const read = await member.issues.get(issue.id);
         expect(read.id).toBe(issue.id);
         let listed = false;
-        for await (const i of sa.issues.list({ tag: "suite:walk" })) {
+        for await (const i of member.issues.list({ tag: "suite:walk" })) {
           if (i.id === issue.id) listed = true;
         }
         expect(listed).toBe(true);
 
-        const closed = await sa.issues.update(
+        const closed = await member.issues.update(
           issue.id,
           {
             status: "closed",
@@ -1673,7 +1667,7 @@ walk("SDK end-to-end walk", () => {
         expect(closed.status).toBe("closed");
         expect(closed.closed_at).toBeTruthy();
         const stale = await expectRefused(() =>
-          sa.issues.update(
+          member.issues.update(
             issue.id,
             { priority: "low" },
             { ifMatch: issueEtag(read) },
@@ -1681,8 +1675,8 @@ walk("SDK end-to-end walk", () => {
         );
         expect(stale.status).toBe(412);
 
-        await sa.issues.delete(issue.id, { ifMatch: issueEtag(closed) });
-        await expectNotFound(() => sa.issues.get(issue.id));
+        await member.issues.delete(issue.id, { ifMatch: issueEtag(closed) });
+        await expectNotFound(() => member.issues.get(issue.id));
       });
     },
     STEP_TIMEOUT,
