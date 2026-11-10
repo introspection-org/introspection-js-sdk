@@ -196,7 +196,6 @@ export interface JudgementPayload {
   judge_type?: string | null;
   /** `verdict.v1` or `question_scores.v1`. */
   result_schema?: string | null;
-  runtime_slug?: string | null;
   /** The verdict. */
   result?: string | null;
   /** Whether the judgement ran (`ok`/`error`), distinct from the verdict. */
@@ -204,27 +203,13 @@ export interface JudgementPayload {
   error_class?: string | null;
   error_message?: string | null;
   source_component?: string | null;
-  reasoning?: string | null;
   definition_hash?: string | null;
   engine_version?: string | null;
   judge_provider?: string | null;
   judge_model?: string | null;
   contract_version?: string | null;
   sequence_hash?: string | null;
-  input_tokens?: number | null;
-  output_tokens?: number | null;
-  total_tokens?: number | null;
   experiment_arm_id?: Uuid | null;
-  /** Each answered question's probability of true, 0-100. */
-  scores?: Record<string, number> | null;
-  /** An egress judgement's questions, by name. */
-  questions?: Record<string, string> | null;
-  policy_id?: string | null;
-  policy_action?: string | null;
-  reason?: string | null;
-  request_host?: string | null;
-  request_method?: string | null;
-  request_path?: string | null;
 }
 
 /** One automation trigger that ran (`introspection.automation.triggered`). */
