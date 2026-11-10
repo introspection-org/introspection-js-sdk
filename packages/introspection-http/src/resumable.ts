@@ -222,7 +222,10 @@ async function* forwardAttach(
     for await (const frame of parseStreamFrames(res)) {
       if (frame.name !== "ag_ui") continue;
       decoding = true;
-      const event = decodeAgUiEvent(JSON.parse(frame.data) as unknown);
+      const event = decodeAgUiEvent(
+        JSON.parse(frame.data) as unknown,
+        cfg.http.strictSchema,
+      );
       decoding = false;
       const cursor = contentCursor(frame.id, event);
       if (cursor !== undefined) {

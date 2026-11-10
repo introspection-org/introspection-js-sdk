@@ -123,7 +123,7 @@ export interface BaseHttpConfig {
  */
 export class BaseHttpClient {
   protected readonly fetchImpl: typeof fetch;
-  private readonly strictSchema: boolean;
+  readonly strictSchema: boolean;
 
   constructor(protected readonly cfg: BaseHttpConfig) {
     this.fetchImpl = cfg.fetch ?? globalThis.fetch;

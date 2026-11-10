@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   EventType,
   RateLimitError,
@@ -224,5 +224,47 @@ describe("stream (transparent resume)", () => {
       "d",
     ]);
     expect(http.streamCalls).toBe(4);
+  });
+});
+
+describe("stream decoding follows the client's strictSchema", () => {
+  const unknown: Frame = { id: "2", event: "ag_ui", data: { type: "NOPE" } };
+
+  class StrictHttp extends FakeHttp {
+    constructor(
+      readonly strictSchema: boolean | undefined,
+      streams: Array<() => Response>,
+    ) {
+      super(streams);
+    }
+  }
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it("a strict client rejects an event type newer than this SDK", async () => {
+    vi.stubEnv("INTROSPECTION_STRICT_SCHEMA", "");
+    const http = new StrictHttp(true, [
+      clean(content("1", "a"), unknown, FINISH),
+    ]);
+    await expect(deltas(http, FAST)).rejects.toThrow();
+    expect(http.streamCalls).toBe(1);
+  });
+
+  it("a client that turns it off passes the event through over the environment", async () => {
+    vi.stubEnv("INTROSPECTION_STRICT_SCHEMA", "1");
+    const http = new StrictHttp(false, [
+      clean(content("1", "a"), unknown, FINISH),
+    ]);
+    expect(await deltas(http, FAST)).toEqual(["a"]);
+  });
+
+  it("a client with no setting follows the environment", async () => {
+    vi.stubEnv("INTROSPECTION_STRICT_SCHEMA", "1");
+    const http = new StrictHttp(undefined, [
+      clean(content("1", "a"), unknown, FINISH),
+    ]);
+    await expect(deltas(http, FAST)).rejects.toThrow();
   });
 });

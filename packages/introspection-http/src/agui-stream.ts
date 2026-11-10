@@ -103,14 +103,18 @@ export async function* parseStreamFrames(
  * Decode one AG-UI event. A newer server's event this `@ag-ui/core` does not
  * know (a new `type`, `role` or key) is returned as received, so the stream
  * keeps going; consumers skip what they do not recognize. Strict decoding
- * (`INTROSPECTION_STRICT_SCHEMA`) throws instead, as for every response.
+ * (the client's `strictSchema`, else `INTROSPECTION_STRICT_SCHEMA`) throws
+ * instead, as for every response.
  */
-export function decodeAgUiEvent(payload: unknown): AGUIEvent {
+export function decodeAgUiEvent(
+  payload: unknown,
+  strict: boolean = strictSchemaFromEnv(),
+): AGUIEvent {
   const parsed = EventSchemas.safeParse(payload);
   if (parsed.success) return parsed.data;
   const isEvent =
     typeof (payload as { type?: unknown } | null)?.type === "string";
-  if (!isEvent || strictSchemaFromEnv()) throw parsed.error;
+  if (!isEvent || strict) throw parsed.error;
   return payload as AGUIEvent;
 }
 
@@ -122,9 +126,10 @@ export function decodeAgUiEvent(payload: unknown): AGUIEvent {
  */
 export async function* parseAgUiEvents(
   res: Response,
+  opts: { strictSchema?: boolean } = {},
 ): AsyncIterable<AGUIEvent> {
   for await (const frame of parseStreamFrames(res)) {
     if (frame.name !== "ag_ui") continue;
-    yield decodeAgUiEvent(JSON.parse(frame.data) as unknown);
+    yield decodeAgUiEvent(JSON.parse(frame.data) as unknown, opts.strictSchema);
   }
 }
