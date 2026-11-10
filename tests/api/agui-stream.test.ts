@@ -99,6 +99,18 @@ describe("parseAgUiEvents", () => {
         collect(textResponse('event: ag_ui\ndata: {"type":"NOPE"}\n\n')),
       ).rejects.toThrow();
     });
+
+    it("rejects one under the caller's strictSchema, whatever the environment", async () => {
+      vi.stubEnv("INTROSPECTION_STRICT_SCHEMA", "");
+      const res = textResponse('event: ag_ui\ndata: {"type":"NOPE"}\n\n');
+      await expect(
+        (async () => {
+          for await (const _ of parseAgUiEvents(res, { strictSchema: true })) {
+            // drain
+          }
+        })(),
+      ).rejects.toThrow();
+    });
   });
 
   it("rejects a payload that is not an AG-UI event", async () => {

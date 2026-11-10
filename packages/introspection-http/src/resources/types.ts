@@ -14,6 +14,9 @@ export interface RequestOptions<T> {
 }
 
 export interface ResourceHttpClient {
+  /** Whether a response, run streams included, fails on what this SDK does not model. */
+  readonly strictSchema?: boolean;
+
   request<T>(opts: RequestOptions<T>): Promise<T>;
 
   stream(opts: {
