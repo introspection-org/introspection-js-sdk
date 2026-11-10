@@ -20,7 +20,7 @@ export interface AnnotationState extends AnnotationTarget {
 
 /** One filter bucket over current annotation state (`GET /v1/annotations/facets`). */
 export interface AnnotationFacet {
-  /** `annotator`, `assignee`, `label` or `status`. */
+  /** `annotator`, `assignee`, `label`, `review_queue` or `status`. */
   dimension: string;
   value: string;
   count: number;
@@ -60,8 +60,19 @@ export interface AnnotationListParams extends ListParams {
   trace_id?: string;
   span_id?: string;
   conversation_id?: string;
-  label?: string;
+  /** Only targets carrying this label, or every one of these labels. */
+  label?: string | string[];
+  status?: "backlog" | "assigned" | "reviewed";
 }
+
+/**
+ * `GET /v1/annotations/export` filters: the list's, without paging, since the
+ * export streams every matching row.
+ */
+export type AnnotationExportParams = Omit<
+  AnnotationListParams,
+  keyof ListParams
+>;
 
 /**
  * Exactly one append-only annotation mutation. Label and reviewer arrays are

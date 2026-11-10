@@ -6,6 +6,7 @@ import {
   type Paginated,
   type AnnotationListParams,
   type AnnotationEventOptions,
+  type AnnotationExportParams,
   type AnnotationFacet,
   type AnnotationNavigation,
   type AnnotationNavigationParams,
@@ -14,6 +15,7 @@ import {
   type AnnotationTarget,
   type Uuid,
 } from "@introspection-sdk/types";
+import { readJsonLines } from "@introspection-sdk/http";
 import type { HttpClient } from "../http.js";
 import { Paginator, cursorPaginate, paginateGet } from "../pagination.js";
 
@@ -93,6 +95,54 @@ export class AnnotationsApi {
   ) {}
 
   list(params: AnnotationListParams = {}): Paginator<AnnotationState> {
+    const resolveFilters = this.wireFilters(params);
+    return cursorPaginate(async (next) => {
+      const page = await this.dpHttp.request<Paginated<AnnotationState>>({
+        method: "GET",
+        path: "/v1/annotations",
+        schema: "Paginated<AnnotationState>",
+        query: { ...(await resolveFilters()), next },
+      });
+      return { ...page, records: page.records.map(normalizeState) };
+    }, params.next);
+  }
+
+  /**
+   * Every row {@link list} returns for these filters, unpaginated: the JSON
+   * lines export, parsed one row at a time as the response arrives.
+   */
+  async *export(
+    params: AnnotationExportParams = {},
+    signal?: AbortSignal,
+  ): AsyncGenerator<AnnotationState> {
+    const body = await this.exportStream(params, signal);
+    for await (const state of readJsonLines<AnnotationState>(body)) {
+      yield normalizeState(state);
+    }
+  }
+
+  /**
+   * Return the raw JSON-lines export byte stream without buffering it in the
+   * SDK. Use this for direct file writes.
+   */
+  async exportStream(
+    params: AnnotationExportParams = {},
+    signal?: AbortSignal,
+  ): Promise<ReadableStream<Uint8Array>> {
+    return this.dpHttp.request<ReadableStream<Uint8Array>>({
+      method: "GET",
+      path: "/v1/annotations/export",
+      query: await this.wireFilters(params)(),
+      headers: { Accept: "application/x-ndjson" },
+      expect: "stream",
+      signal,
+    });
+  }
+
+  /** The wire filters for `params`, its emails resolved once to member ids. */
+  private wireFilters(
+    params: AnnotationListParams,
+  ): () => Promise<Record<string, unknown>> {
     if (params.annotated_by_member_id && params.annotated_by_email) {
       throw clientValidationError(
         "Use annotated_by_member_id or annotated_by_email, not both",
@@ -107,7 +157,7 @@ export class AnnotationsApi {
     }
     const { annotated_by_email, assigned_to_email, ...wireParams } = params;
     let resolvedFilters: Promise<Record<string, unknown>> | undefined;
-    const resolveFilters = () => {
+    return () => {
       resolvedFilters ??= (async () => {
         const emails = [annotated_by_email, assigned_to_email].filter(
           (email): email is string => Boolean(email),
@@ -131,19 +181,10 @@ export class AnnotationsApi {
       })();
       return resolvedFilters;
     };
-    return cursorPaginate(async (next) => {
-      const page = await this.dpHttp.request<Paginated<AnnotationState>>({
-        method: "GET",
-        path: "/v1/annotations",
-        schema: "Paginated<AnnotationState>",
-        query: { ...(await resolveFilters()), next },
-      });
-      return { ...page, records: page.records.map(normalizeState) };
-    }, params.next);
   }
 
   /**
-   * The current annotator, assignee, label and status counts across the
+   * The current annotator, assignee, label, status and review-queue counts across the
    * project's annotations: the buckets a review queue filters by.
    */
   facets(): Promise<AnnotationFacet[]> {

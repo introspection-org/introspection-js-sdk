@@ -21,6 +21,7 @@ import {
   listRead,
   loadArrow,
 } from "./reads.js";
+import { readJsonLines } from "./json-lines.js";
 import { encodeMetadataFilter } from "./metadata-filter.js";
 import type { ResourceHttpClient } from "./types.js";
 
@@ -33,31 +34,6 @@ const EXPORT_ACCEPT: Record<ConversationExportFormat, string> = {
   arrow: ARROW_STREAM_MEDIA_TYPE,
   trajectory: `${TRAJECTORY_MEDIA_TYPE};version=1`,
 };
-
-/** The non-blank lines of a byte stream, each whole however the chunks split it. */
-async function* readLines(
-  body: ReadableStream<Uint8Array>,
-): AsyncGenerator<string> {
-  const reader = body.getReader();
-  const decoder = new TextDecoder();
-  let pending = "";
-  try {
-    for (;;) {
-      const { value, done } = await reader.read();
-      pending += done
-        ? decoder.decode()
-        : decoder.decode(value, { stream: true });
-      const lines = pending.split("\n");
-      pending = done ? "" : (lines.pop() ?? "");
-      for (const line of lines) if (line.trim() !== "") yield line;
-      if (done) return;
-    }
-  } finally {
-    // A consumer that stops early must not leave the response body open.
-    reader.cancel().catch(() => {});
-    reader.releaseLock();
-  }
-}
 
 /**
  * Items of a conversation (`/v1/conversations/{id}/items`). Read-only.
@@ -213,8 +189,8 @@ export class ConversationsClient {
       params,
       signal,
     );
-    for await (const line of readLines(body)) {
-      yield normalizeSpan(JSON.parse(line) as GenAiSpan);
+    for await (const span of readJsonLines<GenAiSpan>(body)) {
+      yield normalizeSpan(span);
     }
   }
 
