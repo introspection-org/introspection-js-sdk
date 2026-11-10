@@ -157,6 +157,8 @@ The walk decodes strictly (`INTROSPECTION_STRICT_SCHEMA=1`, set in `tests/walk/s
 
 ### Strict-decoding schemas
 
+**An older SDK never fails on a newer server.** Response decoding ignores unknown fields and unknown enum values by default: JSON responses are not validated, and an AG-UI stream event this SDK's `@ag-ui/core` does not know (a new event `type`, message `role` or key) passes through `decodeAgUiEvent` as received. Request schemas may forbid unknown fields. Strict decoding is opt-in (`INTROSPECTION_STRICT_SCHEMA=1` or `strictSchema: true`) and exists for our CI's drift detection only; never make it a default or validate a response any other way.
+
 Every JSON request names its response type for strict decoding: `request<Runtime>({ ..., schema: "Runtime" })`, and a generic helper takes its caller's `SchemaKey<T>`. `scripts/gen-strict-schemas.mjs` reads those keys with the TypeScript compiler, checks each spells its type, and writes `packages/introspection-http/src/strict/schemas.json`. After changing a response type or adding a request, run `pnpm build && pnpm gen:strict-schemas` (`--fix` adds missing keys) and commit the JSON; CI's `pnpm check:strict-schemas` fails when it is stale or a request names no key.
 
 ### Import cycles and the browser boundary

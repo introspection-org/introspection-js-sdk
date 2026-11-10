@@ -74,10 +74,15 @@ describe("parseAgUiEvents", () => {
     expect(await collect(res)).toEqual([]);
   });
 
-  it("rejects invalid AG-UI payloads", async () => {
+  it("passes through an event type newer than this SDK", async () => {
+    const res = textResponse('event: ag_ui\ndata: {"type":"NOPE","x":1}\n\n');
+    expect(await collect(res)).toEqual([{ type: "NOPE", x: 1 }]);
+  });
+
+  it("rejects a payload that is not an AG-UI event", async () => {
     await expect(async () => {
       for await (const _ev of parseAgUiEvents(
-        textResponse('event: ag_ui\ndata: {"type":"NOPE"}\n\n'),
+        textResponse('event: ag_ui\ndata: {"kind":"NOPE"}\n\n'),
       )) {
         // consume stream
       }
