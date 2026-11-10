@@ -266,6 +266,7 @@ export type {
   ConnectPage,
   AnnotationTarget,
   AnnotationState,
+  AnnotationComment,
   AnnotationExportParams,
   AnnotationListParams,
   AnnotationMutation,

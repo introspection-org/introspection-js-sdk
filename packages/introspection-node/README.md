@@ -554,7 +554,8 @@ first transport attempt, so an automatic retry remains one event. Supply
 `client.annotations.list()` and `client.tags.list("annotation")` are both
 awaitable for the first page and async-iterable across every cursor page.
 `client.annotations.export(filters)` takes the list's filters without paging
-and yields every matching row from one JSON-lines response as it arrives;
+and yields every matching row from one JSON-lines response as it arrives,
+each carrying its `comments` oldest first (the list leaves `comments` null);
 `client.annotations.exportStream(filters)` returns the same response's raw bytes.
 Tags come in two catalogues — `annotation` tags (the labels above, each with a
 color) and `access` tags (the values shares and member tags carry, which have

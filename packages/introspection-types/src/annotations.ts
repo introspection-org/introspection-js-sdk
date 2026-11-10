@@ -6,6 +6,18 @@ export interface AnnotationTarget {
   span_id: string;
 }
 
+/** One comment on an annotated span, as the export carries it. */
+export interface AnnotationComment {
+  event_id: Uuid;
+  comment: string;
+  /** The author. */
+  member_id: Uuid;
+  actor_member_id?: Uuid | null;
+  /** What acted for the author, e.g. `agent`. */
+  actor_member_type?: string | null;
+  created_at: IsoDate;
+}
+
 /** Current annotation state folded from append-only annotation events. */
 export interface AnnotationState extends AnnotationTarget {
   conversation_id: string | null;
@@ -17,6 +29,11 @@ export interface AnnotationState extends AnnotationTarget {
   updated_at: IsoDate;
   updated_by_member_id: Uuid;
   assignment_event_id: Uuid | null;
+  /**
+   * Every comment on the span, oldest first. Set on each row of the export;
+   * `null` on the list and on the navigation window.
+   */
+  comments?: AnnotationComment[] | null;
 }
 
 /** One filter bucket over current annotation state (`GET /v1/annotations/facets`). */

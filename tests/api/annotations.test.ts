@@ -6,6 +6,7 @@ import {
   IntrospectionClient,
   NotFoundError,
   ValidationError,
+  type AnnotationComment,
   type AnnotationState,
   type AnnotationTarget,
   type Tag,
@@ -58,6 +59,25 @@ const LEGACY_ANNOTATION = {
   latest_comment_actor_type: null,
 };
 
+const COMMENTS: AnnotationComment[] = [
+  {
+    event_id: "018f6b66-4d3a-7abc-8def-000000000001",
+    comment: "The conclusion is strong.",
+    member_id: BOB_ID,
+    actor_member_id: null,
+    actor_member_type: null,
+    created_at: "2026-08-25T01:00:00Z",
+  },
+  {
+    event_id: "018f6b66-4d3a-7abc-8def-000000000002",
+    comment: "Agreed; flagged the citation.",
+    member_id: ALICE_ID,
+    actor_member_id: "44444444-4444-4444-4444-444444444444",
+    actor_member_type: "agent",
+    created_at: "2026-08-25T01:02:03Z",
+  },
+];
+
 const LABEL: Tag = {
   kind: "annotation",
   name: "good-structure",
@@ -84,7 +104,7 @@ let requests: CapturedRequest[] = [];
 let memberScenario: "normal" | "unknown" | "ambiguous" = "normal";
 let rateLimitNextAnnotation = false;
 let legacyPlane = false;
-let exportScenario: "rows" | "empty" | "refused" = "rows";
+let exportScenario: "rows" | "comments" | "empty" | "refused" = "rows";
 
 function page<T>(records: T[], next: string | null = null) {
   return { records, count: records.length, total_count: records.length, next };
@@ -136,8 +156,11 @@ beforeAll(async () => {
       }
       res.writeHead(200, { "content-type": "application/x-ndjson" });
       if (exportScenario === "empty") return res.end();
+      const first = legacyPlane ? LEGACY_ANNOTATION : ANNOTATION;
       const rows = [
-        legacyPlane ? LEGACY_ANNOTATION : ANNOTATION,
+        exportScenario === "comments"
+          ? { ...first, comments: COMMENTS }
+          : first,
         { ...ANNOTATION, span_id: "cccccccccccccccc", labels: ["étalon"] },
       ];
       const bytes = Buffer.from(
@@ -158,6 +181,13 @@ beforeAll(async () => {
         current_position: 1,
         total_count: 1,
       });
+    }
+    if (
+      path === "/v1/annotations" &&
+      method === "GET" &&
+      exportScenario === "comments"
+    ) {
+      return json(res, 200, page([{ ...ANNOTATION, comments: null }]));
     }
     if (path === "/v1/annotations" && method === "GET" && legacyPlane) {
       return json(res, 200, page([LEGACY_ANNOTATION]));
@@ -338,6 +368,19 @@ describe("annotations", () => {
     const exported = requests.find((r) => r.path.endsWith("/export"))!;
     expect(exported.query.get("assignee_member_id")).toBe(ALICE_ID);
     expect(exported.query.has("assigned_to_email")).toBe(false);
+  });
+
+  it("carries each export row's comments, which the list leaves null", async () => {
+    exportScenario = "comments";
+    const rows: AnnotationState[] = [];
+    for await (const row of client().annotations.export()) rows.push(row);
+    expect(rows[0]!.comments).toEqual(COMMENTS);
+    expect(rows[0]!.comments![1]!.actor_member_type).toBe("agent");
+    expect(rows[0]!.comment_count).toBe(2);
+
+    const { records } = await client().annotations.list();
+    expect(records[0]!.comments).toBeNull();
+    expect(records[0]!.comment_count).toBe(2);
   });
 
   it("yields nothing for an empty export and returns its raw bytes", async () => {

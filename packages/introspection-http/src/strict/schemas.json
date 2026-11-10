@@ -11,6 +11,18 @@
       "properties": { "sandbox_status": {}, "session_id": {} },
       "additionalProperties": false
     },
+    "AnnotationComment": {
+      "type": "object",
+      "properties": {
+        "actor_member_id": {},
+        "actor_member_type": {},
+        "comment": {},
+        "created_at": {},
+        "event_id": {},
+        "member_id": {}
+      },
+      "additionalProperties": false
+    },
     "AnnotationEvent": {
       "type": "object",
       "properties": {
@@ -75,6 +87,10 @@
         "assignee_member_ids": { "type": "array" },
         "assignment_event_id": {},
         "comment_count": {},
+        "comments": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/AnnotationComment" }
+        },
         "conversation_id": {},
         "labels": { "type": "array" },
         "reviewer_member_ids": { "type": "array" },
