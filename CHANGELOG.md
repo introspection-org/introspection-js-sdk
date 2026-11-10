@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.48.0](https://github.com/introspection-org/introspection-js-sdk/compare/v0.47.0...v0.48.0) (2026-11-10)
+
+
+### ⚠ BREAKING CHANGES
+
+* drop annotations.navigation; GET /v1/annotations/navigation is gone ([#594](https://github.com/introspection-org/introspection-js-sdk/issues/594))
+
+### Bug Fixes
+
+* drop annotations.navigation; GET /v1/annotations/navigation is gone ([#594](https://github.com/introspection-org/introspection-js-sdk/issues/594)) ([a2ef75e](https://github.com/introspection-org/introspection-js-sdk/commit/a2ef75e05ae2a5bc9802e32890680d016ffbbe8a))
+
 ## [0.47.0](https://github.com/introspection-org/introspection-js-sdk/compare/v0.46.1...v0.47.0) (2026-11-10)
 
 
