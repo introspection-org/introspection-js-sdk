@@ -32,29 +32,9 @@ export interface AnnotationState extends AnnotationTarget {
   assignment_event_id: Uuid | null;
   /**
    * Every comment on the span, oldest first, when the list is asked for
-   * `include: ["comments"]`; otherwise `null`, as on the navigation window.
+   * `include: ["comments"]`; otherwise `null`.
    */
   comments: AnnotationComment[] | null;
-}
-
-/** `GET /v1/annotations/navigation` filters: the review order around one target. */
-export interface AnnotationNavigationParams extends AnnotationTarget {
-  annotated_by_member_id?: Uuid;
-  assignee_member_id?: Uuid;
-  /** Only targets carrying every one of these labels. */
-  label?: string[];
-  status?: "backlog" | "assigned" | "reviewed";
-  /** How many days of annotation events the read reaches back (1-90, default 90). */
-  lookback_days?: number;
-}
-
-/** A bounded window around one annotation in the filtered review order. */
-export interface AnnotationNavigation {
-  previous: AnnotationState | null;
-  current: AnnotationState | null;
-  next: AnnotationState | null;
-  current_position: number | null;
-  total_count: number;
 }
 
 /** Filters for folded annotation state. */

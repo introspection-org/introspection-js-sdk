@@ -1803,21 +1803,16 @@ walk("SDK end-to-end walk", () => {
             } as Parameters<typeof sa.events.listArrow>[0])
             .readAll();
           expect(eventTable.numRows).toBeGreaterThanOrEqual(events.length);
-          const navigation = await member.annotations.navigation({
-            trace_id: target.trace_id,
-            span_id: target.span_id,
-          });
-          expect(navigation.total_count).toBeGreaterThanOrEqual(0);
-          const filtered = await member.annotations.navigation({
+          const filtered = await member.annotations.list({
             trace_id: target.trace_id,
             span_id: target.span_id,
             status: "reviewed",
             label: ["walk", "walk-other"],
           });
-          expect(filtered.total_count).toBeGreaterThanOrEqual(0);
+          expect(filtered.records.length).toBeGreaterThanOrEqual(0);
           // The route's own check of the target, before any read.
           await expect(
-            member.annotations.navigation({
+            member.annotations.list({
               trace_id: "not-a-trace",
               span_id: "not-a-span",
             }),

@@ -26,13 +26,13 @@ async function main() {
   console.log(`${total_count ?? 0} annotated spans`);
   const first = records[0];
   if (!first) return;
-  const around = await client.annotations.navigation({
+  const reviewed = await client.annotations.list({
     trace_id: first.trace_id,
     span_id: first.span_id,
     status: "reviewed",
   });
   console.log(
-    `${around.current_position ?? "-"} of ${around.total_count}, next: ${around.next?.span_id ?? "none"}`,
+    `${reviewed.records.length ? "reviewed" : "not reviewed"}: ${first.span_id}`,
   );
 }
 

@@ -6,8 +6,6 @@ import {
   type Paginated,
   type AnnotationListParams,
   type AnnotationEventOptions,
-  type AnnotationNavigation,
-  type AnnotationNavigationParams,
   type AnnotationMutation,
   type AnnotationState,
   type AnnotationTarget,
@@ -128,21 +126,6 @@ export class AnnotationsApi {
         }),
       params.next,
     );
-  }
-
-  /**
-   * The annotations before and after one target in the review order the
-   * filters select, with the target's position in it.
-   */
-  navigation(
-    params: AnnotationNavigationParams,
-  ): Promise<AnnotationNavigation> {
-    return this.dpHttp.request<AnnotationNavigation>({
-      method: "GET",
-      path: "/v1/annotations/navigation",
-      schema: "AnnotationNavigation",
-      query: { ...params },
-    });
   }
 
   /** Append exactly one annotation mutation. */
