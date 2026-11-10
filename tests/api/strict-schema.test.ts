@@ -140,8 +140,8 @@ describe("strict decoding on", () => {
   it("reports a nested span attribute by its path", async () => {
     const body = spanList([span(), span({ novel: 1 })]);
     const conversations = new ConversationsApi(client(body, true));
-    await expect(conversations.exportJson("conv-1")).rejects.toThrow(
-      "/v1/conversations/conv-1/export: response fields this SDK does not model: $.data[1].attributes.introspection.novel",
+    await expect(conversations.items.list("conv-1")).rejects.toThrow(
+      "/v1/conversations/conv-1/items: response fields this SDK does not model: $.data[1].attributes.introspection.novel",
     );
   });
 
@@ -163,7 +163,7 @@ describe("strict decoding on", () => {
       { compaction: { applied: false, history: [] } },
     );
     const conversations = new ConversationsApi(client(body, true));
-    const spans = await conversations.exportJson("conv-1");
+    const spans = await conversations.items.list("conv-1");
     expect(spans.data[0]?.attributes.introspection?.tool_call_ids).toEqual([
       "call-1",
     ]);

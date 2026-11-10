@@ -1,6 +1,6 @@
 /**
- * A Pi session file as the GenAI span list `/v1/conversations/{id}/export`
- * returns.
+ * A Pi session file as a list of the GenAI spans
+ * `/v1/conversations/{id}/export` returns, one per line, as JSON lines.
  *
  * A Pi run that is not instrumented (a Harbor trial launches the Pi CLI
  * directly) emits no model-call spans, so its conversation exists only as

@@ -189,7 +189,10 @@ for await (const item of client.conversations.items.list(conversationId, {
 const turn = await client.conversations.retrieve(conversationId);
 console.log(turn?.output_messages);
 
-// Complete exports — server-owned pagination, span by span or raw streaming
+// The span export is JSON lines (application/x-ndjson): one GenAI span per
+// line, each line a complete JSON object. exportJsonl() parses it line by
+// line as it streams; exportStream(..., "jsonl") returns the raw bytes.
+// There is no JSON-envelope export.
 for await (const span of client.conversations.exportJsonl(conversationId)) {
   console.log(span.span_id);
 }

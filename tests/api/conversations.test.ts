@@ -733,24 +733,6 @@ describe("conversations export", () => {
     { role: "assistant", content: "done", timestamp: "2025-01-01T00:00:03Z" },
   ];
 
-  it("requests the server-owned complete JSON export", async () => {
-    const page = makePage([makeSpan("span-1")], false);
-    const http = mockHttp({ requestResult: page });
-
-    const result = await new ConversationsApi(http).exportJson("conv/1", {
-      agent: "root",
-    });
-
-    expect(http.request).toHaveBeenCalledWith({
-      method: "GET",
-      path: "/v1/conversations/conv%2F1/export",
-      query: { agent: "root" },
-      headers: { Accept: "application/json" },
-      schema: "GenAiSpanList",
-    });
-    expect(result.data).toHaveLength(1);
-  });
-
   it("parses the JSON-lines export span by span across chunk boundaries", async () => {
     const lines =
       [makeSpan("span-1"), makeSpan("spän-2")]
@@ -876,12 +858,12 @@ describe("conversations export", () => {
     expect(spans[1]).not.toHaveProperty("annotation");
   });
 
-  it("sends include as a repeated key on the JSON and raw-stream exports", async () => {
+  it("sends include as a repeated key on the raw-stream export", async () => {
     const seen: string[] = [];
     const fetch = vi.fn(async (url: string | URL | Request) => {
       seen.push(String(url));
-      return new Response(JSON.stringify(makePage([], false)), {
-        headers: { "content-type": "application/json" },
+      return new Response("", {
+        headers: { "content-type": "application/x-ndjson" },
       });
     });
     const api = new ConversationsApi(
@@ -892,8 +874,12 @@ describe("conversations export", () => {
       }),
     );
     const include = ["annotations", "comments"] as const;
-    await api.exportJson("conv-1", { include: [...include] });
     await api.exportStream("conv-1", "jsonl", { include: [...include] });
+    for await (const _ of api.exportJsonl("conv-1", {
+      include: [...include],
+    })) {
+      // An empty export yields nothing.
+    }
     for (const url of seen) {
       expect(new URL(url).searchParams.getAll("include")).toEqual([
         "annotations",
@@ -914,7 +900,6 @@ describe("conversations export", () => {
 
   it.each([
     ["jsonl", "application/x-ndjson"],
-    ["json", "application/json"],
     ["arrow", "application/vnd.apache.arrow.stream"],
     ["trajectory", "application/vnd.letta.trajectory+json;version=1"],
   ] as const)("returns the raw %s export stream", async (format, accept) => {

@@ -966,7 +966,7 @@ export interface ConversationExportParams {
   /** Upper bound on which records are assembled (ISO 8601). */
   end_date?: string;
   /**
-   * Expansions of each exported span, on the JSON and JSON-lines forms only.
+   * Expansions of each exported span, on the JSON-lines export only.
    * `annotations` sets {@link GenAiSpan.annotation}; `comments`, valid only
    * beside it, fills that row's `comments`. Needs the annotations read scope.
    */

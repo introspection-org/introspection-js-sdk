@@ -175,8 +175,9 @@ For each tool call (`execute_tool ${tool_name}` span):
 ## Rendering a Pi run offline
 
 A Pi run that was not instrumented leaves only Pi's session file.
-`pi-session-spans` renders that file as the GenAI span list the platform's
-conversation export returns, using the same attribute builders as the live
+`pi-session-spans` renders that file as one JSON document listing the same
+GenAI spans the platform's conversation export returns (the export itself is
+JSON lines, one span per line), using the same attribute builders as the live
 instrumentation:
 
 ```bash
