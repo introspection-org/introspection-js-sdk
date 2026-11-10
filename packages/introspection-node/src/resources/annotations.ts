@@ -70,18 +70,6 @@ function normalizedEmails(emails: string | readonly string[]): string[] {
 }
 
 /**
- * A data plane that predates the rename sends `reviewer_member_ids` as
- * `human_commenter_member_ids`.
- */
-function normalizeState(state: AnnotationState): AnnotationState {
-  if (state.reviewer_member_ids) return state;
-  const { human_commenter_member_ids, ...rest } = state as AnnotationState & {
-    human_commenter_member_ids?: Uuid[];
-  };
-  return { ...rest, reviewer_member_ids: human_commenter_member_ids ?? [] };
-}
-
-/**
  * Member-authored span annotations. Every create call appends exactly one
  * event; labels and reviewers are complete snapshots.
  */
@@ -92,22 +80,6 @@ export class AnnotationsApi {
   ) {}
 
   list(params: AnnotationListParams = {}): Paginator<AnnotationState> {
-    const resolveFilters = this.wireFilters(params);
-    return cursorPaginate(async (next) => {
-      const page = await this.dpHttp.request<Paginated<AnnotationState>>({
-        method: "GET",
-        path: "/v1/annotations",
-        schema: "Paginated<AnnotationState>",
-        query: { ...(await resolveFilters()), next },
-      });
-      return { ...page, records: page.records.map(normalizeState) };
-    }, params.next);
-  }
-
-  /** The wire filters for `params`, its emails resolved once to member ids. */
-  private wireFilters(
-    params: AnnotationListParams,
-  ): () => Promise<Record<string, unknown>> {
     if (params.annotated_by_member_id && params.annotated_by_email) {
       throw clientValidationError(
         "Use annotated_by_member_id or annotated_by_email, not both",
@@ -122,7 +94,7 @@ export class AnnotationsApi {
     }
     const { annotated_by_email, assigned_to_email, ...wireParams } = params;
     let resolvedFilters: Promise<Record<string, unknown>> | undefined;
-    return () => {
+    const resolveFilters = () => {
       resolvedFilters ??= (async () => {
         const emails = [annotated_by_email, assigned_to_email].filter(
           (email): email is string => Boolean(email),
@@ -146,27 +118,31 @@ export class AnnotationsApi {
       })();
       return resolvedFilters;
     };
+    return cursorPaginate(
+      async (next) =>
+        this.dpHttp.request<Paginated<AnnotationState>>({
+          method: "GET",
+          path: "/v1/annotations",
+          schema: "Paginated<AnnotationState>",
+          query: { ...(await resolveFilters()), next },
+        }),
+      params.next,
+    );
   }
 
   /**
    * The annotations before and after one target in the review order the
    * filters select, with the target's position in it.
    */
-  async navigation(
+  navigation(
     params: AnnotationNavigationParams,
   ): Promise<AnnotationNavigation> {
-    const window = await this.dpHttp.request<AnnotationNavigation>({
+    return this.dpHttp.request<AnnotationNavigation>({
       method: "GET",
       path: "/v1/annotations/navigation",
       schema: "AnnotationNavigation",
       query: { ...params },
     });
-    return {
-      ...window,
-      previous: window.previous && normalizeState(window.previous),
-      current: window.current && normalizeState(window.current),
-      next: window.next && normalizeState(window.next),
-    };
   }
 
   /** Append exactly one annotation mutation. */

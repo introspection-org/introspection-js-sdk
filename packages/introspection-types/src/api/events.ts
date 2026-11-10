@@ -2,6 +2,7 @@ import type {
   AutomationSkipReason,
   AutomationTriggerType,
 } from "./automations.js";
+import type { IssueRequest } from "./issues.js";
 import type {
   CursorParams,
   IsoDate,
@@ -23,6 +24,7 @@ export const IntrospectionEventNames = {
   OBSERVATION: "introspection.observation",
   OBSERVATION_CLUSTERING_RUN: "introspection.observation_clustering.run",
   JUDGEMENT: "introspection.judgement",
+  ISSUE: "introspection.issue",
   PATTERN: "introspection.pattern",
   PATTERN_ASSIGNMENT: "introspection.pattern.assignment",
   AUTOMATION_TRIGGERED: "introspection.automation.triggered",
@@ -246,11 +248,61 @@ export interface JudgementEgressPayload extends JudgementBasePayload {
   request_path?: string | null;
 }
 
-/**
- * One judgement. Narrow on `kind`, with a `default` branch: a kind added
- * server-side later reaches the caller as it came.
- */
+/** One judgement. Narrow on `kind`. */
 export type JudgementPayload = JudgementVerdictPayload | JudgementEgressPayload;
+
+/** One authored field's value on either side of an update. */
+export interface IssueFieldChange {
+  before?: unknown;
+  after?: unknown;
+}
+
+/** What every issue event carries, whichever action it records. */
+interface IssueActivityBasePayload {
+  issue_id: Uuid;
+  /** The issue for an issue action, the request for a `request.*` action. */
+  resource_id?: Uuid | null;
+  /** The revision of the resource the action wrote. */
+  revision?: number | null;
+}
+
+export interface IssueCreatedPayload extends IssueActivityBasePayload {
+  action: "created";
+  /** The authored fields the issue was created with. */
+  data: Record<string, unknown>;
+}
+
+export interface IssueUpdatedPayload extends IssueActivityBasePayload {
+  action: "updated";
+  /** Each changed field, by name. */
+  changes: Record<string, IssueFieldChange>;
+}
+
+export interface IssueDeletedPayload extends IssueActivityBasePayload {
+  action: "deleted";
+}
+
+export interface IssueRequestCreatedPayload extends IssueActivityBasePayload {
+  action: "request.created";
+  /** The request as created. */
+  request: IssueRequest;
+}
+
+export interface IssueRequestUpdatedPayload extends IssueActivityBasePayload {
+  action: "request.updated";
+  /** The request after the update. */
+  request: IssueRequest;
+  /** Each changed field, by name. */
+  changes: Record<string, IssueFieldChange>;
+}
+
+/** One change to an issue or to a request on it. Narrow on `action`. */
+export type IssueActivityPayload =
+  | IssueCreatedPayload
+  | IssueUpdatedPayload
+  | IssueDeletedPayload
+  | IssueRequestCreatedPayload
+  | IssueRequestUpdatedPayload;
 
 /** One automation trigger that ran (`introspection.automation.triggered`). */
 export interface AutomationTriggeredPayload {
@@ -327,6 +379,11 @@ export interface AutomationTriggeredEvent extends IntrospectionEventEnvelope {
   payload: AutomationTriggeredPayload;
 }
 
+export interface IssueActivityEvent extends IntrospectionEventEnvelope {
+  event_name: typeof IntrospectionEventNames.ISSUE;
+  payload: IssueActivityPayload;
+}
+
 export interface AutomationSkippedEvent extends IntrospectionEventEnvelope {
   event_name: typeof IntrospectionEventNames.AUTOMATION_SKIPPED;
   payload: AutomationSkippedPayload;
@@ -354,6 +411,7 @@ export type Event =
   | ClusteringRunEvent
   | FeedbackEvent
   | JudgementEvent
+  | IssueActivityEvent
   | AutomationTriggeredEvent
   | AutomationSkippedEvent;
 

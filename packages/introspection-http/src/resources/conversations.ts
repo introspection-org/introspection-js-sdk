@@ -181,8 +181,7 @@ export class ConversationsClient {
    * never buffered whole. The server owns its internal pagination.
    *
    * This replaces the removed JSON-envelope export; collect the spans into an
-   * array if the whole list is needed. A data plane that predates JSON lines
-   * answers `406`, and that error surfaces.
+   * array if the whole list is needed.
    */
   async *exportJsonl(
     conversationId: string,

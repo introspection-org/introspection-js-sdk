@@ -287,6 +287,68 @@ describe("strict decoding on", () => {
     expect(listed.records).toHaveLength(4);
   });
 
+  it("models every issue event action", async () => {
+    const request = {
+      id: "r1",
+      issue_id: "i1",
+      task_id: "t1",
+      question: "Ship it?",
+      assignee_id: "m1",
+      status: "resolved",
+      resolution: "Yes.",
+      revision: 2,
+      issue_revision: 3,
+      issue_member_id: "m2",
+      files: [{ file_id: "f1", name: "a.txt", source_event_ids: [] }],
+      links: [{ url: "https://example.com" }],
+      events: [{ event_id: "e0" }],
+      spans: [{ trace_id: "t", span_id: "s" }],
+      created_at: "2026-11-10T05:00:00Z",
+      updated_at: "2026-11-10T05:00:00Z",
+    };
+    const base = { issue_id: "i1", resource_id: "i1", revision: 1 };
+    const changes = { status: { before: "open", after: "resolved" } };
+    const payloads = [
+      { ...base, action: "created", data: { title: "Checkout times out" } },
+      { ...base, action: "updated", changes },
+      { ...base, action: "deleted" },
+      { ...base, action: "request.created", request },
+      { ...base, action: "request.updated", request, changes },
+    ];
+    const events = new EventsApi(
+      client(
+        page(
+          payloads.map((payload) => ({
+            id: "e1",
+            timestamp: "2026-11-10T05:00:00Z",
+            event_name: "introspection.issue",
+            payload,
+          })),
+        ),
+        true,
+      ),
+    );
+    const listed = await events.list({ event_name: "introspection.issue" });
+    expect(listed.records).toHaveLength(5);
+
+    const stray = new EventsApi(
+      client(
+        page([
+          {
+            id: "e1",
+            timestamp: "2026-11-10T05:00:00Z",
+            event_name: "introspection.issue",
+            payload: { ...base, action: "deleted", changes },
+          },
+        ]),
+        true,
+      ),
+    );
+    await expect(
+      stray.list({ event_name: "introspection.issue" }),
+    ).rejects.toThrow("$.records[0].payload.changes");
+  });
+
   it("reports a judgement field that belongs to the other kind", async () => {
     const events = new EventsApi(
       client(

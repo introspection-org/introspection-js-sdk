@@ -1361,9 +1361,62 @@
       },
       "additionalProperties": false
     },
+    "IssueActivityEvent": {
+      "type": "object",
+      "properties": {
+        "conversation_id": {},
+        "environment": {},
+        "event_name": { "const": "introspection.issue" },
+        "experiment_id": {},
+        "id": {},
+        "payload": {
+          "anyOf": [
+            { "$ref": "#/$defs/IssueCreatedPayload" },
+            { "$ref": "#/$defs/IssueDeletedPayload" },
+            { "$ref": "#/$defs/IssueRequestCreatedPayload" },
+            { "$ref": "#/$defs/IssueRequestUpdatedPayload" },
+            { "$ref": "#/$defs/IssueUpdatedPayload" }
+          ]
+        },
+        "recipe_git_commit_sha": {},
+        "runtime_group_id": {},
+        "runtime_id": {},
+        "service_name": {},
+        "span_id": {},
+        "timestamp": {},
+        "trace_id": {}
+      },
+      "additionalProperties": false
+    },
+    "IssueCreatedPayload": {
+      "type": "object",
+      "properties": {
+        "action": { "const": "created" },
+        "data": {},
+        "issue_id": {},
+        "resource_id": {},
+        "revision": {}
+      },
+      "additionalProperties": false
+    },
+    "IssueDeletedPayload": {
+      "type": "object",
+      "properties": {
+        "action": { "const": "deleted" },
+        "issue_id": {},
+        "resource_id": {},
+        "revision": {}
+      },
+      "additionalProperties": false
+    },
     "IssueEventReference": {
       "type": "object",
       "properties": { "event_id": {} },
+      "additionalProperties": false
+    },
+    "IssueFieldChange": {
+      "type": "object",
+      "properties": { "after": {}, "before": {} },
       "additionalProperties": false
     },
     "IssueFile": {
@@ -1391,9 +1444,77 @@
       },
       "additionalProperties": false
     },
+    "IssueRequest": {
+      "type": "object",
+      "properties": {
+        "assignee_id": {},
+        "created_at": {},
+        "events": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/IssueEventReference" }
+        },
+        "files": { "type": "array", "items": { "$ref": "#/$defs/IssueFile" } },
+        "id": {},
+        "issue_id": {},
+        "issue_member_id": {},
+        "issue_revision": {},
+        "links": { "type": "array", "items": { "$ref": "#/$defs/IssueLink" } },
+        "question": {},
+        "resolution": {},
+        "revision": {},
+        "spans": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/IssueSpanReference" }
+        },
+        "status": {},
+        "task_id": {},
+        "updated_at": {}
+      },
+      "additionalProperties": false
+    },
+    "IssueRequestCreatedPayload": {
+      "type": "object",
+      "properties": {
+        "action": { "const": "request.created" },
+        "issue_id": {},
+        "request": { "$ref": "#/$defs/IssueRequest" },
+        "resource_id": {},
+        "revision": {}
+      },
+      "additionalProperties": false
+    },
+    "IssueRequestUpdatedPayload": {
+      "type": "object",
+      "properties": {
+        "action": { "const": "request.updated" },
+        "changes": {
+          "type": "object",
+          "additionalProperties": { "$ref": "#/$defs/IssueFieldChange" }
+        },
+        "issue_id": {},
+        "request": { "$ref": "#/$defs/IssueRequest" },
+        "resource_id": {},
+        "revision": {}
+      },
+      "additionalProperties": false
+    },
     "IssueSpanReference": {
       "type": "object",
       "properties": { "span_id": {}, "trace_id": {} },
+      "additionalProperties": false
+    },
+    "IssueUpdatedPayload": {
+      "type": "object",
+      "properties": {
+        "action": { "const": "updated" },
+        "changes": {
+          "type": "object",
+          "additionalProperties": { "$ref": "#/$defs/IssueFieldChange" }
+        },
+        "issue_id": {},
+        "resource_id": {},
+        "revision": {}
+      },
       "additionalProperties": false
     },
     "Judge": {
@@ -1934,6 +2055,7 @@
               { "$ref": "#/$defs/AutomationTriggeredEvent" },
               { "$ref": "#/$defs/ClusteringRunEvent" },
               { "$ref": "#/$defs/FeedbackEvent" },
+              { "$ref": "#/$defs/IssueActivityEvent" },
               { "$ref": "#/$defs/JudgementEvent" },
               { "$ref": "#/$defs/ObservationEvent" },
               { "$ref": "#/$defs/PatternAssignmentEvent" },
@@ -2971,6 +3093,7 @@
         { "$ref": "#/$defs/AutomationTriggeredEvent" },
         { "$ref": "#/$defs/ClusteringRunEvent" },
         { "$ref": "#/$defs/FeedbackEvent" },
+        { "$ref": "#/$defs/IssueActivityEvent" },
         { "$ref": "#/$defs/JudgementEvent" },
         { "$ref": "#/$defs/ObservationEvent" },
         { "$ref": "#/$defs/PatternAssignmentEvent" },

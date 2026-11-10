@@ -44,26 +44,6 @@ const ANNOTATION: AnnotationState = {
   comments: null,
 };
 
-// The row a data plane sends before it drops the comment and attribution
-// fields and renames `human_commenter_member_ids`.
-const {
-  reviewer_member_ids: _renamed,
-  comments: _expansion,
-  ...CURRENT_FIELDS
-} = ANNOTATION;
-const LEGACY_ANNOTATION = {
-  ...CURRENT_FIELDS,
-  annotator_member_ids: [BOB_ID],
-  commenter_member_ids: [BOB_ID],
-  has_comment: true,
-  human_commenter_member_ids: [BOB_ID],
-  has_human_comment: true,
-  latest_comment: "The conclusion is strong.",
-  latest_comment_member_id: BOB_ID,
-  latest_comment_actor_member_id: null,
-  latest_comment_actor_type: null,
-};
-
 const COMMENTS: AnnotationComment[] = [
   {
     event_id: "018f6b66-4d3a-7abc-8def-000000000001",
@@ -108,7 +88,6 @@ let baseUrl: string;
 let requests: CapturedRequest[] = [];
 let memberScenario: "normal" | "unknown" | "ambiguous" = "normal";
 let rateLimitNextAnnotation = false;
-let legacyPlane = false;
 
 function page<T>(records: T[], next: string | null = null) {
   return { records, count: records.length, total_count: records.length, next };
@@ -154,7 +133,7 @@ beforeAll(async () => {
     if (path === "/v1/annotations/navigation" && method === "GET") {
       return json(res, 200, {
         previous: null,
-        current: legacyPlane ? LEGACY_ANNOTATION : ANNOTATION,
+        current: ANNOTATION,
         next: null,
         current_position: 1,
         total_count: 1,
@@ -166,9 +145,6 @@ beforeAll(async () => {
       url.searchParams.has("include")
     ) {
       return json(res, 200, page([{ ...ANNOTATION, comments: COMMENTS }]));
-    }
-    if (path === "/v1/annotations" && method === "GET" && legacyPlane) {
-      return json(res, 200, page([LEGACY_ANNOTATION]));
     }
     if (path === "/v1/annotations" && method === "GET") {
       const second = url.searchParams.get("next") === "annotation-page-2";
@@ -277,7 +253,6 @@ beforeEach(() => {
   requests = [];
   memberScenario = "normal";
   rateLimitNextAnnotation = false;
-  legacyPlane = false;
 });
 
 function client(dpUrl?: string): IntrospectionClient {
@@ -289,18 +264,6 @@ function client(dpUrl?: string): IntrospectionClient {
 }
 
 describe("annotations", () => {
-  it("reads the rows of a data plane that predates the narrower state", async () => {
-    legacyPlane = true;
-    const { records } = await client().annotations.list();
-    expect(records[0]!.reviewer_member_ids).toEqual([BOB_ID]);
-    expect(records[0]).not.toHaveProperty("human_commenter_member_ids");
-    expect(records[0]).toMatchObject(CURRENT_FIELDS);
-
-    const window = await client().annotations.navigation(TARGET);
-    expect(window.current!.reviewer_member_ids).toEqual([BOB_ID]);
-    expect(window.previous).toBeNull();
-  });
-
   it("loads each row's comments with include=comments and leaves them null without", async () => {
     const { records } = await client().annotations.list({
       include: ["comments"],

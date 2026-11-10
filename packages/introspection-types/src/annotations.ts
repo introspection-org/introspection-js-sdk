@@ -12,9 +12,10 @@ export interface AnnotationComment {
   comment: string;
   /** The author. */
   member_id: Uuid;
-  actor_member_id?: Uuid | null;
-  /** What acted for the author, e.g. `agent`. */
-  actor_member_type?: string | null;
+  /** The member that ran the request for the author, e.g. an Operator agent. */
+  actor_member_id: Uuid | null;
+  /** The actor's capacity, e.g. `agent`. */
+  actor_member_type: string | null;
   created_at: IsoDate;
 }
 
@@ -33,7 +34,7 @@ export interface AnnotationState extends AnnotationTarget {
    * Every comment on the span, oldest first, when the list is asked for
    * `include: ["comments"]`; otherwise `null`, as on the navigation window.
    */
-  comments?: AnnotationComment[] | null;
+  comments: AnnotationComment[] | null;
 }
 
 /** `GET /v1/annotations/navigation` filters: the review order around one target. */

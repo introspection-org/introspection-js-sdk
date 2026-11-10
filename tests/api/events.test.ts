@@ -56,6 +56,9 @@ function narrowEvent(ev: Event): string | null | undefined {
   if (ev.event_name === "introspection.automation.skipped") {
     return ev.payload.reason;
   }
+  if (ev.event_name === "introspection.issue") {
+    return ev.payload.issue_id;
+  }
   return ev.payload.run_id; // narrowed to ClusteringRunEvent
 }
 
@@ -280,13 +283,9 @@ describe("EventsApi.list — typed families (JSON)", () => {
             policy_id: "no-pii",
             request_host: "example.com",
           }),
-          // A data plane that predates `kind` sends the flat payload.
-          judgement({ result_schema: "question_scores.v1", scores: { q: 1 } }),
-          judgement({ result_schema: "verdict.v1", reasoning: "ok" }),
-          judgement({ result: "pass" }),
           judgement({ kind: "audit", novel: true }),
         ],
-        count: 6,
+        count: 3,
         next: null,
       },
     });
@@ -305,51 +304,90 @@ describe("EventsApi.list — typed families (JSON)", () => {
           return `unknown:${(payload as { kind: string }).kind}`;
       }
     });
-    expect(read).toEqual([
-      "verdict:fine",
-      "egress:personal",
-      "egress:q",
-      "verdict:ok",
-      "verdict:-",
-      "unknown:audit",
-    ]);
+    expect(read).toEqual(["verdict:fine", "egress:personal", "unknown:audit"]);
+    // A kind this SDK version does not know reaches the caller as it came.
     expect(records[2]!.payload).toEqual({
-      judgement_id: "judg-1",
-      kind: "egress",
-      scores: { q: 1 },
-    });
-    expect(records[5]!.payload).toEqual({
       judgement_id: "judg-1",
       kind: "audit",
       novel: true,
     });
   });
 
-  it("gives one event read by id the same judgement kind", async () => {
-    const http = mockHttp({
-      requestResult: {
-        ...ENVELOPE,
-        id: "ev-j-1",
-        event_name: "introspection.judgement",
-        payload: {
-          judgement_id: "judg-1",
-          result_schema: "question_scores.v1",
-        },
+  it("narrows an issue payload on its action", async () => {
+    const request = {
+      id: "0195fb1a-0000-7000-8000-0000000000r1",
+      issue_id: "0195fb1a-0000-7000-8000-0000000000i1",
+      task_id: "0195fb1a-0000-7000-8000-0000000000t1",
+      question: "Ship it?",
+      assignee_id: "0195fb1a-0000-7000-8000-0000000000m1",
+      status: "open",
+      revision: 1,
+      issue_revision: 3,
+      files: [],
+      links: [],
+      events: [],
+      spans: [],
+      created_at: "2025-01-01T00:00:00Z",
+      updated_at: "2025-01-01T00:00:00Z",
+    };
+    const issue = (payload: Record<string, unknown>) => ({
+      ...ENVELOPE,
+      id: "ev-i",
+      event_name: "introspection.issue",
+      payload: {
+        issue_id: "0195fb1a-0000-7000-8000-0000000000i1",
+        resource_id: "0195fb1a-0000-7000-8000-0000000000i1",
+        revision: 1,
+        ...payload,
       },
     });
-    const ev = await new EventsApi(http).get("ev-j-1");
-    expect(ev.payload).toEqual({ judgement_id: "judg-1", kind: "egress" });
+    const http = mockHttp({
+      requestResult: {
+        records: [
+          issue({ action: "created", data: { title: "Checkout times out" } }),
+          issue({
+            action: "updated",
+            changes: { status: { before: "open", after: "closed" } },
+          }),
+          issue({ action: "deleted" }),
+          issue({ action: "request.created", request }),
+          issue({
+            action: "request.updated",
+            request: { ...request, status: "resolved", resolution: "Yes." },
+            changes: { status: { before: "open", after: "resolved" } },
+          }),
+        ],
+        count: 5,
+        next: null,
+      },
+    });
+    const { records } = await new EventsApi(http).list({
+      event_name: "introspection.issue",
+    });
 
-    const other = {
-      ...ENVELOPE,
-      id: "ev-f",
-      event_name: "introspection.feedback",
-      payload: { name: "thumbs_up" },
-    };
-    const untouched = await new EventsApi(
-      mockHttp({ requestResult: other }),
-    ).get("ev-f");
-    expect(untouched).toBe(other);
+    const read = records.map(({ payload }) => {
+      switch (payload.action) {
+        case "created":
+          return `created:${String(payload.data.title)}`;
+        case "updated":
+          return `updated:${String(payload.changes.status?.after)}`;
+        case "deleted":
+          return `deleted:${payload.revision}`;
+        case "request.created":
+          return `request.created:${payload.request.question}`;
+        case "request.updated":
+          return `request.updated:${payload.request.resolution}:${String(payload.changes.status?.before)}`;
+        default:
+          return "unknown";
+      }
+    });
+    expect(read).toEqual([
+      "created:Checkout times out",
+      "updated:closed",
+      "deleted:1",
+      "request.created:Ship it?",
+      "request.updated:Yes.:open",
+    ]);
   });
 
   it("returns JudgementEvent rows with the typed payload", async () => {
@@ -361,6 +399,7 @@ describe("EventsApi.list — typed families (JSON)", () => {
             id: "ev-j-1",
             event_name: "introspection.judgement",
             payload: {
+              kind: "verdict",
               judgement_id: "judg-1",
               judge_id: "judge-9",
               result: "pass",

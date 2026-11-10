@@ -690,7 +690,7 @@ export interface GenAiSpan {
    * The span's current annotation state, on an export that asks for
    * `include: ["annotations"]`. Absent on a span nobody annotated.
    */
-  annotation?: AnnotationState | null;
+  annotation?: AnnotationState;
 }
 
 /**

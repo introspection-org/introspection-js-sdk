@@ -61,6 +61,35 @@ export interface IssueOpenRequest {
 }
 
 /**
+ * One human request on an issue, as an `introspection.issue` event records it
+ * on its `request.created` and `request.updated` actions.
+ */
+export interface IssueRequest {
+  id: Uuid;
+  issue_id: Uuid;
+  /** The issue's worker task. */
+  task_id: Uuid;
+  question: string;
+  /** The member the request is assigned to. */
+  assignee_id: Uuid;
+  status: IssueRequestStatus;
+  /** The decision and its basis, once `resolved` or `cancelled`. */
+  resolution?: string | null;
+  /** Bumped on every change to the request. */
+  revision: number;
+  /** The parent issue's revision when the request was written. */
+  issue_revision: number;
+  /** The owning member of the parent issue; null for a project-owned (Operator) issue. */
+  issue_member_id?: Uuid | null;
+  files: IssueFile[];
+  links: IssueLink[];
+  events: IssueEventReference[];
+  spans: IssueSpanReference[];
+  created_at: IsoDate;
+  updated_at: IsoDate;
+}
+
+/**
  * An issue (`/v1/issues`, Data Plane): a brief on a fixed worker task, the
  * evidence it cites and its open human requests.
  */
