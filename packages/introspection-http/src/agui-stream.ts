@@ -1,4 +1,5 @@
 import { EventSchemas, type AGUIEvent } from "@ag-ui/core";
+import { strictSchemaFromEnv } from "./strict/schema-key.js";
 
 export interface StreamFrame {
   name: string;
@@ -98,48 +99,19 @@ export async function* parseStreamFrames(
   }
 }
 
-/** Zod issue codes a newer server causes: a value or key this schema lacks. */
-const DRIFT_CODES = new Set([
-  "invalid_union_discriminator",
-  "invalid_enum_value",
-  "invalid_literal",
-  "unrecognized_keys",
-]);
-
-interface DecodeIssue {
-  code: string;
-  unionErrors?: { issues: DecodeIssue[] }[];
-}
-
-/** A union drifts when some branch failed only on drift. */
-function isDrift(issue: DecodeIssue): boolean {
-  if (issue.code === "invalid_union") {
-    return (issue.unionErrors ?? []).some((branch) =>
-      branch.issues.every(isDrift),
-    );
-  }
-  return DRIFT_CODES.has(issue.code);
-}
-
 /**
- * Decode one AG-UI event. An event a newer server sends that this
- * `@ag-ui/core` version does not know (a new event `type`, a new message
- * `role` or content part, an outcome with an extra key) is returned as
- * received rather than thrown, so the stream keeps going; consumers skip what
- * they do not recognize. A payload that is not an event at all, or a known
- * event missing a field or holding the wrong type, still throws.
+ * Decode one AG-UI event. A newer server's event this `@ag-ui/core` does not
+ * know (a new `type`, `role` or key) is returned as received, so the stream
+ * keeps going; consumers skip what they do not recognize. Strict decoding
+ * (`INTROSPECTION_STRICT_SCHEMA`) throws instead, as for every response.
  */
 export function decodeAgUiEvent(payload: unknown): AGUIEvent {
   const parsed = EventSchemas.safeParse(payload);
   if (parsed.success) return parsed.data;
   const isEvent =
-    typeof payload === "object" &&
-    payload !== null &&
-    typeof (payload as { type?: unknown }).type === "string";
-  if (isEvent && (parsed.error.issues as DecodeIssue[]).every(isDrift)) {
-    return payload as AGUIEvent;
-  }
-  throw parsed.error;
+    typeof (payload as { type?: unknown } | null)?.type === "string";
+  if (!isEvent || strictSchemaFromEnv()) throw parsed.error;
+  return payload as AGUIEvent;
 }
 
 /**

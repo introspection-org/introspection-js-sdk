@@ -158,19 +158,24 @@ describe("responses newer than the SDK (strict decoding off)", () => {
     await expect(handle.text()).resolves.toBe("Hello");
   });
 
-  it("still fails a known event that is malformed", async () => {
-    const tasks = new TasksApi(
-      client(() =>
-        sseResponse([
-          { type: EventType.TEXT_MESSAGE_CONTENT, messageId: "m1", delta: 5 },
-        ]),
-      ),
-    );
-    const read = async () => {
-      for await (const event of tasks.runs.stream("task-1", "run-1")) {
-        void event;
-      }
+  it("passes a known event the SDK's schema rejects through as received", async () => {
+    const malformed = {
+      type: EventType.TEXT_MESSAGE_CONTENT,
+      messageId: "m1",
+      delta: 5,
     };
-    await expect(read()).rejects.toThrow(/delta/);
+    const finished = {
+      type: EventType.RUN_FINISHED,
+      threadId: "t",
+      runId: "run-1",
+    };
+    const tasks = new TasksApi(
+      client(() => sseResponse([malformed, finished])),
+    );
+    const seen: AGUIEvent[] = [];
+    for await (const event of tasks.runs.stream("task-1", "run-1")) {
+      seen.push(event);
+    }
+    expect(seen[0]).toEqual(malformed);
   });
 });
