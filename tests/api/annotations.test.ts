@@ -35,14 +35,27 @@ const ANNOTATION: AnnotationState = {
   conversation_id: "conversation-1",
   labels: ["good-structure"],
   assignee_member_ids: [ALICE_ID],
-  annotator_member_ids: [BOB_ID],
-  has_comment: true,
+  reviewer_member_ids: [BOB_ID],
   comment_count: 2,
+  updated_at: "2026-08-25T01:02:03Z",
+  assignment_event_id: "33333333-3333-3333-3333-333333333333",
+};
+
+// The row a data plane sends before it drops the comment and attribution
+// fields and renames `human_commenter_member_ids`.
+const { reviewer_member_ids: _renamed, ...CURRENT_FIELDS } = ANNOTATION;
+const LEGACY_ANNOTATION = {
+  ...CURRENT_FIELDS,
+  annotator_member_ids: [BOB_ID],
+  commenter_member_ids: [BOB_ID],
+  has_comment: true,
+  human_commenter_member_ids: [BOB_ID],
+  has_human_comment: true,
   latest_comment: "The conclusion is strong.",
   latest_comment_member_id: BOB_ID,
-  updated_at: "2026-08-25T01:02:03Z",
+  latest_comment_actor_member_id: null,
+  latest_comment_actor_type: null,
   updated_by_member_id: BOB_ID,
-  assignment_event_id: "33333333-3333-3333-3333-333333333333",
 };
 
 const LABEL: Tag = {
@@ -70,6 +83,7 @@ let baseUrl: string;
 let requests: CapturedRequest[] = [];
 let memberScenario: "normal" | "unknown" | "ambiguous" = "normal";
 let rateLimitNextAnnotation = false;
+let legacyPlane = false;
 
 function page<T>(records: T[], next: string | null = null) {
   return { records, count: records.length, total_count: records.length, next };
@@ -112,6 +126,18 @@ beforeAll(async () => {
       ? url.pathname.slice(3)
       : url.pathname;
 
+    if (path === "/v1/annotations/navigation" && method === "GET") {
+      return json(res, 200, {
+        previous: null,
+        current: legacyPlane ? LEGACY_ANNOTATION : ANNOTATION,
+        next: null,
+        current_position: 1,
+        total_count: 1,
+      });
+    }
+    if (path === "/v1/annotations" && method === "GET" && legacyPlane) {
+      return json(res, 200, page([LEGACY_ANNOTATION]));
+    }
     if (path === "/v1/annotations" && method === "GET") {
       const second = url.searchParams.get("next") === "annotation-page-2";
       return json(
@@ -219,6 +245,7 @@ beforeEach(() => {
   requests = [];
   memberScenario = "normal";
   rateLimitNextAnnotation = false;
+  legacyPlane = false;
 });
 
 function client(dpUrl?: string): IntrospectionClient {
@@ -230,6 +257,24 @@ function client(dpUrl?: string): IntrospectionClient {
 }
 
 describe("annotations", () => {
+  it("reads the rows of a data plane that predates the narrower state", async () => {
+    legacyPlane = true;
+    const { records } = await client().annotations.list();
+    expect(records[0]!.reviewer_member_ids).toEqual([BOB_ID]);
+    expect(records[0]).not.toHaveProperty("human_commenter_member_ids");
+    expect(records[0]).toMatchObject(ANNOTATION);
+
+    const window = await client().annotations.navigation(TARGET);
+    expect(window.current!.reviewer_member_ids).toEqual([BOB_ID]);
+    expect(window.previous).toBeNull();
+  });
+
+  it("returns the navigation window's current rows untouched", async () => {
+    const window = await client().annotations.navigation(TARGET);
+    expect(window.current).toEqual(ANNOTATION);
+    expect(window.total_count).toBe(1);
+  });
+
   it("lists folded state with every filter and cursor pagination", async () => {
     const listing = client().annotations.list({
       limit: 1,

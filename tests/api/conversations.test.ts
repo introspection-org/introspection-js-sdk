@@ -751,7 +751,90 @@ describe("conversations export", () => {
     expect(result.data).toHaveLength(1);
   });
 
+  it("parses the JSON-lines export span by span across chunk boundaries", async () => {
+    const lines =
+      [makeSpan("span-1"), makeSpan("spän-2")]
+        .map((span) => JSON.stringify(span))
+        .join("\n") + "\n";
+    const bytes = new TextEncoder().encode(lines);
+    // Seven-byte chunks split both a line and the two-byte `ä`.
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        for (let at = 0; at < bytes.length; at += 7) {
+          controller.enqueue(bytes.slice(at, at + 7));
+        }
+        controller.close();
+      },
+    });
+    const http = mockHttp({ requestResult: stream });
+
+    const ids: (string | undefined)[] = [];
+    for await (const span of new ConversationsApi(http).exportJsonl("conv-1", {
+      agent: "root",
+    })) {
+      ids.push(span.span_id);
+    }
+
+    expect(ids).toEqual(["span-1", "spän-2"]);
+    expect(http.request).toHaveBeenCalledWith({
+      method: "GET",
+      path: "/v1/conversations/conv-1/export",
+      query: { agent: "root" },
+      headers: { Accept: "application/x-ndjson" },
+      expect: "stream",
+      signal: undefined,
+    });
+  });
+
+  it("reads a final JSON line with no newline and releases the body on an early stop", async () => {
+    let cancelled = false;
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(
+          new TextEncoder().encode(
+            `${JSON.stringify(makeSpan("span-1"))}\n\n${JSON.stringify(makeSpan("span-2"))}`,
+          ),
+        );
+        controller.close();
+      },
+      cancel() {
+        cancelled = true;
+      },
+    });
+    const api = new ConversationsApi(mockHttp({ requestResult: stream }));
+    const ids: (string | undefined)[] = [];
+    for await (const span of api.exportJsonl("conv-1")) ids.push(span.span_id);
+    expect(ids).toEqual(["span-1", "span-2"]);
+
+    const open = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        controller.enqueue(
+          new TextEncoder().encode(`${JSON.stringify(makeSpan("span-1"))}\n`),
+        );
+      },
+      cancel() {
+        cancelled = true;
+      },
+    });
+    for await (const _ of new ConversationsApi(
+      mockHttp({ requestResult: open }),
+    ).exportJsonl("conv-1")) {
+      break;
+    }
+    expect(cancelled).toBe(true);
+  });
+
+  it("surfaces a 406 from a data plane without the JSON-lines export", async () => {
+    const refused = new Error("Not Acceptable");
+    const http = mockHttp();
+    (http.request as ReturnType<typeof vi.fn>).mockRejectedValue(refused);
+    const spans = new ConversationsApi(http).exportJsonl("conv-1");
+    await expect(spans.next()).rejects.toBe(refused);
+    expect(http.request).toHaveBeenCalledTimes(1);
+  });
+
   it.each([
+    ["jsonl", "application/x-ndjson"],
     ["json", "application/json"],
     ["arrow", "application/vnd.apache.arrow.stream"],
     ["trajectory", "application/vnd.letta.trajectory+json;version=1"],

@@ -71,6 +71,18 @@ function normalizedEmails(emails: string | readonly string[]): string[] {
 }
 
 /**
+ * A data plane that predates the rename sends `reviewer_member_ids` as
+ * `human_commenter_member_ids`.
+ */
+function normalizeState(state: AnnotationState): AnnotationState {
+  if (state.reviewer_member_ids) return state;
+  const { human_commenter_member_ids, ...rest } = state as AnnotationState & {
+    human_commenter_member_ids?: Uuid[];
+  };
+  return { ...rest, reviewer_member_ids: human_commenter_member_ids ?? [] };
+}
+
+/**
  * Member-authored span annotations. Every create call appends exactly one
  * event; labels and reviewers are complete snapshots.
  */
@@ -119,16 +131,15 @@ export class AnnotationsApi {
       })();
       return resolvedFilters;
     };
-    return cursorPaginate(
-      async (next) =>
-        this.dpHttp.request<Paginated<AnnotationState>>({
-          method: "GET",
-          path: "/v1/annotations",
-          schema: "Paginated<AnnotationState>",
-          query: { ...(await resolveFilters()), next },
-        }),
-      params.next,
-    );
+    return cursorPaginate(async (next) => {
+      const page = await this.dpHttp.request<Paginated<AnnotationState>>({
+        method: "GET",
+        path: "/v1/annotations",
+        schema: "Paginated<AnnotationState>",
+        query: { ...(await resolveFilters()), next },
+      });
+      return { ...page, records: page.records.map(normalizeState) };
+    }, params.next);
   }
 
   /**
@@ -147,15 +158,21 @@ export class AnnotationsApi {
    * The annotations before and after one target in the review order the
    * filters select, with the target's position in it.
    */
-  navigation(
+  async navigation(
     params: AnnotationNavigationParams,
   ): Promise<AnnotationNavigation> {
-    return this.dpHttp.request<AnnotationNavigation>({
+    const window = await this.dpHttp.request<AnnotationNavigation>({
       method: "GET",
       path: "/v1/annotations/navigation",
       schema: "AnnotationNavigation",
       query: { ...params },
     });
+    return {
+      ...window,
+      previous: window.previous && normalizeState(window.previous),
+      current: window.current && normalizeState(window.current),
+      next: window.next && normalizeState(window.next),
+    };
   }
 
   /** Append exactly one annotation mutation. */

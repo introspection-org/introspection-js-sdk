@@ -11,19 +11,10 @@ export interface AnnotationState extends AnnotationTarget {
   conversation_id: string | null;
   labels: string[];
   assignee_member_ids: Uuid[];
-  annotator_member_ids: Uuid[];
-  commenter_member_ids?: Uuid[];
-  has_comment: boolean;
-  /** Members who commented in person, not through an agent. */
-  human_commenter_member_ids?: Uuid[];
-  has_human_comment?: boolean;
+  /** Members whose comment completed a review. */
+  reviewer_member_ids: Uuid[];
   comment_count: number;
-  latest_comment: string | null;
-  latest_comment_member_id: Uuid | null;
-  latest_comment_actor_member_id?: Uuid | null;
-  latest_comment_actor_type?: string | null;
   updated_at: IsoDate;
-  updated_by_member_id: Uuid;
   assignment_event_id: Uuid | null;
 }
 
@@ -33,6 +24,11 @@ export interface AnnotationFacet {
   dimension: string;
   value: string;
   count: number;
+  /** Set on the `label` and `review_queue` buckets, which summarize a dataset. */
+  conversation_count?: number | null;
+  comment_count?: number | null;
+  reviewer_member_ids?: Uuid[] | null;
+  updated_at?: IsoDate | null;
 }
 
 /** `GET /v1/annotations/navigation` filters: the review order around one target. */

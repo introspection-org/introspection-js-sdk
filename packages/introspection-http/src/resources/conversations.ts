@@ -24,7 +24,40 @@ import {
 import { encodeMetadataFilter } from "./metadata-filter.js";
 import type { ResourceHttpClient } from "./types.js";
 
-export type ConversationExportFormat = "json" | "arrow" | "trajectory";
+export type ConversationExportFormat =
+  "jsonl" | "json" | "arrow" | "trajectory";
+
+const EXPORT_ACCEPT: Record<ConversationExportFormat, string> = {
+  jsonl: "application/x-ndjson",
+  json: "application/json",
+  arrow: ARROW_STREAM_MEDIA_TYPE,
+  trajectory: `${TRAJECTORY_MEDIA_TYPE};version=1`,
+};
+
+/** The non-blank lines of a byte stream, each whole however the chunks split it. */
+async function* readLines(
+  body: ReadableStream<Uint8Array>,
+): AsyncGenerator<string> {
+  const reader = body.getReader();
+  const decoder = new TextDecoder();
+  let pending = "";
+  try {
+    for (;;) {
+      const { value, done } = await reader.read();
+      pending += done
+        ? decoder.decode()
+        : decoder.decode(value, { stream: true });
+      const lines = pending.split("\n");
+      pending = done ? "" : (lines.pop() ?? "");
+      for (const line of lines) if (line.trim() !== "") yield line;
+      if (done) return;
+    }
+  } finally {
+    // A consumer that stops early must not leave the response body open.
+    reader.cancel().catch(() => {});
+    reader.releaseLock();
+  }
+}
 
 /**
  * Items of a conversation (`/v1/conversations/{id}/items`). Read-only.
@@ -162,8 +195,34 @@ export class ConversationsClient {
   }
 
   /**
+   * Export one complete conversation as JSON lines: its GenAI spans, parsed
+   * one line at a time as the response arrives, so the export is never
+   * buffered whole. The server owns its internal pagination.
+   *
+   * A data plane that predates this form answers `406`; that error surfaces
+   * rather than falling back to {@link exportJson}.
+   */
+  async *exportJsonl(
+    conversationId: string,
+    params?: ConversationExportParams,
+    signal?: AbortSignal,
+  ): AsyncGenerator<GenAiSpan> {
+    const body = await this.exportStream(
+      conversationId,
+      "jsonl",
+      params,
+      signal,
+    );
+    for await (const line of readLines(body)) {
+      yield normalizeSpan(JSON.parse(line) as GenAiSpan);
+    }
+  }
+
+  /**
    * Export one complete conversation as the standard GenAI-span list.
    * The server owns its internal 1,000-row pagination.
+   *
+   * @deprecated Prefer {@link exportJsonl}, which does not buffer the export.
    */
   async exportJson(
     conversationId: string,
@@ -189,17 +248,11 @@ export class ConversationsClient {
     params?: ConversationExportParams,
     signal?: AbortSignal,
   ): Promise<ReadableStream<Uint8Array>> {
-    const accept =
-      format === "arrow"
-        ? ARROW_STREAM_MEDIA_TYPE
-        : format === "trajectory"
-          ? `${TRAJECTORY_MEDIA_TYPE};version=1`
-          : "application/json";
     return this.http.request<ReadableStream<Uint8Array>>({
       method: "GET",
       path: `/v1/conversations/${encodeURIComponent(conversationId)}/export`,
       query: params as Record<string, unknown> | undefined,
-      headers: { Accept: accept },
+      headers: { Accept: EXPORT_ACCEPT[format] },
       expect: "stream",
       signal,
     });

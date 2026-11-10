@@ -32,7 +32,15 @@
     },
     "AnnotationFacet": {
       "type": "object",
-      "properties": { "count": {}, "dimension": {}, "value": {} },
+      "properties": {
+        "comment_count": {},
+        "conversation_count": {},
+        "count": {},
+        "dimension": {},
+        "reviewer_member_ids": { "type": "array" },
+        "updated_at": {},
+        "value": {}
+      },
       "additionalProperties": false
     },
     "AnnotationMember": {
@@ -64,24 +72,15 @@
     "AnnotationState": {
       "type": "object",
       "properties": {
-        "annotator_member_ids": { "type": "array" },
         "assignee_member_ids": { "type": "array" },
         "assignment_event_id": {},
         "comment_count": {},
-        "commenter_member_ids": { "type": "array" },
         "conversation_id": {},
-        "has_comment": {},
-        "has_human_comment": {},
-        "human_commenter_member_ids": { "type": "array" },
         "labels": { "type": "array" },
-        "latest_comment": {},
-        "latest_comment_actor_member_id": {},
-        "latest_comment_actor_type": {},
-        "latest_comment_member_id": {},
+        "reviewer_member_ids": { "type": "array" },
         "span_id": {},
         "trace_id": {},
-        "updated_at": {},
-        "updated_by_member_id": {}
+        "updated_at": {}
       },
       "additionalProperties": false
     },
