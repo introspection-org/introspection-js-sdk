@@ -1,6 +1,6 @@
 /**
- * A review queue over a project's annotations: the buckets it filters by, and
- * the annotations before and after the first one in the review order.
+ * A review queue over a project's annotations: how many there are, and the
+ * annotations before and after the first one in the review order.
  *
  * Run with:
  *   INTROSPECTION_TOKEN=intro_xxx
@@ -18,11 +18,12 @@ async function main() {
     advanced: { dpUrl: process.env.INTROSPECTION_DP_URL },
   });
 
-  for (const facet of await client.annotations.facets()) {
-    console.log(`${facet.dimension}=${facet.value}: ${facet.count}`);
-  }
-
-  const { records } = await client.annotations.list();
+  // Add `label` to size one dataset the same way.
+  const { records, total_count } = await client.annotations.list({
+    limit: 1,
+    include_total: true,
+  });
+  console.log(`${total_count ?? 0} annotated spans`);
   const first = records[0];
   if (!first) return;
   const around = await client.annotations.navigation({

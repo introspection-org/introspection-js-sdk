@@ -1,13 +1,13 @@
 /**
  * `IssuesApi` over `/v1/issues` (Data Plane): list filters and paging,
- * create, get, both PATCH shapes, delete, and the `If-Match` precondition.
+ * create, get, update, delete, `include`, the people on an issue, comments,
+ * and the `If-Match` precondition.
  *
  * A fake `fetch` (or a mocked `request`) stands in for the Data Plane, so no
  * network boundary is crossed (AGENTS.md §6 case 1).
  */
-import { describe, expect, expectTypeOf, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
-  ConflictError,
   HttpClient,
   IntrospectionAPIError,
   IntrospectionClient,
@@ -16,8 +16,7 @@ import {
 } from "@introspection-sdk/introspection-node";
 import type {
   Issue,
-  IssueMutation,
-  IssuePatch,
+  IssueComment,
   IssueUpdateParams,
 } from "@introspection-sdk/introspection-node";
 import {
@@ -28,7 +27,8 @@ import {
 const ISSUE_ID = "0199a1b2-0000-7000-8000-000000000101";
 const TASK_ID = "0199a1b2-0000-7000-8000-0000000000ee";
 const MEMBER_ID = "0199a1b2-0000-7000-8000-0000000000cc";
-const REQUEST_ID = "0199a1b2-0000-7000-8000-000000000201";
+const REVIEWER_ID = "0199a1b2-0000-7000-8000-0000000000dd";
+const COMMENT_ID = "0199a1b2-0000-7000-8000-000000000201";
 const EVENT_ID = "0199a1b2-0000-7000-8000-000000000301";
 const FILE_ID = "0199a1b2-0000-7000-8000-000000000401";
 
@@ -47,6 +47,38 @@ const ISSUE: Issue = {
   member_id: null,
   tags: ["customer:acme"],
   metadata: { region: "eu", attempts: 3, paged: true, owner: null },
+  created_by_member_id: MEMBER_ID,
+  assignee_member_id: MEMBER_ID,
+  reviewer_member_id: null,
+  members: null,
+  files: null,
+  links: null,
+  events: null,
+  spans: null,
+  comments: null,
+  closed_at: null,
+  created_at: "2026-10-30T09:00:00Z",
+  updated_at: "2026-11-01T10:00:00Z",
+};
+
+const COMMENT: IssueComment = {
+  id: COMMENT_ID,
+  issue_id: ISSUE_ID,
+  comment: "Can we raise the gateway timeout?",
+  member_id: MEMBER_ID,
+  actor_member_id: null,
+  actor_member_type: null,
+  created_at: "2026-11-01T10:00:00Z",
+};
+
+/** The issue as a read with every include returns it. */
+const FULL_ISSUE: Issue = {
+  ...ISSUE,
+  members: [
+    { member_id: MEMBER_ID, relation: "creator" },
+    { member_id: MEMBER_ID, relation: "assignee" },
+    { member_id: REVIEWER_ID, relation: "follower" },
+  ],
   files: [
     {
       file_id: FILE_ID,
@@ -63,17 +95,16 @@ const ISSUE: Issue = {
       span_id: "0123456789abcdef",
     },
   ],
-  open_requests: [
+  comments: [
+    COMMENT,
     {
-      id: REQUEST_ID,
-      question: "Can we raise the gateway timeout?",
-      assignee_id: MEMBER_ID,
-      created_at: "2026-11-01T10:00:00Z",
+      ...COMMENT,
+      id: "0199a1b2-0000-7000-8000-000000000202",
+      comment: "Raised to 60s.",
+      actor_member_id: REVIEWER_ID,
+      actor_member_type: "agent",
     },
   ],
-  closed_at: null,
-  created_at: "2026-10-30T09:00:00Z",
-  updated_at: "2026-11-01T10:00:00Z",
 };
 
 function page(records: Issue[], next: string | null = null) {
@@ -152,9 +183,12 @@ describe("IssuesApi", () => {
       paged: true,
       owner: null,
     });
-    expect(issue.open_requests[0].assignee_id).toBe(MEMBER_ID);
-    expect(issue.files[0].source_event_ids).toEqual([EVENT_ID]);
-    expect(issue.spans[0].span_id).toBe("0123456789abcdef");
+    expect(issue.assignee_member_id).toBe(MEMBER_ID);
+    expect(issue.reviewer_member_id).toBeNull();
+    // A list the read did not include is null.
+    expect(issue.members).toBeNull();
+    expect(issue.files).toBeNull();
+    expect(issue.comments).toBeNull();
     expect(first.total_count).toBeNull();
   });
 
@@ -221,47 +255,93 @@ describe("IssuesApi", () => {
     expect(calls(http)[0].body).not.toHaveProperty("title");
   });
 
-  it("update() creates a human request under a new id", async () => {
-    const http = mockHttp();
-    await new IssuesApi(http).update(ISSUE_ID, {
-      request: {
-        id: REQUEST_ID,
-
-        question: "Can we raise the gateway timeout?",
-        assignee_id: MEMBER_ID,
-        status: undefined,
-      },
+  it("get() asks for each include and reads the lists it returns", async () => {
+    const http = mockHttp(FULL_ISSUE);
+    const issue = await new IssuesApi(http).get(ISSUE_ID, {
+      include: ["members", "attachments", "comments"],
     });
 
-    expect(calls(http)[0].body).toEqual({
-      request: {
-        id: REQUEST_ID,
-
-        question: "Can we raise the gateway timeout?",
-        assignee_id: MEMBER_ID,
-      },
+    expect(calls(http)[0].query).toEqual({
+      include: ["members", "attachments", "comments"],
     });
+    expect(issue.members?.map((member) => member.relation)).toEqual([
+      "creator",
+      "assignee",
+      "follower",
+    ]);
+    expect(issue.files?.[0]?.source_event_ids).toEqual([EVENT_ID]);
+    expect(issue.links?.[0]?.title).toBe("Fix timeout");
+    expect(issue.events).toEqual([{ event_id: EVENT_ID }]);
+    expect(issue.spans?.[0]?.span_id).toBe("0123456789abcdef");
+    expect(issue.comments).toHaveLength(2);
+    expect(issue.comments?.[1]?.actor_member_type).toBe("agent");
   });
 
-  it("update() resolves a human request at its own revision", async () => {
+  it("create() and update() set the people and ask for includes", async () => {
+    const http = mockHttp(FULL_ISSUE);
+    const issues = new IssuesApi(http);
+    await issues.create(
+      {
+        task_id: TASK_ID,
+        title: "t",
+        description: "d",
+        assignee_member_id: MEMBER_ID,
+        reviewer_member_id: REVIEWER_ID,
+        follower_member_ids: [REVIEWER_ID],
+      },
+      { include: ["members"] },
+    );
+    await issues.update(
+      ISSUE_ID,
+      { assignee_member_id: REVIEWER_ID, follower_member_ids: [] },
+      { include: ["members", "attachments"], ifMatch: '"1"' },
+    );
+
+    const [created, updated] = calls(http);
+    expect(created.body).toMatchObject({
+      assignee_member_id: MEMBER_ID,
+      reviewer_member_id: REVIEWER_ID,
+      follower_member_ids: [REVIEWER_ID],
+    });
+    expect(created.query).toEqual({ include: ["members"] });
+    expect(updated.body).toEqual({
+      assignee_member_id: REVIEWER_ID,
+      follower_member_ids: [],
+    });
+    expect(updated.query).toEqual({ include: ["members", "attachments"] });
+    expect(updated.headers).toEqual({ "If-Match": '"1"' });
+  });
+
+  it("update() sends an explicit null to clear a person and omits one left alone", async () => {
     const http = mockHttp();
-    await new IssuesApi(http).update(ISSUE_ID, {
-      request: {
-        id: REQUEST_ID,
-
-        status: "resolved",
-        resolution: "Raised to 60s; the timeouts stopped.",
-      },
+    const issues = new IssuesApi(http);
+    await issues.update(ISSUE_ID, { assignee_member_id: null });
+    await issues.update(ISSUE_ID, {
+      status: "waiting",
+      assignee_member_id: undefined,
+      reviewer_member_id: null,
     });
 
-    expect(calls(http)[0].body).toEqual({
-      request: {
-        id: REQUEST_ID,
+    const [cleared, mixed] = calls(http);
+    expect(cleared.body).toEqual({ assignee_member_id: null });
+    expect(mixed.body).toEqual({ status: "waiting", reviewer_member_id: null });
+    expect(mixed.body).not.toHaveProperty("assignee_member_id");
+  });
 
-        status: "resolved",
-        resolution: "Raised to 60s; the timeouts stopped.",
-      },
+  it("comments.create() posts the comment and returns it", async () => {
+    const http = mockHttp(COMMENT);
+    const comment = await new IssuesApi(http).comments.create("a/b", {
+      comment: "Can we raise the gateway timeout?",
     });
+
+    expect(http.request).toHaveBeenCalledWith({
+      method: "POST",
+      path: "/v1/issues/a%2Fb/comments",
+      body: { comment: "Can we raise the gateway timeout?" },
+      schema: "IssueComment",
+    });
+    expect(comment.id).toBe(COMMENT_ID);
+    expect(comment.member_id).toBe(MEMBER_ID);
   });
 
   it("delete() soft-deletes and expects an empty response", async () => {
@@ -293,20 +373,6 @@ describe("IssuesApi", () => {
     ]);
   });
 
-  it("update() refuses ifMatch with a request mutation before sending", async () => {
-    const http = mockHttp();
-    const patch: IssuePatch = {
-      request: { id: REQUEST_ID },
-    };
-    const issues = new IssuesApi(http);
-
-    await expect(
-      // @ts-expect-error ifMatch is accepted only with a brief edit
-      issues.update(ISSUE_ID, patch, { ifMatch: '"1"' }),
-    ).rejects.toThrow(/ifMatch applies to a brief edit only/);
-    expect(http.request).not.toHaveBeenCalled();
-  });
-
   it("issueEtag() quotes updated_at verbatim, microseconds kept", () => {
     expect(
       issueEtag({ ...ISSUE, updated_at: "2026-11-04T01:00:00.123456Z" }),
@@ -322,25 +388,12 @@ describe("IssuesApi", () => {
     expect(calls(http)[0].path).toBe("/v1/issues/a%2Fb");
   });
 
-  it("types the PATCH body as a brief edit or a request mutation", () => {
-    expectTypeOf<IssueUpdateParams>().toMatchTypeOf<IssuePatch>();
-    expectTypeOf<IssueMutation>().toMatchTypeOf<IssuePatch>();
-    const edit: IssuePatch = { title: "t" };
-    const mutation: IssuePatch = {
-      request: { id: REQUEST_ID },
-    };
-    const mixed: IssuePatch = {
-      // @ts-expect-error a request rides on its own, not in a brief edit
-      title: "t",
-      request: { id: REQUEST_ID },
-    };
-    // @ts-expect-error a brief edit carries no revision
+  it("types an update without a revision or a nested request", () => {
+    // @ts-expect-error an update carries no revision
     const versioned: IssueUpdateParams = { expected_revision: 1, title: "t" };
-    const requestRevision: IssueMutation = {
-      // @ts-expect-error nor does a request
-      request: { id: REQUEST_ID, expected_revision: 0 },
-    };
-    expect([edit, mutation, mixed, versioned, requestRevision]).toHaveLength(5);
+    // @ts-expect-error there is no nested request body
+    const nested: IssueUpdateParams = { request: { id: COMMENT_ID } };
+    expect([versioned, nested]).toHaveLength(2);
   });
 });
 
@@ -357,8 +410,9 @@ describe("client.issues", () => {
       limit: 1,
       status: ["open", "waiting"],
       owner: ["project", "me"],
-      assigned_to_me: true,
-      has_open_requests: false,
+      relation: ["assignee", "reviewer"],
+      member_id: MEMBER_ID,
+      include: ["members", "attachments"],
       task_status: ["running", "awaiting_user"],
       exclude_task_status: ["completed", "cancelled"],
       display_index: 42,
@@ -385,8 +439,10 @@ describe("client.issues", () => {
       "cancelled",
     ]);
     expect(query.getAll("metadata")).toEqual(["region:eu", "tier:gold"]);
-    expect(query.get("assigned_to_me")).toBe("true");
-    expect(query.get("has_open_requests")).toBe("false");
+    expect(query.getAll("relation")).toEqual(["assignee", "reviewer"]);
+    expect(query.get("member_id")).toBe(MEMBER_ID);
+    expect(query.getAll("include")).toEqual(["members", "attachments"]);
+    expect(query.has("assigned_to_me")).toBe(false);
     expect(query.get("display_index")).toBe("42");
     expect(query.get("tag")).toBe("customer:acme");
     expect(query.has("search")).toBe(false);
@@ -404,10 +460,15 @@ describe("client.issues", () => {
   it("takes a single value for a repeatable filter and starts from a cursor", async () => {
     const { sdk, sent } = client(() => json(page([ISSUE])));
 
-    await sdk.issues.list({ status: "open", next: "cursor-9" });
+    await sdk.issues.list({
+      status: "open",
+      relation: "follower",
+      next: "cursor-9",
+    });
 
     expect([...sent[0].url.searchParams]).toEqual([
       ["status", "open"],
+      ["relation", "follower"],
       ["next", "cursor-9"],
     ]);
     await sdk.shutdown();
@@ -459,16 +520,23 @@ describe("client.issues", () => {
     await sdk.shutdown();
   });
 
-  it("surfaces a stale request revision as a ConflictError", async () => {
-    const { sdk } = client(() =>
-      json({ detail: "Request revision is stale" }, 409),
+  it("sends include on the URL for a read and a comment to its sub-resource", async () => {
+    const { sdk, sent } = client((s) =>
+      s.method === "POST" ? json(COMMENT, 201) : json(FULL_ISSUE),
     );
 
-    await expect(
-      sdk.issues.update(ISSUE_ID, {
-        request: { id: REQUEST_ID, status: "cancelled" },
-      }),
-    ).rejects.toBeInstanceOf(ConflictError);
+    await sdk.issues.get(ISSUE_ID, { include: ["comments"] });
+    await sdk.issues.update(ISSUE_ID, { assignee_member_id: null });
+    const comment = await sdk.issues.comments.create(ISSUE_ID, {
+      comment: "Raised to 60s.",
+    });
+
+    expect(sent[0].url.searchParams.getAll("include")).toEqual(["comments"]);
+    expect(sent[1].body).toEqual({ assignee_member_id: null });
+    expect(sent[2].method).toBe("POST");
+    expect(sent[2].url.pathname).toBe(`/v1/issues/${ISSUE_ID}/comments`);
+    expect(sent[2].body).toEqual({ comment: "Raised to 60s." });
+    expect(comment.issue_id).toBe(ISSUE_ID);
     await sdk.shutdown();
   });
 });
@@ -483,5 +551,6 @@ describe("browser client.issues", () => {
 
     expect(api.issues.list).toBeTypeOf("function");
     expect(api.issues.update).toBeTypeOf("function");
+    expect(api.issues.comments.create).toBeTypeOf("function");
   });
 });

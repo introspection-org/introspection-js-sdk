@@ -1,11 +1,13 @@
 import type {
   Issue,
+  IssueComment,
+  IssueCommentCreateParams,
   IssueCreateParams,
+  IssueGetParams,
   IssueListParams,
-  IssueMutation,
-  IssuePatch,
   IssuePreconditionOptions,
   IssueUpdateParams,
+  IssueWriteOptions,
   Uuid,
 } from "@introspection-sdk/types";
 import { Paginator, paginateGet } from "../pagination.js";
@@ -22,18 +24,52 @@ function preconditionHeaders(
     : { headers: { "If-Match": options.ifMatch } };
 }
 
-function isMutation(patch: IssuePatch): patch is IssueMutation {
-  return "request" in patch && patch.request !== undefined;
+/** The `include` query, when the caller asked for a related list. */
+function includeQuery(options: {
+  include?: string[];
+}): { query: Record<string, unknown> } | Record<string, never> {
+  return options.include?.length ? { query: { include: options.include } } : {};
+}
+
+/**
+ * Comments on an issue (`/v1/issues/{id}/comments`). A comment is an
+ * `introspection.issue` event: read comments with
+ * `issues.get(id, { include: ["comments"] })` or from the issue's events.
+ */
+export class IssueCommentsClient {
+  constructor(private readonly http: ResourceHttpClient) {}
+
+  /**
+   * Comment on an issue (`201`); needs `issues:write`. The comment does not
+   * edit the issue, so its `ETag` is unchanged, and a read made straight
+   * after may not include it yet.
+   */
+  create(
+    issueId: Uuid,
+    params: IssueCommentCreateParams,
+  ): Promise<IssueComment> {
+    return this.http.request<IssueComment>({
+      method: "POST",
+      path: `/v1/issues/${encodeURIComponent(issueId)}/comments`,
+      schema: "IssueComment",
+      body: params,
+    });
+  }
 }
 
 /**
  * CRUD on `/v1/issues` (Data Plane). Reading needs `issues:read`, creating
- * and updating `issues:write`, and deleting `issues:delete`. A brief edit
- * and a delete take an optional `ifMatch` (see `issueEtag`), so a write
- * against a stale read is refused with 412.
+ * and updating `issues:write`, and deleting `issues:delete`. An update and a
+ * delete take an optional `ifMatch` (see `issueEtag`), so a write against a
+ * stale read is refused with 412.
  */
 export class IssuesClient {
-  constructor(private readonly http: ResourceHttpClient) {}
+  /** Comments on an issue: `issues.comments.create(...)`. */
+  readonly comments: IssueCommentsClient;
+
+  constructor(private readonly http: ResourceHttpClient) {
+    this.comments = new IssueCommentsClient(http);
+  }
 
   /**
    * List the issues the caller may read, newest activity first. `await` the
@@ -53,66 +89,49 @@ export class IssuesClient {
   }
 
   /** Open an issue on its worker task (`201`); see {@link IssueCreateParams}. */
-  create(params: IssueCreateParams): Promise<Issue> {
+  create(
+    params: IssueCreateParams,
+    options: IssueWriteOptions = {},
+  ): Promise<Issue> {
     return this.http.request<Issue>({
       method: "POST",
       path: "/v1/issues",
       schema: "Issue",
       body: setFields(params),
+      ...includeQuery(options),
     });
   }
 
   /**
-   * Read one issue with its evidence and open requests. Its `ETag` is
+   * Read one issue, with the related lists `include` names. Its `ETag` is
    * `issueEtag(issue)`.
    */
-  get(issueId: Uuid): Promise<Issue> {
+  get(issueId: Uuid, params: IssueGetParams = {}): Promise<Issue> {
     return this.http.request<Issue>({
       method: "GET",
       path: `/v1/issues/${encodeURIComponent(issueId)}`,
       schema: "Issue",
+      ...includeQuery(params),
     });
   }
 
   /**
-   * Edit the brief ({@link IssueUpdateParams}) or create or change one human
-   * request ({@link IssueMutation}). Only the fields set are sent; a list
-   * sent as `[]` clears it. `ifMatch` applies to a brief edit only; with a
-   * request mutation it throws before anything is sent. Returns the updated
-   * issue.
+   * Edit an issue ({@link IssueUpdateParams}). Only the fields set are sent;
+   * a list sent as `[]` clears it, and `assignee_member_id: null` or
+   * `reviewer_member_id: null` clears that person. Returns the updated issue.
    */
   update(
     issueId: Uuid,
     patch: IssueUpdateParams,
-    options?: IssuePreconditionOptions,
-  ): Promise<Issue>;
-  update(issueId: Uuid, patch: IssuePatch): Promise<Issue>;
-  update(
-    issueId: Uuid,
-    patch: IssuePatch,
-    options: IssuePreconditionOptions = {},
+    options: IssuePreconditionOptions & IssueWriteOptions = {},
   ): Promise<Issue> {
-    if (!isMutation(patch)) {
-      return this.http.request<Issue>({
-        method: "PATCH",
-        path: `/v1/issues/${encodeURIComponent(issueId)}`,
-        schema: "Issue",
-        body: setFields(patch),
-        ...preconditionHeaders(options),
-      });
-    }
-    if (options.ifMatch !== undefined) {
-      return Promise.reject(
-        new TypeError(
-          "ifMatch applies to a brief edit only, not a request mutation",
-        ),
-      );
-    }
     return this.http.request<Issue>({
       method: "PATCH",
       path: `/v1/issues/${encodeURIComponent(issueId)}`,
       schema: "Issue",
-      body: { request: setFields(patch.request) },
+      body: setFields(patch),
+      ...preconditionHeaders(options),
+      ...includeQuery(options),
     });
   }
 
@@ -127,4 +146,4 @@ export class IssuesClient {
   }
 }
 
-export { IssuesClient as IssuesApi };
+export { IssuesClient as IssuesApi, IssueCommentsClient as IssueCommentsApi };

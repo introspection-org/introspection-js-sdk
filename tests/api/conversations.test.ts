@@ -733,26 +733,173 @@ describe("conversations export", () => {
     { role: "assistant", content: "done", timestamp: "2025-01-01T00:00:03Z" },
   ];
 
-  it("requests the server-owned complete JSON export", async () => {
-    const page = makePage([makeSpan("span-1")], false);
-    const http = mockHttp({ requestResult: page });
-
-    const result = await new ConversationsApi(http).exportJson("conv/1", {
-      agent: "root",
+  it("parses the JSON-lines export span by span across chunk boundaries", async () => {
+    const lines =
+      [makeSpan("span-1"), makeSpan("spän-2")]
+        .map((span) => JSON.stringify(span))
+        .join("\n") + "\n";
+    const bytes = new TextEncoder().encode(lines);
+    // Seven-byte chunks split both a line and the two-byte `ä`.
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        for (let at = 0; at < bytes.length; at += 7) {
+          controller.enqueue(bytes.slice(at, at + 7));
+        }
+        controller.close();
+      },
     });
+    const http = mockHttp({ requestResult: stream });
 
+    const ids: (string | undefined)[] = [];
+    for await (const span of new ConversationsApi(http).exportJsonl("conv-1", {
+      agent: "root",
+    })) {
+      ids.push(span.span_id);
+    }
+
+    expect(ids).toEqual(["span-1", "spän-2"]);
     expect(http.request).toHaveBeenCalledWith({
       method: "GET",
-      path: "/v1/conversations/conv%2F1/export",
+      path: "/v1/conversations/conv-1/export",
       query: { agent: "root" },
-      headers: { Accept: "application/json" },
-      schema: "GenAiSpanList",
+      headers: { Accept: "application/x-ndjson" },
+      expect: "stream",
+      signal: undefined,
     });
-    expect(result.data).toHaveLength(1);
+  });
+
+  it("reads a final JSON line with no newline and releases the body on an early stop", async () => {
+    let cancelled = false;
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(
+          new TextEncoder().encode(
+            `${JSON.stringify(makeSpan("span-1"))}\n\n${JSON.stringify(makeSpan("span-2"))}`,
+          ),
+        );
+        controller.close();
+      },
+      cancel() {
+        cancelled = true;
+      },
+    });
+    const api = new ConversationsApi(mockHttp({ requestResult: stream }));
+    const ids: (string | undefined)[] = [];
+    for await (const span of api.exportJsonl("conv-1")) ids.push(span.span_id);
+    expect(ids).toEqual(["span-1", "span-2"]);
+
+    const open = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        controller.enqueue(
+          new TextEncoder().encode(`${JSON.stringify(makeSpan("span-1"))}\n`),
+        );
+      },
+      cancel() {
+        cancelled = true;
+      },
+    });
+    for await (const _ of new ConversationsApi(
+      mockHttp({ requestResult: open }),
+    ).exportJsonl("conv-1")) {
+      break;
+    }
+    expect(cancelled).toBe(true);
+  });
+
+  it("asks for annotations inline and decodes them per JSON line", async () => {
+    const annotation = {
+      trace_id: "trace-1",
+      span_id: "span-1",
+      conversation_id: "conv-1",
+      labels: ["good-structure"],
+      assignee_member_ids: [],
+      reviewer_member_ids: ["22222222-2222-2222-2222-222222222222"],
+      comment_count: 2,
+      updated_at: "2026-08-25T01:02:03Z",
+      updated_by_member_id: "22222222-2222-2222-2222-222222222222",
+      assignment_event_id: null,
+      comments: [
+        {
+          event_id: "018f6b66-4d3a-7abc-8def-000000000001",
+          comment: "The conclusion is strong.",
+          member_id: "22222222-2222-2222-2222-222222222222",
+          actor_member_id: null,
+          actor_member_type: null,
+          created_at: "2026-08-25T01:00:00Z",
+        },
+        {
+          event_id: "018f6b66-4d3a-7abc-8def-000000000002",
+          comment: "Agreed; flagged the citation.",
+          member_id: "11111111-1111-1111-1111-111111111111",
+          actor_member_id: "44444444-4444-4444-4444-444444444444",
+          actor_member_type: "agent",
+          created_at: "2026-08-25T01:02:03Z",
+        },
+      ],
+    };
+    const lines = [{ ...makeSpan("span-1"), annotation }, makeSpan("span-2")]
+      .map((span) => `${JSON.stringify(span)}\n`)
+      .join("");
+    const http = mockHttp({
+      requestResult: new Response(lines).body,
+    });
+
+    const spans: GenAiSpan[] = [];
+    for await (const span of new ConversationsApi(http).exportJsonl("conv-1", {
+      include: ["annotations", "comments"],
+    })) {
+      spans.push(span);
+    }
+
+    const call = (http.request as ReturnType<typeof vi.fn>).mock.calls[0][0];
+    expect(call.query).toEqual({ include: ["annotations", "comments"] });
+    expect(spans[0]!.annotation).toEqual(annotation);
+    expect(spans[0]!.annotation!.comments![1]!.actor_member_type).toBe("agent");
+    expect(spans[1]).not.toHaveProperty("annotation");
+  });
+
+  it("sends include as a repeated key on the raw-stream export", async () => {
+    const seen: string[] = [];
+    const fetch = vi.fn(async (url: string | URL | Request) => {
+      seen.push(String(url));
+      return new Response("", {
+        headers: { "content-type": "application/x-ndjson" },
+      });
+    });
+    const api = new ConversationsApi(
+      new HttpClient({
+        apiUrl: "https://dp.example.test",
+        token: "t",
+        fetch: fetch as unknown as typeof globalThis.fetch,
+      }),
+    );
+    const include = ["annotations", "comments"] as const;
+    await api.exportStream("conv-1", "jsonl", { include: [...include] });
+    for await (const _ of api.exportJsonl("conv-1", {
+      include: [...include],
+    })) {
+      // An empty export yields nothing.
+    }
+    for (const url of seen) {
+      expect(new URL(url).searchParams.getAll("include")).toEqual([
+        "annotations",
+        "comments",
+      ]);
+    }
+    expect(seen).toHaveLength(2);
+  });
+
+  it("surfaces a 406 from a data plane without the JSON-lines export", async () => {
+    const refused = new Error("Not Acceptable");
+    const http = mockHttp();
+    (http.request as ReturnType<typeof vi.fn>).mockRejectedValue(refused);
+    const spans = new ConversationsApi(http).exportJsonl("conv-1");
+    await expect(spans.next()).rejects.toBe(refused);
+    expect(http.request).toHaveBeenCalledTimes(1);
   });
 
   it.each([
-    ["json", "application/json"],
+    ["jsonl", "application/x-ndjson"],
     ["arrow", "application/vnd.apache.arrow.stream"],
     ["trajectory", "application/vnd.letta.trajectory+json;version=1"],
   ] as const)("returns the raw %s export stream", async (format, accept) => {

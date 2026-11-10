@@ -6,6 +6,7 @@ import {
   IntrospectionClient,
   NotFoundError,
   ValidationError,
+  type AnnotationComment,
   type AnnotationState,
   type AnnotationTarget,
   type Tag,
@@ -35,15 +36,32 @@ const ANNOTATION: AnnotationState = {
   conversation_id: "conversation-1",
   labels: ["good-structure"],
   assignee_member_ids: [ALICE_ID],
-  annotator_member_ids: [BOB_ID],
-  has_comment: true,
+  reviewer_member_ids: [BOB_ID],
   comment_count: 2,
-  latest_comment: "The conclusion is strong.",
-  latest_comment_member_id: BOB_ID,
   updated_at: "2026-08-25T01:02:03Z",
   updated_by_member_id: BOB_ID,
   assignment_event_id: "33333333-3333-3333-3333-333333333333",
+  comments: null,
 };
+
+const COMMENTS: AnnotationComment[] = [
+  {
+    event_id: "018f6b66-4d3a-7abc-8def-000000000001",
+    comment: "The conclusion is strong.",
+    member_id: BOB_ID,
+    actor_member_id: null,
+    actor_member_type: null,
+    created_at: "2026-08-25T01:00:00Z",
+  },
+  {
+    event_id: "018f6b66-4d3a-7abc-8def-000000000002",
+    comment: "Agreed; flagged the citation.",
+    member_id: ALICE_ID,
+    actor_member_id: "44444444-4444-4444-4444-444444444444",
+    actor_member_type: "agent",
+    created_at: "2026-08-25T01:02:03Z",
+  },
+];
 
 const LABEL: Tag = {
   kind: "annotation",
@@ -112,6 +130,22 @@ beforeAll(async () => {
       ? url.pathname.slice(3)
       : url.pathname;
 
+    if (path === "/v1/annotations/navigation" && method === "GET") {
+      return json(res, 200, {
+        previous: null,
+        current: ANNOTATION,
+        next: null,
+        current_position: 1,
+        total_count: 1,
+      });
+    }
+    if (
+      path === "/v1/annotations" &&
+      method === "GET" &&
+      url.searchParams.has("include")
+    ) {
+      return json(res, 200, page([{ ...ANNOTATION, comments: COMMENTS }]));
+    }
     if (path === "/v1/annotations" && method === "GET") {
       const second = url.searchParams.get("next") === "annotation-page-2";
       return json(
@@ -230,10 +264,51 @@ function client(dpUrl?: string): IntrospectionClient {
 }
 
 describe("annotations", () => {
+  it("loads each row's comments with include=comments and leaves them null without", async () => {
+    const { records } = await client().annotations.list({
+      include: ["comments"],
+      status: "reviewed",
+      label: ["good-structure", "walk"],
+    });
+    expect(requests[0]!.query.getAll("include")).toEqual(["comments"]);
+    expect(requests[0]!.query.get("status")).toBe("reviewed");
+    expect(requests[0]!.query.getAll("label")).toEqual([
+      "good-structure",
+      "walk",
+    ]);
+    expect(records[0]!.comments).toEqual(COMMENTS);
+    expect(records[0]!.comments![1]!.actor_member_type).toBe("agent");
+    expect(records[0]!.comment_count).toBe(2);
+
+    const all: AnnotationState[] = [];
+    for await (const row of client().annotations.list({
+      include: ["comments"],
+    })) {
+      all.push(row);
+    }
+    expect(all[0]!.comments).toEqual(COMMENTS);
+
+    requests = [];
+    const plain = await client().annotations.list();
+    expect(requests[0]!.query.has("include")).toBe(false);
+    expect(plain.records[0]!.comments).toBeNull();
+  });
+
+  it("returns the navigation window's current rows untouched", async () => {
+    const window = await client().annotations.navigation({
+      ...TARGET,
+      lookback_days: 7,
+    });
+    expect(requests[0]!.query.get("lookback_days")).toBe("7");
+    expect(window.current).toEqual(ANNOTATION);
+    expect(window.total_count).toBe(1);
+  });
+
   it("lists folded state with every filter and cursor pagination", async () => {
     const listing = client().annotations.list({
       limit: 1,
       include_total: true,
+      lookback_days: 30,
       annotated_by_member_id: BOB_ID,
       assignee_member_id: ALICE_ID,
       trace_id: TARGET.trace_id,
@@ -246,9 +321,11 @@ describe("annotations", () => {
     for await (const annotation of listing) all.push(annotation);
     expect(all).toHaveLength(2);
     expect(requests[0]!.query.get("include_total")).toBe("true");
+    expect(requests[0]!.query.get("lookback_days")).toBe("30");
     expect(requests[0]!.query.get("annotated_by_member_id")).toBe(BOB_ID);
     expect(requests[0]!.query.get("assignee_member_id")).toBe(ALICE_ID);
     expect(requests.at(-1)?.query.get("next")).toBe("annotation-page-2");
+    expect((await listing).total_count).toBe(1);
   });
 
   it("resolves email list filters once before paginating the data plane", async () => {

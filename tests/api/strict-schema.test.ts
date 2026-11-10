@@ -140,8 +140,8 @@ describe("strict decoding on", () => {
   it("reports a nested span attribute by its path", async () => {
     const body = spanList([span(), span({ novel: 1 })]);
     const conversations = new ConversationsApi(client(body, true));
-    await expect(conversations.exportJson("conv-1")).rejects.toThrow(
-      "/v1/conversations/conv-1/export: response fields this SDK does not model: $.data[1].attributes.introspection.novel",
+    await expect(conversations.items.list("conv-1")).rejects.toThrow(
+      "/v1/conversations/conv-1/items: response fields this SDK does not model: $.data[1].attributes.introspection.novel",
     );
   });
 
@@ -163,7 +163,7 @@ describe("strict decoding on", () => {
       { compaction: { applied: false, history: [] } },
     );
     const conversations = new ConversationsApi(client(body, true));
-    const spans = await conversations.exportJson("conv-1");
+    const spans = await conversations.items.list("conv-1");
     expect(spans.data[0]?.attributes.introspection?.tool_call_ids).toEqual([
       "call-1",
     ]);
@@ -219,6 +219,121 @@ describe("strict decoding on", () => {
       ),
     );
     await expect(later.get("e1")).resolves.toMatchObject({ payload: { x: 1 } });
+  });
+
+  it("models every annotation, feedback and judgement payload field the API returns", async () => {
+    const event = (event_name: string, payload: Record<string, unknown>) => ({
+      id: "e1",
+      timestamp: "2026-11-10T05:00:00Z",
+      event_name,
+      payload,
+    });
+    const shared = {
+      judgement_id: "j1",
+      judge_id: "judge-9",
+      judge_slug: "helpful",
+      judge_type: "online",
+      runtime_slug: "hello-mcp",
+      result: "pass",
+      status: "ok",
+      error_class: null,
+      error_message: null,
+      source_component: "introspection-judge",
+      judge_model: "grader-1",
+      experiment_arm_id: null,
+    };
+    const events = new EventsApi(
+      client(
+        page([
+          event("introspection.annotation", {
+            member_id: "m1",
+            actor_member_id: "m2",
+            actor_member_type: "agent",
+          }),
+          event("introspection.feedback", {
+            name: "thumbs_up",
+            author_member_id: "m1",
+          }),
+          event("introspection.judgement", {
+            ...shared,
+            kind: "verdict",
+            reasoning: "fine",
+            definition_hash: "abc123",
+            engine_version: "1.2.3",
+            judge_provider: "anthropic",
+            contract_version: "1",
+            sequence_hash: "def456",
+            input_tokens: 120,
+            output_tokens: 30,
+            total_tokens: 150,
+          }),
+          event("introspection.judgement", {
+            ...shared,
+            kind: "egress",
+            scores: { q1: 90 },
+            questions: { q1: "Is it personal data?" },
+            policy_id: "no-pii",
+            policy_action: "egress",
+            reason: "personal data",
+            request_host: "example.com",
+            request_method: "POST",
+            request_path: "/v1/upload",
+          }),
+        ]),
+        true,
+      ),
+    );
+    const listed = await events.list({ event_name: "introspection.judgement" });
+    expect(listed.records).toHaveLength(4);
+  });
+
+  it("models every issue event action", async () => {
+    const base = {
+      issue_id: "i1",
+      revision: 1,
+      member_id: "m1",
+      actor_member_id: "m2",
+      actor_member_type: "agent",
+    };
+    const changes = { status: { before: "open", after: "waiting" } };
+    const payloads = [
+      { ...base, action: "created", data: { title: "Checkout times out" } },
+      { ...base, action: "updated", changes },
+      { ...base, action: "commented", comment: "Raised to 60s." },
+      { ...base, action: "deleted" },
+    ];
+    const events = new EventsApi(
+      client(
+        page(
+          payloads.map((payload) => ({
+            id: "e1",
+            timestamp: "2026-11-10T05:00:00Z",
+            event_name: "introspection.issue",
+            payload,
+          })),
+        ),
+        true,
+      ),
+    );
+    const listed = await events.list({ event_name: "introspection.issue" });
+    expect(listed.records).toHaveLength(4);
+
+    const stray = new EventsApi(
+      client(
+        page([
+          {
+            id: "e1",
+            timestamp: "2026-11-10T05:00:00Z",
+            event_name: "introspection.issue",
+            payload: { ...base, action: "deleted", comment: "no" },
+          },
+        ]),
+        true,
+      ),
+    );
+    await expect(
+      stray.list({ event_name: "introspection.issue" }),
+    ).rejects.toThrow("$.records[0].payload.comment");
   });
 
   it("checks an event page", async () => {

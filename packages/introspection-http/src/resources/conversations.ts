@@ -21,10 +21,23 @@ import {
   listRead,
   loadArrow,
 } from "./reads.js";
+import { readJsonLines } from "./json-lines.js";
 import { encodeMetadataFilter } from "./metadata-filter.js";
 import type { ResourceHttpClient } from "./types.js";
 
-export type ConversationExportFormat = "json" | "arrow" | "trajectory";
+/**
+ * A representation of the conversation export. `"jsonl"` is the span export:
+ * JSON lines (`application/x-ndjson`), one GenAI span per line, each line a
+ * complete JSON object, so it can be read as it streams. The JSON-envelope
+ * export, one document holding every span, was removed.
+ */
+export type ConversationExportFormat = "jsonl" | "arrow" | "trajectory";
+
+const EXPORT_ACCEPT: Record<ConversationExportFormat, string> = {
+  jsonl: "application/x-ndjson",
+  arrow: ARROW_STREAM_MEDIA_TYPE,
+  trajectory: `${TRAJECTORY_MEDIA_TYPE};version=1`,
+};
 
 /**
  * Items of a conversation (`/v1/conversations/{id}/items`). Read-only.
@@ -162,26 +175,35 @@ export class ConversationsClient {
   }
 
   /**
-   * Export one complete conversation as the standard GenAI-span list.
-   * The server owns its internal 1,000-row pagination.
+   * Export one complete conversation's GenAI spans. The response is JSON
+   * lines (`application/x-ndjson`): one span per line, each line a complete
+   * JSON object. Each is parsed and yielded as it arrives, so the export is
+   * never buffered whole. The server owns its internal pagination.
+   *
+   * This replaces the removed JSON-envelope export; collect the spans into an
+   * array if the whole list is needed.
    */
-  async exportJson(
+  async *exportJsonl(
     conversationId: string,
     params?: ConversationExportParams,
-  ): Promise<GenAiSpanList> {
-    const result = await this.http.request<GenAiSpanList>({
-      method: "GET",
-      path: `/v1/conversations/${encodeURIComponent(conversationId)}/export`,
-      schema: "GenAiSpanList",
-      query: params as Record<string, unknown> | undefined,
-      headers: { Accept: "application/json" },
-    });
-    return { ...result, data: result.data.map(normalizeSpan) };
+    signal?: AbortSignal,
+  ): AsyncGenerator<GenAiSpan> {
+    const body = await this.exportStream(
+      conversationId,
+      "jsonl",
+      params,
+      signal,
+    );
+    for await (const span of readJsonLines<GenAiSpan>(body)) {
+      yield normalizeSpan(span);
+    }
   }
 
   /**
    * Return the raw complete-export byte stream without buffering it in the SDK.
-   * Use this for direct file writes or custom incremental decoders.
+   * Use this for direct file writes or custom incremental decoders. With
+   * `"jsonl"` the bytes are JSON lines (`application/x-ndjson`): one GenAI
+   * span per line, each line a complete JSON object.
    */
   exportStream(
     conversationId: string,
@@ -189,17 +211,11 @@ export class ConversationsClient {
     params?: ConversationExportParams,
     signal?: AbortSignal,
   ): Promise<ReadableStream<Uint8Array>> {
-    const accept =
-      format === "arrow"
-        ? ARROW_STREAM_MEDIA_TYPE
-        : format === "trajectory"
-          ? `${TRAJECTORY_MEDIA_TYPE};version=1`
-          : "application/json";
     return this.http.request<ReadableStream<Uint8Array>>({
       method: "GET",
       path: `/v1/conversations/${encodeURIComponent(conversationId)}/export`,
       query: params as Record<string, unknown> | undefined,
-      headers: { Accept: accept },
+      headers: { Accept: EXPORT_ACCEPT[format] },
       expect: "stream",
       signal,
     });
@@ -211,7 +227,8 @@ export class ConversationsClient {
    *
    * The server streams its internal pages into one response; this convenience
    * method parses that response into a complete typed array. Use
-   * {@link exportStream} to consume raw bytes incrementally.
+   * {@link exportStream} to consume raw bytes incrementally, and
+   * {@link exportJsonl} for the GenAI spans themselves.
    *
    * The trajectory is a projection derived on read from the stored GenAI
    * messages, so a conversation that cannot be represented as trajectory-v1
@@ -235,6 +252,7 @@ export class ConversationsClient {
    * Export one complete conversation as a single Apache Arrow `Table`.
    *
    * Unlike {@link listArrow}, this returns one table for the whole conversation.
+   * For the spans as JSON lines use {@link exportJsonl}.
    * Use {@link exportStream} to avoid buffering the Arrow response in the SDK.
    *
    * Requires the optional `apache-arrow` peer dependency.

@@ -24,7 +24,7 @@ pnpm api-runtimes                 # Runner walkthrough: resolve by slug, tasks +
 pnpm api-native-email-code <email> # Native email-code sign-in, then a task as that user
 pnpm api-device-login             # Device-code login, its organization, a Data Plane token, revocation
 pnpm api-repositories             # Create a hosted repository; a sandbox mints a token to one
-pnpm api-annotations-review       # The review queue's facets, and the order around one target
+pnpm api-annotations-review       # A project's annotation count, and the order around one target
 pnpm api-connectors-slack         # Create a Slack connector and authorize a workspace
 pnpm api-connectors-pipedream     # Create a Pipedream connector and authorize one app
 pnpm api-connectors-custom-app    # Registry search + OAuth discovery for a custom MCP app (Linear)

@@ -13,8 +13,22 @@ export type IssuePriority = "low" | "medium" | "high" | "urgent";
  */
 export type IssueOwner = "project" | "me";
 
-/** A human request's status. `resolved` and `cancelled` need a `resolution`. */
-export type IssueRequestStatus = "open" | "resolved" | "cancelled";
+/** How a member stands to an issue. */
+export type IssueMemberRelation =
+  "creator" | "assignee" | "reviewer" | "follower";
+
+/**
+ * A related list to return with an issue: `members` adds `members`,
+ * `attachments` adds `links`, `files`, `events` and `spans`, and `comments`
+ * adds `comments`. A list that is not included is null.
+ */
+export type IssueInclude = "members" | "attachments" | "comments";
+
+/**
+ * The includes the list and the writes take. `comments` is read with
+ * `issues.get()` only.
+ */
+export type IssueStoredInclude = Exclude<IssueInclude, "comments">;
 
 /** One value of an issue's caller-defined `metadata`. */
 export type IssueMetadataValue = string | number | boolean | null;
@@ -51,18 +65,31 @@ export interface IssueSpanReference {
   span_id: string;
 }
 
-/** One open human request, as projected onto its issue. */
-export interface IssueOpenRequest {
+/** One person on an issue. */
+export interface IssueMember {
+  member_id: Uuid;
+  relation: IssueMemberRelation;
+}
+
+/** One comment on an issue. Comments are append-only: never edited or deleted. */
+export interface IssueComment {
+  /** The comment's id, which is its event's id. */
   id: Uuid;
-  question: string;
-  /** The member the request is assigned to. */
-  assignee_id: Uuid;
+  issue_id: Uuid;
+  comment: string;
+  /** The authenticated member who commented. */
+  member_id: Uuid | null;
+  /** The member acting for `member_id`, when delegated. */
+  actor_member_id: Uuid | null;
+  /** The actor's capacity: `agent`, `dev` or `impersonation`. */
+  actor_member_type: string | null;
   created_at: IsoDate;
 }
 
 /**
  * An issue (`/v1/issues`, Data Plane): a brief on a fixed worker task, the
- * evidence it cites and its open human requests.
+ * people on it, and each related list the read asked for with `include`. A
+ * list that was not included is null.
  */
 export interface Issue {
   id: Uuid;
@@ -87,12 +114,30 @@ export interface Issue {
   tags: string[];
   /** Caller-defined attributes. */
   metadata: Record<string, IssueMetadataValue>;
-  files: IssueFile[];
-  links: IssueLink[];
-  events: IssueEventReference[];
-  spans: IssueSpanReference[];
-  /** Open human requests, oldest first. */
-  open_requests: IssueOpenRequest[];
+  /** The member who created the issue; null when its creator is not a member. */
+  created_by_member_id: Uuid | null;
+  /** The member the issue is assigned to; null when unassigned. */
+  assignee_member_id: Uuid | null;
+  /** The member reviewing the issue; null when it has none. */
+  reviewer_member_id: Uuid | null;
+  /**
+   * With `include: ["members"]`: the creator, then the assignee, the
+   * reviewer, and the followers in the order they were added.
+   */
+  members: IssueMember[] | null;
+  /** With `include: ["attachments"]`. */
+  files: IssueFile[] | null;
+  /** With `include: ["attachments"]`. */
+  links: IssueLink[] | null;
+  /** With `include: ["attachments"]`. */
+  events: IssueEventReference[] | null;
+  /** With `include: ["attachments"]`. */
+  spans: IssueSpanReference[] | null;
+  /**
+   * With `include: ["comments"]` on `issues.get()`: the comments, oldest
+   * first, at most 500. Page the issue's events for more.
+   */
+  comments: IssueComment[] | null;
   /** When the issue last entered `closed` or `cancelled`. */
   closed_at?: IsoDate | null;
   created_at: IsoDate;
@@ -110,6 +155,7 @@ export function issueEtag(issue: Issue): string {
   return `"${issue.updated_at}"`;
 }
 
+// jscpd:ignore-start -- interface field lists mirroring the wire schema
 /**
  * `POST /v1/issues`: open an issue on its fixed worker task. It starts
  * `open`; set its status later with an update.
@@ -129,6 +175,12 @@ export interface IssueCreateParams {
   links?: IssueLink[];
   events?: IssueEventReference[];
   spans?: IssueSpanReference[];
+  /** The member to assign the issue to. */
+  assignee_member_id?: Uuid;
+  /** The member to review the issue. */
+  reviewer_member_id?: Uuid;
+  /** The members following the issue, at most 50. */
+  follower_member_ids?: Uuid[];
 }
 
 /**
@@ -148,38 +200,20 @@ export interface IssueUpdateParams {
   links?: IssueLink[];
   events?: IssueEventReference[];
   spans?: IssueSpanReference[];
-  /** Not part of a brief edit; see {@link IssueMutation}. */
-  request?: never;
+  /** Replaces the assignee; `null` unassigns the issue; omitted leaves it. */
+  assignee_member_id?: Uuid | null;
+  /** Replaces the reviewer; `null` clears it; omitted leaves it. */
+  reviewer_member_id?: Uuid | null;
+  /** Replaces the followers wholesale, at most 50; `[]` clears them. */
+  follower_member_ids?: Uuid[];
 }
+// jscpd:ignore-end
 
-/**
- * Create one human request on an issue, or change one. An `id` the issue
- * does not have yet creates the request; an existing one changes it, and the
- * last write wins.
- */
-export interface IssueRequestMutation {
-  /** The request's id. Mint a new UUIDv7 to create one. */
-  id: Uuid;
-  /** What the assignee is asked; required to create. */
-  question?: string;
-  /** The member the request is assigned to; required to create, set again to reassign. */
-  assignee_id?: Uuid;
-  /** A new request is `open`. */
-  status?: IssueRequestStatus;
-  /** The decision and its basis; required for `resolved` and `cancelled`. */
-  resolution?: string;
+/** `POST /v1/issues/{id}/comments`: comment on an issue. */
+export interface IssueCommentCreateParams {
+  /** 1 to 10000 characters. */
+  comment: string;
 }
-
-/**
- * `PATCH /v1/issues/{id}` with `{ request }`: create or change one human
- * request on the issue.
- */
-export interface IssueMutation {
-  request: IssueRequestMutation;
-}
-
-/** The body of `PATCH /v1/issues/{id}`: a brief edit or a request mutation. */
-export type IssuePatch = IssueUpdateParams | IssueMutation;
 
 /**
  * Query params for `GET /v1/issues` (`limit` 1 to 200, server default 50).
@@ -190,10 +224,20 @@ export interface IssueListParams extends ListParams {
   status?: IssueStatus | IssueStatus[];
   /** Omit for every issue the caller may read. */
   owner?: IssueOwner | IssueOwner[];
-  /** `true`: has an open request assigned to the caller; `false`: has none. */
-  assigned_to_me?: boolean;
-  /** Whether any human request is open. */
-  has_open_requests?: boolean;
+  /**
+   * Issues the caller is on in one of these relations; with `member_id`,
+   * that member's relations instead. `["assignee", "reviewer"]` is what is
+   * waiting on the caller.
+   */
+  relation?: IssueMemberRelation | IssueMemberRelation[];
+  /**
+   * Whose relations to match instead of the caller's; alone, the issues that
+   * member is on in any relation. Only an organization admin may name
+   * another member.
+   */
+  member_id?: Uuid;
+  /** The related lists to return on every row. */
+  include?: IssueStoredInclude[];
   /** The worker task's status. */
   task_status?: TaskStatus | TaskStatus[];
   /** Leave out these worker task statuses; an issue without a live task is kept. */
@@ -209,7 +253,19 @@ export interface IssueListParams extends ListParams {
   metadata?: Record<string, string>;
 }
 
-/** Options for an issue brief edit or delete. A request mutation takes none. */
+/** Options for reading one issue. */
+export interface IssueGetParams {
+  /** The related lists to return with the brief. */
+  include?: IssueInclude[];
+}
+
+/** Options for an issue create or update. */
+export interface IssueWriteOptions {
+  /** The related lists to return on the written issue. */
+  include?: IssueStoredInclude[];
+}
+
+/** Options for an issue update or delete. */
 export interface IssuePreconditionOptions {
   /**
    * Sent as `If-Match`: the `ETag` the issue was read at, from

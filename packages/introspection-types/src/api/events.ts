@@ -23,6 +23,7 @@ export const IntrospectionEventNames = {
   OBSERVATION: "introspection.observation",
   OBSERVATION_CLUSTERING_RUN: "introspection.observation_clustering.run",
   JUDGEMENT: "introspection.judgement",
+  ISSUE: "introspection.issue",
   PATTERN: "introspection.pattern",
   PATTERN_ASSIGNMENT: "introspection.pattern.assignment",
   AUTOMATION_TRIGGERED: "introspection.automation.triggered",
@@ -174,11 +175,17 @@ export interface FeedbackPayload {
   agent_id?: string | null;
   /** Remaining `properties.*` extras. */
   properties?: Record<string, unknown> | null;
+  /** The authenticated member who authored the feedback. */
+  author_member_id?: Uuid | null;
 }
 
 /** One member-authored annotation mutation. */
 export interface AnnotationPayload {
   member_id: Uuid;
+  /** The member that ran the request for `member_id`, e.g. an Operator agent. */
+  actor_member_id?: Uuid | null;
+  /** The actor's capacity: `agent`, `dev` or `impersonation`. */
+  actor_member_type?: string | null;
   /** Complete label snapshot when this event changes labels. */
   labels?: string[] | null;
   /** Immutable qualitative comment when this event adds one. */
@@ -187,16 +194,112 @@ export interface AnnotationPayload {
   assignee_member_ids?: Uuid[] | null;
 }
 
-/** One judgement, mirroring the runtime-agent judges emitter. */
-export interface JudgementPayload {
+/** Where a judge runs: on live traffic, on a dataset, or on a mission. */
+export type JudgeType =
+  "online" | "offline" | "mission" | (string & Record<never, never>);
+
+/** What every judgement carries, whichever kind it is. */
+interface JudgementBasePayload {
   judgement_id: string;
   judge_id?: string | null;
+  judge_slug?: string | null;
+  /** Absent on historical events. */
+  judge_type?: JudgeType | null;
+  runtime_slug?: string | null;
+  /** The verdict. */
   result?: string | null;
-  definition_hash?: string | null;
-  contract_version?: string | null;
-  sequence_hash?: string | null;
+  /** The execution outcome (`ok` / `error`), distinct from the verdict. */
+  status?: string | null;
+  error_class?: string | null;
+  error_message?: string | null;
+  /** Which component emitted the judgement. */
+  source_component?: string | null;
+  judge_model?: string | null;
   experiment_arm_id?: Uuid | null;
 }
+
+/** A recipe judge's verdict on a conversation. */
+export interface JudgementVerdictPayload extends JudgementBasePayload {
+  kind: "verdict";
+  reasoning?: string | null;
+  definition_hash?: string | null;
+  engine_version?: string | null;
+  judge_provider?: string | null;
+  contract_version?: string | null;
+  sequence_hash?: string | null;
+  input_tokens?: number | null;
+  output_tokens?: number | null;
+  total_tokens?: number | null;
+}
+
+/** The egress policy gate's decision on one outbound request. */
+export interface JudgementEgressPayload extends JudgementBasePayload {
+  kind: "egress";
+  /** Each answered question's probability of true, 0-100, by question name. */
+  scores?: Record<string, number> | null;
+  /** The questions asked, by name. */
+  questions?: Record<string, string> | null;
+  policy_id?: string | null;
+  policy_action?: string | null;
+  reason?: string | null;
+  request_host?: string | null;
+  request_method?: string | null;
+  request_path?: string | null;
+}
+
+/** One judgement. Narrow on `kind`. */
+export type JudgementPayload = JudgementVerdictPayload | JudgementEgressPayload;
+
+/** One authored field's value on either side of an update; a null side is omitted. */
+export interface IssueFieldChange {
+  before?: unknown;
+  after?: unknown;
+}
+
+/** What every issue event carries, whichever action it records. */
+interface IssueActivityBasePayload {
+  issue_id: Uuid;
+  /** The revision of the issue the action wrote. */
+  revision?: number | null;
+  /** The authenticated member who made the change or comment. */
+  member_id?: Uuid | null;
+  /** The member acting for `member_id`, when the write was delegated. */
+  actor_member_id?: Uuid | null;
+  /** The actor's capacity: `agent`, `dev` or `impersonation`. */
+  actor_member_type?: string | null;
+}
+
+export interface IssueCreatedPayload extends IssueActivityBasePayload {
+  action: "created";
+  /** The authored fields the issue was created with. */
+  data: Record<string, unknown>;
+}
+
+export interface IssueUpdatedPayload extends IssueActivityBasePayload {
+  action: "updated";
+  /**
+   * Each changed field, by name; `members` holds the people on the issue
+   * before and after.
+   */
+  changes: Record<string, IssueFieldChange>;
+}
+
+/** A comment on its own. Its time is the event's `timestamp`. */
+export interface IssueCommentedPayload extends IssueActivityBasePayload {
+  action: "commented";
+  comment: string;
+}
+
+export interface IssueDeletedPayload extends IssueActivityBasePayload {
+  action: "deleted";
+}
+
+/** One change to an issue, or a comment on it. Narrow on `action`. */
+export type IssueActivityPayload =
+  | IssueCreatedPayload
+  | IssueUpdatedPayload
+  | IssueCommentedPayload
+  | IssueDeletedPayload;
 
 /** One automation trigger that ran (`introspection.automation.triggered`). */
 export interface AutomationTriggeredPayload {
@@ -273,6 +376,11 @@ export interface AutomationTriggeredEvent extends IntrospectionEventEnvelope {
   payload: AutomationTriggeredPayload;
 }
 
+export interface IssueActivityEvent extends IntrospectionEventEnvelope {
+  event_name: typeof IntrospectionEventNames.ISSUE;
+  payload: IssueActivityPayload;
+}
+
 export interface AutomationSkippedEvent extends IntrospectionEventEnvelope {
   event_name: typeof IntrospectionEventNames.AUTOMATION_SKIPPED;
   payload: AutomationSkippedPayload;
@@ -300,6 +408,7 @@ export type Event =
   | ClusteringRunEvent
   | FeedbackEvent
   | JudgementEvent
+  | IssueActivityEvent
   | AutomationTriggeredEvent
   | AutomationSkippedEvent;
 
@@ -408,4 +517,6 @@ export interface EventListParams extends CursorParams, ReadWindowParams {
   automation_id?: Uuid;
   /** automation triggered / skipped: filter by the task created or posted into. */
   task_id?: Uuid;
+  /** issue: the changes to, and comments on, one issue. */
+  issue_id?: Uuid;
 }
