@@ -174,11 +174,17 @@ export interface FeedbackPayload {
   agent_id?: string | null;
   /** Remaining `properties.*` extras. */
   properties?: Record<string, unknown> | null;
+  /** The authenticated member who authored the feedback. */
+  author_member_id?: Uuid | null;
 }
 
 /** One member-authored annotation mutation. */
 export interface AnnotationPayload {
   member_id: Uuid;
+  /** The member that ran the request for `member_id`, e.g. an Operator agent. */
+  actor_member_id?: Uuid | null;
+  /** The actor's capacity: `agent`, `dev` or `impersonation`. */
+  actor_member_type?: string | null;
   /** Complete label snapshot when this event changes labels. */
   labels?: string[] | null;
   /** Immutable qualitative comment when this event adds one. */
@@ -187,16 +193,64 @@ export interface AnnotationPayload {
   assignee_member_ids?: Uuid[] | null;
 }
 
-/** One judgement, mirroring the runtime-agent judges emitter. */
-export interface JudgementPayload {
+/** Where a judge runs: on live traffic, on a dataset, or on a mission. */
+export type JudgeType =
+  "online" | "offline" | "mission" | (string & Record<never, never>);
+
+/** What every judgement carries, whichever kind it is. */
+interface JudgementBasePayload {
   judgement_id: string;
   judge_id?: string | null;
+  judge_slug?: string | null;
+  /** Absent on historical events. */
+  judge_type?: JudgeType | null;
+  runtime_slug?: string | null;
+  /** The verdict. */
   result?: string | null;
-  definition_hash?: string | null;
-  contract_version?: string | null;
-  sequence_hash?: string | null;
+  /** The execution outcome (`ok` / `error`), distinct from the verdict. */
+  status?: string | null;
+  error_class?: string | null;
+  error_message?: string | null;
+  /** Which component emitted the judgement. */
+  source_component?: string | null;
+  judge_model?: string | null;
   experiment_arm_id?: Uuid | null;
 }
+
+/** A recipe judge's verdict on a conversation. */
+export interface JudgementVerdictPayload extends JudgementBasePayload {
+  kind: "verdict";
+  reasoning?: string | null;
+  definition_hash?: string | null;
+  engine_version?: string | null;
+  judge_provider?: string | null;
+  contract_version?: string | null;
+  sequence_hash?: string | null;
+  input_tokens?: number | null;
+  output_tokens?: number | null;
+  total_tokens?: number | null;
+}
+
+/** The egress policy gate's decision on one outbound request. */
+export interface JudgementEgressPayload extends JudgementBasePayload {
+  kind: "egress";
+  /** Each answered question's probability of true, 0-100, by question name. */
+  scores?: Record<string, number> | null;
+  /** The questions asked, by name. */
+  questions?: Record<string, string> | null;
+  policy_id?: string | null;
+  policy_action?: string | null;
+  reason?: string | null;
+  request_host?: string | null;
+  request_method?: string | null;
+  request_path?: string | null;
+}
+
+/**
+ * One judgement. Narrow on `kind`, with a `default` branch: a kind added
+ * server-side later reaches the caller as it came.
+ */
+export type JudgementPayload = JudgementVerdictPayload | JudgementEgressPayload;
 
 /** One automation trigger that ran (`introspection.automation.triggered`). */
 export interface AutomationTriggeredPayload {

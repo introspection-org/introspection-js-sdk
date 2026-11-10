@@ -19,6 +19,27 @@ import type { ResourceHttpClient } from "./types.js";
 export type EventArrowParams = Omit<EventListParams, "format">;
 
 /**
+ * A data plane that predates the judgement `kind` sends the flat payload,
+ * whose `result_schema` told an egress decision from a verdict.
+ */
+function normalizeEvent<E extends { event_name: string; payload?: unknown }>(
+  event: E,
+): E {
+  const payload = event.payload;
+  if (
+    event.event_name !== "introspection.judgement" ||
+    typeof payload !== "object" ||
+    payload === null ||
+    "kind" in payload
+  ) {
+    return event;
+  }
+  const { result_schema, ...rest } = payload as { result_schema?: unknown };
+  const kind = result_schema === "question_scores.v1" ? "egress" : "verdict";
+  return { ...event, payload: { ...rest, kind } };
+}
+
+/**
  * Read-only Events API (`GET /v1/events`) — the typed, discriminated
  * read surface over the canonical platform event families
  * ({@link IntrospectionEventName}). Every request names exactly one
@@ -67,6 +88,7 @@ export class EventsClient {
       "Paginated<Event | UnknownEvent>" as SchemaKey<
         Paginated<Event | UnknownEvent>
       >,
+      normalizeEvent,
     );
   }
 
@@ -81,12 +103,13 @@ export class EventsClient {
    * Throws `NotFoundError` when the id does not resolve within the
    * caller's tenant scope.
    */
-  get(eventId: string): Promise<Event | UnknownEvent> {
-    return this.http.request<Event | UnknownEvent>({
+  async get(eventId: string): Promise<Event | UnknownEvent> {
+    const event = await this.http.request<Event | UnknownEvent>({
       method: "GET",
       path: `/v1/events/${encodeURIComponent(eventId)}`,
       schema: "Event | UnknownEvent",
     });
+    return normalizeEvent(event);
   }
 
   /**

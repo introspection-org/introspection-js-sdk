@@ -6,7 +6,7 @@ export interface AnnotationTarget {
   span_id: string;
 }
 
-/** One comment on an annotated span, as the export carries it. */
+/** One comment on an annotated span. */
 export interface AnnotationComment {
   event_id: Uuid;
   comment: string;
@@ -30,8 +30,8 @@ export interface AnnotationState extends AnnotationTarget {
   updated_by_member_id: Uuid;
   assignment_event_id: Uuid | null;
   /**
-   * Every comment on the span, oldest first. Set on each row of the export;
-   * `null` on the list and on the navigation window.
+   * Every comment on the span, oldest first, when the list is asked for
+   * `include: ["comments"]`; otherwise `null`, as on the navigation window.
    */
   comments?: AnnotationComment[] | null;
 }
@@ -81,16 +81,12 @@ export interface AnnotationListParams extends ListParams {
   /** Only targets carrying this label, or every one of these labels. */
   label?: string | string[];
   status?: "backlog" | "assigned" | "reviewed";
+  /** Expansions to load on every row; `comments` fills {@link AnnotationState.comments}. */
+  include?: AnnotationInclude[];
 }
 
-/**
- * `GET /v1/annotations/export` filters: the list's, without paging, since the
- * export streams every matching row.
- */
-export type AnnotationExportParams = Omit<
-  AnnotationListParams,
-  keyof ListParams
->;
+/** An optional expansion of a listed annotation row. */
+export type AnnotationInclude = "comments";
 
 /**
  * Exactly one append-only annotation mutation. Label and reviewer arrays are

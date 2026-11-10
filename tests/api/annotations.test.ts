@@ -41,11 +41,16 @@ const ANNOTATION: AnnotationState = {
   updated_at: "2026-08-25T01:02:03Z",
   updated_by_member_id: BOB_ID,
   assignment_event_id: "33333333-3333-3333-3333-333333333333",
+  comments: null,
 };
 
 // The row a data plane sends before it drops the comment and attribution
 // fields and renames `human_commenter_member_ids`.
-const { reviewer_member_ids: _renamed, ...CURRENT_FIELDS } = ANNOTATION;
+const {
+  reviewer_member_ids: _renamed,
+  comments: _expansion,
+  ...CURRENT_FIELDS
+} = ANNOTATION;
 const LEGACY_ANNOTATION = {
   ...CURRENT_FIELDS,
   annotator_member_ids: [BOB_ID],
@@ -104,7 +109,6 @@ let requests: CapturedRequest[] = [];
 let memberScenario: "normal" | "unknown" | "ambiguous" = "normal";
 let rateLimitNextAnnotation = false;
 let legacyPlane = false;
-let exportScenario: "rows" | "comments" | "empty" | "refused" = "rows";
 
 function page<T>(records: T[], next: string | null = null) {
   return { records, count: records.length, total_count: records.length, next };
@@ -147,32 +151,6 @@ beforeAll(async () => {
       ? url.pathname.slice(3)
       : url.pathname;
 
-    if (path === "/v1/annotations/export" && method === "GET") {
-      if (
-        exportScenario === "refused" ||
-        req.headers.accept !== "application/x-ndjson"
-      ) {
-        return json(res, 406, { detail: "Accept 'application/x-ndjson'." });
-      }
-      res.writeHead(200, { "content-type": "application/x-ndjson" });
-      if (exportScenario === "empty") return res.end();
-      const first = legacyPlane ? LEGACY_ANNOTATION : ANNOTATION;
-      const rows = [
-        exportScenario === "comments"
-          ? { ...first, comments: COMMENTS }
-          : first,
-        { ...ANNOTATION, span_id: "cccccccccccccccc", labels: ["étalon"] },
-      ];
-      const bytes = Buffer.from(
-        rows.map((row) => `${JSON.stringify(row)}\n`).join(""),
-      );
-      // Eleven-byte writes split both a line and the two-byte `é`.
-      for (let at = 0; at < bytes.length; at += 11) {
-        res.write(bytes.subarray(at, at + 11));
-        await new Promise((resolve) => setImmediate(resolve));
-      }
-      return res.end();
-    }
     if (path === "/v1/annotations/navigation" && method === "GET") {
       return json(res, 200, {
         previous: null,
@@ -185,9 +163,9 @@ beforeAll(async () => {
     if (
       path === "/v1/annotations" &&
       method === "GET" &&
-      exportScenario === "comments"
+      url.searchParams.has("include")
     ) {
-      return json(res, 200, page([{ ...ANNOTATION, comments: null }]));
+      return json(res, 200, page([{ ...ANNOTATION, comments: COMMENTS }]));
     }
     if (path === "/v1/annotations" && method === "GET" && legacyPlane) {
       return json(res, 200, page([LEGACY_ANNOTATION]));
@@ -300,7 +278,6 @@ beforeEach(() => {
   memberScenario = "normal";
   rateLimitNextAnnotation = false;
   legacyPlane = false;
-  exportScenario = "rows";
 });
 
 function client(dpUrl?: string): IntrospectionClient {
@@ -317,98 +294,41 @@ describe("annotations", () => {
     const { records } = await client().annotations.list();
     expect(records[0]!.reviewer_member_ids).toEqual([BOB_ID]);
     expect(records[0]).not.toHaveProperty("human_commenter_member_ids");
-    expect(records[0]).toMatchObject(ANNOTATION);
+    expect(records[0]).toMatchObject(CURRENT_FIELDS);
 
     const window = await client().annotations.navigation(TARGET);
     expect(window.current!.reviewer_member_ids).toEqual([BOB_ID]);
     expect(window.previous).toBeNull();
   });
 
-  it("exports every row as JSON lines across split chunks", async () => {
-    const rows: AnnotationState[] = [];
-    for await (const row of client().annotations.export({
-      annotated_by_member_id: BOB_ID,
-      assignee_member_id: ALICE_ID,
-      trace_id: TARGET.trace_id,
-      span_id: TARGET.span_id,
-      conversation_id: "conversation-1",
-      label: ["good-structure", "étalon"],
+  it("loads each row's comments with include=comments and leaves them null without", async () => {
+    const { records } = await client().annotations.list({
+      include: ["comments"],
       status: "reviewed",
-    })) {
-      rows.push(row);
-    }
-
-    expect(rows).toEqual([
-      ANNOTATION,
-      { ...ANNOTATION, span_id: "cccccccccccccccc", labels: ["étalon"] },
+      label: ["good-structure", "walk"],
+    });
+    expect(requests[0]!.query.getAll("include")).toEqual(["comments"]);
+    expect(requests[0]!.query.get("status")).toBe("reviewed");
+    expect(requests[0]!.query.getAll("label")).toEqual([
+      "good-structure",
+      "walk",
     ]);
-    const { path, query } = requests[0]!;
-    expect(path).toBe("/v1/annotations/export");
-    expect(query.get("annotated_by_member_id")).toBe(BOB_ID);
-    expect(query.get("assignee_member_id")).toBe(ALICE_ID);
-    expect(query.get("trace_id")).toBe(TARGET.trace_id);
-    expect(query.get("span_id")).toBe(TARGET.span_id);
-    expect(query.get("conversation_id")).toBe("conversation-1");
-    expect(query.getAll("label")).toEqual(["good-structure", "étalon"]);
-    expect(query.get("status")).toBe("reviewed");
-    expect(query.has("limit")).toBe(false);
-    expect(query.has("next")).toBe(false);
-  });
-
-  it("resolves an email filter and reads an older plane's export rows", async () => {
-    legacyPlane = true;
-    const rows: AnnotationState[] = [];
-    for await (const row of client().annotations.export({
-      assigned_to_email: "alice@example.com",
-    })) {
-      rows.push(row);
-    }
-    expect(rows[0]!.reviewer_member_ids).toEqual([BOB_ID]);
-    expect(rows[0]).not.toHaveProperty("human_commenter_member_ids");
-    const exported = requests.find((r) => r.path.endsWith("/export"))!;
-    expect(exported.query.get("assignee_member_id")).toBe(ALICE_ID);
-    expect(exported.query.has("assigned_to_email")).toBe(false);
-  });
-
-  it("carries each export row's comments, which the list leaves null", async () => {
-    exportScenario = "comments";
-    const rows: AnnotationState[] = [];
-    for await (const row of client().annotations.export()) rows.push(row);
-    expect(rows[0]!.comments).toEqual(COMMENTS);
-    expect(rows[0]!.comments![1]!.actor_member_type).toBe("agent");
-    expect(rows[0]!.comment_count).toBe(2);
-
-    const { records } = await client().annotations.list();
-    expect(records[0]!.comments).toBeNull();
+    expect(records[0]!.comments).toEqual(COMMENTS);
+    expect(records[0]!.comments![1]!.actor_member_type).toBe("agent");
     expect(records[0]!.comment_count).toBe(2);
-  });
 
-  it("yields nothing for an empty export and returns its raw bytes", async () => {
-    exportScenario = "empty";
-    const rows: AnnotationState[] = [];
-    for await (const row of client().annotations.export()) rows.push(row);
-    expect(rows).toEqual([]);
+    const all: AnnotationState[] = [];
+    for await (const row of client().annotations.list({
+      include: ["comments"],
+    })) {
+      all.push(row);
+    }
+    expect(all[0]!.comments).toEqual(COMMENTS);
 
-    exportScenario = "rows";
-    const stream = await client().annotations.exportStream({ label: "walk" });
-    const text = await new Response(stream).text();
-    expect(text.endsWith("\n")).toBe(true);
-    expect(
-      text
-        .trimEnd()
-        .split("\n")
-        .map((line) => JSON.parse(line)),
-    ).toEqual([
-      ANNOTATION,
-      { ...ANNOTATION, span_id: "cccccccccccccccc", labels: ["étalon"] },
-    ]);
-  });
-
-  it("surfaces a 406 from a data plane that refuses the export", async () => {
-    exportScenario = "refused";
-    const rows = client().annotations.export();
-    await expect(rows.next()).rejects.toMatchObject({ status: 406 });
-    expect(requests).toHaveLength(1);
+    requests = [];
+    const plain = await client().annotations.list();
+    expect(requests[0]!.query.has("include")).toBe(false);
+    expect(plain.records[0]!.comments).toBeNull();
   });
 
   it("returns the navigation window's current rows untouched", async () => {

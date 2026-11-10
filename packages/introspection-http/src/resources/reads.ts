@@ -394,6 +394,7 @@ export function listRead<T>(
   path: string,
   params?: ListReadParams,
   schema?: SchemaKey<Paginated<T>>,
+  normalize?: (row: T) => T,
 ): Paginator<T> {
   const source = params as Record<string, unknown> | undefined;
   const useArrow = params?.format === "arrow";
@@ -403,17 +404,17 @@ export function listRead<T>(
   // relative `lookback` window is pinned to a single `now` so it can't drift
   // between pages as the cursor is walked. Only `next` varies per page.
   const baseQuery = serializeReadParams(source, undefined);
-  return cursorPaginate<T>((next) => {
+  return cursorPaginate<T>(async (next) => {
     const query = next !== undefined ? { ...baseQuery, next } : baseQuery;
-    if (useArrow) {
-      return fetchArrowPage<T>(http, path, query, signal);
-    }
-    return http.request<Paginated<T>>({
-      method: "GET",
-      path,
-      query,
-      signal,
-      schema,
-    });
+    const page = await (useArrow
+      ? fetchArrowPage<T>(http, path, query, signal)
+      : http.request<Paginated<T>>({
+          method: "GET",
+          path,
+          query,
+          signal,
+          schema,
+        }));
+    return normalize ? { ...page, records: page.records.map(normalize) } : page;
   }, params?.next);
 }

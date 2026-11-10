@@ -74,6 +74,8 @@
     "AnnotationPayload": {
       "type": "object",
       "properties": {
+        "actor_member_id": {},
+        "actor_member_type": {},
         "assignee_member_ids": { "type": "array" },
         "comment": {},
         "labels": { "type": "array" },
@@ -914,6 +916,7 @@
         "agent_id": {},
         "agent_name": {},
         "anonymous_id": {},
+        "author_member_id": {},
         "comments": {},
         "name": {},
         "previous_response_id": {},
@@ -1438,6 +1441,37 @@
       },
       "additionalProperties": false
     },
+    "JudgementEgressPayload": {
+      "type": "object",
+      "properties": {
+        "error_class": {},
+        "error_message": {},
+        "experiment_arm_id": {},
+        "judge_id": {},
+        "judge_model": {},
+        "judge_slug": {},
+        "judge_type": {
+          "type": "object",
+          "properties": { "length": {} },
+          "additionalProperties": false
+        },
+        "judgement_id": {},
+        "kind": { "const": "egress" },
+        "policy_action": {},
+        "policy_id": {},
+        "questions": {},
+        "reason": {},
+        "request_host": {},
+        "request_method": {},
+        "request_path": {},
+        "result": {},
+        "runtime_slug": {},
+        "scores": {},
+        "source_component": {},
+        "status": {}
+      },
+      "additionalProperties": false
+    },
     "JudgementEvent": {
       "type": "object",
       "properties": {
@@ -1446,7 +1480,12 @@
         "event_name": { "const": "introspection.judgement" },
         "experiment_id": {},
         "id": {},
-        "payload": { "$ref": "#/$defs/JudgementPayload" },
+        "payload": {
+          "anyOf": [
+            { "$ref": "#/$defs/JudgementEgressPayload" },
+            { "$ref": "#/$defs/JudgementVerdictPayload" }
+          ]
+        },
         "recipe_git_commit_sha": {},
         "runtime_group_id": {},
         "runtime_id": {},
@@ -1457,16 +1496,35 @@
       },
       "additionalProperties": false
     },
-    "JudgementPayload": {
+    "JudgementVerdictPayload": {
       "type": "object",
       "properties": {
         "contract_version": {},
         "definition_hash": {},
+        "engine_version": {},
+        "error_class": {},
+        "error_message": {},
         "experiment_arm_id": {},
+        "input_tokens": {},
         "judge_id": {},
+        "judge_model": {},
+        "judge_provider": {},
+        "judge_slug": {},
+        "judge_type": {
+          "type": "object",
+          "properties": { "length": {} },
+          "additionalProperties": false
+        },
         "judgement_id": {},
+        "kind": { "const": "verdict" },
+        "output_tokens": {},
+        "reasoning": {},
         "result": {},
-        "sequence_hash": {}
+        "runtime_slug": {},
+        "sequence_hash": {},
+        "source_component": {},
+        "status": {},
+        "total_tokens": {}
       },
       "additionalProperties": false
     },

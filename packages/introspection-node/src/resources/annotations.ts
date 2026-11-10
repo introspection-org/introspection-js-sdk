@@ -6,7 +6,6 @@ import {
   type Paginated,
   type AnnotationListParams,
   type AnnotationEventOptions,
-  type AnnotationExportParams,
   type AnnotationFacet,
   type AnnotationNavigation,
   type AnnotationNavigationParams,
@@ -15,7 +14,6 @@ import {
   type AnnotationTarget,
   type Uuid,
 } from "@introspection-sdk/types";
-import { readJsonLines } from "@introspection-sdk/http";
 import type { HttpClient } from "../http.js";
 import { Paginator, cursorPaginate, paginateGet } from "../pagination.js";
 
@@ -105,38 +103,6 @@ export class AnnotationsApi {
       });
       return { ...page, records: page.records.map(normalizeState) };
     }, params.next);
-  }
-
-  /**
-   * Every row {@link list} returns for these filters, unpaginated: the JSON
-   * lines export, parsed one row at a time as the response arrives.
-   */
-  async *export(
-    params: AnnotationExportParams = {},
-    signal?: AbortSignal,
-  ): AsyncGenerator<AnnotationState> {
-    const body = await this.exportStream(params, signal);
-    for await (const state of readJsonLines<AnnotationState>(body)) {
-      yield normalizeState(state);
-    }
-  }
-
-  /**
-   * Return the raw JSON-lines export byte stream without buffering it in the
-   * SDK. Use this for direct file writes.
-   */
-  async exportStream(
-    params: AnnotationExportParams = {},
-    signal?: AbortSignal,
-  ): Promise<ReadableStream<Uint8Array>> {
-    return this.dpHttp.request<ReadableStream<Uint8Array>>({
-      method: "GET",
-      path: "/v1/annotations/export",
-      query: await this.wireFilters(params)(),
-      headers: { Accept: "application/x-ndjson" },
-      expect: "stream",
-      signal,
-    });
   }
 
   /** The wire filters for `params`, its emails resolved once to member ids. */

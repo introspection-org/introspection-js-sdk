@@ -255,6 +255,103 @@ describe("EventsApi.list — typed families (JSON)", () => {
     expect(narrowEvent(ev)).toBe("active");
   });
 
+  it("narrows a judgement payload on its kind", async () => {
+    const judgement = (payload: Record<string, unknown>) => ({
+      ...ENVELOPE,
+      id: "ev-j",
+      event_name: "introspection.judgement",
+      payload: { judgement_id: "judg-1", ...payload },
+    });
+    const http = mockHttp({
+      requestResult: {
+        records: [
+          judgement({
+            kind: "verdict",
+            result: "pass",
+            judge_type: "online",
+            reasoning: "fine",
+            total_tokens: 150,
+          }),
+          judgement({
+            kind: "egress",
+            result: "deny",
+            scores: { personal: 80 },
+            questions: { personal: "Is it personal data?" },
+            policy_id: "no-pii",
+            request_host: "example.com",
+          }),
+          // A data plane that predates `kind` sends the flat payload.
+          judgement({ result_schema: "question_scores.v1", scores: { q: 1 } }),
+          judgement({ result_schema: "verdict.v1", reasoning: "ok" }),
+          judgement({ result: "pass" }),
+          judgement({ kind: "audit", novel: true }),
+        ],
+        count: 6,
+        next: null,
+      },
+    });
+    const { records } = await new EventsApi(http).list({
+      event_name: "introspection.judgement",
+    });
+
+    const read = records.map((ev) => {
+      const payload = ev.payload;
+      switch (payload.kind) {
+        case "verdict":
+          return `verdict:${payload.reasoning ?? "-"}`;
+        case "egress":
+          return `egress:${Object.keys(payload.scores ?? {}).join()}`;
+        default:
+          return `unknown:${(payload as { kind: string }).kind}`;
+      }
+    });
+    expect(read).toEqual([
+      "verdict:fine",
+      "egress:personal",
+      "egress:q",
+      "verdict:ok",
+      "verdict:-",
+      "unknown:audit",
+    ]);
+    expect(records[2]!.payload).toEqual({
+      judgement_id: "judg-1",
+      kind: "egress",
+      scores: { q: 1 },
+    });
+    expect(records[5]!.payload).toEqual({
+      judgement_id: "judg-1",
+      kind: "audit",
+      novel: true,
+    });
+  });
+
+  it("gives one event read by id the same judgement kind", async () => {
+    const http = mockHttp({
+      requestResult: {
+        ...ENVELOPE,
+        id: "ev-j-1",
+        event_name: "introspection.judgement",
+        payload: {
+          judgement_id: "judg-1",
+          result_schema: "question_scores.v1",
+        },
+      },
+    });
+    const ev = await new EventsApi(http).get("ev-j-1");
+    expect(ev.payload).toEqual({ judgement_id: "judg-1", kind: "egress" });
+
+    const other = {
+      ...ENVELOPE,
+      id: "ev-f",
+      event_name: "introspection.feedback",
+      payload: { name: "thumbs_up" },
+    };
+    const untouched = await new EventsApi(
+      mockHttp({ requestResult: other }),
+    ).get("ev-f");
+    expect(untouched).toBe(other);
+  });
+
   it("returns JudgementEvent rows with the typed payload", async () => {
     const http = mockHttp({
       requestResult: {

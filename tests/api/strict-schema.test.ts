@@ -221,6 +221,91 @@ describe("strict decoding on", () => {
     await expect(later.get("e1")).resolves.toMatchObject({ payload: { x: 1 } });
   });
 
+  it("models every annotation, feedback and judgement payload field the API returns", async () => {
+    const event = (event_name: string, payload: Record<string, unknown>) => ({
+      id: "e1",
+      timestamp: "2026-11-10T05:00:00Z",
+      event_name,
+      payload,
+    });
+    const shared = {
+      judgement_id: "j1",
+      judge_id: "judge-9",
+      judge_slug: "helpful",
+      judge_type: "online",
+      runtime_slug: "hello-mcp",
+      result: "pass",
+      status: "ok",
+      error_class: null,
+      error_message: null,
+      source_component: "introspection-judge",
+      judge_model: "grader-1",
+      experiment_arm_id: null,
+    };
+    const events = new EventsApi(
+      client(
+        page([
+          event("introspection.annotation", {
+            member_id: "m1",
+            actor_member_id: "m2",
+            actor_member_type: "agent",
+          }),
+          event("introspection.feedback", {
+            name: "thumbs_up",
+            author_member_id: "m1",
+          }),
+          event("introspection.judgement", {
+            ...shared,
+            kind: "verdict",
+            reasoning: "fine",
+            definition_hash: "abc123",
+            engine_version: "1.2.3",
+            judge_provider: "anthropic",
+            contract_version: "1",
+            sequence_hash: "def456",
+            input_tokens: 120,
+            output_tokens: 30,
+            total_tokens: 150,
+          }),
+          event("introspection.judgement", {
+            ...shared,
+            kind: "egress",
+            scores: { q1: 90 },
+            questions: { q1: "Is it personal data?" },
+            policy_id: "no-pii",
+            policy_action: "egress",
+            reason: "personal data",
+            request_host: "example.com",
+            request_method: "POST",
+            request_path: "/v1/upload",
+          }),
+        ]),
+        true,
+      ),
+    );
+    const listed = await events.list({ event_name: "introspection.judgement" });
+    expect(listed.records).toHaveLength(4);
+  });
+
+  it("reports a judgement field that belongs to the other kind", async () => {
+    const events = new EventsApi(
+      client(
+        page([
+          {
+            id: "e1",
+            timestamp: "2026-11-10T05:00:00Z",
+            event_name: "introspection.judgement",
+            payload: { judgement_id: "j1", kind: "verdict", scores: { q1: 1 } },
+          },
+        ]),
+        true,
+      ),
+    );
+    await expect(
+      events.list({ event_name: "introspection.judgement" }),
+    ).rejects.toThrow("$.records[0].payload.scores");
+  });
+
   it("checks an event page", async () => {
     const events = new EventsApi(
       client(
