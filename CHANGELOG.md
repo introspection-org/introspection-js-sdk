@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.47.0](https://github.com/introspection-org/introspection-js-sdk/compare/v0.46.1...v0.47.0) (2026-11-10)
+
+
+### ⚠ BREAKING CHANGES
+
+* **annotations:** AnnotationState no longer declares has_comment, has_human_comment, latest_comment, latest_comment_member_id, latest_comment_actor_member_id, latest_comment_actor_type, annotator_member_ids, commenter_member_ids or updated_by_member_id, and human_commenter_member_ids is now reviewer_member_ids.
+
+### Features
+
+* **annotations:** follow the narrowed annotation row; comments on the list, JSON-lines conversation export, judgement kinds ([#591](https://github.com/introspection-org/introspection-js-sdk/issues/591)) ([631c761](https://github.com/introspection-org/introspection-js-sdk/commit/631c761bbd43e5d3ec19730694a86df65dde17be))
+
+
+### Bug Fixes
+
+* a run stream decodes under the client's strictSchema, not only the environment ([#593](https://github.com/introspection-org/introspection-js-sdk/issues/593)) ([1d0d84e](https://github.com/introspection-org/introspection-js-sdk/commit/1d0d84e74343a517d692e4d962e2fac5912cc325))
+* tolerate unknown fields and enum values in responses ([#589](https://github.com/introspection-org/introspection-js-sdk/issues/589)) ([8acdc1f](https://github.com/introspection-org/introspection-js-sdk/commit/8acdc1fea1c001898f43344d84d2ed2e81be4cdc))
+
 ## [0.46.1](https://github.com/introspection-org/introspection-js-sdk/compare/v0.46.0...v0.46.1) (2026-11-10)
 
 
