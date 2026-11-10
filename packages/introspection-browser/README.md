@@ -194,6 +194,10 @@ for await (const span of client.conversations.exportJsonl(conversationId)) {
   console.log(span.span_id);
 }
 const stream = await client.conversations.exportStream(conversationId, "jsonl");
+// Each annotated span's current annotation, with its comments, inline
+const annotated = client.conversations.exportJsonl(conversationId, {
+  include: ["annotations", "comments"],
+});
 ```
 
 `client.files` covers the same file surface (`list` / `upload` /

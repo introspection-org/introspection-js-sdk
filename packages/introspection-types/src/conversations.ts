@@ -35,6 +35,7 @@
  * semantic conventions and the server models verbatim.
  */
 
+import type { AnnotationState } from "./annotations.js";
 import type { CursorParams, IsoDate, ReadWindowParams, Uuid } from "./api.js";
 import type {
   InputMessage,
@@ -685,6 +686,11 @@ export interface GenAiSpan {
   events?: SpanEvent[];
   /** Span attributes, keyed by semantic-convention name. */
   attributes: SpanAttributes;
+  /**
+   * The span's current annotation state, on an export that asks for
+   * `include: ["annotations"]`. Absent on a span nobody annotated.
+   */
+  annotation?: AnnotationState | null;
 }
 
 /**
@@ -959,7 +965,16 @@ export interface ConversationExportParams {
   start_date?: string;
   /** Upper bound on which records are assembled (ISO 8601). */
   end_date?: string;
+  /**
+   * Expansions of each exported span, on the JSON and JSON-lines forms only.
+   * `annotations` sets {@link GenAiSpan.annotation}; `comments`, valid only
+   * beside it, fills that row's `comments`. Needs the annotations read scope.
+   */
+  include?: ConversationExportInclude[];
 }
+
+/** An optional expansion of an exported span. */
+export type ConversationExportInclude = "annotations" | "comments";
 
 /**
  * One tool invocation inside a {@link TrajectoryAssistantRecord}.

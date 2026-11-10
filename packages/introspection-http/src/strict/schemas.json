@@ -1032,6 +1032,7 @@
     "GenAiSpan": {
       "type": "object",
       "properties": {
+        "annotation": { "$ref": "#/$defs/AnnotationState" },
         "attributes": { "$ref": "#/$defs/SpanAttributes" },
         "duration_ns": {},
         "end_time": {},

@@ -824,6 +824,85 @@ describe("conversations export", () => {
     expect(cancelled).toBe(true);
   });
 
+  it("asks for annotations inline and decodes them per JSON line", async () => {
+    const annotation = {
+      trace_id: "trace-1",
+      span_id: "span-1",
+      conversation_id: "conv-1",
+      labels: ["good-structure"],
+      assignee_member_ids: [],
+      reviewer_member_ids: ["22222222-2222-2222-2222-222222222222"],
+      comment_count: 2,
+      updated_at: "2026-08-25T01:02:03Z",
+      updated_by_member_id: "22222222-2222-2222-2222-222222222222",
+      assignment_event_id: null,
+      comments: [
+        {
+          event_id: "018f6b66-4d3a-7abc-8def-000000000001",
+          comment: "The conclusion is strong.",
+          member_id: "22222222-2222-2222-2222-222222222222",
+          actor_member_id: null,
+          actor_member_type: null,
+          created_at: "2026-08-25T01:00:00Z",
+        },
+        {
+          event_id: "018f6b66-4d3a-7abc-8def-000000000002",
+          comment: "Agreed; flagged the citation.",
+          member_id: "11111111-1111-1111-1111-111111111111",
+          actor_member_id: "44444444-4444-4444-4444-444444444444",
+          actor_member_type: "agent",
+          created_at: "2026-08-25T01:02:03Z",
+        },
+      ],
+    };
+    const lines = [{ ...makeSpan("span-1"), annotation }, makeSpan("span-2")]
+      .map((span) => `${JSON.stringify(span)}\n`)
+      .join("");
+    const http = mockHttp({
+      requestResult: new Response(lines).body,
+    });
+
+    const spans: GenAiSpan[] = [];
+    for await (const span of new ConversationsApi(http).exportJsonl("conv-1", {
+      include: ["annotations", "comments"],
+    })) {
+      spans.push(span);
+    }
+
+    const call = (http.request as ReturnType<typeof vi.fn>).mock.calls[0][0];
+    expect(call.query).toEqual({ include: ["annotations", "comments"] });
+    expect(spans[0]!.annotation).toEqual(annotation);
+    expect(spans[0]!.annotation!.comments![1]!.actor_member_type).toBe("agent");
+    expect(spans[1]).not.toHaveProperty("annotation");
+  });
+
+  it("sends include as a repeated key on the JSON and raw-stream exports", async () => {
+    const seen: string[] = [];
+    const fetch = vi.fn(async (url: string | URL | Request) => {
+      seen.push(String(url));
+      return new Response(JSON.stringify(makePage([], false)), {
+        headers: { "content-type": "application/json" },
+      });
+    });
+    const api = new ConversationsApi(
+      new HttpClient({
+        apiUrl: "https://dp.example.test",
+        token: "t",
+        fetch: fetch as unknown as typeof globalThis.fetch,
+      }),
+    );
+    const include = ["annotations", "comments"] as const;
+    await api.exportJson("conv-1", { include: [...include] });
+    await api.exportStream("conv-1", "jsonl", { include: [...include] });
+    for (const url of seen) {
+      expect(new URL(url).searchParams.getAll("include")).toEqual([
+        "annotations",
+        "comments",
+      ]);
+    }
+    expect(seen).toHaveLength(2);
+  });
+
   it("surfaces a 406 from a data plane without the JSON-lines export", async () => {
     const refused = new Error("Not Acceptable");
     const http = mockHttp();

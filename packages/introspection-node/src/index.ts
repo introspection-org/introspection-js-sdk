@@ -362,6 +362,7 @@ export type {
   ConversationItemListParams,
   ConversationContains,
   ConversationExportParams,
+  ConversationExportInclude,
   Trajectory,
   TrajectoryRecord,
   TrajectoryToolCall,
