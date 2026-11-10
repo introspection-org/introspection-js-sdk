@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.46.1](https://github.com/introspection-org/introspection-js-sdk/compare/v0.46.0...v0.46.1) (2026-11-10)
+
+
+### Reverts
+
+* model the project git_origin ([#586](https://github.com/introspection-org/introspection-js-sdk/issues/586)) ([642cde8](https://github.com/introspection-org/introspection-js-sdk/commit/642cde85946452f3c135736a0059707c85eac239))
+
 ## [0.46.0](https://github.com/introspection-org/introspection-js-sdk/compare/v0.45.0...v0.46.0) (2026-11-09)
 
 
