@@ -102,9 +102,28 @@ export class TagsApi {
     });
   }
 
-  /** Only the keys present are sent: an absent key leaves the value alone. */
+  /**
+   * Only the keys present are sent: an absent key leaves the value alone. A new
+   * `name` archives this tag and returns the tag that replaces it.
+   */
   update(kind: TagKind, name: string, patch: TagUpdate): Promise<Tag> {
     const body: TagUpdate = {};
+    if (patch.name !== undefined) {
+      if (kind === "access") {
+        throw clientValidationError(
+          "An access tag cannot be renamed",
+          "invalid_tag_rename",
+        );
+      }
+      const renamed = patch.name.trim();
+      if (!renamed || renamed.length > 128) {
+        throw clientValidationError(
+          "Tag name must contain 1 to 128 characters",
+          "invalid_tag_name",
+        );
+      }
+      body.name = renamed;
+    }
     if (patch.color !== undefined) {
       if (kind === "access") {
         throw clientValidationError(
@@ -121,7 +140,7 @@ export class TagsApi {
     }
     if (Object.keys(body).length === 0) {
       throw clientValidationError(
-        "A tag update must name a color or a description",
+        "A tag update must name a new name, a color or a description",
         "invalid_tag_update",
       );
     }

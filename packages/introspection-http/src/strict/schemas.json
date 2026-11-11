@@ -2738,11 +2738,14 @@
     "Tag": {
       "type": "object",
       "properties": {
+        "archived_at": {},
+        "archived_names": { "type": "array" },
         "color": {},
         "created_at": {},
         "description": {},
         "kind": {},
         "name": {},
+        "replaced_by": {},
         "updated_at": {}
       },
       "additionalProperties": false
