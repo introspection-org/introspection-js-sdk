@@ -743,6 +743,16 @@
       },
       "additionalProperties": false
     },
+    "DisplayIdPrefixes": {
+      "type": "object",
+      "properties": {
+        "issue": {},
+        "observation": {},
+        "report": {},
+        "task": {}
+      },
+      "additionalProperties": false
+    },
     "Endpoint": {
       "type": "object",
       "properties": {
@@ -1326,6 +1336,7 @@
         "created_by_member_id": {},
         "description": {},
         "display_index": {},
+        "display_key": {},
         "events": {
           "type": "array",
           "items": { "$ref": "#/$defs/IssueEventReference" }
@@ -2321,6 +2332,7 @@
         "created_by_member_id": {},
         "deployment_id": {},
         "description": {},
+        "display_id_prefixes": { "$ref": "#/$defs/DisplayIdPrefixes" },
         "id": {},
         "name": {},
         "org_id": {},
@@ -2332,6 +2344,7 @@
     "Recipe": {
       "type": "object",
       "properties": {
+        "agents": { "type": "array" },
         "created_at": {},
         "created_by_member_id": {},
         "description": {},
@@ -2339,6 +2352,7 @@
         "git_commit_subject": {},
         "git_ref": {},
         "id": {},
+        "issue_providers": { "type": "array" },
         "mcp_servers": { "type": "array" },
         "name": {},
         "org_id": {},

@@ -358,6 +358,43 @@ describe("strict decoding on", () => {
     );
   });
 
+  it("models project display ID prefixes, recipe agents and the issue display key", async () => {
+    const strictGet = <T>(schema: string, body: unknown) =>
+      client(body, true).request<T>({ method: "GET", path: "/v1/x", schema });
+    const project = {
+      id: "p1",
+      org_id: "o1",
+      deployment_id: "d1",
+      name: "SDK",
+      description: null,
+      display_id_prefixes: {
+        issue: "I",
+        report: "R",
+        observation: "F",
+        task: "T",
+      },
+    };
+    await expect(strictGet("Project", project)).resolves.toEqual(project);
+    await expect(
+      strictGet("Project", {
+        ...project,
+        display_id_prefixes: { ...project.display_id_prefixes, novel: "N" },
+      }),
+    ).rejects.toThrow("$.display_id_prefixes.novel");
+    const recipe = {
+      ...{ id: "r1", org_id: "o1", project_id: "p1", repository_id: "g1" },
+      ...{ name: "r", slug: "r", git_ref: "main", git_commit_sha: "abc" },
+      agents: ["agent", "triage"],
+      issue_providers: null,
+      created_by_member_id: "m1",
+      created_at: "2026-11-06T00:00:00Z",
+      updated_at: "2026-11-06T00:00:00Z",
+    };
+    await expect(strictGet("Recipe", recipe)).resolves.toEqual(recipe);
+    const issue = { id: "i1", display_index: 7, display_key: "I-7" };
+    await expect(strictGet("Issue", issue)).resolves.toEqual(issue);
+  });
+
   it("leaves a request that names no schema alone", async () => {
     const http = client({ anything: 1 }, true);
     await expect(

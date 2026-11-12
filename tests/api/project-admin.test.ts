@@ -118,13 +118,32 @@ describe("projects", () => {
     );
     const projects = openClient(fetch).projects;
 
-    await projects.create({ name: "SDK", deployment_id: CHILD_ID });
-    await projects.update("sdk-tests", { description: "walk" });
+    await projects.create({
+      name: "SDK",
+      deployment_id: CHILD_ID,
+      display_id_prefixes: { issue: "BUG" },
+    });
+    await projects.update("sdk-tests", {
+      description: "walk",
+      display_id_prefixes: { task: "JOB" },
+    });
     await projects.delete(ROW_ID);
 
     expect(calls(sent)).toEqual([
-      ["POST", `${CP}/v1/projects`, { name: "SDK", deployment_id: CHILD_ID }],
-      ["PATCH", `${CP}/v1/projects/sdk-tests`, { description: "walk" }],
+      [
+        "POST",
+        `${CP}/v1/projects`,
+        {
+          name: "SDK",
+          deployment_id: CHILD_ID,
+          display_id_prefixes: { issue: "BUG" },
+        },
+      ],
+      [
+        "PATCH",
+        `${CP}/v1/projects/sdk-tests`,
+        { description: "walk", display_id_prefixes: { task: "JOB" } },
+      ],
       ["DELETE", `${CP}/v1/projects/${ROW_ID}`, undefined],
     ]);
   });
