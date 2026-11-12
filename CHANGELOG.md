@@ -5,6 +5,7 @@
 
 ### Features
 
+* model the response fields and filters introspection-cloud v0.84.0 added ([#597](https://github.com/introspection-org/introspection-js-sdk/issues/597)) ([fca5c00](https://github.com/introspection-org/introspection-js-sdk/commit/fca5c00e02e75bc3f1fbb95a16ccb900590500c6))
 * **tags:** model a tag's archived_at, replaced_by and archived_names; rename and list archived tags ([#596](https://github.com/introspection-org/introspection-js-sdk/issues/596)) ([97c8017](https://github.com/introspection-org/introspection-js-sdk/commit/97c8017cba9c5eb1634881e636aba4ee73447493))
 
 ## [0.48.0](https://github.com/introspection-org/introspection-js-sdk/compare/v0.47.0...v0.48.0) (2026-11-10)
