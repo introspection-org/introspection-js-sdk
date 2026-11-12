@@ -110,6 +110,8 @@ export interface RunCaller {
   ip?: string;
   user_agent?: string;
   locale?: string;
+  /** IANA time zone, such as `America/Los_Angeles`; the agent reads its current date in it. */
+  timezone?: string;
   library?: RunCallerLibrary;
   page?: RunCallerPage;
   /** Pass-through for app / device / os / campaign / network / etc. */

@@ -1364,7 +1364,8 @@
         "task_id": {},
         "task_status": {},
         "title": {},
-        "updated_at": {}
+        "updated_at": {},
+        "warnings": { "type": "array" }
       },
       "additionalProperties": false
     },
@@ -1824,6 +1825,7 @@
         "id": {},
         "image_url": {},
         "name": {},
+        "sign_in": { "$ref": "#/$defs/SignInSettings" },
         "slug": {}
       },
       "additionalProperties": false
@@ -2574,6 +2576,7 @@
         "library": { "$ref": "#/$defs/RunCallerLibrary" },
         "locale": {},
         "page": { "$ref": "#/$defs/RunCallerPage" },
+        "timezone": {},
         "user_agent": {}
       },
       "additionalProperties": false
@@ -2657,6 +2660,7 @@
         "description": {},
         "environment_ref": {},
         "environments": { "type": "array" },
+        "git_commit_sha": {},
         "id": {},
         "image_build_error_message": {},
         "image_build_metadata": {},
@@ -2693,10 +2697,22 @@
     "RuntimeMcpRequirement": {
       "type": "object",
       "properties": {
+        "candidate_connector_ids": { "type": "array" },
         "connection_id": {},
+        "connection_status": {},
         "connector_id": {},
+        "connector_provider": {},
+        "detail": {},
         "endpoint_id": {},
+        "environment": {},
+        "mcp_required": {},
         "mcp_server_id": {},
+        "mcp_server_url": {},
+        "mcp_server_url_source": {
+          "type": "object",
+          "properties": { "length": {} },
+          "additionalProperties": false
+        },
         "slug": {},
         "state": {},
         "url_source": {}
@@ -2718,6 +2734,18 @@
         "project_id": {},
         "runtime_group_id": {},
         "updated_at": {}
+      },
+      "additionalProperties": false
+    },
+    "SignInSettings": {
+      "type": "object",
+      "properties": {
+        "passkey_requirement": {
+          "type": "object",
+          "properties": { "length": {} },
+          "additionalProperties": false
+        },
+        "restrict_invites_to_domains": {}
       },
       "additionalProperties": false
     },

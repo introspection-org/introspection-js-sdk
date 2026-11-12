@@ -414,6 +414,21 @@ describe("IntrospectionClient (REST control-plane, real server)", () => {
       expect(got.id).toBe(RUNTIME.id);
     });
 
+    it("filters the list by recipe ref and commit", async () => {
+      const client = makeClient();
+      requests = [];
+      const sha = "a".repeat(40);
+      await collect(
+        client.runtimes.list({
+          project: "proj-1",
+          recipe_ref: "pr/walk",
+          git_commit_sha: sha,
+        }),
+      );
+      expect(requests[0]?.query.get("recipe_ref")).toBe("pr/walk");
+      expect(requests[0]?.query.get("git_commit_sha")).toBe(sha);
+    });
+
     it("list paginates across pages", async () => {
       const client = makeClient();
       const ids: string[] = [];

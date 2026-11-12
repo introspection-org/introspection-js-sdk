@@ -145,6 +145,8 @@ export interface Issue {
   comments: IssueComment[] | null;
   /** When the issue last entered `closed` or `cancelled`. */
   closed_at?: IsoDate | null;
+  /** What this read left out, such as the comments beyond the include's cap. */
+  warnings?: string[];
   created_at: IsoDate;
   /** Also the issue's `ETag`; see {@link issueEtag}. */
   updated_at: IsoDate;

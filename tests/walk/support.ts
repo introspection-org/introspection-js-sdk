@@ -372,6 +372,17 @@ const VOLATILE_KEY =
  * secrets and URLs become a placeholder naming their kind, by key and by
  * shape, so an inline snapshot pins every other field.
  */
+/**
+ * `value` with `defaults` filled in for the keys it lacks: a recording made
+ * before the server added a field snapshots like a live response does.
+ */
+export function withDefaults<T extends object>(
+  value: T,
+  defaults: Partial<T>,
+): T {
+  return { ...defaults, ...value };
+}
+
 export function stable(value: unknown, key = ""): unknown {
   if (Array.isArray(value)) return value.map((item) => stable(item));
   if (value && typeof value === "object") {

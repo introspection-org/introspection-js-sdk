@@ -395,6 +395,54 @@ describe("strict decoding on", () => {
     await expect(strictGet("Issue", issue)).resolves.toEqual(issue);
   });
 
+  it("models runtime git_commit_sha and MCP requirements, org sign-in, issue warnings and the run caller's time zone", async () => {
+    const strictGet = <T>(schema: string, body: unknown) =>
+      client(body, true).request<T>({ method: "GET", path: "/v1/x", schema });
+    const runtime = {
+      id: "rt1",
+      git_commit_sha: "a".repeat(40),
+      mcp_requirements: [
+        {
+          slug: "hello-mcp",
+          environment: "production",
+          state: "ready",
+          mcp_server_id: "hello-mcp",
+          connector_id: null,
+          connector_provider: "github",
+          candidate_connector_ids: ["c1", "c2"],
+          connection_id: null,
+          connection_status: "active",
+          mcp_required: true,
+          endpoint_id: null,
+          mcp_server_url: "https://mcp.example.com",
+          mcp_server_url_source: "a_source_this_sdk_predates",
+          detail: null,
+        },
+      ],
+    };
+    await expect(strictGet("Runtime", runtime)).resolves.toEqual(runtime);
+    const org = {
+      id: "o1",
+      name: "Acme",
+      slug: "acme",
+      external_org_id: null,
+      hosted_git: true,
+      sign_in: {
+        passkey_requirement: "except_sso",
+        restrict_invites_to_domains: false,
+      },
+    };
+    await expect(strictGet("Organization", org)).resolves.toEqual(org);
+    const issue = { id: "i1", warnings: ["comments beyond 500 left out"] };
+    await expect(strictGet("Issue", issue)).resolves.toEqual(issue);
+    const spec = {
+      runtime_context: {
+        caller: { timezone: "Europe/Paris", locale: "fr-FR" },
+      },
+    };
+    await expect(strictGet("RunnerSpec", spec)).resolves.toEqual(spec);
+  });
+
   it("leaves a request that names no schema alone", async () => {
     const http = client({ anything: 1 }, true);
     await expect(

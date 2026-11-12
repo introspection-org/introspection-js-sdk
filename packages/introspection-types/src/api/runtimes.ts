@@ -1,4 +1,5 @@
-import type { CursorParams, IsoDate, Uuid } from "./common.js";
+import type { CursorParams, Environment, IsoDate, Uuid } from "./common.js";
+import type { ConnectionStatus } from "./connectors.js";
 
 /**
  * How a Runtime acquires LLM provider credentials at session create.
@@ -17,15 +18,36 @@ export type RuntimeLlmMode = "managed" | "byok";
  */
 export type RuntimeGroupType = "managed" | "custom";
 
+/**
+ * Where a requirement's MCP server URL came from. Open-ended: a value this
+ * SDK version predates arrives as its raw string.
+ */
+export type RuntimeMcpUrlSource =
+  | "endpoint"
+  | "catalog"
+  | "connector"
+  | "template"
+  | (string & Record<never, never>);
+
 /** One declared MCP server requirement resolved for one Runtime environment. */
 export interface RuntimeMcpRequirement {
   slug?: string | null;
+  /** The environment lane this requirement was resolved for. */
+  environment?: Environment;
   mcp_server_id?: string;
   state: string;
   url_source?: string | null;
   endpoint_id?: Uuid | null;
   connector_id?: Uuid | null;
+  connector_provider?: string | null;
+  /** The connectors that could satisfy the requirement. */
+  candidate_connector_ids?: Uuid[];
   connection_id?: Uuid | null;
+  connection_status?: ConnectionStatus | null;
+  mcp_required?: boolean | null;
+  mcp_server_url?: string | null;
+  mcp_server_url_source?: RuntimeMcpUrlSource | null;
+  detail?: string | null;
   [key: string]: unknown;
 }
 
@@ -82,6 +104,8 @@ export interface Runtime {
   image_commit_subject?: string | null;
   /** The recipe's GitHub repository (`owner/name`), for an image version. */
   image_repository?: string | null;
+  /** The commit this version was built from; null when it has no recipe. */
+  git_commit_sha?: string | null;
   /** Every declared MCP server resolved for the environment, non-secret. */
   mcp_requirements?: RuntimeMcpRequirement[] | null;
 }
@@ -128,4 +152,8 @@ export interface RuntimeListParams extends CursorParams {
    * one is a 400.
    */
   environment?: string;
+  /** The git ref the version was built from, exactly: `main` or `pr/<branch>`. */
+  recipe_ref?: string;
+  /** The full 40-character commit sha of the version's recipe. */
+  git_commit_sha?: string;
 }
