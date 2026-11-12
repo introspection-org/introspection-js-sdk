@@ -1026,6 +1026,8 @@ walk("SDK end-to-end walk", () => {
         expect(
           stable({
             ...runtime,
+            // Lanes come back in the order the runtime was promoted to them.
+            environments: [...(runtime.environments ?? [])].sort(),
             git_commit_sha: undefined,
             image_build_metadata: Object.fromEntries(
               IMAGE_BUILD_METADATA_FIELDS.filter((k) => k in metadata).map(
@@ -1045,8 +1047,8 @@ walk("SDK end-to-end walk", () => {
             "description": "Harbor E2B task calling a development MCP server",
             "environment_ref": null,
             "environments": [
-              "staging",
               "production",
+              "staging",
             ],
             "git_commit_sha": undefined,
             "id": "[uuid]",
