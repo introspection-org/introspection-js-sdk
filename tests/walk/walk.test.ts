@@ -27,6 +27,7 @@ import type {
   Application,
   Automation,
   Connector,
+  DisplayIdPrefixes,
   Endpoint,
   Experiment,
   Judge,
@@ -62,6 +63,7 @@ import {
   retargetRecipe,
   walkNames,
   walkSettings,
+  withDefaults,
   type WalkNames,
   type WalkSettings,
 } from "./support";
@@ -79,6 +81,19 @@ const recordingDir = `${RECORDINGS_DIR}/${RECORDING}`;
 const mode = getPollyMode();
 /** An id no resource has: the reads that find nothing to read in a fresh project. */
 const NIL_UUID = "00000000-0000-0000-0000-000000000000";
+const IMAGE_BUILD_METADATA_FIELDS = [
+  "image_tag",
+  "built_at",
+  "size_bytes",
+  "external_image_name",
+  "verdict_by",
+];
+const DEFAULT_DISPLAY_ID_PREFIXES: DisplayIdPrefixes = {
+  issue: "I",
+  report: "R",
+  observation: "F",
+  task: "T",
+};
 
 /**
  * Every scope a service-account application may hold that the walk uses:
@@ -263,9 +278,13 @@ walk("SDK end-to-end walk", () => {
     async (ctx) => {
       await steps.run(ctx, "project", async () => {
         // The slug is new on every live run, so the snapshot leaves it out.
+        // A recording that predates `display_id_prefixes` takes the server
+        // defaults, as an older server's project has them.
         expect(
           stable({
-            ...project,
+            ...withDefaults(project, {
+              display_id_prefixes: DEFAULT_DISPLAY_ID_PREFIXES,
+            }),
             name: undefined,
             slug: undefined,
             description: undefined,
@@ -275,6 +294,12 @@ walk("SDK end-to-end walk", () => {
             "created_by_member_id": "[uuid]",
             "deployment_id": "[uuid]",
             "description": undefined,
+            "display_id_prefixes": {
+              "issue": "I",
+              "observation": "F",
+              "report": "R",
+              "task": "T",
+            },
             "id": "[uuid]",
             "name": undefined,
             "org_id": "[uuid]",
@@ -300,12 +325,25 @@ walk("SDK end-to-end walk", () => {
         });
         expect(updated.description).toBe("The SDK end-to-end walk ran here");
         expect(sibling.deployment_id).toBe(project.deployment_id);
-        expect(stable({ ...sibling, name: undefined, slug: undefined }))
-          .toMatchInlineSnapshot(`
+        expect(
+          stable({
+            ...withDefaults(sibling, {
+              display_id_prefixes: DEFAULT_DISPLAY_ID_PREFIXES,
+            }),
+            name: undefined,
+            slug: undefined,
+          }),
+        ).toMatchInlineSnapshot(`
           {
             "created_by_member_id": "[uuid]",
             "deployment_id": "[uuid]",
             "description": null,
+            "display_id_prefixes": {
+              "issue": "I",
+              "observation": "F",
+              "report": "R",
+              "task": "T",
+            },
             "id": "[uuid]",
             "name": undefined,
             "org_id": "[uuid]",
@@ -682,8 +720,14 @@ walk("SDK end-to-end walk", () => {
           },
         );
         recipe = versioned!;
-        expect(stable(recipe)).toMatchInlineSnapshot(`
+        // The agents and issue providers are whatever the recipe declares,
+        // and a recording that predates them has neither.
+        if (recipe.agents) expect(recipe.agents.length).toBeGreaterThan(0);
+        expect(
+          stable({ ...recipe, agents: undefined, issue_providers: undefined }),
+        ).toMatchInlineSnapshot(`
           {
+            "agents": undefined,
             "created_at": "[timestamp]",
             "created_by_member_id": "[uuid]",
             "description": "Harbor E2B task calling a development MCP server",
@@ -691,6 +735,7 @@ walk("SDK end-to-end walk", () => {
             "git_commit_subject": null,
             "git_ref": "main",
             "id": "[uuid]",
+            "issue_providers": undefined,
             "mcp_servers": [
               {
                 "id": "[redacted]",
@@ -971,7 +1016,24 @@ walk("SDK end-to-end walk", () => {
           runtime.image_build_status,
           runtime.image_build_error_message ?? "",
         ).toBe("ready");
-        expect(stable(runtime)).toMatchInlineSnapshot(`
+        // A recording that predates `git_commit_sha` has none.
+        if (runtime.git_commit_sha !== undefined)
+          expect(runtime.git_commit_sha).toBe(recipe.git_commit_sha);
+        // Members beyond the declared five are the data plane's image metadata
+        // as reported (tool versions that move every release), so only the
+        // declared ones are pinned.
+        const metadata = runtime.image_build_metadata ?? {};
+        expect(
+          stable({
+            ...runtime,
+            git_commit_sha: undefined,
+            image_build_metadata: Object.fromEntries(
+              IMAGE_BUILD_METADATA_FIELDS.filter((k) => k in metadata).map(
+                (k) => [k, metadata[k]],
+              ),
+            ),
+          }),
+        ).toMatchInlineSnapshot(`
           {
             "config_json": {
               "connectors": [
@@ -986,6 +1048,7 @@ walk("SDK end-to-end walk", () => {
               "staging",
               "production",
             ],
+            "git_commit_sha": undefined,
             "id": "[uuid]",
             "image_build_error_message": null,
             "image_build_metadata": {
@@ -1652,13 +1715,25 @@ walk("SDK end-to-end walk", () => {
           name: WALK.tagName,
           description: "the walk's tag",
         } as Parameters<typeof sa.tags.create>[0]);
-        expect(stable(tag)).toMatchInlineSnapshot(`
+        // A recording that predates the archive fields has a live tag's values.
+        expect(
+          stable(
+            withDefaults(tag, {
+              archived_at: null,
+              replaced_by: null,
+              archived_names: [],
+            }),
+          ),
+        ).toMatchInlineSnapshot(`
           {
+            "archived_at": null,
+            "archived_names": [],
             "color": null,
             "created_at": "[timestamp]",
             "description": "the walk's tag",
             "kind": "access",
             "name": "walk-[run]",
+            "replaced_by": null,
             "updated_at": "[timestamp]",
           }
         `);
@@ -2742,16 +2817,24 @@ walk("SDK end-to-end walk", () => {
           project.id,
         );
         await sa.apiKeys.acknowledge(apiKey.id, project.id);
-        // The organisation's name and slug are whoever is running the walk.
+        // The organisation's name, slug and sign-in settings are whoever is
+        // running the walk.
         expect(org.slug).toBeTruthy();
-        expect(stable({ ...org, name: undefined, slug: undefined }))
-          .toMatchInlineSnapshot(`
+        expect(
+          stable({
+            ...org,
+            name: undefined,
+            slug: undefined,
+            sign_in: undefined,
+          }),
+        ).toMatchInlineSnapshot(`
           {
             "external_org_id": "[id]",
             "hosted_git": true,
             "id": "[uuid]",
             "image_url": null,
             "name": undefined,
+            "sign_in": undefined,
             "slug": undefined,
           }
         `);

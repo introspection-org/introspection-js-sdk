@@ -358,6 +358,99 @@ describe("strict decoding on", () => {
     );
   });
 
+  it("models project display ID prefixes, recipe agents and the issue display key", async () => {
+    const strictGet = <T>(schema: string, body: unknown) =>
+      client(body, true).request<T>({ method: "GET", path: "/v1/x", schema });
+    const project = {
+      id: "p1",
+      org_id: "o1",
+      deployment_id: "d1",
+      name: "SDK",
+      description: null,
+      display_id_prefixes: {
+        issue: "I",
+        report: "R",
+        observation: "F",
+        task: "T",
+      },
+    };
+    await expect(strictGet("Project", project)).resolves.toEqual(project);
+    await expect(
+      strictGet("Project", {
+        ...project,
+        display_id_prefixes: { ...project.display_id_prefixes, novel: "N" },
+      }),
+    ).rejects.toThrow("$.display_id_prefixes.novel");
+    const recipe = {
+      ...{ id: "r1", org_id: "o1", project_id: "p1", repository_id: "g1" },
+      ...{ name: "r", slug: "r", git_ref: "main", git_commit_sha: "abc" },
+      agents: ["agent", "triage"],
+      issue_providers: null,
+      created_by_member_id: "m1",
+      created_at: "2026-11-06T00:00:00Z",
+      updated_at: "2026-11-06T00:00:00Z",
+    };
+    await expect(strictGet("Recipe", recipe)).resolves.toEqual(recipe);
+    const issue = { id: "i1", display_index: 7, display_key: "I-7" };
+    await expect(strictGet("Issue", issue)).resolves.toEqual(issue);
+  });
+
+  it("models runtime git_commit_sha and MCP requirements, org sign-in, issue warnings and the run caller's time zone", async () => {
+    const strictGet = <T>(schema: string, body: unknown) =>
+      client(body, true).request<T>({ method: "GET", path: "/v1/x", schema });
+    const runtime = {
+      id: "rt1",
+      git_commit_sha: "a".repeat(40),
+      // Open: members beyond the declared ones are the image metadata as reported.
+      image_build_metadata: {
+        image_tag: "t",
+        built_at: "2026-11-06T00:00:00Z",
+        cli_version: "0.81.0",
+        harbor_adapter_version: "0.16.0",
+        not_yet_reported: { nested: 1 },
+      },
+      mcp_requirements: [
+        {
+          slug: "hello-mcp",
+          environment: "production",
+          state: "ready",
+          mcp_server_id: "hello-mcp",
+          connector_id: null,
+          connector_provider: "github",
+          candidate_connector_ids: ["c1", "c2"],
+          connection_id: null,
+          connection_status: "active",
+          mcp_required: true,
+          endpoint_id: null,
+          mcp_server_url: "https://mcp.example.com",
+          mcp_server_url_source: "a_source_this_sdk_predates",
+          detail: null,
+        },
+      ],
+    };
+    await expect(strictGet("Runtime", runtime)).resolves.toEqual(runtime);
+    const org = {
+      id: "o1",
+      name: "Acme",
+      slug: "acme",
+      external_org_id: null,
+      hosted_git: true,
+      sign_in: {
+        passkey_requirement: "except_sso",
+        restrict_invites_to_domains: false,
+      },
+    };
+    await expect(strictGet("Organization", org)).resolves.toEqual(org);
+    const issue = { id: "i1", warnings: ["comments beyond 500 left out"] };
+    await expect(strictGet("Issue", issue)).resolves.toEqual(issue);
+    const spec = {
+      runtime_context: {
+        caller: { timezone: "Europe/Paris", locale: "fr-FR" },
+      },
+    };
+    await expect(strictGet("RunnerSpec", spec)).resolves.toEqual(spec);
+  });
+
   it("leaves a request that names no schema alone", async () => {
     const http = client({ anything: 1 }, true);
     await expect(

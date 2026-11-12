@@ -19,6 +19,13 @@ export interface Recipe {
   policies?: Record<string, unknown> | null;
   /** The recipe check of the pinned commit. */
   validation?: RecipeValidation | null;
+  /**
+   * The agents this version defines, from `agents/<name>.yaml`, the default
+   * first. Null until checked.
+   */
+  agents?: string[] | null;
+  /** The issue providers this version declares. Null until checked. */
+  issue_providers?: string[] | null;
   created_by_member_id: Uuid;
   created_at: IsoDate;
   updated_at: IsoDate;

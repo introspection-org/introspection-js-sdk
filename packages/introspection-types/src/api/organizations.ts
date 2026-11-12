@@ -9,4 +9,21 @@ export interface Organization {
   image_url?: string | null;
   /** Whether the organization's projects host Git on their Data Plane. */
   hosted_git: boolean;
+  /** Present only where the organization has Enterprise sign-in. */
+  sign_in?: SignInSettings | null;
+}
+
+/**
+ * When an organization's members must sign in with a passkey. Open-ended: a
+ * value this SDK version predates arrives as its raw string.
+ */
+export type PasskeyRequirement =
+  "off" | "always" | "except_sso" | (string & Record<never, never>);
+
+/** How an organization's members sign in and who can be invited. */
+export interface SignInSettings {
+  /** Server default `off`. */
+  passkey_requirement: PasskeyRequirement;
+  /** Server default `false`. */
+  restrict_invites_to_domains: boolean;
 }

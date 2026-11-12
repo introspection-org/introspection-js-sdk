@@ -104,6 +104,11 @@ export interface Issue {
   revision: number;
   /** Project-scoped display ID. */
   display_index?: number | null;
+  /**
+   * The display ID with the project's issue prefix, e.g. `I-7`; null without
+   * a display index.
+   */
+  display_key?: string | null;
   /** The fixed worker task; nullable in the persisted schema. */
   task_id?: Uuid | null;
   /** The current status of the worker task. */
@@ -140,6 +145,8 @@ export interface Issue {
   comments: IssueComment[] | null;
   /** When the issue last entered `closed` or `cancelled`. */
   closed_at?: IsoDate | null;
+  /** What this read left out, such as the comments beyond the include's cap. */
+  warnings?: string[];
   created_at: IsoDate;
   /** Also the issue's `ETag`; see {@link issueEtag}. */
   updated_at: IsoDate;
@@ -244,6 +251,8 @@ export interface IssueListParams extends ListParams {
   exclude_task_status?: TaskStatus | TaskStatus[];
   /** The project-scoped display ID. */
   display_index?: number;
+  /** The display ID with the project's issue prefix, such as `I-7`. */
+  display_key?: string;
   /** One `key:value` tag, such as `customer:acme`. */
   tag?: string;
   /**

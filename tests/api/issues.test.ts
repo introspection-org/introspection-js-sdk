@@ -42,6 +42,7 @@ const ISSUE: Issue = {
   status: "waiting",
   revision: 3,
   display_index: 42,
+  display_key: "I-42",
   task_id: TASK_ID,
   task_status: "idle",
   member_id: null,
@@ -228,6 +229,7 @@ describe("IssuesApi", () => {
       schema: "Issue",
     });
     expect(issue.display_index).toBe(42);
+    expect(issue.display_key).toBe("I-42");
   });
 
   it("update() sends a brief edit with omitted fields left out and [] kept", async () => {
@@ -416,6 +418,7 @@ describe("client.issues", () => {
       task_status: ["running", "awaiting_user"],
       exclude_task_status: ["completed", "cancelled"],
       display_index: 42,
+      display_key: "I-42",
       tag: "customer:acme",
       metadata: { region: "eu", tier: "gold" },
       include_total: true,
@@ -444,6 +447,7 @@ describe("client.issues", () => {
     expect(query.getAll("include")).toEqual(["members", "attachments"]);
     expect(query.has("assigned_to_me")).toBe(false);
     expect(query.get("display_index")).toBe("42");
+    expect(query.get("display_key")).toBe("I-42");
     expect(query.get("tag")).toBe("customer:acme");
     expect(query.has("search")).toBe(false);
     expect(query.get("include_total")).toBe("true");
