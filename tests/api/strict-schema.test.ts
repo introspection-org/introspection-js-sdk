@@ -11,7 +11,7 @@
  */
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
-  ConnectionsApi,
+  ConnectorsApi,
   ConversationsApi,
   EventsApi,
   HttpClient,
@@ -177,7 +177,7 @@ describe("strict decoding on", () => {
   });
 
   it("picks the union branch a response matches", async () => {
-    const connections = new ConnectionsApi(
+    const connectors = new ConnectorsApi(
       client(
         {
           status: "authorization_pending",
@@ -188,13 +188,15 @@ describe("strict decoding on", () => {
         true,
       ),
     );
-    await expect(connections.getToken("conn-1")).rejects.toThrow(
+    await expect(connectors.connectionToken("conn-1")).rejects.toThrow(
       "/v1/oauth/connections/token: response fields this SDK does not model: $.poll_after",
     );
-    const ok = new ConnectionsApi(
+    const ok = new ConnectorsApi(
       client({ token: "t", token_type: "bearer", scopes: [] }, true),
     );
-    await expect(ok.getToken("conn-1")).resolves.toMatchObject({ token: "t" });
+    await expect(ok.connectionToken("conn-1")).resolves.toMatchObject({
+      token: "t",
+    });
   });
 
   it("checks a known event family's payload, not only the open fallback", async () => {
@@ -449,6 +451,32 @@ describe("strict decoding on", () => {
       },
     };
     await expect(strictGet("RunnerSpec", spec)).resolves.toEqual(spec);
+  });
+
+  it("models connection integrations, the org's live subscription, endpoint and discovery fields, and a member's own connection", async () => {
+    const strictGet = <T>(schema: string, body: unknown) =>
+      client(body, true).request<T>({ method: "GET", path: "/v1/x", schema });
+    const decoded: [string, unknown][] = [
+      ["Project", { id: "p1", connection_integrations: ["google_workspace"] }],
+      ["Organization", { id: "o1", subscription_live: true }],
+      ["Endpoint", { id: "e1", metadata: { integration_id: "i1" } }],
+      [
+        "ConnectorOAuthDiscoveryResponse",
+        { issuer: "https://idp", revocation_endpoint: "https://idp/revoke" },
+      ],
+      [
+        "AppConnection",
+        {
+          id: "c1",
+          app: "gmail",
+          integration_id: "i1",
+          runtime_group_id: null,
+          token_expires_at: "2026-11-06T01:00:00Z",
+        },
+      ],
+    ];
+    for (const [schema, body] of decoded)
+      await expect(strictGet(schema, body)).resolves.toEqual(body);
   });
 
   it("leaves a request that names no schema alone", async () => {

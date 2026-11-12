@@ -1,7 +1,5 @@
 // jscpd:ignore-start -- import list: the same names as every resource client's
 import type {
-  Connection,
-  ConnectionCreateParams,
   ConnectionTokenParams,
   ConnectionTokenResult,
   Connector,
@@ -14,7 +12,6 @@ import type {
   ConnectorListParams,
   ConnectorOAuthDiscoveryResponse,
   ConnectorUpdateParams,
-  CursorParams,
   ProjectRef,
   Uuid,
 } from "@introspection-sdk/types";
@@ -24,80 +21,25 @@ import { Paginator, paginateGet } from "../pagination.js";
 import { projectQuery } from "./project-scoped.js";
 
 /**
- * Connections nested under a connector
- * (`/v1/connectors/{connector_id}/connections`) — one authorized subject
- * each (a Slack workspace, a person, an app credential). Every method
- * takes the connector id as its first argument; there is no PATCH on
- * connections, and the platform never serializes access/refresh tokens.
+ * CRUD on `/v1/connectors` plus the consent-URL mint
+ * (`POST /v1/oauth/connections/authorize`) and the connection token mint
+ * (`POST /v1/oauth/connections/token`). The connections themselves are the
+ * Data Plane's `client.connections`.
+ *
+ * Connector CRUD uses the project carried by the authenticated credential.
+ * `client_secret` / `signing_secret` are write-only — accepted on create
+ * and update, absent from every read.
+ *
  */
-export class ConnectionsApi {
+export class ConnectorsApi {
   constructor(private readonly http: HttpClient) {}
-
-  /**
-   * List a connector's connections. `await` the result for the first
-   * page, or `for await` it to stream every connection across pages
-   * (fetched lazily; stop early to stop fetching).
-   */
-  list(connectorId: Uuid, params: CursorParams = {}): Paginator<Connection> {
-    return paginateGet<Connection>(
-      this.http,
-      `/v1/connectors/${encodeURIComponent(connectorId)}/connections`,
-      params,
-      params.next,
-      "Paginated<Connection>",
-    );
-  }
-
-  /**
-   * Register a connection from a token the caller already holds
-   * (registered mode). For the consent flow use
-   * {@link ConnectorsApi.authorize} instead — the callback creates the
-   * connection server-side.
-   */
-  create(
-    connectorId: Uuid,
-    params: ConnectionCreateParams,
-  ): Promise<Connection> {
-    return this.http.request<Connection>({
-      method: "POST",
-      path: `/v1/connectors/${encodeURIComponent(connectorId)}/connections`,
-      schema: "Connection",
-      body: params,
-    });
-  }
-
-  get(connectorId: Uuid, connectionId: Uuid): Promise<Connection> {
-    return this.http.request<Connection>({
-      method: "GET",
-      path: `/v1/connectors/${encodeURIComponent(connectorId)}/connections/${encodeURIComponent(connectionId)}`,
-      schema: "Connection",
-    });
-  }
-
-  /**
-   * Revoke a connection. Named `revoke` rather than `delete` because it
-   * destroys the provider token behind it — the subject must re-consent
-   * to connect again.
-   */
-  revoke(
-    connectorId: Uuid,
-    connectionId: Uuid,
-    project?: ProjectRef,
-  ): Promise<void> {
-    return this.http.request<void>({
-      method: "DELETE",
-      path: `/v1/connectors/${encodeURIComponent(connectorId)}/connections/${encodeURIComponent(connectionId)}`,
-      query: projectQuery(project),
-      expect: "empty",
-    });
-  }
 
   /**
    * Resolve a connector credential for the authenticated subject. For a
    * `person_authorized` connector this may return `authorization_pending`
    * with the mission and approval URL instead of a token.
    */
-  getToken(
+  connectionToken(
     connectorId: Uuid,
     params: ConnectionTokenParams = {},
   ): Promise<ConnectionTokenResult> {
@@ -107,24 +49,6 @@ export class ConnectionsApi {
       schema: "ConnectionTokenResult",
       body: { connector_id: connectorId, ...params },
     });
-  }
-}
-
-/**
- * CRUD on `/v1/connectors` plus the consent-URL mint
- * (`POST /v1/oauth/connections/authorize`), with connections nested as
- * {@link ConnectionsApi} under `.connections`.
- *
- * Connector CRUD uses the project carried by the authenticated credential.
- * `client_secret` / `signing_secret` are write-only — accepted on create
- * and update, absent from every read.
- *
- */
-export class ConnectorsApi {
-  readonly connections: ConnectionsApi;
-
-  constructor(private readonly http: HttpClient) {
-    this.connections = new ConnectionsApi(http);
   }
 
   /**
@@ -257,16 +181,22 @@ export class ConnectorsApi {
    * Passing `params.identity` mints a `customer` member for the asserted
    * end user, so it can raise a {@link ConflictError} (409) when the org has
    * reached its member limit — a plan conflict, not back-pressure.
+   *
+   * To install an organization integration (Google Workspace, Microsoft 365)
+   * instead of a connector, pass `null` and `params.integration_id`.
    */
   authorize(
-    connectorId: Uuid,
+    connectorId: Uuid | null,
     params: ConnectorAuthorizeParams = {},
   ): Promise<ConnectorAuthorizeResponse> {
     return this.http.request<ConnectorAuthorizeResponse>({
       method: "POST",
       path: "/v1/oauth/connections/authorize",
       schema: "ConnectorAuthorizeResponse",
-      body: { connector_id: connectorId, ...params },
+      body:
+        connectorId === null
+          ? params
+          : { connector_id: connectorId, ...params },
     });
   }
 }

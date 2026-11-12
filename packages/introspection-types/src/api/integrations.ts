@@ -1,7 +1,20 @@
 import type { IsoDate, Uuid } from "./common.js";
 
+/**
+ * An integration's provider. Open-ended: a value this SDK version predates
+ * arrives as its raw string.
+ */
 export type IntegrationType =
-  "github" | "slack" | "linear" | "jira" | "notion" | "vercel" | "custom";
+  | "github"
+  | "slack"
+  | "linear"
+  | "jira"
+  | "notion"
+  | "vercel"
+  | "google_workspace"
+  | "microsoft_365"
+  | "custom"
+  | (string & Record<never, never>);
 
 export type IntegrationStatus = "pending" | "active" | "error" | "disabled";
 

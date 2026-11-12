@@ -1,4 +1,5 @@
 import type { CursorParams, Uuid } from "./common.js";
+import type { IntegrationType } from "./integrations.js";
 
 /**
  * The `?project=` selector most project-scoped Control Plane routes take: a
@@ -37,6 +38,8 @@ export interface Project {
   settings?: Record<string, unknown> | null;
   created_by_member_id?: Uuid | null;
   display_id_prefixes: DisplayIdPrefixes;
+  /** Integration types whose members' own connections this project's agents may use. */
+  connection_integrations?: IntegrationType[];
 }
 
 /** `GET /v1/projects` filters. The route lists the credential's org only. */
@@ -54,6 +57,8 @@ export interface ProjectCreateParams {
   description?: string | null;
   /** Each prefix left out takes its server default. */
   display_id_prefixes?: Partial<DisplayIdPrefixes>;
+  /** Integration types whose members' own connections this project's agents may use; none by default. */
+  connection_integrations?: IntegrationType[];
 }
 
 /** `PATCH /v1/projects/{project}`. */
@@ -62,5 +67,7 @@ export interface ProjectUpdateParams {
   description?: string | null;
   /** The prefixes to change; one left out keeps its current value. */
   display_id_prefixes?: Partial<DisplayIdPrefixes>;
+  /** Replaces the project's connection integrations. */
+  connection_integrations?: IntegrationType[];
   settings?: Record<string, unknown> | null;
 }

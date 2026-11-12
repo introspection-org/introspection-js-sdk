@@ -28,13 +28,6 @@ export type ConnectorStatus = "pending" | "active" | "error";
 export type ConnectionStatus =
   "pending_authorization" | "active" | "refresh_failed" | "revoked";
 
-/** Who a connection acts as against the provider. */
-export type ConnectionSubjectType =
-  "app" | "user" | "federated" | "person" | "workspace";
-
-/** Subjects currently accepted by registered connection creation. */
-export type ConnectionCreateSubjectType = "app" | "user";
-
 /** Subjects currently accepted by authorize and token-broker operations. */
 export type ConnectionBrokerSubjectType = "app" | "user" | "person";
 
@@ -224,6 +217,8 @@ export interface ConnectorOAuthDiscoveryResponse {
    * sent as the RFC 8707 `resource` parameter.
    */
   resource?: string | null;
+  /** RFC 7009 token revocation endpoint, if advertised. */
+  revocation_endpoint?: string | null;
   /** The callback this deployment sends; register it exactly on a hand-made client. */
   redirect_uri: string;
   /** Set when discovery registered (or identified) a client — pass it to `create`. */
@@ -265,6 +260,11 @@ export interface ConnectorAuthorizeParams {
    */
   allow_progressive_scopes?: boolean;
   /**
+   * An organization integration to install (Google Workspace, Microsoft
+   * 365) instead of a connector. Needs `integrations:write`.
+   */
+  integration_id?: Uuid;
+  /**
    * The end customer this grant is being made for, asserted by the caller.
    * Its `user_id` resolves a `customer` member recorded as the connection's
    * `created_by_member_id`, so a partner can associate the connection with
@@ -301,61 +301,6 @@ export interface ConnectorAuthorizeResponse {
   authorize_url: string;
   expires_in: number;
   expires_at: IsoDate;
-}
-
-/**
- * A connection — one authorized subject under a connector. Access and
- * refresh tokens are never serialized.
- */
-export interface Connection {
-  id: Uuid;
-  org_id: Uuid;
-  created_at: IsoDate;
-  updated_at: IsoDate;
-  connector_id: Uuid;
-  /**
-   * `null` = org-owned (app subject); for a Slack workspace install this
-   * points at the workspace customer member.
-   */
-  member_id?: Uuid | null;
-  /**
-   * The member who performed the grant, as distinct from `member_id` (whose
-   * credential this is). For `app` and `workspace` subjects those are never
-   * the same principal. `null` for grants made before the column existed.
-   */
-  created_by_member_id?: Uuid | null;
-  /** Runtime group answering this connection's channels. */
-  runtime_group_id?: Uuid | null;
-  subject_type: ConnectionSubjectType;
-  /**
-   * App slug within a provider that fronts many apps from one host, as
-   * `GET /v1/connectors/{id}/apps` returns it. `null` for a provider with a
-   * dedicated host. Derived from the grant, never supplied on create.
-   */
-  provider_app?: string | null;
-  /** The provider's own id for the connected account — an opaque routing id, not a secret. */
-  provider_account_id?: string | null;
-  /** The provider's display name for the account. */
-  provider_account_name?: string | null;
-  /** The project the connection serves. */
-  project_id?: Uuid | null;
-  /** When the grant was last confirmed usable. */
-  last_verified_at?: IsoDate | null;
-  /** Non-secret provider label captured on connection or re-consent. */
-  metadata?: { name?: string };
-  scopes_granted: string[];
-  status: ConnectionStatus;
-  token_expires_at?: IsoDate | null;
-}
-
-/** Registered-mode create — the caller supplies a provider token. */
-export interface ConnectionCreateParams {
-  access_token: string;
-  /** Defaults to `"app"`. */
-  subject_type?: ConnectionCreateSubjectType;
-  scopes_granted?: string[];
-  refresh_token?: string;
-  token_expires_at?: IsoDate;
 }
 
 /** Deterministic, non-PII envelope for a person-authorized action. */
@@ -412,8 +357,7 @@ export interface AppConnectionConnector {
 
 /**
  * One connection on the project's connectors: an app a member connected for
- * themself, or the project's own account. Distinct from {@link Connection},
- * which is a Control Plane connection nested under a connector.
+ * themself, or the project's own account.
  */
 export interface AppConnection {
   /** The connection's id. Get and delete also take `provider_account_id`. */
@@ -426,6 +370,12 @@ export interface AppConnection {
   subject_type?: string | null;
   /** Provider application slug, such as `gmail`, or the connector's slug. */
   app: string;
+  /** The organization integration it is through; absent for a connector's. */
+  integration_id?: Uuid | null;
+  /** The runtime group whose channels it answers, if any. */
+  runtime_group_id?: Uuid | null;
+  /** When the access token expires, if it does. */
+  token_expires_at?: IsoDate | null;
   /** The provider's id for the account, such as `apn_...`. */
   provider_account_id?: string | null;
   /** The provider's label for the connected account, when it has one. */
@@ -449,6 +399,13 @@ export interface AppConnectionListParams extends CursorParams {
   app?: string;
   /** Only connections on this connector. */
   connector_id?: Uuid;
+  /** Only members' own connections through this organization integration. */
+  integration_id?: Uuid;
+  /**
+   * Only accounts whose name, such as an email, contains this (1 to 128
+   * characters, case-insensitive).
+   */
+  search?: string;
   /** Only connections of this subject. */
   subject_type?: "user" | "federated" | "workspace" | "person" | "app";
   /** Only connectors reached through this peering. */
@@ -457,8 +414,13 @@ export interface AppConnectionListParams extends CursorParams {
 
 /** `POST /v1/connections` body: connect one app for yourself. */
 export interface AppConnectionCreateParams {
-  /** Provider application slug, such as `gmail`. */
-  app: string;
+  /** Provider application slug, such as `gmail`. Exclusive with `integration_id`. */
+  app?: string;
+  /**
+   * Connect your own account through this organization integration, once
+   * for every project that allows its type. Exclusive with `app`.
+   */
+  integration_id?: Uuid;
   /**
    * Runtime slug or group id whose sessions use the connection. A runner
    * fills in its own runtime group when this is omitted; the client needs it.

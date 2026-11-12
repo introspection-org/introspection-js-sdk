@@ -9,6 +9,8 @@ export interface Organization {
   image_url?: string | null;
   /** Whether the organization's projects host Git on their Data Plane. */
   hosted_git: boolean;
+  /** Whether the subscription is paid and grants the organization's roles their full scopes. */
+  subscription_live?: boolean;
   /** Present only where the organization has Enterprise sign-in. */
   sign_in?: SignInSettings | null;
 }

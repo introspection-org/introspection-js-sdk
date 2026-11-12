@@ -15,6 +15,7 @@
 import type {
   AdvancedOptions,
   AppConnectionCreateParams,
+  Uuid,
 } from "@introspection-sdk/types";
 import {
   ApprovalsApi,
@@ -123,8 +124,7 @@ export class IntrospectionClient implements DataPlaneResources {
   readonly recipes: RecipesApi;
 
   /**
-   * CRUD on `/v1/connectors` (with connections nested under
-   * `.connections`) plus `connectors.authorize(id)`, which mints the
+   * CRUD on `/v1/connectors` plus `connectors.authorize(id)`, which mints the
    * single-use consent URL a Business hands its customer.
    */
   readonly connectors: ConnectorsApi;
@@ -236,7 +236,7 @@ export class IntrospectionClient implements DataPlaneResources {
    * has no runtime context.
    */
   readonly connections: AppConnectionsApi<
-    AppConnectionCreateParams & { runtime: string }
+    AppConnectionCreateParams & ({ runtime: string } | { integration_id: Uuid })
   >;
   // jscpd:ignore-end
 

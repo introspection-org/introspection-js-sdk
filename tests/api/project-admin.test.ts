@@ -122,10 +122,12 @@ describe("projects", () => {
       name: "SDK",
       deployment_id: CHILD_ID,
       display_id_prefixes: { issue: "BUG" },
+      connection_integrations: ["google_workspace"],
     });
     await projects.update("sdk-tests", {
       description: "walk",
       display_id_prefixes: { task: "JOB" },
+      connection_integrations: ["microsoft_365", "a_type_this_sdk_predates"],
     });
     await projects.delete(ROW_ID);
 
@@ -137,12 +139,20 @@ describe("projects", () => {
           name: "SDK",
           deployment_id: CHILD_ID,
           display_id_prefixes: { issue: "BUG" },
+          connection_integrations: ["google_workspace"],
         },
       ],
       [
         "PATCH",
         `${CP}/v1/projects/sdk-tests`,
-        { description: "walk", display_id_prefixes: { task: "JOB" } },
+        {
+          description: "walk",
+          display_id_prefixes: { task: "JOB" },
+          connection_integrations: [
+            "microsoft_365",
+            "a_type_this_sdk_predates",
+          ],
+        },
       ],
       ["DELETE", `${CP}/v1/projects/${ROW_ID}`, undefined],
     ]);
@@ -346,16 +356,14 @@ describe("recipes, runtimes and repositories", () => {
     ]);
   });
 
-  it("a connector's delete and a connection's revoke take the project selector", async () => {
+  it("a connector's delete takes the project selector", async () => {
     const { sent, fetch } = fakeControlPlane(() => empty());
     const connectors = openClient(fetch).connectors;
 
-    await connectors.connections.revoke(ROW_ID, CHILD_ID, "sdk-tests");
     await connectors.delete(ROW_ID, "sdk-tests");
     await connectors.delete(ROW_ID);
 
     expect(sent.map((s) => s.url)).toEqual([
-      `${CP}/v1/connectors/${ROW_ID}/connections/${CHILD_ID}?project=sdk-tests`,
       `${CP}/v1/connectors/${ROW_ID}?project=sdk-tests`,
       `${CP}/v1/connectors/${ROW_ID}`,
     ]);

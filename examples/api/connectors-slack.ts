@@ -94,9 +94,9 @@ async function main() {
   //    and `runtime_group_id` is the agent answering it. Tokens are never
   //    serialized.
   const connections = [];
-  for await (const connection of client.connectors.connections.list(
-    connector.id,
-  )) {
+  for await (const connection of client.connections.list({
+    connector_id: connector.id,
+  })) {
     connections.push(connection);
     console.log(
       `  connection ${connection.id}: subject=${connection.subject_type}, status=${connection.status}, member=${connection.member_id ?? "-"}`,
@@ -106,11 +106,11 @@ async function main() {
     console.log("  (none yet — open the install link above to connect one)");
   }
 
-  // 4) Disconnect one. Revoking destroys the provider token behind that one
+  // 4) Disconnect one. Deleting destroys the provider token behind that one
   //    connection; the connector and its other connections are untouched, and
   //    the customer must re-consent through a fresh install link.
   if (process.env.REVOKE_FIRST_CONNECTION === "1" && connections[0]) {
-    await client.connectors.connections.revoke(connector.id, connections[0].id);
+    await client.connections.delete(connections[0].id);
     console.log(`revoked connection ${connections[0].id}`);
   }
 
