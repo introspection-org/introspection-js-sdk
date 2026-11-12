@@ -31,8 +31,8 @@ permissions:
 
 jobs:
   alert:
-    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' || github.event.workflow_run.conclusion == 'failure'
-    uses: introspection-org/introspection-action/.github/workflows/main-status.yml@v0.1.2
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' || github.event.workflow_run.conclusion == 'failure' || github.event.workflow_run.conclusion == 'timed_out'
+    uses: introspection-org/introspection-action/.github/workflows/main-status.yml@v0
     with:
       run_id: ${{ inputs.run_id || '' }}
       run_attempt: ${{ inputs.run_attempt || '' }}
