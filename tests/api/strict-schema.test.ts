@@ -401,6 +401,14 @@ describe("strict decoding on", () => {
     const runtime = {
       id: "rt1",
       git_commit_sha: "a".repeat(40),
+      // Open: members beyond the declared ones are the image metadata as reported.
+      image_build_metadata: {
+        image_tag: "t",
+        built_at: "2026-11-06T00:00:00Z",
+        cli_version: "0.81.0",
+        harbor_adapter_version: "0.16.0",
+        not_yet_reported: { nested: 1 },
+      },
       mcp_requirements: [
         {
           slug: "hello-mcp",

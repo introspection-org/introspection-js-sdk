@@ -81,6 +81,13 @@ const recordingDir = `${RECORDINGS_DIR}/${RECORDING}`;
 const mode = getPollyMode();
 /** An id no resource has: the reads that find nothing to read in a fresh project. */
 const NIL_UUID = "00000000-0000-0000-0000-000000000000";
+const IMAGE_BUILD_METADATA_FIELDS = [
+  "image_tag",
+  "built_at",
+  "size_bytes",
+  "external_image_name",
+  "verdict_by",
+];
 const DEFAULT_DISPLAY_ID_PREFIXES: DisplayIdPrefixes = {
   issue: "I",
   report: "R",
@@ -1012,8 +1019,21 @@ walk("SDK end-to-end walk", () => {
         // A recording that predates `git_commit_sha` has none.
         if (runtime.git_commit_sha !== undefined)
           expect(runtime.git_commit_sha).toBe(recipe.git_commit_sha);
-        expect(stable({ ...runtime, git_commit_sha: undefined }))
-          .toMatchInlineSnapshot(`
+        // Members beyond the declared five are the data plane's image metadata
+        // as reported (tool versions that move every release), so only the
+        // declared ones are pinned.
+        const metadata = runtime.image_build_metadata ?? {};
+        expect(
+          stable({
+            ...runtime,
+            git_commit_sha: undefined,
+            image_build_metadata: Object.fromEntries(
+              IMAGE_BUILD_METADATA_FIELDS.filter((k) => k in metadata).map(
+                (k) => [k, metadata[k]],
+              ),
+            ),
+          }),
+        ).toMatchInlineSnapshot(`
           {
             "config_json": {
               "connectors": [
