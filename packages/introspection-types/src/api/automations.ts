@@ -189,4 +189,26 @@ export interface AutomationTriggerResponse {
   /** The task created, or posted into. */
   task_id?: Uuid | null;
   reason?: string | null;
+  /**
+   * `observation_clustering` only: the run its
+   * `introspection.observation_clustering.run` events carry.
+   */
+  run_id?: Uuid | null;
+  /**
+   * `observation_synthesis` only: conversations sent to the synthesis queue;
+   * each later gets an `introspection.observation_synthesis.completed` event.
+   */
+  enqueued?: number | null;
+  /** `observation_synthesis` with named conversations only: what was queued. */
+  conversations?: EnqueuedConversation[] | null;
+}
+
+/** A conversation a synthesis trigger queued, and the end it queued it at. */
+export interface EnqueuedConversation {
+  conversation_id: string;
+  /**
+   * Its completion answers this trigger once the event's
+   * `conversation_completed_at` is at or after this.
+   */
+  completed_at: IsoDate;
 }

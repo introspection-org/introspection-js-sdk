@@ -296,6 +296,7 @@ export type {
   AutomationUpdateParams,
   AutomationListParams,
   AutomationTriggerResponse,
+  EnqueuedConversation,
   Issue,
   IssueComment,
   IssueCommentCreateParams,
