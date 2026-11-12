@@ -11,7 +11,7 @@ import {
   SharesApi,
   TasksApi,
 } from "@introspection-sdk/http";
-import type { AppConnectionCreateParams } from "@introspection-sdk/types";
+import type { AppConnectionCreateParams, Uuid } from "@introspection-sdk/types";
 import { HttpClient, type BearerCredentials } from "./http.js";
 import { AppConnectionsApi } from "./resources/connections.js";
 import { USER_AGENT } from "./utils.js";
@@ -105,7 +105,7 @@ export class DataPlaneClient implements DataPlaneResources {
    * runtime context.
    */
   readonly connections: AppConnectionsApi<
-    AppConnectionCreateParams & { runtime: string }
+    AppConnectionCreateParams & ({ runtime: string } | { integration_id: Uuid })
   >;
   // jscpd:ignore-end
 

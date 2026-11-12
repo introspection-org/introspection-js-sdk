@@ -219,6 +219,9 @@ describe("connections", () => {
     app: "gmail",
     account_name: "Work inbox",
     healthy: true,
+    integration_id: null,
+    runtime_group_id: RUNTIME_GROUP_ID,
+    token_expires_at: "2026-10-06T11:00:00Z",
     created_at: "2026-10-06T10:00:00Z",
   };
   const PAGE: ConnectPage = {
@@ -258,6 +261,40 @@ describe("connections", () => {
         "Bearer runner-jwt",
       ],
     ]);
+  });
+
+  it("list() sends the connector, integration and account-name filters", async () => {
+    const { sent, fetch } = fakeDataPlane(() =>
+      json({ records: [CONNECTION], count: 1, next: null }),
+    );
+
+    await openClient(fetch).connections.list({
+      connector_id: CONNECTION_ID,
+      integration_id: MEMBER_ID,
+      search: "ada@example.com",
+    });
+
+    const url = new URL(sent[0].url);
+    expect(url.searchParams.get("connector_id")).toBe(CONNECTION_ID);
+    expect(url.searchParams.get("integration_id")).toBe(MEMBER_ID);
+    expect(url.searchParams.get("search")).toBe("ada@example.com");
+    expect(url.searchParams.has("q")).toBe(false);
+  });
+
+  it("client create() connects an organization integration without a runtime", async () => {
+    const { sent, fetch } = fakeDataPlane(() => json(PAGE, 201));
+
+    const result = await openClient(fetch).connections.create({
+      integration_id: MEMBER_ID,
+      return_url: "ark://connected",
+    });
+
+    expect(result).toEqual(PAGE);
+    expect(sent[0]).toMatchObject({
+      method: "POST",
+      url: `${CLIENT_DP}/v1/connections`,
+      body: { integration_id: MEMBER_ID, return_url: "ark://connected" },
+    });
   });
 
   it("list() with no filters reads the caller's own", async () => {
@@ -312,7 +349,10 @@ describe("connections", () => {
     });
     expectTypeOf(client.connections.create)
       .parameter(0)
-      .toEqualTypeOf<AppConnectionCreateParams & { runtime: string }>();
+      .toEqualTypeOf<
+        AppConnectionCreateParams &
+          ({ runtime: string } | { integration_id: string })
+      >();
   });
 
   it("DataPlaneClient create() takes the runtime explicitly", async () => {
@@ -329,7 +369,10 @@ describe("connections", () => {
     });
     expectTypeOf(dp.connections.create)
       .parameter(0)
-      .toEqualTypeOf<AppConnectionCreateParams & { runtime: string }>();
+      .toEqualTypeOf<
+        AppConnectionCreateParams &
+          ({ runtime: string } | { integration_id: string })
+      >();
   });
 
   it("create() without a runtime from either source fails before a request", async () => {

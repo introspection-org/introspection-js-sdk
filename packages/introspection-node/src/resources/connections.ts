@@ -14,11 +14,9 @@ import { Paginator, paginateGet } from "../pagination.js";
  * their own. Reads need `connections:read`, `create` needs
  * `connections:write`, `delete` needs `connections:delete`.
  *
- * Connections under a connector are a different resource, on the Control
- * Plane's `client.connectors.connections`.
- *
  * `TCreate` narrows `create`'s params the way `TasksApi` narrows its own:
- * the client requires `runtime`, while a runner fills in its runtime group.
+ * the client requires `runtime` for an app, while a runner fills in its
+ * runtime group.
  */
 export class AppConnectionsApi<
   TCreate extends AppConnectionCreateParams = AppConnectionCreateParams,
@@ -45,10 +43,22 @@ export class AppConnectionsApi<
   }
 
   /**
-   * Mint a single-use connect page for one app. Send the member to
-   * `authorize_url`; the connection exists once they finish there.
+   * Mint a single-use connect page for one app, or for the caller's own
+   * account through an organization integration (`integration_id`). Send the
+   * member to `authorize_url`; the connection exists once they finish there.
    */
   async create(params: TCreate): Promise<ConnectPage> {
+    if (params.integration_id !== undefined) {
+      return this.http.request<ConnectPage>({
+        method: "POST",
+        path: "/v1/connections",
+        schema: "ConnectPage",
+        body: {
+          integration_id: params.integration_id,
+          return_url: params.return_url,
+        },
+      });
+    }
     const runtime = params.runtime ?? this.defaultRuntime();
     if (!runtime) {
       throw new Error(

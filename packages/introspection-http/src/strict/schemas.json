@@ -143,12 +143,15 @@
         "created_by_member_id": {},
         "healthy": {},
         "id": {},
+        "integration_id": {},
         "last_verified_at": {},
         "member_id": {},
         "owner": {},
         "provider_account_id": {},
+        "runtime_group_id": {},
         "status": {},
         "subject_type": {},
+        "token_expires_at": {},
         "updated_at": {}
       },
       "additionalProperties": false
@@ -487,34 +490,6 @@
       "properties": { "authorize_url": {}, "expires_at": {}, "expires_in": {} },
       "additionalProperties": false
     },
-    "Connection": {
-      "type": "object",
-      "properties": {
-        "connector_id": {},
-        "created_at": {},
-        "created_by_member_id": {},
-        "id": {},
-        "last_verified_at": {},
-        "member_id": {},
-        "metadata": {
-          "type": "object",
-          "properties": { "name": {} },
-          "additionalProperties": false
-        },
-        "org_id": {},
-        "project_id": {},
-        "provider_account_id": {},
-        "provider_account_name": {},
-        "provider_app": {},
-        "runtime_group_id": {},
-        "scopes_granted": { "type": "array" },
-        "status": {},
-        "subject_type": {},
-        "token_expires_at": {},
-        "updated_at": {}
-      },
-      "additionalProperties": false
-    },
     "ConnectionAuthorizationPending": {
       "type": "object",
       "properties": {
@@ -599,6 +574,7 @@
         "redirect_uri": {},
         "registration_endpoint": {},
         "resource": {},
+        "revocation_endpoint": {},
         "scopes_supported": { "type": "array" },
         "token_endpoint": {},
         "token_endpoint_auth_methods_supported": { "type": "array" }
@@ -801,6 +777,7 @@
         "auth_audience": {},
         "connector_id": {},
         "extra_hosts": { "type": "array" },
+        "integration_id": {},
         "mcp_server_id": {},
         "provider_app": {}
       },
@@ -1208,7 +1185,11 @@
         "org_id": {},
         "status": {},
         "token_expires_at": {},
-        "type": {},
+        "type": {
+          "type": "object",
+          "properties": { "length": {} },
+          "additionalProperties": false
+        },
         "updated_at": {}
       },
       "additionalProperties": false
@@ -1219,7 +1200,11 @@
         "expires_at": {},
         "permissions": {},
         "token": {},
-        "type": {}
+        "type": {
+          "type": "object",
+          "properties": { "length": {} },
+          "additionalProperties": false
+        }
       },
       "additionalProperties": false
     },
@@ -1826,7 +1811,8 @@
         "image_url": {},
         "name": {},
         "sign_in": { "$ref": "#/$defs/SignInSettings" },
-        "slug": {}
+        "slug": {},
+        "subscription_live": {}
       },
       "additionalProperties": false
     },
@@ -1955,19 +1941,6 @@
         "records": {
           "type": "array",
           "items": { "$ref": "#/$defs/Automation" }
-        },
-        "total_count": {}
-      },
-      "additionalProperties": false
-    },
-    "Paginated<Connection>": {
-      "type": "object",
-      "properties": {
-        "count": {},
-        "next": {},
-        "records": {
-          "type": "array",
-          "items": { "$ref": "#/$defs/Connection" }
         },
         "total_count": {}
       },
@@ -2331,6 +2304,14 @@
     "Project": {
       "type": "object",
       "properties": {
+        "connection_integrations": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": { "length": {} },
+            "additionalProperties": false
+          }
+        },
         "created_by_member_id": {},
         "deployment_id": {},
         "description": {},
@@ -3080,7 +3061,6 @@
       "$ref": "#/$defs/AutomationTriggerResponse"
     },
     "ConnectPage": { "$ref": "#/$defs/ConnectPage" },
-    "Connection": { "$ref": "#/$defs/Connection" },
     "ConnectionTokenResult": {
       "anyOf": [
         { "$ref": "#/$defs/ConnectionAuthorizationPending" },
@@ -3147,7 +3127,6 @@
     },
     "Paginated<Approval>": { "$ref": "#/$defs/Paginated<Approval>" },
     "Paginated<Automation>": { "$ref": "#/$defs/Paginated<Automation>" },
-    "Paginated<Connection>": { "$ref": "#/$defs/Paginated<Connection>" },
     "Paginated<Connector>": { "$ref": "#/$defs/Paginated<Connector>" },
     "Paginated<Conversation>": { "$ref": "#/$defs/Paginated<Conversation>" },
     "Paginated<Credential>": { "$ref": "#/$defs/Paginated<Credential>" },

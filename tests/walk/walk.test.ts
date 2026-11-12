@@ -278,12 +278,14 @@ walk("SDK end-to-end walk", () => {
     async (ctx) => {
       await steps.run(ctx, "project", async () => {
         // The slug is new on every live run, so the snapshot leaves it out.
-        // A recording that predates `display_id_prefixes` takes the server
-        // defaults, as an older server's project has them.
+        // A recording that predates `display_id_prefixes` or
+        // `connection_integrations` takes the server defaults, as an older
+        // server's project has them.
         expect(
           stable({
             ...withDefaults(project, {
               display_id_prefixes: DEFAULT_DISPLAY_ID_PREFIXES,
+              connection_integrations: [],
             }),
             name: undefined,
             slug: undefined,
@@ -291,6 +293,7 @@ walk("SDK end-to-end walk", () => {
           }),
         ).toMatchInlineSnapshot(`
           {
+            "connection_integrations": [],
             "created_by_member_id": "[uuid]",
             "deployment_id": "[uuid]",
             "description": undefined,
@@ -329,12 +332,14 @@ walk("SDK end-to-end walk", () => {
           stable({
             ...withDefaults(sibling, {
               display_id_prefixes: DEFAULT_DISPLAY_ID_PREFIXES,
+              connection_integrations: [],
             }),
             name: undefined,
             slug: undefined,
           }),
         ).toMatchInlineSnapshot(`
           {
+            "connection_integrations": [],
             "created_by_member_id": "[uuid]",
             "deployment_id": "[uuid]",
             "description": null,
@@ -1151,35 +1156,55 @@ walk("SDK end-to-end walk", () => {
         );
         expect(landed.searchParams.get("status")).toBe("active");
         const connectionId = landed.searchParams.get("connection_id")!;
-        const connection = await sa.connectors.connections.get(
-          connector.id,
-          connectionId,
-        );
-        expect(stable(connection)).toMatchInlineSnapshot(`
+        // The grant is read through the Data Plane's `/v1/connections`, where
+        // it is the project's own account on `hello-mcp`.
+        const connections = await member.connections.list({
+          connector_id: connector.id,
+        });
+        expect(connections.records.map((c) => c.id)).toContain(connectionId);
+        const connection = await member.connections.get(connectionId);
+        expect(connection.app).toBe(connector.slug);
+        expect(connection.connector?.slug).toBe(connector.slug);
+        // A recording that predates these fields has none of them.
+        if (connection.integration_id !== undefined)
+          expect(connection.integration_id).toBeNull();
+        if (connection.runtime_group_id != null)
+          expect(connection.runtime_group_id).toBe(runtime.runtime_group_id);
+        expect(
+          stable({
+            ...connection,
+            app: undefined,
+            connector: { ...connection.connector, slug: undefined },
+            integration_id: undefined,
+            runtime_group_id: undefined,
+            token_expires_at: undefined,
+          }),
+        ).toMatchInlineSnapshot(`
           {
-            "connector_id": "[uuid]",
+            "account_name": null,
+            "app": undefined,
+            "connector": {
+              "id": "[uuid]",
+              "peering": null,
+              "provider": "hello-mcp",
+              "slug": undefined,
+            },
             "created_at": "[timestamp]",
             "created_by_member_id": "[uuid]",
+            "healthy": true,
             "id": "[uuid]",
+            "integration_id": undefined,
             "last_verified_at": "[timestamp]",
             "member_id": null,
-            "org_id": "[uuid]",
-            "project_id": "[uuid]",
+            "owner": "project",
             "provider_account_id": null,
-            "provider_account_name": null,
-            "provider_app": null,
-            "runtime_group_id": "[uuid]",
-            "scopes_granted": [],
+            "runtime_group_id": undefined,
             "status": "active",
             "subject_type": "app",
-            "token_expires_at": "[timestamp]",
+            "token_expires_at": undefined,
             "updated_at": "[timestamp]",
           }
         `);
-        let seen = false;
-        for await (const item of sa.connectors.connections.list(connector.id))
-          if (item.id === connectionId) seen = true;
-        expect(seen).toBe(true);
 
         // Another run's runtime may have a `hello-mcp` endpoint too.
         const endpoints = await sa.endpoints.list({
@@ -1190,9 +1215,15 @@ walk("SDK end-to-end walk", () => {
           (e) => e.runtime_group_id === runtime.runtime_group_id,
         )!;
         // Tool discovery runs behind the grant, so its state is a matter of
-        // timing and stays out of the snapshot.
-        expect(stable({ ...endpoint, mcp_check: undefined }))
-          .toMatchInlineSnapshot(`
+        // timing and stays out of the snapshot. A recording that predates
+        // `metadata.integration_id` has a connector endpoint's null.
+        expect(
+          stable({
+            ...endpoint,
+            mcp_check: undefined,
+            metadata: withDefaults(endpoint.metadata, { integration_id: null }),
+          }),
+        ).toMatchInlineSnapshot(`
           {
             "assertion_claims": null,
             "authorized_application_id": null,
@@ -1212,6 +1243,7 @@ walk("SDK end-to-end walk", () => {
               "auth_audience": null,
               "connector_id": "[uuid]",
               "extra_hosts": [],
+              "integration_id": null,
               "mcp_server_id": "hello-mcp",
               "provider_app": null,
             },
@@ -1250,7 +1282,7 @@ walk("SDK end-to-end walk", () => {
         await sa.endpoints.delete(api.id, project.id);
         await expectNotFound(() => sa.endpoints.get(api.id, project.id));
 
-        const token = await sa.connectors.connections.getToken(connector.id);
+        const token = await sa.connectors.connectionToken(connector.id);
         expect(stable(token)).toMatchInlineSnapshot(`
           {
             "expires_at": "[timestamp]",
@@ -1265,25 +1297,6 @@ walk("SDK end-to-end walk", () => {
         });
         expect(stable(requirements.mcp_requirements)).toMatchInlineSnapshot(
           `[]`,
-        );
-
-        // Registered mode: a connection from a token the caller already holds,
-        // for one user beside the app's own grant; read, then revoked.
-        const registered = await sa.connectors.connections.create(
-          connector.id,
-          { access_token: "walk-registered-token", subject_type: "user" },
-        );
-        const reread = await sa.connectors.connections.get(
-          connector.id,
-          registered.id,
-        );
-        expect(reread.subject_type).toBe("user");
-        // Revoking takes `connectors:delete`, which no application is minted;
-        // the owner revokes, as the teardown does.
-        await owner.connectors.connections.revoke(
-          connector.id,
-          registered.id,
-          project.id,
         );
       });
     },
@@ -1902,21 +1915,9 @@ walk("SDK end-to-end walk", () => {
         expect(missions.records).toEqual([]);
         const approvals = await sa.approvals.list();
         expect(approvals.records).toEqual([]);
-        // `/v1/connections` is every connection on the project's connectors:
-        // here its own account on `hello-mcp`. Connecting an app needs an app
-        // (Pipedream) connector, and with none on the project that answers 404.
-        const connections = await member.connections.list({
-          connector_id: connector.id,
-        });
-        const projectConnection = connections.records[0]!;
-        expect(projectConnection).toMatchObject({
-          owner: "project",
-          member_id: null,
-          app: connector.slug,
-        });
-        expect((await member.connections.get(projectConnection.id)).id).toBe(
-          projectConnection.id,
-        );
+        // The grant's own connection was read in step 8. Connecting an app
+        // needs an app (Pipedream) connector, and with none on the project
+        // that answers 404.
         await expectNotFound(() =>
           member.connections.get("019a1000-0000-7000-8000-0000000000c1"),
         );
@@ -2819,8 +2820,8 @@ walk("SDK end-to-end walk", () => {
           project.id,
         );
         await sa.apiKeys.acknowledge(apiKey.id, project.id);
-        // The organisation's name, slug and sign-in settings are whoever is
-        // running the walk.
+        // The organisation's name, slug, sign-in settings and subscription
+        // are whoever is running the walk.
         expect(org.slug).toBeTruthy();
         expect(
           stable({
@@ -2828,6 +2829,7 @@ walk("SDK end-to-end walk", () => {
             name: undefined,
             slug: undefined,
             sign_in: undefined,
+            subscription_live: undefined,
           }),
         ).toMatchInlineSnapshot(`
           {
@@ -2838,6 +2840,7 @@ walk("SDK end-to-end walk", () => {
             "name": undefined,
             "sign_in": undefined,
             "slug": undefined,
+            "subscription_live": undefined,
           }
         `);
       });

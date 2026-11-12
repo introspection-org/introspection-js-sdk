@@ -6,7 +6,6 @@ import type {
 } from "@introspection-sdk/introspection-node";
 import {
   ConnectorsApi,
-  ConnectionsApi,
   HttpClient,
   attachConnectors,
 } from "@introspection-sdk/introspection-node";
@@ -18,7 +17,6 @@ function mockHttp(overrides: Record<string, unknown> = {}) {
 }
 
 const CONNECTOR_ID = "11111111-1111-1111-1111-111111111111";
-const CONNECTION_ID = "22222222-2222-2222-2222-222222222222";
 
 const CONNECTOR_FIXTURE = {
   id: CONNECTOR_ID,
@@ -55,21 +53,6 @@ const AAUTH_CONNECTOR_FIXTURE: Connector = {
     },
   ],
   requires_runtime: false,
-};
-
-const CONNECTION_FIXTURE = {
-  id: CONNECTION_ID,
-  org_id: "org-1",
-  created_at: "2026-08-08T00:00:00Z",
-  updated_at: "2026-08-08T00:00:00Z",
-  connector_id: CONNECTOR_ID,
-  member_id: "member-1",
-  created_by_member_id: "installer-1",
-  runtime_group_id: "rg-1",
-  subject_type: "workspace" as const,
-  scopes_granted: ["chat:write"],
-  status: "active" as const,
-  token_expires_at: null,
 };
 
 function page(records: unknown[], next: string | null = null) {
@@ -351,6 +334,27 @@ describe("ConnectorsApi", () => {
     });
   });
 
+  it("authorize() installs an organization integration instead of a connector", async () => {
+    const http = mockHttp({
+      requestResult: {
+        authorize_url: "https://accounts.google.com/o/oauth2/auth?state=abc",
+        expires_in: 600,
+        expires_at: "2026-08-08T20:10:00Z",
+      },
+    });
+
+    await new ConnectorsApi(http).authorize(null, {
+      integration_id: CONNECTOR_ID,
+    });
+
+    expect(http.request).toHaveBeenCalledWith({
+      method: "POST",
+      path: "/v1/oauth/connections/authorize",
+      body: { integration_id: CONNECTOR_ID },
+      schema: "ConnectorAuthorizeResponse",
+    });
+  });
+
   it("authorize() POSTs to the oauth route with connector_id merged in", async () => {
     const http = mockHttp({
       requestResult: {
@@ -457,75 +461,16 @@ describe("ConnectorsApi", () => {
     });
   });
 
-  it("attachConnectors() builds an api with connections nested", () => {
+  it("attachConnectors() builds an api with no nested connections", () => {
     const api = attachConnectors(mockHttp());
     expect(api).toBeInstanceOf(ConnectorsApi);
-    expect(api.connections).toBeInstanceOf(ConnectionsApi);
+    // The connections are the Data Plane's `client.connections` now.
+    expect("connections" in api).toBe(false);
   });
 });
 
-describe("ConnectionsApi", () => {
-  it("list() targets the nested connections path", async () => {
-    const http = mockHttp({ requestResult: page([CONNECTION_FIXTURE]) });
-    const first = await new ConnectionsApi(http).list(CONNECTOR_ID, {
-      limit: 50,
-    });
-
-    expect(http.request).toHaveBeenCalledWith({
-      method: "GET",
-      path: `/v1/connectors/${CONNECTOR_ID}/connections`,
-      query: { limit: 50, next: undefined },
-      schema: "Paginated<Connection>",
-    });
-    expect(first.records[0].subject_type).toBe("workspace");
-    // The installer is recorded apart from the subject: for a workspace
-    // install they are never the same principal.
-    expect(first.records[0].created_by_member_id).toBe("installer-1");
-  });
-
-  it("create() registers an already-obtained token", async () => {
-    const http = mockHttp({ requestResult: CONNECTION_FIXTURE });
-    await new ConnectionsApi(http).create(CONNECTOR_ID, {
-      access_token: "xoxb-token",
-      subject_type: "app",
-      scopes_granted: ["chat:write"],
-    });
-
-    expect(http.request).toHaveBeenCalledWith({
-      method: "POST",
-      path: `/v1/connectors/${CONNECTOR_ID}/connections`,
-      body: {
-        access_token: "xoxb-token",
-        subject_type: "app",
-        scopes_granted: ["chat:write"],
-      },
-      schema: "Connection",
-    });
-  });
-
-  it("get() reads one connection under its connector", async () => {
-    const http = mockHttp({ requestResult: CONNECTION_FIXTURE });
-    await new ConnectionsApi(http).get(CONNECTOR_ID, CONNECTION_ID);
-
-    expect(http.request).toHaveBeenCalledWith({
-      method: "GET",
-      path: `/v1/connectors/${CONNECTOR_ID}/connections/${CONNECTION_ID}`,
-      schema: "Connection",
-    });
-  });
-
-  it("revoke() deletes the nested connection and expects no body", async () => {
-    const http = mockHttp();
-    await new ConnectionsApi(http).revoke(CONNECTOR_ID, CONNECTION_ID);
-
-    expect(http.request).toHaveBeenCalledWith({
-      method: "DELETE",
-      path: `/v1/connectors/${CONNECTOR_ID}/connections/${CONNECTION_ID}`,
-      expect: "empty",
-    });
-  });
-
-  it("getToken() returns a provider token through the broker", async () => {
+describe("ConnectorsApi.connectionToken", () => {
+  it("connectionToken() returns a provider token through the broker", async () => {
     const http = mockHttp({
       requestResult: {
         token: "provider-token",
@@ -534,7 +479,7 @@ describe("ConnectionsApi", () => {
         scopes: ["calendar.read"],
       },
     });
-    const result = await new ConnectionsApi(http).getToken(CONNECTOR_ID, {
+    const result = await new ConnectorsApi(http).connectionToken(CONNECTOR_ID, {
       subject: "user",
       action: "calendar.list",
       requested_permissions: { host: "calendar.example.com" },
@@ -554,7 +499,7 @@ describe("ConnectionsApi", () => {
     expect(result).toHaveProperty("token", "provider-token");
   });
 
-  it("getToken() preserves authorization-pending responses", async () => {
+  it("connectionToken() preserves authorization-pending responses", async () => {
     const http = mockHttp({
       requestResult: {
         status: "authorization_pending",
@@ -562,23 +507,12 @@ describe("ConnectionsApi", () => {
         approval_url: "https://consent.example/m/333?cap=secret",
       },
     });
-    const result = await new ConnectionsApi(http).getToken(CONNECTOR_ID, {
+    const result = await new ConnectorsApi(http).connectionToken(CONNECTOR_ID, {
       subject: "person",
       action: "booking.reserve",
     });
 
     expect(result).toHaveProperty("status", "authorization_pending");
     expect(result).toHaveProperty("approval_url");
-  });
-
-  it("encodes ids that are not bare uuids", async () => {
-    const http = mockHttp();
-    await new ConnectionsApi(http).revoke("con/1", "cx 2");
-
-    expect(http.request).toHaveBeenCalledWith({
-      method: "DELETE",
-      path: "/v1/connectors/con%2F1/connections/cx%202",
-      expect: "empty",
-    });
   });
 });

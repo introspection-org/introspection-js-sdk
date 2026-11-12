@@ -122,11 +122,7 @@ export {
 } from "./resources/experiments.js";
 export type { ExperimentHandleFactory } from "./resources/experiments.js";
 export { RecipesApi, attachRecipes } from "./resources/recipes.js";
-export {
-  ConnectorsApi,
-  ConnectionsApi,
-  attachConnectors,
-} from "./resources/connectors.js";
+export { ConnectorsApi, attachConnectors } from "./resources/connectors.js";
 export { MembersApi, attachMembers } from "./resources/members.js";
 export { AutomationsApi, attachAutomations } from "./resources/automations.js";
 export { AppConnectionsApi } from "./resources/connections.js";
@@ -250,12 +246,8 @@ export type {
   ConnectorCustomAppSearchParams,
   ConnectorClientRegistration,
   ConnectorOAuthDiscoveryResponse,
-  Connection,
   ConnectionStatus,
-  ConnectionSubjectType,
-  ConnectionCreateSubjectType,
   ConnectionBrokerSubjectType,
-  ConnectionCreateParams,
   ConnectionMissionConstraints,
   ConnectionTokenParams,
   ConnectionToken,

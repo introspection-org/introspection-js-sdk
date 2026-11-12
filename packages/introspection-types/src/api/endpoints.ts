@@ -6,6 +6,11 @@ export type EndpointKind = "llm" | "api" | "mcp";
 export interface EndpointMetadata {
   mcp_server_id?: string | null;
   connector_id?: Uuid | null;
+  /**
+   * The organization integration whose task member's own connection
+   * authenticates this endpoint. Exclusive with `connector_id`.
+   */
+  integration_id?: Uuid | null;
   provider_app?: string | null;
   auth_audience?: string | null;
   extra_hosts?: string[];

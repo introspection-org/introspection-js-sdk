@@ -366,12 +366,16 @@ console.log(done.status, done.exit_code, done.stdout);
 themselves, on the Data Plane's `/v1/connections`. A caller who is not an
 administrator always sees and manages only their own. Reads need
 `connections:read`, `create` needs `connections:write` and `delete` needs
-`connections:delete`. These are a different resource from the Control Plane's
-`client.connectors.connections`, which are nested under a connector.
+`connections:delete`. `list` filters by `member_id`, `app`, `connector_id`,
+`integration_id`, `subject_type`, `peering`, and `search` (an account name,
+such as an email, containing the text).
 
 `create` returns a single-use connect page; send the member to its
 `authorize_url`, and the connection exists once they finish there. On a runner,
 `runtime` defaults to the runner's runtime group. On the client, pass it.
+To connect your own account through an organization integration (Google
+Workspace, Microsoft 365) instead of one app, pass `integration_id` and no
+`app`.
 
 ```typescript
 const { authorize_url } = await runner.connections.create({ app: "gmail" });
