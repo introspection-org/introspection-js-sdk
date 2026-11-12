@@ -898,7 +898,13 @@ walk("SDK end-to-end walk", () => {
         // connector between runs: pending when new, active once granted.
         const { status, ...created } = connector;
         expect(["pending", "active"]).toContain(status);
-        expect(stable(created)).toMatchInlineSnapshot(`
+        // The issuer's discovery may report more than the recording holds.
+        const { revocation_endpoint, ...oauth } = (created.metadata?.oauth ??
+          {}) as Record<string, unknown>;
+        if (revocation_endpoint !== undefined)
+          expect(stable(revocation_endpoint)).toBe("[url]");
+        expect(stable({ ...created, metadata: { ...created.metadata, oauth } }))
+          .toMatchInlineSnapshot(`
           {
             "agent_member_id": "[uuid]",
             "api_hosts": [
