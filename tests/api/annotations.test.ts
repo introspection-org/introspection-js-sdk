@@ -180,6 +180,20 @@ beforeAll(async () => {
       );
     }
     if (path === "/v1/tags" && method === "GET") {
+      if (url.searchParams.getAll("include").includes("archived")) {
+        return json(
+          res,
+          200,
+          page([
+            {
+              ...LABEL,
+              archived_at: "2026-11-10T12:00:00Z",
+              replaced_by: "clear-structure",
+              archived_names: [],
+            },
+          ]),
+        );
+      }
       const second = url.searchParams.get("next") === "label-page-2";
       return json(
         res,
@@ -196,7 +210,14 @@ beforeAll(async () => {
       return json(res, 200, LABEL);
     }
     if (path === `/v1/tags/annotation/${LABEL.name}` && method === "PATCH") {
-      return json(res, 200, { ...LABEL, ...(body as object) });
+      const renamed = (body as { name?: string }).name;
+      return json(res, 200, {
+        ...LABEL,
+        ...(body as object),
+        archived_at: null,
+        replaced_by: null,
+        archived_names: renamed ? [LABEL.name] : [],
+      });
     }
     if (path === "/v1/tags/access/acme%2Feu" && method === "DELETE") {
       res.writeHead(204);
@@ -497,6 +518,38 @@ describe("tags", () => {
     expect(() => tags.update("annotation", LABEL.name, {})).toThrow(
       ValidationError,
     );
+    expect(() => tags.update("access", "acme/eu", { name: "acme/us" })).toThrow(
+      ValidationError,
+    );
     expect(requests).toHaveLength(0);
+  });
+
+  it("renames an annotation tag and reads the archived name on its replacement", async () => {
+    const strict = new IntrospectionClient({
+      token: "member-token",
+      cpSession: "encoded-member-session",
+      advanced: { baseApiUrl: baseUrl, strictSchema: true },
+    });
+    const renamed = await strict.tags.update("annotation", LABEL.name, {
+      name: " clear-structure ",
+    });
+    expect(requests[0]!.body).toEqual({ name: "clear-structure" });
+    expect(renamed.name).toBe("clear-structure");
+    expect(renamed.archived_at).toBeNull();
+    expect(renamed.archived_names).toEqual([LABEL.name]);
+  });
+
+  it("lists archived tags only when asked, with their replacement", async () => {
+    const strict = new IntrospectionClient({
+      token: "member-token",
+      cpSession: "encoded-member-session",
+      advanced: { baseApiUrl: baseUrl, strictSchema: true },
+    });
+    const { records } = await strict.tags.list("annotation", {
+      include: ["archived"],
+    });
+    expect(requests[0]!.query.getAll("include")).toEqual(["archived"]);
+    expect(records[0]!.archived_at).toBe("2026-11-10T12:00:00Z");
+    expect(records[0]!.replaced_by).toBe("clear-structure");
   });
 });

@@ -273,6 +273,7 @@ export type {
   AnnotationMutation,
   AnnotationEventOptions,
   Tag,
+  TagInclude,
   TagKind,
   TagListParams,
   TagCreate,

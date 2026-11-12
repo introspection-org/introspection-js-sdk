@@ -14,12 +14,23 @@ export interface Tag {
   /** Set on an `annotation` tag; never on an `access` tag. */
   color: string | null;
   description: string | null;
+  /** When a rename archived this tag; null on a live tag. */
+  archived_at?: IsoDate | null;
+  /** The tag an archived one was renamed to. */
+  replaced_by?: string | null;
+  /** The archived names renamed to this tag, which its dataset also covers. */
+  archived_names?: string[];
   created_at: IsoDate;
   updated_at: IsoDate;
 }
 
+/** Rows a tag list leaves out unless asked for. */
+export type TagInclude = "archived";
+
 export interface TagListParams extends CursorParams {
   search?: string;
+  /** `archived` also returns the tags a rename archived. */
+  include?: TagInclude[];
 }
 
 /** An access tag's name is opaque and kept verbatim, so it may contain `/`. */
@@ -51,6 +62,11 @@ export type TagCreate = AccessTagCreate | AnnotationTagCreate;
  * distinguishes an omitted key from a null.
  */
 export interface TagUpdate {
+  /**
+   * Rename an annotation tag: this one is archived and the tag that replaces
+   * it comes back. Annotation tags only.
+   */
+  name?: string;
   /** Annotation tags only. */
   color?: string;
   description?: string | null;
