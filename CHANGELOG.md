@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.49.0](https://github.com/introspection-org/introspection-js-sdk/compare/v0.48.0...v0.49.0) (2026-11-12)
+
+
+### Features
+
+* **tags:** model a tag's archived_at, replaced_by and archived_names; rename and list archived tags ([#596](https://github.com/introspection-org/introspection-js-sdk/issues/596)) ([97c8017](https://github.com/introspection-org/introspection-js-sdk/commit/97c8017cba9c5eb1634881e636aba4ee73447493))
+
 ## [0.48.0](https://github.com/introspection-org/introspection-js-sdk/compare/v0.47.0...v0.48.0) (2026-11-10)
 
 
