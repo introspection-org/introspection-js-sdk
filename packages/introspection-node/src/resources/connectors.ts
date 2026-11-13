@@ -11,6 +11,7 @@ import type {
   ConnectorCustomAppSearchParams,
   ConnectorListParams,
   ConnectorOAuthDiscoveryResponse,
+  ConnectorSecretResponse,
   ConnectorUpdateParams,
   ProjectRef,
   Uuid,
@@ -70,12 +71,14 @@ export class ConnectorsApi {
   /**
    * Create a connector. Upserts on `slug`: a repeat POST replaces the live
    * row's configuration and keeps its provider, auth mode and stored secrets.
+   * A new `webhook` connector's generated secret comes back once, as
+   * `signing_secret`; a repeat create of its slug returns none.
    */
-  create(params: ConnectorCreateParams): Promise<Connector> {
-    return this.http.request<Connector>({
+  create(params: ConnectorCreateParams): Promise<ConnectorSecretResponse> {
+    return this.http.request<ConnectorSecretResponse>({
       method: "POST",
       path: "/v1/connectors",
-      schema: "Connector",
+      schema: "ConnectorSecretResponse",
       body: params,
     });
   }
@@ -88,11 +91,18 @@ export class ConnectorsApi {
     });
   }
 
-  update(connectorId: Uuid, params: ConnectorUpdateParams): Promise<Connector> {
-    return this.http.request<Connector>({
+  /**
+   * Update a connector. With `rotate_signing_secret: true` a `webhook`
+   * connector's new secret comes back once, as `signing_secret`.
+   */
+  update(
+    connectorId: Uuid,
+    params: ConnectorUpdateParams,
+  ): Promise<ConnectorSecretResponse> {
+    return this.http.request<ConnectorSecretResponse>({
       method: "PATCH",
       path: `/v1/connectors/${encodeURIComponent(connectorId)}`,
-      schema: "Connector",
+      schema: "ConnectorSecretResponse",
       body: params,
     });
   }

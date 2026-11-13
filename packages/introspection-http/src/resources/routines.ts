@@ -2,6 +2,7 @@ import type {
   Routine,
   RoutineCreateParams,
   RoutineListParams,
+  RoutineTriggerParams,
   RoutineTriggerResponse,
   RoutineUpdateParams,
   Uuid,
@@ -16,7 +17,9 @@ import type { ResourceHttpClient } from "./types.js";
  * record's `can_manage` says whether the caller may update, trigger or delete
  * it. A firing is recorded on `/v1/events` as
  * `introspection.routines.triggered` (or `introspection.routines.skipped`
- * for a scheduled slot that ran nothing).
+ * for a scheduled slot or event delivery that ran nothing). A routine's
+ * `triggers` start runs on events: an integration's (Slack, GitHub) or a
+ * `webhook` connector's calls.
  *
  * The server serves these routes to administrators only today (a 403
  * otherwise); introspection-cloud#3137 opens them to members for their own
@@ -86,14 +89,20 @@ export class RoutinesClient {
   }
 
   /**
-   * Run a routine now (`202`). Returns the task it created or posted
-   * into; neither reads nor clears a scheduled slot.
+   * Run a routine now (`202`), with optional `parameters` (see
+   * {@link RoutineTriggerParams}). Returns the task it created or posted
+   * into, and the kind's `result`; neither reads nor clears a scheduled slot.
    */
-  trigger(routineId: Uuid): Promise<RoutineTriggerResponse> {
+  trigger(
+    routineId: Uuid,
+    params: RoutineTriggerParams = {},
+  ): Promise<RoutineTriggerResponse> {
+    const body = setFields(params);
     return this.http.request<RoutineTriggerResponse>({
       method: "POST",
       path: `/v1/routines/${encodeURIComponent(routineId)}/trigger`,
       schema: "RoutineTriggerResponse",
+      ...(Object.keys(body).length > 0 ? { body } : {}),
     });
   }
 }

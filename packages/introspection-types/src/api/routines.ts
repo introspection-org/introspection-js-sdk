@@ -41,9 +41,10 @@ export type RoutineExecutionStatus =
   | (string & Record<never, never>);
 
 /**
- * Why a scheduled trigger ran nothing (`introspection.routines.skipped`).
- * Open-ended. `target_busy` means the target task stayed mid-turn through
- * every retry.
+ * Why a scheduled slot or an event delivery ran nothing
+ * (`introspection.routines.skipped`). Open-ended. `target_busy` means the
+ * target task stayed mid-turn through every retry; `trigger_busy` that an
+ * event trigger's previous run was still going.
  */
 export type RoutineSkipReason =
   | "routine_deleted"
@@ -56,7 +57,126 @@ export type RoutineSkipReason =
   | "target_task_unavailable"
   | "target_task_refused"
   | "target_busy"
+  | "trigger_busy"
   | (string & Record<never, never>);
+
+/**
+ * What started a routine run, stamped on its task as
+ * `metadata.trigger_source`: its schedule, a manual `trigger(id)`, or an
+ * event trigger. Open-ended.
+ */
+export type RoutineRunSource =
+  "scheduled" | "manual" | "trigger" | (string & Record<never, never>);
+
+/**
+ * What an event trigger listens to: an organization integration (Slack,
+ * GitHub), or a project connector named by `connector_slug` (a `webhook`
+ * connector). Open-ended.
+ */
+export type RoutineTriggerSource =
+  "integration" | "connector" | (string & Record<never, never>);
+
+/**
+ * The provider of a trigger's events. `slack` and `github` are integration
+ * sources, `webhook` a connector source; the server refuses `linear` until its
+ * events are forwarded. Open-ended.
+ */
+export type RoutineTriggerProvider =
+  "slack" | "linear" | "github" | "webhook" | (string & Record<never, never>);
+
+/**
+ * A trigger's filter: every key set must contain the event's value for it,
+ * and a key set names at least one value. Which keys a provider takes:
+ *
+ * - `slack` — `channel_ids` (required for `slack.message.posted`), `emoji`.
+ * - `linear` — `team_ids`, `to_states`.
+ * - `github` — `repository_ids`, `branches`.
+ * - `webhook` — `payload_fields`: a top-level key of the JSON body and the
+ *   values its scalar may hold (a string as given, any other scalar as JSON,
+ *   such as `"true"` or `"3"`).
+ */
+export interface RoutineTriggerFilter {
+  channel_ids?: string[] | null;
+  emoji?: string[] | null;
+  team_ids?: string[] | null;
+  to_states?: string[] | null;
+  repository_ids?: string[] | null;
+  branches?: string[] | null;
+  /** At most 20 keys. */
+  payload_fields?: Record<string, string[]> | null;
+}
+
+/**
+ * One trigger in a routine's `triggers` on create or update.
+ *
+ * `event_types` (1–50) are `{provider}.{object}.{action}` names from the
+ * catalogue, such as `github.pull_request.opened`; a `webhook` connector's are
+ * the JSON body's string `type` (else `webhook.received`), or `*` alone for
+ * every one. `parameters` maps a name (lowercase letters, digits and `_`,
+ * starting with a letter, up to 40; at most 20) to an RFC 6901 JSON pointer
+ * into the event's body: the run receives the values as `parameters.json`,
+ * and each `@parameters.<name>` in the prompt becomes that value as JSON
+ * (`null` when it resolves to nothing).
+ */
+export interface RoutineTriggerSpec {
+  /** On update: an existing trigger of this routine to keep. Never on create. */
+  id?: Uuid;
+  /** Server default `integration`. */
+  source?: RoutineTriggerSource;
+  provider: RoutineTriggerProvider;
+  /** The project connector's slug; set for a `connector` source, and only then. */
+  connector_slug?: string;
+  event_types: string[];
+  filter?: RoutineTriggerFilter;
+  /** `{name: json_pointer}`, such as `{ customer_id: "/data/customer" }`. */
+  parameters?: Record<string, string>;
+  /** Server default `true`. */
+  enabled?: boolean;
+}
+
+/** A stored trigger, as a {@link Routine}'s `triggers` returns it. */
+export interface RoutineTrigger {
+  id: Uuid;
+  org_id: Uuid;
+  project_id: Uuid;
+  routine_id: Uuid;
+  source: RoutineTriggerSource;
+  provider: RoutineTriggerProvider;
+  connector_slug?: string | null;
+  event_types: string[];
+  filter: RoutineTriggerFilter;
+  parameters: Record<string, string>;
+  enabled: boolean;
+  created_at: IsoDate;
+  updated_at: IsoDate;
+}
+
+/**
+ * The event trigger a run or a skip answered, on the routine events and, for
+ * a `trigger`-sourced run, its task's `metadata.routine_trigger`.
+ */
+export interface RoutineTriggerEventRef {
+  trigger_id: Uuid;
+  /** The delivered event's type, such as `github.pull_request.opened`. */
+  event_type: string;
+  /** The provider event's identity within its source; a redelivery repeats it. */
+  delivery_id: string;
+}
+
+/**
+ * The platform keys a routine run stamps on its task's `metadata` (cast
+ * `task.metadata` to read them). Clients cannot set them.
+ */
+export interface RoutineTaskMetadata {
+  trigger_source?: RoutineRunSource;
+  /** Set on a `trigger`-sourced run. */
+  routine_trigger?: RoutineTriggerEventRef;
+  /**
+   * Each `@parameters.<name>` the prompt referenced that had no value and so
+   * received `null`.
+   */
+  unresolved_parameters?: string[];
+}
 
 /** One condition stored in a routine's metadata. */
 export interface RoutineCondition {
@@ -111,6 +231,8 @@ export interface Routine {
   execution_blocked_reason?: string | null;
   /** Whether the caller may edit it. */
   can_manage: boolean;
+  /** The events that start a run, beside the schedule and `trigger(id)`. */
+  triggers: RoutineTrigger[];
   /**
    * `operator` for one that runs as a task (a prompt routine or
    * `project_check_in`), null otherwise.
@@ -143,6 +265,11 @@ export interface RoutineCreateParams {
   metadata?: RoutineMetadata;
   /** Server default `true`. */
   enabled?: boolean;
+  /**
+   * At most 20, none with an `id`. Only a prompt routine that starts a task
+   * per run takes triggers (no `kind`, no `task_id`).
+   */
+  triggers?: RoutineTriggerSpec[];
 }
 
 /**
@@ -164,6 +291,12 @@ export interface RoutineUpdateParams {
   metadata?: RoutineMetadata;
   /** `false` pauses and keeps the slot. */
   enabled?: boolean;
+  /**
+   * Replaces the routine's triggers: an entry with an `id` keeps that
+   * trigger with the fields given, one without is new, and every trigger
+   * not listed is removed. `[]` removes them all.
+   */
+  triggers?: RoutineTriggerSpec[];
 }
 
 /** Query params for `GET /v1/routines` (`limit` 1–1000, server default 100). */
@@ -180,6 +313,22 @@ export interface RoutineListParams extends CursorParams {
 }
 
 /**
+ * Body of `POST /v1/routines/{id}/trigger`. `parameters` is a JSON object of
+ * at most 16 KiB serialized and 8 levels deep (422 past either).
+ *
+ * A prompt routine that starts a task gets it as `parameters.json` in the
+ * task's files, and each `@parameters.<name>` in its prompt becomes that
+ * top-level value as JSON (`null`, and listed under the task's
+ * `metadata.unresolved_parameters`, when absent). A platform routine reads
+ * its kind's own keys and refuses any other (422): `observation_synthesis`
+ * takes `conversation_ids` (1–100 conversation ids to synthesize now);
+ * `observation_clustering` takes none.
+ */
+export interface RoutineTriggerParams {
+  parameters?: Record<string, unknown> | null;
+}
+
+/**
  * Response of `POST /v1/routines/{id}/trigger`. A `skipped` status carries
  * its `reason` and records no event.
  */
@@ -188,19 +337,32 @@ export interface RoutineTriggerResponse {
   routine_id: Uuid;
   /** The task created, or posted into. */
   task_id?: Uuid | null;
-  reason?: string | null;
   /**
-   * `observation_clustering` only: the run its
+   * The run this trigger started, when it has one, such as the run an
+   * `observation_clustering` routine's
    * `introspection.observation_clustering.run` events carry.
    */
   run_id?: Uuid | null;
+  reason?: string | null;
+  /** What the run reports, by kind; see {@link RoutineTriggerResult}. */
+  result?: RoutineTriggerResult | null;
+}
+
+/**
+ * A manual trigger's kind-specific report. Open: a kind this SDK predates
+ * reports its own keys.
+ *
+ * @openSchema
+ */
+export interface RoutineTriggerResult {
   /**
-   * `observation_synthesis` only: conversations sent to the synthesis queue;
-   * each later gets an `introspection.observation_synthesis.completed` event.
+   * `observation_synthesis`: conversations sent to the synthesis queue; each
+   * later gets an `introspection.observation_synthesis.completed` event.
    */
-  enqueued?: number | null;
-  /** `observation_synthesis` with named conversations only: what was queued. */
-  conversations?: EnqueuedConversation[] | null;
+  enqueued?: number;
+  /** `observation_synthesis` with named `conversation_ids`: what was queued. */
+  conversations?: EnqueuedConversation[];
+  [key: string]: unknown;
 }
 
 /** A conversation a synthesis trigger queued, and the end it queued it at. */

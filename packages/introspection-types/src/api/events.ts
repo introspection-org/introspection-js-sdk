@@ -1,4 +1,8 @@
-import type { RoutineSkipReason, RoutineTriggerType } from "./routines.js";
+import type {
+  RoutineSkipReason,
+  RoutineTriggerEventRef,
+  RoutineTriggerType,
+} from "./routines.js";
 import type {
   CursorParams,
   IsoDate,
@@ -304,7 +308,7 @@ export interface RoutineTriggeredPayload {
   routine_name: string;
   prompt?: string | null;
   trigger_type: RoutineTriggerType;
-  /** The `next_trigger_at` a scheduled trigger claimed; null for a hand trigger. */
+  /** The `next_trigger_at` a scheduled trigger claimed; null for a hand or event trigger. */
   slot?: IsoDate | null;
   /** The task created, or posted into when `posted` is true. */
   task_id: Uuid;
@@ -314,10 +318,12 @@ export interface RoutineTriggeredPayload {
   runtime_group_id?: Uuid | null;
   /** The person who triggered it by hand. */
   triggered_by_member_id?: Uuid | null;
+  /** The event trigger it answered; null for a scheduled or hand trigger. */
+  event?: RoutineTriggerEventRef | null;
 }
 
 /**
- * One scheduled routine trigger that ran nothing
+ * One scheduled slot or event delivery that ran nothing
  * (`introspection.routines.skipped`). Project-owned, so it carries no
  * member. A hand trigger answers its skip to the caller instead.
  */
@@ -328,6 +334,8 @@ export interface RoutineSkippedPayload {
   /** Set only when the routine targets an existing task. */
   task_id?: Uuid | null;
   reason: RoutineSkipReason;
+  /** The event trigger whose delivery it skipped; null for a scheduled slot. */
+  event?: RoutineTriggerEventRef | null;
 }
 
 // --- whole-event members: envelope + typed payload, literal discriminator ---

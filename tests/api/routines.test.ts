@@ -7,6 +7,8 @@ import {
 import type {
   Routine,
   RoutineMetadata,
+  RoutineTaskMetadata,
+  RoutineTriggerSpec,
 } from "@introspection-sdk/introspection-node";
 
 function mockHttp(overrides: Record<string, unknown> = {}) {
@@ -24,6 +26,16 @@ function calls(http: HttpClient) {
 const ROUTINE_ID = "0199a1b2-0000-7000-8000-000000000001";
 const TASK_ID = "0199a1b2-0000-7000-8000-0000000000ee";
 const RUNTIME_GROUP_ID = "0199a1b2-0000-7000-8000-0000000000dd";
+const TRIGGER_ID = "0199a1b2-0000-7000-8000-0000000000ff";
+
+const WEBHOOK_TRIGGER: RoutineTriggerSpec = {
+  source: "connector",
+  provider: "webhook",
+  connector_slug: "ci-alerts",
+  event_types: ["build.failed"],
+  filter: { payload_fields: { branch: ["main"] } },
+  parameters: { build_url: "/build/url" },
+};
 
 const ROUTINE_FIXTURE: Routine & { agent_member_id: null } = {
   id: ROUTINE_ID,
@@ -58,6 +70,31 @@ const ROUTINE_FIXTURE: Routine & { agent_member_id: null } = {
   created_at: "2026-09-01T10:00:00Z",
   updated_at: "2026-09-28T09:00:01Z",
   owner_role: "operator",
+  triggers: [
+    {
+      id: TRIGGER_ID,
+      org_id: "0199a1b2-0000-7000-8000-0000000000aa",
+      project_id: "0199a1b2-0000-7000-8000-0000000000bb",
+      routine_id: ROUTINE_ID,
+      source: "connector",
+      provider: "webhook",
+      connector_slug: "ci-alerts",
+      event_types: ["build.failed"],
+      filter: {
+        channel_ids: null,
+        emoji: null,
+        team_ids: null,
+        to_states: null,
+        repository_ids: null,
+        branches: null,
+        payload_fields: { branch: ["main"] },
+      },
+      parameters: { build_url: "/build/url" },
+      enabled: true,
+      created_at: "2026-09-01T10:00:00Z",
+      updated_at: "2026-09-01T10:00:00Z",
+    },
+  ],
 };
 
 function page(records: unknown[], next: string | null = null) {
@@ -226,6 +263,50 @@ describe("RoutinesApi", () => {
     expect(calls(http)[0].body).toMatchObject({ kind: "project_check_in" });
   });
 
+  it("create() sends event triggers", async () => {
+    const http = mockHttp({ requestResult: ROUTINE_FIXTURE });
+    const created = await new RoutinesApi(http).create({
+      name: "Triage failed builds",
+      trigger_type: "manual",
+      prompt: "Triage the failed build at @parameters.build_url.",
+      runtime_group_id: RUNTIME_GROUP_ID,
+      triggers: [
+        WEBHOOK_TRIGGER,
+        {
+          provider: "github",
+          event_types: ["github.pull_request.opened"],
+          filter: { branches: ["main"] },
+        },
+      ],
+    });
+
+    expect(calls(http)[0].body.triggers).toEqual([
+      WEBHOOK_TRIGGER,
+      {
+        provider: "github",
+        event_types: ["github.pull_request.opened"],
+        filter: { branches: ["main"] },
+      },
+    ]);
+    const [trigger] = created.triggers;
+    expect(trigger.id).toBe(TRIGGER_ID);
+    expect(trigger.filter.payload_fields).toEqual({ branch: ["main"] });
+    expect(trigger.parameters).toEqual({ build_url: "/build/url" });
+  });
+
+  it("update() replaces the trigger list, keeping listed ids", async () => {
+    const http = mockHttp({ requestResult: ROUTINE_FIXTURE });
+    await new RoutinesApi(http).update(ROUTINE_ID, {
+      triggers: [{ ...WEBHOOK_TRIGGER, id: TRIGGER_ID, enabled: false }],
+    });
+    await new RoutinesApi(http).update(ROUTINE_ID, { triggers: [] });
+
+    expect(calls(http).map((call) => call.body)).toEqual([
+      { triggers: [{ ...WEBHOOK_TRIGGER, id: TRIGGER_ID, enabled: false }] },
+      { triggers: [] },
+    ]);
+  });
+
   it("get() reads one routine", async () => {
     const http = mockHttp({ requestResult: ROUTINE_FIXTURE });
     const routine = await new RoutinesApi(http).get(ROUTINE_ID);
@@ -305,6 +386,49 @@ describe("RoutinesApi", () => {
     });
     expect(result.status).toBe("triggered");
     expect(result.task_id).toBe(TASK_ID);
+  });
+
+  it("trigger() sends parameters and reads the kind's result", async () => {
+    const http = mockHttp({
+      requestResult: {
+        status: "triggered",
+        routine_id: ROUTINE_ID,
+        task_id: null,
+        run_id: null,
+        reason: null,
+        result: {
+          enqueued: 1,
+          conversations: [
+            { conversation_id: "conv-1", completed_at: "2026-10-05T09:00:00Z" },
+          ],
+        },
+      },
+    });
+    const result = await new RoutinesApi(http).trigger(ROUTINE_ID, {
+      parameters: { conversation_ids: ["conv-1"] },
+    });
+
+    expect(http.request).toHaveBeenCalledWith({
+      method: "POST",
+      path: `/v1/routines/${ROUTINE_ID}/trigger`,
+      schema: "RoutineTriggerResponse",
+      body: { parameters: { conversation_ids: ["conv-1"] } },
+    });
+    expect(result.result?.enqueued).toBe(1);
+    expect(result.result?.conversations?.[0].conversation_id).toBe("conv-1");
+  });
+
+  it("RoutineTaskMetadata types the keys a routine run stamps", () => {
+    const metadata: RoutineTaskMetadata = {
+      trigger_source: "trigger",
+      routine_trigger: {
+        trigger_id: TRIGGER_ID,
+        event_type: "build.failed",
+        delivery_id: "webhook:msg_1",
+      },
+      unresolved_parameters: ["build_url"],
+    };
+    expect(metadata.routine_trigger?.event_type).toBe("build.failed");
   });
 
   it("trigger() surfaces a skip with its reason", async () => {
@@ -405,6 +529,33 @@ describe("client.routines", () => {
     expect(requests[0].body).toEqual({ prompt: "New prompt" });
     expect(requests[1].method).toBe("DELETE");
     expect(requests[1].url.pathname).toBe(`/v1/routines/${ROUTINE_ID}`);
+    await sdk.shutdown();
+  });
+
+  it("sends a manual trigger's parameters as JSON, and no body without them", async () => {
+    const triggered = {
+      status: "triggered",
+      routine_id: ROUTINE_ID,
+      task_id: TASK_ID,
+      run_id: null,
+      reason: null,
+      result: null,
+    };
+    const { sdk, requests } = client([triggered, triggered]);
+
+    await sdk.routines.trigger(ROUTINE_ID, {
+      parameters: { customer: { id: "cus_1", plan: "team" } },
+    });
+    await sdk.routines.trigger(ROUTINE_ID);
+
+    expect(requests.map((r) => [r.method, r.url.pathname])).toEqual([
+      ["POST", `/v1/routines/${ROUTINE_ID}/trigger`],
+      ["POST", `/v1/routines/${ROUTINE_ID}/trigger`],
+    ]);
+    expect(requests[0].body).toEqual({
+      parameters: { customer: { id: "cus_1", plan: "team" } },
+    });
+    expect(requests[1].body).toBeUndefined();
     await sdk.shutdown();
   });
 });

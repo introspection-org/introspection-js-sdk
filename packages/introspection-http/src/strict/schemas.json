@@ -376,6 +376,7 @@
           "type": "array",
           "items": { "$ref": "#/$defs/PolicyEntity" }
         },
+        "previous_signing_secret_expires_at": {},
         "project_id": {},
         "provider": {},
         "requires_runtime": {},
@@ -384,6 +385,11 @@
         "status": {},
         "token_endpoint": {},
         "updated_at": {},
+        "webhook_auth": {
+          "type": "object",
+          "properties": { "length": {} },
+          "additionalProperties": false
+        },
         "webhook_url": {}
       },
       "additionalProperties": false
@@ -423,6 +429,47 @@
         "scopes_supported": { "type": "array" },
         "token_endpoint": {},
         "token_endpoint_auth_methods_supported": { "type": "array" }
+      },
+      "additionalProperties": false
+    },
+    "ConnectorSecretResponse": {
+      "type": "object",
+      "properties": {
+        "agent_member_id": {},
+        "api_hosts": { "type": "array" },
+        "application_id": {},
+        "assertion_audience": {},
+        "auth_mode": {},
+        "authorization_endpoint": {},
+        "client_id": {},
+        "created_at": {},
+        "created_by_member_id": {},
+        "environment": {},
+        "id": {},
+        "metadata": {},
+        "name": {},
+        "org_id": {},
+        "person_server_url": {},
+        "policy_entities": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/PolicyEntity" }
+        },
+        "previous_signing_secret_expires_at": {},
+        "project_id": {},
+        "provider": {},
+        "requires_runtime": {},
+        "scopes": { "type": "array" },
+        "signing_secret": {},
+        "slug": {},
+        "status": {},
+        "token_endpoint": {},
+        "updated_at": {},
+        "webhook_auth": {
+          "type": "object",
+          "properties": { "length": {} },
+          "additionalProperties": false
+        },
+        "webhook_url": {}
       },
       "additionalProperties": false
     },
@@ -2429,6 +2476,10 @@
           "properties": { "length": {} },
           "additionalProperties": false
         },
+        "triggers": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/RoutineTrigger" }
+        },
         "updated_at": {}
       },
       "additionalProperties": false
@@ -2483,6 +2534,7 @@
     "RoutineSkippedPayload": {
       "type": "object",
       "properties": {
+        "event": { "$ref": "#/$defs/RoutineTriggerEventRef" },
         "reason": {
           "type": "object",
           "properties": { "length": {} },
@@ -2499,15 +2551,59 @@
       },
       "additionalProperties": false
     },
+    "RoutineTrigger": {
+      "type": "object",
+      "properties": {
+        "connector_slug": {},
+        "created_at": {},
+        "enabled": {},
+        "event_types": { "type": "array" },
+        "filter": { "$ref": "#/$defs/RoutineTriggerFilter" },
+        "id": {},
+        "org_id": {},
+        "parameters": {},
+        "project_id": {},
+        "provider": {
+          "type": "object",
+          "properties": { "length": {} },
+          "additionalProperties": false
+        },
+        "routine_id": {},
+        "source": {
+          "type": "object",
+          "properties": { "length": {} },
+          "additionalProperties": false
+        },
+        "updated_at": {}
+      },
+      "additionalProperties": false
+    },
+    "RoutineTriggerEventRef": {
+      "type": "object",
+      "properties": { "delivery_id": {}, "event_type": {}, "trigger_id": {} },
+      "additionalProperties": false
+    },
+    "RoutineTriggerFilter": {
+      "type": "object",
+      "properties": {
+        "branches": { "type": "array" },
+        "channel_ids": { "type": "array" },
+        "emoji": { "type": "array" },
+        "payload_fields": {
+          "type": "object",
+          "additionalProperties": { "type": "array" }
+        },
+        "repository_ids": { "type": "array" },
+        "team_ids": { "type": "array" },
+        "to_states": { "type": "array" }
+      },
+      "additionalProperties": false
+    },
     "RoutineTriggerResponse": {
       "type": "object",
       "properties": {
-        "conversations": {
-          "type": "array",
-          "items": { "$ref": "#/$defs/EnqueuedConversation" }
-        },
-        "enqueued": {},
         "reason": {},
+        "result": { "$ref": "#/$defs/RoutineTriggerResult" },
         "routine_id": {},
         "run_id": {},
         "status": {
@@ -2518,6 +2614,17 @@
         "task_id": {}
       },
       "additionalProperties": false
+    },
+    "RoutineTriggerResult": {
+      "type": "object",
+      "properties": {
+        "conversations": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/EnqueuedConversation" }
+        },
+        "enqueued": {}
+      },
+      "additionalProperties": true
     },
     "RoutineTriggeredEvent": {
       "type": "object",
@@ -2541,6 +2648,7 @@
     "RoutineTriggeredPayload": {
       "type": "object",
       "properties": {
+        "event": { "$ref": "#/$defs/RoutineTriggerEventRef" },
         "member_id": {},
         "posted": {},
         "prompt": {},
@@ -3078,6 +3186,7 @@
     "ConnectorOAuthDiscoveryResponse": {
       "$ref": "#/$defs/ConnectorOAuthDiscoveryResponse"
     },
+    "ConnectorSecretResponse": { "$ref": "#/$defs/ConnectorSecretResponse" },
     "Conversation": { "$ref": "#/$defs/Conversation" },
     "Credential": { "$ref": "#/$defs/Credential" },
     "DataPlaneToken": { "$ref": "#/$defs/DataPlaneToken" },

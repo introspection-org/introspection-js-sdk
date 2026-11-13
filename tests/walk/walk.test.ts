@@ -2349,17 +2349,15 @@ walk("SDK end-to-end walk", () => {
             "tags": [],
             "task_id": "[uuid]",
             "trigger_type": "manual",
+            "triggers": [],
             "updated_at": "[timestamp]",
           }
         `);
         // A manual routine answers none of the platform kinds' fields.
-        const { run_id, enqueued, conversations, ...triggered } =
-          await sa.routines.trigger(routine.id);
-        expect([
-          run_id ?? null,
-          enqueued ?? null,
-          conversations ?? null,
-        ]).toEqual([null, null, null]);
+        const { run_id, result, ...triggered } = await sa.routines.trigger(
+          routine.id,
+        );
+        expect([run_id ?? null, result ?? null]).toEqual([null, null]);
         expect(stable(triggered)).toMatchInlineSnapshot(`
           {
             "reason": null,

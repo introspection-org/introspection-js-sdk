@@ -178,15 +178,87 @@ for await (const routine of client.routines.list({ task_id: taskId })) {
 const { status, task_id } = await client.routines.trigger(reminder.id);
 ```
 
+`trigger(id, { parameters })` passes a JSON object (at most 16 KiB and 8
+levels deep) to the run. A prompt routine that starts a task gets it as
+`parameters.json` in the task's files, and each `@parameters.<name>` in its
+prompt becomes that top-level value as JSON; a name with no value becomes
+`null` and is listed under the task's `metadata.unresolved_parameters`. A
+platform routine reads its kind's own keys (`observation_synthesis` takes
+`conversation_ids`) and answers in `result`:
+
+```typescript
+const digest = await client.routines.create({
+  name: "Customer digest",
+  trigger_type: "manual",
+  prompt: "Summarize the account of @parameters.customer.",
+  runtime_group_id: runtimeGroupId,
+});
+await client.routines.trigger(digest.id, {
+  parameters: { customer: { id: "cus_123", plan: "team" } },
+});
+
+const { result } = await client.routines.trigger(synthesisRoutineId, {
+  parameters: { conversation_ids: [conversationId] },
+});
+console.log(result?.enqueued, result?.conversations);
+```
+
+A routine's `triggers` start runs on events, beside its schedule and
+`trigger(id)`: an integration's (`source: "integration"`, Slack or GitHub
+events such as `github.pull_request.opened`) or a project connector's
+(`source: "connector"`). A `webhook` connector is one your own systems call:
+create it on the Control Plane, store the `signing_secret` its create returns
+once (rotate it with `update(id, { rotate_signing_secret: true })`), and have
+the caller sign each `POST /v1/webhooks/connectors/{id}` with it per Standard
+Webhooks (or send it as a bearer token with `webhook_auth: "bearer"`). A
+trigger's `parameters` map names to JSON pointers into the delivered body;
+the run gets their values as `parameters.json` and `@parameters.<name>`, and
+the raw event as `trigger/event.json` and `trigger/payload`, all as untrusted
+data:
+
+```typescript
+const webhook = await client.connectors.create({
+  name: "CI alerts",
+  slug: "ci-alerts",
+  provider: "webhook",
+  auth_mode: "static",
+});
+saveSecret(webhook.signing_secret); // your app's code: shown only once
+
+await client.routines.create({
+  name: "Triage failed builds",
+  trigger_type: "manual",
+  prompt: "Triage the failed build at @parameters.build_url.",
+  runtime_group_id: runtimeGroupId,
+  triggers: [
+    {
+      source: "connector",
+      provider: "webhook",
+      connector_slug: "ci-alerts",
+      // The JSON body's string `type`; `["*"]` matches every one.
+      event_types: ["build.failed"],
+      filter: { payload_fields: { branch: ["main"] } },
+      parameters: { build_url: "/build/url" },
+    },
+  ],
+});
+```
+
+`update(id, { triggers })` replaces the list: an entry with an `id` keeps that
+trigger, the rest are new, and a trigger left out is removed. A task a trigger
+started carries `metadata.trigger_source: "trigger"` and the event in
+`metadata.routine_trigger` (see `RoutineTaskMetadata`).
+
 A firing clears a manual routine's slot; re-arm it with
 `update(id, { next_trigger_at })`. A `cron` routine derives its own slot and
 rejects one set by the client.
 
 Each task-run trigger is recorded as an `introspection.routines.triggered`
-event, and a scheduled slot that ran nothing as
+event, and a scheduled slot or event delivery that ran nothing as
 `introspection.routines.skipped` (with a `reason` such as
-`conditions_not_met` or `target_busy`; readable only with project-wide
-telemetry access). Read them with `client.events.list`, filtered by
+`conditions_not_met`, `target_busy` or `trigger_busy`; readable only with
+project-wide telemetry access). An event trigger's run or skip carries the
+`event` it answered: `trigger_id`, `event_type` and `delivery_id`. Read them with `client.events.list`, filtered by
 `routine_id` or `task_id`:
 
 ```typescript

@@ -580,6 +580,74 @@ describe("EventsApi.list — routine families", () => {
     expect(isKnownEvent(busy)).toBe(true);
     expect(narrowEvent(busy)).toBe("target_busy");
   });
+
+  it("carries the event trigger a run or a skip answered", async () => {
+    const event = {
+      trigger_id: "0199a1b2-0000-7000-8000-0000000000ff",
+      event_type: "build.failed",
+      delivery_id: "webhook:msg_1",
+    };
+    const ranHttp = mockHttp({
+      requestResult: {
+        records: [
+          {
+            ...ENVELOPE,
+            id: "ev-at-2",
+            event_name: "introspection.routines.triggered",
+            payload: {
+              routine_id: ROUTINE_ID,
+              routine_name: "Triage failed builds",
+              trigger_type: "manual",
+              slot: null,
+              task_id: TASK_ID,
+              posted: false,
+              member_id: "member-1",
+              event,
+            },
+          },
+        ],
+        count: 1,
+        next: null,
+      },
+    });
+    const skippedHttp = mockHttp({
+      requestResult: {
+        records: [
+          {
+            ...ENVELOPE,
+            id: "ev-as-3",
+            event_name: "introspection.routines.skipped",
+            payload: {
+              routine_id: ROUTINE_ID,
+              trigger_type: "manual",
+              slot: null,
+              reason: "trigger_busy",
+              event,
+            },
+          },
+        ],
+        count: 1,
+        next: null,
+      },
+    });
+
+    const [ran] = (
+      await new EventsApi(ranHttp).list({
+        event_name: IntrospectionEventNames.ROUTINE_TRIGGERED,
+        routine_id: ROUTINE_ID,
+      })
+    ).records;
+    const [skipped] = (
+      await new EventsApi(skippedHttp).list({
+        event_name: IntrospectionEventNames.ROUTINE_SKIPPED,
+        routine_id: ROUTINE_ID,
+      })
+    ).records;
+
+    expect(ran.payload.event).toEqual(event);
+    expect(skipped.payload.event?.delivery_id).toBe("webhook:msg_1");
+    expect(narrowEvent(skipped)).toBe("trigger_busy");
+  });
 });
 
 describe("EventsApi.list — Arrow with a struct payload column", () => {

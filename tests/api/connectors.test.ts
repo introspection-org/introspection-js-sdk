@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import type {
   Connector,
   ConnectorCreateParams,
+  ConnectorSecretResponse,
   PolicyEntity,
 } from "@introspection-sdk/introspection-node";
 import {
@@ -112,7 +113,7 @@ describe("ConnectorsApi", () => {
         client_id: "client-abc",
         client_secret: "secret-xyz",
       },
-      schema: "Connector",
+      schema: "ConnectorSecretResponse",
     });
   });
 
@@ -141,7 +142,7 @@ describe("ConnectorsApi", () => {
       method: "POST",
       path: "/v1/connectors",
       body: params,
-      schema: "Connector",
+      schema: "ConnectorSecretResponse",
     });
     expect(connector.auth_mode).toBe("aauth");
     expect(connector).not.toHaveProperty("approval_policy");
@@ -176,7 +177,7 @@ describe("ConnectorsApi", () => {
       method: "PATCH",
       path: `/v1/connectors/${CONNECTOR_ID}`,
       body: { policy_entities },
-      schema: "Connector",
+      schema: "ConnectorSecretResponse",
     });
   });
 
@@ -201,8 +202,76 @@ describe("ConnectorsApi", () => {
       method: "PATCH",
       path: `/v1/connectors/${CONNECTOR_ID}`,
       body: { name: "Slack (renamed)" },
-      schema: "Connector",
+      schema: "ConnectorSecretResponse",
     });
+  });
+
+  it("create() makes a webhook connector and returns its secret once", async () => {
+    const webhook: ConnectorSecretResponse = {
+      ...CONNECTOR_FIXTURE,
+      slug: "ci-alerts",
+      name: "CI alerts",
+      provider: "webhook",
+      auth_mode: "static",
+      scopes: [],
+      api_hosts: [],
+      requires_runtime: false,
+      webhook_auth: "standard_webhooks",
+      previous_signing_secret_expires_at: null,
+      signing_secret: "whsec_c2VjcmV0",
+    };
+    const http = mockHttp({ requestResult: webhook });
+
+    const created = await new ConnectorsApi(http).create({
+      name: "CI alerts",
+      slug: "ci-alerts",
+      provider: "webhook",
+      auth_mode: "static",
+      webhook_auth: "standard_webhooks",
+    });
+
+    expect(http.request).toHaveBeenCalledWith({
+      method: "POST",
+      path: "/v1/connectors",
+      body: {
+        name: "CI alerts",
+        slug: "ci-alerts",
+        provider: "webhook",
+        auth_mode: "static",
+        webhook_auth: "standard_webhooks",
+      },
+      schema: "ConnectorSecretResponse",
+    });
+    expect(created.signing_secret).toBe("whsec_c2VjcmV0");
+    expect(created.webhook_auth).toBe("standard_webhooks");
+  });
+
+  it("update() rotates a webhook connector's secret", async () => {
+    const http = mockHttp({
+      requestResult: {
+        ...CONNECTOR_FIXTURE,
+        provider: "webhook",
+        webhook_auth: "bearer",
+        previous_signing_secret_expires_at: "2026-08-09T00:00:00Z",
+        signing_secret: "whsec_bmV3",
+      },
+    });
+
+    const rotated = await new ConnectorsApi(http).update(CONNECTOR_ID, {
+      rotate_signing_secret: true,
+      webhook_auth: "bearer",
+    });
+
+    expect(http.request).toHaveBeenCalledWith({
+      method: "PATCH",
+      path: `/v1/connectors/${CONNECTOR_ID}`,
+      body: { rotate_signing_secret: true, webhook_auth: "bearer" },
+      schema: "ConnectorSecretResponse",
+    });
+    expect(rotated.signing_secret).toBe("whsec_bmV3");
+    expect(rotated.previous_signing_secret_expires_at).toBe(
+      "2026-08-09T00:00:00Z",
+    );
   });
 
   it("delete() expects an empty body", async () => {
