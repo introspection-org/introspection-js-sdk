@@ -372,7 +372,13 @@
       "type": "object",
       "properties": {
         "automation_id": {},
+        "conversations": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/EnqueuedConversation" }
+        },
+        "enqueued": {},
         "reason": {},
+        "run_id": {},
         "status": {
           "type": "object",
           "properties": { "length": {} },
@@ -781,6 +787,11 @@
         "mcp_server_id": {},
         "provider_app": {}
       },
+      "additionalProperties": false
+    },
+    "EnqueuedConversation": {
+      "type": "object",
+      "properties": { "completed_at": {}, "conversation_id": {} },
       "additionalProperties": false
     },
     "EntityUid": {

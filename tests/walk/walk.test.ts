@@ -2352,7 +2352,14 @@ walk("SDK end-to-end walk", () => {
             "updated_at": "[timestamp]",
           }
         `);
-        const triggered = await sa.automations.trigger(automation.id);
+        // A manual automation answers none of the platform kinds' fields.
+        const { run_id, enqueued, conversations, ...triggered } =
+          await sa.automations.trigger(automation.id);
+        expect([
+          run_id ?? null,
+          enqueued ?? null,
+          conversations ?? null,
+        ]).toEqual([null, null, null]);
         expect(stable(triggered)).toMatchInlineSnapshot(`
           {
             "automation_id": "[uuid]",
@@ -2790,7 +2797,16 @@ walk("SDK end-to-end walk", () => {
           apiKey.api_key,
           "the plaintext key is returned once",
         ).toBeTruthy();
-        expect(stable({ ...apiKey, api_key: undefined }))
+        // The default scope grows as the platform adds resources; hold only
+        // what this key is for.
+        expect(apiKey.scope.split(" ")).toEqual(
+          expect.arrayContaining([
+            "telemetry:write",
+            "runtimes:read",
+            "runtimes:write",
+          ]),
+        );
+        expect(stable({ ...apiKey, api_key: undefined, scope: undefined }))
           .toMatchInlineSnapshot(`
             {
               "acknowledged_at": null,
@@ -2812,7 +2828,7 @@ walk("SDK end-to-end walk", () => {
               "prefix": "[redacted]",
               "project_id": "[uuid]",
               "redacted_key": "[redacted]",
-              "scope": "telemetry:write projects:read repositories:read recipes:read recipes:write runtimes:read runtimes:write experiments:read experiments:write tasks:read tasks:write tasks:delete files:read files:write conversations:read events:read metrics:read shares:read shares:write shares:delete connectors:read connectors:write annotations:read approvals:read approvals:write",
+              "scope": undefined,
               "status": "active",
             }
           `);
