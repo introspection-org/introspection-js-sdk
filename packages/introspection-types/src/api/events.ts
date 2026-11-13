@@ -1,7 +1,4 @@
-import type {
-  AutomationSkipReason,
-  AutomationTriggerType,
-} from "./automations.js";
+import type { RoutineSkipReason, RoutineTriggerType } from "./routines.js";
 import type {
   CursorParams,
   IsoDate,
@@ -26,9 +23,9 @@ export const IntrospectionEventNames = {
   ISSUE: "introspection.issue",
   PATTERN: "introspection.pattern",
   PATTERN_ASSIGNMENT: "introspection.pattern.assignment",
-  AUTOMATION_TRIGGERED: "introspection.automation.triggered",
+  ROUTINE_TRIGGERED: "introspection.routines.triggered",
   /** Project-owned: readable only with project-wide telemetry access. */
-  AUTOMATION_SKIPPED: "introspection.automation.skipped",
+  ROUTINE_SKIPPED: "introspection.routines.skipped",
 } as const;
 
 /** Union of the canonical family names in {@link IntrospectionEventNames}. */
@@ -301,12 +298,12 @@ export type IssueActivityPayload =
   | IssueCommentedPayload
   | IssueDeletedPayload;
 
-/** One automation trigger that ran (`introspection.automation.triggered`). */
-export interface AutomationTriggeredPayload {
-  automation_id: Uuid;
-  automation_name: string;
+/** One routine trigger that ran (`introspection.routines.triggered`). */
+export interface RoutineTriggeredPayload {
+  routine_id: Uuid;
+  routine_name: string;
   prompt?: string | null;
-  trigger_type: AutomationTriggerType;
+  trigger_type: RoutineTriggerType;
   /** The `next_trigger_at` a scheduled trigger claimed; null for a hand trigger. */
   slot?: IsoDate | null;
   /** The task created, or posted into when `posted` is true. */
@@ -320,17 +317,17 @@ export interface AutomationTriggeredPayload {
 }
 
 /**
- * One scheduled automation trigger that ran nothing
- * (`introspection.automation.skipped`). Project-owned, so it carries no
+ * One scheduled routine trigger that ran nothing
+ * (`introspection.routines.skipped`). Project-owned, so it carries no
  * member. A hand trigger answers its skip to the caller instead.
  */
-export interface AutomationSkippedPayload {
-  automation_id: Uuid;
-  trigger_type: AutomationTriggerType;
+export interface RoutineSkippedPayload {
+  routine_id: Uuid;
+  trigger_type: RoutineTriggerType;
   slot?: IsoDate | null;
-  /** Set only when the automation targets an existing task. */
+  /** Set only when the routine targets an existing task. */
   task_id?: Uuid | null;
-  reason: AutomationSkipReason;
+  reason: RoutineSkipReason;
 }
 
 // --- whole-event members: envelope + typed payload, literal discriminator ---
@@ -371,9 +368,9 @@ export interface JudgementEvent extends IntrospectionEventEnvelope {
   payload: JudgementPayload;
 }
 
-export interface AutomationTriggeredEvent extends IntrospectionEventEnvelope {
-  event_name: typeof IntrospectionEventNames.AUTOMATION_TRIGGERED;
-  payload: AutomationTriggeredPayload;
+export interface RoutineTriggeredEvent extends IntrospectionEventEnvelope {
+  event_name: typeof IntrospectionEventNames.ROUTINE_TRIGGERED;
+  payload: RoutineTriggeredPayload;
 }
 
 export interface IssueActivityEvent extends IntrospectionEventEnvelope {
@@ -381,9 +378,9 @@ export interface IssueActivityEvent extends IntrospectionEventEnvelope {
   payload: IssueActivityPayload;
 }
 
-export interface AutomationSkippedEvent extends IntrospectionEventEnvelope {
-  event_name: typeof IntrospectionEventNames.AUTOMATION_SKIPPED;
-  payload: AutomationSkippedPayload;
+export interface RoutineSkippedEvent extends IntrospectionEventEnvelope {
+  event_name: typeof IntrospectionEventNames.ROUTINE_SKIPPED;
+  payload: RoutineSkippedPayload;
 }
 // jscpd:ignore-end
 
@@ -409,8 +406,8 @@ export type Event =
   | FeedbackEvent
   | JudgementEvent
   | IssueActivityEvent
-  | AutomationTriggeredEvent
-  | AutomationSkippedEvent;
+  | RoutineTriggeredEvent
+  | RoutineSkippedEvent;
 
 /**
  * Structurally-typed fallback for forward compatibility: a row whose
@@ -513,9 +510,9 @@ export interface EventListParams extends CursorParams, ReadWindowParams {
   runtime_group_unattributed?: boolean;
   /** pattern: status filter (`active` | `retired`). */
   status?: string;
-  /** automation triggered / skipped: filter by automation ID. */
-  automation_id?: Uuid;
-  /** automation triggered / skipped: filter by the task created or posted into. */
+  /** routine triggered / skipped: filter by routine ID. */
+  routine_id?: Uuid;
+  /** routine triggered / skipped: filter by the task created or posted into. */
   task_id?: Uuid;
   /** issue: the changes to, and comments on, one issue. */
   issue_id?: Uuid;

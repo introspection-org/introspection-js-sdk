@@ -41,7 +41,7 @@ export interface Task {
   kind: TaskKind;
   status: TaskStatus;
   member_id?: Uuid | null;
-  automation_id?: Uuid | null;
+  routine_id?: Uuid | null;
   runtime_id?: Uuid | null;
   runtime_group_id?: Uuid | null;
   is_archived: boolean;
@@ -209,7 +209,7 @@ export interface TaskUpdateParams {
 
 export interface TaskListParams extends ListParams {
   statuses?: TaskStatus[];
-  require_automation_id?: boolean;
+  require_routine_id?: boolean;
   /** Filter by one `key:value` tag. ANDed with the ownership predicate, so it only narrows. */
   tag?: string;
 }

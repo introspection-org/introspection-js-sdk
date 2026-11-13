@@ -50,10 +50,10 @@ function narrowEvent(ev: Event): string | null | undefined {
   if (ev.event_name === "introspection.pattern.assignment") {
     return ev.payload.pattern_id;
   }
-  if (ev.event_name === "introspection.automation.triggered") {
-    return ev.payload.automation_name;
+  if (ev.event_name === "introspection.routines.triggered") {
+    return ev.payload.routine_name;
   }
-  if (ev.event_name === "introspection.automation.skipped") {
+  if (ev.event_name === "introspection.routines.skipped") {
     return ev.payload.reason;
   }
   if (ev.event_name === "introspection.issue") {
@@ -473,22 +473,22 @@ function feedbackIpc(
   return bytesBody(arrow.tableToIPC(table, "stream"));
 }
 
-describe("EventsApi.list — automation families", () => {
-  const AUTOMATION_ID = "0199a1b2-0000-7000-8000-000000000001";
+describe("EventsApi.list — routine families", () => {
+  const ROUTINE_ID = "0199a1b2-0000-7000-8000-000000000001";
   const TASK_ID = "0199a1b2-0000-7000-8000-0000000000ee";
 
-  it("returns AutomationTriggeredEvent rows and sends automation_id / task_id", async () => {
+  it("returns RoutineTriggeredEvent rows and sends routine_id / task_id", async () => {
     const http = mockHttp({
       requestResult: {
         records: [
           {
             ...ENVELOPE,
             id: "ev-at-1",
-            event_name: "introspection.automation.triggered",
+            event_name: "introspection.routines.triggered",
             runtime_group_id: "rg-1",
             payload: {
-              automation_id: AUTOMATION_ID,
-              automation_name: "Weekly digest",
+              routine_id: ROUTINE_ID,
+              routine_name: "Weekly digest",
               prompt: "Summarize my week",
               trigger_type: "cron",
               slot: "2026-10-05T09:00:00Z",
@@ -505,8 +505,8 @@ describe("EventsApi.list — automation families", () => {
       },
     });
     const page = await new EventsApi(http).list({
-      event_name: IntrospectionEventNames.AUTOMATION_TRIGGERED,
-      automation_id: AUTOMATION_ID,
+      event_name: IntrospectionEventNames.ROUTINE_TRIGGERED,
+      routine_id: ROUTINE_ID,
       task_id: TASK_ID,
     });
     const ev = page.records[0];
@@ -515,14 +515,14 @@ describe("EventsApi.list — automation families", () => {
       method: "GET",
       path: "/v1/events",
       query: {
-        event_name: "introspection.automation.triggered",
-        automation_id: AUTOMATION_ID,
+        event_name: "introspection.routines.triggered",
+        routine_id: ROUTINE_ID,
         task_id: TASK_ID,
       },
       signal: undefined,
       schema: "Paginated<Event | UnknownEvent>",
     });
-    expect(ev.payload.automation_id).toBe(AUTOMATION_ID);
+    expect(ev.payload.routine_id).toBe(ROUTINE_ID);
     expect(ev.payload.trigger_type).toBe("cron");
     expect(ev.payload.slot).toBe("2026-10-05T09:00:00Z");
     expect(ev.payload.task_id).toBe(TASK_ID);
@@ -533,16 +533,16 @@ describe("EventsApi.list — automation families", () => {
     expect(narrowEvent(ev)).toBe("Weekly digest");
   });
 
-  it("returns AutomationSkippedEvent rows with known and unknown skip reasons", async () => {
+  it("returns RoutineSkippedEvent rows with known and unknown skip reasons", async () => {
     const http = mockHttp({
       requestResult: {
         records: [
           {
             ...ENVELOPE,
             id: "ev-as-1",
-            event_name: "introspection.automation.skipped",
+            event_name: "introspection.routines.skipped",
             payload: {
-              automation_id: AUTOMATION_ID,
+              routine_id: ROUTINE_ID,
               trigger_type: "manual",
               slot: "2026-10-10T09:00:00Z",
               task_id: TASK_ID,
@@ -552,9 +552,9 @@ describe("EventsApi.list — automation families", () => {
           {
             ...ENVELOPE,
             id: "ev-as-2",
-            event_name: "introspection.automation.skipped",
+            event_name: "introspection.routines.skipped",
             payload: {
-              automation_id: AUTOMATION_ID,
+              routine_id: ROUTINE_ID,
               trigger_type: "cron",
               slot: null,
               task_id: null,
@@ -567,12 +567,12 @@ describe("EventsApi.list — automation families", () => {
       },
     });
     const page = await new EventsApi(http).list({
-      event_name: IntrospectionEventNames.AUTOMATION_SKIPPED,
-      automation_id: AUTOMATION_ID,
+      event_name: IntrospectionEventNames.ROUTINE_SKIPPED,
+      routine_id: ROUTINE_ID,
     });
 
     const [busy, future] = page.records;
-    expect(busy.event_name).toBe("introspection.automation.skipped");
+    expect(busy.event_name).toBe("introspection.routines.skipped");
     expect(busy.payload.reason).toBe("target_busy");
     expect(busy.payload.task_id).toBe(TASK_ID);
     expect(future.payload.reason).toBe("a_reason_from_the_future");

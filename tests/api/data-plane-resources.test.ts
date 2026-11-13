@@ -2,7 +2,7 @@
  * The Data Plane surface `IntrospectionClient`, `Runner` and
  * `DataPlaneClient` share (`DataPlaneResources`): each namespace driven
  * through all three, plus the
- * connection and runner-automation specifics.
+ * connection and runner-routine specifics.
  *
  * A fake `fetch` stands in for the Data Plane, so no network boundary is
  * crossed (AGENTS.md §6 case 1).
@@ -32,7 +32,7 @@ const RUNNER_DP = "https://dp-runner.example.com";
 const MEMBER_DP = "https://dp-member.example.com";
 const RUNTIME_ID = "0199a1b2-0000-7000-8000-000000000011";
 const RUNTIME_GROUP_ID = "0199a1b2-0000-7000-8000-0000000000dd";
-const AUTOMATION_ID = "0199a1b2-0000-7000-8000-000000000001";
+const ROUTINE_ID = "0199a1b2-0000-7000-8000-000000000001";
 const TASK_ID = "0199a1b2-0000-7000-8000-0000000000ee";
 const CONNECTION_ID = "0199a1b2-0000-7000-8000-000000000004";
 const MEMBER_ID = "0199a1b2-0000-7000-8000-0000000000cc";
@@ -166,10 +166,10 @@ const NAMESPACES: NamespaceCall[] = [
     "/v1/aauth/missions/mission-1",
   ],
   [
-    "automations",
-    (dp) => dp.automations.get(AUTOMATION_ID),
+    "routines",
+    (dp) => dp.routines.get(ROUTINE_ID),
     "GET",
-    `/v1/automations/${AUTOMATION_ID}`,
+    `/v1/routines/${ROUTINE_ID}`,
   ],
   [
     "connections",
@@ -695,7 +695,7 @@ describe("runner-bound namespaces after close()", () => {
     const runner = openRunner(fetch);
     await runner.close();
 
-    await expect(runner.automations.get(AUTOMATION_ID)).rejects.toBeInstanceOf(
+    await expect(runner.routines.get(ROUTINE_ID)).rejects.toBeInstanceOf(
       RunnerExpiredError,
     );
     await expect(runner.connections.list()).rejects.toBeInstanceOf(
@@ -705,7 +705,7 @@ describe("runner-bound namespaces after close()", () => {
   });
 });
 
-describe("runner.automations", () => {
+describe("runner.routines", () => {
   it("lists, creates, triggers and deletes on the runner's token", async () => {
     const { sent, fetch } = fakeDataPlane((call) => {
       if (call.method === "GET") {
@@ -715,33 +715,29 @@ describe("runner.automations", () => {
       if (call.url.endsWith("/trigger")) {
         return json({ status: "accepted", task_id: "task-1" }, 202);
       }
-      return json({ id: AUTOMATION_ID });
+      return json({ id: ROUTINE_ID });
     });
     const runner = openRunner(fetch);
 
-    await runner.automations.list({ enabled: true });
-    await runner.automations.create({
+    await runner.routines.list({ enabled: true });
+    await runner.routines.create({
       name: "Friday check-in",
       trigger_type: "manual",
       prompt: "How did the week go?",
       runtime_group_id: RUNTIME_GROUP_ID,
     });
-    await runner.automations.trigger(AUTOMATION_ID);
-    await runner.automations.delete(AUTOMATION_ID);
+    await runner.routines.trigger(ROUTINE_ID);
+    await runner.routines.delete(ROUTINE_ID);
 
     expect(sent.map((s) => [s.method, s.url, s.auth])).toEqual([
-      ["GET", `${RUNNER_DP}/v1/automations?enabled=true`, "Bearer runner-jwt"],
-      ["POST", `${RUNNER_DP}/v1/automations`, "Bearer runner-jwt"],
+      ["GET", `${RUNNER_DP}/v1/routines?enabled=true`, "Bearer runner-jwt"],
+      ["POST", `${RUNNER_DP}/v1/routines`, "Bearer runner-jwt"],
       [
         "POST",
-        `${RUNNER_DP}/v1/automations/${AUTOMATION_ID}/trigger`,
+        `${RUNNER_DP}/v1/routines/${ROUTINE_ID}/trigger`,
         "Bearer runner-jwt",
       ],
-      [
-        "DELETE",
-        `${RUNNER_DP}/v1/automations/${AUTOMATION_ID}`,
-        "Bearer runner-jwt",
-      ],
+      ["DELETE", `${RUNNER_DP}/v1/routines/${ROUTINE_ID}`, "Bearer runner-jwt"],
     ]);
     expect(sent[1].body).toEqual({
       name: "Friday check-in",

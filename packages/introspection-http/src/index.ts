@@ -84,7 +84,7 @@ export {
 } from "./resources/aauth.js";
 export { CollectionClient } from "./resources/collection.js";
 export { ImagesApi, ImagesClient } from "./resources/images.js";
-export { AutomationsApi, AutomationsClient } from "./resources/automations.js";
+export { RoutinesApi, RoutinesClient } from "./resources/routines.js";
 export {
   IssueCommentsApi,
   IssueCommentsClient,

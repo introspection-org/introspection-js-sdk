@@ -124,7 +124,7 @@ export type { ExperimentHandleFactory } from "./resources/experiments.js";
 export { RecipesApi, attachRecipes } from "./resources/recipes.js";
 export { ConnectorsApi, attachConnectors } from "./resources/connectors.js";
 export { MembersApi, attachMembers } from "./resources/members.js";
-export { AutomationsApi, attachAutomations } from "./resources/automations.js";
+export { RoutinesApi, attachRoutines } from "./resources/routines.js";
 export { AppConnectionsApi } from "./resources/connections.js";
 export type { DataPlaneResources } from "./data-plane.js";
 export {
@@ -284,18 +284,18 @@ export type {
   BusinessMemberCreateParams,
   CustomerMemberCreateParams,
   MemberUpdateParams,
-  Automation,
-  AutomationKind,
-  AutomationTriggerType,
-  AutomationConditionType,
-  AutomationExecutionStatus,
-  AutomationSkipReason,
-  AutomationCondition,
-  AutomationMetadata,
-  AutomationCreateParams,
-  AutomationUpdateParams,
-  AutomationListParams,
-  AutomationTriggerResponse,
+  Routine,
+  RoutineKind,
+  RoutineTriggerType,
+  RoutineConditionType,
+  RoutineExecutionStatus,
+  RoutineSkipReason,
+  RoutineCondition,
+  RoutineMetadata,
+  RoutineCreateParams,
+  RoutineUpdateParams,
+  RoutineListParams,
+  RoutineTriggerResponse,
   EnqueuedConversation,
   Issue,
   IssueComment,
@@ -384,8 +384,8 @@ export type {
   ClusteringRunEvent,
   FeedbackEvent,
   JudgementEvent,
-  AutomationTriggeredPayload,
-  AutomationSkippedPayload,
+  RoutineTriggeredPayload,
+  RoutineSkippedPayload,
   IssueActivityPayload,
   IssueCreatedPayload,
   IssueUpdatedPayload,
@@ -393,8 +393,8 @@ export type {
   IssueCommentedPayload,
   IssueFieldChange,
   IssueActivityEvent,
-  AutomationTriggeredEvent,
-  AutomationSkippedEvent,
+  RoutineTriggeredEvent,
+  RoutineSkippedEvent,
   Event,
   UnknownEvent,
   EventForName,
