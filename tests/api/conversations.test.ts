@@ -1049,14 +1049,14 @@ describe("conversations exportIncremental", () => {
     return { api, seen, accepts };
   }
 
-  it("sends direction=asc and surfaces Introspection-Next beside the body", async () => {
+  it("sends direction=asc and surfaces X-Next-Cursor beside the body", async () => {
     const line = `${JSON.stringify(makeSpan("span-1"))}\n`;
     const { api, seen, accepts } = apiFor(
       () =>
         new Response(line, {
           headers: {
             "content-type": "application/x-ndjson",
-            "Introspection-Next": CURSOR,
+            "X-Next-Cursor": CURSOR,
           },
         }),
     );
@@ -1081,7 +1081,7 @@ describe("conversations exportIncremental", () => {
     const { api, seen } = apiFor(
       () =>
         new Response("", {
-          headers: { "Introspection-Next": NEWER },
+          headers: { "X-Next-Cursor": NEWER },
         }),
     );
 
@@ -1100,7 +1100,7 @@ describe("conversations exportIncremental", () => {
       () =>
         new Response(null, {
           status: 204,
-          headers: { "Introspection-Next": CURSOR },
+          headers: { "X-Next-Cursor": CURSOR },
         }),
     );
 
@@ -1122,7 +1122,7 @@ describe("conversations exportIncremental", () => {
   it("rejects a 204 with no cursor anywhere", async () => {
     const { api } = apiFor(() => new Response(null, { status: 204 }));
     await expect(api.exportIncremental("conv-1", "jsonl")).rejects.toThrow(
-      "204 without Introspection-Next",
+      "204 without X-Next-Cursor",
     );
   });
 
@@ -1139,7 +1139,7 @@ describe("conversations exportIncremental", () => {
     const http = mockHttp({
       streamResult: {
         status: 200,
-        headers: new Headers({ "Introspection-Next": CURSOR }),
+        headers: new Headers({ "X-Next-Cursor": CURSOR }),
         body: null,
       },
     });

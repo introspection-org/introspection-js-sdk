@@ -40,8 +40,11 @@ const EXPORT_ACCEPT: Record<ConversationExportFormat, string> = {
   trajectory: `${TRAJECTORY_MEDIA_TYPE};version=1`,
 };
 
-/** The response header naming the cursor an export resumes from. */
-const EXPORT_NEXT_HEADER = "Introspection-Next";
+/**
+ * The response header naming the cursor an export resumes from: the shared
+ * "cursor to pass as `next`" header the Arrow list responses also carry.
+ */
+const EXPORT_NEXT_HEADER = "X-Next-Cursor";
 
 /**
  * One export from {@link ConversationsClient.exportIncremental}, with the
@@ -253,7 +256,7 @@ export class ConversationsClient {
    * `direction: "asc"` for a span export, whose default is newest-first);
    * with `next` it exports what came after that cursor, up to the latest
    * item that existed when the request began. The cursor arrives in the
-   * `Introspection-Next` response header, before the body streams, and is
+   * `X-Next-Cursor` response header, before the body streams, and is
    * returned beside the raw byte stream. When nothing is newer than `next`
    * the result is `status: "no_newer"` with the same cursor, not an error.
    *
