@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.50.0](https://github.com/introspection-org/introspection-js-sdk/compare/v0.49.0...v0.50.0) (2026-11-13)
+
+
+### ⚠ BREAKING CHANGES
+
+* `connectors.connections` (`ConnectionsApi`: list, create, get, revoke) is removed with its `Connection`, `ConnectionCreateParams`, `ConnectionSubjectType` and `ConnectionCreateSubjectType` types; use `client.connections` on the Data Plane. Registered-mode create (a caller-supplied `access_token`) has no replacement. The token mint `connectors.connections.getToken()` moves to `connectors.connectionToken()`, same parameters and result. `AppConnectionCreateParams.app` is now optional.
+
+### Features
+
+* drop connectors.connections and model introspection-cloud's connection integrations ([#602](https://github.com/introspection-org/introspection-js-sdk/issues/602)) ([efee49b](https://github.com/introspection-org/introspection-js-sdk/commit/efee49be91e79995b11474c82e84b0937fabe6dc))
+
+
+### Bug Fixes
+
+* model the automation trigger fields and stop snapshotting an API key's default scope ([#605](https://github.com/introspection-org/introspection-js-sdk/issues/605)) ([e8272c5](https://github.com/introspection-org/introspection-js-sdk/commit/e8272c5bec4fd2e6210a0104d6392ebc1370c714))
+
 ## [0.49.0](https://github.com/introspection-org/introspection-js-sdk/compare/v0.48.0...v0.49.0) (2026-11-12)
 
 
