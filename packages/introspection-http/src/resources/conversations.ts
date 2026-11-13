@@ -1,6 +1,7 @@
 import type {
   Conversation,
   ConversationExportParams,
+  ConversationExportResumeParams,
   ConversationItemInclude,
   ConversationItemListParams,
   ConversationListParams,
@@ -40,6 +41,34 @@ const EXPORT_ACCEPT: Record<ConversationExportFormat, string> = {
 };
 
 /**
+ * The response header naming the cursor an export resumes from: the shared
+ * "cursor to pass as `next`" header the Arrow list responses also carry.
+ */
+const EXPORT_NEXT_HEADER = "X-Next-Cursor";
+
+/**
+ * One export from {@link ConversationsClient.exportResumable}, with the
+ * cursor to resume from. The same shape as `export_resumable` in the Python
+ * and Rust SDKs:
+ *
+ * - `nothingNewer: false` — `body` is the raw export byte stream. `next` is
+ *   the cursor to pass as `next` on the following export, or `null` when the
+ *   response named none (a newest-first export).
+ * - `nothingNewer: true` — the export was resumed with `next` and nothing is
+ *   newer (`204 No Content`). `body` is `null`; `next` is the cursor to retry
+ *   with.
+ *
+ * `next` is opaque and embeds a nanosecond timestamp: keep it as a string.
+ */
+export type ConversationExportResult =
+  | {
+      next: string | null;
+      nothingNewer: false;
+      body: ReadableStream<Uint8Array>;
+    }
+  | { next: string; nothingNewer: true; body: null };
+
+/**
  * Items of a conversation (`/v1/conversations/{id}/items`). Read-only.
  *
  * The OpenAI-style envelope retains span-id metadata while `list()` drives
@@ -54,9 +83,9 @@ export class ConversationItemsClient {
    * stream every item across pages (fetched lazily — `limit` sets the page
    * size, `next` the starting cursor; stop early to stop fetching).
    *
-   * Items are always returned newest-first: the route hardcodes a
-   * descending sort and rejects a cursor that disagrees, so there is no
-   * ordering parameter. Collect the pages and reverse to read forwards.
+   * Items are returned newest-first unless `direction: "asc"` asks for
+   * oldest-first from the conversation start. Every page is requested with
+   * the same `direction`, which an `"asc"` cursor requires.
    *
    * Items carry the turn-local delta in `attributes.gen_ai.input.messages`
    * — only the messages new to that turn. Use `get()` for the full input
@@ -222,6 +251,59 @@ export class ConversationsClient {
   }
 
   /**
+   * Export a conversation oldest-first and return the cursor to resume
+   * from, so a follower can export only what is newer each time.
+   *
+   * Without `next` this exports from the conversation start (pass
+   * `direction: "asc"` for a span export, whose default is newest-first);
+   * with `next` it exports what came after that cursor, up to the latest
+   * item that existed when the request began. The cursor arrives in the
+   * `X-Next-Cursor` response header, before the body streams, and is
+   * returned beside the raw byte stream. When nothing is newer than `next`
+   * the result is `nothingNewer: true` with the same cursor, not an error.
+   *
+   * ```ts
+   * let next: string | undefined;
+   * const page = await client.conversations.exportResumable(id, "jsonl", {
+   *   direction: "asc",
+   *   next,
+   * });
+   * if (!page.nothingNewer) await save(page.body);
+   * next = page.next ?? next;
+   * ```
+   */
+  async exportResumable(
+    conversationId: string,
+    format: ConversationExportFormat,
+    params?: ConversationExportResumeParams,
+    signal?: AbortSignal,
+  ): Promise<ConversationExportResult> {
+    const res = await this.http.stream({
+      path: `/v1/conversations/${encodeURIComponent(conversationId)}/export`,
+      query: params as Record<string, unknown> | undefined,
+      headers: { Accept: EXPORT_ACCEPT[format] },
+      signal,
+    });
+    const next = res.headers.get(EXPORT_NEXT_HEADER);
+    if (res.status === 204) {
+      // The server echoes the cursor; fall back to the one sent if it didn't.
+      const cursor = next ?? params?.next;
+      if (cursor === undefined) {
+        throw new Error(
+          `conversation export for ${conversationId} answered 204 without ${EXPORT_NEXT_HEADER}`,
+        );
+      }
+      return { next: cursor, nothingNewer: true, body: null };
+    }
+    return {
+      next,
+      nothingNewer: false,
+      body:
+        res.body ?? new ReadableStream<Uint8Array>({ start: (c) => c.close() }),
+    };
+  }
+
+  /**
    * Export one complete conversation as trajectory-v1: a non-empty array
    * of `meta` / `user` / `reasoning` / `assistant` / `tool` records.
    *
@@ -311,7 +393,7 @@ export class ConversationsClient {
     conversationId: string,
   ): Promise<string | null> {
     let fallback: GenAiSpan | null = null;
-    // The route is descending-only, so the first matching item is the latest.
+    // The list is newest-first by default, so the first match is the latest.
     for await (const item of this.items.list(conversationId)) {
       if (item.attributes.gen_ai?.operation?.name === "chat") {
         return item.span_id ?? null;
