@@ -21,8 +21,8 @@ Then open `http://localhost:3400` and send a sample prompt as Sam. Without `RESE
 
 1. **The agent:** a repository Introspection hosts, seeded from the public [travel-agent recipe](https://github.com/introspection-recipes/recipe-travel-agent), and its runtime.
 2. **Flight search:** Browserbase's hosted MCP with `BROWSERBASE_API_KEY` set, otherwise this app's mock.
-3. **The booking provider** as an AAuth connector, from [`introspection/booking.json`](./introspection/booking.json), acting as a new `Flight Sector agent` application. The connector allows the provider's public host, and the runtime's `BOOKING_API_URL` variable tells the recipe where to call it.
-4. **Sam** as a customer member with the seniority the recipe's rules read, from [`introspection/sam.json`](./introspection/sam.json).
+3. **The booking provider** as an AAuth connector, from [`travel-demo-flow/introspection/booking.json`](../travel-demo-flow/introspection/booking.json), acting as a new `Flight Sector agent` application. The connector allows the provider's public host, and the runtime's `BOOKING_API_URL` variable tells the recipe where to call it.
+4. **Sam** as a customer member with the seniority the recipe's rules read, from [`travel-demo-flow/introspection/sam.json`](../travel-demo-flow/introspection/sam.json).
 5. **Client secrets** for two applications, in `.env.local` with the rest of the settings: the agent's, which the demo page signs in with, and, with the hosted Person Server, **Acme approvals**, which may only read and answer approvals.
 
 ### Public URLs
@@ -42,6 +42,9 @@ The platform's egress and Person Server call the booking provider and the Browse
 
 - `PERSON_SERVER=acme pnpm dev` has Acme run its own Person Server here, built on [`@introspection-sdk/aauth-person-server`](../../packages/introspection-aauth-person-server), instead of Introspection's hosted one.
 - `BROWSERBASE_API_KEY=… pnpm dev` searches real flights through Browserbase's hosted MCP instead of the mock.
+- `RECIPE_REF=<branch, tag or commit> pnpm dev` puts the recipe at that ref in your hosted repository and builds the runtime again. Unset, the repository keeps what it was seeded with, the recipe's default branch.
+
+`pnpm dev`, the booking provider, Acme's Person Server and the Browserbase mock live in [`travel-demo-flow`](../travel-demo-flow), which [`pap-travel`](../pap-travel) runs too, and the page in [`travel-demo-ui`](../travel-demo-ui). While Dana decides, Sam's phone shows where it stands; Dana answers in her inbox, behind the chat.
 
 [HOW-IT-WORKS.md](./HOW-IT-WORKS.md) covers the parties and the flow; [WALKTHROUGH.md](./WALKTHROUGH.md) steps through the code.
 

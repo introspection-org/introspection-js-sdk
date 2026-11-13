@@ -7,7 +7,7 @@ import {
   snapshot,
   start,
   stop,
-} from "@/lib/demo/run";
+} from "introspection-example-travel-demo-flow/demo/run";
 
 export async function POST(request: Request) {
   const body = (await request.json().catch(() => ({}))) as {

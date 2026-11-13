@@ -646,7 +646,7 @@ async function missionAction(
 }
 ```
 
-**Acme: the email** · `examples/aauth-travel/lib/acme/mail.ts`
+**Acme: the email** · `introspection-example-travel-demo-flow/src/acme/mail.ts`
 
 ```ts
 export async function sendApprovalEmail(email: ApprovalEmail): Promise<void> {
@@ -690,7 +690,7 @@ _Approver → Acme's Person Server_
 
 Dana opens Acme's page from the email, reads the trip, sets its budget (starting from the agent's suggestion), and enters the code, which proves the person approving reads Dana's inbox. Acme mints the mission: its bytes, their SHA-256 as s256, and a person token for the booking provider carrying mission_s256. Egress keeps the mission and the person token; the agent gets only the s256.
 
-**Acme: check the code** · `examples/aauth-travel/lib/acme/person-server.ts`
+**Acme: check the code** · `introspection-example-travel-demo-flow/src/acme/person-server.ts`
 
 ```ts
 /** The approver's answer from Acme's page, proven by the code Acme emailed. */
@@ -855,7 +855,7 @@ _Agent → booking provider_
 
 Search is open. The provider signs each offer's facts (price, nights, cabin) as a quote, so whoever approves the booking later reads facts the agent cannot alter.
 
-**the provider's metadata** · `examples/aauth-travel/lib/booking.ts`
+**the provider's metadata** · `introspection-example-travel-demo-flow/src/booking.ts`
 
 ```ts
 /**
@@ -890,7 +890,7 @@ export const bookingResource = () =>
   }));
 ```
 
-**provider signs each offer** · `examples/aauth-travel/lib/booking.ts`
+**provider signs each offer** · `introspection-example-travel-demo-flow/src/booking.ts`
 
 ```ts
 /** Sign an offer's facts. The quote is what the Person Server decides on. */
@@ -1212,7 +1212,7 @@ async function verifySignature(
 }
 ```
 
-**the provider's reserve** · `examples/aauth-travel/lib/booking.ts`
+**the provider's reserve** · `introspection-example-travel-demo-flow/src/booking.ts`
 
 ```ts
 /**
@@ -1806,7 +1806,7 @@ _Acme → egress → Agent_
 
 Four nights at $420 is $1,680, and $1,350 is left. Acme doesn't refuse: it emails Dana again and answers 202 with a Location to poll. Egress can't hold a chat open for a person, so it answers the agent 428 approval-pending and hands the pending URL to the platform. The agent tells Sam it's waiting on Dana.
 
-**Acme: find the approver, email a code** · `examples/aauth-travel/lib/acme/person-server.ts`
+**Acme: find the approver, email a code** · `introspection-example-travel-demo-flow/src/acme/person-server.ts`
 
 ```ts
 /** A person decides, by email with a six-digit code; the agent polls a pending URL meanwhile. */

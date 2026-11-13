@@ -1,0 +1,29 @@
+{
+  "name": "introspection-example-travel-demo-ui",
+  "version": "0.1.0",
+  "private": true,
+  "description": "The page both travel demos share: the traveller's phone, what each party sees behind the chat, and every request on the wire.",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./demo.css": "./demo.css"
+  },
+  "scripts": {
+    "lint": "eslint .",
+    "check-types": "tsc --noEmit"
+  },
+  "peerDependencies": {
+    "react": "^19.3.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.3.0",
+    "eslint": "^9.39.5",
+    "eslint-config-next": "^16.4.3",
+    "react": "^19.3.1",
+    "typescript": "^5.7.2"
+  },
+  "dependencies": {
+    "react-markdown": "^10.1.0",
+    "remark-gfm": "^4.0.1"
+  }
+}
