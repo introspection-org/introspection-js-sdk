@@ -953,13 +953,13 @@ export type ConversationContains =
  * The export is a complete, server-assembled conversation, so it carries
  * no pagination: these are filters over what gets assembled, not a page
  * window. To resume an export where an earlier one stopped, use
- * {@link ConversationExportResumeParams} with `exportIncremental()`.
+ * {@link ConversationExportResumeParams} with `exportResumable()`.
  */
 export interface ConversationExportParams {
   /**
    * Export order. `"asc"` exports oldest-first from the conversation start,
    * up to the latest item that existed when the request began, and the
-   * response names the cursor to resume from (`exportIncremental()` returns
+   * response names the cursor to resume from (`exportResumable()` returns
    * it). `"desc"`, the span export's default, is newest-first. The trajectory
    * export is oldest-first only, so `"desc"` with it is a `400`.
    */

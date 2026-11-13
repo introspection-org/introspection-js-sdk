@@ -1024,7 +1024,7 @@ describe("conversations export", () => {
   });
 });
 
-describe("conversations exportIncremental", () => {
+describe("conversations exportResumable", () => {
   // A nanosecond cursor: 19 digits lose precision through `Number`.
   const CURSOR = "1731499200123456789";
   const NEWER = "1731499200987654321";
@@ -1061,7 +1061,7 @@ describe("conversations exportIncremental", () => {
         }),
     );
 
-    const result = await api.exportIncremental("conv/1", "jsonl", {
+    const result = await api.exportResumable("conv/1", "jsonl", {
       direction: "asc",
       agent: "root",
     });
@@ -1071,9 +1071,9 @@ describe("conversations exportIncremental", () => {
     expect(seen[0]!.searchParams.get("agent")).toBe("root");
     expect(seen[0]!.searchParams.has("next")).toBe(false);
     expect(accepts[0]).toBe("application/x-ndjson");
-    expect(result.status).toBe("ok");
+    expect(result.nothingNewer).toBe(false);
     expect(result.next).toBe(CURSOR);
-    if (result.status !== "ok") throw new Error("expected ok");
+    if (result.nothingNewer) throw new Error("expected a body");
     expect(await new Response(result.body).text()).toBe(line);
   });
 
@@ -1085,17 +1085,17 @@ describe("conversations exportIncremental", () => {
         }),
     );
 
-    const result = await api.exportIncremental("conv-1", "arrow", {
+    const result = await api.exportResumable("conv-1", "arrow", {
       next: CURSOR,
     });
 
     expect(seen[0]!.searchParams.get("next")).toBe(CURSOR);
     expect(seen[0]!.search).toContain(`next=${CURSOR}`);
-    expect(result).toMatchObject({ status: "ok", next: NEWER });
+    expect(result).toMatchObject({ nothingNewer: false, next: NEWER });
     expect(typeof result.next).toBe("string");
   });
 
-  it("returns the cursor of a 204 as no_newer, not an error or a lost cursor", async () => {
+  it("returns the cursor of a 204 as nothingNewer, not an error or a lost cursor", async () => {
     const { api } = apiFor(
       () =>
         new Response(null, {
@@ -1104,35 +1104,35 @@ describe("conversations exportIncremental", () => {
         }),
     );
 
-    const result = await api.exportIncremental("conv-1", "jsonl", {
+    const result = await api.exportResumable("conv-1", "jsonl", {
       next: CURSOR,
     });
 
-    expect(result).toEqual({ status: "no_newer", body: null, next: CURSOR });
+    expect(result).toEqual({ next: CURSOR, nothingNewer: true, body: null });
   });
 
   it("keeps the sent cursor when a 204 omits the header", async () => {
     const { api } = apiFor(() => new Response(null, { status: 204 }));
-    const result = await api.exportIncremental("conv-1", "jsonl", {
+    const result = await api.exportResumable("conv-1", "jsonl", {
       next: CURSOR,
     });
-    expect(result).toEqual({ status: "no_newer", body: null, next: CURSOR });
+    expect(result).toEqual({ next: CURSOR, nothingNewer: true, body: null });
   });
 
   it("rejects a 204 with no cursor anywhere", async () => {
     const { api } = apiFor(() => new Response(null, { status: 204 }));
-    await expect(api.exportIncremental("conv-1", "jsonl")).rejects.toThrow(
+    await expect(api.exportResumable("conv-1", "jsonl")).rejects.toThrow(
       "204 without X-Next-Cursor",
     );
   });
 
   it("returns next=null for a newest-first export that names no cursor", async () => {
     const { api, seen } = apiFor(() => new Response(""));
-    const result = await api.exportIncremental("conv-1", "jsonl", {
+    const result = await api.exportResumable("conv-1", "jsonl", {
       direction: "desc",
     });
     expect(seen[0]!.searchParams.get("direction")).toBe("desc");
-    expect(result).toMatchObject({ status: "ok", next: null });
+    expect(result).toMatchObject({ nothingNewer: false, next: null });
   });
 
   it("returns an empty body stream when a 200 carries none", async () => {
@@ -1143,7 +1143,7 @@ describe("conversations exportIncremental", () => {
         body: null,
       },
     });
-    const result = await new ConversationsApi(http).exportIncremental(
+    const result = await new ConversationsApi(http).exportResumable(
       "conv-1",
       "trajectory",
     );
@@ -1151,7 +1151,7 @@ describe("conversations exportIncremental", () => {
     expect(call.headers.Accept).toBe(
       "application/vnd.letta.trajectory+json;version=1",
     );
-    if (result.status !== "ok") throw new Error("expected ok");
+    if (result.nothingNewer) throw new Error("expected a body");
     expect(await new Response(result.body).text()).toBe("");
     expect(result.next).toBe(CURSOR);
   });

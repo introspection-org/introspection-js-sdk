@@ -47,24 +47,26 @@ const EXPORT_ACCEPT: Record<ConversationExportFormat, string> = {
 const EXPORT_NEXT_HEADER = "X-Next-Cursor";
 
 /**
- * One export from {@link ConversationsClient.exportIncremental}, with the
- * cursor to resume from. Discriminated by `status`:
+ * One export from {@link ConversationsClient.exportResumable}, with the
+ * cursor to resume from. The same shape as `export_resumable` in the Python
+ * and Rust SDKs:
  *
- * - `"ok"` — `body` is the raw export byte stream. `next` is the cursor to
- *   pass as `next` on the following export, or `null` when the response
- *   named none (a newest-first export).
- * - `"no_newer"` — the export was resumed with `next` and nothing is newer
- *   (`204 No Content`). There is no body; `next` is the cursor to retry with.
+ * - `nothingNewer: false` — `body` is the raw export byte stream. `next` is
+ *   the cursor to pass as `next` on the following export, or `null` when the
+ *   response named none (a newest-first export).
+ * - `nothingNewer: true` — the export was resumed with `next` and nothing is
+ *   newer (`204 No Content`). `body` is `null`; `next` is the cursor to retry
+ *   with.
  *
  * `next` is opaque and embeds a nanosecond timestamp: keep it as a string.
  */
 export type ConversationExportResult =
   | {
-      status: "ok";
-      body: ReadableStream<Uint8Array>;
       next: string | null;
+      nothingNewer: false;
+      body: ReadableStream<Uint8Array>;
     }
-  | { status: "no_newer"; body: null; next: string };
+  | { next: string; nothingNewer: true; body: null };
 
 /**
  * Items of a conversation (`/v1/conversations/{id}/items`). Read-only.
@@ -258,19 +260,19 @@ export class ConversationsClient {
    * item that existed when the request began. The cursor arrives in the
    * `X-Next-Cursor` response header, before the body streams, and is
    * returned beside the raw byte stream. When nothing is newer than `next`
-   * the result is `status: "no_newer"` with the same cursor, not an error.
+   * the result is `nothingNewer: true` with the same cursor, not an error.
    *
    * ```ts
    * let next: string | undefined;
-   * const page = await client.conversations.exportIncremental(id, "jsonl", {
+   * const page = await client.conversations.exportResumable(id, "jsonl", {
    *   direction: "asc",
    *   next,
    * });
-   * if (page.status === "ok") await save(page.body);
+   * if (!page.nothingNewer) await save(page.body);
    * next = page.next ?? next;
    * ```
    */
-  async exportIncremental(
+  async exportResumable(
     conversationId: string,
     format: ConversationExportFormat,
     params?: ConversationExportResumeParams,
@@ -291,13 +293,13 @@ export class ConversationsClient {
           `conversation export for ${conversationId} answered 204 without ${EXPORT_NEXT_HEADER}`,
         );
       }
-      return { status: "no_newer", body: null, next: cursor };
+      return { next: cursor, nothingNewer: true, body: null };
     }
     return {
-      status: "ok",
+      next,
+      nothingNewer: false,
       body:
         res.body ?? new ReadableStream<Uint8Array>({ start: (c) => c.close() }),
-      next,
     };
   }
 
