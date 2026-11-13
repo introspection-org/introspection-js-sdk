@@ -1,12 +1,14 @@
 import { describe, expect, it, vi } from "vitest";
 import {
-  AutomationsApi,
+  RoutinesApi,
   HttpClient,
   IntrospectionClient,
 } from "@introspection-sdk/introspection-node";
 import type {
-  Automation,
-  AutomationMetadata,
+  Routine,
+  RoutineMetadata,
+  RoutineTaskMetadata,
+  RoutineTriggerSpec,
 } from "@introspection-sdk/introspection-node";
 
 function mockHttp(overrides: Record<string, unknown> = {}) {
@@ -21,12 +23,22 @@ function calls(http: HttpClient) {
   );
 }
 
-const AUTOMATION_ID = "0199a1b2-0000-7000-8000-000000000001";
+const ROUTINE_ID = "0199a1b2-0000-7000-8000-000000000001";
 const TASK_ID = "0199a1b2-0000-7000-8000-0000000000ee";
 const RUNTIME_GROUP_ID = "0199a1b2-0000-7000-8000-0000000000dd";
+const TRIGGER_ID = "0199a1b2-0000-7000-8000-0000000000ff";
 
-const AUTOMATION_FIXTURE: Automation & { agent_member_id: null } = {
-  id: AUTOMATION_ID,
+const WEBHOOK_TRIGGER: RoutineTriggerSpec = {
+  source: "connector",
+  provider: "webhook",
+  connector_slug: "ci-alerts",
+  event_types: ["build.failed"],
+  filter: { payload_fields: { branch: ["main"] } },
+  parameters: { build_url: "/build/url" },
+};
+
+const ROUTINE_FIXTURE: Routine & { agent_member_id: null } = {
+  id: ROUTINE_ID,
   org_id: "0199a1b2-0000-7000-8000-0000000000aa",
   project_id: "0199a1b2-0000-7000-8000-0000000000bb",
   name: "Weekly digest",
@@ -58,16 +70,41 @@ const AUTOMATION_FIXTURE: Automation & { agent_member_id: null } = {
   created_at: "2026-09-01T10:00:00Z",
   updated_at: "2026-09-28T09:00:01Z",
   owner_role: "operator",
+  triggers: [
+    {
+      id: TRIGGER_ID,
+      org_id: "0199a1b2-0000-7000-8000-0000000000aa",
+      project_id: "0199a1b2-0000-7000-8000-0000000000bb",
+      routine_id: ROUTINE_ID,
+      source: "connector",
+      provider: "webhook",
+      connector_slug: "ci-alerts",
+      event_types: ["build.failed"],
+      filter: {
+        channel_ids: null,
+        emoji: null,
+        team_ids: null,
+        to_states: null,
+        repository_ids: null,
+        branches: null,
+        payload_fields: { branch: ["main"] },
+      },
+      parameters: { build_url: "/build/url" },
+      enabled: true,
+      created_at: "2026-09-01T10:00:00Z",
+      updated_at: "2026-09-01T10:00:00Z",
+    },
+  ],
 };
 
 function page(records: unknown[], next: string | null = null) {
   return { records, count: records.length, total_count: records.length, next };
 }
 
-describe("AutomationsApi", () => {
-  it("list() encodes every filter and reads the automation shape", async () => {
-    const http = mockHttp({ requestResult: page([AUTOMATION_FIXTURE]) });
-    const first = await new AutomationsApi(http).list({
+describe("RoutinesApi", () => {
+  it("list() encodes every filter and reads the routine shape", async () => {
+    const http = mockHttp({ requestResult: page([ROUTINE_FIXTURE]) });
+    const first = await new RoutinesApi(http).list({
       limit: 1,
       kind: "observation_synthesis",
       enabled: true,
@@ -77,7 +114,7 @@ describe("AutomationsApi", () => {
 
     expect(http.request).toHaveBeenCalledWith({
       method: "GET",
-      path: "/v1/automations",
+      path: "/v1/routines",
       query: {
         limit: 1,
         kind: "observation_synthesis",
@@ -86,16 +123,16 @@ describe("AutomationsApi", () => {
         task_id: TASK_ID,
         next: undefined,
       },
-      schema: "Paginated<Automation>",
+      schema: "Paginated<Routine>",
     });
-    const automation = first.records[0];
-    expect(automation.kind).toBeNull();
-    expect(automation.can_manage).toBe(true);
-    expect(automation.runtime_group_id).toBe(RUNTIME_GROUP_ID);
-    expect(automation.task_id).toBe(TASK_ID);
-    expect(automation.owner_role).toBe("operator");
-    expect(automation.metadata?.timezone).toBe("Europe/London");
-    expect(automation.metadata?.conditions?.map((c) => c.type)).toEqual([
+    const routine = first.records[0];
+    expect(routine.kind).toBeNull();
+    expect(routine.can_manage).toBe(true);
+    expect(routine.runtime_group_id).toBe(RUNTIME_GROUP_ID);
+    expect(routine.task_id).toBe(TASK_ID);
+    expect(routine.owner_role).toBe("operator");
+    expect(routine.metadata?.timezone).toBe("Europe/London");
+    expect(routine.metadata?.conditions?.map((c) => c.type)).toEqual([
       "has_new_tasks_since_last_run",
       "brand_new_condition",
     ]);
@@ -105,17 +142,17 @@ describe("AutomationsApi", () => {
     const http = {
       request: vi
         .fn()
-        .mockResolvedValueOnce(page([AUTOMATION_FIXTURE], "cur-2"))
+        .mockResolvedValueOnce(page([ROUTINE_FIXTURE], "cur-2"))
         .mockResolvedValueOnce(
-          page([{ ...AUTOMATION_FIXTURE, id: "b", name: "second" }]),
+          page([{ ...ROUTINE_FIXTURE, id: "b", name: "second" }]),
         ),
     } as unknown as HttpClient;
     const names: string[] = [];
-    for await (const automation of new AutomationsApi(http).list({
+    for await (const routine of new RoutinesApi(http).list({
       task_id: TASK_ID,
       next: "cur-1",
     })) {
-      names.push(automation.name);
+      names.push(routine.name);
     }
 
     expect(names).toEqual(["Weekly digest", "second"]);
@@ -129,20 +166,20 @@ describe("AutomationsApi", () => {
     const http = mockHttp({
       requestResult: page([
         {
-          ...AUTOMATION_FIXTURE,
+          ...ROUTINE_FIXTURE,
           id: "a",
           kind: "project_check_in",
           task_id: null,
         },
         {
-          ...AUTOMATION_FIXTURE,
+          ...ROUTINE_FIXTURE,
           id: "b",
           kind: "not_yet_invented",
           owner_role: null,
         },
       ]),
     });
-    const first = await new AutomationsApi(http).list({
+    const first = await new RoutinesApi(http).list({
       kind: "project_check_in",
     });
 
@@ -158,12 +195,12 @@ describe("AutomationsApi", () => {
   });
 
   it("create() POSTs only the fields that are set", async () => {
-    const http = mockHttp({ requestResult: AUTOMATION_FIXTURE });
-    const metadata: AutomationMetadata = {
+    const http = mockHttp({ requestResult: ROUTINE_FIXTURE });
+    const metadata: RoutineMetadata = {
       cron_schedules: ["0 9 * * 1"],
       timezone: "UTC",
     };
-    const created = await new AutomationsApi(http).create({
+    const created = await new RoutinesApi(http).create({
       name: "Weekly digest",
       trigger_type: "cron",
       cron_schedule: "0 9 * * 1",
@@ -176,7 +213,7 @@ describe("AutomationsApi", () => {
     expect(created.name).toBe("Weekly digest");
     expect(http.request).toHaveBeenCalledWith({
       method: "POST",
-      path: "/v1/automations",
+      path: "/v1/routines",
       body: {
         name: "Weekly digest",
         trigger_type: "cron",
@@ -185,13 +222,13 @@ describe("AutomationsApi", () => {
         runtime_group_id: RUNTIME_GROUP_ID,
         metadata: { cron_schedules: ["0 9 * * 1"], timezone: "UTC" },
       },
-      schema: "Automation",
+      schema: "Routine",
     });
   });
 
   it("create() sends a one-off reminder into an existing task", async () => {
-    const http = mockHttp({ requestResult: AUTOMATION_FIXTURE });
-    await new AutomationsApi(http).create({
+    const http = mockHttp({ requestResult: ROUTINE_FIXTURE });
+    await new RoutinesApi(http).create({
       name: "Friday check-in",
       trigger_type: "manual",
       prompt: "How did the week go?",
@@ -213,8 +250,8 @@ describe("AutomationsApi", () => {
   });
 
   it("create() sends a platform kind", async () => {
-    const http = mockHttp({ requestResult: AUTOMATION_FIXTURE });
-    await new AutomationsApi(http).create({
+    const http = mockHttp({ requestResult: ROUTINE_FIXTURE });
+    await new RoutinesApi(http).create({
       name: "Check-in",
       trigger_type: "cron",
       cron_schedule: "0 9 * * *",
@@ -226,21 +263,65 @@ describe("AutomationsApi", () => {
     expect(calls(http)[0].body).toMatchObject({ kind: "project_check_in" });
   });
 
-  it("get() reads one automation", async () => {
-    const http = mockHttp({ requestResult: AUTOMATION_FIXTURE });
-    const automation = await new AutomationsApi(http).get(AUTOMATION_ID);
+  it("create() sends event triggers", async () => {
+    const http = mockHttp({ requestResult: ROUTINE_FIXTURE });
+    const created = await new RoutinesApi(http).create({
+      name: "Triage failed builds",
+      trigger_type: "manual",
+      prompt: "Triage the failed build at @parameters.build_url.",
+      runtime_group_id: RUNTIME_GROUP_ID,
+      triggers: [
+        WEBHOOK_TRIGGER,
+        {
+          provider: "github",
+          event_types: ["github.pull_request.opened"],
+          filter: { branches: ["main"] },
+        },
+      ],
+    });
+
+    expect(calls(http)[0].body.triggers).toEqual([
+      WEBHOOK_TRIGGER,
+      {
+        provider: "github",
+        event_types: ["github.pull_request.opened"],
+        filter: { branches: ["main"] },
+      },
+    ]);
+    const [trigger] = created.triggers;
+    expect(trigger.id).toBe(TRIGGER_ID);
+    expect(trigger.filter.payload_fields).toEqual({ branch: ["main"] });
+    expect(trigger.parameters).toEqual({ build_url: "/build/url" });
+  });
+
+  it("update() replaces the trigger list, keeping listed ids", async () => {
+    const http = mockHttp({ requestResult: ROUTINE_FIXTURE });
+    await new RoutinesApi(http).update(ROUTINE_ID, {
+      triggers: [{ ...WEBHOOK_TRIGGER, id: TRIGGER_ID, enabled: false }],
+    });
+    await new RoutinesApi(http).update(ROUTINE_ID, { triggers: [] });
+
+    expect(calls(http).map((call) => call.body)).toEqual([
+      { triggers: [{ ...WEBHOOK_TRIGGER, id: TRIGGER_ID, enabled: false }] },
+      { triggers: [] },
+    ]);
+  });
+
+  it("get() reads one routine", async () => {
+    const http = mockHttp({ requestResult: ROUTINE_FIXTURE });
+    const routine = await new RoutinesApi(http).get(ROUTINE_ID);
 
     expect(http.request).toHaveBeenCalledWith({
       method: "GET",
-      path: `/v1/automations/${AUTOMATION_ID}`,
-      schema: "Automation",
+      path: `/v1/routines/${ROUTINE_ID}`,
+      schema: "Routine",
     });
-    expect(automation.next_trigger_at).toBe("2026-10-05T09:00:00.123456Z");
+    expect(routine.next_trigger_at).toBe("2026-10-05T09:00:00.123456Z");
   });
 
   it("update() PATCHes only the fields that are set", async () => {
-    const http = mockHttp({ requestResult: AUTOMATION_FIXTURE });
-    await new AutomationsApi(http).update(AUTOMATION_ID, {
+    const http = mockHttp({ requestResult: ROUTINE_FIXTURE });
+    await new RoutinesApi(http).update(ROUTINE_ID, {
       enabled: false,
       name: undefined,
       next_trigger_at: undefined,
@@ -248,15 +329,15 @@ describe("AutomationsApi", () => {
 
     expect(http.request).toHaveBeenCalledWith({
       method: "PATCH",
-      path: `/v1/automations/${AUTOMATION_ID}`,
+      path: `/v1/routines/${ROUTINE_ID}`,
       body: { enabled: false },
-      schema: "Automation",
+      schema: "Routine",
     });
   });
 
   it("update() sends task, slot and metadata changes", async () => {
-    const http = mockHttp({ requestResult: AUTOMATION_FIXTURE });
-    await new AutomationsApi(http).update(AUTOMATION_ID, {
+    const http = mockHttp({ requestResult: ROUTINE_FIXTURE });
+    await new RoutinesApi(http).update(ROUTINE_ID, {
       task_id: TASK_ID,
       next_trigger_at: "2026-10-12T09:00:00Z",
       metadata: { timezone: "Australia/Sydney" },
@@ -270,19 +351,19 @@ describe("AutomationsApi", () => {
   });
 
   it("update() with nothing set sends an empty body", async () => {
-    const http = mockHttp({ requestResult: AUTOMATION_FIXTURE });
-    await new AutomationsApi(http).update(AUTOMATION_ID, {});
+    const http = mockHttp({ requestResult: ROUTINE_FIXTURE });
+    await new RoutinesApi(http).update(ROUTINE_ID, {});
 
     expect(calls(http)[0].body).toEqual({});
   });
 
   it("delete() soft-deletes and expects an empty response", async () => {
     const http = mockHttp({ requestResult: undefined });
-    await new AutomationsApi(http).delete(AUTOMATION_ID);
+    await new RoutinesApi(http).delete(ROUTINE_ID);
 
     expect(http.request).toHaveBeenCalledWith({
       method: "DELETE",
-      path: `/v1/automations/${AUTOMATION_ID}`,
+      path: `/v1/routines/${ROUTINE_ID}`,
       expect: "empty",
     });
   });
@@ -291,46 +372,89 @@ describe("AutomationsApi", () => {
     const http = mockHttp({
       requestResult: {
         status: "triggered",
-        automation_id: AUTOMATION_ID,
+        routine_id: ROUTINE_ID,
         task_id: TASK_ID,
         reason: null,
       },
     });
-    const result = await new AutomationsApi(http).trigger(AUTOMATION_ID);
+    const result = await new RoutinesApi(http).trigger(ROUTINE_ID);
 
     expect(http.request).toHaveBeenCalledWith({
       method: "POST",
-      path: `/v1/automations/${AUTOMATION_ID}/trigger`,
-      schema: "AutomationTriggerResponse",
+      path: `/v1/routines/${ROUTINE_ID}/trigger`,
+      schema: "RoutineTriggerResponse",
     });
     expect(result.status).toBe("triggered");
     expect(result.task_id).toBe(TASK_ID);
+  });
+
+  it("trigger() sends parameters and reads the kind's result", async () => {
+    const http = mockHttp({
+      requestResult: {
+        status: "triggered",
+        routine_id: ROUTINE_ID,
+        task_id: null,
+        run_id: null,
+        reason: null,
+        result: {
+          enqueued: 1,
+          conversations: [
+            { conversation_id: "conv-1", completed_at: "2026-10-05T09:00:00Z" },
+          ],
+        },
+      },
+    });
+    const result = await new RoutinesApi(http).trigger(ROUTINE_ID, {
+      parameters: { conversation_ids: ["conv-1"] },
+    });
+
+    expect(http.request).toHaveBeenCalledWith({
+      method: "POST",
+      path: `/v1/routines/${ROUTINE_ID}/trigger`,
+      schema: "RoutineTriggerResponse",
+      body: { parameters: { conversation_ids: ["conv-1"] } },
+    });
+    expect(result.result?.enqueued).toBe(1);
+    expect(result.result?.conversations?.[0].conversation_id).toBe("conv-1");
+  });
+
+  it("RoutineTaskMetadata types the keys a routine run stamps", () => {
+    const metadata: RoutineTaskMetadata = {
+      trigger_source: "trigger",
+      routine_trigger: {
+        trigger_id: TRIGGER_ID,
+        event_type: "build.failed",
+        delivery_id: "webhook:msg_1",
+      },
+      unresolved_parameters: ["build_url"],
+    };
+    expect(metadata.routine_trigger?.event_type).toBe("build.failed");
   });
 
   it("trigger() surfaces a skip with its reason", async () => {
     const http = mockHttp({
       requestResult: {
         status: "skipped",
-        automation_id: AUTOMATION_ID,
+        routine_id: ROUTINE_ID,
         task_id: null,
         reason: "conditions_not_met",
       },
     });
-    const result = await new AutomationsApi(http).trigger(AUTOMATION_ID);
+    const result = await new RoutinesApi(http).trigger(ROUTINE_ID);
 
     expect(result.status).toBe("skipped");
     expect(result.reason).toBe("conditions_not_met");
   });
 
   it("percent-encodes the id", async () => {
-    const http = mockHttp({ requestResult: AUTOMATION_FIXTURE });
-    await new AutomationsApi(http).get("a/b");
+    const http = mockHttp({ requestResult: ROUTINE_FIXTURE });
+    await new RoutinesApi(http).get("a/b");
 
-    expect(calls(http)[0].path).toBe("/v1/automations/a%2Fb");
+    expect(calls(http)[0].path).toBe("/v1/routines/a%2Fb");
   });
 });
 
-describe("client.automations", () => {
+describe("client.routines", () => {
   function client(responses: unknown[]) {
     const requests: { url: URL; method: string; body: unknown }[] = [];
     const fetch = vi.fn(
@@ -362,24 +486,24 @@ describe("client.automations", () => {
 
   it("lists on the Data Plane with task_id kept on every page", async () => {
     const { sdk, requests } = client([
-      page([AUTOMATION_FIXTURE], "cur-2"),
-      page([{ ...AUTOMATION_FIXTURE, id: "b" }]),
+      page([ROUTINE_FIXTURE], "cur-2"),
+      page([{ ...ROUTINE_FIXTURE, id: "b" }]),
     ]);
 
     const ids: string[] = [];
-    for await (const automation of sdk.automations.list({
+    for await (const routine of sdk.routines.list({
       task_id: TASK_ID,
       enabled: true,
     })) {
-      ids.push(automation.id);
+      ids.push(routine.id);
     }
 
-    expect(ids).toEqual([AUTOMATION_ID, "b"]);
+    expect(ids).toEqual([ROUTINE_ID, "b"]);
     expect(requests.map((r) => r.url.origin)).toEqual([
       "https://dp.test",
       "https://dp.test",
     ]);
-    expect(requests[0].url.pathname).toBe("/v1/automations");
+    expect(requests[0].url.pathname).toBe("/v1/routines");
     expect(Object.fromEntries(requests[0].url.searchParams)).toEqual({
       task_id: TASK_ID,
       enabled: "true",
@@ -393,18 +517,45 @@ describe("client.automations", () => {
   });
 
   it("serializes a PATCH with only the set fields and deletes with a 204", async () => {
-    const { sdk, requests } = client([AUTOMATION_FIXTURE]);
+    const { sdk, requests } = client([ROUTINE_FIXTURE]);
 
-    await sdk.automations.update(AUTOMATION_ID, {
+    await sdk.routines.update(ROUTINE_ID, {
       prompt: "New prompt",
       description: undefined,
     });
-    await sdk.automations.delete(AUTOMATION_ID);
+    await sdk.routines.delete(ROUTINE_ID);
 
     expect(requests[0].method).toBe("PATCH");
     expect(requests[0].body).toEqual({ prompt: "New prompt" });
     expect(requests[1].method).toBe("DELETE");
-    expect(requests[1].url.pathname).toBe(`/v1/automations/${AUTOMATION_ID}`);
+    expect(requests[1].url.pathname).toBe(`/v1/routines/${ROUTINE_ID}`);
+    await sdk.shutdown();
+  });
+
+  it("sends a manual trigger's parameters as JSON, and no body without them", async () => {
+    const triggered = {
+      status: "triggered",
+      routine_id: ROUTINE_ID,
+      task_id: TASK_ID,
+      run_id: null,
+      reason: null,
+      result: null,
+    };
+    const { sdk, requests } = client([triggered, triggered]);
+
+    await sdk.routines.trigger(ROUTINE_ID, {
+      parameters: { customer: { id: "cus_1", plan: "team" } },
+    });
+    await sdk.routines.trigger(ROUTINE_ID);
+
+    expect(requests.map((r) => [r.method, r.url.pathname])).toEqual([
+      ["POST", `/v1/routines/${ROUTINE_ID}/trigger`],
+      ["POST", `/v1/routines/${ROUTINE_ID}/trigger`],
+    ]);
+    expect(requests[0].body).toEqual({
+      parameters: { customer: { id: "cus_1", plan: "team" } },
+    });
+    expect(requests[1].body).toBeUndefined();
     await sdk.shutdown();
   });
 });

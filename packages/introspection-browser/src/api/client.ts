@@ -32,7 +32,7 @@
 import { BrowserHttpClient, stripTrailingSlash, toApiError } from "./http.js";
 import { resolveBrowserFetch } from "./fetch.js";
 import {
-  AutomationsClient,
+  RoutinesClient,
   ConversationsClient,
   FilesClient,
   IssuesClient,
@@ -92,8 +92,8 @@ export class IntrospectionApiClient {
   readonly conversations: ConversationsClient;
   /** `/v1/shares` sharing grants bound to the session cookie. */
   readonly shares: SharesClient;
-  /** `/v1/automations` operations bound to the DP session cookie. */
-  readonly automations: AutomationsClient;
+  /** `/v1/routines` operations bound to the DP session cookie. */
+  readonly routines: RoutinesClient;
   /** `/v1/issues` operations bound to the DP session cookie. */
   readonly issues: IssuesClient;
   /**
@@ -129,7 +129,7 @@ export class IntrospectionApiClient {
     this.files = new FilesClient(http);
     this.conversations = new ConversationsClient(http);
     this.shares = new SharesClient(http);
-    this.automations = new AutomationsClient(http);
+    this.routines = new RoutinesClient(http);
     this.issues = new IssuesClient(http);
   }
 

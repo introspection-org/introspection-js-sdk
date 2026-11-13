@@ -3,7 +3,7 @@
  * authenticates, driven against a REAL in-process HTTP server.
  *
  * No mocks: a `node:http` server on loopback plays the Control Plane's
- * `/v1/oauth/*` routes and the Data Plane's `/v1/tasks` / `/v1/automations`,
+ * `/v1/oauth/*` routes and the Data Plane's `/v1/tasks` / `/v1/routines`,
  * and the SDK makes real round-trips to it with the global `fetch`.
  */
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
@@ -44,7 +44,7 @@ let baseUrl: string;
 let requests: Captured[] = [];
 let routes: Map<string, Handler>;
 
-const AUTOMATION = {
+const ROUTINE = {
   id: "0199a000-0000-7000-8000-000000000001",
   org_id: "org-1",
   project_id: "proj-1",
@@ -476,35 +476,35 @@ describe("AuthClient.dataPlane()", () => {
   });
 });
 
-describe("automations", () => {
+describe("routines", () => {
   it("round-trips CRUD and the hand trigger on the Data Plane", async () => {
-    on("GET", "/v1/automations", () => ({
+    on("GET", "/v1/routines", () => ({
       status: 200,
-      body: { records: [AUTOMATION], count: 1, total_count: null, next: null },
+      body: { records: [ROUTINE], count: 1, total_count: null, next: null },
     }));
-    on("POST", "/v1/automations", () => ({ status: 201, body: AUTOMATION }));
-    on("GET", `/v1/automations/${AUTOMATION.id}`, () => ({
+    on("POST", "/v1/routines", () => ({ status: 201, body: ROUTINE }));
+    on("GET", `/v1/routines/${ROUTINE.id}`, () => ({
       status: 200,
-      body: AUTOMATION,
+      body: ROUTINE,
     }));
-    on("PATCH", `/v1/automations/${AUTOMATION.id}`, (req) => ({
+    on("PATCH", `/v1/routines/${ROUTINE.id}`, (req) => ({
       status: 200,
-      body: { ...AUTOMATION, ...JSON.parse(req.body) },
+      body: { ...ROUTINE, ...JSON.parse(req.body) },
     }));
-    on("POST", `/v1/automations/${AUTOMATION.id}/trigger`, () => ({
+    on("POST", `/v1/routines/${ROUTINE.id}/trigger`, () => ({
       status: 202,
       body: {
         status: "triggered",
-        automation_id: AUTOMATION.id,
-        task_id: AUTOMATION.task_id,
+        routine_id: ROUTINE.id,
+        task_id: ROUTINE.task_id,
         reason: null,
       },
     }));
-    on("DELETE", `/v1/automations/${AUTOMATION.id}`, () => ({ status: 204 }));
+    on("DELETE", `/v1/routines/${ROUTINE.id}`, () => ({ status: 204 }));
 
     const dp = new DataPlaneClient({ dpUrl: baseUrl, token: "dp-token" });
 
-    const page = await dp.automations.list({
+    const page = await dp.routines.list({
       kind: "observation_clustering",
       enabled: true,
       scheduled: false,
@@ -519,37 +519,35 @@ describe("automations", () => {
     });
     expect(requests[0].auth).toBe("Bearer dp-token");
 
-    await dp.automations.create({
+    await dp.routines.create({
       name: "Morning check-in",
       trigger_type: "manual",
       prompt: "Anything new?",
-      runtime_group_id: AUTOMATION.runtime_group_id,
-      task_id: AUTOMATION.task_id,
+      runtime_group_id: ROUTINE.runtime_group_id,
+      task_id: ROUTINE.task_id,
       next_trigger_at: "2026-10-05T09:00:00+00:00",
     });
     expect(JSON.parse(requests[1].body)).toMatchObject({
       trigger_type: "manual",
-      task_id: AUTOMATION.task_id,
+      task_id: ROUTINE.task_id,
       next_trigger_at: "2026-10-05T09:00:00+00:00",
     });
 
-    expect((await dp.automations.get(AUTOMATION.id)).name).toBe(
-      "Morning check-in",
-    );
-    const paused = await dp.automations.update(AUTOMATION.id, {
+    expect((await dp.routines.get(ROUTINE.id)).name).toBe("Morning check-in");
+    const paused = await dp.routines.update(ROUTINE.id, {
       enabled: false,
     });
     expect(paused.enabled).toBe(false);
-    const fired = await dp.automations.trigger(AUTOMATION.id);
+    const fired = await dp.routines.trigger(ROUTINE.id);
     expect(fired).toMatchObject({
       status: "triggered",
-      task_id: AUTOMATION.task_id,
+      task_id: ROUTINE.task_id,
     });
-    await expect(dp.automations.delete(AUTOMATION.id)).resolves.toBeUndefined();
+    await expect(dp.routines.delete(ROUTINE.id)).resolves.toBeUndefined();
   });
 
   it("hangs off IntrospectionClient's Data Plane client", async () => {
-    on("GET", "/v1/automations", () => ({
+    on("GET", "/v1/routines", () => ({
       status: 200,
       body: { records: [], count: 0, total_count: null, next: null },
     }));
@@ -557,10 +555,10 @@ describe("automations", () => {
       token: "api-key",
       advanced: { baseApiUrl: baseUrl, dpUrl: baseUrl },
     });
-    expect((await client.automations.list()).records).toEqual([]);
+    expect((await client.routines.list()).records).toEqual([]);
   });
 
-  it("filters automation firings on /v1/events", async () => {
+  it("filters routine firings on /v1/events", async () => {
     on("GET", "/v1/events", () => ({
       status: 200,
       body: {
@@ -568,13 +566,13 @@ describe("automations", () => {
           {
             id: "evt-1",
             timestamp: "2026-10-05T09:00:01Z",
-            event_name: "introspection.automation.triggered",
+            event_name: "introspection.routines.triggered",
             payload: {
-              automation_id: AUTOMATION.id,
-              automation_name: AUTOMATION.name,
+              routine_id: ROUTINE.id,
+              routine_name: ROUTINE.name,
               trigger_type: "manual",
               slot: "2026-10-05T09:00:00+00:00",
-              task_id: AUTOMATION.task_id,
+              task_id: ROUTINE.task_id,
               posted: true,
               member_id: "member-1",
             },
@@ -587,12 +585,12 @@ describe("automations", () => {
     }));
     const dp = new DataPlaneClient({ dpUrl: baseUrl, token: "dp-token" });
     const page = await dp.events.list({
-      event_name: "introspection.automation.triggered",
-      automation_id: AUTOMATION.id,
-      task_id: AUTOMATION.task_id,
+      event_name: "introspection.routines.triggered",
+      routine_id: ROUTINE.id,
+      task_id: ROUTINE.task_id,
     });
     expect(page.records[0].payload.posted).toBe(true);
-    expect(requests[0].query.get("automation_id")).toBe(AUTOMATION.id);
-    expect(requests[0].query.get("task_id")).toBe(AUTOMATION.task_id);
+    expect(requests[0].query.get("routine_id")).toBe(ROUTINE.id);
+    expect(requests[0].query.get("task_id")).toBe(ROUTINE.task_id);
   });
 });

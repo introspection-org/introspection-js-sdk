@@ -266,167 +266,6 @@
       },
       "additionalProperties": false
     },
-    "Automation": {
-      "type": "object",
-      "properties": {
-        "can_manage": {},
-        "created_at": {},
-        "created_by_member_id": {},
-        "cron_schedule": {},
-        "description": {},
-        "enabled": {},
-        "execution_blocked_reason": {},
-        "id": {},
-        "kind": {
-          "type": "object",
-          "properties": { "length": {} },
-          "additionalProperties": false
-        },
-        "last_triggered_at": {},
-        "metadata": { "$ref": "#/$defs/AutomationMetadata" },
-        "name": {},
-        "next_trigger_at": {},
-        "org_id": {},
-        "owner_role": {},
-        "project_id": {},
-        "prompt": {},
-        "runtime_group_id": {},
-        "tags": { "type": "array" },
-        "task_id": {},
-        "trigger_type": {
-          "type": "object",
-          "properties": { "length": {} },
-          "additionalProperties": false
-        },
-        "updated_at": {}
-      },
-      "additionalProperties": false
-    },
-    "AutomationCondition": {
-      "type": "object",
-      "properties": {
-        "runtime_group_id": {},
-        "type": {
-          "type": "object",
-          "properties": { "length": {} },
-          "additionalProperties": false
-        }
-      },
-      "additionalProperties": false
-    },
-    "AutomationMetadata": {
-      "type": "object",
-      "properties": {
-        "conditions": {
-          "type": "array",
-          "items": { "$ref": "#/$defs/AutomationCondition" }
-        },
-        "cron_schedules": { "type": "array" },
-        "repositories": {
-          "type": "array",
-          "items": { "$ref": "#/$defs/TaskRepoRequest" }
-        },
-        "timezone": {}
-      },
-      "additionalProperties": false
-    },
-    "AutomationSkippedEvent": {
-      "type": "object",
-      "properties": {
-        "conversation_id": {},
-        "environment": {},
-        "event_name": { "const": "introspection.automation.skipped" },
-        "experiment_id": {},
-        "id": {},
-        "payload": { "$ref": "#/$defs/AutomationSkippedPayload" },
-        "recipe_git_commit_sha": {},
-        "runtime_group_id": {},
-        "runtime_id": {},
-        "service_name": {},
-        "span_id": {},
-        "timestamp": {},
-        "trace_id": {}
-      },
-      "additionalProperties": false
-    },
-    "AutomationSkippedPayload": {
-      "type": "object",
-      "properties": {
-        "automation_id": {},
-        "reason": {
-          "type": "object",
-          "properties": { "length": {} },
-          "additionalProperties": false
-        },
-        "slot": {},
-        "task_id": {},
-        "trigger_type": {
-          "type": "object",
-          "properties": { "length": {} },
-          "additionalProperties": false
-        }
-      },
-      "additionalProperties": false
-    },
-    "AutomationTriggerResponse": {
-      "type": "object",
-      "properties": {
-        "automation_id": {},
-        "conversations": {
-          "type": "array",
-          "items": { "$ref": "#/$defs/EnqueuedConversation" }
-        },
-        "enqueued": {},
-        "reason": {},
-        "run_id": {},
-        "status": {
-          "type": "object",
-          "properties": { "length": {} },
-          "additionalProperties": false
-        },
-        "task_id": {}
-      },
-      "additionalProperties": false
-    },
-    "AutomationTriggeredEvent": {
-      "type": "object",
-      "properties": {
-        "conversation_id": {},
-        "environment": {},
-        "event_name": { "const": "introspection.automation.triggered" },
-        "experiment_id": {},
-        "id": {},
-        "payload": { "$ref": "#/$defs/AutomationTriggeredPayload" },
-        "recipe_git_commit_sha": {},
-        "runtime_group_id": {},
-        "runtime_id": {},
-        "service_name": {},
-        "span_id": {},
-        "timestamp": {},
-        "trace_id": {}
-      },
-      "additionalProperties": false
-    },
-    "AutomationTriggeredPayload": {
-      "type": "object",
-      "properties": {
-        "automation_id": {},
-        "automation_name": {},
-        "member_id": {},
-        "posted": {},
-        "prompt": {},
-        "runtime_group_id": {},
-        "slot": {},
-        "task_id": {},
-        "trigger_type": {
-          "type": "object",
-          "properties": { "length": {} },
-          "additionalProperties": false
-        },
-        "triggered_by_member_id": {}
-      },
-      "additionalProperties": false
-    },
     "BinaryDataPart": {
       "type": "object",
       "properties": {
@@ -537,6 +376,7 @@
           "type": "array",
           "items": { "$ref": "#/$defs/PolicyEntity" }
         },
+        "previous_signing_secret_expires_at": {},
         "project_id": {},
         "provider": {},
         "requires_runtime": {},
@@ -545,6 +385,11 @@
         "status": {},
         "token_endpoint": {},
         "updated_at": {},
+        "webhook_auth": {
+          "type": "object",
+          "properties": { "length": {} },
+          "additionalProperties": false
+        },
         "webhook_url": {}
       },
       "additionalProperties": false
@@ -584,6 +429,47 @@
         "scopes_supported": { "type": "array" },
         "token_endpoint": {},
         "token_endpoint_auth_methods_supported": { "type": "array" }
+      },
+      "additionalProperties": false
+    },
+    "ConnectorSecretResponse": {
+      "type": "object",
+      "properties": {
+        "agent_member_id": {},
+        "api_hosts": { "type": "array" },
+        "application_id": {},
+        "assertion_audience": {},
+        "auth_mode": {},
+        "authorization_endpoint": {},
+        "client_id": {},
+        "created_at": {},
+        "created_by_member_id": {},
+        "environment": {},
+        "id": {},
+        "metadata": {},
+        "name": {},
+        "org_id": {},
+        "person_server_url": {},
+        "policy_entities": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/PolicyEntity" }
+        },
+        "previous_signing_secret_expires_at": {},
+        "project_id": {},
+        "provider": {},
+        "requires_runtime": {},
+        "scopes": { "type": "array" },
+        "signing_secret": {},
+        "slug": {},
+        "status": {},
+        "token_endpoint": {},
+        "updated_at": {},
+        "webhook_auth": {
+          "type": "object",
+          "properties": { "length": {} },
+          "additionalProperties": false
+        },
+        "webhook_url": {}
       },
       "additionalProperties": false
     },
@@ -1944,19 +1830,6 @@
       },
       "additionalProperties": false
     },
-    "Paginated<Automation>": {
-      "type": "object",
-      "properties": {
-        "count": {},
-        "next": {},
-        "records": {
-          "type": "array",
-          "items": { "$ref": "#/$defs/Automation" }
-        },
-        "total_count": {}
-      },
-      "additionalProperties": false
-    },
     "Paginated<Connector>": {
       "type": "object",
       "properties": {
@@ -2016,8 +1889,6 @@
           "items": {
             "anyOf": [
               { "$ref": "#/$defs/AnnotationEvent" },
-              { "$ref": "#/$defs/AutomationSkippedEvent" },
-              { "$ref": "#/$defs/AutomationTriggeredEvent" },
               { "$ref": "#/$defs/ClusteringRunEvent" },
               { "$ref": "#/$defs/FeedbackEvent" },
               { "$ref": "#/$defs/IssueActivityEvent" },
@@ -2025,6 +1896,8 @@
               { "$ref": "#/$defs/ObservationEvent" },
               { "$ref": "#/$defs/PatternAssignmentEvent" },
               { "$ref": "#/$defs/PatternEvent" },
+              { "$ref": "#/$defs/RoutineSkippedEvent" },
+              { "$ref": "#/$defs/RoutineTriggeredEvent" },
               { "$ref": "#/$defs/UnknownEvent" }
             ]
           }
@@ -2161,6 +2034,16 @@
           "type": "array",
           "items": { "$ref": "#/$defs/ResourceShare" }
         },
+        "total_count": {}
+      },
+      "additionalProperties": false
+    },
+    "Paginated<Routine>": {
+      "type": "object",
+      "properties": {
+        "count": {},
+        "next": {},
+        "records": { "type": "array", "items": { "$ref": "#/$defs/Routine" } },
         "total_count": {}
       },
       "additionalProperties": false
@@ -2561,6 +2444,228 @@
       },
       "additionalProperties": false
     },
+    "Routine": {
+      "type": "object",
+      "properties": {
+        "can_manage": {},
+        "created_at": {},
+        "created_by_member_id": {},
+        "cron_schedule": {},
+        "description": {},
+        "enabled": {},
+        "execution_blocked_reason": {},
+        "id": {},
+        "kind": {
+          "type": "object",
+          "properties": { "length": {} },
+          "additionalProperties": false
+        },
+        "last_triggered_at": {},
+        "metadata": { "$ref": "#/$defs/RoutineMetadata" },
+        "name": {},
+        "next_trigger_at": {},
+        "org_id": {},
+        "owner_role": {},
+        "project_id": {},
+        "prompt": {},
+        "runtime_group_id": {},
+        "tags": { "type": "array" },
+        "task_id": {},
+        "trigger_type": {
+          "type": "object",
+          "properties": { "length": {} },
+          "additionalProperties": false
+        },
+        "triggers": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/RoutineTrigger" }
+        },
+        "updated_at": {}
+      },
+      "additionalProperties": false
+    },
+    "RoutineCondition": {
+      "type": "object",
+      "properties": {
+        "runtime_group_id": {},
+        "type": {
+          "type": "object",
+          "properties": { "length": {} },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "RoutineMetadata": {
+      "type": "object",
+      "properties": {
+        "conditions": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/RoutineCondition" }
+        },
+        "cron_schedules": { "type": "array" },
+        "repositories": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/TaskRepoRequest" }
+        },
+        "timezone": {}
+      },
+      "additionalProperties": false
+    },
+    "RoutineSkippedEvent": {
+      "type": "object",
+      "properties": {
+        "conversation_id": {},
+        "environment": {},
+        "event_name": { "const": "introspection.routines.skipped" },
+        "experiment_id": {},
+        "id": {},
+        "payload": { "$ref": "#/$defs/RoutineSkippedPayload" },
+        "recipe_git_commit_sha": {},
+        "runtime_group_id": {},
+        "runtime_id": {},
+        "service_name": {},
+        "span_id": {},
+        "timestamp": {},
+        "trace_id": {}
+      },
+      "additionalProperties": false
+    },
+    "RoutineSkippedPayload": {
+      "type": "object",
+      "properties": {
+        "event": { "$ref": "#/$defs/RoutineTriggerEventRef" },
+        "reason": {
+          "type": "object",
+          "properties": { "length": {} },
+          "additionalProperties": false
+        },
+        "routine_id": {},
+        "slot": {},
+        "task_id": {},
+        "trigger_type": {
+          "type": "object",
+          "properties": { "length": {} },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "RoutineTrigger": {
+      "type": "object",
+      "properties": {
+        "connector_slug": {},
+        "created_at": {},
+        "enabled": {},
+        "event_types": { "type": "array" },
+        "filter": { "$ref": "#/$defs/RoutineTriggerFilter" },
+        "id": {},
+        "org_id": {},
+        "parameters": {},
+        "project_id": {},
+        "provider": {
+          "type": "object",
+          "properties": { "length": {} },
+          "additionalProperties": false
+        },
+        "routine_id": {},
+        "source": {
+          "type": "object",
+          "properties": { "length": {} },
+          "additionalProperties": false
+        },
+        "updated_at": {}
+      },
+      "additionalProperties": false
+    },
+    "RoutineTriggerEventRef": {
+      "type": "object",
+      "properties": { "delivery_id": {}, "event_type": {}, "trigger_id": {} },
+      "additionalProperties": false
+    },
+    "RoutineTriggerFilter": {
+      "type": "object",
+      "properties": {
+        "branches": { "type": "array" },
+        "channel_ids": { "type": "array" },
+        "emoji": { "type": "array" },
+        "payload_fields": {
+          "type": "object",
+          "additionalProperties": { "type": "array" }
+        },
+        "repository_ids": { "type": "array" },
+        "team_ids": { "type": "array" },
+        "to_states": { "type": "array" }
+      },
+      "additionalProperties": false
+    },
+    "RoutineTriggerResponse": {
+      "type": "object",
+      "properties": {
+        "reason": {},
+        "result": { "$ref": "#/$defs/RoutineTriggerResult" },
+        "routine_id": {},
+        "run_id": {},
+        "status": {
+          "type": "object",
+          "properties": { "length": {} },
+          "additionalProperties": false
+        },
+        "task_id": {}
+      },
+      "additionalProperties": false
+    },
+    "RoutineTriggerResult": {
+      "type": "object",
+      "properties": {
+        "conversations": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/EnqueuedConversation" }
+        },
+        "enqueued": {}
+      },
+      "additionalProperties": true
+    },
+    "RoutineTriggeredEvent": {
+      "type": "object",
+      "properties": {
+        "conversation_id": {},
+        "environment": {},
+        "event_name": { "const": "introspection.routines.triggered" },
+        "experiment_id": {},
+        "id": {},
+        "payload": { "$ref": "#/$defs/RoutineTriggeredPayload" },
+        "recipe_git_commit_sha": {},
+        "runtime_group_id": {},
+        "runtime_id": {},
+        "service_name": {},
+        "span_id": {},
+        "timestamp": {},
+        "trace_id": {}
+      },
+      "additionalProperties": false
+    },
+    "RoutineTriggeredPayload": {
+      "type": "object",
+      "properties": {
+        "event": { "$ref": "#/$defs/RoutineTriggerEventRef" },
+        "member_id": {},
+        "posted": {},
+        "prompt": {},
+        "routine_id": {},
+        "routine_name": {},
+        "runtime_group_id": {},
+        "slot": {},
+        "task_id": {},
+        "trigger_type": {
+          "type": "object",
+          "properties": { "length": {} },
+          "additionalProperties": false
+        },
+        "triggered_by_member_id": {}
+      },
+      "additionalProperties": false
+    },
     "RunCaller": {
       "type": "object",
       "properties": {
@@ -2788,7 +2893,6 @@
       "type": "object",
       "properties": {
         "agent": { "$ref": "#/$defs/AgentInfo" },
-        "automation_id": {},
         "completed_at": {},
         "conversation_metadata": {},
         "created_at": {},
@@ -2801,6 +2905,7 @@
         "metadata": {},
         "org_id": {},
         "project_id": {},
+        "routine_id": {},
         "runtime_group_id": {},
         "runtime_id": {},
         "started_at": {},
@@ -3067,10 +3172,6 @@
     },
     "ApplicationSecret": { "$ref": "#/$defs/ApplicationSecret" },
     "Approval": { "$ref": "#/$defs/Approval" },
-    "Automation": { "$ref": "#/$defs/Automation" },
-    "AutomationTriggerResponse": {
-      "$ref": "#/$defs/AutomationTriggerResponse"
-    },
     "ConnectPage": { "$ref": "#/$defs/ConnectPage" },
     "ConnectionTokenResult": {
       "anyOf": [
@@ -3085,6 +3186,7 @@
     "ConnectorOAuthDiscoveryResponse": {
       "$ref": "#/$defs/ConnectorOAuthDiscoveryResponse"
     },
+    "ConnectorSecretResponse": { "$ref": "#/$defs/ConnectorSecretResponse" },
     "Conversation": { "$ref": "#/$defs/Conversation" },
     "Credential": { "$ref": "#/$defs/Credential" },
     "DataPlaneToken": { "$ref": "#/$defs/DataPlaneToken" },
@@ -3092,8 +3194,6 @@
     "Event | UnknownEvent": {
       "anyOf": [
         { "$ref": "#/$defs/AnnotationEvent" },
-        { "$ref": "#/$defs/AutomationSkippedEvent" },
-        { "$ref": "#/$defs/AutomationTriggeredEvent" },
         { "$ref": "#/$defs/ClusteringRunEvent" },
         { "$ref": "#/$defs/FeedbackEvent" },
         { "$ref": "#/$defs/IssueActivityEvent" },
@@ -3101,6 +3201,8 @@
         { "$ref": "#/$defs/ObservationEvent" },
         { "$ref": "#/$defs/PatternAssignmentEvent" },
         { "$ref": "#/$defs/PatternEvent" },
+        { "$ref": "#/$defs/RoutineSkippedEvent" },
+        { "$ref": "#/$defs/RoutineTriggeredEvent" },
         { "$ref": "#/$defs/UnknownEvent" }
       ]
     },
@@ -3137,7 +3239,6 @@
       "$ref": "#/$defs/Paginated<ApplicationSecret>"
     },
     "Paginated<Approval>": { "$ref": "#/$defs/Paginated<Approval>" },
-    "Paginated<Automation>": { "$ref": "#/$defs/Paginated<Automation>" },
     "Paginated<Connector>": { "$ref": "#/$defs/Paginated<Connector>" },
     "Paginated<Conversation>": { "$ref": "#/$defs/Paginated<Conversation>" },
     "Paginated<Credential>": { "$ref": "#/$defs/Paginated<Credential>" },
@@ -3159,6 +3260,7 @@
       "$ref": "#/$defs/Paginated<RepositoryBranch>"
     },
     "Paginated<ResourceShare>": { "$ref": "#/$defs/Paginated<ResourceShare>" },
+    "Paginated<Routine>": { "$ref": "#/$defs/Paginated<Routine>" },
     "Paginated<Runtime>": { "$ref": "#/$defs/Paginated<Runtime>" },
     "Paginated<RuntimePeering>": {
       "$ref": "#/$defs/Paginated<RuntimePeering>"
@@ -3186,6 +3288,8 @@
       "items": { "$ref": "#/$defs/Repository" }
     },
     "ResourceShare": { "$ref": "#/$defs/ResourceShare" },
+    "Routine": { "$ref": "#/$defs/Routine" },
+    "RoutineTriggerResponse": { "$ref": "#/$defs/RoutineTriggerResponse" },
     "RunnerSpec": { "$ref": "#/$defs/RunnerSpec" },
     "Runtime": { "$ref": "#/$defs/Runtime" },
     "RuntimePeering": { "$ref": "#/$defs/RuntimePeering" },

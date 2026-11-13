@@ -25,6 +25,14 @@ export type ConnectorAuthMode =
 
 export type ConnectorStatus = "pending" | "active" | "error";
 
+/**
+ * How callers of a `webhook` connector authenticate: `standard_webhooks`
+ * (the default) signs each call per the Standard Webhooks spec with the
+ * connector's secret; `bearer` sends the secret as a bearer token.
+ */
+export type WebhookAuth =
+  "standard_webhooks" | "bearer" | (string & Record<never, never>);
+
 export type ConnectionStatus =
   "pending_authorization" | "active" | "refresh_failed" | "revoked";
 
@@ -60,8 +68,16 @@ export interface PolicyEntity {
  * (e.g. Slack, Gmail, Stripe) that connections are minted under.
  *
  * `client_secret` and `signing_secret` are write-only: accepted on create
- * and update, absent from every response — this read model deliberately
- * does not declare them.
+ * and update, absent from every read — this read model deliberately does
+ * not declare them. A `webhook` connector's platform-generated secret is
+ * returned once, by the create or rotation that issues it
+ * ({@link ConnectorSecretResponse}).
+ *
+ * A `webhook` connector (`provider: "webhook"`, `auth_mode: "static"`) is
+ * inbound only: the customer's own systems call
+ * `POST /v1/webhooks/connectors/{id}` on the Control Plane, and a routine
+ * trigger with `source: "connector"` and its `connector_slug` runs on each
+ * call.
  */
 export interface Connector {
   id: Uuid;
@@ -98,6 +114,23 @@ export interface Connector {
    * never hardcode a provider list.
    */
   requires_runtime: boolean;
+  /** How a `webhook` connector's callers authenticate; null for every other provider. */
+  webhook_auth?: WebhookAuth | null;
+  /**
+   * For a rotated `webhook` connector: until when its previous secret is
+   * still accepted (24 hours after the rotation).
+   */
+  previous_signing_secret_expires_at?: IsoDate | null;
+}
+
+/**
+ * A connector create or update response. `signing_secret` is a `webhook`
+ * connector's new secret, present only on the create that generates it and
+ * on an update with `rotate_signing_secret: true`. Shown once: store it, as
+ * no read returns it.
+ */
+export interface ConnectorSecretResponse extends Connector {
+  signing_secret?: string;
 }
 
 export interface ConnectorCreateParams {
@@ -138,6 +171,12 @@ export interface ConnectorCreateParams {
   webhook_url?: string;
   /** Cedar entities for the recipe's policies; see {@link PolicyEntity}. */
   policy_entities?: PolicyEntity[];
+  /**
+   * A `webhook` connector only (server default `standard_webhooks`). A
+   * webhook connector takes no secret, client, hosts, scopes or endpoints:
+   * the platform generates its secret.
+   */
+  webhook_auth?: WebhookAuth;
 }
 
 /**
@@ -160,6 +199,14 @@ export interface ConnectorUpdateParams {
   signing_secret?: string;
   /** Replaces the Cedar entities; see {@link PolicyEntity}. */
   policy_entities?: PolicyEntity[];
+  /** A `webhook` connector only: how its callers authenticate. */
+  webhook_auth?: WebhookAuth;
+  /**
+   * A `webhook` connector only: issue a new secret, returned once as the
+   * response's `signing_secret`. The previous one stays valid for 24 hours
+   * (`previous_signing_secret_expires_at`).
+   */
+  rotate_signing_secret?: boolean;
 }
 
 export interface ConnectorListParams extends CursorParams {
