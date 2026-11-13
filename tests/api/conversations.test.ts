@@ -404,6 +404,37 @@ describe("ConversationsApi", () => {
     expect(calls[1][0].query.order).toBeUndefined();
   });
 
+  it("items.list() sends direction=asc on every page with the opaque cursor", async () => {
+    // A nanosecond cursor: 19 digits lose precision through `Number`.
+    const cursor = "1731499200123456789";
+    const page1 = makePage([makeSpan("span-1")], true);
+    page1.next = cursor;
+    const page2 = makePage([makeSpan("span-2")], false);
+    const http = mockHttp();
+    (http.request as ReturnType<typeof vi.fn>)
+      .mockResolvedValueOnce(page1)
+      .mockResolvedValueOnce(page2);
+
+    const items = [];
+    for await (const item of new ConversationsApi(http).items.list("conv-1", {
+      direction: "asc",
+    })) {
+      items.push(item);
+    }
+
+    expect(items.map((i) => i.span_id)).toEqual(["span-1", "span-2"]);
+    const calls = (http.request as ReturnType<typeof vi.fn>).mock.calls;
+    expect(calls[0][0].query).toMatchObject({ direction: "asc" });
+    expect(calls[1][0].query).toMatchObject({ direction: "asc", next: cursor });
+  });
+
+  it("items.list() types accept only asc|desc as direction", () => {
+    const desc: ConversationItemListParams = { direction: "desc" };
+    // @ts-expect-error the deprecated spelling is not modelled
+    const newer: ConversationItemListParams = { direction: "newer" };
+    expect([desc, newer]).toHaveLength(2);
+  });
+
   it("items.get() URL-encodes path segments", async () => {
     const http = mockHttp({ requestResult: makeSpan("span-1") });
     const api = new ConversationsApi(http);
@@ -990,5 +1021,138 @@ describe("conversations export", () => {
     const http = mockHttp({ streamResult: new Response(new Uint8Array()) });
     const result = await new ConversationsApi(http).exportArrow("conv-1");
     expect(result.numRows).toBe(0);
+  });
+});
+
+describe("conversations exportIncremental", () => {
+  // A nanosecond cursor: 19 digits lose precision through `Number`.
+  const CURSOR = "1731499200123456789";
+  const NEWER = "1731499200987654321";
+
+  function apiFor(response: () => Response) {
+    const seen: URL[] = [];
+    const accepts: (string | null)[] = [];
+    const fetch = vi.fn(
+      async (url: string | URL | Request, init?: RequestInit) => {
+        seen.push(new URL(String(url)));
+        accepts.push(new Headers(init?.headers).get("accept"));
+        return response();
+      },
+    );
+    const api = new ConversationsApi(
+      new HttpClient({
+        apiUrl: "https://dp.example.test",
+        token: "t",
+        fetch: fetch as unknown as typeof globalThis.fetch,
+      }),
+    );
+    return { api, seen, accepts };
+  }
+
+  it("sends direction=asc and surfaces Introspection-Next beside the body", async () => {
+    const line = `${JSON.stringify(makeSpan("span-1"))}\n`;
+    const { api, seen, accepts } = apiFor(
+      () =>
+        new Response(line, {
+          headers: {
+            "content-type": "application/x-ndjson",
+            "Introspection-Next": CURSOR,
+          },
+        }),
+    );
+
+    const result = await api.exportIncremental("conv/1", "jsonl", {
+      direction: "asc",
+      agent: "root",
+    });
+
+    expect(seen[0]!.pathname).toBe("/v1/conversations/conv%2F1/export");
+    expect(seen[0]!.searchParams.get("direction")).toBe("asc");
+    expect(seen[0]!.searchParams.get("agent")).toBe("root");
+    expect(seen[0]!.searchParams.has("next")).toBe(false);
+    expect(accepts[0]).toBe("application/x-ndjson");
+    expect(result.status).toBe("ok");
+    expect(result.next).toBe(CURSOR);
+    if (result.status !== "ok") throw new Error("expected ok");
+    expect(await new Response(result.body).text()).toBe(line);
+  });
+
+  it("passes next through as the exact string and returns the newer cursor", async () => {
+    const { api, seen } = apiFor(
+      () =>
+        new Response("", {
+          headers: { "Introspection-Next": NEWER },
+        }),
+    );
+
+    const result = await api.exportIncremental("conv-1", "arrow", {
+      next: CURSOR,
+    });
+
+    expect(seen[0]!.searchParams.get("next")).toBe(CURSOR);
+    expect(seen[0]!.search).toContain(`next=${CURSOR}`);
+    expect(result).toMatchObject({ status: "ok", next: NEWER });
+    expect(typeof result.next).toBe("string");
+  });
+
+  it("returns the cursor of a 204 as no_newer, not an error or a lost cursor", async () => {
+    const { api } = apiFor(
+      () =>
+        new Response(null, {
+          status: 204,
+          headers: { "Introspection-Next": CURSOR },
+        }),
+    );
+
+    const result = await api.exportIncremental("conv-1", "jsonl", {
+      next: CURSOR,
+    });
+
+    expect(result).toEqual({ status: "no_newer", body: null, next: CURSOR });
+  });
+
+  it("keeps the sent cursor when a 204 omits the header", async () => {
+    const { api } = apiFor(() => new Response(null, { status: 204 }));
+    const result = await api.exportIncremental("conv-1", "jsonl", {
+      next: CURSOR,
+    });
+    expect(result).toEqual({ status: "no_newer", body: null, next: CURSOR });
+  });
+
+  it("rejects a 204 with no cursor anywhere", async () => {
+    const { api } = apiFor(() => new Response(null, { status: 204 }));
+    await expect(api.exportIncremental("conv-1", "jsonl")).rejects.toThrow(
+      "204 without Introspection-Next",
+    );
+  });
+
+  it("returns next=null for a newest-first export that names no cursor", async () => {
+    const { api, seen } = apiFor(() => new Response(""));
+    const result = await api.exportIncremental("conv-1", "jsonl", {
+      direction: "desc",
+    });
+    expect(seen[0]!.searchParams.get("direction")).toBe("desc");
+    expect(result).toMatchObject({ status: "ok", next: null });
+  });
+
+  it("returns an empty body stream when a 200 carries none", async () => {
+    const http = mockHttp({
+      streamResult: {
+        status: 200,
+        headers: new Headers({ "Introspection-Next": CURSOR }),
+        body: null,
+      },
+    });
+    const result = await new ConversationsApi(http).exportIncremental(
+      "conv-1",
+      "trajectory",
+    );
+    const call = (http.stream as ReturnType<typeof vi.fn>).mock.calls[0][0];
+    expect(call.headers.Accept).toBe(
+      "application/vnd.letta.trajectory+json;version=1",
+    );
+    if (result.status !== "ok") throw new Error("expected ok");
+    expect(await new Response(result.body).text()).toBe("");
+    expect(result.next).toBe(CURSOR);
   });
 });

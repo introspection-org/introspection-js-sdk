@@ -851,8 +851,19 @@ export interface ConversationListParams extends CursorParams, ReadWindowParams {
 export interface ConversationItemListParams {
   /** Maximum items per page (1-1000, server default 100). */
   limit?: number;
-  /** Opaque cursor returned by the previous page. */
+  /**
+   * Opaque cursor returned by the previous page. A cursor from an `"asc"`
+   * read resumes only an `"asc"` read: pass the same `direction` with it.
+   */
   next?: string;
+  /**
+   * Read order. Omit (or `"desc"`) for newest-first, the default; `"asc"`
+   * reads oldest-first from the conversation start.
+   *
+   * The deprecated `"newer"` / `"older"` spellings the server still accepts
+   * are not modelled: they mean `"asc"` / `"desc"`.
+   */
+  direction?: "asc" | "desc";
   /** Optional item expansions (repeated `include` param). */
   include?: ConversationItemInclude[];
   /**
@@ -941,9 +952,18 @@ export type ConversationContains =
  *
  * The export is a complete, server-assembled conversation, so it carries
  * no pagination: these are filters over what gets assembled, not a page
- * window.
+ * window. To resume an export where an earlier one stopped, use
+ * {@link ConversationExportResumeParams} with `exportIncremental()`.
  */
 export interface ConversationExportParams {
+  /**
+   * Export order. `"asc"` exports oldest-first from the conversation start,
+   * up to the latest item that existed when the request began, and the
+   * response names the cursor to resume from (`exportIncremental()` returns
+   * it). `"desc"`, the span export's default, is newest-first. The trajectory
+   * export is oldest-first only, so `"desc"` with it is a `400`.
+   */
+  direction?: "asc" | "desc";
   /**
    * Agent selector. `"root"` returns the depth-zero transcript; an exact
    * agent id returns that invocation. Omit for the complete conversation.
@@ -975,6 +995,23 @@ export interface ConversationExportParams {
 
 /** An optional expansion of an exported span. */
 export type ConversationExportInclude = "annotations" | "comments";
+
+/**
+ * Query params for a resumable export of `GET /v1/conversations/{id}/export`:
+ * the {@link ConversationExportParams} filters plus the cursor to resume
+ * after.
+ */
+export interface ConversationExportResumeParams extends ConversationExportParams {
+  /**
+   * Resume an oldest-first export after this cursor: the `next` of an
+   * earlier export, or of an `"asc"` items read. Implies `direction: "asc"`,
+   * so `"desc"`, or a trajectory export, with it is a `400`.
+   *
+   * Opaque: it embeds a nanosecond timestamp, so pass it on as the string it
+   * came as and never parse it or convert it to a `number`.
+   */
+  next?: string;
+}
 
 /**
  * One tool invocation inside a {@link TrajectoryAssistantRecord}.

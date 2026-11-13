@@ -1,6 +1,7 @@
 import type {
   Conversation,
   ConversationExportParams,
+  ConversationExportResumeParams,
   ConversationItemInclude,
   ConversationItemListParams,
   ConversationListParams,
@@ -39,6 +40,29 @@ const EXPORT_ACCEPT: Record<ConversationExportFormat, string> = {
   trajectory: `${TRAJECTORY_MEDIA_TYPE};version=1`,
 };
 
+/** The response header naming the cursor an export resumes from. */
+const EXPORT_NEXT_HEADER = "Introspection-Next";
+
+/**
+ * One export from {@link ConversationsClient.exportIncremental}, with the
+ * cursor to resume from. Discriminated by `status`:
+ *
+ * - `"ok"` — `body` is the raw export byte stream. `next` is the cursor to
+ *   pass as `next` on the following export, or `null` when the response
+ *   named none (a newest-first export).
+ * - `"no_newer"` — the export was resumed with `next` and nothing is newer
+ *   (`204 No Content`). There is no body; `next` is the cursor to retry with.
+ *
+ * `next` is opaque and embeds a nanosecond timestamp: keep it as a string.
+ */
+export type ConversationExportResult =
+  | {
+      status: "ok";
+      body: ReadableStream<Uint8Array>;
+      next: string | null;
+    }
+  | { status: "no_newer"; body: null; next: string };
+
 /**
  * Items of a conversation (`/v1/conversations/{id}/items`). Read-only.
  *
@@ -54,9 +78,9 @@ export class ConversationItemsClient {
    * stream every item across pages (fetched lazily — `limit` sets the page
    * size, `next` the starting cursor; stop early to stop fetching).
    *
-   * Items are always returned newest-first: the route hardcodes a
-   * descending sort and rejects a cursor that disagrees, so there is no
-   * ordering parameter. Collect the pages and reverse to read forwards.
+   * Items are returned newest-first unless `direction: "asc"` asks for
+   * oldest-first from the conversation start. Every page is requested with
+   * the same `direction`, which an `"asc"` cursor requires.
    *
    * Items carry the turn-local delta in `attributes.gen_ai.input.messages`
    * — only the messages new to that turn. Use `get()` for the full input
@@ -222,6 +246,59 @@ export class ConversationsClient {
   }
 
   /**
+   * Export a conversation oldest-first and return the cursor to resume
+   * from, so a follower can export only what is newer each time.
+   *
+   * Without `next` this exports from the conversation start (pass
+   * `direction: "asc"` for a span export, whose default is newest-first);
+   * with `next` it exports what came after that cursor, up to the latest
+   * item that existed when the request began. The cursor arrives in the
+   * `Introspection-Next` response header, before the body streams, and is
+   * returned beside the raw byte stream. When nothing is newer than `next`
+   * the result is `status: "no_newer"` with the same cursor, not an error.
+   *
+   * ```ts
+   * let next: string | undefined;
+   * const page = await client.conversations.exportIncremental(id, "jsonl", {
+   *   direction: "asc",
+   *   next,
+   * });
+   * if (page.status === "ok") await save(page.body);
+   * next = page.next ?? next;
+   * ```
+   */
+  async exportIncremental(
+    conversationId: string,
+    format: ConversationExportFormat,
+    params?: ConversationExportResumeParams,
+    signal?: AbortSignal,
+  ): Promise<ConversationExportResult> {
+    const res = await this.http.stream({
+      path: `/v1/conversations/${encodeURIComponent(conversationId)}/export`,
+      query: params as Record<string, unknown> | undefined,
+      headers: { Accept: EXPORT_ACCEPT[format] },
+      signal,
+    });
+    const next = res.headers.get(EXPORT_NEXT_HEADER);
+    if (res.status === 204) {
+      // The server echoes the cursor; fall back to the one sent if it didn't.
+      const cursor = next ?? params?.next;
+      if (cursor === undefined) {
+        throw new Error(
+          `conversation export for ${conversationId} answered 204 without ${EXPORT_NEXT_HEADER}`,
+        );
+      }
+      return { status: "no_newer", body: null, next: cursor };
+    }
+    return {
+      status: "ok",
+      body:
+        res.body ?? new ReadableStream<Uint8Array>({ start: (c) => c.close() }),
+      next,
+    };
+  }
+
+  /**
    * Export one complete conversation as trajectory-v1: a non-empty array
    * of `meta` / `user` / `reasoning` / `assistant` / `tool` records.
    *
@@ -311,7 +388,7 @@ export class ConversationsClient {
     conversationId: string,
   ): Promise<string | null> {
     let fallback: GenAiSpan | null = null;
-    // The route is descending-only, so the first matching item is the latest.
+    // The list is newest-first by default, so the first match is the latest.
     for await (const item of this.items.list(conversationId)) {
       if (item.attributes.gen_ai?.operation?.name === "chat") {
         return item.span_id ?? null;
