@@ -93,7 +93,9 @@ export class ConnectorsApi {
 
   /**
    * Update a connector. With `rotate_signing_secret: true` a `webhook`
-   * connector's new secret comes back once, as `signing_secret`.
+   * connector's new secret comes back once, as `signing_secret`, and the
+   * current one stays valid as the previous until the next rotation;
+   * `revoke_previous_signing_secret: true` retires the previous now.
    */
   update(
     connectorId: Uuid,

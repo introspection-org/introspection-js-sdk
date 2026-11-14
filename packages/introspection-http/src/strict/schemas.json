@@ -376,11 +376,14 @@
           "type": "array",
           "items": { "$ref": "#/$defs/PolicyEntity" }
         },
-        "previous_signing_secret_expires_at": {},
         "project_id": {},
         "provider": {},
         "requires_runtime": {},
         "scopes": { "type": "array" },
+        "signing_secrets": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/SigningSecret" }
+        },
         "slug": {},
         "status": {},
         "token_endpoint": {},
@@ -454,12 +457,15 @@
           "type": "array",
           "items": { "$ref": "#/$defs/PolicyEntity" }
         },
-        "previous_signing_secret_expires_at": {},
         "project_id": {},
         "provider": {},
         "requires_runtime": {},
         "scopes": { "type": "array" },
         "signing_secret": {},
+        "signing_secrets": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/SigningSecret" }
+        },
         "slug": {},
         "status": {},
         "token_endpoint": {},
@@ -2561,7 +2567,6 @@
         "filter": { "$ref": "#/$defs/RoutineTriggerFilter" },
         "id": {},
         "org_id": {},
-        "parameters": {},
         "project_id": {},
         "provider": {
           "type": "object",
@@ -2844,6 +2849,11 @@
         },
         "restrict_invites_to_domains": {}
       },
+      "additionalProperties": false
+    },
+    "SigningSecret": {
+      "type": "object",
+      "properties": { "created_at": {}, "id": {}, "status": {} },
       "additionalProperties": false
     },
     "SpanAttributes": {

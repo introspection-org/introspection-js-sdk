@@ -117,10 +117,20 @@ export interface Connector {
   /** How a `webhook` connector's callers authenticate; null for every other provider. */
   webhook_auth?: WebhookAuth | null;
   /**
-   * For a rotated `webhook` connector: until when its previous secret is
-   * still accepted (24 hours after the rotation).
+   * The secrets a `webhook` connector accepts, current first: at most two,
+   * described without their material. Null for every other provider.
    */
-  previous_signing_secret_expires_at?: IsoDate | null;
+  signing_secrets?: SigningSecret[] | null;
+}
+
+export type SigningSecretStatus = "current" | "previous";
+
+/** One secret a `webhook` connector accepts, described without its material. */
+export interface SigningSecret {
+  /** A fingerprint of the secret: the first 8 hex digits of its SHA-256. */
+  id: string;
+  created_at?: IsoDate | null;
+  status: SigningSecretStatus;
 }
 
 /**
@@ -203,10 +213,16 @@ export interface ConnectorUpdateParams {
   webhook_auth?: WebhookAuth;
   /**
    * A `webhook` connector only: issue a new secret, returned once as the
-   * response's `signing_secret`. The previous one stays valid for 24 hours
-   * (`previous_signing_secret_expires_at`).
+   * response's `signing_secret`. The current one stays valid as the previous
+   * secret until the next rotation or a revoke; an older previous is retired,
+   * so at most two are valid. Not with `revoke_previous_signing_secret`.
    */
   rotate_signing_secret?: boolean;
+  /**
+   * A `webhook` connector only: stop accepting its previous secret now. Not
+   * with `rotate_signing_secret` (the server answers 422 to both).
+   */
+  revoke_previous_signing_secret?: boolean;
 }
 
 export interface ConnectorListParams extends CursorParams {

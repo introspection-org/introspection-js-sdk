@@ -217,7 +217,13 @@ describe("ConnectorsApi", () => {
       api_hosts: [],
       requires_runtime: false,
       webhook_auth: "standard_webhooks",
-      previous_signing_secret_expires_at: null,
+      signing_secrets: [
+        {
+          id: "a1b2c3d4",
+          created_at: "2026-08-08T00:00:00Z",
+          status: "current",
+        },
+      ],
       signing_secret: "whsec_c2VjcmV0",
     };
     const http = mockHttp({ requestResult: webhook });
@@ -252,7 +258,18 @@ describe("ConnectorsApi", () => {
         ...CONNECTOR_FIXTURE,
         provider: "webhook",
         webhook_auth: "bearer",
-        previous_signing_secret_expires_at: "2026-08-09T00:00:00Z",
+        signing_secrets: [
+          {
+            id: "e5f6a7b8",
+            created_at: "2026-08-09T00:00:00Z",
+            status: "current",
+          },
+          {
+            id: "a1b2c3d4",
+            created_at: "2026-08-08T00:00:00Z",
+            status: "previous",
+          },
+        ],
         signing_secret: "whsec_bmV3",
       },
     });
@@ -269,9 +286,42 @@ describe("ConnectorsApi", () => {
       schema: "ConnectorSecretResponse",
     });
     expect(rotated.signing_secret).toBe("whsec_bmV3");
-    expect(rotated.previous_signing_secret_expires_at).toBe(
-      "2026-08-09T00:00:00Z",
-    );
+    expect(rotated.signing_secrets?.map((secret) => secret.status)).toEqual([
+      "current",
+      "previous",
+    ]);
+  });
+
+  it("update() revokes a webhook connector's previous secret", async () => {
+    const http = mockHttp({
+      requestResult: {
+        ...CONNECTOR_FIXTURE,
+        provider: "webhook",
+        webhook_auth: "standard_webhooks",
+        signing_secrets: [
+          {
+            id: "e5f6a7b8",
+            created_at: "2026-08-09T00:00:00Z",
+            status: "current",
+          },
+        ],
+      },
+    });
+
+    const revoked = await new ConnectorsApi(http).update(CONNECTOR_ID, {
+      revoke_previous_signing_secret: true,
+    });
+
+    expect(http.request).toHaveBeenCalledWith({
+      method: "PATCH",
+      path: `/v1/connectors/${CONNECTOR_ID}`,
+      body: { revoke_previous_signing_secret: true },
+      schema: "ConnectorSecretResponse",
+    });
+    expect(revoked.signing_secret).toBeUndefined();
+    expect(revoked.signing_secrets).toEqual([
+      { id: "e5f6a7b8", created_at: "2026-08-09T00:00:00Z", status: "current" },
+    ]);
   });
 
   it("delete() expects an empty body", async () => {

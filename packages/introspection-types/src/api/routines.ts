@@ -112,11 +112,10 @@ export interface RoutineTriggerFilter {
  * `event_types` (1–50) are `{provider}.{object}.{action}` names from the
  * catalogue, such as `github.pull_request.opened`; a `webhook` connector's are
  * the JSON body's string `type` (else `webhook.received`), or `*` alone for
- * every one. `parameters` maps a name (lowercase letters, digits and `_`,
- * starting with a letter, up to 40; at most 20) to an RFC 6901 JSON pointer
- * into the event's body: the run receives the values as `parameters.json`,
- * and each `@parameters.<name>` in the prompt becomes that value as JSON
- * (`null` when it resolves to nothing).
+ * every one. A trigger declares no parameters: the run it starts receives the
+ * event's body as its parameters, as `parameters.json` (any JSON; a non-JSON
+ * body arrives as a JSON string), and each `@parameters.<key>` in the prompt
+ * reads a top-level key of it, the same as a manual run's `parameters`.
  */
 export interface RoutineTriggerSpec {
   /** On update: an existing trigger of this routine to keep. Never on create. */
@@ -128,8 +127,6 @@ export interface RoutineTriggerSpec {
   connector_slug?: string;
   event_types: string[];
   filter?: RoutineTriggerFilter;
-  /** `{name: json_pointer}`, such as `{ customer_id: "/data/customer" }`. */
-  parameters?: Record<string, string>;
   /** Server default `true`. */
   enabled?: boolean;
 }
@@ -145,7 +142,6 @@ export interface RoutineTrigger {
   connector_slug?: string | null;
   event_types: string[];
   filter: RoutineTriggerFilter;
-  parameters: Record<string, string>;
   enabled: boolean;
   created_at: IsoDate;
   updated_at: IsoDate;

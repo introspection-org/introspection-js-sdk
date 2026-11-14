@@ -34,7 +34,6 @@ const WEBHOOK_TRIGGER: RoutineTriggerSpec = {
   connector_slug: "ci-alerts",
   event_types: ["build.failed"],
   filter: { payload_fields: { branch: ["main"] } },
-  parameters: { build_url: "/build/url" },
 };
 
 const ROUTINE_FIXTURE: Routine & { agent_member_id: null } = {
@@ -89,7 +88,6 @@ const ROUTINE_FIXTURE: Routine & { agent_member_id: null } = {
         branches: null,
         payload_fields: { branch: ["main"] },
       },
-      parameters: { build_url: "/build/url" },
       enabled: true,
       created_at: "2026-09-01T10:00:00Z",
       updated_at: "2026-09-01T10:00:00Z",
@@ -291,7 +289,7 @@ describe("RoutinesApi", () => {
     const [trigger] = created.triggers;
     expect(trigger.id).toBe(TRIGGER_ID);
     expect(trigger.filter.payload_fields).toEqual({ branch: ["main"] });
-    expect(trigger.parameters).toEqual({ build_url: "/build/url" });
+    expect(trigger).not.toHaveProperty("parameters");
   });
 
   it("update() replaces the trigger list, keeping listed ids", async () => {

@@ -208,13 +208,13 @@ A routine's `triggers` start runs on events, beside its schedule and
 events such as `github.pull_request.opened`) or a project connector's
 (`source: "connector"`). A `webhook` connector is one your own systems call:
 create it on the Control Plane, store the `signing_secret` its create returns
-once (rotate it with `update(id, { rotate_signing_secret: true })`), and have
-the caller sign each `POST /v1/webhooks/connectors/{id}` with it per Standard
-Webhooks (or send it as a bearer token with `webhook_auth: "bearer"`). A
-trigger's `parameters` map names to JSON pointers into the delivered body;
-the run gets their values as `parameters.json` and `@parameters.<name>`, and
-the raw event as `trigger/event.json` and `trigger/payload`, all as untrusted
-data:
+once, and have the caller sign each `POST /v1/webhooks/connectors/{id}` with
+it per Standard Webhooks (or send it as a bearer token with
+`webhook_auth: "bearer"`). A run an event starts receives the event's body as
+its parameters, the same as a manual run's `parameters`: as `parameters.json`
+(any JSON; a non-JSON body arrives as a JSON string), with each
+`@parameters.<key>` in the prompt reading a top-level key of it, and the
+event itself as `trigger/event.json`, all as untrusted data:
 
 ```typescript
 const webhook = await client.connectors.create({
@@ -238,11 +238,44 @@ await client.routines.create({
       // The JSON body's string `type`; `["*"]` matches every one.
       event_types: ["build.failed"],
       filter: { payload_fields: { branch: ["main"] } },
-      parameters: { build_url: "/build/url" },
     },
   ],
 });
 ```
+
+The caller signs with the official `standardwebhooks` package:
+
+```typescript
+import { Webhook } from "standardwebhooks";
+
+const body = JSON.stringify({
+  type: "build.failed",
+  branch: "main",
+  build_url: "https://ci.example.com/builds/42",
+});
+const id = crypto.randomUUID();
+const date = new Date();
+await fetch(webhookUrl, {
+  method: "POST",
+  headers: {
+    "content-type": "application/json",
+    "webhook-id": id,
+    "webhook-timestamp": String(Math.floor(date.getTime() / 1000)),
+    "webhook-signature": new Webhook(secret).sign(id, date, body),
+  },
+  body,
+});
+```
+
+A connector read lists its accepted secrets as `signing_secrets`
+(`{ id, created_at, status }`, current first; `null` for any other
+provider), never their material. A webhook connector holds at most two:
+`update(id, { rotate_signing_secret: true })` returns a new one once as
+`signing_secret`, and the one it replaces keeps working as the previous
+secret until the next rotation or until
+`update(id, { revoke_previous_signing_secret: true })` retires it. There is
+no grace period to wait out, and the server refuses both flags in one
+update.
 
 `update(id, { triggers })` replaces the list: an entry with an `id` keeps that
 trigger, the rest are new, and a trigger left out is removed. A task a trigger

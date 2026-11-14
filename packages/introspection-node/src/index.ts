@@ -237,6 +237,8 @@ export type {
   ConnectorStatus,
   ConnectorSecretResponse,
   WebhookAuth,
+  SigningSecret,
+  SigningSecretStatus,
   EntityUid,
   PolicyEntity,
   ConnectorCreateParams,
