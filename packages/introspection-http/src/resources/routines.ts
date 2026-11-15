@@ -1,3 +1,4 @@
+import { isParametersFile } from "@introspection-sdk/types";
 import type {
   Routine,
   RoutineCreateParams,
@@ -105,29 +106,25 @@ export class RoutinesClient {
     routineId: Uuid,
     params: RoutineTriggerParams = {},
   ): Promise<RoutineTriggerResponse> {
-    const { parameters, parametersFile, attachParametersFile } = params;
-    if (parameters !== undefined && parametersFile !== undefined) {
-      throw new TypeError("Pass parameters or parametersFile, not both");
-    }
+    const { parameters, attachParametersFile } = params;
     const files = [...(params.files ?? [])];
-    if (parametersFile !== undefined) {
-      const id =
-        typeof parametersFile === "string" ? parametersFile : parametersFile.id;
-      files.unshift({ id, name: PARAMETERS_FILE_NAME });
-    } else if (
-      parameters !== undefined &&
-      (attachParametersFile ?? (await this.startsOwnTask(routineId)))
-    ) {
-      const uploaded = await new FilesClient(this.http).createText({
-        name: `routine-parameters/${crypto.randomUUID()}.json`,
-        content: JSON.stringify(parameters),
-        mime_type: "application/json",
-        ttl_seconds: PARAMETERS_TTL_SECONDS,
-      });
-      files.unshift({ id: uploaded.id, name: PARAMETERS_FILE_NAME });
+    let inline: Record<string, unknown> | undefined;
+    if (isParametersFile(parameters)) {
+      files.unshift({ id: parameters.fileId, name: PARAMETERS_FILE_NAME });
+    } else if (parameters !== undefined) {
+      inline = parameters;
+      if (attachParametersFile ?? (await this.startsOwnTask(routineId))) {
+        const uploaded = await new FilesClient(this.http).createText({
+          name: `routine-parameters/${crypto.randomUUID()}.json`,
+          content: JSON.stringify(parameters),
+          mime_type: "application/json",
+          ttl_seconds: PARAMETERS_TTL_SECONDS,
+        });
+        files.unshift({ id: uploaded.id, name: PARAMETERS_FILE_NAME });
+      }
     }
     const body: RoutineTriggerBody = setFields({
-      parameters,
+      parameters: inline,
       files: files.length > 0 ? files : undefined,
     });
     return this.http.request<RoutineTriggerResponse>({

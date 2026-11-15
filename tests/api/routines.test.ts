@@ -3,7 +3,9 @@ import {
   RoutinesApi,
   HttpClient,
   IntrospectionClient,
+  parametersFile,
 } from "@introspection-sdk/introspection-node";
+import { isParametersFile } from "@introspection-sdk/types";
 import type {
   Routine,
   RoutineMetadata,
@@ -545,34 +547,48 @@ describe("RoutinesApi", () => {
       ]);
     });
 
-    it("sends only the reference for parametersFile", async () => {
-      const http = mockHttp({ requestResult: TRIGGERED });
+    it("sends only the reference for parametersFile(), with no read or upload", async () => {
+      const http = uploadingHttp();
       const routines = new RoutinesApi(http);
 
       await routines.trigger(ROUTINE_ID, {
-        parametersFile: UPLOADED_ID,
+        parameters: parametersFile(UPLOADED_ID),
         files: [EXTRA_FILE],
       });
       await routines.trigger(ROUTINE_ID, {
-        parametersFile: { id: UPLOADED_ID },
+        parameters: parametersFile({ id: UPLOADED_ID }),
+        attachParametersFile: true,
       });
 
       expect(calls(http)).toEqual([
         {
-          method: "POST",
-          path: `/v1/routines/${ROUTINE_ID}/trigger`,
-          schema: "RoutineTriggerResponse",
+          ...TRIGGER_CALL,
           body: {
             files: [{ id: UPLOADED_ID, name: "parameters.json" }, EXTRA_FILE],
           },
         },
         {
-          method: "POST",
-          path: `/v1/routines/${ROUTINE_ID}/trigger`,
-          schema: "RoutineTriggerResponse",
+          ...TRIGGER_CALL,
           body: { files: [{ id: UPLOADED_ID, name: "parameters.json" }] },
         },
       ]);
+    });
+
+    it("never mistakes a plain { fileId } object for parametersFile()", async () => {
+      const http = uploadingHttp();
+      await new RoutinesApi(http).trigger(ROUTINE_ID, {
+        parameters: { fileId: UPLOADED_ID },
+        attachParametersFile: false,
+      });
+
+      expect(calls(http)).toEqual([
+        { ...TRIGGER_CALL, body: { parameters: { fileId: UPLOADED_ID } } },
+      ]);
+      expect(isParametersFile({ fileId: UPLOADED_ID })).toBe(false);
+      expect(isParametersFile(parametersFile(UPLOADED_ID))).toBe(true);
+      expect(JSON.stringify(parametersFile(UPLOADED_ID))).toBe(
+        JSON.stringify({ fileId: UPLOADED_ID }),
+      );
     });
 
     it("passes files through without parameters", async () => {
@@ -587,17 +603,6 @@ describe("RoutinesApi", () => {
           body: { files: [EXTRA_FILE] },
         },
       ]);
-    });
-
-    it("refuses parameters and parametersFile together, sending nothing", async () => {
-      const http = mockHttp({ requestResult: TRIGGERED });
-      await expect(
-        new RoutinesApi(http).trigger(ROUTINE_ID, {
-          parameters: { a: 1 },
-          parametersFile: UPLOADED_ID,
-        }),
-      ).rejects.toThrow(TypeError);
-      expect(calls(http)).toEqual([]);
     });
   });
 

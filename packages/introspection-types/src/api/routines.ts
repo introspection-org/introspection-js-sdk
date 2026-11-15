@@ -338,24 +338,56 @@ export interface RoutineTriggerBody {
   files?: TaskFileRef[];
 }
 
+const PARAMETERS_FILE_BRAND: unique symbol = Symbol.for(
+  "introspection.routineParametersFile",
+);
+
+/**
+ * An already-uploaded file holding a trigger's parameters, made by
+ * {@link parametersFile}. The brand keeps a parameters object from ever being
+ * read as one.
+ */
+export interface ParametersFileRef {
+  readonly fileId: Uuid;
+  readonly [PARAMETERS_FILE_BRAND]: true;
+}
+
+/**
+ * Name an uploaded file (a JSON object, at most 256 KiB), or its id, as a
+ * trigger's parameters: `routines.trigger(id, { parameters: parametersFile(file) })`.
+ */
+export function parametersFile(file: Uuid | { id: Uuid }): ParametersFileRef {
+  const fileId = typeof file === "string" ? file : file.id;
+  return { fileId, [PARAMETERS_FILE_BRAND]: true };
+}
+
+/** Whether `parameters` was made by {@link parametersFile}. */
+export function isParametersFile(
+  parameters: unknown,
+): parameters is ParametersFileRef {
+  return (
+    typeof parameters === "object" &&
+    parameters !== null &&
+    (parameters as Partial<ParametersFileRef>)[PARAMETERS_FILE_BRAND] === true
+  );
+}
+
 /**
  * Options of `routines.trigger(id, params)`.
  *
- * - `parameters`: sent inline. For a routine that starts its own task they
- *   are also uploaded first through the Files API as
+ * - `parameters` as an object: sent inline. For a routine that starts its
+ *   own task they are also uploaded first through the Files API as
  *   `routine-parameters/<uuid>.json` (a 30-day TTL) and attached to the
  *   run's task as `parameters.json`; a platform routine or one that posts
  *   into an existing task takes no files, so gets only the inline value.
  *   `attachParametersFile` unset reads the routine to decide (one extra
  *   `GET`); `true` or `false` skips the read and forces the choice.
- * - `parametersFile`: an uploaded file (or its id) holding the parameters,
- *   attached as `parameters.json` for the server to read. Not with
- *   `parameters`.
+ * - `parameters` as {@link parametersFile}`(id)`: an uploaded file the server
+ *   reads, attached as `parameters.json`; no read, no upload.
  * - `files`: more Files API references for the run's task, passed through.
  */
 export interface RoutineTriggerParams {
-  parameters?: Record<string, unknown>;
-  parametersFile?: Uuid | { id: Uuid };
+  parameters?: Record<string, unknown> | ParametersFileRef;
   files?: TaskFileRef[];
   /** Unset: decide from the routine; see {@link RoutineTriggerParams}. */
   attachParametersFile?: boolean;
