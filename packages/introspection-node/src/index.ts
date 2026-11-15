@@ -124,7 +124,11 @@ export {
 } from "./resources/experiments.js";
 export type { ExperimentHandleFactory } from "./resources/experiments.js";
 export { RecipesApi, attachRecipes } from "./resources/recipes.js";
-export { ConnectorsApi, attachConnectors } from "./resources/connectors.js";
+export {
+  ConnectorsApi,
+  ConnectorSecretsApi,
+  attachConnectors,
+} from "./resources/connectors.js";
 export { MembersApi, attachMembers } from "./resources/members.js";
 export { RoutinesApi, attachRoutines } from "./resources/routines.js";
 export { AppConnectionsApi } from "./resources/connections.js";
@@ -237,10 +241,11 @@ export type {
   ConnectorAppListParams,
   ConnectorAuthMode,
   ConnectorStatus,
-  ConnectorSecretResponse,
   WebhookSecretType,
-  SigningSecret,
-  SigningSecretStatus,
+  WebhookSecret,
+  WebhookSecretCreated,
+  WebhookSecretCreateParams,
+  WebhookSecretStatus,
   EntityUid,
   PolicyEntity,
   ConnectorCreateParams,

@@ -11,11 +11,13 @@ import type {
   ConnectorCustomAppSearchParams,
   ConnectorListParams,
   ConnectorOAuthDiscoveryResponse,
-  ConnectorSecretResponse,
   ConnectorUpdateParams,
+  CursorParams,
   ProjectRef,
   Uuid,
-  WebhookSecretType,
+  WebhookSecret,
+  WebhookSecretCreated,
+  WebhookSecretCreateParams,
 } from "@introspection-sdk/types";
 // jscpd:ignore-end
 import type { HttpClient } from "../http.js";
@@ -30,11 +32,15 @@ import { projectQuery } from "./project-scoped.js";
  *
  * Connector CRUD uses the project carried by the authenticated credential.
  * `client_secret` / `signing_secret` are write-only — accepted on create
- * and update, absent from every read.
- *
+ * and update, absent from every read. A `webhook` connector's own secrets
+ * are the `.secrets` sub-resource.
  */
 export class ConnectorsApi {
-  constructor(private readonly http: HttpClient) {}
+  readonly secrets: ConnectorSecretsApi;
+
+  constructor(private readonly http: HttpClient) {
+    this.secrets = new ConnectorSecretsApi(http);
+  }
 
   /**
    * Resolve a connector credential for the authenticated subject. For a
@@ -73,7 +79,7 @@ export class ConnectorsApi {
    * Create a connector. Upserts on `slug`: a repeat POST replaces the live
    * row's configuration and keeps its provider, auth mode and stored secrets.
    * A `webhook` connector is created with no secret; issue one with
-   * {@link issueSigningSecret}.
+   * `secrets.create`.
    */
   create(params: ConnectorCreateParams): Promise<Connector> {
     return this.http.request<Connector>({
@@ -92,52 +98,13 @@ export class ConnectorsApi {
     });
   }
 
-  /**
-   * Update a connector. A `webhook` connector's secret issued by
-   * `rotate_signing_secret` comes back once, as `signing_secret`.
-   */
-  update(
-    connectorId: Uuid,
-    params: ConnectorUpdateParams,
-  ): Promise<ConnectorSecretResponse> {
-    return this.http.request<ConnectorSecretResponse>({
+  update(connectorId: Uuid, params: ConnectorUpdateParams): Promise<Connector> {
+    return this.http.request<Connector>({
       method: "PATCH",
       path: `/v1/connectors/${encodeURIComponent(connectorId)}`,
-      schema: "ConnectorSecretResponse",
+      schema: "Connector",
       body: params,
     });
-  }
-
-  /**
-   * Issue a `webhook` connector's first secret, of `type`. The response's
-   * `signing_secret` is shown once.
-   */
-  issueSigningSecret(
-    connectorId: Uuid,
-    type: WebhookSecretType,
-  ): Promise<ConnectorSecretResponse> {
-    return this.update(connectorId, { rotate_signing_secret: { type } });
-  }
-
-  /**
-   * Issue a `webhook` connector's next secret, of the current one's type;
-   * the current becomes the previous and keeps working until revoked. 409
-   * while a previous is live: revoke it first.
-   */
-  rotateSigningSecret(connectorId: Uuid): Promise<ConnectorSecretResponse> {
-    return this.update(connectorId, { rotate_signing_secret: true });
-  }
-
-  /**
-   * Stop accepting one of a `webhook` connector's secrets, by its `id` from
-   * `signing_secrets`. Revoking the last leaves the endpoint refusing every
-   * call.
-   */
-  revokeSigningSecret(
-    connectorId: Uuid,
-    kid: string,
-  ): Promise<ConnectorSecretResponse> {
-    return this.update(connectorId, { revoke_signing_secret: kid });
   }
 
   /** Soft-delete a connector; the server revokes its connections. */
@@ -240,6 +207,61 @@ export class ConnectorsApi {
         connectorId === null
           ? params
           : { connector_id: connectorId, ...params },
+    });
+  }
+}
+
+function secretsPath(connectorId: Uuid, rest = ""): string {
+  return `/v1/connectors/${encodeURIComponent(connectorId)}/secrets${rest}`;
+}
+
+/**
+ * `/v1/connectors/{id}/secrets`: a `webhook` connector's secrets. At most two
+ * are live, both of one type; the newest is current and the older, previous,
+ * still verifies so senders can switch over. 404 for any other connector.
+ */
+export class ConnectorSecretsApi {
+  constructor(private readonly http: HttpClient) {}
+
+  /** Current first, without their material. */
+  list(connectorId: Uuid, params: CursorParams = {}): Paginator<WebhookSecret> {
+    return paginateGet<WebhookSecret>(
+      this.http,
+      secretsPath(connectorId),
+      params,
+      params.next,
+      "Paginated<WebhookSecret>",
+    );
+  }
+
+  /**
+   * Issue a secret; its plaintext is in `secret` on this response only.
+   * `type` is needed for the first; omitted, it rotates with the live
+   * secret's type. 409 with two live (delete one first) or a `type` other
+   * than the live secrets'.
+   */
+  create(
+    connectorId: Uuid,
+    params: WebhookSecretCreateParams = {},
+  ): Promise<WebhookSecretCreated> {
+    return this.http.request<WebhookSecretCreated>({
+      method: "POST",
+      path: secretsPath(connectorId),
+      schema: "WebhookSecretCreated",
+      body: params,
+    });
+  }
+
+  /**
+   * Stop accepting a secret, by its `id`. 409 for the current one while a
+   * previous is live; deleting the last leaves the endpoint refusing every
+   * call.
+   */
+  delete(connectorId: Uuid, secretId: string): Promise<void> {
+    return this.http.request<void>({
+      method: "DELETE",
+      path: secretsPath(connectorId, `/${encodeURIComponent(secretId)}`),
+      expect: "empty",
     });
   }
 }
