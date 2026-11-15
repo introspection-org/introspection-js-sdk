@@ -380,10 +380,6 @@
         "provider": {},
         "requires_runtime": {},
         "scopes": { "type": "array" },
-        "signing_secrets": {
-          "type": "array",
-          "items": { "$ref": "#/$defs/SigningSecret" }
-        },
         "slug": {},
         "status": {},
         "token_endpoint": {},
@@ -427,45 +423,6 @@
         "scopes_supported": { "type": "array" },
         "token_endpoint": {},
         "token_endpoint_auth_methods_supported": { "type": "array" }
-      },
-      "additionalProperties": false
-    },
-    "ConnectorSecretResponse": {
-      "type": "object",
-      "properties": {
-        "agent_member_id": {},
-        "api_hosts": { "type": "array" },
-        "application_id": {},
-        "assertion_audience": {},
-        "auth_mode": {},
-        "authorization_endpoint": {},
-        "client_id": {},
-        "created_at": {},
-        "created_by_member_id": {},
-        "environment": {},
-        "id": {},
-        "metadata": {},
-        "name": {},
-        "org_id": {},
-        "person_server_url": {},
-        "policy_entities": {
-          "type": "array",
-          "items": { "$ref": "#/$defs/PolicyEntity" }
-        },
-        "project_id": {},
-        "provider": {},
-        "requires_runtime": {},
-        "scopes": { "type": "array" },
-        "signing_secret": {},
-        "signing_secrets": {
-          "type": "array",
-          "items": { "$ref": "#/$defs/SigningSecret" }
-        },
-        "slug": {},
-        "status": {},
-        "token_endpoint": {},
-        "updated_at": {},
-        "webhook_url": {}
       },
       "additionalProperties": false
     },
@@ -2110,6 +2067,19 @@
       },
       "additionalProperties": false
     },
+    "Paginated<WebhookSecret>": {
+      "type": "object",
+      "properties": {
+        "count": {},
+        "next": {},
+        "records": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/WebhookSecret" }
+        },
+        "total_count": {}
+      },
+      "additionalProperties": false
+    },
     "PatternAssignmentEvent": {
       "type": "object",
       "properties": {
@@ -2841,20 +2811,6 @@
       },
       "additionalProperties": false
     },
-    "SigningSecret": {
-      "type": "object",
-      "properties": {
-        "created_at": {},
-        "id": {},
-        "status": {},
-        "type": {
-          "type": "object",
-          "properties": { "length": {} },
-          "additionalProperties": false
-        }
-      },
-      "additionalProperties": false
-    },
     "SpanAttributes": {
       "type": "object",
       "properties": {
@@ -3142,6 +3098,35 @@
       },
       "additionalProperties": false
     },
+    "WebhookSecret": {
+      "type": "object",
+      "properties": {
+        "created_at": {},
+        "id": {},
+        "status": {},
+        "type": {
+          "type": "object",
+          "properties": { "length": {} },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "WebhookSecretCreated": {
+      "type": "object",
+      "properties": {
+        "created_at": {},
+        "id": {},
+        "secret": {},
+        "status": {},
+        "type": {
+          "type": "object",
+          "properties": { "length": {} },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
     "WsAuthenticationDocs": {
       "type": "object",
       "properties": { "description": {}, "example": {}, "method": {} },
@@ -3195,7 +3180,6 @@
     "ConnectorOAuthDiscoveryResponse": {
       "$ref": "#/$defs/ConnectorOAuthDiscoveryResponse"
     },
-    "ConnectorSecretResponse": { "$ref": "#/$defs/ConnectorSecretResponse" },
     "Conversation": { "$ref": "#/$defs/Conversation" },
     "Credential": { "$ref": "#/$defs/Credential" },
     "DataPlaneToken": { "$ref": "#/$defs/DataPlaneToken" },
@@ -3278,6 +3262,7 @@
     "Paginated<Task>": { "$ref": "#/$defs/Paginated<Task>" },
     "Paginated<TaskCommand>": { "$ref": "#/$defs/Paginated<TaskCommand>" },
     "Paginated<Variable>": { "$ref": "#/$defs/Paginated<Variable>" },
+    "Paginated<WebhookSecret>": { "$ref": "#/$defs/Paginated<WebhookSecret>" },
     "Project": { "$ref": "#/$defs/Project" },
     "Recipe": { "$ref": "#/$defs/Recipe" },
     "RemotesConnectDocs": { "$ref": "#/$defs/RemotesConnectDocs" },
@@ -3322,6 +3307,7 @@
       }
     },
     "Variable": { "$ref": "#/$defs/Variable" },
+    "WebhookSecretCreated": { "$ref": "#/$defs/WebhookSecretCreated" },
     "{ api_keys: ApiKey[]; }": {
       "type": "object",
       "properties": {

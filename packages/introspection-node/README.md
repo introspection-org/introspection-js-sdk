@@ -221,8 +221,8 @@ A routine's `triggers` start runs on events, beside its schedule and
 events such as `github.pull_request.opened`) or a project connector's
 (`source: "connector"`). A `webhook` connector is one your own systems call:
 create it on the Control Plane (it has no secret yet and refuses every call),
-issue its first secret with `issueSigningSecret(id, type)`, store the
-`signing_secret` that response returns once, and have the caller sign each
+issue its first secret with `connectors.secrets.create(id, { type })`, store
+the `secret` that response returns once, and have the caller sign each
 `POST /v1/webhooks/connectors/{id}` with it per Standard Webhooks (type
 `standard_webhooks`, `whsec_...`) or send it as a bearer token (type `bearer`,
 `whtok_...`). A run an event starts receives the event's body as
@@ -238,11 +238,10 @@ const webhook = await client.connectors.create({
   provider: "webhook",
   auth_mode: "static",
 });
-const { signing_secret } = await client.connectors.issueSigningSecret(
-  webhook.id,
-  "standard_webhooks",
-);
-saveSecret(signing_secret); // your app's code: shown only once
+const { secret } = await client.connectors.secrets.create(webhook.id, {
+  type: "standard_webhooks",
+});
+saveSecret(secret); // your app's code: shown only once
 
 await client.routines.create({
   name: "Triage failed builds",
@@ -286,18 +285,26 @@ await fetch(webhookUrl, {
 });
 ```
 
-A connector read lists its accepted secrets as `signing_secrets`
-(`{ id, type, created_at, status }`, current first; `null` for any other
-provider), never their material; `id` is the secret's fingerprint (kid). A
-webhook connector holds at most two: `rotateSigningSecret(id)` returns a new
-one once as `signing_secret`, of the current one's type, and the one it
-replaces keeps working as the previous secret until
-`revokeSigningSecret(id, kid)` retires it. A rotation with two live is a 409:
-revoke the previous first. The current secret can be revoked only once no
-previous is live, and revoking the last leaves the endpoint refusing every
-call. To change type, revoke every secret, then issue one of the other type.
-Each helper is a `connectors.update` with `rotate_signing_secret: { type }`,
-`rotate_signing_secret: true` or `revoke_signing_secret: kid`.
+`connectors.secrets.list(id)` pages through the accepted secrets
+(`{ id, type, status, created_at }`, current first), never their material;
+`id` is the secret's fingerprint (kid). A webhook connector holds at most two,
+both of one type: `secrets.create(id)` with no `type` rotates, returning a new
+one once as `secret`, of the live one's type, and the one it replaces keeps
+working as the previous secret until `secrets.delete(id, kid)` retires it.
+Creating with two live is a 409: delete the previous first. The current
+secret can be deleted only once no previous is live, and deleting the last
+leaves the endpoint refusing every call. To change type, delete every secret,
+then create one of the other type.
+
+```typescript
+for await (const live of client.connectors.secrets.list(webhook.id)) {
+  console.log(live.id, live.type, live.status);
+}
+const rotated = await client.connectors.secrets.create(webhook.id);
+saveSecret(rotated.secret); // your app's code: shown only once
+// Once every sender uses the new secret:
+await client.connectors.secrets.delete(webhook.id, previousKid);
+```
 
 `update(id, { triggers })` replaces the list: an entry with an `id` keeps that
 trigger, the rest are new, and a trigger left out is removed. A task a trigger

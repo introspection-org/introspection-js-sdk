@@ -2,10 +2,12 @@ import { describe, expect, it, vi } from "vitest";
 import type {
   Connector,
   ConnectorCreateParams,
-  ConnectorSecretResponse,
   PolicyEntity,
+  WebhookSecret,
+  WebhookSecretCreated,
 } from "@introspection-sdk/introspection-node";
 import {
+  ConnectorSecretsApi,
   ConnectorsApi,
   HttpClient,
   attachConnectors,
@@ -177,7 +179,7 @@ describe("ConnectorsApi", () => {
       method: "PATCH",
       path: `/v1/connectors/${CONNECTOR_ID}`,
       body: { policy_entities },
-      schema: "ConnectorSecretResponse",
+      schema: "Connector",
     });
   });
 
@@ -202,11 +204,11 @@ describe("ConnectorsApi", () => {
       method: "PATCH",
       path: `/v1/connectors/${CONNECTOR_ID}`,
       body: { name: "Slack (renamed)" },
-      schema: "ConnectorSecretResponse",
+      schema: "Connector",
     });
   });
 
-  describe("webhook signing secrets", () => {
+  describe("webhook secrets", () => {
     const WEBHOOK: Connector = {
       ...CONNECTOR_FIXTURE,
       slug: "ci-alerts",
@@ -216,18 +218,14 @@ describe("ConnectorsApi", () => {
       scopes: [],
       api_hosts: [],
       requires_runtime: false,
-      signing_secrets: [],
     };
-    const CURRENT = {
+    const CURRENT: WebhookSecret = {
       id: "a1b2c3d4",
       type: "standard_webhooks",
-      created_at: "2026-08-08T00:00:00Z",
       status: "current",
-    } as const;
-
-    function patched(http: HttpClient) {
-      return (http.request as ReturnType<typeof vi.fn>).mock.calls[0][0];
-    }
+      created_at: "2026-08-08T00:00:00Z",
+    };
+    const SECRETS_PATH = `/v1/connectors/${CONNECTOR_ID}/secrets`;
 
     it("create() sends no secret and returns a plain connector", async () => {
       const http = mockHttp({ requestResult: WEBHOOK });
@@ -249,94 +247,104 @@ describe("ConnectorsApi", () => {
         },
         schema: "Connector",
       });
-      expect(created.signing_secrets).toEqual([]);
-      expect("signing_secret" in created).toBe(false);
+      expect(created).not.toHaveProperty("signing_secrets");
+      expect(created).not.toHaveProperty("signing_secret");
     });
 
-    it("issueSigningSecret() issues the first secret with its type", async () => {
-      const issued: ConnectorSecretResponse = {
-        ...WEBHOOK,
-        signing_secrets: [CURRENT],
-        signing_secret: "whsec_c2VjcmV0",
+    it("secrets is a sub-resource and the PATCH helpers are gone", () => {
+      const api = new ConnectorsApi(mockHttp());
+      expect(api.secrets).toBeInstanceOf(ConnectorSecretsApi);
+      for (const removed of [
+        "issueSigningSecret",
+        "rotateSigningSecret",
+        "revokeSigningSecret",
+      ]) {
+        expect(removed in api).toBe(false);
+      }
+    });
+
+    it("secrets.list() pages GET /v1/connectors/{id}/secrets", async () => {
+      const previous: WebhookSecret = {
+        ...CURRENT,
+        id: "e5f6a7b8",
+        status: "previous",
       };
-      const http = mockHttp({ requestResult: issued });
+      const http = mockHttp({ requestResult: page([CURRENT, previous]) });
 
-      const response = await new ConnectorsApi(http).issueSigningSecret(
-        CONNECTOR_ID,
-        "standard_webhooks",
-      );
+      const first = await new ConnectorsApi(http).secrets.list(CONNECTOR_ID, {
+        limit: 2,
+      });
 
       expect(http.request).toHaveBeenCalledWith({
-        method: "PATCH",
-        path: `/v1/connectors/${CONNECTOR_ID}`,
-        body: { rotate_signing_secret: { type: "standard_webhooks" } },
-        schema: "ConnectorSecretResponse",
+        method: "GET",
+        path: SECRETS_PATH,
+        query: { limit: 2, next: undefined },
+        schema: "Paginated<WebhookSecret>",
       });
-      expect(response.signing_secret).toBe("whsec_c2VjcmV0");
-      expect(response.signing_secrets?.[0].type).toBe("standard_webhooks");
-    });
-
-    it("issueSigningSecret() takes the bearer type", async () => {
-      const http = mockHttp({ requestResult: WEBHOOK });
-      await new ConnectorsApi(http).issueSigningSecret(CONNECTOR_ID, "bearer");
-
-      expect(patched(http).body).toEqual({
-        rotate_signing_secret: { type: "bearer" },
-      });
-    });
-
-    it("rotateSigningSecret() keeps the type and returns the new secret", async () => {
-      const http = mockHttp({
-        requestResult: {
-          ...WEBHOOK,
-          signing_secrets: [
-            {
-              id: "e5f6a7b8",
-              type: "standard_webhooks",
-              created_at: "2026-08-09T00:00:00Z",
-              status: "current",
-            },
-            { ...CURRENT, status: "previous" },
-          ],
-          signing_secret: "whsec_bmV3",
-        },
-      });
-
-      const rotated = await new ConnectorsApi(http).rotateSigningSecret(
-        CONNECTOR_ID,
-      );
-
-      expect(http.request).toHaveBeenCalledWith({
-        method: "PATCH",
-        path: `/v1/connectors/${CONNECTOR_ID}`,
-        body: { rotate_signing_secret: true },
-        schema: "ConnectorSecretResponse",
-      });
-      expect(rotated.signing_secret).toBe("whsec_bmV3");
-      expect(rotated.signing_secrets?.map((secret) => secret.status)).toEqual([
+      expect(first.records.map((secret) => secret.status)).toEqual([
         "current",
         "previous",
       ]);
     });
 
-    it("revokeSigningSecret() revokes one secret by its kid", async () => {
-      const http = mockHttp({
-        requestResult: { ...WEBHOOK, signing_secrets: [CURRENT] },
-      });
+    it("secrets.create() issues a secret of the named type", async () => {
+      const issued: WebhookSecretCreated = {
+        ...CURRENT,
+        secret: "whsec_c2VjcmV0",
+      };
+      const http = mockHttp({ requestResult: issued });
 
-      const revoked = await new ConnectorsApi(http).revokeSigningSecret(
+      const response = await new ConnectorsApi(http).secrets.create(
         CONNECTOR_ID,
-        "e5f6a7b8",
+        { type: "bearer" },
       );
 
       expect(http.request).toHaveBeenCalledWith({
-        method: "PATCH",
-        path: `/v1/connectors/${CONNECTOR_ID}`,
-        body: { revoke_signing_secret: "e5f6a7b8" },
-        schema: "ConnectorSecretResponse",
+        method: "POST",
+        path: SECRETS_PATH,
+        body: { type: "bearer" },
+        schema: "WebhookSecretCreated",
       });
-      expect(revoked.signing_secret).toBeUndefined();
-      expect(revoked.signing_secrets).toEqual([CURRENT]);
+      expect(response.secret).toBe("whsec_c2VjcmV0");
+    });
+
+    it("secrets.create() without a type rotates with an empty body", async () => {
+      const http = mockHttp({
+        requestResult: { ...CURRENT, id: "e5f6a7b8", secret: "whsec_bmV3" },
+      });
+
+      const rotated = await new ConnectorsApi(http).secrets.create(
+        CONNECTOR_ID,
+      );
+
+      expect(http.request).toHaveBeenCalledWith({
+        method: "POST",
+        path: SECRETS_PATH,
+        body: {},
+        schema: "WebhookSecretCreated",
+      });
+      expect(rotated.secret).toBe("whsec_bmV3");
+    });
+
+    it("secrets.delete() DELETEs one secret by its kid", async () => {
+      const http = mockHttp();
+      await new ConnectorsApi(http).secrets.delete(CONNECTOR_ID, "e5f6a7b8");
+
+      expect(http.request).toHaveBeenCalledWith({
+        method: "DELETE",
+        path: `${SECRETS_PATH}/e5f6a7b8`,
+        expect: "empty",
+      });
+    });
+
+    it("secrets.delete() refuses an empty or dot-segment id", async () => {
+      const http = mockHttp();
+      for (const bad of ["", ".", ".."]) {
+        await expect(
+          new ConnectorsApi(http).secrets.delete(CONNECTOR_ID, bad),
+        ).rejects.toThrow(TypeError);
+      }
+      expect(http.request).not.toHaveBeenCalled();
     });
   });
 
