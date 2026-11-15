@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.51.0](https://github.com/introspection-org/introspection-js-sdk/compare/v0.50.0...v0.51.0) (2026-11-15)
+
+
+### ⚠ BREAKING CHANGES
+
+* **node:** `client.apiKeys.acknowledge()` and the `ApiKeyAcknowledgement` type are removed. Drop the call; there is no replacement, since the acknowledgement was never enforced.
+* removed connectors.issueSigningSecret, connectors.rotateSigningSecret and connectors.revokeSigningSecret, the rotate_signing_secret / revoke_signing_secret fields of ConnectorUpdateParams, the ConnectorSecretResponse type, and signing_secrets from Connector. SigningSecret and SigningSecretStatus are renamed WebhookSecret and WebhookSecretStatus.
+* **conversations:** `exportIncremental` is now `exportResumable`, and its result carries `nothingNewer` instead of `status`. Neither has been released.
+* automations are renamed to routines, with no aliases. `client.automations`, `dataPlaneClient.automations` and `runner.automations` are now `routines`; `AutomationsApi` / `AutomationsClient` / `attachAutomations` are `RoutinesApi` / `RoutinesClient` / `attachRoutines`; every `Automation*` type is `Routine*` (`Routine`, `RoutineCreateParams`, `RoutineUpdateParams`, `RoutineListParams`, `RoutineKind`, `RoutineTriggerType`, `RoutineTriggerResponse`, `RoutineTriggeredEvent`, `RoutineSkippedEvent` and their payloads); `IntrospectionEventNames.AUTOMATION_TRIGGERED` / `AUTOMATION_SKIPPED` are `ROUTINE_TRIGGERED` / `ROUTINE_SKIPPED` with the event names `introspection.routines.triggered` / `introspection.routines.skipped`; the `automation_id` / `automation_name` fields, the `/v1/events` `automation_id` filter and the `/v1/tasks` `require_automation_id` filter are `routine_id` / `routine_name` / `require_routine_id`; the skip and condition values `automation_deleted` / `no_live_task_for_automation` are `routine_deleted` / `no_live_task_for_routine`. This release requires a data plane serving `/v1/routines` (introspection-org/introspection-cloud#4051).
+
+### Features
+
+* **conversations:** resumable oldest-first export and asc|desc item reads ([#607](https://github.com/introspection-org/introspection-js-sdk/issues/607)) ([8e78939](https://github.com/introspection-org/introspection-js-sdk/commit/8e78939b0beec990038ea767d2e60bd378f0e095))
+* **node:** remove apiKeys.acknowledge ([#610](https://github.com/introspection-org/introspection-js-sdk/issues/610)) ([f0e7c55](https://github.com/introspection-org/introspection-js-sdk/commit/f0e7c55624694d3b797e8e290635570c6c868fda))
+* rename automations to routines; webhook secrets per type; trigger with parameters files ([#606](https://github.com/introspection-org/introspection-js-sdk/issues/606)) ([a11bbb7](https://github.com/introspection-org/introspection-js-sdk/commit/a11bbb7241766a60d78d0f39039b17cad0e0c94a))
+* webhook connector secrets are a sub-resource (connectors.secrets) ([#609](https://github.com/introspection-org/introspection-js-sdk/issues/609)) ([accec54](https://github.com/introspection-org/introspection-js-sdk/commit/accec549cdca9d11f7c634df80ef2a11e463fe90))
+
 ## [0.50.0](https://github.com/introspection-org/introspection-js-sdk/compare/v0.49.0...v0.50.0) (2026-11-13)
 
 
