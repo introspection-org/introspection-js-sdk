@@ -11,9 +11,11 @@ import type {
   ConnectorCustomAppSearchParams,
   ConnectorListParams,
   ConnectorOAuthDiscoveryResponse,
+  ConnectorSecretResponse,
   ConnectorUpdateParams,
   ProjectRef,
   Uuid,
+  WebhookSecretType,
 } from "@introspection-sdk/types";
 // jscpd:ignore-end
 import type { HttpClient } from "../http.js";
@@ -70,6 +72,8 @@ export class ConnectorsApi {
   /**
    * Create a connector. Upserts on `slug`: a repeat POST replaces the live
    * row's configuration and keeps its provider, auth mode and stored secrets.
+   * A `webhook` connector is created with no secret; issue one with
+   * {@link issueSigningSecret}.
    */
   create(params: ConnectorCreateParams): Promise<Connector> {
     return this.http.request<Connector>({
@@ -88,13 +92,52 @@ export class ConnectorsApi {
     });
   }
 
-  update(connectorId: Uuid, params: ConnectorUpdateParams): Promise<Connector> {
-    return this.http.request<Connector>({
+  /**
+   * Update a connector. A `webhook` connector's secret issued by
+   * `rotate_signing_secret` comes back once, as `signing_secret`.
+   */
+  update(
+    connectorId: Uuid,
+    params: ConnectorUpdateParams,
+  ): Promise<ConnectorSecretResponse> {
+    return this.http.request<ConnectorSecretResponse>({
       method: "PATCH",
       path: `/v1/connectors/${encodeURIComponent(connectorId)}`,
-      schema: "Connector",
+      schema: "ConnectorSecretResponse",
       body: params,
     });
+  }
+
+  /**
+   * Issue a `webhook` connector's first secret, of `type`. The response's
+   * `signing_secret` is shown once.
+   */
+  issueSigningSecret(
+    connectorId: Uuid,
+    type: WebhookSecretType,
+  ): Promise<ConnectorSecretResponse> {
+    return this.update(connectorId, { rotate_signing_secret: { type } });
+  }
+
+  /**
+   * Issue a `webhook` connector's next secret, of the current one's type;
+   * the current becomes the previous and keeps working until revoked. 409
+   * while a previous is live: revoke it first.
+   */
+  rotateSigningSecret(connectorId: Uuid): Promise<ConnectorSecretResponse> {
+    return this.update(connectorId, { rotate_signing_secret: true });
+  }
+
+  /**
+   * Stop accepting one of a `webhook` connector's secrets, by its `id` from
+   * `signing_secrets`. Revoking the last leaves the endpoint refusing every
+   * call.
+   */
+  revokeSigningSecret(
+    connectorId: Uuid,
+    kid: string,
+  ): Promise<ConnectorSecretResponse> {
+    return this.update(connectorId, { revoke_signing_secret: kid });
   }
 
   /** Soft-delete a connector; the server revokes its connections. */

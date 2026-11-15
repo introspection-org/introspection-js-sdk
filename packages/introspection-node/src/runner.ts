@@ -20,7 +20,7 @@ import {
   toRunRequestBody,
 } from "@introspection-sdk/http";
 import { HttpClient } from "./http.js";
-import { AutomationsApi } from "./resources/automations.js";
+import { RoutinesApi } from "./resources/routines.js";
 import { AppConnectionsApi } from "./resources/connections.js";
 import type { DataPlaneResources } from "./data-plane.js";
 import type { IntrospectionClient } from "./client.js";
@@ -39,11 +39,11 @@ export type RunnerSource =
  * endpoint URL, and the runtime/experiment context, and exposes the
  * runner-bound Data Plane namespaces ({@link DataPlaneResources}: `tasks`,
  * `files`, `conversations`, `events`, `metrics`, `shares`, `approvals`,
- * `missions`, `automations`, `issues`, `images` and `connections`), which send the runner's bearer and use its
+ * `missions`, `routines`, `issues`, `images` and `connections`), which send the runner's bearer and use its
  * runtime context.
  *
- * A runner a member opens for themself carries `automations:read` and
- * `automations:write`, so `runner.automations` acts as that member.
+ * A runner a member opens for themself carries `routines:read` and
+ * `routines:write`, so `runner.routines` acts as that member.
  *
  * In v1 of the agent-session-based design, token refresh is handled
  * server-side by the DP materializer attached to the agent session — the
@@ -66,8 +66,8 @@ export class Runner implements DataPlaneResources {
   readonly shares: SharesApi;
   readonly approvals: ApprovalsApi;
   readonly missions: MissionsApi;
-  /** CRUD on `/v1/automations` plus `trigger(id)`, on the runner's token. */
-  readonly automations: AutomationsApi;
+  /** CRUD on `/v1/routines` plus `trigger(id)`, on the runner's token. */
+  readonly routines: RoutinesApi;
   /** CRUD on `/v1/issues`, on the runner's token. */
   readonly issues: IssuesApi;
   /** `/v1/images`, on the runner's token. */
@@ -95,7 +95,7 @@ export class Runner implements DataPlaneResources {
     this.shares = new SharesApi(this.guardedHttp());
     this.approvals = new ApprovalsApi(this.guardedHttp());
     this.missions = new MissionsApi(this.guardedHttp());
-    this.automations = new AutomationsApi(this.guardedHttp());
+    this.routines = new RoutinesApi(this.guardedHttp());
     this.issues = new IssuesApi(this.guardedHttp());
     this.images = new ImagesApi(this.guardedHttp());
     this.connections = new AppConnectionsApi(

@@ -49,10 +49,7 @@ import {
   type ConnectorsApi,
 } from "./resources/connectors.js";
 import { attachMembers, type MembersApi } from "./resources/members.js";
-import {
-  attachAutomations,
-  type AutomationsApi,
-} from "./resources/automations.js";
+import { attachRoutines, type RoutinesApi } from "./resources/routines.js";
 import {
   attachAnnotations,
   type AnnotationsApi,
@@ -137,10 +134,10 @@ export class IntrospectionClient implements DataPlaneResources {
   readonly members: MembersApi;
 
   /**
-   * CRUD on `/v1/automations` (Data Plane) plus `automations.trigger(id)`.
+   * CRUD on `/v1/routines` (Data Plane) plus `routines.trigger(id)`.
    * Administrator-only on the server today.
    */
-  readonly automations: AutomationsApi;
+  readonly routines: RoutinesApi;
 
   /**
    * Reads on `/v1/repositories` (CP) plus `repositories.contents` and
@@ -307,7 +304,7 @@ export class IntrospectionClient implements DataPlaneResources {
     this.applications = new ApplicationsApi(this.cpHttp);
     this.credentials = new CredentialsApi(this.cpHttp);
     this.endpoints = new EndpointsApi(this.cpHttp);
-    this.automations = attachAutomations(this.dpHttp);
+    this.routines = attachRoutines(this.dpHttp);
     this.images = new ImagesApi(this.dpHttp);
     this.issues = new IssuesApi(this.dpHttp);
     this.repositories = attachRepositories(this.cpHttp, this.dpHttp);

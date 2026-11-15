@@ -25,7 +25,7 @@ import {
 import type {
   ApiKeyCreated,
   Application,
-  Automation,
+  Routine,
   Connector,
   DisplayIdPrefixes,
   Endpoint,
@@ -131,8 +131,8 @@ const APPLICATION_SCOPES = [
   "connections:read",
   "connections:write",
   "connections:delete",
-  "automations:read",
-  "automations:write",
+  "routines:read",
+  "routines:write",
   "annotations:read",
   "approvals:read",
   "approvals:write",
@@ -198,7 +198,7 @@ walk("SDK end-to-end walk", () => {
   let evalTask: Task;
   let judge: Judge;
   let experiment: Experiment;
-  let automation: Automation;
+  let routine: Routine;
   let apiKey: ApiKeyCreated;
   let shareId: string;
   let recipeDir: string;
@@ -422,8 +422,8 @@ walk("SDK end-to-end walk", () => {
               "connections:read",
               "connections:write",
               "connections:delete",
-              "automations:read",
-              "automations:write",
+              "routines:read",
+              "routines:write",
               "annotations:read",
               "approvals:read",
               "approvals:write",
@@ -1436,7 +1436,6 @@ walk("SDK end-to-end walk", () => {
         expect(stable({ ...task, metadata: undefined })).toMatchInlineSnapshot(`
           {
             "agent": null,
-            "automation_id": null,
             "completed_at": null,
             "conversation_metadata": null,
             "created_at": "[timestamp]",
@@ -1449,6 +1448,7 @@ walk("SDK end-to-end walk", () => {
             "metadata": undefined,
             "org_id": "[uuid]",
             "project_id": "[uuid]",
+            "routine_id": null,
             "runtime_group_id": "[uuid]",
             "runtime_id": "[uuid]",
             "started_at": "[timestamp]",
@@ -2002,7 +2002,6 @@ walk("SDK end-to-end walk", () => {
                 "sandbox_status": "provisioning",
                 "session_id": null,
               },
-              "automation_id": null,
               "completed_at": null,
               "conversation_metadata": null,
               "created_at": "[timestamp]",
@@ -2015,6 +2014,7 @@ walk("SDK end-to-end walk", () => {
               "metadata": undefined,
               "org_id": "[uuid]",
               "project_id": "[uuid]",
+              "routine_id": null,
               "runtime_group_id": "[uuid]",
               "runtime_id": "[uuid]",
               "started_at": null,
@@ -2313,20 +2313,20 @@ walk("SDK end-to-end walk", () => {
   );
 
   it(
-    "16: automations — a manual automation, triggered",
+    "16: routines — a manual routine, triggered",
     async (ctx) => {
-      await steps.run(ctx, "automations", async () => {
-        automation = await sa.automations.create({
-          name: "The walk's automation",
+      await steps.run(ctx, "routines", async () => {
+        routine = await sa.routines.create({
+          name: "The walk's routine",
           trigger_type: "manual",
           prompt: secondTurn(settings),
           runtime_group_id: runtime.runtime_group_id,
-          // An automation its owner creates posts into that owner's own task;
+          // A routine its owner creates posts into that owner's own task;
           // the first task was archived and unarchived, which the trigger
           // still refuses, so the trial is the one it posts into.
           task_id: evalTask.id,
-        } as Parameters<typeof sa.automations.create>[0]);
-        expect(stable(automation)).toMatchInlineSnapshot(`
+        } as Parameters<typeof sa.routines.create>[0]);
+        expect(stable(routine)).toMatchInlineSnapshot(`
           {
             "can_manage": true,
             "created_at": "[timestamp]",
@@ -2339,7 +2339,7 @@ walk("SDK end-to-end walk", () => {
             "kind": null,
             "last_triggered_at": null,
             "metadata": null,
-            "name": "The walk's automation",
+            "name": "The walk's routine",
             "next_trigger_at": null,
             "org_id": "[uuid]",
             "owner_role": "operator",
@@ -2349,35 +2349,33 @@ walk("SDK end-to-end walk", () => {
             "tags": [],
             "task_id": "[uuid]",
             "trigger_type": "manual",
+            "triggers": [],
             "updated_at": "[timestamp]",
           }
         `);
-        // A manual automation answers none of the platform kinds' fields.
-        const { run_id, enqueued, conversations, ...triggered } =
-          await sa.automations.trigger(automation.id);
-        expect([
-          run_id ?? null,
-          enqueued ?? null,
-          conversations ?? null,
-        ]).toEqual([null, null, null]);
+        // A manual routine answers none of the platform kinds' fields.
+        const { run_id, result, ...triggered } = await sa.routines.trigger(
+          routine.id,
+        );
+        expect([run_id ?? null, result ?? null]).toEqual([null, null]);
         expect(stable(triggered)).toMatchInlineSnapshot(`
           {
-            "automation_id": "[uuid]",
             "reason": null,
+            "routine_id": "[uuid]",
             "status": "triggered",
             "task_id": "[uuid]",
           }
         `);
-        await sa.automations.get(automation.id);
-        await sa.automations.update(automation.id, {
+        await sa.routines.get(routine.id);
+        await sa.routines.update(routine.id, {
           description: "triggered once by the walk",
-        } as Parameters<typeof sa.automations.update>[1]);
+        } as Parameters<typeof sa.routines.update>[1]);
         let seen = false;
-        for await (const a of sa.automations.list())
-          if (a.id === automation.id) seen = true;
+        for await (const a of sa.routines.list())
+          if (a.id === routine.id) seen = true;
         expect(seen).toBe(true);
-        await sa.automations.delete(automation.id);
-        await expectNotFound(() => sa.automations.get(automation.id));
+        await sa.routines.delete(routine.id);
+        await expectNotFound(() => sa.routines.get(routine.id));
       });
     },
     STEP_TIMEOUT,
@@ -2925,8 +2923,8 @@ async function removeWalkResources(
   for (const key of await owner.apiKeys.list(q)) {
     if (take(key.name)) await owner.apiKeys.delete(key.id, q);
   }
-  for await (const a of member.automations.list()) {
-    if (take(a.name)) await member.automations.delete(a.id);
+  for await (const a of member.routines.list()) {
+    if (take(a.name)) await member.routines.delete(a.id);
   }
   for await (const t of member.tags.list("access")) {
     if (take(t.name))

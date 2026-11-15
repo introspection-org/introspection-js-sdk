@@ -1,6 +1,6 @@
 import {
   ApprovalsApi,
-  AutomationsApi,
+  RoutinesApi,
   ConversationsApi,
   EventsApi,
   FilesApi,
@@ -37,7 +37,7 @@ export interface DataPlaneResources {
   readonly approvals: ApprovalsApi;
   /** The missions the hosted Person Server approved (`/v1/aauth/missions`). */
   readonly missions: MissionsApi;
-  readonly automations: AutomationsApi;
+  readonly routines: RoutinesApi;
   /** `/v1/issues`: briefs on a worker task, their evidence and human requests. */
   readonly issues: IssuesApi;
   /** `/v1/images`, what an eval task's compose services run as. */
@@ -93,8 +93,8 @@ export class DataPlaneClient implements DataPlaneResources {
   readonly missions: MissionsApi;
   readonly events: EventsApi;
   readonly metrics: MetricsApi;
-  /** `/v1/automations`; needs `automations:read` / `automations:write`. */
-  readonly automations: AutomationsApi;
+  /** `/v1/routines`; needs `routines:read` / `routines:write`. */
+  readonly routines: RoutinesApi;
   /** `/v1/issues`; needs `issues:read` / `issues:write` / `issues:delete`. */
   readonly issues: IssuesApi;
   /** `/v1/images`; needs `images:read` / `images:write`. */
@@ -133,7 +133,7 @@ export class DataPlaneClient implements DataPlaneResources {
     this.missions = new MissionsApi(this.http);
     this.events = new EventsApi(this.http);
     this.metrics = new MetricsApi(this.http);
-    this.automations = new AutomationsApi(this.http);
+    this.routines = new RoutinesApi(this.http);
     this.issues = new IssuesApi(this.http);
     this.images = new ImagesApi(this.http);
     this.connections = new AppConnectionsApi(this.http);

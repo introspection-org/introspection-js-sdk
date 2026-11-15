@@ -2,7 +2,7 @@
 
 Node.js platform SDK for [Introspection](https://introspection.dev) — open runtimes,
 drive tasks, and manage experiments, recipes, repositories, members,
-automations, issues, app connections, files, conversations, shares, project
+routines, issues, app connections, files, conversations, shares, project
 administration (API keys, Applications, credentials, variables, integrations,
 judges) and eval images and task commands.
 
@@ -73,7 +73,7 @@ const runner = await client.runtimes("customer-agent").run({
 `IntrospectionClient` and `Runner` expose the same Data Plane namespaces, and
 both implement the exported `DataPlaneResources` interface: `tasks` (with
 `tasks.runs` and `tasks.commands`), `files`, `conversations`, `events`,
-`metrics`, `shares`, `automations`, `issues`, `images` and `connections`. So does the `DataPlaneClient` that
+`metrics`, `shares`, `routines`, `issues`, `images` and `connections`. So does the `DataPlaneClient` that
 `AuthClient.dataPlane()` returns. Code written against `DataPlaneResources`
 runs against any of them.
 
@@ -91,8 +91,8 @@ await connectedApps(runner); // the runner's token, on the runner's Data Plane
 The difference is the credential. A runner sends its session token, scoped to
 the runtime and identity it was opened for; the client sends its own token,
 so the server decides per call what that credential may do. A runner a member
-opens for themself carries `automations:read` and `automations:write`, so
-`runner.automations` manages that member's automations (a platform change in
+opens for themself carries `routines:read` and `routines:write`, so
+`runner.routines` manages that member's routines (a platform change in
 progress; until it ships those routes refuse a runner with a 403).
 
 ### Members
@@ -127,26 +127,26 @@ await client.members.update(ada.id, { metadata: { plan: "team" } });
 
 Seeding `tags` on create needs `members:manage` as well as `members:write`.
 
-### Automations
+### Routines
 
-`client.automations` (and `dataPlaneClient.automations`) lists, reads,
-creates, updates and deletes the project's automations on the Data Plane's
-`/v1/automations`, and `trigger(id)` runs one now. Reading needs
-`automations:read` and writing `automations:write`; each record's `can_manage`
-says whether the caller may change it. An automation is a scheduled prompt (`kind: null`) or platform work
+`client.routines` (and `dataPlaneClient.routines`) lists, reads,
+creates, updates and deletes the project's routines on the Data Plane's
+`/v1/routines`, and `trigger(id)` runs one now. Reading needs
+`routines:read` and writing `routines:write`; each record's `can_manage`
+says whether the caller may change it. A routine is a scheduled prompt (`kind: null`) or platform work
 (`observation_synthesis`, `observation_clustering`, `project_check_in`). A
-`cron` automation fires on `cron_schedule`, or on `metadata.cron_schedules` in
-`metadata.timezone`; a one-off reminder is a `manual` automation with a future
+`cron` routine fires on `cron_schedule`, or on `metadata.cron_schedules` in
+`metadata.timezone`; a one-off reminder is a `manual` routine with a future
 `next_trigger_at`. Set `task_id` to post each firing into an existing task
 instead of creating one.
 
 The server serves these routes to administrators only today (a 403 otherwise).
 introspection-cloud#3137, not yet released, opens them to members for their own
-automations that post into one of their tasks; until it ships, the `task_id`
+routines that post into one of their tasks; until it ships, the `task_id`
 list filter is ignored by the server.
 
 ```typescript
-const reminder = await client.automations.create({
+const reminder = await client.routines.create({
   name: "Friday check-in",
   trigger_type: "manual",
   prompt: "How did the week go?",
@@ -156,7 +156,7 @@ const reminder = await client.automations.create({
 });
 
 // Recurring: one or more cron schedules in a timezone.
-await client.automations.create({
+await client.routines.create({
   name: "Weekday digest",
   trigger_type: "cron",
   cron_schedule: "0 9 * * 1-5",
@@ -169,30 +169,157 @@ await client.automations.create({
 });
 
 // PATCH sends only the fields you set; `metadata` replaces wholesale.
-await client.automations.update(reminder.id, { enabled: false });
+await client.routines.update(reminder.id, { enabled: false });
 
-for await (const automation of client.automations.list({ task_id: taskId })) {
-  console.log(automation.id, automation.next_trigger_at, automation.can_manage);
+for await (const routine of client.routines.list({ task_id: taskId })) {
+  console.log(routine.id, routine.next_trigger_at, routine.can_manage);
 }
 
-const { status, task_id } = await client.automations.trigger(reminder.id);
+const { status, task_id } = await client.routines.trigger(reminder.id);
 ```
 
-A firing clears a manual automation's slot; re-arm it with
-`update(id, { next_trigger_at })`. A `cron` automation derives its own slot and
+`trigger(id, { parameters })` passes a JSON object (at most 16 KiB and 8
+levels deep) to the run. For a prompt routine that starts its own task, the
+SDK first uploads it through the Files API as
+`routine-parameters/<uuid>.json` (expiring after 30 days), then triggers with
+the parameters inline and the upload attached to the run's task as
+`parameters.json`; each `@parameters.<name>` in the prompt becomes that
+top-level value as JSON, and a name with no value becomes `null` and is
+listed under the task's `metadata.unresolved_parameters`. To pass parameters
+you have already uploaded (a JSON object of up to 256 KiB), pass
+its id as `parameters` instead (`parameters: file.id`): the SDK attaches that file as
+`parameters.json` and the server reads it, with no read and no upload; `files` attaches more Files API references to the run's
+task. A platform routine, and one that posts into an existing task, takes no
+files and gets only the inline parameters. To tell them apart the SDK reads
+the routine first (`GET /v1/routines/{id}`); pass `attachParametersFile: true`
+or `false` to skip that read and force the choice. A platform routine reads its kind's own keys (`observation_synthesis`
+takes `conversation_ids`) and answers in `result`:
+
+```typescript
+const digest = await client.routines.create({
+  name: "Customer digest",
+  trigger_type: "manual",
+  prompt: "Summarize the account of @parameters.customer.",
+  runtime_group_id: runtimeGroupId,
+});
+await client.routines.trigger(digest.id, {
+  parameters: { customer: { id: "cus_123", plan: "team" } },
+  files: [{ id: contractFileId, name: "contract.pdf" }],
+});
+await client.routines.trigger(digest.id, {
+  parameters: paramsFile.id,
+});
+
+const { result } = await client.routines.trigger(synthesisRoutineId, {
+  parameters: { conversation_ids: [conversationId] },
+});
+console.log(result?.enqueued, result?.conversations);
+```
+
+A routine's `triggers` start runs on events, beside its schedule and
+`trigger(id)`: an integration's (`source: "integration"`, Slack or GitHub
+events such as `github.pull_request.opened`) or a project connector's
+(`source: "connector"`). A `webhook` connector is one your own systems call:
+create it on the Control Plane (it has no secret yet and refuses every call),
+issue its first secret with `issueSigningSecret(id, type)`, store the
+`signing_secret` that response returns once, and have the caller sign each
+`POST /v1/webhooks/connectors/{id}` with it per Standard Webhooks (type
+`standard_webhooks`, `whsec_...`) or send it as a bearer token (type `bearer`,
+`whtok_...`). A run an event starts receives the event's body as
+its parameters, the same as a manual run's `parameters`: as `parameters.json`
+(any JSON; a non-JSON body arrives as a JSON string), with each
+`@parameters.<key>` in the prompt reading a top-level key of it, and the
+event itself as `trigger/event.json`, all as untrusted data:
+
+```typescript
+const webhook = await client.connectors.create({
+  name: "CI alerts",
+  slug: "ci-alerts",
+  provider: "webhook",
+  auth_mode: "static",
+});
+const { signing_secret } = await client.connectors.issueSigningSecret(
+  webhook.id,
+  "standard_webhooks",
+);
+saveSecret(signing_secret); // your app's code: shown only once
+
+await client.routines.create({
+  name: "Triage failed builds",
+  trigger_type: "manual",
+  prompt: "Triage the failed build at @parameters.build_url.",
+  runtime_group_id: runtimeGroupId,
+  triggers: [
+    {
+      source: "connector",
+      provider: "webhook",
+      connector_slug: "ci-alerts",
+      // The JSON body's string `type`; `["*"]` matches every one.
+      event_types: ["build.failed"],
+      filter: { payload_fields: { branch: ["main"] } },
+    },
+  ],
+});
+```
+
+The caller signs with the official `standardwebhooks` package:
+
+```typescript
+import { Webhook } from "standardwebhooks";
+
+const body = JSON.stringify({
+  type: "build.failed",
+  branch: "main",
+  build_url: "https://ci.example.com/builds/42",
+});
+const id = crypto.randomUUID();
+const date = new Date();
+await fetch(webhookUrl, {
+  method: "POST",
+  headers: {
+    "content-type": "application/json",
+    "webhook-id": id,
+    "webhook-timestamp": String(Math.floor(date.getTime() / 1000)),
+    "webhook-signature": new Webhook(secret).sign(id, date, body),
+  },
+  body,
+});
+```
+
+A connector read lists its accepted secrets as `signing_secrets`
+(`{ id, type, created_at, status }`, current first; `null` for any other
+provider), never their material; `id` is the secret's fingerprint (kid). A
+webhook connector holds at most two: `rotateSigningSecret(id)` returns a new
+one once as `signing_secret`, of the current one's type, and the one it
+replaces keeps working as the previous secret until
+`revokeSigningSecret(id, kid)` retires it. A rotation with two live is a 409:
+revoke the previous first. The current secret can be revoked only once no
+previous is live, and revoking the last leaves the endpoint refusing every
+call. To change type, revoke every secret, then issue one of the other type.
+Each helper is a `connectors.update` with `rotate_signing_secret: { type }`,
+`rotate_signing_secret: true` or `revoke_signing_secret: kid`.
+
+`update(id, { triggers })` replaces the list: an entry with an `id` keeps that
+trigger, the rest are new, and a trigger left out is removed. A task a trigger
+started carries `metadata.trigger_source: "trigger"` and the event in
+`metadata.routine_trigger` (see `RoutineTaskMetadata`).
+
+A firing clears a manual routine's slot; re-arm it with
+`update(id, { next_trigger_at })`. A `cron` routine derives its own slot and
 rejects one set by the client.
 
-Each task-run trigger is recorded as an `introspection.automation.triggered`
-event, and a scheduled slot that ran nothing as
-`introspection.automation.skipped` (with a `reason` such as
-`conditions_not_met` or `target_busy`; readable only with project-wide
-telemetry access). Read them with `client.events.list`, filtered by
-`automation_id` or `task_id`:
+Each task-run trigger is recorded as an `introspection.routines.triggered`
+event, and a scheduled slot or event delivery that ran nothing as
+`introspection.routines.skipped` (with a `reason` such as
+`conditions_not_met`, `target_busy` or `trigger_busy`; readable only with
+project-wide telemetry access). An event trigger's run or skip carries the
+`event` it answered: `trigger_id`, `event_type` and `delivery_id`. Read them with `client.events.list`, filtered by
+`routine_id` or `task_id`:
 
 ```typescript
 const page = await client.events.list({
-  event_name: "introspection.automation.triggered",
-  automation_id: reminder.id,
+  event_name: "introspection.routines.triggered",
+  routine_id: reminder.id,
 });
 for (const ev of page.records)
   console.log(ev.payload.task_id, ev.payload.posted);
@@ -432,7 +559,7 @@ console.log(await run.text());
   Plane routes on `IntrospectionClient` (runtimes, connectors, members) reject
   it. Pass the runtime as `runtime_id` when creating a task. `auth.dataPlane()`
   returns a `DataPlaneClient`, which implements `DataPlaneResources`: `tasks`,
-  `files`, `conversations`, `shares`, `events`, `metrics`, `automations`,
+  `files`, `conversations`, `shares`, `events`, `metrics`, `routines`,
   `issues` and `connections` (where `create` takes the `runtime`).
 - **Sign-out** clears the local session, then revokes it with
   `POST /v1/oauth/revoke`; the local session is gone even if revocation fails.
