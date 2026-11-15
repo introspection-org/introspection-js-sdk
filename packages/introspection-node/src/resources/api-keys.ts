@@ -1,6 +1,5 @@
 import type {
   ApiKey,
-  ApiKeyAcknowledgement,
   ApiKeyCreateParams,
   ApiKeyCreated,
   ApiKeyDeleteParams,
@@ -12,8 +11,8 @@ import type {
 import type { HttpClient } from "../http.js";
 import { projectQuery } from "./project-scoped.js";
 
-function apiKeyPath(apiKeyId: Uuid, suffix = ""): string {
-  return `/v1/api-keys/${encodeURIComponent(apiKeyId)}${suffix}`;
+function apiKeyPath(apiKeyId: Uuid): string {
+  return `/v1/api-keys/${encodeURIComponent(apiKeyId)}`;
 }
 
 /**
@@ -39,7 +38,7 @@ export class ApiKeysApi {
 
   /**
    * Create a key. The plaintext is in `api_key` on this response and is never
-   * returned again; save it, then call {@link acknowledge}.
+   * returned again.
    */
   create(
     params: ApiKeyCreateParams = {},
@@ -75,22 +74,6 @@ export class ApiKeysApi {
       path: apiKeyPath(apiKeyId),
       query: params as Record<string, unknown>,
       expect: "empty",
-    });
-  }
-
-  /**
-   * Record that the plaintext from {@link create} was saved. A second
-   * acknowledge answers 404.
-   */
-  acknowledge(
-    apiKeyId: Uuid,
-    project?: ProjectRef,
-  ): Promise<ApiKeyAcknowledgement> {
-    return this.http.request<ApiKeyAcknowledgement>({
-      method: "POST",
-      path: apiKeyPath(apiKeyId, "/acknowledge"),
-      schema: "ApiKeyAcknowledgement",
-      query: projectQuery(project),
     });
   }
 }

@@ -452,7 +452,6 @@ export type {
   ApiKeyCreateParams,
   ApiKeyUpdateParams,
   ApiKeyDeleteParams,
-  ApiKeyAcknowledgement,
   Application,
   ApplicationType,
   ApplicationGrant,

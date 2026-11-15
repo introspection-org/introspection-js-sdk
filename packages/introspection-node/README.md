@@ -424,7 +424,6 @@ carries none of their scopes. Project-scoped methods take an optional
 const client = new IntrospectionClient({ cpSession: process.env.CP_SESSION });
 const created = await client.apiKeys.create({ name: "ci" }, "my-project");
 saveSecret(created.api_key); // returned once
-await client.apiKeys.acknowledge(created.id, "my-project");
 // Rotate: keep the old key working for an hour.
 await client.apiKeys.delete(created.id, {
   project: "my-project",

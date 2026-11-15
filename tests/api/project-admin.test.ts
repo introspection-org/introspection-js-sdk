@@ -386,11 +386,9 @@ describe("apiKeys", () => {
     );
   });
 
-  it("creates, updates, rotates and acknowledges a key", async () => {
+  it("creates, updates and rotates a key", async () => {
     const { sent, fetch } = fakeControlPlane((call) => {
       if (call.method === "DELETE") return empty();
-      if (call.url.endsWith("/acknowledge?project=sdk-tests"))
-        return json({ acknowledged: true });
       return json({ id: KEY_ID, api_key: "intro_sk_plaintext" });
     });
     const apiKeys = openClient(fetch).apiKeys;
@@ -402,10 +400,8 @@ describe("apiKeys", () => {
     await apiKeys.update(KEY_ID, { name: "renamed", allow: [] });
     await apiKeys.delete(KEY_ID, { project: "sdk-tests", expires_in: 3600 });
     await apiKeys.delete(KEY_ID);
-    const ack = await apiKeys.acknowledge(KEY_ID, "sdk-tests");
 
     expect(created.api_key).toBe("intro_sk_plaintext");
-    expect(ack).toEqual({ acknowledged: true });
     expect(calls(sent)).toEqual([
       [
         "POST",
@@ -419,11 +415,6 @@ describe("apiKeys", () => {
         undefined,
       ],
       ["DELETE", `${CP}/v1/api-keys/${KEY_ID}`, undefined],
-      [
-        "POST",
-        `${CP}/v1/api-keys/${KEY_ID}/acknowledge?project=sdk-tests`,
-        undefined,
-      ],
     ]);
   });
 
