@@ -258,6 +258,11 @@ export class ConnectorSecretsApi {
    * call.
    */
   delete(connectorId: Uuid, secretId: string): Promise<void> {
+    if (secretId === "" || secretId === "." || secretId === "..") {
+      return Promise.reject(
+        new TypeError(`${JSON.stringify(secretId)} is not a secret id`),
+      );
+    }
     return this.http.request<void>({
       method: "DELETE",
       path: secretsPath(connectorId, `/${encodeURIComponent(secretId)}`),

@@ -336,6 +336,16 @@ describe("ConnectorsApi", () => {
         expect: "empty",
       });
     });
+
+    it("secrets.delete() refuses an empty or dot-segment id", async () => {
+      const http = mockHttp();
+      for (const bad of ["", ".", ".."]) {
+        await expect(
+          new ConnectorsApi(http).secrets.delete(CONNECTOR_ID, bad),
+        ).rejects.toThrow(TypeError);
+      }
+      expect(http.request).not.toHaveBeenCalled();
+    });
   });
 
   it("delete() expects an empty body", async () => {
