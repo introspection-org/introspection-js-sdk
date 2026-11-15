@@ -341,12 +341,13 @@ export interface RoutineTriggerBody {
 /**
  * Options of `routines.trigger(id, params)`.
  *
- * - `parameters`: uploaded first through the Files API as
- *   `routine-parameters/<uuid>.json` (a 30-day TTL), then sent inline and
- *   attached to the run's task as `parameters.json`. Pass
- *   `attachParametersFile: false` for a platform routine or one that posts
- *   into an existing task, which take no files: then only the inline
- *   `parameters` are sent.
+ * - `parameters`: sent inline. For a routine that starts its own task they
+ *   are also uploaded first through the Files API as
+ *   `routine-parameters/<uuid>.json` (a 30-day TTL) and attached to the
+ *   run's task as `parameters.json`; a platform routine or one that posts
+ *   into an existing task takes no files, so gets only the inline value.
+ *   `attachParametersFile` unset reads the routine to decide (one extra
+ *   `GET`); `true` or `false` skips the read and forces the choice.
  * - `parametersFile`: an uploaded file (or its id) holding the parameters,
  *   attached as `parameters.json` for the server to read. Not with
  *   `parameters`.
@@ -356,7 +357,7 @@ export interface RoutineTriggerParams {
   parameters?: Record<string, unknown>;
   parametersFile?: Uuid | { id: Uuid };
   files?: TaskFileRef[];
-  /** Default `true`; see {@link RoutineTriggerParams}. */
+  /** Unset: decide from the routine; see {@link RoutineTriggerParams}. */
   attachParametersFile?: boolean;
 }
 

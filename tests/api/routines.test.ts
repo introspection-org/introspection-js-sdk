@@ -406,39 +406,6 @@ describe("RoutinesApi", () => {
     expect(result.task_id).toBe(TASK_ID);
   });
 
-  it("trigger() sends a platform routine's parameters inline, with no upload", async () => {
-    const http = mockHttp({
-      requestResult: {
-        status: "triggered",
-        routine_id: ROUTINE_ID,
-        task_id: null,
-        run_id: null,
-        reason: null,
-        result: {
-          enqueued: 1,
-          conversations: [
-            { conversation_id: "conv-1", completed_at: "2026-10-05T09:00:00Z" },
-          ],
-        },
-      },
-    });
-    const result = await new RoutinesApi(http).trigger(ROUTINE_ID, {
-      parameters: { conversation_ids: ["conv-1"] },
-      attachParametersFile: false,
-    });
-
-    expect(calls(http)).toEqual([
-      {
-        method: "POST",
-        path: `/v1/routines/${ROUTINE_ID}/trigger`,
-        schema: "RoutineTriggerResponse",
-        body: { parameters: { conversation_ids: ["conv-1"] } },
-      },
-    ]);
-    expect(result.result?.enqueued).toBe(1);
-    expect(result.result?.conversations?.[0].conversation_id).toBe("conv-1");
-  });
-
   describe("trigger() with parameters", () => {
     const UPLOADED_ID = "0199a1b2-0000-7000-8000-0000000000f1";
     const EXTRA_FILE = {
@@ -453,15 +420,61 @@ describe("RoutinesApi", () => {
       reason: null,
       result: null,
     };
+    const PROMPT_ROUTINE = { ...ROUTINE_FIXTURE, task_id: null };
+    const PLATFORM_ROUTINE = {
+      ...ROUTINE_FIXTURE,
+      kind: "observation_synthesis",
+      task_id: null,
+      runtime_group_id: null,
+    };
+    const READ = {
+      method: "GET",
+      path: `/v1/routines/${ROUTINE_ID}`,
+      schema: "Routine",
+    };
+    const TRIGGER_CALL = {
+      method: "POST",
+      path: `/v1/routines/${ROUTINE_ID}/trigger`,
+      schema: "RoutineTriggerResponse",
+    };
 
-    function uploadingHttp() {
-      const request = vi.fn(async (opts: { path: string }) =>
-        opts.path === "/v1/files" ? { id: UPLOADED_ID } : TRIGGERED,
-      );
+    function uploadingHttp(routine: unknown = PROMPT_ROUTINE) {
+      const request = vi.fn(async (opts: { method: string; path: string }) => {
+        if (opts.path === "/v1/files") return { id: UPLOADED_ID };
+        return opts.method === "GET" ? routine : TRIGGERED;
+      });
       return { request } as unknown as HttpClient;
     }
 
-    it("uploads them under a unique name, then triggers with the file", async () => {
+    it("auto: reads a platform routine and sends its parameters inline, with no upload", async () => {
+      const http = uploadingHttp(PLATFORM_ROUTINE);
+      const result = await new RoutinesApi(http).trigger(ROUTINE_ID, {
+        parameters: { conversation_ids: ["conv-1"] },
+      });
+
+      expect(calls(http)).toEqual([
+        READ,
+        {
+          ...TRIGGER_CALL,
+          body: { parameters: { conversation_ids: ["conv-1"] } },
+        },
+      ]);
+      expect(result.status).toBe("triggered");
+    });
+
+    it("auto: sends no file to a routine that posts into an existing task", async () => {
+      const http = uploadingHttp(ROUTINE_FIXTURE);
+      await new RoutinesApi(http).trigger(ROUTINE_ID, {
+        parameters: { a: 1 },
+      });
+
+      expect(calls(http)).toEqual([
+        READ,
+        { ...TRIGGER_CALL, body: { parameters: { a: 1 } } },
+      ]);
+    });
+
+    it("auto: reads a prompt routine, uploads under a unique name, then triggers with the file", async () => {
       const http = uploadingHttp();
       const parameters = { customer: { id: "cus_1", plan: "team" } };
 
@@ -470,8 +483,9 @@ describe("RoutinesApi", () => {
         files: [EXTRA_FILE],
       });
 
-      const [upload, trigger] = calls(http);
-      expect(calls(http)).toHaveLength(2);
+      const [read, upload, trigger] = calls(http);
+      expect(calls(http)).toHaveLength(3);
+      expect(read).toEqual(READ);
       expect(upload).toMatchObject({
         method: "POST",
         path: "/v1/files",
@@ -486,9 +500,7 @@ describe("RoutinesApi", () => {
         /^routine-parameters\/[0-9a-f-]{36}\.json$/,
       );
       expect(trigger).toEqual({
-        method: "POST",
-        path: `/v1/routines/${ROUTINE_ID}/trigger`,
-        schema: "RoutineTriggerResponse",
+        ...TRIGGER_CALL,
         body: {
           parameters,
           files: [{ id: UPLOADED_ID, name: "parameters.json" }, EXTRA_FILE],
@@ -497,17 +509,40 @@ describe("RoutinesApi", () => {
       expect(result.task_id).toBe(TASK_ID);
     });
 
-    it("names every upload uniquely", async () => {
-      const http = uploadingHttp();
+    it("attachParametersFile: true uploads without reading, each under a unique name", async () => {
+      const http = uploadingHttp(PLATFORM_ROUTINE);
       const routines = new RoutinesApi(http);
-      await routines.trigger(ROUTINE_ID, { parameters: { a: 1 } });
-      await routines.trigger(ROUTINE_ID, { parameters: { a: 1 } });
+      await routines.trigger(ROUTINE_ID, {
+        parameters: { a: 1 },
+        attachParametersFile: true,
+      });
+      await routines.trigger(ROUTINE_ID, {
+        parameters: { a: 1 },
+        attachParametersFile: true,
+      });
 
+      expect(calls(http).map((call) => [call.method, call.path])).toEqual([
+        ["POST", "/v1/files"],
+        ["POST", `/v1/routines/${ROUTINE_ID}/trigger`],
+        ["POST", "/v1/files"],
+        ["POST", `/v1/routines/${ROUTINE_ID}/trigger`],
+      ]);
       const names = calls(http)
         .filter((call) => call.path === "/v1/files")
         .map((call) => call.body.name);
-      expect(names).toHaveLength(2);
       expect(names[0]).not.toBe(names[1]);
+    });
+
+    it("attachParametersFile: false sends the parameters inline without reading", async () => {
+      const http = uploadingHttp();
+      await new RoutinesApi(http).trigger(ROUTINE_ID, {
+        parameters: { a: 1 },
+        attachParametersFile: false,
+      });
+
+      expect(calls(http)).toEqual([
+        { ...TRIGGER_CALL, body: { parameters: { a: 1 } } },
+      ]);
     });
 
     it("sends only the reference for parametersFile", async () => {
@@ -690,7 +725,12 @@ describe("client.routines", () => {
       result: null,
     };
     const fileId = "0199a1b2-0000-7000-8000-0000000000f1";
-    const { sdk, requests } = client([{ id: fileId }, triggered, triggered]);
+    const { sdk, requests } = client([
+      { ...ROUTINE_FIXTURE, task_id: null },
+      { id: fileId },
+      triggered,
+      triggered,
+    ]);
 
     await sdk.routines.trigger(ROUTINE_ID, {
       parameters: { customer: { id: "cus_1", plan: "team" } },
@@ -698,20 +738,21 @@ describe("client.routines", () => {
     await sdk.routines.trigger(ROUTINE_ID);
 
     expect(requests.map((r) => [r.method, r.url.href])).toEqual([
+      ["GET", `https://dp.test/v1/routines/${ROUTINE_ID}`],
       ["POST", "https://dp.test/v1/files"],
       ["POST", `https://dp.test/v1/routines/${ROUTINE_ID}/trigger`],
       ["POST", `https://dp.test/v1/routines/${ROUTINE_ID}/trigger`],
     ]);
-    expect(requests[0].body).toMatchObject({
+    expect(requests[1].body).toMatchObject({
       content: '{"customer":{"id":"cus_1","plan":"team"}}',
       mime_type: "application/json",
       ttl_seconds: 2592000,
     });
-    expect(requests[1].body).toEqual({
+    expect(requests[2].body).toEqual({
       parameters: { customer: { id: "cus_1", plan: "team" } },
       files: [{ id: fileId, name: "parameters.json" }],
     });
-    expect(requests[2].body).toBeUndefined();
+    expect(requests[3].body).toBeUndefined();
     expect(
       requests.some((r) => r.url.pathname.startsWith("/v1/automations")),
     ).toBe(false);

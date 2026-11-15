@@ -179,7 +179,8 @@ const { status, task_id } = await client.routines.trigger(reminder.id);
 ```
 
 `trigger(id, { parameters })` passes a JSON object (at most 16 KiB and 8
-levels deep) to the run. The SDK first uploads it through the Files API as
+levels deep) to the run. For a prompt routine that starts its own task, the
+SDK first uploads it through the Files API as
 `routine-parameters/<uuid>.json` (expiring after 30 days), then triggers with
 the parameters inline and the upload attached to the run's task as
 `parameters.json`; each `@parameters.<name>` in the prompt becomes that
@@ -188,8 +189,9 @@ listed under the task's `metadata.unresolved_parameters`. To pass parameters
 you have already uploaded (up to 256 KiB), give `parametersFile` (a file or
 its id) instead; `files` attaches more Files API references to the run's
 task. A platform routine, and one that posts into an existing task, takes no
-files: pass `attachParametersFile: false` so only the inline parameters are
-sent. A platform routine reads its kind's own keys (`observation_synthesis`
+files and gets only the inline parameters. To tell them apart the SDK reads
+the routine first (`GET /v1/routines/{id}`); pass `attachParametersFile: true`
+or `false` to skip that read and force the choice. A platform routine reads its kind's own keys (`observation_synthesis`
 takes `conversation_ids`) and answers in `result`:
 
 ```typescript
@@ -207,7 +209,6 @@ await client.routines.trigger(digest.id, { parametersFile: paramsFileId });
 
 const { result } = await client.routines.trigger(synthesisRoutineId, {
   parameters: { conversation_ids: [conversationId] },
-  attachParametersFile: false,
 });
 console.log(result?.enqueued, result?.conversations);
 ```

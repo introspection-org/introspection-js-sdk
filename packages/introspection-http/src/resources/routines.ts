@@ -95,9 +95,9 @@ export class RoutinesClient {
 
   /**
    * Run a routine now (`202`), with optional parameters and files (see
-   * {@link RoutineTriggerParams}). With `parameters` this makes two requests:
-   * the upload of `parameters.json` (skipped with
-   * `attachParametersFile: false`), then the trigger. Returns the task it
+   * {@link RoutineTriggerParams}). With `parameters` and no
+   * `attachParametersFile`, it reads the routine first and uploads
+   * `parameters.json` only for one that starts its own task. Returns the task it
    * created or posted into, and the kind's `result`; neither reads nor
    * clears a scheduled slot.
    */
@@ -105,7 +105,7 @@ export class RoutinesClient {
     routineId: Uuid,
     params: RoutineTriggerParams = {},
   ): Promise<RoutineTriggerResponse> {
-    const { parameters, parametersFile, attachParametersFile = true } = params;
+    const { parameters, parametersFile, attachParametersFile } = params;
     if (parameters !== undefined && parametersFile !== undefined) {
       throw new TypeError("Pass parameters or parametersFile, not both");
     }
@@ -114,7 +114,10 @@ export class RoutinesClient {
       const id =
         typeof parametersFile === "string" ? parametersFile : parametersFile.id;
       files.unshift({ id, name: PARAMETERS_FILE_NAME });
-    } else if (parameters !== undefined && attachParametersFile) {
+    } else if (
+      parameters !== undefined &&
+      (attachParametersFile ?? (await this.startsOwnTask(routineId)))
+    ) {
       const uploaded = await new FilesClient(this.http).createText({
         name: `routine-parameters/${crypto.randomUUID()}.json`,
         content: JSON.stringify(parameters),
@@ -133,6 +136,11 @@ export class RoutinesClient {
       schema: "RoutineTriggerResponse",
       ...(Object.keys(body).length > 0 ? { body } : {}),
     });
+  }
+
+  private async startsOwnTask(routineId: Uuid): Promise<boolean> {
+    const routine = await this.get(routineId);
+    return routine.kind == null && routine.task_id == null;
   }
 }
 
