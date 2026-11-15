@@ -1,4 +1,3 @@
-import { isParametersFile } from "@introspection-sdk/types";
 import type {
   Routine,
   RoutineCreateParams,
@@ -13,6 +12,7 @@ import { Paginator, paginateGet } from "../pagination.js";
 import { FilesClient } from "./files.js";
 import { setFields } from "./set-fields.js";
 import type { ResourceHttpClient } from "./types.js";
+import { isUuid } from "./uuid.js";
 
 const PARAMETERS_FILE_NAME = "parameters.json";
 const PARAMETERS_TTL_SECONDS = 30 * 24 * 60 * 60;
@@ -109,8 +109,13 @@ export class RoutinesClient {
     const { parameters, attachParametersFile } = params;
     const files = [...(params.files ?? [])];
     let inline: Record<string, unknown> | undefined;
-    if (isParametersFile(parameters)) {
-      files.unshift({ id: parameters.fileId, name: PARAMETERS_FILE_NAME });
+    if (typeof parameters === "string") {
+      if (!isUuid(parameters)) {
+        throw new TypeError(
+          "parameters must be a JSON object or a Files API file id (a UUID)",
+        );
+      }
+      files.unshift({ id: parameters, name: PARAMETERS_FILE_NAME });
     } else if (parameters !== undefined) {
       inline = parameters;
       if (attachParametersFile ?? (await this.startsOwnTask(routineId))) {

@@ -11,13 +11,7 @@ import type {
 import { NotFoundError } from "@introspection-sdk/types";
 import { Paginator, paginateGet } from "../pagination.js";
 import type { ResourceHttpClient } from "./types.js";
-
-const UUID_RE =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
-function isUuid(value: string): boolean {
-  return UUID_RE.test(value);
-}
+import { isUuid } from "./uuid.js";
 
 export interface RuntimeRunRequestBody {
   identity?: RunRequest["identity"];

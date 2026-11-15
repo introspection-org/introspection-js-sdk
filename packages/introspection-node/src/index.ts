@@ -299,7 +299,6 @@ export type {
   RoutineCreateParams,
   RoutineUpdateParams,
   RoutineListParams,
-  ParametersFileRef,
   RoutineTriggerBody,
   RoutineTriggerParams,
   RoutineTriggerResponse,
@@ -522,7 +521,6 @@ export {
   genAiOutputMessages,
   isKnownEvent,
   issueEtag,
-  parametersFile,
 } from "@introspection-sdk/types";
 export {
   IntrospectionAPIError,

@@ -187,7 +187,7 @@ the parameters inline and the upload attached to the run's task as
 top-level value as JSON, and a name with no value becomes `null` and is
 listed under the task's `metadata.unresolved_parameters`. To pass parameters
 you have already uploaded (a JSON object of up to 256 KiB), pass
-`parameters: parametersFile(file)` (a file or its id) instead: the SDK attaches that file as
+its id as `parameters` instead (`parameters: file.id`): the SDK attaches that file as
 `parameters.json` and the server reads it, with no read and no upload; `files` attaches more Files API references to the run's
 task. A platform routine, and one that posts into an existing task, takes no
 files and gets only the inline parameters. To tell them apart the SDK reads
@@ -196,8 +196,6 @@ or `false` to skip that read and force the choice. A platform routine reads its 
 takes `conversation_ids`) and answers in `result`:
 
 ```typescript
-import { parametersFile } from "@introspection-sdk/introspection-node";
-
 const digest = await client.routines.create({
   name: "Customer digest",
   trigger_type: "manual",
@@ -209,7 +207,7 @@ await client.routines.trigger(digest.id, {
   files: [{ id: contractFileId, name: "contract.pdf" }],
 });
 await client.routines.trigger(digest.id, {
-  parameters: parametersFile(paramsFileId),
+  parameters: paramsFile.id,
 });
 
 const { result } = await client.routines.trigger(synthesisRoutineId, {

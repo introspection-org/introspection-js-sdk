@@ -80,7 +80,6 @@ export {
   genAiInputMessages,
   genAiOutputMessages,
   issueEtag,
-  parametersFile,
 } from "@introspection-sdk/types";
 
 // Re-exported wire types for convenience.
@@ -138,7 +137,6 @@ export type {
   Routine,
   RoutineCreateParams,
   RoutineListParams,
-  ParametersFileRef,
   RoutineTriggerBody,
   RoutineTriggerParams,
   RoutineTriggerResponse,

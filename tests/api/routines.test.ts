@@ -3,9 +3,7 @@ import {
   RoutinesApi,
   HttpClient,
   IntrospectionClient,
-  parametersFile,
 } from "@introspection-sdk/introspection-node";
-import { isParametersFile } from "@introspection-sdk/types";
 import type {
   Routine,
   RoutineMetadata,
@@ -547,16 +545,16 @@ describe("RoutinesApi", () => {
       ]);
     });
 
-    it("sends only the reference for parametersFile(), with no read or upload", async () => {
+    it("sends only the reference for a file id, with no read or upload", async () => {
       const http = uploadingHttp();
       const routines = new RoutinesApi(http);
 
       await routines.trigger(ROUTINE_ID, {
-        parameters: parametersFile(UPLOADED_ID),
+        parameters: UPLOADED_ID,
         files: [EXTRA_FILE],
       });
       await routines.trigger(ROUTINE_ID, {
-        parameters: parametersFile({ id: UPLOADED_ID }),
+        parameters: UPLOADED_ID,
         attachParametersFile: true,
       });
 
@@ -574,21 +572,18 @@ describe("RoutinesApi", () => {
       ]);
     });
 
-    it("never mistakes a plain { fileId } object for parametersFile()", async () => {
+    it("refuses a string that is not a file id, sending nothing", async () => {
       const http = uploadingHttp();
-      await new RoutinesApi(http).trigger(ROUTINE_ID, {
-        parameters: { fileId: UPLOADED_ID },
-        attachParametersFile: false,
-      });
-
-      expect(calls(http)).toEqual([
-        { ...TRIGGER_CALL, body: { parameters: { fileId: UPLOADED_ID } } },
-      ]);
-      expect(isParametersFile({ fileId: UPLOADED_ID })).toBe(false);
-      expect(isParametersFile(parametersFile(UPLOADED_ID))).toBe(true);
-      expect(JSON.stringify(parametersFile(UPLOADED_ID))).toBe(
-        JSON.stringify({ fileId: UPLOADED_ID }),
+      await expect(
+        new RoutinesApi(http).trigger(ROUTINE_ID, {
+          parameters: "routine-parameters/params.json",
+        }),
+      ).rejects.toThrow(
+        new TypeError(
+          "parameters must be a JSON object or a Files API file id (a UUID)",
+        ),
       );
+      expect(calls(http)).toEqual([]);
     });
 
     it("passes files through without parameters", async () => {
