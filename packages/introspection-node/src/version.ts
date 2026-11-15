@@ -1,2 +1,2 @@
 /** Version information for introspection-sdk package. */
-export const VERSION = "0.50.0"; // x-release-please-version
+export const VERSION = "0.51.0"; // x-release-please-version
