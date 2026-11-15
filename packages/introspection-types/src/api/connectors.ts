@@ -26,11 +26,11 @@ export type ConnectorAuthMode =
 export type ConnectorStatus = "pending" | "active" | "error";
 
 /**
- * How callers of a `webhook` connector authenticate: `standard_webhooks`
- * (the default) signs each call per the Standard Webhooks spec with the
- * connector's secret; `bearer` sends the secret as a bearer token.
+ * How a `webhook` connector's caller uses one of its secrets:
+ * `standard_webhooks` signs each call per the Standard Webhooks spec with it
+ * (`whsec_...`); `bearer` sends it as a bearer token (`whtok_...`).
  */
-export type WebhookAuth =
+export type WebhookSecretType =
   "standard_webhooks" | "bearer" | (string & Record<never, never>);
 
 export type ConnectionStatus =
@@ -70,14 +70,15 @@ export interface PolicyEntity {
  * `client_secret` and `signing_secret` are write-only: accepted on create
  * and update, absent from every read — this read model deliberately does
  * not declare them. A `webhook` connector's platform-generated secret is
- * returned once, by the create or rotation that issues it
+ * returned once, by the update that issues it
  * ({@link ConnectorSecretResponse}).
  *
  * A `webhook` connector (`provider: "webhook"`, `auth_mode: "static"`) is
  * inbound only: the customer's own systems call
  * `POST /v1/webhooks/connectors/{id}` on the Control Plane, and a routine
  * trigger with `source: "connector"` and its `connector_slug` runs on each
- * call.
+ * call. It is created with no secret, so it refuses every call until an
+ * update issues one (`rotate_signing_secret: { type }`).
  */
 export interface Connector {
   id: Uuid;
@@ -114,8 +115,6 @@ export interface Connector {
    * never hardcode a provider list.
    */
   requires_runtime: boolean;
-  /** How a `webhook` connector's callers authenticate; null for every other provider. */
-  webhook_auth?: WebhookAuth | null;
   /**
    * The secrets a `webhook` connector accepts, current first: at most two,
    * described without their material. Null for every other provider.
@@ -129,15 +128,15 @@ export type SigningSecretStatus = "current" | "previous";
 export interface SigningSecret {
   /** A fingerprint of the secret: the first 8 hex digits of its SHA-256. */
   id: string;
+  type: WebhookSecretType;
   created_at?: IsoDate | null;
   status: SigningSecretStatus;
 }
 
 /**
- * A connector create or update response. `signing_secret` is a `webhook`
- * connector's new secret, present only on the create that generates it and
- * on an update with `rotate_signing_secret: true`. Shown once: store it, as
- * no read returns it.
+ * A connector update response. `signing_secret` is a `webhook` connector's
+ * new secret, present only on an update with `rotate_signing_secret`. Shown
+ * once: store it, as no read returns it.
  */
 export interface ConnectorSecretResponse extends Connector {
   signing_secret?: string;
@@ -181,12 +180,6 @@ export interface ConnectorCreateParams {
   webhook_url?: string;
   /** Cedar entities for the recipe's policies; see {@link PolicyEntity}. */
   policy_entities?: PolicyEntity[];
-  /**
-   * A `webhook` connector only (server default `standard_webhooks`). A
-   * webhook connector takes no secret, client, hosts, scopes or endpoints:
-   * the platform generates its secret.
-   */
-  webhook_auth?: WebhookAuth;
 }
 
 /**
@@ -209,20 +202,19 @@ export interface ConnectorUpdateParams {
   signing_secret?: string;
   /** Replaces the Cedar entities; see {@link PolicyEntity}. */
   policy_entities?: PolicyEntity[];
-  /** A `webhook` connector only: how its callers authenticate. */
-  webhook_auth?: WebhookAuth;
   /**
-   * A `webhook` connector only: issue a new secret, returned once as the
-   * response's `signing_secret`. The current one stays valid as the previous
-   * secret until the next rotation or a revoke; an older previous is retired,
-   * so at most two are valid. Not with `revoke_previous_signing_secret`.
+   * A `webhook` connector only: issue a secret, returned once as the
+   * response's `signing_secret`. The first names its `type`; `true` rotates,
+   * keeping the current secret's type, and the old one stays valid as the
+   * previous until revoked. 409 with two live. Not with
+   * `revoke_signing_secret` (422).
    */
-  rotate_signing_secret?: boolean;
+  rotate_signing_secret?: boolean | { type: WebhookSecretType };
   /**
-   * A `webhook` connector only: stop accepting its previous secret now. Not
-   * with `rotate_signing_secret` (the server answers 422 to both).
+   * A `webhook` connector only: the `id` (kid) of a live secret to stop
+   * accepting now. The current one only once no previous is live (409).
    */
-  revoke_previous_signing_secret?: boolean;
+  revoke_signing_secret?: string;
 }
 
 export interface ConnectorListParams extends CursorParams {

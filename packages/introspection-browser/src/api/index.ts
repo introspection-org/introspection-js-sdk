@@ -137,6 +137,7 @@ export type {
   Routine,
   RoutineCreateParams,
   RoutineListParams,
+  RoutineTriggerBody,
   RoutineTriggerParams,
   RoutineTriggerResponse,
   RoutineTriggerResult,

@@ -2,14 +2,19 @@ import type {
   Routine,
   RoutineCreateParams,
   RoutineListParams,
+  RoutineTriggerBody,
   RoutineTriggerParams,
   RoutineTriggerResponse,
   RoutineUpdateParams,
   Uuid,
 } from "@introspection-sdk/types";
 import { Paginator, paginateGet } from "../pagination.js";
+import { FilesClient } from "./files.js";
 import { setFields } from "./set-fields.js";
 import type { ResourceHttpClient } from "./types.js";
+
+const PARAMETERS_FILE_NAME = "parameters.json";
+const PARAMETERS_TTL_SECONDS = 30 * 24 * 60 * 60;
 
 /**
  * CRUD on `/v1/routines` (Data Plane) plus `trigger(id)`, which runs one
@@ -89,15 +94,39 @@ export class RoutinesClient {
   }
 
   /**
-   * Run a routine now (`202`), with optional `parameters` (see
-   * {@link RoutineTriggerParams}). Returns the task it created or posted
-   * into, and the kind's `result`; neither reads nor clears a scheduled slot.
+   * Run a routine now (`202`), with optional parameters and files (see
+   * {@link RoutineTriggerParams}). With `parameters` this makes two requests:
+   * the upload of `parameters.json` (skipped with
+   * `attachParametersFile: false`), then the trigger. Returns the task it
+   * created or posted into, and the kind's `result`; neither reads nor
+   * clears a scheduled slot.
    */
-  trigger(
+  async trigger(
     routineId: Uuid,
     params: RoutineTriggerParams = {},
   ): Promise<RoutineTriggerResponse> {
-    const body = setFields(params);
+    const { parameters, parametersFile, attachParametersFile = true } = params;
+    if (parameters !== undefined && parametersFile !== undefined) {
+      throw new TypeError("Pass parameters or parametersFile, not both");
+    }
+    const files = [...(params.files ?? [])];
+    if (parametersFile !== undefined) {
+      const id =
+        typeof parametersFile === "string" ? parametersFile : parametersFile.id;
+      files.unshift({ id, name: PARAMETERS_FILE_NAME });
+    } else if (parameters !== undefined && attachParametersFile) {
+      const uploaded = await new FilesClient(this.http).createText({
+        name: `routine-parameters/${crypto.randomUUID()}.json`,
+        content: JSON.stringify(parameters),
+        mime_type: "application/json",
+        ttl_seconds: PARAMETERS_TTL_SECONDS,
+      });
+      files.unshift({ id: uploaded.id, name: PARAMETERS_FILE_NAME });
+    }
+    const body: RoutineTriggerBody = setFields({
+      parameters,
+      files: files.length > 0 ? files : undefined,
+    });
     return this.http.request<RoutineTriggerResponse>({
       method: "POST",
       path: `/v1/routines/${encodeURIComponent(routineId)}/trigger`,

@@ -388,11 +388,6 @@
         "status": {},
         "token_endpoint": {},
         "updated_at": {},
-        "webhook_auth": {
-          "type": "object",
-          "properties": { "length": {} },
-          "additionalProperties": false
-        },
         "webhook_url": {}
       },
       "additionalProperties": false
@@ -470,11 +465,6 @@
         "status": {},
         "token_endpoint": {},
         "updated_at": {},
-        "webhook_auth": {
-          "type": "object",
-          "properties": { "length": {} },
-          "additionalProperties": false
-        },
         "webhook_url": {}
       },
       "additionalProperties": false
@@ -2853,7 +2843,16 @@
     },
     "SigningSecret": {
       "type": "object",
-      "properties": { "created_at": {}, "id": {}, "status": {} },
+      "properties": {
+        "created_at": {},
+        "id": {},
+        "status": {},
+        "type": {
+          "type": "object",
+          "properties": { "length": {} },
+          "additionalProperties": false
+        }
+      },
       "additionalProperties": false
     },
     "SpanAttributes": {

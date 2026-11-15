@@ -97,4 +97,9 @@ export interface FileCreateTextParams {
    * existing tags (a different set is rejected) — change them with `update`.
    */
   tags?: string[];
+  /**
+   * Lifetime in seconds (1 to 2592000, 30 days): the file gains an
+   * `expires_at` and is deleted after it. Omit it and the file never expires.
+   */
+  ttl_seconds?: number;
 }

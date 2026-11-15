@@ -113,7 +113,7 @@ describe("ConnectorsApi", () => {
         client_id: "client-abc",
         client_secret: "secret-xyz",
       },
-      schema: "ConnectorSecretResponse",
+      schema: "Connector",
     });
   });
 
@@ -142,7 +142,7 @@ describe("ConnectorsApi", () => {
       method: "POST",
       path: "/v1/connectors",
       body: params,
-      schema: "ConnectorSecretResponse",
+      schema: "Connector",
     });
     expect(connector.auth_mode).toBe("aauth");
     expect(connector).not.toHaveProperty("approval_policy");
@@ -206,8 +206,8 @@ describe("ConnectorsApi", () => {
     });
   });
 
-  it("create() makes a webhook connector and returns its secret once", async () => {
-    const webhook: ConnectorSecretResponse = {
+  describe("webhook signing secrets", () => {
+    const WEBHOOK: Connector = {
       ...CONNECTOR_FIXTURE,
       slug: "ci-alerts",
       name: "CI alerts",
@@ -216,112 +216,128 @@ describe("ConnectorsApi", () => {
       scopes: [],
       api_hosts: [],
       requires_runtime: false,
-      webhook_auth: "standard_webhooks",
-      signing_secrets: [
-        {
-          id: "a1b2c3d4",
-          created_at: "2026-08-08T00:00:00Z",
-          status: "current",
-        },
-      ],
-      signing_secret: "whsec_c2VjcmV0",
+      signing_secrets: [],
     };
-    const http = mockHttp({ requestResult: webhook });
+    const CURRENT = {
+      id: "a1b2c3d4",
+      type: "standard_webhooks",
+      created_at: "2026-08-08T00:00:00Z",
+      status: "current",
+    } as const;
 
-    const created = await new ConnectorsApi(http).create({
-      name: "CI alerts",
-      slug: "ci-alerts",
-      provider: "webhook",
-      auth_mode: "static",
-      webhook_auth: "standard_webhooks",
-    });
+    function patched(http: HttpClient) {
+      return (http.request as ReturnType<typeof vi.fn>).mock.calls[0][0];
+    }
 
-    expect(http.request).toHaveBeenCalledWith({
-      method: "POST",
-      path: "/v1/connectors",
-      body: {
+    it("create() sends no secret and returns a plain connector", async () => {
+      const http = mockHttp({ requestResult: WEBHOOK });
+      const created = await new ConnectorsApi(http).create({
         name: "CI alerts",
         slug: "ci-alerts",
         provider: "webhook",
         auth_mode: "static",
-        webhook_auth: "standard_webhooks",
-      },
-      schema: "ConnectorSecretResponse",
-    });
-    expect(created.signing_secret).toBe("whsec_c2VjcmV0");
-    expect(created.webhook_auth).toBe("standard_webhooks");
-  });
+      });
 
-  it("update() rotates a webhook connector's secret", async () => {
-    const http = mockHttp({
-      requestResult: {
-        ...CONNECTOR_FIXTURE,
-        provider: "webhook",
-        webhook_auth: "bearer",
-        signing_secrets: [
-          {
-            id: "e5f6a7b8",
-            created_at: "2026-08-09T00:00:00Z",
-            status: "current",
-          },
-          {
-            id: "a1b2c3d4",
-            created_at: "2026-08-08T00:00:00Z",
-            status: "previous",
-          },
-        ],
-        signing_secret: "whsec_bmV3",
-      },
+      expect(http.request).toHaveBeenCalledWith({
+        method: "POST",
+        path: "/v1/connectors",
+        body: {
+          name: "CI alerts",
+          slug: "ci-alerts",
+          provider: "webhook",
+          auth_mode: "static",
+        },
+        schema: "Connector",
+      });
+      expect(created.signing_secrets).toEqual([]);
+      expect("signing_secret" in created).toBe(false);
     });
 
-    const rotated = await new ConnectorsApi(http).update(CONNECTOR_ID, {
-      rotate_signing_secret: true,
-      webhook_auth: "bearer",
+    it("issueSigningSecret() issues the first secret with its type", async () => {
+      const issued: ConnectorSecretResponse = {
+        ...WEBHOOK,
+        signing_secrets: [CURRENT],
+        signing_secret: "whsec_c2VjcmV0",
+      };
+      const http = mockHttp({ requestResult: issued });
+
+      const response = await new ConnectorsApi(http).issueSigningSecret(
+        CONNECTOR_ID,
+        "standard_webhooks",
+      );
+
+      expect(http.request).toHaveBeenCalledWith({
+        method: "PATCH",
+        path: `/v1/connectors/${CONNECTOR_ID}`,
+        body: { rotate_signing_secret: { type: "standard_webhooks" } },
+        schema: "ConnectorSecretResponse",
+      });
+      expect(response.signing_secret).toBe("whsec_c2VjcmV0");
+      expect(response.signing_secrets?.[0].type).toBe("standard_webhooks");
     });
 
-    expect(http.request).toHaveBeenCalledWith({
-      method: "PATCH",
-      path: `/v1/connectors/${CONNECTOR_ID}`,
-      body: { rotate_signing_secret: true, webhook_auth: "bearer" },
-      schema: "ConnectorSecretResponse",
-    });
-    expect(rotated.signing_secret).toBe("whsec_bmV3");
-    expect(rotated.signing_secrets?.map((secret) => secret.status)).toEqual([
-      "current",
-      "previous",
-    ]);
-  });
+    it("issueSigningSecret() takes the bearer type", async () => {
+      const http = mockHttp({ requestResult: WEBHOOK });
+      await new ConnectorsApi(http).issueSigningSecret(CONNECTOR_ID, "bearer");
 
-  it("update() revokes a webhook connector's previous secret", async () => {
-    const http = mockHttp({
-      requestResult: {
-        ...CONNECTOR_FIXTURE,
-        provider: "webhook",
-        webhook_auth: "standard_webhooks",
-        signing_secrets: [
-          {
-            id: "e5f6a7b8",
-            created_at: "2026-08-09T00:00:00Z",
-            status: "current",
-          },
-        ],
-      },
+      expect(patched(http).body).toEqual({
+        rotate_signing_secret: { type: "bearer" },
+      });
     });
 
-    const revoked = await new ConnectorsApi(http).update(CONNECTOR_ID, {
-      revoke_previous_signing_secret: true,
+    it("rotateSigningSecret() keeps the type and returns the new secret", async () => {
+      const http = mockHttp({
+        requestResult: {
+          ...WEBHOOK,
+          signing_secrets: [
+            {
+              id: "e5f6a7b8",
+              type: "standard_webhooks",
+              created_at: "2026-08-09T00:00:00Z",
+              status: "current",
+            },
+            { ...CURRENT, status: "previous" },
+          ],
+          signing_secret: "whsec_bmV3",
+        },
+      });
+
+      const rotated = await new ConnectorsApi(http).rotateSigningSecret(
+        CONNECTOR_ID,
+      );
+
+      expect(http.request).toHaveBeenCalledWith({
+        method: "PATCH",
+        path: `/v1/connectors/${CONNECTOR_ID}`,
+        body: { rotate_signing_secret: true },
+        schema: "ConnectorSecretResponse",
+      });
+      expect(rotated.signing_secret).toBe("whsec_bmV3");
+      expect(rotated.signing_secrets?.map((secret) => secret.status)).toEqual([
+        "current",
+        "previous",
+      ]);
     });
 
-    expect(http.request).toHaveBeenCalledWith({
-      method: "PATCH",
-      path: `/v1/connectors/${CONNECTOR_ID}`,
-      body: { revoke_previous_signing_secret: true },
-      schema: "ConnectorSecretResponse",
+    it("revokeSigningSecret() revokes one secret by its kid", async () => {
+      const http = mockHttp({
+        requestResult: { ...WEBHOOK, signing_secrets: [CURRENT] },
+      });
+
+      const revoked = await new ConnectorsApi(http).revokeSigningSecret(
+        CONNECTOR_ID,
+        "e5f6a7b8",
+      );
+
+      expect(http.request).toHaveBeenCalledWith({
+        method: "PATCH",
+        path: `/v1/connectors/${CONNECTOR_ID}`,
+        body: { revoke_signing_secret: "e5f6a7b8" },
+        schema: "ConnectorSecretResponse",
+      });
+      expect(revoked.signing_secret).toBeUndefined();
+      expect(revoked.signing_secrets).toEqual([CURRENT]);
     });
-    expect(revoked.signing_secret).toBeUndefined();
-    expect(revoked.signing_secrets).toEqual([
-      { id: "e5f6a7b8", created_at: "2026-08-09T00:00:00Z", status: "current" },
-    ]);
   });
 
   it("delete() expects an empty body", async () => {

@@ -179,12 +179,18 @@ const { status, task_id } = await client.routines.trigger(reminder.id);
 ```
 
 `trigger(id, { parameters })` passes a JSON object (at most 16 KiB and 8
-levels deep) to the run. A prompt routine that starts a task gets it as
-`parameters.json` in the task's files, and each `@parameters.<name>` in its
-prompt becomes that top-level value as JSON; a name with no value becomes
-`null` and is listed under the task's `metadata.unresolved_parameters`. A
-platform routine reads its kind's own keys (`observation_synthesis` takes
-`conversation_ids`) and answers in `result`:
+levels deep) to the run. The SDK first uploads it through the Files API as
+`routine-parameters/<uuid>.json` (expiring after 30 days), then triggers with
+the parameters inline and the upload attached to the run's task as
+`parameters.json`; each `@parameters.<name>` in the prompt becomes that
+top-level value as JSON, and a name with no value becomes `null` and is
+listed under the task's `metadata.unresolved_parameters`. To pass parameters
+you have already uploaded (up to 256 KiB), give `parametersFile` (a file or
+its id) instead; `files` attaches more Files API references to the run's
+task. A platform routine, and one that posts into an existing task, takes no
+files: pass `attachParametersFile: false` so only the inline parameters are
+sent. A platform routine reads its kind's own keys (`observation_synthesis`
+takes `conversation_ids`) and answers in `result`:
 
 ```typescript
 const digest = await client.routines.create({
@@ -195,10 +201,13 @@ const digest = await client.routines.create({
 });
 await client.routines.trigger(digest.id, {
   parameters: { customer: { id: "cus_123", plan: "team" } },
+  files: [{ id: contractFileId, name: "contract.pdf" }],
 });
+await client.routines.trigger(digest.id, { parametersFile: paramsFileId });
 
 const { result } = await client.routines.trigger(synthesisRoutineId, {
   parameters: { conversation_ids: [conversationId] },
+  attachParametersFile: false,
 });
 console.log(result?.enqueued, result?.conversations);
 ```
@@ -207,10 +216,12 @@ A routine's `triggers` start runs on events, beside its schedule and
 `trigger(id)`: an integration's (`source: "integration"`, Slack or GitHub
 events such as `github.pull_request.opened`) or a project connector's
 (`source: "connector"`). A `webhook` connector is one your own systems call:
-create it on the Control Plane, store the `signing_secret` its create returns
-once, and have the caller sign each `POST /v1/webhooks/connectors/{id}` with
-it per Standard Webhooks (or send it as a bearer token with
-`webhook_auth: "bearer"`). A run an event starts receives the event's body as
+create it on the Control Plane (it has no secret yet and refuses every call),
+issue its first secret with `issueSigningSecret(id, type)`, store the
+`signing_secret` that response returns once, and have the caller sign each
+`POST /v1/webhooks/connectors/{id}` with it per Standard Webhooks (type
+`standard_webhooks`, `whsec_...`) or send it as a bearer token (type `bearer`,
+`whtok_...`). A run an event starts receives the event's body as
 its parameters, the same as a manual run's `parameters`: as `parameters.json`
 (any JSON; a non-JSON body arrives as a JSON string), with each
 `@parameters.<key>` in the prompt reading a top-level key of it, and the
@@ -223,7 +234,11 @@ const webhook = await client.connectors.create({
   provider: "webhook",
   auth_mode: "static",
 });
-saveSecret(webhook.signing_secret); // your app's code: shown only once
+const { signing_secret } = await client.connectors.issueSigningSecret(
+  webhook.id,
+  "standard_webhooks",
+);
+saveSecret(signing_secret); // your app's code: shown only once
 
 await client.routines.create({
   name: "Triage failed builds",
@@ -268,14 +283,17 @@ await fetch(webhookUrl, {
 ```
 
 A connector read lists its accepted secrets as `signing_secrets`
-(`{ id, created_at, status }`, current first; `null` for any other
-provider), never their material. A webhook connector holds at most two:
-`update(id, { rotate_signing_secret: true })` returns a new one once as
-`signing_secret`, and the one it replaces keeps working as the previous
-secret until the next rotation or until
-`update(id, { revoke_previous_signing_secret: true })` retires it. There is
-no grace period to wait out, and the server refuses both flags in one
-update.
+(`{ id, type, created_at, status }`, current first; `null` for any other
+provider), never their material; `id` is the secret's fingerprint (kid). A
+webhook connector holds at most two: `rotateSigningSecret(id)` returns a new
+one once as `signing_secret`, of the current one's type, and the one it
+replaces keeps working as the previous secret until
+`revokeSigningSecret(id, kid)` retires it. A rotation with two live is a 409:
+revoke the previous first. The current secret can be revoked only once no
+previous is live, and revoking the last leaves the endpoint refusing every
+call. To change type, revoke every secret, then issue one of the other type.
+Each helper is a `connectors.update` with `rotate_signing_secret: { type }`,
+`rotate_signing_secret: true` or `revoke_signing_secret: kid`.
 
 `update(id, { triggers })` replaces the list: an entry with an `id` keeps that
 trigger, the rest are new, and a trigger left out is removed. A task a trigger

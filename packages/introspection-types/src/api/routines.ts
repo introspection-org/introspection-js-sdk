@@ -1,5 +1,5 @@
 import type { CursorParams, IsoDate, Uuid } from "./common.js";
-import type { TaskRepoRequest } from "./tasks.js";
+import type { TaskFileRef, TaskRepoRequest } from "./tasks.js";
 
 /**
  * How a routine fires: `cron` on its schedules, `manual` by hand or once
@@ -270,12 +270,17 @@ export interface RoutineCreateParams {
 
 /**
  * `PATCH /v1/routines/{id}`. Only the fields set are sent, and an omitted
- * field is left as it is, so nothing can be cleared. `kind` and
- * `trigger_type` are immutable; `metadata` replaces the stored value
- * wholesale.
+ * field is left as it is, so nothing can be cleared. `kind` is immutable;
+ * `metadata` replaces the stored value wholesale.
  */
 export interface RoutineUpdateParams {
   name?: string;
+  /**
+   * Switches a prompt routine between `manual` and `cron`. `cron` needs a
+   * schedule in the same update (`cron_schedule` and/or
+   * `metadata.cron_schedules`, no cron repeated); `manual` drops the next slot.
+   */
+  trigger_type?: "manual" | "cron";
   description?: string;
   cron_schedule?: string;
   prompt?: string;
@@ -309,19 +314,50 @@ export interface RoutineListParams extends CursorParams {
 }
 
 /**
- * Body of `POST /v1/routines/{id}/trigger`. `parameters` is a JSON object of
- * at most 16 KiB serialized and 8 levels deep (422 past either).
+ * Body of `POST /v1/routines/{id}/trigger`, as sent on the wire. `parameters`
+ * is a JSON object of at most 16 KiB serialized and 8 levels deep (422 past
+ * either).
  *
- * A prompt routine that starts a task gets it as `parameters.json` in the
- * task's files, and each `@parameters.<name>` in its prompt becomes that
- * top-level value as JSON (`null`, and listed under the task's
- * `metadata.unresolved_parameters`, when absent). A platform routine reads
- * its kind's own keys and refuses any other (422): `observation_synthesis`
- * takes `conversation_ids` (1–100 conversation ids to synthesize now);
+ * A prompt routine that starts a task reads its parameters from the
+ * `parameters.json` among `files`, and each `@parameters.<name>` in its prompt
+ * becomes that top-level value as JSON (`null`, and listed under the task's
+ * `metadata.unresolved_parameters`, when absent). Inline `parameters` win over
+ * the file; without them the server reads the file (a JSON object of at most
+ * 256 KiB). A platform routine reads its kind's own keys from `parameters`
+ * and refuses any other (422): `observation_synthesis` takes
+ * `conversation_ids` (1–100 conversation ids to synthesize now);
  * `observation_clustering` takes none.
  */
+export interface RoutineTriggerBody {
+  parameters?: Record<string, unknown>;
+  /**
+   * Files API references attached to the run's new task (at most 100). Only
+   * a prompt routine that starts a task per run takes files (422 for a
+   * platform routine or one that posts into an existing task).
+   */
+  files?: TaskFileRef[];
+}
+
+/**
+ * Options of `routines.trigger(id, params)`.
+ *
+ * - `parameters`: uploaded first through the Files API as
+ *   `routine-parameters/<uuid>.json` (a 30-day TTL), then sent inline and
+ *   attached to the run's task as `parameters.json`. Pass
+ *   `attachParametersFile: false` for a platform routine or one that posts
+ *   into an existing task, which take no files: then only the inline
+ *   `parameters` are sent.
+ * - `parametersFile`: an uploaded file (or its id) holding the parameters,
+ *   attached as `parameters.json` for the server to read. Not with
+ *   `parameters`.
+ * - `files`: more Files API references for the run's task, passed through.
+ */
 export interface RoutineTriggerParams {
-  parameters?: Record<string, unknown> | null;
+  parameters?: Record<string, unknown>;
+  parametersFile?: Uuid | { id: Uuid };
+  files?: TaskFileRef[];
+  /** Default `true`; see {@link RoutineTriggerParams}. */
+  attachParametersFile?: boolean;
 }
 
 /**
