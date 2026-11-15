@@ -154,7 +154,7 @@ export class IntrospectionClient implements DataPlaneResources {
   /** Reads on `/v1/projects`, by slug or id. */
   readonly projects: ProjectsApi;
 
-  /** `/v1/api-keys`, plus `apiKeys.acknowledge(id)`. */
+  /** `/v1/api-keys`. */
   readonly apiKeys: ApiKeysApi;
 
   /** `/v1/applications`, with `.idps`, `.secrets` and `.keys`. */

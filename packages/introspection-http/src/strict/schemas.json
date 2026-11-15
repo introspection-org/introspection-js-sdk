@@ -103,11 +103,6 @@
       },
       "additionalProperties": false
     },
-    "ApiKeyAcknowledgement": {
-      "type": "object",
-      "properties": { "acknowledged": {} },
-      "additionalProperties": false
-    },
     "ApiKeyCreated": {
       "type": "object",
       "properties": {
@@ -3169,7 +3164,6 @@
   },
   "keys": {
     "ApiKey": { "$ref": "#/$defs/ApiKey" },
-    "ApiKeyAcknowledgement": { "$ref": "#/$defs/ApiKeyAcknowledgement" },
     "ApiKeyCreated": { "$ref": "#/$defs/ApiKeyCreated" },
     "AppConnection": { "$ref": "#/$defs/AppConnection" },
     "Application": { "$ref": "#/$defs/Application" },

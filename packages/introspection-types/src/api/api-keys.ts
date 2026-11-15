@@ -31,7 +31,10 @@ export interface ApiKey {
   status: ApiKeyStatus;
   expires_at?: IsoDate | null;
   last_used_at?: IsoDate | null;
-  /** Set once `apiKeys.acknowledge()` records the plaintext as saved. */
+  /**
+   * Legacy: no longer written by the server; set only on keys acknowledged
+   * before the acknowledge route was retired.
+   */
   acknowledged_at?: IsoDate | null;
   key_display: string;
   prefix: string;
@@ -78,9 +81,4 @@ export interface ApiKeyDeleteParams {
    * to revoke it at once.
    */
   expires_in?: number;
-}
-
-/** `POST /v1/api-keys/{id}/acknowledge` response. */
-export interface ApiKeyAcknowledgement {
-  acknowledged: boolean;
 }

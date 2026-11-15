@@ -2839,7 +2839,6 @@ walk("SDK end-to-end walk", () => {
           { name: `${WALK.apiKeyName} (renamed)` },
           project.id,
         );
-        await sa.apiKeys.acknowledge(apiKey.id, project.id);
         // The organisation's name, slug, sign-in settings and subscription
         // are whoever is running the walk.
         expect(org.slug).toBeTruthy();
