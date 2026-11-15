@@ -96,6 +96,8 @@ export {
 } from "@introspection-sdk/http";
 export { ArrowPages } from "@introspection-sdk/http";
 export type {
+  ConversationExportFormat,
+  ConversationExportResult,
   EventArrowParams,
   FileUploadBody,
   ListReadParams,
@@ -372,6 +374,7 @@ export type {
   ConversationItemListParams,
   ConversationContains,
   ConversationExportParams,
+  ConversationExportResumeParams,
   ConversationExportInclude,
   Trajectory,
   TrajectoryRecord,
