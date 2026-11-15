@@ -1,0 +1,39 @@
+{
+  "name": "introspection-example-travel-demo-flow",
+  "version": "0.1.0",
+  "private": true,
+  "description": "The world both travel demos run against: Flight Sector's booking provider, Acme's Person Server, a Browserbase mock, the run on Introspection the demo page follows, and the `pnpm dev` that sets a project up for it.",
+  "type": "module",
+  "exports": {
+    "./acme.css": "./acme.css",
+    "./acme/approve-page": "./src/acme/approve-page.tsx",
+    "./acme/approval-form": "./src/acme/approval-form.tsx",
+    "./acme/layout": "./src/acme/layout.tsx",
+    "./*": "./src/*.ts"
+  },
+  "scripts": {
+    "lint": "eslint .",
+    "check-types": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@aauth/resource": "^3.0.0",
+    "@introspection-sdk/aauth-person-server": "workspace:*",
+    "@introspection-sdk/aauth-resource": "workspace:*",
+    "@introspection-sdk/introspection-node": "workspace:*",
+    "jose": "^6.2.12",
+    "server-only": "^0.0.1"
+  },
+  "peerDependencies": {
+    "next": "^16.4.3",
+    "react": "^19.3.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.4",
+    "@types/react": "^19.3.0",
+    "eslint": "^9.39.5",
+    "eslint-config-next": "^16.4.3",
+    "next": "^16.4.3",
+    "react": "^19.3.1",
+    "typescript": "^5.7.2"
+  }
+}

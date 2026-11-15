@@ -1,6 +1,6 @@
-import { start } from "@/lib/acme/hosted";
-import { snapshot } from "@/lib/demo/run";
-import { PERSON_SERVER_MODE } from "@/lib/origins";
+import { start } from "introspection-example-travel-demo-flow/acme/hosted";
+import { snapshot } from "introspection-example-travel-demo-flow/demo/run";
+import { PERSON_SERVER_MODE } from "introspection-example-travel-demo-flow/origins";
 
 export const dynamic = "force-dynamic";
 

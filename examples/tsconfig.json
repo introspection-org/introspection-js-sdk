@@ -9,5 +9,14 @@
     "outDir": "./dist"
   },
   "include": ["./**/*.ts"],
-  "exclude": ["node_modules", "dist", "auth", "aauth-travel", "browser"]
+  "exclude": [
+    "node_modules",
+    "dist",
+    "auth",
+    "aauth-travel",
+    "browser",
+    "pap-travel",
+    "travel-demo-flow",
+    "travel-demo-ui"
+  ]
 }

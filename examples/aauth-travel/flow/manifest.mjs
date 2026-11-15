@@ -78,8 +78,9 @@ export const flow = {
           label: "Acme: missions",
         },
         {
-          kind: "example",
-          path: "lib/acme/mail.ts",
+          kind: "package",
+          package: "introspection-example-travel-demo-flow",
+          path: "src/acme/mail.ts",
           region: "email",
           label: "Acme: the email",
         },
@@ -93,8 +94,9 @@ export const flow = {
       body: "Dana opens Acme's page from the email, reads the trip, sets its budget (starting from the agent's suggestion), and enters the code, which proves the person approving reads Dana's inbox. Acme mints the mission: its bytes, their SHA-256 as s256, and a person token for the booking provider carrying mission_s256. Egress keeps the mission and the person token; the agent gets only the s256.",
       sources: [
         {
-          kind: "example",
-          path: "lib/acme/person-server.ts",
+          kind: "package",
+          package: "introspection-example-travel-demo-flow",
+          path: "src/acme/person-server.ts",
           region: "decide",
           label: "Acme: check the code",
         },
@@ -115,14 +117,16 @@ export const flow = {
       body: "Search is open. The provider signs each offer's facts (price, nights, cabin) as a quote, so whoever approves the booking later reads facts the agent cannot alter.",
       sources: [
         {
-          kind: "example",
-          path: "lib/booking.ts",
+          kind: "package",
+          package: "introspection-example-travel-demo-flow",
+          path: "src/booking.ts",
           region: "metadata",
           label: "the provider's metadata",
         },
         {
-          kind: "example",
-          path: "lib/booking.ts",
+          kind: "package",
+          package: "introspection-example-travel-demo-flow",
+          path: "src/booking.ts",
           region: "quote",
           label: "provider signs each offer",
         },
@@ -171,8 +175,9 @@ export const flow = {
           label: "verify the HTTP signature",
         },
         {
-          kind: "example",
-          path: "lib/booking.ts",
+          kind: "package",
+          package: "introspection-example-travel-demo-flow",
+          path: "src/booking.ts",
           region: "reserve",
           label: "the provider's reserve",
         },
@@ -255,8 +260,9 @@ export const flow = {
       body: "Four nights at $420 is $1,680, and $1,350 is left. Acme doesn't refuse: it emails Dana again and answers 202 with a Location to poll. Egress can't hold a chat open for a person, so it answers the agent 428 approval-pending and hands the pending URL to the platform. The agent tells Sam it's waiting on Dana.",
       sources: [
         {
-          kind: "example",
-          path: "lib/acme/person-server.ts",
+          kind: "package",
+          package: "introspection-example-travel-demo-flow",
+          path: "src/acme/person-server.ts",
           region: "ask",
           label: "Acme: find the approver, email a code",
         },

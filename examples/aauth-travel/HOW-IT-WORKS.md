@@ -16,8 +16,8 @@ This example is the **Flight Sector side and the Acme side** of the demo, and th
 
 - **Booking provider** (`https://booking.flightsector.localhost`) is a native three-party AAuth resource on [`@aauth/resource`](https://www.npmjs.com/package/@aauth/resource). Search is open and every offer carries a quote it signs. A reservation presenting an agent token gets `401 requirement=person-token`; one presenting a person token gets `401 requirement=auth-token` and a resource token for an R3 proposal only the person's Person Server can read; one presenting an auth token for that proposal is booked.
 - **Acme's Person Server** is Acme's system, not Flight Sector's, and it runs one of two ways (`PERSON_SERVER`):
-  - `hosted`: Introspection's hosted Person Server runs the protocol, the missions and their budgets, with Acme as its own tenant. Acme keeps the human side: its approval app (`lib/acme/hosted.ts`) lists what is waiting at `/v1/aauth/approvals` with its project's key, emails the approver a code, and records the answer.
-  - `acme`: Acme runs its own (`https://ps.acme.localhost`, `lib/acme/person-server.ts`), as a Business that brings its own Person Server would.
+  - `hosted`: Introspection's hosted Person Server runs the protocol, the missions and their budgets, with Acme as its own tenant. Acme keeps the human side: its approval app (`../travel-demo-flow/src/acme/hosted.ts`) lists what is waiting at `/v1/aauth/approvals` with its project's key, emails the approver a code, and records the answer.
+  - `acme`: Acme runs its own (`https://ps.acme.localhost`, `../travel-demo-flow/src/acme/person-server.ts`), as a Business that brings its own Person Server would.
 
   Either way the trip's manager approves it, budget and all, by a six-digit emailed code (page at `/approve/{id}`). Within the trip, an auth token is issued for each booking whose price (the resource token's `budget`) fits what is left, and anything over goes back to the manager. Nothing books outside a mission.
 
@@ -114,7 +114,7 @@ introspection bindings mcp connect -r travel-agent --mcp-server-id browserbase \
 introspection applications create --type service-account --name "Flight Sector agent"
 
 # The booking provider as an AAuth connector, with the stack-specific fields as flags
-introspection connectors create @introspection/booking.json \
+introspection connectors create @../travel-demo-flow/introspection/booking.json \
   --api-host "${BOOKING#https://}" \
   --person-server-url "$PERSON_SERVER" --application-id "$APPLICATION_ID" \
   --metadata "{\"aauth_resource\": \"$BOOKING\", \"aauth_tenant\": \"$ORG_ID:$PROJECT_ID\"}"
@@ -123,7 +123,7 @@ introspection connectors create @introspection/booking.json \
 printf '%s' "$BOOKING" | introspection bindings variables create -r travel-agent --name BOOKING_API_URL --from-stdin
 
 # Sam, a customer member, with the attributes the rails read
-introspection members create @introspection/sam.json
+introspection members create @../travel-demo-flow/introspection/sam.json
 
 # The demo page's and Acme's key
 introspection api-keys create --name "Flight Sector demo" --secret-file ./key
@@ -139,7 +139,7 @@ The connector's `policy_entities` and Sam's `policy_attributes` are what the rec
 
 ## Settings
 
-`pnpm dev` writes the URLs from its tunnels and the stack you are logged in to into `.env.local`; the defaults below only apply to the app run on its own. Put overrides in `.env.local`; `.env.example` documents them all.
+`pnpm dev` writes the URLs from its tunnels and the stack you are logged in to into `.env.local`; the defaults below only apply to the app run on its own. Put overrides in `.env.local`; [`travel-demo-flow/.env.example`](../travel-demo-flow/.env.example) documents them all.
 
 | Variable                                                   | Default                                      | What it is                                                  |
 | ---------------------------------------------------------- | -------------------------------------------- | ----------------------------------------------------------- |

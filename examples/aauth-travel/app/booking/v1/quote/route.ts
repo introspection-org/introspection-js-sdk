@@ -1,9 +1,1 @@
-import { quoteFlight } from "@/lib/booking";
-import { handle, readJson } from "@/lib/http";
-import { recorded } from "@/lib/demo/wire";
-
-export async function POST(request: Request) {
-  return recorded("Booking provider", request, () =>
-    handle(async () => quoteFlight(await readJson(request))),
-  );
-}
+export { quotePOST as POST } from "introspection-example-travel-demo-flow/routes/booking";

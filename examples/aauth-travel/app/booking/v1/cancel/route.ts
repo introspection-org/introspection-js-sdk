@@ -1,9 +1,1 @@
-import { respond } from "@/lib/aauth";
-import { cancel } from "@/lib/booking";
-import { recorded } from "@/lib/demo/wire";
-
-export async function POST(request: Request) {
-  return recorded("Booking provider", request, () =>
-    respond(() => cancel(request)),
-  );
-}
+export { cancelPOST as POST } from "introspection-example-travel-demo-flow/routes/booking";
