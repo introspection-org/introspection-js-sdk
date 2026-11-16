@@ -38,7 +38,7 @@
     "knip": "6.44.1",
     "lint-staged": "^15.2.0",
     "madge": "8.0.0",
-    "prettier": "^3.9.10",
+    "prettier": "^3.10.1",
     "publint": "0.3.25",
     "turbo": "^2.11.10",
     "typescript": "5.9.3"
