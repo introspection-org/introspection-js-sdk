@@ -464,9 +464,13 @@ describe("strict decoding on", () => {
       });
     const routine = {
       id: "r1",
-      repositories: [{ repo: "acme/app" }],
-      conditions: [{ type: "has_new_tasks_since_last_run" }],
-      synthesis: { max_conversations: null },
+      routine_metadata: {
+        repositories: [{ repo: "acme/app", ref: null, depth: 1 }],
+        conditions: [
+          { type: "no_live_task_for_routine", runtime_group_id: null },
+        ],
+        synthesis_max_conversations: null,
+      },
       triggers: [
         { id: "t1", type: "schedule", cron: "0 9 * * 1-5", timezone: "UTC" },
         { id: "t2", type: "schedule", cron: "0 17 * * 5" },
@@ -525,7 +529,7 @@ describe("strict decoding on", () => {
       }),
     ).rejects.toBeInstanceOf(SchemaDriftError);
     await expect(
-      strictGet({ id: "r1", synthesis: { batch: true } }),
+      strictGet({ id: "r1", routine_metadata: { cron_schedules: [] } }),
     ).rejects.toBeInstanceOf(SchemaDriftError);
     await expect(
       strictGet({ id: "r1", budget_exhausted: null }),

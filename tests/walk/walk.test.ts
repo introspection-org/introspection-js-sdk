@@ -2333,7 +2333,6 @@ walk("SDK end-to-end walk", () => {
         expect(stable(routine)).toMatchInlineSnapshot(`
           {
             "can_manage": true,
-            "conditions": [],
             "created_at": "[timestamp]",
             "created_by_member_id": "[uuid]",
             "description": null,
@@ -2348,9 +2347,12 @@ walk("SDK end-to-end walk", () => {
             "owner_role": "operator",
             "project_id": "[uuid]",
             "prompt": "Reply with the single word done. <<SCRIPT {"reply":"done"}>>",
-            "repositories": [],
+            "routine_metadata": {
+              "conditions": [],
+              "repositories": [],
+              "synthesis_max_conversations": null,
+            },
             "runtime_group_id": "[uuid]",
-            "synthesis": null,
             "tags": [],
             "task_id": "[uuid]",
             "triggers": [],

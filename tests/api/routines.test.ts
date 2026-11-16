@@ -53,12 +53,14 @@ const ROUTINE_FIXTURE: Routine & { agent_member_id: null } = {
   tags: ["digest"],
   kind: null,
   prompt: "Summarize my week",
-  repositories: [{ repo: "acme/app", ref: "main" }],
-  conditions: [
-    { type: "has_new_tasks_since_last_run" },
-    { type: "brand_new_condition" },
-  ],
-  synthesis: null,
+  routine_metadata: {
+    repositories: [{ repo: "acme/app", ref: "main" }],
+    conditions: [
+      { type: "has_new_tasks_since_last_run" },
+      { type: "brand_new_condition" },
+    ],
+    synthesis_max_conversations: null,
+  },
   last_triggered_at: "2026-09-28T09:00:00Z",
   next_trigger_at: "2026-10-05T09:00:00.123456Z",
   created_at: "2026-09-01T10:00:00Z",
@@ -120,8 +122,10 @@ describe("RoutinesApi", () => {
     expect(routine.runtime_group_id).toBe(RUNTIME_GROUP_ID);
     expect(routine.task_id).toBe(TASK_ID);
     expect(routine.owner_role).toBe("operator");
-    expect(routine.repositories).toEqual([{ repo: "acme/app", ref: "main" }]);
-    expect(routine.conditions.map((c) => c.type)).toEqual([
+    expect(routine.routine_metadata.repositories).toEqual([
+      { repo: "acme/app", ref: "main" },
+    ]);
+    expect(routine.routine_metadata.conditions.map((c) => c.type)).toEqual([
       "has_new_tasks_since_last_run",
       "brand_new_condition",
     ]);
@@ -190,9 +194,10 @@ describe("RoutinesApi", () => {
       prompt: "Summarize my week",
       runtime_group_id: RUNTIME_GROUP_ID,
       description: undefined,
-      synthesis: undefined,
-      repositories: [{ repo: "acme/app" }],
-      conditions: [{ type: "has_new_tasks_since_last_run" }],
+      routine_metadata: {
+        repositories: [{ repo: "acme/app" }],
+        conditions: [{ type: "has_new_tasks_since_last_run" }],
+      },
       triggers: [{ type: "schedule", cron: "0 9 * * 1", timezone: "UTC" }],
     });
 
@@ -204,8 +209,10 @@ describe("RoutinesApi", () => {
         name: "Weekly digest",
         prompt: "Summarize my week",
         runtime_group_id: RUNTIME_GROUP_ID,
-        repositories: [{ repo: "acme/app" }],
-        conditions: [{ type: "has_new_tasks_since_last_run" }],
+        routine_metadata: {
+          repositories: [{ repo: "acme/app" }],
+          conditions: [{ type: "has_new_tasks_since_last_run" }],
+        },
         triggers: [{ type: "schedule", cron: "0 9 * * 1", timezone: "UTC" }],
       },
       schema: "Routine",
@@ -360,20 +367,26 @@ describe("RoutinesApi", () => {
     });
   });
 
-  it("update() sends task, slot, conditions and synthesis changes", async () => {
+  it("update() sends task, slot and routine_metadata changes", async () => {
     const http = mockHttp({ requestResult: ROUTINE_FIXTURE });
     await new RoutinesApi(http).update(ROUTINE_ID, {
       task_id: TASK_ID,
       next_trigger_at: "2026-10-12T09:00:00Z",
-      conditions: [],
-      synthesis: { max_conversations: 50 },
+      routine_metadata: {
+        repositories: [],
+        conditions: [],
+        synthesis_max_conversations: 50,
+      },
     });
 
     expect(calls(http)[0].body).toEqual({
       task_id: TASK_ID,
       next_trigger_at: "2026-10-12T09:00:00Z",
-      conditions: [],
-      synthesis: { max_conversations: 50 },
+      routine_metadata: {
+        repositories: [],
+        conditions: [],
+        synthesis_max_conversations: 50,
+      },
     });
   });
 

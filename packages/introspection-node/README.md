@@ -140,6 +140,9 @@ says whether the caller may change it. A routine is a scheduled prompt (`kind: n
 events (`slack`, `github`, `linear`, `webhook`). A routine with no `schedule`
 trigger is a one-off reminder when given a future `next_trigger_at`. Set
 `task_id` to post each firing into an existing task instead of creating one.
+`routine_metadata` holds its `repositories`, `conditions` and, on
+`observation_synthesis` only, `synthesis_max_conversations`; an update
+replaces it wholesale.
 A `type` this SDK predates arrives as it was sent; narrow with
 `isKnownRoutineTrigger(trigger)` before switching on `type`.
 

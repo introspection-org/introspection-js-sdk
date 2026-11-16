@@ -2409,10 +2409,6 @@
       "type": "object",
       "properties": {
         "can_manage": {},
-        "conditions": {
-          "type": "array",
-          "items": { "$ref": "#/$defs/RoutineCondition" }
-        },
         "created_at": {},
         "created_by_member_id": {},
         "description": {},
@@ -2431,12 +2427,8 @@
         "owner_role": {},
         "project_id": {},
         "prompt": {},
-        "repositories": {
-          "type": "array",
-          "items": { "$ref": "#/$defs/TaskRepoRequest" }
-        },
+        "routine_metadata": { "$ref": "#/$defs/RoutineMetadata" },
         "runtime_group_id": {},
-        "synthesis": { "$ref": "#/$defs/RoutineSynthesis" },
         "tags": { "type": "array" },
         "task_id": {},
         "triggers": {
@@ -2486,6 +2478,21 @@
         "id": {},
         "to_states": { "type": "array" },
         "type": { "const": "linear" }
+      },
+      "additionalProperties": false
+    },
+    "RoutineMetadata": {
+      "type": "object",
+      "properties": {
+        "conditions": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/RoutineCondition" }
+        },
+        "repositories": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/TaskRepoRequest" }
+        },
+        "synthesis_max_conversations": {}
       },
       "additionalProperties": false
     },
@@ -2547,11 +2554,6 @@
         "id": {},
         "type": { "const": "slack" }
       },
-      "additionalProperties": false
-    },
-    "RoutineSynthesis": {
-      "type": "object",
-      "properties": { "max_conversations": {} },
       "additionalProperties": false
     },
     "RoutineTriggerEventRef": {

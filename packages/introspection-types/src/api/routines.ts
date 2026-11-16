@@ -208,10 +208,19 @@ export interface RoutineCondition {
   runtime_group_id?: Uuid | null;
 }
 
-/** An `observation_synthesis` routine's settings. */
-export interface RoutineSynthesis {
-  /** The most conversations a batch run samples; null for the server default. */
-  max_conversations?: number | null;
+/**
+ * A routine's typed settings. On update it replaces the stored value
+ * wholesale, so send the current values of the fields to keep.
+ */
+export interface RoutineMetadata {
+  /** Repositories a task-backed routine clones. */
+  repositories: TaskRepoRequest[];
+  conditions: RoutineCondition[];
+  /**
+   * Only on `observation_synthesis`: the most conversations a batch run
+   * samples; null for the server default.
+   */
+  synthesis_max_conversations?: number | null;
 }
 
 /**
@@ -229,10 +238,7 @@ export interface Routine {
   kind?: RoutineKind | null;
   prompt?: string | null;
   /** Repositories a task-backed routine clones. */
-  repositories: TaskRepoRequest[];
-  conditions: RoutineCondition[];
-  /** Set only on an `observation_synthesis` routine. */
-  synthesis?: RoutineSynthesis | null;
+  routine_metadata: RoutineMetadata;
   tags: string[];
   last_triggered_at?: IsoDate | null;
   /**
@@ -275,10 +281,8 @@ export interface RoutineCreateParams {
   task_id?: Uuid;
   /** A one-off slot, only without a `schedule` trigger; must be in the future. */
   next_trigger_at?: IsoDate;
-  repositories?: TaskRepoRequest[];
-  conditions?: RoutineCondition[];
-  /** Only for `observation_synthesis`. */
-  synthesis?: RoutineSynthesis;
+  /** `repositories` and `conditions` default to `[]`. */
+  routine_metadata?: Partial<RoutineMetadata>;
   /** Server default `true`. */
   enabled?: boolean;
   /**

@@ -154,7 +154,7 @@ export type {
   RoutineLinearTrigger,
   RoutineWebhookTrigger,
   RoutineUnknownTrigger,
-  RoutineSynthesis,
+  RoutineMetadata,
   RoutineTriggerEventRef,
   RoutineRunSource,
   RoutineTaskMetadata,
