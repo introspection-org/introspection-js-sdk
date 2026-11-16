@@ -134,11 +134,14 @@ creates, updates and deletes the project's routines on the Data Plane's
 `/v1/routines`, and `trigger(id)` runs one now. Reading needs
 `routines:read` and writing `routines:write`; each record's `can_manage`
 says whether the caller may change it. A routine is a scheduled prompt (`kind: null`) or platform work
-(`observation_synthesis`, `observation_clustering`, `project_check_in`). A
-`cron` routine fires on `cron_schedule`, or on `metadata.cron_schedules` in
-`metadata.timezone`; a one-off reminder is a `manual` routine with a future
-`next_trigger_at`. Set `task_id` to post each firing into an existing task
-instead of creating one.
+(`observation_synthesis`, `observation_clustering`, `project_check_in`). Its
+`triggers` say what starts it besides `trigger(id)`: one list discriminated on
+`type`, holding its schedules (`{ type: "schedule", cron, timezone }`) and its
+events (`slack`, `github`, `linear`, `webhook`). A routine with no `schedule`
+trigger is a one-off reminder when given a future `next_trigger_at`. Set
+`task_id` to post each firing into an existing task instead of creating one.
+A `type` this SDK predates arrives as it was sent; narrow with
+`isKnownRoutineTrigger(trigger)` before switching on `type`.
 
 The server serves these routes to administrators only today (a 403 otherwise).
 introspection-cloud#3137, not yet released, opens them to members for their own
@@ -148,27 +151,23 @@ list filter is ignored by the server.
 ```typescript
 const reminder = await client.routines.create({
   name: "Friday check-in",
-  trigger_type: "manual",
   prompt: "How did the week go?",
   runtime_group_id: runtimeGroupId,
   task_id: taskId,
   next_trigger_at: "2026-10-09T09:00:00Z",
 });
 
-// Recurring: one or more cron schedules in a timezone.
+// Recurring: one schedule trigger per cron, each in its timezone.
 await client.routines.create({
   name: "Weekday digest",
-  trigger_type: "cron",
-  cron_schedule: "0 9 * * 1-5",
-  metadata: {
-    cron_schedules: ["0 9 * * 1-5"],
-    timezone: "America/Los_Angeles",
-  },
+  triggers: [
+    { type: "schedule", cron: "0 9 * * 1-5", timezone: "America/Los_Angeles" },
+  ],
   prompt: "Summarize yesterday's conversations.",
   runtime_group_id: runtimeGroupId,
 });
 
-// PATCH sends only the fields you set; `metadata` replaces wholesale.
+// PATCH sends only the fields you set; `triggers` replaces the whole list.
 await client.routines.update(reminder.id, { enabled: false });
 
 for await (const routine of client.routines.list({ task_id: taskId })) {
@@ -198,7 +197,6 @@ takes `conversation_ids`) and answers in `result`:
 ```typescript
 const digest = await client.routines.create({
   name: "Customer digest",
-  trigger_type: "manual",
   prompt: "Summarize the account of @parameters.customer.",
   runtime_group_id: runtimeGroupId,
 });
@@ -216,10 +214,9 @@ const { result } = await client.routines.trigger(synthesisRoutineId, {
 console.log(result?.enqueued, result?.conversations);
 ```
 
-A routine's `triggers` start runs on events, beside its schedule and
-`trigger(id)`: an integration's (`source: "integration"`, Slack or GitHub
-events such as `github.pull_request.opened`) or a project connector's
-(`source: "connector"`). A `webhook` connector is one your own systems call:
+Event triggers start runs on an integration's events (`slack`, `github`,
+`linear`, such as `github.pull_request.opened`) or a project connector's
+(`webhook`). A `webhook` connector is one your own systems call:
 create it on the Control Plane (it has no secret yet and refuses every call),
 issue its first secret with `connectors.secrets.create(id, { type })`, store
 the `secret` that response returns once, and have the caller sign each
@@ -245,17 +242,15 @@ saveSecret(secret); // your app's code: shown only once
 
 await client.routines.create({
   name: "Triage failed builds",
-  trigger_type: "manual",
   prompt: "Triage the failed build at @parameters.build_url.",
   runtime_group_id: runtimeGroupId,
   triggers: [
     {
-      source: "connector",
-      provider: "webhook",
+      type: "webhook",
       connector_slug: "ci-alerts",
       // The JSON body's string `type`; `["*"]` matches every one.
       event_types: ["build.failed"],
-      filter: { payload_fields: { branch: ["main"] } },
+      payload_fields: { branch: ["main"] },
     },
   ],
 });

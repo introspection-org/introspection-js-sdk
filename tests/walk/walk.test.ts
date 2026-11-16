@@ -2323,7 +2323,6 @@ walk("SDK end-to-end walk", () => {
       await steps.run(ctx, "routines", async () => {
         routine = await sa.routines.create({
           name: "The walk's routine",
-          trigger_type: "manual",
           prompt: secondTurn(settings),
           runtime_group_id: runtime.runtime_group_id,
           // A routine its owner creates posts into that owner's own task;
@@ -2331,36 +2330,29 @@ walk("SDK end-to-end walk", () => {
           // still refuses, so the trial is the one it posts into.
           task_id: evalTask.id,
         } as Parameters<typeof sa.routines.create>[0]);
-        expect(
-          stable({
-            ...routine,
-            // A recording that predates `budget_exhausted` has none.
-            budget_exhausted: undefined,
-          }),
-        ).toMatchInlineSnapshot(`
+        expect(stable(routine)).toMatchInlineSnapshot(`
           {
-            "budget_exhausted": undefined,
             "can_manage": true,
+            "conditions": [],
             "created_at": "[timestamp]",
             "created_by_member_id": "[uuid]",
-            "cron_schedule": null,
             "description": null,
             "enabled": true,
             "execution_blocked_reason": null,
             "id": "[uuid]",
             "kind": null,
             "last_triggered_at": null,
-            "metadata": null,
             "name": "The walk's routine",
             "next_trigger_at": null,
             "org_id": "[uuid]",
             "owner_role": "operator",
             "project_id": "[uuid]",
             "prompt": "Reply with the single word done. <<SCRIPT {"reply":"done"}>>",
+            "repositories": [],
             "runtime_group_id": "[uuid]",
+            "synthesis": null,
             "tags": [],
             "task_id": "[uuid]",
-            "trigger_type": "manual",
             "triggers": [],
             "updated_at": "[timestamp]",
           }

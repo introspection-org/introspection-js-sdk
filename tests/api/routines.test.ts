@@ -4,11 +4,12 @@ import {
   HttpClient,
   IntrospectionClient,
 } from "@introspection-sdk/introspection-node";
-import type {
-  Routine,
-  RoutineMetadata,
-  RoutineTaskMetadata,
-  RoutineTriggerSpec,
+import {
+  isKnownRoutineTrigger,
+  type Routine,
+  type RoutineTaskMetadata,
+  type RoutineTrigger,
+  type RoutineTriggerSpec,
 } from "@introspection-sdk/introspection-node";
 
 function mockHttp(overrides: Record<string, unknown> = {}) {
@@ -29,11 +30,10 @@ const RUNTIME_GROUP_ID = "0199a1b2-0000-7000-8000-0000000000dd";
 const TRIGGER_ID = "0199a1b2-0000-7000-8000-0000000000ff";
 
 const WEBHOOK_TRIGGER: RoutineTriggerSpec = {
-  source: "connector",
-  provider: "webhook",
+  type: "webhook",
   connector_slug: "ci-alerts",
   event_types: ["build.failed"],
-  filter: { payload_fields: { branch: ["main"] } },
+  payload_fields: { branch: ["main"] },
 };
 
 const ROUTINE_FIXTURE: Routine & { agent_member_id: null } = {
@@ -51,19 +51,14 @@ const ROUTINE_FIXTURE: Routine & { agent_member_id: null } = {
   execution_blocked_reason: null,
   can_manage: true,
   tags: ["digest"],
-  trigger_type: "cron",
-  cron_schedule: "0 9 * * 1",
   kind: null,
   prompt: "Summarize my week",
-  metadata: {
-    cron_schedules: ["0 9 * * 1", "0 17 * * 5"],
-    timezone: "Europe/London",
-    repositories: [{ repo: "acme/app", ref: "main" }],
-    conditions: [
-      { type: "has_new_tasks_since_last_run" },
-      { type: "brand_new_condition" },
-    ],
-  },
+  repositories: [{ repo: "acme/app", ref: "main" }],
+  conditions: [
+    { type: "has_new_tasks_since_last_run" },
+    { type: "brand_new_condition" },
+  ],
+  synthesis: null,
   last_triggered_at: "2026-09-28T09:00:00Z",
   next_trigger_at: "2026-10-05T09:00:00.123456Z",
   created_at: "2026-09-01T10:00:00Z",
@@ -71,26 +66,22 @@ const ROUTINE_FIXTURE: Routine & { agent_member_id: null } = {
   owner_role: "operator",
   triggers: [
     {
+      id: "0199a1b2-0000-7000-8000-000000000101",
+      type: "schedule",
+      cron: "0 9 * * 1",
+      timezone: "Europe/London",
+    },
+    {
+      id: "0199a1b2-0000-7000-8000-000000000102",
+      type: "schedule",
+      cron: "0 17 * * 5",
+    },
+    {
       id: TRIGGER_ID,
-      org_id: "0199a1b2-0000-7000-8000-0000000000aa",
-      project_id: "0199a1b2-0000-7000-8000-0000000000bb",
-      routine_id: ROUTINE_ID,
-      source: "connector",
-      provider: "webhook",
+      type: "webhook",
       connector_slug: "ci-alerts",
       event_types: ["build.failed"],
-      filter: {
-        channel_ids: null,
-        emoji: null,
-        team_ids: null,
-        to_states: null,
-        repository_ids: null,
-        branches: null,
-        payload_fields: { branch: ["main"] },
-      },
-      enabled: true,
-      created_at: "2026-09-01T10:00:00Z",
-      updated_at: "2026-09-01T10:00:00Z",
+      payload_fields: { branch: ["main"] },
     },
   ],
 };
@@ -129,8 +120,8 @@ describe("RoutinesApi", () => {
     expect(routine.runtime_group_id).toBe(RUNTIME_GROUP_ID);
     expect(routine.task_id).toBe(TASK_ID);
     expect(routine.owner_role).toBe("operator");
-    expect(routine.metadata?.timezone).toBe("Europe/London");
-    expect(routine.metadata?.conditions?.map((c) => c.type)).toEqual([
+    expect(routine.repositories).toEqual([{ repo: "acme/app", ref: "main" }]);
+    expect(routine.conditions.map((c) => c.type)).toEqual([
       "has_new_tasks_since_last_run",
       "brand_new_condition",
     ]);
@@ -194,18 +185,15 @@ describe("RoutinesApi", () => {
 
   it("create() POSTs only the fields that are set", async () => {
     const http = mockHttp({ requestResult: ROUTINE_FIXTURE });
-    const metadata: RoutineMetadata = {
-      cron_schedules: ["0 9 * * 1"],
-      timezone: "UTC",
-    };
     const created = await new RoutinesApi(http).create({
       name: "Weekly digest",
-      trigger_type: "cron",
-      cron_schedule: "0 9 * * 1",
       prompt: "Summarize my week",
       runtime_group_id: RUNTIME_GROUP_ID,
       description: undefined,
-      metadata,
+      synthesis: undefined,
+      repositories: [{ repo: "acme/app" }],
+      conditions: [{ type: "has_new_tasks_since_last_run" }],
+      triggers: [{ type: "schedule", cron: "0 9 * * 1", timezone: "UTC" }],
     });
 
     expect(created.name).toBe("Weekly digest");
@@ -214,11 +202,11 @@ describe("RoutinesApi", () => {
       path: "/v1/routines",
       body: {
         name: "Weekly digest",
-        trigger_type: "cron",
-        cron_schedule: "0 9 * * 1",
         prompt: "Summarize my week",
         runtime_group_id: RUNTIME_GROUP_ID,
-        metadata: { cron_schedules: ["0 9 * * 1"], timezone: "UTC" },
+        repositories: [{ repo: "acme/app" }],
+        conditions: [{ type: "has_new_tasks_since_last_run" }],
+        triggers: [{ type: "schedule", cron: "0 9 * * 1", timezone: "UTC" }],
       },
       schema: "Routine",
     });
@@ -228,7 +216,6 @@ describe("RoutinesApi", () => {
     const http = mockHttp({ requestResult: ROUTINE_FIXTURE });
     await new RoutinesApi(http).create({
       name: "Friday check-in",
-      trigger_type: "manual",
       prompt: "How did the week go?",
       runtime_group_id: RUNTIME_GROUP_ID,
       task_id: TASK_ID,
@@ -238,7 +225,6 @@ describe("RoutinesApi", () => {
 
     expect(calls(http)[0].body).toEqual({
       name: "Friday check-in",
-      trigger_type: "manual",
       prompt: "How did the week go?",
       runtime_group_id: RUNTIME_GROUP_ID,
       task_id: TASK_ID,
@@ -251,8 +237,7 @@ describe("RoutinesApi", () => {
     const http = mockHttp({ requestResult: ROUTINE_FIXTURE });
     await new RoutinesApi(http).create({
       name: "Check-in",
-      trigger_type: "cron",
-      cron_schedule: "0 9 * * *",
+      triggers: [{ type: "schedule", cron: "0 9 * * *" }],
       kind: "project_check_in",
       prompt: "Check in",
       runtime_group_id: RUNTIME_GROUP_ID,
@@ -261,46 +246,88 @@ describe("RoutinesApi", () => {
     expect(calls(http)[0].body).toMatchObject({ kind: "project_check_in" });
   });
 
-  it("create() sends event triggers", async () => {
+  it("create() sends every trigger type", async () => {
     const http = mockHttp({ requestResult: ROUTINE_FIXTURE });
-    const created = await new RoutinesApi(http).create({
+    const triggers: RoutineTriggerSpec[] = [
+      { type: "schedule", cron: "0 9 * * 1-5", timezone: "Australia/Sydney" },
+      {
+        type: "slack",
+        event_types: ["slack.reaction.added"],
+        channel_ids: ["C1"],
+        emoji: ["eyes"],
+      },
+      {
+        type: "github",
+        event_types: ["github.pull_request.opened"],
+        repository_ids: ["123"],
+        branches: ["main"],
+      },
+      {
+        type: "linear",
+        event_types: ["linear.issue.created"],
+        to_states: ["Todo"],
+      },
+      WEBHOOK_TRIGGER,
+    ];
+    await new RoutinesApi(http).create({
       name: "Triage failed builds",
-      trigger_type: "manual",
       prompt: "Triage the failed build at @parameters.build_url.",
       runtime_group_id: RUNTIME_GROUP_ID,
-      triggers: [
-        WEBHOOK_TRIGGER,
-        {
-          provider: "github",
-          event_types: ["github.pull_request.opened"],
-          filter: { branches: ["main"] },
-        },
-      ],
+      triggers,
     });
 
-    expect(calls(http)[0].body.triggers).toEqual([
-      WEBHOOK_TRIGGER,
-      {
-        provider: "github",
-        event_types: ["github.pull_request.opened"],
-        filter: { branches: ["main"] },
-      },
-    ]);
-    const [trigger] = created.triggers;
-    expect(trigger.id).toBe(TRIGGER_ID);
-    expect(trigger.filter.payload_fields).toEqual({ branch: ["main"] });
-    expect(trigger).not.toHaveProperty("parameters");
+    expect(calls(http)[0].body.triggers).toEqual(triggers);
+  });
+
+  it("reads each trigger variant by type, with unset filter keys absent", async () => {
+    const http = mockHttp({ requestResult: ROUTINE_FIXTURE });
+    const routine = await new RoutinesApi(http).get(ROUTINE_ID);
+
+    const [weekday, friday, webhook] = routine.triggers;
+    expect(weekday).toMatchObject({ type: "schedule", cron: "0 9 * * 1" });
+    expect(friday).not.toHaveProperty("timezone");
+    expect(webhook.id).toBe(TRIGGER_ID);
+    expect(webhook).not.toHaveProperty("filter");
+    if (!isKnownRoutineTrigger(webhook) || webhook.type !== "webhook") {
+      throw new Error("expected a webhook trigger");
+    }
+    expect(webhook.payload_fields).toEqual({ branch: ["main"] });
+  });
+
+  it("decodes a trigger type this SDK predates and keeps it on update", async () => {
+    const jira: RoutineTrigger = {
+      id: "0199a1b2-0000-7000-8000-000000000103",
+      type: "jira",
+      event_types: ["jira.issue.created"],
+      project_keys: ["ENG"],
+    };
+    const http = mockHttp({
+      requestResult: { ...ROUTINE_FIXTURE, triggers: [jira] },
+    });
+    const routines = new RoutinesApi(http);
+    const routine = await routines.get(ROUTINE_ID);
+
+    const [trigger] = routine.triggers;
+    expect(isKnownRoutineTrigger(trigger)).toBe(false);
+    expect(trigger).toEqual(jira);
+
+    await routines.update(ROUTINE_ID, {
+      triggers: [...routine.triggers, WEBHOOK_TRIGGER],
+    });
+    expect(calls(http)[1].body).toEqual({
+      triggers: [jira, WEBHOOK_TRIGGER],
+    });
   });
 
   it("update() replaces the trigger list, keeping listed ids", async () => {
     const http = mockHttp({ requestResult: ROUTINE_FIXTURE });
     await new RoutinesApi(http).update(ROUTINE_ID, {
-      triggers: [{ ...WEBHOOK_TRIGGER, id: TRIGGER_ID, enabled: false }],
+      triggers: [{ ...WEBHOOK_TRIGGER, id: TRIGGER_ID }],
     });
     await new RoutinesApi(http).update(ROUTINE_ID, { triggers: [] });
 
     expect(calls(http).map((call) => call.body)).toEqual([
-      { triggers: [{ ...WEBHOOK_TRIGGER, id: TRIGGER_ID, enabled: false }] },
+      { triggers: [{ ...WEBHOOK_TRIGGER, id: TRIGGER_ID }] },
       { triggers: [] },
     ]);
   });
@@ -333,39 +360,21 @@ describe("RoutinesApi", () => {
     });
   });
 
-  it("update() sends task, slot and metadata changes", async () => {
+  it("update() sends task, slot, conditions and synthesis changes", async () => {
     const http = mockHttp({ requestResult: ROUTINE_FIXTURE });
     await new RoutinesApi(http).update(ROUTINE_ID, {
       task_id: TASK_ID,
       next_trigger_at: "2026-10-12T09:00:00Z",
-      metadata: { timezone: "Australia/Sydney" },
+      conditions: [],
+      synthesis: { batch: false, max_conversations: 50 },
     });
 
     expect(calls(http)[0].body).toEqual({
       task_id: TASK_ID,
       next_trigger_at: "2026-10-12T09:00:00Z",
-      metadata: { timezone: "Australia/Sydney" },
+      conditions: [],
+      synthesis: { batch: false, max_conversations: 50 },
     });
-  });
-
-  it("update() switches trigger_type with its schedule", async () => {
-    const http = mockHttp({ requestResult: ROUTINE_FIXTURE });
-    const routines = new RoutinesApi(http);
-    await routines.update(ROUTINE_ID, {
-      trigger_type: "cron",
-      cron_schedule: "0 9 * * 1",
-      metadata: { cron_schedules: ["0 9 * * 1", "0 17 * * 5"] },
-    });
-    await routines.update(ROUTINE_ID, { trigger_type: "manual" });
-
-    expect(calls(http).map((call) => call.body)).toEqual([
-      {
-        trigger_type: "cron",
-        cron_schedule: "0 9 * * 1",
-        metadata: { cron_schedules: ["0 9 * * 1", "0 17 * * 5"] },
-      },
-      { trigger_type: "manual" },
-    ]);
   });
 
   it("update() with nothing set sends an empty body", async () => {

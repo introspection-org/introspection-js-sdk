@@ -722,7 +722,6 @@ describe("runner.routines", () => {
     await runner.routines.list({ enabled: true });
     await runner.routines.create({
       name: "Friday check-in",
-      trigger_type: "manual",
       prompt: "How did the week go?",
       runtime_group_id: RUNTIME_GROUP_ID,
     });
@@ -741,7 +740,6 @@ describe("runner.routines", () => {
     ]);
     expect(sent[1].body).toEqual({
       name: "Friday check-in",
-      trigger_type: "manual",
       prompt: "How did the week go?",
       runtime_group_id: RUNTIME_GROUP_ID,
     });

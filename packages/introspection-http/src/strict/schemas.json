@@ -2408,11 +2408,13 @@
     "Routine": {
       "type": "object",
       "properties": {
-        "budget_exhausted": { "$ref": "#/$defs/RoutineBudgetExhausted" },
         "can_manage": {},
+        "conditions": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/RoutineCondition" }
+        },
         "created_at": {},
         "created_by_member_id": {},
-        "cron_schedule": {},
         "description": {},
         "enabled": {},
         "execution_blocked_reason": {},
@@ -2423,32 +2425,35 @@
           "additionalProperties": false
         },
         "last_triggered_at": {},
-        "metadata": { "$ref": "#/$defs/RoutineMetadata" },
         "name": {},
         "next_trigger_at": {},
         "org_id": {},
         "owner_role": {},
         "project_id": {},
         "prompt": {},
+        "repositories": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/TaskRepoRequest" }
+        },
         "runtime_group_id": {},
+        "synthesis": { "$ref": "#/$defs/RoutineSynthesis" },
         "tags": { "type": "array" },
         "task_id": {},
-        "trigger_type": {
-          "type": "object",
-          "properties": { "length": {} },
-          "additionalProperties": false
-        },
         "triggers": {
           "type": "array",
-          "items": { "$ref": "#/$defs/RoutineTrigger" }
+          "items": {
+            "anyOf": [
+              { "$ref": "#/$defs/RoutineGithubTrigger" },
+              { "$ref": "#/$defs/RoutineLinearTrigger" },
+              { "$ref": "#/$defs/RoutineScheduleTrigger" },
+              { "$ref": "#/$defs/RoutineSlackTrigger" },
+              { "$ref": "#/$defs/RoutineUnknownTrigger" },
+              { "$ref": "#/$defs/RoutineWebhookTrigger" }
+            ]
+          }
         },
         "updated_at": {}
       },
-      "additionalProperties": false
-    },
-    "RoutineBudgetExhausted": {
-      "type": "object",
-      "properties": { "budget_id": {}, "until": {} },
       "additionalProperties": false
     },
     "RoutineCondition": {
@@ -2463,19 +2468,34 @@
       },
       "additionalProperties": false
     },
-    "RoutineMetadata": {
+    "RoutineGithubTrigger": {
       "type": "object",
       "properties": {
-        "conditions": {
-          "type": "array",
-          "items": { "$ref": "#/$defs/RoutineCondition" }
-        },
-        "cron_schedules": { "type": "array" },
-        "repositories": {
-          "type": "array",
-          "items": { "$ref": "#/$defs/TaskRepoRequest" }
-        },
-        "timezone": {}
+        "branches": { "type": "array" },
+        "event_types": { "type": "array" },
+        "id": {},
+        "repository_ids": { "type": "array" },
+        "type": { "const": "github" }
+      },
+      "additionalProperties": false
+    },
+    "RoutineLinearTrigger": {
+      "type": "object",
+      "properties": {
+        "event_types": { "type": "array" },
+        "id": {},
+        "to_states": { "type": "array" },
+        "type": { "const": "linear" }
+      },
+      "additionalProperties": false
+    },
+    "RoutineScheduleTrigger": {
+      "type": "object",
+      "properties": {
+        "cron": {},
+        "id": {},
+        "timezone": {},
+        "type": { "const": "schedule" }
       },
       "additionalProperties": false
     },
@@ -2518,51 +2538,25 @@
       },
       "additionalProperties": false
     },
-    "RoutineTrigger": {
+    "RoutineSlackTrigger": {
       "type": "object",
       "properties": {
-        "connector_slug": {},
-        "created_at": {},
-        "enabled": {},
+        "channel_ids": { "type": "array" },
+        "emoji": { "type": "array" },
         "event_types": { "type": "array" },
-        "filter": { "$ref": "#/$defs/RoutineTriggerFilter" },
         "id": {},
-        "org_id": {},
-        "project_id": {},
-        "provider": {
-          "type": "object",
-          "properties": { "length": {} },
-          "additionalProperties": false
-        },
-        "routine_id": {},
-        "source": {
-          "type": "object",
-          "properties": { "length": {} },
-          "additionalProperties": false
-        },
-        "updated_at": {}
+        "type": { "const": "slack" }
       },
+      "additionalProperties": false
+    },
+    "RoutineSynthesis": {
+      "type": "object",
+      "properties": { "batch": {}, "max_conversations": {} },
       "additionalProperties": false
     },
     "RoutineTriggerEventRef": {
       "type": "object",
       "properties": { "delivery_id": {}, "event_type": {}, "trigger_id": {} },
-      "additionalProperties": false
-    },
-    "RoutineTriggerFilter": {
-      "type": "object",
-      "properties": {
-        "branches": { "type": "array" },
-        "channel_ids": { "type": "array" },
-        "emoji": { "type": "array" },
-        "payload_fields": {
-          "type": "object",
-          "additionalProperties": { "type": "array" }
-        },
-        "repository_ids": { "type": "array" },
-        "team_ids": { "type": "array" },
-        "to_states": { "type": "array" }
-      },
       "additionalProperties": false
     },
     "RoutineTriggerResponse": {
@@ -2629,6 +2623,25 @@
           "additionalProperties": false
         },
         "triggered_by_member_id": {}
+      },
+      "additionalProperties": false
+    },
+    "RoutineUnknownTrigger": {
+      "type": "object",
+      "properties": { "id": {}, "type": {} },
+      "additionalProperties": true
+    },
+    "RoutineWebhookTrigger": {
+      "type": "object",
+      "properties": {
+        "connector_slug": {},
+        "event_types": { "type": "array" },
+        "id": {},
+        "payload_fields": {
+          "type": "object",
+          "additionalProperties": { "type": "array" }
+        },
+        "type": { "const": "webhook" }
       },
       "additionalProperties": false
     },
