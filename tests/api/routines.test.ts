@@ -326,6 +326,26 @@ describe("RoutinesApi", () => {
     });
   });
 
+  it("keeps a routine_metadata key this SDK predates across a read and an update", async () => {
+    const routine_metadata = {
+      repositories: [],
+      conditions: [],
+      synthesis_max_conversations: null,
+      later_key: { on: true },
+    };
+    const http = mockHttp({
+      requestResult: { ...ROUTINE_FIXTURE, routine_metadata },
+    });
+    const routines = new RoutinesApi(http);
+    const routine = await routines.get(ROUTINE_ID);
+
+    expect(routine.routine_metadata.later_key).toEqual({ on: true });
+    await routines.update(ROUTINE_ID, {
+      routine_metadata: { ...routine.routine_metadata, conditions: [] },
+    });
+    expect(calls(http)[1].body).toEqual({ routine_metadata });
+  });
+
   it("update() replaces the trigger list, keeping listed ids", async () => {
     const http = mockHttp({ requestResult: ROUTINE_FIXTURE });
     await new RoutinesApi(http).update(ROUTINE_ID, {

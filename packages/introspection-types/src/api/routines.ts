@@ -210,7 +210,10 @@ export interface RoutineCondition {
 
 /**
  * A routine's typed settings. On update it replaces the stored value
- * wholesale, so send the current values of the fields to keep.
+ * wholesale, so send the current values of the fields to keep, including
+ * keys this SDK version predates.
+ *
+ * @openSchema
  */
 export interface RoutineMetadata {
   /** Repositories a task-backed routine clones. */
@@ -221,6 +224,7 @@ export interface RoutineMetadata {
    * samples; null for the server default.
    */
   synthesis_max_conversations?: number | null;
+  [key: string]: unknown;
 }
 
 /**

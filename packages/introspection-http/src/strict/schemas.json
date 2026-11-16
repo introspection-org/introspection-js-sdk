@@ -2494,7 +2494,7 @@
         },
         "synthesis_max_conversations": {}
       },
-      "additionalProperties": false
+      "additionalProperties": true
     },
     "RoutineScheduleTrigger": {
       "type": "object",

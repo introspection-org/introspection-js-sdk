@@ -528,9 +528,11 @@ describe("strict decoding on", () => {
         ],
       }),
     ).rejects.toBeInstanceOf(SchemaDriftError);
-    await expect(
-      strictGet({ id: "r1", routine_metadata: { cron_schedules: [] } }),
-    ).rejects.toBeInstanceOf(SchemaDriftError);
+    const newer = {
+      id: "r1",
+      routine_metadata: { repositories: [], conditions: [], later_key: 1 },
+    };
+    await expect(strictGet(newer)).resolves.toEqual(newer);
     await expect(
       strictGet({ id: "r1", budget_exhausted: null }),
     ).rejects.toBeInstanceOf(SchemaDriftError);
