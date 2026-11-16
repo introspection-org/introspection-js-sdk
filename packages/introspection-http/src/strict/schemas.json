@@ -2408,6 +2408,7 @@
     "Routine": {
       "type": "object",
       "properties": {
+        "budget_exhausted": { "$ref": "#/$defs/RoutineBudgetExhausted" },
         "can_manage": {},
         "created_at": {},
         "created_by_member_id": {},
@@ -2443,6 +2444,11 @@
         },
         "updated_at": {}
       },
+      "additionalProperties": false
+    },
+    "RoutineBudgetExhausted": {
+      "type": "object",
+      "properties": { "budget_id": {}, "until": {} },
       "additionalProperties": false
     },
     "RoutineCondition": {
