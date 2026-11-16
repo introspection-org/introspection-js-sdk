@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.52.0](https://github.com/introspection-org/introspection-js-sdk/compare/v0.51.0...v0.52.0) (2026-11-16)
+
+
+### Features
+
+* model a routine's budget_exhausted response field ([#624](https://github.com/introspection-org/introspection-js-sdk/issues/624)) ([d62b866](https://github.com/introspection-org/introspection-js-sdk/commit/d62b866f6c732982804b9bbb687c434095b646d4))
+* model a runtime's enabled and disabled_at response fields ([#622](https://github.com/introspection-org/introspection-js-sdk/issues/622)) ([1646647](https://github.com/introspection-org/introspection-js-sdk/commit/16466471f8fe921cd8e80afd8b9f4d2e30f692a7))
+
 ## [0.51.0](https://github.com/introspection-org/introspection-js-sdk/compare/v0.50.0...v0.51.0) (2026-11-15)
 
 
