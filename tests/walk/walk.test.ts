@@ -1039,6 +1039,9 @@ walk("SDK end-to-end walk", () => {
             ...runtime,
             // Lanes come back in the order the runtime was promoted to them.
             environments: [...(runtime.environments ?? [])].sort(),
+            // A recording that predates `enabled` and `disabled_at` has neither.
+            disabled_at: undefined,
+            enabled: undefined,
             git_commit_sha: undefined,
             image_build_metadata: Object.fromEntries(
               IMAGE_BUILD_METADATA_FIELDS.filter((k) => k in metadata).map(
@@ -1056,6 +1059,8 @@ walk("SDK end-to-end walk", () => {
             "created_at": "[timestamp]",
             "created_by_member_id": "[uuid]",
             "description": "Harbor E2B task calling a development MCP server",
+            "disabled_at": undefined,
+            "enabled": undefined,
             "environment_ref": null,
             "environments": [
               "production",
