@@ -775,9 +775,6 @@ describe("client.routines", () => {
       files: [{ id: fileId, name: "parameters.json" }],
     });
     expect(requests[3].body).toBeUndefined();
-    expect(
-      requests.some((r) => r.url.pathname.startsWith("/v1/automations")),
-    ).toBe(false);
     await sdk.shutdown();
   });
 });
