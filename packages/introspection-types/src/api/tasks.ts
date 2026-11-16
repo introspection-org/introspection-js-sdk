@@ -47,7 +47,10 @@ export interface Task {
   is_archived: boolean;
   started_at?: IsoDate | null;
   completed_at?: IsoDate | null;
+  /** The member's own latest message; a routine post or notice does not move it. */
   last_user_message_at?: IsoDate | null;
+  /** The latest turn of any kind, a routine post or notice included. */
+  last_turn_at?: IsoDate | null;
   metadata?: Record<string, unknown> | null;
   /** Immutable filter dimensions stamped onto this task's conversation. */
   conversation_metadata?: Record<string, string> | null;
