@@ -57,7 +57,8 @@ const ROUTINE = {
   created_by_member_id: "member-1",
   can_manage: true,
   tags: [],
-  trigger_type: "manual",
+  routine_metadata: { repositories: [], conditions: [] },
+  triggers: [],
   prompt: "Anything new?",
   next_trigger_at: "2026-10-05T09:00:00+00:00",
   last_triggered_at: null,
@@ -521,14 +522,12 @@ describe("routines", () => {
 
     await dp.routines.create({
       name: "Morning check-in",
-      trigger_type: "manual",
       prompt: "Anything new?",
       runtime_group_id: ROUTINE.runtime_group_id,
       task_id: ROUTINE.task_id,
       next_trigger_at: "2026-10-05T09:00:00+00:00",
     });
     expect(JSON.parse(requests[1].body)).toMatchObject({
-      trigger_type: "manual",
       task_id: ROUTINE.task_id,
       next_trigger_at: "2026-10-05T09:00:00+00:00",
     });

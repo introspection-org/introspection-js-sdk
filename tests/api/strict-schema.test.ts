@@ -455,22 +455,86 @@ describe("strict decoding on", () => {
     await expect(strictGet("RunnerSpec", spec)).resolves.toEqual(spec);
   });
 
-  it("models a routine's budget_exhausted, null and set", async () => {
+  it("decodes each routine trigger type, an unknown type, and omitted filter keys", async () => {
     const strictGet = (body: unknown) =>
       client(body, true).request<unknown>({
         method: "GET",
         path: "/v1/x",
         schema: "Routine",
       });
-    const none = { id: "r1", budget_exhausted: null };
-    await expect(strictGet(none)).resolves.toEqual(none);
-    const paused = {
+    const routine = {
       id: "r1",
-      budget_exhausted: { budget_id: "b1", until: "2026-12-01T00:00:00Z" },
+      routine_metadata: {
+        repositories: [{ repo: "acme/app", ref: null, depth: 1 }],
+        conditions: [
+          { type: "no_live_task_for_routine", runtime_group_id: null },
+        ],
+        synthesis_max_conversations: null,
+      },
+      triggers: [
+        { id: "t1", type: "schedule", cron: "0 9 * * 1-5", timezone: "UTC" },
+        { id: "t2", type: "schedule", cron: "0 17 * * 5" },
+        {
+          id: "t3",
+          type: "slack",
+          event_types: ["slack.reaction.added"],
+          channel_ids: ["C1"],
+          emoji: ["eyes"],
+        },
+        { id: "t4", type: "slack", event_types: ["slack.reaction.added"] },
+        {
+          id: "t5",
+          type: "github",
+          event_types: ["github.push"],
+          repository_ids: ["1"],
+          branches: ["main"],
+        },
+        {
+          id: "t6",
+          type: "linear",
+          event_types: ["linear.issue.created"],
+          to_states: ["Todo"],
+        },
+        {
+          id: "t7",
+          type: "webhook",
+          connector_slug: "orders",
+          event_types: ["*"],
+          payload_fields: { status: ["paid"] },
+        },
+        { id: "t8", type: "jira", project_keys: ["ENG"], filter: { x: 1 } },
+      ],
     };
-    await expect(strictGet(paused)).resolves.toEqual(paused);
+    await expect(strictGet(routine)).resolves.toEqual(routine);
     await expect(
-      strictGet({ id: "r1", budget_exhausted: { budget_id: "b1", extra: 1 } }),
+      strictGet({
+        id: "r1",
+        triggers: [{ id: "t1", type: "schedule", cron: "0 9 * * *", x: 1 }],
+      }),
+    ).rejects.toBeInstanceOf(SchemaDriftError);
+    await expect(
+      strictGet({
+        id: "r1",
+        triggers: [
+          { id: "t1", type: "slack", event_types: [], payload_fields: {} },
+        ],
+      }),
+    ).rejects.toBeInstanceOf(SchemaDriftError);
+    await expect(
+      strictGet({
+        id: "r1",
+        triggers: [
+          { id: "t1", type: "linear", event_types: [], team_ids: ["T1"] },
+        ],
+      }),
+    ).rejects.toBeInstanceOf(SchemaDriftError);
+    const newer = {
+      id: "r1",
+      routine_metadata: { repositories: [], conditions: [], later_key: 1 },
+    };
+    await expect(strictGet(newer)).resolves.toEqual(newer);
+    await expect(
+      strictGet({ id: "r1", budget_exhausted: null }),
     ).rejects.toBeInstanceOf(SchemaDriftError);
   });
 

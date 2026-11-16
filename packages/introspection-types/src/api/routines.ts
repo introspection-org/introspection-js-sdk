@@ -2,9 +2,9 @@ import type { CursorParams, IsoDate, Uuid } from "./common.js";
 import type { TaskFileRef, TaskRepoRequest } from "./tasks.js";
 
 /**
- * How a routine fires: `cron` on its schedules, `manual` by hand or once
- * at a client-set `next_trigger_at` (a one-off reminder). Open-ended: a value
- * this SDK version predates arrives as its raw string.
+ * The firing an `introspection.routines.triggered` / `.skipped` event
+ * records: `cron` for a schedule slot, `manual` for anything else.
+ * Open-ended.
  */
 export type RoutineTriggerType =
   "cron" | "manual" | (string & Record<never, never>);
@@ -68,84 +68,112 @@ export type RoutineSkipReason =
 export type RoutineRunSource =
   "scheduled" | "manual" | "trigger" | (string & Record<never, never>);
 
-/**
- * What an event trigger listens to: an organization integration (Slack,
- * GitHub), or a project connector named by `connector_slug` (a `webhook`
- * connector). Open-ended.
- */
-export type RoutineTriggerSource =
-  "integration" | "connector" | (string & Record<never, never>);
+/** A trigger `type` this SDK version models. */
+export type KnownRoutineTriggerType =
+  "schedule" | "slack" | "github" | "linear" | "webhook";
 
-/**
- * The provider of a trigger's events. `slack` and `github` are integration
- * sources, `webhook` a connector source; the server refuses `linear` until its
- * events are forwarded. Open-ended.
- */
-export type RoutineTriggerProvider =
-  "slack" | "linear" | "github" | "webhook" | (string & Record<never, never>);
-
-/**
- * A trigger's filter: every key set must contain the event's value for it,
- * and a key set names at least one value. Which keys a provider takes:
- *
- * - `slack` — `channel_ids` (required for `slack.message.posted`), `emoji`.
- * - `linear` — `team_ids`, `to_states`.
- * - `github` — `repository_ids`, `branches`.
- * - `webhook` — `payload_fields`: a top-level key of the JSON body and the
- *   values its scalar may hold (a string as given, any other scalar as JSON,
- *   such as `"true"` or `"3"`).
- */
-export interface RoutineTriggerFilter {
-  channel_ids?: string[] | null;
-  emoji?: string[] | null;
-  team_ids?: string[] | null;
-  to_states?: string[] | null;
-  repository_ids?: string[] | null;
-  branches?: string[] | null;
-  /** At most 20 keys. */
-  payload_fields?: Record<string, string[]> | null;
-}
-
-/**
- * One trigger in a routine's `triggers` on create or update.
- *
- * `event_types` (1–50) are `{provider}.{object}.{action}` names from the
- * catalogue, such as `github.pull_request.opened`; a `webhook` connector's are
- * the JSON body's string `type` (else `webhook.received`), or `*` alone for
- * every one. A trigger declares no parameters: the run it starts receives the
- * event's body as its parameters, as `parameters.json` (any JSON; a non-JSON
- * body arrives as a JSON string), and each `@parameters.<key>` in the prompt
- * reads a top-level key of it, the same as a manual run's `parameters`.
- */
-export interface RoutineTriggerSpec {
-  /** On update: an existing trigger of this routine to keep. Never on create. */
-  id?: Uuid;
-  /** Server default `integration`. */
-  source?: RoutineTriggerSource;
-  provider: RoutineTriggerProvider;
-  /** The project connector's slug; set for a `connector` source, and only then. */
-  connector_slug?: string;
-  event_types: string[];
-  filter?: RoutineTriggerFilter;
-  /** Server default `true`. */
-  enabled?: boolean;
-}
-
-/** A stored trigger, as a {@link Routine}'s `triggers` returns it. */
-export interface RoutineTrigger {
+/** Fires on a 5-field `cron` in `timezone` (IANA, UTC when unset). */
+export interface RoutineScheduleTrigger {
   id: Uuid;
-  org_id: Uuid;
-  project_id: Uuid;
-  routine_id: Uuid;
-  source: RoutineTriggerSource;
-  provider: RoutineTriggerProvider;
-  connector_slug?: string | null;
-  event_types: string[];
-  filter: RoutineTriggerFilter;
-  enabled: boolean;
-  created_at: IsoDate;
-  updated_at: IsoDate;
+  type: "schedule";
+  cron: string;
+  timezone?: string | null;
 }
+
+/** `channel_ids` is required for `slack.message.posted`. */
+export interface RoutineSlackTrigger {
+  id: Uuid;
+  type: "slack";
+  event_types: string[];
+  channel_ids?: string[];
+  emoji?: string[];
+}
+
+export interface RoutineGithubTrigger {
+  id: Uuid;
+  type: "github";
+  event_types: string[];
+  repository_ids?: string[];
+  branches?: string[];
+}
+
+/** Scoped to the project's bound Linear teams. */
+export interface RoutineLinearTrigger {
+  id: Uuid;
+  type: "linear";
+  event_types: string[];
+  to_states?: string[];
+}
+
+/**
+ * Listens to the project connector `connector_slug`. Its `event_types` are
+ * the JSON body's string `type` (else `webhook.received`), or `*` alone.
+ * `payload_fields` (at most 20 keys) maps a top-level body key to the values
+ * its scalar may hold (a string as given, any other scalar as JSON).
+ */
+export interface RoutineWebhookTrigger {
+  id: Uuid;
+  type: "webhook";
+  connector_slug: string;
+  event_types: string[];
+  payload_fields?: Record<string, string[]>;
+}
+
+/**
+ * A trigger of a `type` this SDK version predates, as the server sent it.
+ *
+ * @openSchema
+ */
+export interface RoutineUnknownTrigger {
+  id: Uuid;
+  type: string;
+  [key: string]: unknown;
+}
+
+export type KnownRoutineTrigger =
+  | RoutineScheduleTrigger
+  | RoutineSlackTrigger
+  | RoutineGithubTrigger
+  | RoutineLinearTrigger
+  | RoutineWebhookTrigger;
+
+/**
+ * What starts a routine besides `trigger(id)`, discriminated on `type`.
+ * Narrow with {@link isKnownRoutineTrigger} before switching on `type`. A
+ * response omits a filter key the trigger does not set. Event `event_types`
+ * (1–50) are `{provider}.{object}.{action}` names, such as
+ * `github.pull_request.opened`; an event run receives the event's body as its
+ * parameters (`parameters.json`, and `@parameters.<key>` in the prompt).
+ */
+export type RoutineTrigger = KnownRoutineTrigger | RoutineUnknownTrigger;
+
+const KNOWN_ROUTINE_TRIGGER_TYPES: readonly string[] = [
+  "schedule",
+  "slack",
+  "github",
+  "linear",
+  "webhook",
+] satisfies KnownRoutineTriggerType[];
+
+/** True when `trigger` is of a `type` this SDK version models. */
+export function isKnownRoutineTrigger(
+  trigger: RoutineTrigger,
+): trigger is KnownRoutineTrigger {
+  return KNOWN_ROUTINE_TRIGGER_TYPES.includes(trigger.type);
+}
+
+/**
+ * One trigger on create or update: an entry with an `id` keeps that existing
+ * trigger (its `type` is fixed), one without adds a trigger. An unknown-type
+ * trigger read from the routine can be passed back to keep it.
+ */
+export type RoutineTriggerSpec =
+  | (KnownRoutineTrigger extends infer T
+      ? T extends KnownRoutineTrigger
+        ? Omit<T, "id"> & { id?: Uuid }
+        : never
+      : never)
+  | RoutineUnknownTrigger;
 
 /**
  * The event trigger a run or a skip answered, on the routine events and, for
@@ -174,31 +202,29 @@ export interface RoutineTaskMetadata {
   unresolved_parameters?: string[];
 }
 
-/** One condition stored in a routine's metadata. */
+/** A condition evaluated before a routine runs. */
 export interface RoutineCondition {
   type: RoutineConditionType;
   runtime_group_id?: Uuid | null;
 }
 
 /**
- * The typed shape of a routine's `metadata`. The runtime group is the
- * top-level `runtime_group_id`; the server rejects it inside metadata.
+ * A routine's typed settings. On update it replaces the stored value
+ * wholesale, so send the current values of the fields to keep, including
+ * keys this SDK version predates.
+ *
+ * @openSchema
  */
 export interface RoutineMetadata {
   /** Repositories a task-backed routine clones. */
-  repositories?: TaskRepoRequest[];
-  /** Several cron expressions; `cron_schedule` is the single-schedule form. */
-  cron_schedules?: string[];
-  /** IANA time zone the cron schedules are evaluated in (UTC when absent). */
-  timezone?: string | null;
-  conditions?: RoutineCondition[];
-}
-
-/** The budget pausing a routine, and when its period ends. */
-export interface RoutineBudgetExhausted {
-  budget_id: Uuid;
-  /** When the budget's period ends and the routine's runs resume. */
-  until: IsoDate;
+  repositories: TaskRepoRequest[];
+  conditions: RoutineCondition[];
+  /**
+   * Only on `observation_synthesis`: the most conversations a batch run
+   * samples; null for the server default.
+   */
+  synthesis_max_conversations?: number | null;
+  [key: string]: unknown;
 }
 
 /**
@@ -212,17 +238,16 @@ export interface Routine {
   name: string;
   description?: string | null;
   enabled: boolean;
-  trigger_type: RoutineTriggerType;
-  cron_schedule?: string | null;
   /** `null` for a person's own prompt routine. */
   kind?: RoutineKind | null;
   prompt?: string | null;
-  metadata?: RoutineMetadata | null;
+  /** Repositories a task-backed routine clones. */
+  routine_metadata: RoutineMetadata;
   tags: string[];
   last_triggered_at?: IsoDate | null;
   /**
-   * The next slot: derived from the schedule for `cron`, client-set for a
-   * one-off `manual` routine and cleared once that slot fires.
+   * The next slot: the earliest across its `schedule` triggers (read-only
+   * then), else a client-set one-off slot, cleared once it fires.
    */
   next_trigger_at?: IsoDate | null;
   /** The runtime group it runs on (or clusters); null for `observation_synthesis`. */
@@ -232,14 +257,8 @@ export interface Routine {
   created_by_member_id?: Uuid | null;
   /** Why the scheduler will not run this routine, when it will not. */
   execution_blocked_reason?: string | null;
-  /**
-   * The budget pausing this routine's scheduled and event-started runs, until
-   * its period ends; null while none does. Read-only.
-   */
-  budget_exhausted?: RoutineBudgetExhausted | null;
   /** Whether the caller may edit it. */
   can_manage: boolean;
-  /** The events that start a run, beside the schedule and `trigger(id)`. */
   triggers: RoutineTrigger[];
   /**
    * `operator` for one that runs as a task (a prompt routine or
@@ -251,16 +270,12 @@ export interface Routine {
 }
 
 /**
- * `POST /v1/routines`. A one-off reminder is a `manual` routine with a
- * future `next_trigger_at`; a `cron` routine derives its own slots and must
- * not send one.
+ * `POST /v1/routines`. A one-off reminder is a routine with no `schedule`
+ * trigger and a future `next_trigger_at`.
  */
 export interface RoutineCreateParams {
   name: string;
-  trigger_type: RoutineTriggerType;
   description?: string;
-  /** Required for `cron`. */
-  cron_schedule?: string;
   /** Omit for a prompt routine, which then needs `prompt`. */
   kind?: RoutineKind;
   prompt?: string;
@@ -268,46 +283,31 @@ export interface RoutineCreateParams {
   runtime_group_id?: Uuid;
   /** An existing task each firing posts the prompt into (prompt routines only). */
   task_id?: Uuid;
-  /** A one-off slot for a `manual` routine; must be in the future. */
+  /** A one-off slot, only without a `schedule` trigger; must be in the future. */
   next_trigger_at?: IsoDate;
-  metadata?: RoutineMetadata;
+  /** `repositories` and `conditions` default to `[]`. */
+  routine_metadata?: Partial<RoutineMetadata>;
   /** Server default `true`. */
   enabled?: boolean;
   /**
-   * At most 20, none with an `id`. Only a prompt routine that starts a task
-   * per run takes triggers (no `kind`, no `task_id`).
+   * At most 20. Event triggers only on a prompt routine that starts a task
+   * per run (no `kind`, no `task_id`); a platform routine takes only
+   * `schedule` triggers.
    */
   triggers?: RoutineTriggerSpec[];
 }
 
 /**
  * `PATCH /v1/routines/{id}`. Only the fields set are sent, and an omitted
- * field is left as it is, so nothing can be cleared. `kind` is immutable;
- * `metadata` replaces the stored value wholesale.
+ * field is left as it is, so nothing can be cleared. `kind` is immutable,
+ * and `runtime_group_id` moves a prompt routine to another runtime group.
  */
-export interface RoutineUpdateParams {
-  name?: string;
+export interface RoutineUpdateParams extends Partial<
+  Omit<RoutineCreateParams, "kind" | "triggers">
+> {
   /**
-   * Switches a prompt routine between `manual` and `cron`. `cron` needs a
-   * schedule in the same update (`cron_schedule` and/or
-   * `metadata.cron_schedules`, no cron repeated); `manual` drops the next slot.
-   */
-  trigger_type?: "manual" | "cron";
-  description?: string;
-  cron_schedule?: string;
-  prompt?: string;
-  /** Moves a prompt routine to another runtime group. */
-  runtime_group_id?: Uuid;
-  task_id?: Uuid;
-  /** Schedules, moves or re-arms a `manual` routine's one-off slot; must be in the future. */
-  next_trigger_at?: IsoDate;
-  metadata?: RoutineMetadata;
-  /** `false` pauses and keeps the slot. */
-  enabled?: boolean;
-  /**
-   * Replaces the routine's triggers: an entry with an `id` keeps that
-   * trigger with the fields given, one without is new, and every trigger
-   * not listed is removed. `[]` removes them all.
+   * Replaces the routine's triggers (at most 20): every trigger not listed
+   * is removed, and `[]` removes them all.
    */
   triggers?: RoutineTriggerSpec[];
 }

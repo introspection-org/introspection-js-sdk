@@ -74,7 +74,7 @@ export interface PolicyEntity {
  * A `webhook` connector (`provider: "webhook"`, `auth_mode: "static"`) is
  * inbound only: the customer's own systems call
  * `POST /v1/webhooks/connectors/{id}` on the Control Plane, and a routine
- * trigger with `source: "connector"` and its `connector_slug` runs on each
+ * trigger of `type: "webhook"` naming its `connector_slug` runs on each
  * call. It is created with no secret, so it refuses every call until one is
  * issued under `/v1/connectors/{id}/secrets` ({@link WebhookSecretCreated}).
  */
