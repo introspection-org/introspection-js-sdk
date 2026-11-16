@@ -24,7 +24,7 @@
     "@earendil-works/pi-agent-core": "^0.99.2",
     "@earendil-works/pi-ai": "^0.99.2",
     "@earendil-works/pi-coding-agent": "^0.99.2",
-    "@hellocoop/httpsig": "^2.6.0",
+    "@hellocoop/httpsig": "^2.7.0",
     "@introspection-sdk/aauth-access-server": "workspace:*",
     "@introspection-sdk/aauth-person-server": "workspace:*",
     "@introspection-sdk/aauth-protocol": "workspace:*",

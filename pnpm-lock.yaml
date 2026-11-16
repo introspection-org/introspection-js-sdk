@@ -110,8 +110,8 @@ importers:
         specifier: ^3.1.0
         version: 3.1.0
       '@hellocoop/httpsig':
-        specifier: ^2.6.0
-        version: 2.6.0
+        specifier: ^2.7.0
+        version: 2.7.0
       '@introspection-sdk/aauth-person-server':
         specifier: workspace:*
         version: link:../../packages/introspection-aauth-person-server
@@ -294,8 +294,8 @@ importers:
         specifier: ^3.1.0
         version: 3.1.0
       '@hellocoop/httpsig':
-        specifier: ^2.6.0
-        version: 2.6.0
+        specifier: ^2.7.0
+        version: 2.7.0
       '@introspection-sdk/aauth-protocol':
         specifier: workspace:*
         version: link:../introspection-aauth-protocol
@@ -328,8 +328,8 @@ importers:
         specifier: ^3.1.0
         version: 3.1.0
       '@hellocoop/httpsig':
-        specifier: ^2.6.0
-        version: 2.6.0
+        specifier: ^2.7.0
+        version: 2.7.0
       '@opentelemetry/api':
         specifier: ^1.10.0
         version: 1.10.0
@@ -675,8 +675,8 @@ importers:
         specifier: ^0.99.2
         version: 0.99.2(@aws-sdk/credential-provider-node@3.972.84)(@modelcontextprotocol/sdk@1.32.2(@cfworker/json-schema@4.1.1)(zod@4.6.7))(@smithy/signature-v4@5.7.4)(ws@8.22.0)(zod@4.6.7)
       '@hellocoop/httpsig':
-        specifier: ^2.6.0
-        version: 2.6.0
+        specifier: ^2.7.0
+        version: 2.7.0
       '@introspection-sdk/aauth-access-server':
         specifier: workspace:*
         version: link:../packages/introspection-aauth-access-server
@@ -1254,12 +1254,8 @@ packages:
       '@modelcontextprotocol/sdk':
         optional: true
 
-  '@hellocoop/httpsig@2.6.0':
-    resolution: {integrity: sha512-LS/teUB0LsbMJwTlYX2MlUs/P6GrJISuvYGeiRmIROyY7MACc32RdHHd9/UOpWNBnrfhs7RnYRT5VSjfZsIF4g==}
-    engines: {node: '>=18'}
-
-  '@hellocoop/httpsig@2.7.1':
-    resolution: {integrity: sha512-670ohV0WH36aFC9rS+h/FfJaOqVDRgzDLCmLa8jmkQI5R3zeNJagdFL2lZD3QtF/6PEx6k940m9gZ3TV1O1IxA==}
+  '@hellocoop/httpsig@2.7.0':
+    resolution: {integrity: sha512-qDBc5oQEigiAzrgYQwUKpB1gtWG7f32UpjIq3AmQIaiQZtMIM6w1aaGOpevZzyVdgGpDStrKZY+efk1QZ2MHTw==}
     engines: {node: '>=18'}
 
   '@hono/node-server@2.1.6':
@@ -5889,19 +5885,19 @@ snapshots:
   '@aauth/agent@4.1.1':
     dependencies:
       '@aauth/protocol': 2.0.0
-      '@hellocoop/httpsig': 2.6.0
+      '@hellocoop/httpsig': 2.7.0
 
   '@aauth/interaction-code@0.1.1': {}
 
   '@aauth/protocol@2.0.0':
     dependencies:
-      '@hellocoop/httpsig': 2.6.0
+      '@hellocoop/httpsig': 2.7.0
 
   '@aauth/resource@3.1.0':
     dependencies:
       '@aauth/interaction-code': 0.1.1
       '@aauth/protocol': 2.0.0
-      '@hellocoop/httpsig': 2.7.1
+      '@hellocoop/httpsig': 2.7.0
       jose: 6.2.16
 
   '@ag-ui/core@0.0.59':
@@ -6580,9 +6576,7 @@ snapshots:
       - supports-color
       - utf-8-validate
 
-  '@hellocoop/httpsig@2.6.0': {}
-
-  '@hellocoop/httpsig@2.7.1': {}
+  '@hellocoop/httpsig@2.7.0': {}
 
   '@hono/node-server@2.1.6(hono@4.13.17)':
     dependencies:

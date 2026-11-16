@@ -33,7 +33,7 @@
   },
   "dependencies": {
     "@aauth/resource": "^3.1.0",
-    "@hellocoop/httpsig": "^2.6.0",
+    "@hellocoop/httpsig": "^2.7.0",
     "@opentelemetry/api": "^1.10.0",
     "jose": "^6.2.12"
   },
