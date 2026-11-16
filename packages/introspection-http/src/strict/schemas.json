@@ -2501,6 +2501,7 @@
       "properties": {
         "cron": {},
         "id": {},
+        "member_idle_seconds": {},
         "timezone": {},
         "type": { "const": "schedule" }
       },
