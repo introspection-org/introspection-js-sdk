@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.53.0](https://github.com/introspection-org/introspection-js-sdk/compare/v0.52.0...v0.53.0) (2026-11-16)
+
+
+### ⚠ BREAKING CHANGES
+
+* `{trigger_type: "cron", cron_schedule}` becomes `triggers: [{type: "schedule", cron}]`; metadata keys move to top-level fields.
+
+### Features
+
+* routine triggers as one union discriminated on type; schedules are triggers ([#625](https://github.com/introspection-org/introspection-js-sdk/issues/625)) ([4b59264](https://github.com/introspection-org/introspection-js-sdk/commit/4b59264f1fb0c37f9f5ab75f53ef9cbad3ed9c1d))
+
 ## [0.52.0](https://github.com/introspection-org/introspection-js-sdk/compare/v0.51.0...v0.52.0) (2026-11-16)
 
 
