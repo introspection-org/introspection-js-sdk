@@ -81,11 +81,11 @@ export interface RoutineScheduleTrigger {
   cron: string;
   timezone?: string | null;
   /**
-   * Skip a slot when the routine's member has sent no message in the project
-   * for this many seconds (3600 to 31536000); `null` runs every slot. Left
-   * out, a new schedule on a routine with `task_id` takes 2 days and a kept
-   * schedule (sent with its `id`) keeps its stored value. Run now and event
-   * triggers are never skipped for it.
+   * Skip a slot when the routine's member has had no turn in a conversation
+   * they started in the project for this many seconds (3600 to 31536000);
+   * unset or `null` runs every slot. A kept schedule (sent with its `id`) that
+   * leaves it out keeps its stored value; send `null` to clear it. Run now and
+   * event triggers are never skipped for it.
    */
   member_idle_seconds?: number | null;
 }
