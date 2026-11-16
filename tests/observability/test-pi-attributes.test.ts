@@ -343,6 +343,40 @@ describe("chatResponseAttributes", () => {
   });
 });
 
+describe("chatResponseAttributes — cache writes", () => {
+  const usage = (cacheWrite: number, cacheWrite1h?: number) => ({
+    input: 10,
+    output: 5,
+    cacheRead: 0,
+    cacheWrite,
+    ...(cacheWrite1h === undefined ? {} : { cacheWrite1h }),
+    totalTokens: 15 + cacheWrite,
+    cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+  });
+
+  it("records the 1-hour share of the cache writes beside their total", () => {
+    const attrs = chatResponseAttributes(
+      assistantMessage({ content: [], usage: usage(400, 300) }),
+    );
+
+    expect(attrs["gen_ai.usage.cache_creation.input_tokens"]).toBe(400);
+    expect(attrs["gen_ai.usage.cache_creation.ephemeral_1h_input_tokens"]).toBe(
+      300,
+    );
+  });
+
+  it("omits the 1-hour share when the provider reports none", () => {
+    for (const cacheWrite1h of [undefined, 0]) {
+      const attrs = chatResponseAttributes(
+        assistantMessage({ content: [], usage: usage(400, cacheWrite1h) }),
+      );
+      expect(
+        attrs["gen_ai.usage.cache_creation.ephemeral_1h_input_tokens"],
+      ).toBeUndefined();
+    }
+  });
+});
+
 describe("chatResponseAttributes — finish reason mapping", () => {
   it("maps toolUse to the semconv tool_call finish reason", () => {
     const attrs = chatResponseAttributes(

@@ -123,6 +123,9 @@ describe("GenAi attribute-name constants", () => {
     expect(GenAi.USAGE_CACHE_CREATION_INPUT_TOKENS).toBe(
       "gen_ai.usage.cache_creation.input_tokens",
     );
+    expect(GenAi.USAGE_CACHE_CREATION_1H_INPUT_TOKENS).toBe(
+      "gen_ai.usage.cache_creation.ephemeral_1h_input_tokens",
+    );
     expect(GenAi.COST_USD).toBe("gen_ai.cost.usd");
     expect(GenAi.INPUT_MESSAGES).toBe("gen_ai.input.messages");
     expect(GenAi.OUTPUT_MESSAGES).toBe("gen_ai.output.messages");

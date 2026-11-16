@@ -434,6 +434,13 @@ export const GenAi = {
   USAGE_OUTPUT_TOKENS: "gen_ai.usage.output_tokens",
   USAGE_CACHE_READ_INPUT_TOKENS: "gen_ai.usage.cache_read.input_tokens",
   USAGE_CACHE_CREATION_INPUT_TOKENS: "gen_ai.usage.cache_creation.input_tokens",
+  /**
+   * Extension attribute (not in the GenAI semconv registry): the share of
+   * `gen_ai.usage.cache_creation.input_tokens` written with 1-hour retention,
+   * which Anthropic prices apart from the 5-minute write.
+   */
+  USAGE_CACHE_CREATION_1H_INPUT_TOKENS:
+    "gen_ai.usage.cache_creation.ephemeral_1h_input_tokens",
   USAGE_REASONING_TOKENS: "gen_ai.usage.reasoning.output_tokens",
   /**
    * Extension attribute (not part of the GenAI semconv registry): total
