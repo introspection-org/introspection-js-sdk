@@ -26,12 +26,12 @@
   "dependencies": {
     "@introspection-sdk/introspection-node": "workspace:*",
     "@introspection-sdk/introspection-proxy": "workspace:*",
-    "@opentelemetry/semantic-conventions": "^1.44.0"
+    "@opentelemetry/semantic-conventions": "^1.45.0"
   },
   "devDependencies": {
     "@modelcontextprotocol/sdk": "^1.32.2",
-    "@opentelemetry/exporter-trace-otlp-proto": "^0.301.0",
-    "@opentelemetry/resources": "^2.12.0",
+    "@opentelemetry/exporter-trace-otlp-proto": "^0.301.2",
+    "@opentelemetry/resources": "^2.12.1",
     "@supabase/supabase-js": "^2.119.0",
     "@types/node": "^22.20.5",
     "mcporter": "^0.17.0",
