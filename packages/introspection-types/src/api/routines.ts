@@ -198,6 +198,13 @@ export interface RoutineMetadata {
  * A stored routine (`/v1/routines`, Data Plane): scheduled agent work,
  * or platform work when `kind` is set.
  */
+/** The budget pausing a routine, and when its period ends. */
+export interface RoutineBudgetExhausted {
+  budget_id: Uuid;
+  /** When the budget's period ends and the routine's runs resume. */
+  until: IsoDate;
+}
+
 export interface Routine {
   id: Uuid;
   org_id: Uuid;
@@ -225,6 +232,11 @@ export interface Routine {
   created_by_member_id?: Uuid | null;
   /** Why the scheduler will not run this routine, when it will not. */
   execution_blocked_reason?: string | null;
+  /**
+   * The budget pausing this routine's scheduled and event-started runs, until
+   * its period ends; null while none does. Read-only.
+   */
+  budget_exhausted?: RoutineBudgetExhausted | null;
   /** Whether the caller may edit it. */
   can_manage: boolean;
   /** The events that start a run, beside the schedule and `trigger(id)`. */

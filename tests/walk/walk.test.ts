@@ -2331,8 +2331,15 @@ walk("SDK end-to-end walk", () => {
           // still refuses, so the trial is the one it posts into.
           task_id: evalTask.id,
         } as Parameters<typeof sa.routines.create>[0]);
-        expect(stable(routine)).toMatchInlineSnapshot(`
+        expect(
+          stable({
+            ...routine,
+            // A recording that predates `budget_exhausted` has none.
+            budget_exhausted: undefined,
+          }),
+        ).toMatchInlineSnapshot(`
           {
+            "budget_exhausted": undefined,
             "can_manage": true,
             "created_at": "[timestamp]",
             "created_by_member_id": "[uuid]",

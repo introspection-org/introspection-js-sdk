@@ -455,6 +455,25 @@ describe("strict decoding on", () => {
     await expect(strictGet("RunnerSpec", spec)).resolves.toEqual(spec);
   });
 
+  it("models a routine's budget_exhausted, null and set", async () => {
+    const strictGet = (body: unknown) =>
+      client(body, true).request<unknown>({
+        method: "GET",
+        path: "/v1/x",
+        schema: "Routine",
+      });
+    const none = { id: "r1", budget_exhausted: null };
+    await expect(strictGet(none)).resolves.toEqual(none);
+    const paused = {
+      id: "r1",
+      budget_exhausted: { budget_id: "b1", until: "2026-12-01T00:00:00Z" },
+    };
+    await expect(strictGet(paused)).resolves.toEqual(paused);
+    await expect(
+      strictGet({ id: "r1", budget_exhausted: { budget_id: "b1", extra: 1 } }),
+    ).rejects.toBeInstanceOf(SchemaDriftError);
+  });
+
   it("models connection integrations, the org's live subscription, endpoint and discovery fields, and a member's own connection", async () => {
     const strictGet = <T>(schema: string, body: unknown) =>
       client(body, true).request<T>({ method: "GET", path: "/v1/x", schema });
