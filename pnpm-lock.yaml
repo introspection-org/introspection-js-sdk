@@ -107,8 +107,8 @@ importers:
   examples/aauth-travel:
     dependencies:
       '@aauth/resource':
-        specifier: ^3.0.0
-        version: 3.0.0
+        specifier: ^3.1.0
+        version: 3.1.0
       '@hellocoop/httpsig':
         specifier: ^2.6.0
         version: 2.6.0
@@ -263,8 +263,8 @@ importers:
   packages/introspection-aauth-access-server:
     dependencies:
       '@aauth/resource':
-        specifier: ^3.0.0
-        version: 3.0.0
+        specifier: ^3.1.0
+        version: 3.1.0
       '@introspection-sdk/aauth-protocol':
         specifier: workspace:*
         version: link:../introspection-aauth-protocol
@@ -291,8 +291,8 @@ importers:
   packages/introspection-aauth-person-server:
     dependencies:
       '@aauth/resource':
-        specifier: ^3.0.0
-        version: 3.0.0
+        specifier: ^3.1.0
+        version: 3.1.0
       '@hellocoop/httpsig':
         specifier: ^2.6.0
         version: 2.6.0
@@ -325,8 +325,8 @@ importers:
   packages/introspection-aauth-protocol:
     dependencies:
       '@aauth/resource':
-        specifier: ^3.0.0
-        version: 3.0.0
+        specifier: ^3.1.0
+        version: 3.1.0
       '@hellocoop/httpsig':
         specifier: ^2.6.0
         version: 2.6.0
@@ -356,8 +356,8 @@ importers:
   packages/introspection-aauth-resource:
     dependencies:
       '@aauth/resource':
-        specifier: ^3.0.0
-        version: 3.0.0
+        specifier: ^3.1.0
+        version: 3.1.0
       '@introspection-sdk/aauth-protocol':
         specifier: workspace:*
         version: link:../introspection-aauth-protocol
@@ -663,8 +663,8 @@ importers:
         specifier: ^4.1.1
         version: 4.1.1
       '@aauth/resource':
-        specifier: ^3.0.0
-        version: 3.0.0
+        specifier: ^3.1.0
+        version: 3.1.0
       '@earendil-works/pi-agent-core':
         specifier: ^0.99.2
         version: 0.99.2(@aws-sdk/credential-provider-node@3.972.84)(@modelcontextprotocol/sdk@1.32.2(@cfworker/json-schema@4.1.1)(zod@4.6.7))(@smithy/signature-v4@5.7.4)(undici@8.12.4)(ws@8.22.0)(zod@4.6.7)
@@ -773,8 +773,8 @@ packages:
   '@aauth/protocol@2.0.0':
     resolution: {integrity: sha512-xoAJfZnwgEZ21wFZYI6tNEvmKhTgKv4+ETkxP8knZsMaVOz42MXV9lvyPOGXCnZy+qu1Z3XQxXEsD82blPTqrg==}
 
-  '@aauth/resource@3.0.0':
-    resolution: {integrity: sha512-M5AVghZJhoEgxi5/xVdTlGEvD8hXT+/0PJQ1wylRLqFqTiJdf1VEJZEFHAT8aGMFrxB/rKmMx+nVa7xOZhCepw==}
+  '@aauth/resource@3.1.0':
+    resolution: {integrity: sha512-USBnZbtDbZTLw0hh7P/H4e0+MbPr7APanbsVYuMD1AEyoiHQJ8AW0QbVjL0jgf0X3EyauhlfPZmIutCVTQ5ivg==}
 
   '@ag-ui/core@0.0.59':
     resolution: {integrity: sha512-hDgy4ipTqXieT8YG8Mr917Y+FD/f11VK1GefZ5CwTDCuNqS/oTwjJ5l/DZkicThgS8hQW/Y7wPylPBMBJ8BkUg==}
@@ -1256,6 +1256,10 @@ packages:
 
   '@hellocoop/httpsig@2.6.0':
     resolution: {integrity: sha512-LS/teUB0LsbMJwTlYX2MlUs/P6GrJISuvYGeiRmIROyY7MACc32RdHHd9/UOpWNBnrfhs7RnYRT5VSjfZsIF4g==}
+    engines: {node: '>=18'}
+
+  '@hellocoop/httpsig@2.7.1':
+    resolution: {integrity: sha512-670ohV0WH36aFC9rS+h/FfJaOqVDRgzDLCmLa8jmkQI5R3zeNJagdFL2lZD3QtF/6PEx6k940m9gZ3TV1O1IxA==}
     engines: {node: '>=18'}
 
   '@hono/node-server@2.1.6':
@@ -5905,11 +5909,12 @@ snapshots:
     dependencies:
       '@hellocoop/httpsig': 2.6.0
 
-  '@aauth/resource@3.0.0':
+  '@aauth/resource@3.1.0':
     dependencies:
       '@aauth/interaction-code': 0.1.1
       '@aauth/protocol': 2.0.0
-      jose: 6.2.12
+      '@hellocoop/httpsig': 2.7.1
+      jose: 6.2.16
 
   '@ag-ui/core@0.0.59':
     dependencies:
@@ -6588,6 +6593,8 @@ snapshots:
       - utf-8-validate
 
   '@hellocoop/httpsig@2.6.0': {}
+
+  '@hellocoop/httpsig@2.7.1': {}
 
   '@hono/node-server@2.1.6(hono@4.13.17)':
     dependencies:
