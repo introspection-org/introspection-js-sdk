@@ -182,6 +182,10 @@ export function chatResponseAttributes(message: AssistantMessage): Attributes {
     attributes[GenAi.USAGE_CACHE_CREATION_INPUT_TOKENS] =
       message.usage.cacheWrite;
   }
+  const cacheWrite1h = message.usage.cacheWrite1h;
+  if (typeof cacheWrite1h === "number" && cacheWrite1h > 0) {
+    attributes[GenAi.USAGE_CACHE_CREATION_1H_INPUT_TOKENS] = cacheWrite1h;
+  }
   if (message.usage.cost?.total) {
     attributes[GenAi.COST_USD] = message.usage.cost.total;
   }
