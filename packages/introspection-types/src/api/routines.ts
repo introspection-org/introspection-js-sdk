@@ -194,10 +194,6 @@ export interface RoutineMetadata {
   conditions?: RoutineCondition[];
 }
 
-/**
- * A stored routine (`/v1/routines`, Data Plane): scheduled agent work,
- * or platform work when `kind` is set.
- */
 /** The budget pausing a routine, and when its period ends. */
 export interface RoutineBudgetExhausted {
   budget_id: Uuid;
@@ -205,6 +201,10 @@ export interface RoutineBudgetExhausted {
   until: IsoDate;
 }
 
+/**
+ * A stored routine (`/v1/routines`, Data Plane): scheduled agent work,
+ * or platform work when `kind` is set.
+ */
 export interface Routine {
   id: Uuid;
   org_id: Uuid;

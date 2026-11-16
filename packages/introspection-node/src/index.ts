@@ -302,6 +302,7 @@ export type {
   RoutineExecutionStatus,
   RoutineSkipReason,
   RoutineCondition,
+  RoutineBudgetExhausted,
   RoutineMetadata,
   RoutineCreateParams,
   RoutineUpdateParams,
