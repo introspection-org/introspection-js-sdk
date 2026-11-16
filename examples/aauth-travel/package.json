@@ -14,7 +14,7 @@
     "clean": "rm -rf .next .turbo node_modules"
   },
   "dependencies": {
-    "@aauth/resource": "^3.0.0",
+    "@aauth/resource": "^3.1.0",
     "@hellocoop/httpsig": "^2.6.0",
     "@introspection-sdk/aauth-resource": "workspace:*",
     "@introspection-sdk/introspection-node": "workspace:*",

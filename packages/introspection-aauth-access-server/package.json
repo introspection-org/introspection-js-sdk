@@ -32,7 +32,7 @@
     "check:package": "publint --strict && attw --pack . --profile esm-only"
   },
   "dependencies": {
-    "@aauth/resource": "^3.0.0",
+    "@aauth/resource": "^3.1.0",
     "@introspection-sdk/aauth-protocol": "workspace:*",
     "jose": "^6.2.12"
   },
