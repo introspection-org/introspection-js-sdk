@@ -301,6 +301,35 @@ describe("RoutinesApi", () => {
     expect(webhook.payload_fields).toEqual({ branch: ["main"] });
   });
 
+  it("sends a schedule's idle window, and an explicit null to clear it", async () => {
+    const http = mockHttp({ requestResult: ROUTINE_FIXTURE });
+    const routines = new RoutinesApi(http);
+
+    await routines.update(ROUTINE_ID, {
+      triggers: [
+        { type: "schedule", cron: "0 */6 * * *", member_idle_seconds: 172800 },
+        {
+          id: "0199a1b2-0000-7000-8000-000000000104",
+          type: "schedule",
+          cron: "0 9 * * 1",
+          member_idle_seconds: null,
+        },
+      ],
+    });
+
+    expect(calls(http)[0].body).toEqual({
+      triggers: [
+        { type: "schedule", cron: "0 */6 * * *", member_idle_seconds: 172800 },
+        {
+          id: "0199a1b2-0000-7000-8000-000000000104",
+          type: "schedule",
+          cron: "0 9 * * 1",
+          member_idle_seconds: null,
+        },
+      ],
+    });
+  });
+
   it("decodes a trigger type this SDK predates and keeps it on update", async () => {
     const jira: RoutineTrigger = {
       id: "0199a1b2-0000-7000-8000-000000000103",

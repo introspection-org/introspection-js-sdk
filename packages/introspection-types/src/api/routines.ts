@@ -44,7 +44,8 @@ export type RoutineExecutionStatus =
  * Why a scheduled slot or an event delivery ran nothing
  * (`introspection.routines.skipped`). Open-ended. `target_busy` means the
  * target task stayed mid-turn through every retry; `trigger_busy` that an
- * event trigger's previous run was still going.
+ * event trigger's previous run was still going; `member_idle` that the
+ * routine's member had sent nothing for a schedule's `member_idle_seconds`.
  */
 export type RoutineSkipReason =
   | "routine_deleted"
@@ -58,6 +59,7 @@ export type RoutineSkipReason =
   | "target_task_refused"
   | "target_busy"
   | "trigger_busy"
+  | "member_idle"
   | (string & Record<never, never>);
 
 /**
@@ -78,6 +80,14 @@ export interface RoutineScheduleTrigger {
   type: "schedule";
   cron: string;
   timezone?: string | null;
+  /**
+   * Skip a slot when the routine's member has had no turn in a conversation
+   * they started in the project for this many seconds (3600 to 31536000);
+   * unset or `null` runs every slot. A kept schedule (sent with its `id`) that
+   * leaves it out keeps its stored value; send `null` to clear it. Run now and
+   * event triggers are never skipped for it.
+   */
+  member_idle_seconds?: number | null;
 }
 
 /** `channel_ids` is required for `slack.message.posted`. */
