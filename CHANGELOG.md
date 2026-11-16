@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.54.0](https://github.com/introspection-org/introspection-js-sdk/compare/v0.53.0...v0.54.0) (2026-11-16)
+
+
+### Features
+
+* **pi:** record 1-hour prompt-cache writes ([#628](https://github.com/introspection-org/introspection-js-sdk/issues/628)) ([c1d1f2a](https://github.com/introspection-org/introspection-js-sdk/commit/c1d1f2a5707208f01ac4d0c95eb910ced493b406))
+* **routines:** a schedule trigger's member_idle_seconds and the member_idle skip reason ([#630](https://github.com/introspection-org/introspection-js-sdk/issues/630)) ([71d22ab](https://github.com/introspection-org/introspection-js-sdk/commit/71d22ab733319681a913a4eaad61a7c3481e0868))
+
 ## [0.53.0](https://github.com/introspection-org/introspection-js-sdk/compare/v0.52.0...v0.53.0) (2026-11-16)
 
 
