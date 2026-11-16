@@ -69,6 +69,13 @@ export interface Runtime {
    */
   yanked_at?: IsoDate | null;
   yanked_reason?: string | null;
+  /**
+   * When the runtime was turned off, which turns off every version of it;
+   * null while it is on.
+   */
+  disabled_at?: IsoDate | null;
+  /** Whether the runtime is on: `disabled_at` is null. Turning it off applies to every version of it. */
+  enabled?: boolean;
   /** The runtime's kind, as the Control Plane names it. */
   kind?: string | null;
   /** The runtime's configuration document. */

@@ -2715,6 +2715,8 @@
         "created_at": {},
         "created_by_member_id": {},
         "description": {},
+        "disabled_at": {},
+        "enabled": {},
         "environment_ref": {},
         "environments": { "type": "array" },
         "git_commit_sha": {},

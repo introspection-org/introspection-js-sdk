@@ -397,11 +397,13 @@ describe("strict decoding on", () => {
     await expect(strictGet("Issue", issue)).resolves.toEqual(issue);
   });
 
-  it("models runtime git_commit_sha and MCP requirements, org sign-in, issue warnings and the run caller's time zone", async () => {
+  it("models runtime enabled, disabled_at, git_commit_sha and MCP requirements, org sign-in, issue warnings and the run caller's time zone", async () => {
     const strictGet = <T>(schema: string, body: unknown) =>
       client(body, true).request<T>({ method: "GET", path: "/v1/x", schema });
     const runtime = {
       id: "rt1",
+      enabled: false,
+      disabled_at: "2026-11-06T00:00:00Z",
       git_commit_sha: "a".repeat(40),
       // Open: members beyond the declared ones are the image metadata as reported.
       image_build_metadata: {
