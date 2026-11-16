@@ -2551,7 +2551,7 @@
     },
     "RoutineSynthesis": {
       "type": "object",
-      "properties": { "batch": {}, "max_conversations": {} },
+      "properties": { "max_conversations": {} },
       "additionalProperties": false
     },
     "RoutineTriggerEventRef": {

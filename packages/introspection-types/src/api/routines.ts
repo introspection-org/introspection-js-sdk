@@ -210,8 +210,6 @@ export interface RoutineCondition {
 
 /** An `observation_synthesis` routine's settings. */
 export interface RoutineSynthesis {
-  /** Server default `true`. */
-  batch: boolean;
   /** The most conversations a batch run samples; null for the server default. */
   max_conversations?: number | null;
 }
@@ -280,7 +278,7 @@ export interface RoutineCreateParams {
   repositories?: TaskRepoRequest[];
   conditions?: RoutineCondition[];
   /** Only for `observation_synthesis`. */
-  synthesis?: Partial<RoutineSynthesis>;
+  synthesis?: RoutineSynthesis;
   /** Server default `true`. */
   enabled?: boolean;
   /**

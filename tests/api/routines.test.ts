@@ -366,14 +366,14 @@ describe("RoutinesApi", () => {
       task_id: TASK_ID,
       next_trigger_at: "2026-10-12T09:00:00Z",
       conditions: [],
-      synthesis: { batch: false, max_conversations: 50 },
+      synthesis: { max_conversations: 50 },
     });
 
     expect(calls(http)[0].body).toEqual({
       task_id: TASK_ID,
       next_trigger_at: "2026-10-12T09:00:00Z",
       conditions: [],
-      synthesis: { batch: false, max_conversations: 50 },
+      synthesis: { max_conversations: 50 },
     });
   });
 

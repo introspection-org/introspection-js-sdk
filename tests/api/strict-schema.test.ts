@@ -466,7 +466,7 @@ describe("strict decoding on", () => {
       id: "r1",
       repositories: [{ repo: "acme/app" }],
       conditions: [{ type: "has_new_tasks_since_last_run" }],
-      synthesis: { batch: true, max_conversations: null },
+      synthesis: { max_conversations: null },
       triggers: [
         { id: "t1", type: "schedule", cron: "0 9 * * 1-5", timezone: "UTC" },
         { id: "t2", type: "schedule", cron: "0 17 * * 5" },
@@ -523,6 +523,9 @@ describe("strict decoding on", () => {
           { id: "t1", type: "linear", event_types: [], team_ids: ["T1"] },
         ],
       }),
+    ).rejects.toBeInstanceOf(SchemaDriftError);
+    await expect(
+      strictGet({ id: "r1", synthesis: { batch: true } }),
     ).rejects.toBeInstanceOf(SchemaDriftError);
     await expect(
       strictGet({ id: "r1", budget_exhausted: null }),
