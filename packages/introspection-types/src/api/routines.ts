@@ -83,7 +83,7 @@ export interface RoutineScheduleTrigger {
   /**
    * Skip a slot when the routine's member has sent no message in the project
    * for this many seconds (3600 to 31536000); `null` runs every slot. Left
-   * out, a new schedule on a routine with `task_id` takes 7 days and a kept
+   * out, a new schedule on a routine with `task_id` takes 2 days and a kept
    * schedule (sent with its `id`) keeps its stored value. Run now and event
    * triggers are never skipped for it.
    */
