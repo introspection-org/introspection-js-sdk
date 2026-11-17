@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.56.0](https://github.com/introspection-org/introspection-js-sdk/compare/v0.55.0...v0.56.0) (2026-11-17)
+
+
+### Features
+
+* **files:** ttl_seconds on files.upload ([#633](https://github.com/introspection-org/introspection-js-sdk/issues/633)) ([f033c60](https://github.com/introspection-org/introspection-js-sdk/commit/f033c60db078390bd5c7df1b1974a4c5e4b826a5))
+
 ## [0.55.0](https://github.com/introspection-org/introspection-js-sdk/compare/v0.54.0...v0.55.0) (2026-11-17)
 
 
