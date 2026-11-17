@@ -476,6 +476,7 @@ function feedbackIpc(
 describe("EventsApi.list — routine families", () => {
   const ROUTINE_ID = "0199a1b2-0000-7000-8000-000000000001";
   const TASK_ID = "0199a1b2-0000-7000-8000-0000000000ee";
+  const RUN_ID = "0199a1b2-0000-7000-8000-0000000000f1";
 
   it("returns RoutineTriggeredEvent rows and sends routine_id / task_id", async () => {
     const http = mockHttp({
@@ -497,6 +498,7 @@ describe("EventsApi.list — routine families", () => {
               member_id: "member-1",
               runtime_group_id: "rg-1",
               triggered_by_member_id: null,
+              run_id: RUN_ID,
             },
           },
         ],
@@ -529,6 +531,7 @@ describe("EventsApi.list — routine families", () => {
     expect(ev.payload.posted).toBe(true);
     expect(ev.payload.member_id).toBe("member-1");
     expect(ev.payload.triggered_by_member_id).toBeNull();
+    expect(ev.payload.run_id).toBe(RUN_ID);
     expect(isKnownEvent(ev)).toBe(true);
     expect(narrowEvent(ev)).toBe("Weekly digest");
   });

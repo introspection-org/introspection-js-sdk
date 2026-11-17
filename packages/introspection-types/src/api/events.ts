@@ -320,6 +320,12 @@ export interface RoutineTriggeredPayload {
   triggered_by_member_id?: Uuid | null;
   /** The event trigger it answered; null for a scheduled or hand trigger. */
   event?: RoutineTriggerEventRef | null;
+  /**
+   * The run the trigger's turn executes on: the `introspection.run.id` its
+   * spans carry, so a routine's spend joins through `/v1/metrics`. Null on a
+   * row written before it was recorded.
+   */
+  run_id?: Uuid | null;
 }
 
 /**

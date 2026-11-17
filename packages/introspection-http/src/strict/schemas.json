@@ -2617,6 +2617,7 @@
         "prompt": {},
         "routine_id": {},
         "routine_name": {},
+        "run_id": {},
         "runtime_group_id": {},
         "slot": {},
         "task_id": {},
