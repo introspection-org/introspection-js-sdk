@@ -88,6 +88,20 @@ describe("browser FilesClient", () => {
     expect(call.path).toBe("/v1/files");
     expect(call.body).toBeInstanceOf(FormData);
     expect((call.body as FormData).get("name")).toBe("hi.txt");
+    expect((call.body as FormData).has("ttl_seconds")).toBe(false);
+  });
+
+  it("upload() sends ttl_seconds as a form field", async () => {
+    const http = mockHttp({ requestResult: FILE_FIXTURE });
+    const files = new FilesClient(http);
+    await files.upload({
+      file: new Blob(["hi"]),
+      name: "hi.txt",
+      ttl_seconds: 604800,
+    });
+
+    const call = (http.request as ReturnType<typeof vi.fn>).mock.calls[0][0];
+    expect((call.body as FormData).get("ttl_seconds")).toBe("604800");
   });
 
   it("createText() posts the JSON body", async () => {

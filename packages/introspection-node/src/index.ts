@@ -99,6 +99,7 @@ export type {
   ConversationExportFormat,
   ConversationExportResult,
   EventArrowParams,
+  FileCreateUploadBody,
   FileUploadBody,
   ListReadParams,
   StartParams,
