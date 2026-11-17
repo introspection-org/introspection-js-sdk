@@ -1,5 +1,5 @@
 /** Version information for the coding-agent capture package. */
-export const VERSION = "0.54.0"; // x-release-please-version
+export const VERSION = "0.55.0"; // x-release-please-version
 
 /**
  * `service.name` stamped on every span this package exports.
