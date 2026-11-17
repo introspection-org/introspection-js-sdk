@@ -53,7 +53,10 @@ export {
   FilesApi,
   FilesClient,
 } from "./resources/files.js";
-export type { FileUploadBody } from "./resources/files.js";
+export type {
+  FileCreateUploadBody,
+  FileUploadBody,
+} from "./resources/files.js";
 export {
   ConversationItemsApi,
   ConversationItemsClient,

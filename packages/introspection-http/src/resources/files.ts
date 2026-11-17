@@ -30,6 +30,16 @@ export type FileUploadBody =
       contentType?: string;
     } & FileUploadOptions);
 
+/** {@link FileUploadBody} for a new file, which can also be given a lifetime. */
+export type FileCreateUploadBody = FileUploadBody & {
+  /**
+   * Lifetime in seconds (1 to 2592000, 30 days), sent as the `ttl_seconds`
+   * form field: the file gains an `expires_at` and is deleted after it. Omit
+   * it and the file never expires.
+   */
+  ttl_seconds?: number;
+};
+
 export class FileVersionsClient {
   constructor(private readonly http: ResourceHttpClient) {}
 
@@ -90,8 +100,10 @@ export class FilesClient {
     );
   }
 
-  upload(body: FileUploadBody): Promise<FileResource> {
+  upload(body: FileCreateUploadBody): Promise<FileResource> {
     const form = toFormData(body);
+    if (body.ttl_seconds !== undefined)
+      form.append("ttl_seconds", String(body.ttl_seconds));
     return this.http.request<FileResource>({
       method: "POST",
       path: "/v1/files",

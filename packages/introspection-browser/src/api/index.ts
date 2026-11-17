@@ -56,6 +56,7 @@ export {
   SharesClient,
   type ConversationExportFormat,
   type ConversationExportResult,
+  type FileCreateUploadBody,
   type FileUploadBody,
 } from "@introspection-sdk/http";
 export {
