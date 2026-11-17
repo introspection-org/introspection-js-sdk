@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.55.0](https://github.com/introspection-org/introspection-js-sdk/compare/v0.54.0...v0.55.0) (2026-11-17)
+
+
+### Features
+
+* **events:** run_id on the routines.triggered payload ([#631](https://github.com/introspection-org/introspection-js-sdk/issues/631)) ([7373ddf](https://github.com/introspection-org/introspection-js-sdk/commit/7373ddf455c6649bbd555d885066e8998dcd7737))
+
 ## [0.54.0](https://github.com/introspection-org/introspection-js-sdk/compare/v0.53.0...v0.54.0) (2026-11-16)
 
 
