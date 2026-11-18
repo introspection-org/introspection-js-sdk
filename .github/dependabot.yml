@@ -80,6 +80,11 @@ updates:
         applies-to: security-updates
         patterns:
           - "*"
+    ignore:
+      # Track the oldest Node in `engines` (>=22), not the newest @types/node.
+      - dependency-name: "@types/node"
+        update-types:
+          - "version-update:semver-major"
 
   # ── GitHub Actions (used by ci.yml / publish.yml / tag.yml) ──
   - package-ecosystem: "github-actions"
