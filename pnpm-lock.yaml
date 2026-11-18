@@ -602,8 +602,8 @@ importers:
         specifier: ^1.10.0
         version: 1.10.0
       https-proxy-agent:
-        specifier: ^7.0.6
-        version: 7.0.6
+        specifier: ^9.1.0
+        version: 9.1.0
       proxy-from-env:
         specifier: ^2.1.0
         version: 2.1.0
