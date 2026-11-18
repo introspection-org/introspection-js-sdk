@@ -56,7 +56,7 @@ interface McpServer {
 
 /** A tool the host registered from an MCP server. */
 async function makeMcpServer(): Promise<McpServer> {
-  const { Type } = await import("@earendil-works/pi-ai");
+  const { Type } = await import("typebox");
   const origin: McpToolOrigin = {
     serverId: "cities",
     toolName: "lookup-timezone",

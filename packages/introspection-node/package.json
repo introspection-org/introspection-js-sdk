@@ -44,7 +44,7 @@
     "check:package": "publint --strict && attw --pack . --profile esm-only"
   },
   "devDependencies": {
-    "@earendil-works/pi-agent-core": "^0.99.2",
+    "@earendil-works/pi-agent-core": "^1.5.2",
     "@opentelemetry/api-logs": "^0.223.0",
     "@opentelemetry/context-async-hooks": "^2.12.1",
     "@opentelemetry/core": "^2.12.1",

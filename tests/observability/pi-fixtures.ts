@@ -48,7 +48,7 @@ export interface WeatherTool {
  * turn-2 request body embeds the tool result, and Polly matches on body.
  */
 export async function makeWeatherTool(): Promise<WeatherTool> {
-  const { Type } = await import("@earendil-works/pi-ai");
+  const { Type } = await import("typebox");
   const calls: string[] = [];
   const data: Record<string, string> = {
     Tokyo: "Clear, 25°C",

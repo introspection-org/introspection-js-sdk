@@ -23,7 +23,7 @@
  */
 
 import { Agent, type AgentTool } from "@earendil-works/pi-agent-core";
-import { Type } from "@earendil-works/pi-ai";
+import { Type } from "typebox";
 import { streamSimple } from "@earendil-works/pi-ai/compat";
 import { getBuiltinModel } from "@earendil-works/pi-ai/providers/all";
 import * as introspection from "@introspection-sdk/introspection-node/otel";
