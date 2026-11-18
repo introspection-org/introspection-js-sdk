@@ -16,6 +16,8 @@ updates:
     commit-message:
       prefix: "chore(deps)"
       include: "scope"
+    # Majors open PRs too, and dependabot-auto-merge.yml leaves them for a
+    # human: ignoring them hid every 0.0.x package that went 1.0 (@ag-ui/core).
     # Watch ALL workspace deps (production, dev, optional, peer). The grouping
     # config below is what does the curation — `allow: production` was
     # contradicting it and leaving the AI provider packages in
@@ -78,11 +80,6 @@ updates:
         applies-to: security-updates
         patterns:
           - "*"
-    ignore:
-      # Major bumps still produce alerts — but don't auto-PR; require a human.
-      - dependency-name: "*"
-        update-types:
-          - "version-update:semver-major"
 
   # ── GitHub Actions (used by ci.yml / publish.yml / tag.yml) ──
   - package-ecosystem: "github-actions"
