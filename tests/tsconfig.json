@@ -7,37 +7,41 @@
     "esModuleInterop": true,
     "skipLibCheck": true,
     "outDir": "./dist",
-    "baseUrl": "..",
+    "rootDir": "..",
     "paths": {
       "@introspection-sdk/introspection-node/otel/pi": [
-        "packages/introspection-node/src/otel/pi.ts"
+        "../packages/introspection-node/src/otel/pi.ts"
       ],
       "@introspection-sdk/introspection-node/otel": [
-        "packages/introspection-node/src/otel/index.ts"
+        "../packages/introspection-node/src/otel/index.ts"
       ],
       "@introspection-sdk/introspection-node": [
-        "packages/introspection-node/src/index.ts"
+        "../packages/introspection-node/src/index.ts"
       ],
       "@introspection-sdk/introspection-pi": [
-        "packages/introspection-pi/src/index.ts"
+        "../packages/introspection-pi/src/index.ts"
       ],
       "@introspection-sdk/introspection-browser/api": [
-        "packages/introspection-browser/src/api/index.ts"
+        "../packages/introspection-browser/src/api/index.ts"
       ],
       "@introspection-sdk/introspection-browser": [
-        "packages/introspection-browser/src/index.ts"
+        "../packages/introspection-browser/src/index.ts"
       ],
       "@introspection-sdk/introspection-proxy": [
-        "packages/introspection-proxy/src/index.ts"
+        "../packages/introspection-proxy/src/index.ts"
       ],
       "@introspection-sdk/coding-agent": [
-        "packages/introspection-coding-agent/src/index.ts"
+        "../packages/introspection-coding-agent/src/index.ts"
       ],
-      "@introspection-sdk/http": ["packages/introspection-http/src/index.ts"],
+      "@introspection-sdk/http": [
+        "../packages/introspection-http/src/index.ts"
+      ],
       "@introspection-sdk/types/logs": [
-        "packages/introspection-types/src/logs.ts"
+        "../packages/introspection-types/src/logs.ts"
       ],
-      "@introspection-sdk/types": ["packages/introspection-types/src/index.ts"]
+      "@introspection-sdk/types": [
+        "../packages/introspection-types/src/index.ts"
+      ]
     }
   },
   "include": ["./**/*.ts", "../packages/*/src/**/*.d.ts"]
