@@ -86,9 +86,9 @@ const recorded = fs.existsSync(
   `${RECORDINGS_DIR}/${RECORDING}/${BOOTSTRAP_FILE}`,
 );
 const runnable = mode === "replay" ? recorded : process.env.WALK_GITHUB === "1";
-const lane = runnable ? describe.sequential : describe.skip;
+const lane = runnable ? describe : describe.skip;
 
-lane("SDK walk: GitHub write-back", () => {
+lane("SDK walk: GitHub write-back", { concurrent: false }, () => {
   const steps = new Steps();
   let polly: Polly;
   let settings: WalkSettings;

@@ -23,7 +23,7 @@ updates:
     # contradicting it and leaving the AI provider packages in
     # tests/package.json devDependencies (and previously optionalDependencies)
     # unwatched, so they would drift indefinitely. Routine tooling bumps still
-    # flow but are consolidated into the `typescript-tooling` group below.
+    # flow but are consolidated into the groups below.
     allow:
       - dependency-type: "all"
     groups:
@@ -51,27 +51,23 @@ updates:
         patterns:
           - "@earendil-works/*"
 
-      # TypeScript / test toolchain.
-      typescript-tooling:
+      # Everything else lands in at most three weekly PRs. A group takes a
+      # dependency only if no group above it did, so otel and Pi stay apart.
+      dev-minor-patch:
         applies-to: version-updates
-        patterns:
-          - "typescript"
-          - "tsx"
-          - "vitest"
-          - "@types/*"
-          - "eslint"
-          - "@typescript-eslint/*"
-          - "prettier"
-      typescript-tooling-security:
-        applies-to: security-updates
-        patterns:
-          - "typescript"
-          - "tsx"
-          - "vitest"
-          - "@types/*"
-          - "eslint"
-          - "@typescript-eslint/*"
-          - "prettier"
+        dependency-type: "development"
+        update-types: ["minor", "patch"]
+      # Majors of dev tooling arrive together; one that cannot land yet goes
+      # in `ignore` below with its reason, so it never holds the rest back.
+      dev-major:
+        applies-to: version-updates
+        dependency-type: "development"
+        update-types: ["major"]
+      prod-minor-patch:
+        applies-to: version-updates
+        dependency-type: "production"
+        update-types: ["minor", "patch"]
+      # Production majors are left ungrouped: each changes what SDK users get.
 
       # Catch-all for any security alert not matching a more specific group —
       # rolls up everything else (transitive deps, optional peers, etc.) into
@@ -85,6 +81,14 @@ updates:
       - dependency-name: "@types/node"
         update-types:
           - "version-update:semver-major"
+      # Held until typescript-eslint supports it (its peer is <6.1.0).
+      - dependency-name: "typescript"
+        versions: [">=6.1.0"]
+      # Held until eslint-plugin-react, -import and -jsx-a11y accept ESLint 10.
+      - dependency-name: "eslint"
+        versions: [">=10"]
+      - dependency-name: "@eslint/js"
+        versions: [">=10"]
 
   # ── GitHub Actions (used by ci.yml / publish.yml / tag.yml) ──
   - package-ecosystem: "github-actions"
@@ -92,6 +96,9 @@ updates:
     schedule:
       interval: "monthly"
     open-pull-requests-limit: 5
+    groups:
+      github-actions:
+        patterns: ["*"]
     labels:
       - "dependencies"
       - "github-actions"
