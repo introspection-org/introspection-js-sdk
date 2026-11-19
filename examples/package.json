@@ -37,7 +37,7 @@
     "mcporter": "^0.17.1",
     "tsx": "^4.23.15",
     "typebox": "^1.4.7",
-    "typescript": "^5.9.3",
+    "typescript": "^7.0.2",
     "typesense": "^3.2.0"
   },
   "optionalDependencies": {
