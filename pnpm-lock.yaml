@@ -470,11 +470,14 @@ importers:
   packages/introspection-http:
     dependencies:
       '@ag-ui/core':
-        specifier: 0.0.59
-        version: 0.0.59
+        specifier: 1.0.5
+        version: 1.0.5(zod@4.6.7)
       '@introspection-sdk/types':
         specifier: workspace:*
         version: link:../introspection-types
+      zod:
+        specifier: 4.6.7
+        version: 4.6.7
     devDependencies:
       '@repo/eslint-config':
         specifier: workspace:*
@@ -627,8 +630,8 @@ importers:
   packages/introspection-types:
     dependencies:
       '@ag-ui/core':
-        specifier: 0.0.59
-        version: 0.0.59
+        specifier: 1.0.5
+        version: 1.0.5(zod@4.6.7)
     devDependencies:
       '@opentelemetry/api':
         specifier: ^1.10.0
@@ -776,8 +779,13 @@ packages:
   '@aauth/resource@3.1.0':
     resolution: {integrity: sha512-USBnZbtDbZTLw0hh7P/H4e0+MbPr7APanbsVYuMD1AEyoiHQJ8AW0QbVjL0jgf0X3EyauhlfPZmIutCVTQ5ivg==}
 
-  '@ag-ui/core@0.0.59':
-    resolution: {integrity: sha512-hDgy4ipTqXieT8YG8Mr917Y+FD/f11VK1GefZ5CwTDCuNqS/oTwjJ5l/DZkicThgS8hQW/Y7wPylPBMBJ8BkUg==}
+  '@ag-ui/core@1.0.5':
+    resolution: {integrity: sha512-W7xg7E/bVco3svYxZCp3CMqJ6/fB15U7yAaMS3mhLCwwlJXFzZJ/bGwMqnNrx6Afmj1WmnjFKzliYds+KFXMMQ==}
+    peerDependencies:
+      zod: ^3.25.18 || ^4.0.0
+    peerDependenciesMeta:
+      zod:
+        optional: true
 
   '@andrewbranch/untar.js@1.0.4':
     resolution: {integrity: sha512-pVXSwPsLuw8IGLo2Di0EaOfsk+ntVvpkk942J/sHYIkwvtKUakEcPh7HBgZ6tuimgzKSEHgCvO4XgQ05DEbwDw==}
@@ -5802,9 +5810,6 @@ packages:
     peerDependencies:
       zod: ^3.25.0 || ^4.0.0
 
-  zod@3.25.76:
-    resolution: {integrity: sha512-gzUt/qt81nXsFGKIFcC3YnfEAx5NkunCfnDlvuBSSFS02bcXu4Lmea0AFIUwbLWxWPx3d9p8S5QoaujKcNQxcQ==}
-
   zod@4.6.7:
     resolution: {integrity: sha512-g8W2D2kU6a8untc053fX1uVBKzM7yqAxW/3zwk83+6RyF2+SKOuV+c0wBDhUwzV1PaGapmZH+rmcUzPf+3CGwg==}
 
@@ -5831,9 +5836,9 @@ snapshots:
       '@hellocoop/httpsig': 2.7.1
       jose: 6.2.16
 
-  '@ag-ui/core@0.0.59':
-    dependencies:
-      zod: 3.25.76
+  '@ag-ui/core@1.0.5(zod@4.6.7)':
+    optionalDependencies:
+      zod: 4.6.7
 
   '@andrewbranch/untar.js@1.0.4': {}
 
@@ -11583,8 +11588,6 @@ snapshots:
   zod-validation-error@4.0.2(zod@4.6.7):
     dependencies:
       zod: 4.6.7
-
-  zod@3.25.76: {}
 
   zod@4.6.7: {}
 

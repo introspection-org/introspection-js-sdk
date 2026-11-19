@@ -79,12 +79,12 @@ describe("parseAgUiEvents", () => {
     expect(await collect(res)).toEqual([{ type: "NOPE", x: 1 }]);
   });
 
-  it("keeps a known event's schema defaults", async () => {
+  it("keeps a newer server's key on a known event", async () => {
     const res = textResponse(
-      'event: ag_ui\ndata: {"type":"TEXT_MESSAGE_START","messageId":"m"}\n\n',
+      'event: ag_ui\ndata: {"type":"TEXT_MESSAGE_START","messageId":"m","x":1}\n\n',
     );
     expect(await collect(res)).toEqual([
-      { type: "TEXT_MESSAGE_START", messageId: "m", role: "assistant" },
+      { type: "TEXT_MESSAGE_START", messageId: "m", x: 1 },
     ]);
   });
 

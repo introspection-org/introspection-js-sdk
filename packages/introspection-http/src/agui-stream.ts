@@ -1,4 +1,5 @@
-import { EventSchemas, type AGUIEvent } from "@ag-ui/core";
+import type { AGUIEvent } from "@ag-ui/core";
+import { EventSchema } from "@ag-ui/core/schemas";
 import { strictSchemaFromEnv } from "./strict/schema-key.js";
 
 export interface StreamFrame {
@@ -110,7 +111,7 @@ export function decodeAgUiEvent(
   payload: unknown,
   strict: boolean = strictSchemaFromEnv(),
 ): AGUIEvent {
-  const parsed = EventSchemas.safeParse(payload);
+  const parsed = EventSchema.safeParse(payload);
   if (parsed.success) return parsed.data;
   const isEvent =
     typeof (payload as { type?: unknown } | null)?.type === "string";

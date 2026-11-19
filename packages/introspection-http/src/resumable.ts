@@ -1,4 +1,5 @@
-import { EventSchemas, EventType, type AGUIEvent } from "@ag-ui/core";
+import { EventType, type AGUIEvent } from "@ag-ui/core";
+import { EventSchema } from "@ag-ui/core/schemas";
 import {
   IntrospectionAPIError,
   RateLimitError,
@@ -89,7 +90,7 @@ function phaseOf(body: unknown): string | null {
  * (`ev.type === EventType.CUSTOM && ev.name === "introspection.reconnect"`).
  */
 function reconnectEvent(value: Record<string, unknown>): AGUIEvent {
-  return EventSchemas.parse({
+  return EventSchema.parse({
     type: EventType.CUSTOM,
     name: "introspection.reconnect",
     value,

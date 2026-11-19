@@ -405,18 +405,6 @@ export class TranscriptAccumulator {
       case EventType.REASONING_MESSAGE_END:
       case EventType.REASONING_END:
         return;
-      // Compatibility input: legacy emitters stream thinking against the
-      // already-open assistant message rather than ahead of it.
-      case EventType.THINKING_TEXT_MESSAGE_CONTENT: {
-        const { delta } = fields;
-        if (this.lastAssistant) {
-          this.lastAssistant.thinking =
-            (this.lastAssistant.thinking ?? "") + delta;
-        } else {
-          this.pendingThinking += delta;
-        }
-        return;
-      }
       case EventType.MESSAGES_SNAPSHOT: {
         this.applyMessagesSnapshot(event);
         return;

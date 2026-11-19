@@ -40,8 +40,9 @@
     "typescript": "5.9.3"
   },
   "dependencies": {
-    "@ag-ui/core": "0.0.59",
-    "@introspection-sdk/types": "workspace:*"
+    "@ag-ui/core": "1.0.5",
+    "@introspection-sdk/types": "workspace:*",
+    "zod": "4.6.7"
   },
   "peerDependencies": {
     "apache-arrow": "^21.2.0"
