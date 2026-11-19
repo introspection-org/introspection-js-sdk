@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.57.1](https://github.com/introspection-org/introspection-js-sdk/compare/v0.57.0...v0.57.1) (2026-11-19)
+
+
+### Bug Fixes
+
+* **api:** model cloud 0.87's project previous_slugs and slug rename, simulate tasks, judgement scores and run messages ([#655](https://github.com/introspection-org/introspection-js-sdk/issues/655)) ([005dca1](https://github.com/introspection-org/introspection-js-sdk/commit/005dca10c8dbea555452922f8540ac471eaefc8f))
+
 ## [0.57.0](https://github.com/introspection-org/introspection-js-sdk/compare/v0.56.0...v0.57.0) (2026-11-19)
 
 
