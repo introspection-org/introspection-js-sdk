@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.57.0](https://github.com/introspection-org/introspection-js-sdk/compare/v0.56.0...v0.57.0) (2026-11-19)
+
+
+### ⚠ BREAKING CHANGES
+
+* **deps:** upgrade @ag-ui/core to 1.0.5 ([#636](https://github.com/introspection-org/introspection-js-sdk/issues/636))
+
+### Miscellaneous Chores
+
+* **deps:** upgrade @ag-ui/core to 1.0.5 ([#636](https://github.com/introspection-org/introspection-js-sdk/issues/636)) ([fc5013b](https://github.com/introspection-org/introspection-js-sdk/commit/fc5013bf987459ef21e06f767a779fcc22f7373b))
+
 ## [0.56.0](https://github.com/introspection-org/introspection-js-sdk/compare/v0.55.0...v0.56.0) (2026-11-17)
 
 
