@@ -1157,6 +1157,18 @@
       "type": "object",
       "properties": {
         "assignee_member_id": {},
+        "attachments": {
+          "type": "array",
+          "items": {
+            "anyOf": [
+              { "$ref": "#/$defs/IssueEventAttachment" },
+              { "$ref": "#/$defs/IssueFileAttachment" },
+              { "$ref": "#/$defs/IssueLinkAttachment" },
+              { "$ref": "#/$defs/IssueSpanAttachment" },
+              { "$ref": "#/$defs/IssueUnknownAttachment" }
+            ]
+          }
+        },
         "closed_at": {},
         "comments": {
           "type": "array",
@@ -1167,13 +1179,7 @@
         "description": {},
         "display_index": {},
         "display_key": {},
-        "events": {
-          "type": "array",
-          "items": { "$ref": "#/$defs/IssueEventReference" }
-        },
-        "files": { "type": "array", "items": { "$ref": "#/$defs/IssueFile" } },
         "id": {},
-        "links": { "type": "array", "items": { "$ref": "#/$defs/IssueLink" } },
         "member_id": {},
         "members": {
           "type": "array",
@@ -1185,10 +1191,6 @@
         "project_id": {},
         "reviewer_member_id": {},
         "revision": {},
-        "spans": {
-          "type": "array",
-          "items": { "$ref": "#/$defs/IssueSpanReference" }
-        },
         "status": {},
         "tags": { "type": "array" },
         "task_id": {},
@@ -1276,29 +1278,63 @@
       },
       "additionalProperties": false
     },
-    "IssueEventReference": {
+    "IssueEventAttachment": {
       "type": "object",
-      "properties": { "event_id": {} },
+      "properties": { "event_id": {}, "id": {}, "kind": { "const": "event" } },
       "additionalProperties": false
     },
     "IssueFieldChange": {
       "type": "object",
-      "properties": { "after": {}, "before": {} },
+      "properties": {
+        "added": {
+          "type": "array",
+          "items": {
+            "anyOf": [
+              { "$ref": "#/$defs/IssueEventAttachment" },
+              { "$ref": "#/$defs/IssueFileAttachment" },
+              { "$ref": "#/$defs/IssueLinkAttachment" },
+              { "$ref": "#/$defs/IssueSpanAttachment" },
+              { "$ref": "#/$defs/IssueUnknownAttachment" }
+            ]
+          }
+        },
+        "after": {},
+        "before": {},
+        "removed": {
+          "type": "array",
+          "items": {
+            "anyOf": [
+              { "$ref": "#/$defs/IssueEventAttachment" },
+              { "$ref": "#/$defs/IssueFileAttachment" },
+              { "$ref": "#/$defs/IssueLinkAttachment" },
+              { "$ref": "#/$defs/IssueSpanAttachment" },
+              { "$ref": "#/$defs/IssueUnknownAttachment" }
+            ]
+          }
+        }
+      },
       "additionalProperties": false
     },
-    "IssueFile": {
+    "IssueFileAttachment": {
       "type": "object",
       "properties": {
         "checksum": {},
         "file_id": {},
+        "id": {},
+        "kind": { "const": "file" },
         "name": {},
         "source_event_ids": { "type": "array" }
       },
       "additionalProperties": false
     },
-    "IssueLink": {
+    "IssueLinkAttachment": {
       "type": "object",
-      "properties": { "title": {}, "url": {} },
+      "properties": {
+        "id": {},
+        "kind": { "const": "link" },
+        "title": {},
+        "url": {}
+      },
       "additionalProperties": false
     },
     "IssueMember": {
@@ -1306,10 +1342,20 @@
       "properties": { "member_id": {}, "relation": {} },
       "additionalProperties": false
     },
-    "IssueSpanReference": {
+    "IssueSpanAttachment": {
       "type": "object",
-      "properties": { "span_id": {}, "trace_id": {} },
+      "properties": {
+        "id": {},
+        "kind": { "const": "span" },
+        "span_id": {},
+        "trace_id": {}
+      },
       "additionalProperties": false
+    },
+    "IssueUnknownAttachment": {
+      "type": "object",
+      "properties": { "id": {}, "kind": {} },
+      "additionalProperties": true
     },
     "IssueUpdatedPayload": {
       "type": "object",

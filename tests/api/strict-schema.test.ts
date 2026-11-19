@@ -297,7 +297,13 @@ describe("strict decoding on", () => {
       actor_member_id: "m2",
       actor_member_type: "agent",
     };
-    const changes = { status: { before: "open", after: "waiting" } };
+    const changes = {
+      status: { before: "open", after: "waiting" },
+      attachments: {
+        added: [{ id: "a1", kind: "link", url: "https://x.test/1" }],
+        removed: [{ id: "a2", kind: "span", trace_id: "t", span_id: "s" }],
+      },
+    };
     const payloads = [
       { ...base, action: "created", data: { title: "Checkout times out" } },
       { ...base, action: "updated", changes },

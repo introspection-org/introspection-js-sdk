@@ -335,6 +335,22 @@ describe("EventsApi.list — typed families (JSON)", () => {
             changes: {
               status: { before: "open", after: "waiting" },
               assignee_member_id: { after: "m-2" },
+              attachments: {
+                added: [
+                  {
+                    id: "0195fb1a-0000-7000-8000-0000000000d1",
+                    kind: "link",
+                    url: "https://github.com/acme/app/pull/7",
+                  },
+                ],
+                removed: [
+                  {
+                    id: "0195fb1a-0000-7000-8000-0000000000d2",
+                    kind: "event",
+                    event_id: "0195fb1a-0000-7000-8000-0000000000e1",
+                  },
+                ],
+              },
             },
           }),
           issue({
@@ -362,7 +378,7 @@ describe("EventsApi.list — typed families (JSON)", () => {
         case "created":
           return `created:${String(payload.data.title)}`;
         case "updated":
-          return `updated:${String(payload.changes.status?.after)}:${String(payload.changes.assignee_member_id?.before)}`;
+          return `updated:${String(payload.changes.status?.after)}:${String(payload.changes.assignee_member_id?.before)}:${payload.changes.attachments?.added?.map((a) => a.kind).join()}-${payload.changes.attachments?.removed?.map((a) => a.id).join()}`;
         case "commented":
           return `commented:${payload.comment}:${payload.actor_member_type}`;
         case "deleted":
@@ -373,7 +389,7 @@ describe("EventsApi.list — typed families (JSON)", () => {
     });
     expect(read).toEqual([
       "created:Checkout times out",
-      "updated:waiting:undefined",
+      "updated:waiting:undefined:link-0195fb1a-0000-7000-8000-0000000000d2",
       "commented:Can we raise the timeout?:agent",
       "deleted:1",
     ]);

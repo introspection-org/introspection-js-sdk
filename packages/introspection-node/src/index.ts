@@ -326,6 +326,15 @@ export type {
   RoutineTaskMetadata,
   EnqueuedConversation,
   Issue,
+  IssueAttachment,
+  IssueAttachmentCreate,
+  IssueEventAttachment,
+  IssueFileAttachment,
+  IssueLinkAttachment,
+  IssueSpanAttachment,
+  IssueUnknownAttachment,
+  KnownIssueAttachment,
+  KnownIssueAttachmentKind,
   IssueComment,
   IssueCommentCreateParams,
   IssueCreateParams,
@@ -534,6 +543,7 @@ export {
   genAiOutputMessages,
   isKnownEvent,
   isKnownRoutineTrigger,
+  isKnownIssueAttachment,
   issueEtag,
 } from "@introspection-sdk/types";
 export {

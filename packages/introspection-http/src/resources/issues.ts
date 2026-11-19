@@ -118,7 +118,9 @@ export class IssuesClient {
   /**
    * Edit an issue ({@link IssueUpdateParams}). Only the fields set are sent;
    * a list sent as `[]` clears it, and `assignee_member_id: null` or
-   * `reviewer_member_id: null` clears that person. Returns the updated issue.
+   * `reviewer_member_id: null` clears that person. `add_attachments` and
+   * `remove_attachments` change the evidence without reading the issue
+   * first. Returns the updated issue.
    */
   update(
     issueId: Uuid,

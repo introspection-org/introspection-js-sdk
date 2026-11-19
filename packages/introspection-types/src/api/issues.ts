@@ -19,8 +19,7 @@ export type IssueMemberRelation =
 
 /**
  * A related list to return with an issue: `members` adds `members`,
- * `attachments` adds `links`, `files`, `events` and `spans`, and `comments`
- * adds `comments`. A list that is not included is null.
+ * `attachments` adds `attachments`, and `comments` adds `comments`. A list that is not included is null.
  */
 export type IssueInclude = "members" | "attachments" | "comments";
 
@@ -64,6 +63,84 @@ export interface IssueSpanReference {
   /** 16 hex characters. */
   span_id: string;
 }
+
+/** A link attachment, as read. */
+export interface IssueLinkAttachment extends IssueLink {
+  /** The attachment's id; pass it to `remove_attachments`. */
+  id: Uuid;
+  kind: "link";
+}
+
+/** A file attachment, as read. */
+export interface IssueFileAttachment extends IssueFile {
+  /** The attachment's id; pass it to `remove_attachments`. */
+  id: Uuid;
+  kind: "file";
+}
+
+/** An event attachment, as read. */
+export interface IssueEventAttachment extends IssueEventReference {
+  /** The attachment's id; pass it to `remove_attachments`. */
+  id: Uuid;
+  kind: "event";
+}
+
+/** A span attachment, as read. */
+export interface IssueSpanAttachment extends IssueSpanReference {
+  /** The attachment's id; pass it to `remove_attachments`. */
+  id: Uuid;
+  kind: "span";
+}
+
+/**
+ * An attachment of a `kind` this SDK version predates, as the server sent it.
+ *
+ * @openSchema
+ */
+export interface IssueUnknownAttachment {
+  id: Uuid;
+  kind: string;
+  [key: string]: unknown;
+}
+
+export type KnownIssueAttachment =
+  | IssueLinkAttachment
+  | IssueFileAttachment
+  | IssueEventAttachment
+  | IssueSpanAttachment;
+
+export type KnownIssueAttachmentKind = KnownIssueAttachment["kind"];
+
+/**
+ * One piece of an issue's evidence, as read, discriminated on `kind`. Narrow
+ * with {@link isKnownIssueAttachment} before switching on `kind`.
+ */
+export type IssueAttachment = KnownIssueAttachment | IssueUnknownAttachment;
+
+const KNOWN_ISSUE_ATTACHMENT_KINDS: readonly string[] = [
+  "link",
+  "file",
+  "event",
+  "span",
+] satisfies KnownIssueAttachmentKind[];
+
+/** True when `attachment` is of a `kind` this SDK version models. */
+export function isKnownIssueAttachment(
+  attachment: IssueAttachment,
+): attachment is KnownIssueAttachment {
+  return KNOWN_ISSUE_ATTACHMENT_KINDS.includes(attachment.kind);
+}
+
+/**
+ * An attachment to add to an issue. The server assigns its `id` and skips one
+ * the issue already holds, by identity: a link's `url`, a file's `file_id`,
+ * an event's `event_id`, a span's `trace_id` and `span_id`.
+ */
+export type IssueAttachmentCreate =
+  | ({ kind: "link" } & IssueLink)
+  | ({ kind: "file" } & IssueFile)
+  | ({ kind: "event" } & IssueEventReference)
+  | ({ kind: "span" } & IssueSpanReference);
 
 /** One person on an issue. */
 export interface IssueMember {
@@ -130,14 +207,11 @@ export interface Issue {
    * reviewer, and the followers in the order they were added.
    */
   members: IssueMember[] | null;
-  /** With `include: ["attachments"]`. */
-  files: IssueFile[] | null;
-  /** With `include: ["attachments"]`. */
-  links: IssueLink[] | null;
-  /** With `include: ["attachments"]`. */
-  events: IssueEventReference[] | null;
-  /** With `include: ["attachments"]`. */
-  spans: IssueSpanReference[] | null;
+  /**
+   * With `include: ["attachments"]`: the issue's evidence in the order it
+   * was added.
+   */
+  attachments: IssueAttachment[] | null;
   /**
    * With `include: ["comments"]` on `issues.get()`: the comments, oldest
    * first, at most 500. Page the issue's events for more.
@@ -178,10 +252,8 @@ export interface IssueCreateParams {
   priority?: IssuePriority;
   tags?: string[];
   metadata?: Record<string, IssueMetadataValue>;
-  files?: IssueFile[];
-  links?: IssueLink[];
-  events?: IssueEventReference[];
-  spans?: IssueSpanReference[];
+  /** The issue's evidence, in order. */
+  attachments?: IssueAttachmentCreate[];
   /** The member to assign the issue to. */
   assignee_member_id?: Uuid;
   /** The member to review the issue. */
@@ -192,9 +264,10 @@ export interface IssueCreateParams {
 
 /**
  * Edit an issue's brief (`PATCH /v1/issues/{id}`). Only the fields set are
- * sent and an omitted one is unchanged. Each list, and `metadata`, replaces
- * the stored value wholesale: `[]` (or `{}`) clears it, so leave a field out
- * to keep it.
+ * sent and an omitted one is unchanged. `tags`, `metadata` and the followers
+ * replace the stored value wholesale: `[]` (or `{}`) clears it, so leave a
+ * field out to keep it. Evidence changes by `add_attachments` and
+ * `remove_attachments`, which need no `ifMatch`.
  */
 export interface IssueUpdateParams {
   title?: string;
@@ -203,10 +276,16 @@ export interface IssueUpdateParams {
   status?: IssueStatus;
   tags?: string[];
   metadata?: Record<string, IssueMetadataValue>;
-  files?: IssueFile[];
-  links?: IssueLink[];
-  events?: IssueEventReference[];
-  spans?: IssueSpanReference[];
+  /**
+   * Appends, in order, the attachments the issue does not hold yet; one it
+   * holds already is skipped.
+   */
+  add_attachments?: IssueAttachmentCreate[];
+  /**
+   * Removes the attachments with these ids; an id the issue does not hold is
+   * ignored.
+   */
+  remove_attachments?: Uuid[];
   /** Replaces the assignee; `null` unassigns the issue; omitted leaves it. */
   assignee_member_id?: Uuid | null;
   /** Replaces the reviewer; `null` clears it; omitted leaves it. */
