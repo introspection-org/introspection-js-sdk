@@ -62,7 +62,7 @@ const recorded = fs.existsSync(
   `${RECORDINGS_DIR}/${RECORDING}/${BOOTSTRAP_FILE}`,
 );
 const runnable = mode === "replay" ? recorded : process.env.WALK_AAUTH === "1";
-const lane = runnable ? describe.sequential : describe.skip;
+const lane = runnable ? describe : describe.skip;
 
 interface PersonServerMetadata {
   issuer: string;
@@ -249,317 +249,328 @@ async function newAgent(): Promise<Agent> {
   };
 }
 
-lane("SDK walk: AAuth on the hosted Person Server", () => {
-  const steps = new Steps();
-  let polly: Polly;
-  let settings: WalkSettings;
-  let member: IntrospectionClient;
-  let project: Project;
-  let parties: Server[] = [];
-  let tenant: string;
-  let ps: PersonServerMetadata;
-  let agent: Agent;
-  let mission: { s256: string; mission: string };
+lane(
+  "SDK walk: AAuth on the hosted Person Server",
+  { concurrent: false },
+  () => {
+    const steps = new Steps();
+    let polly: Polly;
+    let settings: WalkSettings;
+    let member: IntrospectionClient;
+    let project: Project;
+    let parties: Server[] = [];
+    let tenant: string;
+    let ps: PersonServerMetadata;
+    let agent: Agent;
+    let mission: { s256: string; mission: string };
 
-  const person = () => `walk-${settings.run}@example.com`;
-  const identity = () => ({ login_hint: `user:${person()}`, tenant });
+    const person = () => `walk-${settings.run}@example.com`;
+    const identity = () => ({ login_hint: `user:${person()}`, tenant });
 
-  async function missionCall(url: string, body: Record<string, unknown>) {
-    return agent.fetch(url, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify(body),
-    });
-  }
+    async function missionCall(url: string, body: Record<string, unknown>) {
+      return agent.fetch(url, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(body),
+      });
+    }
 
-  async function settle(url: string, pending: Response) {
-    if (pending.status !== 202) return { response: pending, error: undefined };
-    return pollDeferred({
-      signedFetch: agent.fetch,
-      locationUrl: new URL(pending.headers.get("location")!, url).toString(),
-      maxPollDuration: POLL_SECONDS,
-    });
-  }
+    async function settle(url: string, pending: Response) {
+      if (pending.status !== 202)
+        return { response: pending, error: undefined };
+      return pollDeferred({
+        signedFetch: agent.fetch,
+        locationUrl: new URL(pending.headers.get("location")!, url).toString(),
+        maxPollDuration: POLL_SECONDS,
+      });
+    }
 
-  /** The pending approval of `kind` a check names: by description, or by the mission it is for. */
-  async function pendingApproval(
-    kind: "mission" | "auth_token" | "completion",
-    named: { description: string } | { s256: string },
-  ): Promise<Approval> {
-    const deadline = Date.now() + POLL_SECONDS * 1000;
-    let missionId: string | undefined;
-    for (;;) {
-      if ("s256" in named && !missionId)
-        for await (const m of member.missions.list())
-          if (m.s256 === named.s256) missionId = m.id;
-      for await (const a of member.approvals.list({
-        status: ["pending"],
-        kind,
-        ...(missionId ? { mission_id: missionId } : {}),
-      }))
-        if (
-          "description" in named
-            ? a.description === named.description
-            : Boolean(missionId)
-        )
-          return a;
-      if (Date.now() > deadline)
-        throw new Error(
-          `no pending ${kind} approval for ${JSON.stringify(named)}`,
+    /** The pending approval of `kind` a check names: by description, or by the mission it is for. */
+    async function pendingApproval(
+      kind: "mission" | "auth_token" | "completion",
+      named: { description: string } | { s256: string },
+    ): Promise<Approval> {
+      const deadline = Date.now() + POLL_SECONDS * 1000;
+      let missionId: string | undefined;
+      for (;;) {
+        if ("s256" in named && !missionId)
+          for await (const m of member.missions.list())
+            if (m.s256 === named.s256) missionId = m.id;
+        for await (const a of member.approvals.list({
+          status: ["pending"],
+          kind,
+          ...(missionId ? { mission_id: missionId } : {}),
+        }))
+          if (
+            "description" in named
+              ? a.description === named.description
+              : Boolean(missionId)
+          )
+            return a;
+        if (Date.now() > deadline)
+          throw new Error(
+            `no pending ${kind} approval for ${JSON.stringify(named)}`,
+          );
+        await new Promise((resolve) =>
+          setTimeout(resolve, mode === "replay" ? 0 : 500),
         );
-      await new Promise((resolve) =>
-        setTimeout(resolve, mode === "replay" ? 0 : 500),
-      );
+      }
     }
-  }
 
-  function act(amount: number, label: string) {
-    const fetchAs = createAAuthFetch({
-      getKeyMaterial: agent.keyMaterial,
-      personServerUrl: AAUTH.personServer,
-      loginHint: identity().login_hint,
-      tenant,
-      missionS256: mission.s256,
-      maxPollDuration: POLL_SECONDS,
-    });
-    return fetchAs(`${AAUTH.resource}/v1/act`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ amount, label }),
-    });
-  }
-
-  beforeAll(async () => {
-    polly = setupPolly({ recordingName: RECORDING, ordered: true });
-    settings = walkSettings(mode);
-    if (mode === "replay") {
-      const bootstrap = JSON.parse(
-        fs.readFileSync(
-          `${RECORDINGS_DIR}/${RECORDING}/${BOOTSTRAP_FILE}`,
-          "utf8",
-        ),
-      ) as { project_id: string; run: string };
-      settings = {
-        ...settings,
-        bootstrapProjectId: bootstrap.project_id,
-        run: bootstrap.run,
-      };
-    } else {
-      parties = await startParties();
+    function act(amount: number, label: string) {
+      const fetchAs = createAAuthFetch({
+        getKeyMaterial: agent.keyMaterial,
+        personServerUrl: AAUTH.personServer,
+        loginHint: identity().login_hint,
+        tenant,
+        missionS256: mission.s256,
+        maxPollDuration: POLL_SECONDS,
+      });
+      return fetchAs(`${AAUTH.resource}/v1/act`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ amount, label }),
+      });
     }
-    agent = await newAgent();
-  }, STEP_TIMEOUT);
 
-  afterAll(async () => {
-    for (const server of parties) server.close();
-    await polly?.stop();
-  }, STEP_TIMEOUT);
-
-  it(
-    "0: the login's project, and its member on the Data Plane",
-    async (ctx) => {
-      await steps.run(ctx, "setup", async () => {
-        const owner = new IntrospectionClient({
-          cpSession: settings.cpSession,
-          advanced: { baseApiUrl: settings.baseApiUrl },
-        });
-        project = await owner.projects.get(settings.bootstrapProjectId!);
-        if (mode === "record") {
-          fs.mkdirSync(`${RECORDINGS_DIR}/${RECORDING}`, { recursive: true });
-          fs.writeFileSync(
+    beforeAll(async () => {
+      polly = setupPolly({ recordingName: RECORDING, ordered: true });
+      settings = walkSettings(mode);
+      if (mode === "replay") {
+        const bootstrap = JSON.parse(
+          fs.readFileSync(
             `${RECORDINGS_DIR}/${RECORDING}/${BOOTSTRAP_FILE}`,
-            JSON.stringify({ project_id: project.id, run: settings.run }) +
-              "\n",
-          );
-        }
-        const minted = await owner.tokens.create({
-          project: project.id,
-          expires_hours: 24,
-        });
-        member = new IntrospectionClient({
-          token: minted.access_token,
-          advanced: {
-            baseApiUrl: settings.baseApiUrl,
-            dpUrl: settings.dpUrl ?? undefined,
-          },
-        });
-        tenant = `${project.org_id}:${project.id}`;
-      });
-    },
-    STEP_TIMEOUT,
-  );
-
-  it(
-    "1: discovery — the Person Server's metadata and signing keys",
-    async (ctx) => {
-      await steps.run(ctx, "discovery", async () => {
-        const response = await fetch(
-          `${AAUTH.personServer}/.well-known/aauth-person.json`,
-        );
-        expect(response.status).toBe(200);
-        ps = (await response.json()) as PersonServerMetadata;
-        expect(ps.issuer).toBe(AAUTH.personServer);
-        for (const endpoint of [
-          ps.mission_endpoint,
-          ps.person_token_endpoint,
-          ps.auth_token_endpoint,
-        ])
-          expect(endpoint).toMatch(
-            new RegExp(`^${AAUTH.personServer}/v1/aauth/person-server/`),
-          );
-        const jwks = (await (await fetch(ps.jwks_uri)).json()) as {
-          keys: unknown[];
+            "utf8",
+          ),
+        ) as { project_id: string; run: string };
+        settings = {
+          ...settings,
+          bootstrapProjectId: bootstrap.project_id,
+          run: bootstrap.run,
         };
-        expect(jwks.keys.length).toBeGreaterThan(0);
-      });
-    },
-    STEP_TIMEOUT,
-  );
+      } else {
+        parties = await startParties();
+      }
+      agent = await newAgent();
+    }, STEP_TIMEOUT);
 
-  it(
-    "2: a mission — proposed, approved with a budget, and read back",
-    async (ctx) => {
-      await steps.run(ctx, "mission", async () => {
-        const description = `SDK walk mission ${settings.run}`;
-        const pending = await missionCall(ps.mission_endpoint, {
-          description,
-          resources: [AAUTH.resource],
-          ...identity(),
-        });
-        expect(pending.status).toBe(202);
-        const approval = await pendingApproval("mission", { description });
-        expect(approval.kind).toBe("mission");
-        expect((await member.approvals.get(approval.id)).status).toBe(
-          "pending",
-        );
-        const decided = await member.approvals.update(approval.id, {
-          status: "approved",
-          budget: { amount: AAUTH.budgetCents, ...USD },
-          decided_by: {
-            identity: { user_id: `walk-approver-${settings.run}` },
-          },
-        });
-        expect(decided.status).toBe("approved");
-        const { response, error } = await settle(ps.mission_endpoint, pending);
-        expect(error, JSON.stringify(error)).toBeUndefined();
-        mission = (await response!.json()) as typeof mission;
-        const bytes = Buffer.from(mission.mission, "base64url");
-        expect(createHash("sha256").update(bytes).digest("base64url")).toBe(
-          mission.s256,
-        );
-        let row: { id: string } | undefined;
-        for await (const m of member.missions.list())
-          if (m.s256 === mission.s256) row = m;
-        expect(row, "the missions list shows it").toBeTruthy();
-        const read = await member.missions.get(row!.id);
-        expect(read.budget?.amount).toBe(AAUTH.budgetCents);
-        expect(read.resources).toContain(AAUTH.resource);
-        expect(read.completed_at ?? null).toBeNull();
-      });
-    },
-    STEP_TIMEOUT,
-  );
+    afterAll(async () => {
+      for (const server of parties) server.close();
+      await polly?.stop();
+    }, STEP_TIMEOUT);
 
-  it(
-    "3: within the budget, the resource is reached with no one asked",
-    async (ctx) => {
-      await steps.run(ctx, "within budget", async () => {
-        const response = await act(500, `within ${settings.run}`);
-        const body = (await response.json()) as {
-          ok?: boolean;
-          mission_s256?: string;
-        };
-        expect(response.status, JSON.stringify(body)).toBe(200);
-        expect(body.mission_s256).toBe(mission.s256);
-      });
-    },
-    STEP_TIMEOUT,
-  );
-
-  it(
-    "4: over what is left of the budget, the person is asked again",
-    async (ctx) => {
-      await steps.run(ctx, "over budget", async () => {
-        const call = act(AAUTH.budgetCents, `over ${settings.run}`);
-        const approval = await pendingApproval("auth_token", {
-          s256: mission.s256,
-        });
-        expect(approval.resource).toBe(AAUTH.resource);
-        await member.approvals.update(approval.id, {
-          status: "approved",
-          decided_by: {
-            identity: { user_id: `walk-approver-${settings.run}` },
-          },
-        });
-        const response = await call;
-        expect(response.status).toBe(200);
-      });
-    },
-    STEP_TIMEOUT,
-  );
-
-  it(
-    "5: a person token, then the mission completes and refuses another",
-    async (ctx) => {
-      await steps.run(ctx, "completion", async () => {
-        const personToken = () =>
-          agent.fetch(ps.person_token_endpoint, {
-            method: "POST",
-            headers: { "content-type": "application/json" },
-            body: JSON.stringify({
-              resource: AAUTH.resource,
-              mission_s256: mission.s256,
-              ...identity(),
-            }),
+    it(
+      "0: the login's project, and its member on the Data Plane",
+      async (ctx) => {
+        await steps.run(ctx, "setup", async () => {
+          const owner = new IntrospectionClient({
+            cpSession: settings.cpSession,
+            advanced: { baseApiUrl: settings.baseApiUrl },
           });
-        expect((await personToken()).status).toBe(200);
-        const completion = `${ps.mission_endpoint}/${mission.s256}`;
-        const pending = await missionCall(completion, {
-          action: "completion",
-          summary: `SDK walk done ${settings.run}`,
-          tenant,
+          project = await owner.projects.get(settings.bootstrapProjectId!);
+          if (mode === "record") {
+            fs.mkdirSync(`${RECORDINGS_DIR}/${RECORDING}`, { recursive: true });
+            fs.writeFileSync(
+              `${RECORDINGS_DIR}/${RECORDING}/${BOOTSTRAP_FILE}`,
+              JSON.stringify({ project_id: project.id, run: settings.run }) +
+                "\n",
+            );
+          }
+          const minted = await owner.tokens.create({
+            project: project.id,
+            expires_hours: 24,
+          });
+          member = new IntrospectionClient({
+            token: minted.access_token,
+            advanced: {
+              baseApiUrl: settings.baseApiUrl,
+              dpUrl: settings.dpUrl ?? undefined,
+            },
+          });
+          tenant = `${project.org_id}:${project.id}`;
         });
-        if (pending.status === 202) {
-          const approval = await pendingApproval("completion", {
+      },
+      STEP_TIMEOUT,
+    );
+
+    it(
+      "1: discovery — the Person Server's metadata and signing keys",
+      async (ctx) => {
+        await steps.run(ctx, "discovery", async () => {
+          const response = await fetch(
+            `${AAUTH.personServer}/.well-known/aauth-person.json`,
+          );
+          expect(response.status).toBe(200);
+          ps = (await response.json()) as PersonServerMetadata;
+          expect(ps.issuer).toBe(AAUTH.personServer);
+          for (const endpoint of [
+            ps.mission_endpoint,
+            ps.person_token_endpoint,
+            ps.auth_token_endpoint,
+          ])
+            expect(endpoint).toMatch(
+              new RegExp(`^${AAUTH.personServer}/v1/aauth/person-server/`),
+            );
+          const jwks = (await (await fetch(ps.jwks_uri)).json()) as {
+            keys: unknown[];
+          };
+          expect(jwks.keys.length).toBeGreaterThan(0);
+        });
+      },
+      STEP_TIMEOUT,
+    );
+
+    it(
+      "2: a mission — proposed, approved with a budget, and read back",
+      async (ctx) => {
+        await steps.run(ctx, "mission", async () => {
+          const description = `SDK walk mission ${settings.run}`;
+          const pending = await missionCall(ps.mission_endpoint, {
+            description,
+            resources: [AAUTH.resource],
+            ...identity(),
+          });
+          expect(pending.status).toBe(202);
+          const approval = await pendingApproval("mission", { description });
+          expect(approval.kind).toBe("mission");
+          expect((await member.approvals.get(approval.id)).status).toBe(
+            "pending",
+          );
+          const decided = await member.approvals.update(approval.id, {
+            status: "approved",
+            budget: { amount: AAUTH.budgetCents, ...USD },
+            decided_by: {
+              identity: { user_id: `walk-approver-${settings.run}` },
+            },
+          });
+          expect(decided.status).toBe("approved");
+          const { response, error } = await settle(
+            ps.mission_endpoint,
+            pending,
+          );
+          expect(error, JSON.stringify(error)).toBeUndefined();
+          mission = (await response!.json()) as typeof mission;
+          const bytes = Buffer.from(mission.mission, "base64url");
+          expect(createHash("sha256").update(bytes).digest("base64url")).toBe(
+            mission.s256,
+          );
+          let row: { id: string } | undefined;
+          for await (const m of member.missions.list())
+            if (m.s256 === mission.s256) row = m;
+          expect(row, "the missions list shows it").toBeTruthy();
+          const read = await member.missions.get(row!.id);
+          expect(read.budget?.amount).toBe(AAUTH.budgetCents);
+          expect(read.resources).toContain(AAUTH.resource);
+          expect(read.completed_at ?? null).toBeNull();
+        });
+      },
+      STEP_TIMEOUT,
+    );
+
+    it(
+      "3: within the budget, the resource is reached with no one asked",
+      async (ctx) => {
+        await steps.run(ctx, "within budget", async () => {
+          const response = await act(500, `within ${settings.run}`);
+          const body = (await response.json()) as {
+            ok?: boolean;
+            mission_s256?: string;
+          };
+          expect(response.status, JSON.stringify(body)).toBe(200);
+          expect(body.mission_s256).toBe(mission.s256);
+        });
+      },
+      STEP_TIMEOUT,
+    );
+
+    it(
+      "4: over what is left of the budget, the person is asked again",
+      async (ctx) => {
+        await steps.run(ctx, "over budget", async () => {
+          const call = act(AAUTH.budgetCents, `over ${settings.run}`);
+          const approval = await pendingApproval("auth_token", {
             s256: mission.s256,
           });
-          // Only the person the mission is for accepts its completion.
+          expect(approval.resource).toBe(AAUTH.resource);
           await member.approvals.update(approval.id, {
             status: "approved",
-            decided_by: { identity: { user_id: person() } },
+            decided_by: {
+              identity: { user_id: `walk-approver-${settings.run}` },
+            },
           });
-        }
-        const { response, error } = await settle(completion, pending);
-        expect(error, JSON.stringify(error)).toBeUndefined();
-        expect(response?.status).toBe(200);
-        expect((await personToken()).status).toBe(403);
-      });
-    },
-    STEP_TIMEOUT,
-  );
+          const response = await call;
+          expect(response.status).toBe(200);
+        });
+      },
+      STEP_TIMEOUT,
+    );
 
-  it(
-    "6: a mission the person denies never starts",
-    async (ctx) => {
-      await steps.run(ctx, "denied", async () => {
-        const description = `SDK walk mission ${settings.run} (denied)`;
-        const pending = await missionCall(ps.mission_endpoint, {
-          description,
-          resources: [AAUTH.resource],
-          ...identity(),
+    it(
+      "5: a person token, then the mission completes and refuses another",
+      async (ctx) => {
+        await steps.run(ctx, "completion", async () => {
+          const personToken = () =>
+            agent.fetch(ps.person_token_endpoint, {
+              method: "POST",
+              headers: { "content-type": "application/json" },
+              body: JSON.stringify({
+                resource: AAUTH.resource,
+                mission_s256: mission.s256,
+                ...identity(),
+              }),
+            });
+          expect((await personToken()).status).toBe(200);
+          const completion = `${ps.mission_endpoint}/${mission.s256}`;
+          const pending = await missionCall(completion, {
+            action: "completion",
+            summary: `SDK walk done ${settings.run}`,
+            tenant,
+          });
+          if (pending.status === 202) {
+            const approval = await pendingApproval("completion", {
+              s256: mission.s256,
+            });
+            // Only the person the mission is for accepts its completion.
+            await member.approvals.update(approval.id, {
+              status: "approved",
+              decided_by: { identity: { user_id: person() } },
+            });
+          }
+          const { response, error } = await settle(completion, pending);
+          expect(error, JSON.stringify(error)).toBeUndefined();
+          expect(response?.status).toBe(200);
+          expect((await personToken()).status).toBe(403);
         });
-        expect(pending.status).toBe(202);
-        const approval = await pendingApproval("mission", { description });
-        await member.approvals.update(approval.id, {
-          status: "denied",
-          decided_by: {
-            identity: { user_id: `walk-approver-${settings.run}` },
-          },
+      },
+      STEP_TIMEOUT,
+    );
+
+    it(
+      "6: a mission the person denies never starts",
+      async (ctx) => {
+        await steps.run(ctx, "denied", async () => {
+          const description = `SDK walk mission ${settings.run} (denied)`;
+          const pending = await missionCall(ps.mission_endpoint, {
+            description,
+            resources: [AAUTH.resource],
+            ...identity(),
+          });
+          expect(pending.status).toBe(202);
+          const approval = await pendingApproval("mission", { description });
+          await member.approvals.update(approval.id, {
+            status: "denied",
+            decided_by: {
+              identity: { user_id: `walk-approver-${settings.run}` },
+            },
+          });
+          const { response, error } = await settle(
+            ps.mission_endpoint,
+            pending,
+          );
+          expect(Boolean(error) || response?.ok === false).toBe(true);
         });
-        const { response, error } = await settle(ps.mission_endpoint, pending);
-        expect(Boolean(error) || response?.ok === false).toBe(true);
-      });
-    },
-    STEP_TIMEOUT,
-  );
-});
+      },
+      STEP_TIMEOUT,
+    );
+  },
+);

@@ -164,9 +164,9 @@ const APPLICATION_SCOPES = [
 const replayable =
   mode !== "replay" || hasCompleteRecording(RECORDINGS_DIR, RECORDING);
 
-const walk = replayable ? describe.sequential : describe.skip;
+const walk = replayable ? describe : describe.skip;
 
-walk("SDK end-to-end walk", () => {
+walk("SDK end-to-end walk", { concurrent: false }, () => {
   let polly: Polly | null = null;
   let settings: WalkSettings;
   const steps = new Steps();
