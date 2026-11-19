@@ -85,10 +85,7 @@ const ISSUE: Issue = {
   assignee_member_id: MEMBER_ID,
   reviewer_member_id: null,
   members: null,
-  files: null,
-  links: null,
-  events: null,
-  spans: null,
+  attachments: null,
   comments: null,
   closed_at: null,
   created_at: "2026-10-30T09:00:00Z",
@@ -114,22 +111,6 @@ const FULL_ISSUE: Issue = {
     { member_id: REVIEWER_ID, relation: "follower" },
   ],
   attachments: ATTACHMENTS,
-  files: [
-    {
-      file_id: FILE_ID,
-      name: "trace.json",
-      checksum: "sha256:abc",
-      source_event_ids: [EVENT_ID],
-    },
-  ],
-  links: [{ url: "https://github.com/acme/app/pull/7", title: "Fix timeout" }],
-  events: [{ event_id: EVENT_ID }],
-  spans: [
-    {
-      trace_id: "0123456789abcdef0123456789abcdef",
-      span_id: "0123456789abcdef",
-    },
-  ],
   comments: [
     COMMENT,
     {
@@ -222,7 +203,7 @@ describe("IssuesApi", () => {
     expect(issue.reviewer_member_id).toBeNull();
     // A list the read did not include is null.
     expect(issue.members).toBeNull();
-    expect(issue.files).toBeNull();
+    expect(issue.attachments).toBeNull();
     expect(issue.comments).toBeNull();
     expect(first.total_count).toBeNull();
   });
@@ -234,8 +215,7 @@ describe("IssuesApi", () => {
       title: "Checkout times out",
       description: "Three conversations hit a timeout.",
       priority: undefined,
-      links: [],
-      events: [{ event_id: EVENT_ID }],
+      tags: [],
     });
 
     expect(created.id).toBe(ISSUE_ID);
@@ -246,8 +226,7 @@ describe("IssuesApi", () => {
         task_id: TASK_ID,
         title: "Checkout times out",
         description: "Three conversations hit a timeout.",
-        links: [],
-        events: [{ event_id: EVENT_ID }],
+        tags: [],
       },
       schema: "Issue",
     });
@@ -271,7 +250,6 @@ describe("IssuesApi", () => {
     await new IssuesApi(http).update(ISSUE_ID, {
       status: "closed",
       title: undefined,
-      links: [],
       tags: [],
       metadata: {},
     });
@@ -281,13 +259,12 @@ describe("IssuesApi", () => {
       path: `/v1/issues/${ISSUE_ID}`,
       body: {
         status: "closed",
-        links: [],
         tags: [],
         metadata: {},
       },
       schema: "Issue",
     });
-    expect(calls(http)[0].body).not.toHaveProperty("files");
+    expect(calls(http)[0].body).not.toHaveProperty("add_attachments");
     expect(calls(http)[0].body).not.toHaveProperty("title");
   });
 
@@ -305,10 +282,7 @@ describe("IssuesApi", () => {
       "assignee",
       "follower",
     ]);
-    expect(issue.files?.[0]?.source_event_ids).toEqual([EVENT_ID]);
-    expect(issue.links?.[0]?.title).toBe("Fix timeout");
-    expect(issue.events).toEqual([{ event_id: EVENT_ID }]);
-    expect(issue.spans?.[0]?.span_id).toBe("0123456789abcdef");
+    expect(issue.attachments).toEqual(ATTACHMENTS);
     expect(issue.comments).toHaveLength(2);
     expect(issue.comments?.[1]?.actor_member_type).toBe("agent");
   });
@@ -549,12 +523,14 @@ describe("IssuesApi", () => {
     expect(calls(http)[0].path).toBe("/v1/issues/a%2Fb");
   });
 
-  it("types an update without a revision or a nested request", () => {
+  it("types an update without a revision, a nested request or a per-kind list", () => {
     // @ts-expect-error an update carries no revision
     const versioned: IssueUpdateParams = { expected_revision: 1, title: "t" };
     // @ts-expect-error there is no nested request body
     const nested: IssueUpdateParams = { request: { id: COMMENT_ID } };
-    expect([versioned, nested]).toHaveLength(2);
+    // @ts-expect-error evidence changes by add_attachments and remove_attachments
+    const replaced: IssueUpdateParams = { links: [] };
+    expect([versioned, nested, replaced]).toHaveLength(3);
   });
 });
 
@@ -649,7 +625,7 @@ describe("client.issues", () => {
       title: "t",
       description: "d",
     });
-    await sdk.issues.update(ISSUE_ID, { files: [] });
+    await sdk.issues.update(ISSUE_ID, { remove_attachments: [] });
     await sdk.issues.update(
       ISSUE_ID,
       { status: "closed" },
@@ -664,7 +640,7 @@ describe("client.issues", () => {
       ["PATCH", tag],
       ["DELETE", tag],
     ]);
-    expect(sent[1].body).toEqual({ files: [] });
+    expect(sent[1].body).toEqual({ remove_attachments: [] });
     expect(sent[2].body).toEqual({ status: "closed" });
     await sdk.shutdown();
   });

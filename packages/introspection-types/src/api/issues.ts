@@ -19,8 +19,7 @@ export type IssueMemberRelation =
 
 /**
  * A related list to return with an issue: `members` adds `members`,
- * `attachments` adds `attachments` (and the deprecated `links`, `files`,
- * `events` and `spans`), and `comments` adds `comments`. A list that is not included is null.
+ * `attachments` adds `attachments`, and `comments` adds `comments`. A list that is not included is null.
  */
 export type IssueInclude = "members" | "attachments" | "comments";
 
@@ -212,15 +211,7 @@ export interface Issue {
    * With `include: ["attachments"]`: the issue's evidence in the order it
    * was added.
    */
-  attachments?: IssueAttachment[] | null;
-  /** @deprecated Read `attachments`. */
-  files: IssueFile[] | null;
-  /** @deprecated Read `attachments`. */
-  links: IssueLink[] | null;
-  /** @deprecated Read `attachments`. */
-  events: IssueEventReference[] | null;
-  /** @deprecated Read `attachments`. */
-  spans: IssueSpanReference[] | null;
+  attachments: IssueAttachment[] | null;
   /**
    * With `include: ["comments"]` on `issues.get()`: the comments, oldest
    * first, at most 500. Page the issue's events for more.
@@ -263,14 +254,6 @@ export interface IssueCreateParams {
   metadata?: Record<string, IssueMetadataValue>;
   /** The issue's evidence, in order. */
   attachments?: IssueAttachmentCreate[];
-  /** @deprecated Use `attachments`. */
-  files?: IssueFile[];
-  /** @deprecated Use `attachments`. */
-  links?: IssueLink[];
-  /** @deprecated Use `attachments`. */
-  events?: IssueEventReference[];
-  /** @deprecated Use `attachments`. */
-  spans?: IssueSpanReference[];
   /** The member to assign the issue to. */
   assignee_member_id?: Uuid;
   /** The member to review the issue. */
@@ -303,19 +286,6 @@ export interface IssueUpdateParams {
    * ignored.
    */
   remove_attachments?: Uuid[];
-  /**
-   * Replaces the stored files wholesale. Sending it, or any other replace
-   * list, with `add_attachments` or `remove_attachments` is a 422.
-   *
-   * @deprecated Use `add_attachments` and `remove_attachments`.
-   */
-  files?: IssueFile[];
-  /** @deprecated Use `add_attachments` and `remove_attachments`. */
-  links?: IssueLink[];
-  /** @deprecated Use `add_attachments` and `remove_attachments`. */
-  events?: IssueEventReference[];
-  /** @deprecated Use `add_attachments` and `remove_attachments`. */
-  spans?: IssueSpanReference[];
   /** Replaces the assignee; `null` unassigns the issue; omitted leaves it. */
   assignee_member_id?: Uuid | null;
   /** Replaces the reviewer; `null` clears it; omitted leaves it. */

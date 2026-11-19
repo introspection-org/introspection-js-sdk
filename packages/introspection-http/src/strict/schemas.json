@@ -1179,13 +1179,7 @@
         "description": {},
         "display_index": {},
         "display_key": {},
-        "events": {
-          "type": "array",
-          "items": { "$ref": "#/$defs/IssueEventReference" }
-        },
-        "files": { "type": "array", "items": { "$ref": "#/$defs/IssueFile" } },
         "id": {},
-        "links": { "type": "array", "items": { "$ref": "#/$defs/IssueLink" } },
         "member_id": {},
         "members": {
           "type": "array",
@@ -1197,10 +1191,6 @@
         "project_id": {},
         "reviewer_member_id": {},
         "revision": {},
-        "spans": {
-          "type": "array",
-          "items": { "$ref": "#/$defs/IssueSpanReference" }
-        },
         "status": {},
         "tags": { "type": "array" },
         "task_id": {},
@@ -1293,11 +1283,6 @@
       "properties": { "event_id": {}, "id": {}, "kind": { "const": "event" } },
       "additionalProperties": false
     },
-    "IssueEventReference": {
-      "type": "object",
-      "properties": { "event_id": {} },
-      "additionalProperties": false
-    },
     "IssueFieldChange": {
       "type": "object",
       "properties": {
@@ -1330,16 +1315,6 @@
       },
       "additionalProperties": false
     },
-    "IssueFile": {
-      "type": "object",
-      "properties": {
-        "checksum": {},
-        "file_id": {},
-        "name": {},
-        "source_event_ids": { "type": "array" }
-      },
-      "additionalProperties": false
-    },
     "IssueFileAttachment": {
       "type": "object",
       "properties": {
@@ -1350,11 +1325,6 @@
         "name": {},
         "source_event_ids": { "type": "array" }
       },
-      "additionalProperties": false
-    },
-    "IssueLink": {
-      "type": "object",
-      "properties": { "title": {}, "url": {} },
       "additionalProperties": false
     },
     "IssueLinkAttachment": {
@@ -1380,11 +1350,6 @@
         "span_id": {},
         "trace_id": {}
       },
-      "additionalProperties": false
-    },
-    "IssueSpanReference": {
-      "type": "object",
-      "properties": { "span_id": {}, "trace_id": {} },
       "additionalProperties": false
     },
     "IssueUnknownAttachment": {
