@@ -513,7 +513,11 @@ describe("foldSpans replayed history", () => {
 describe("foldAgui", () => {
   const events: AGUIEvent[] = [
     { type: EventType.RUN_STARTED, threadId: "t", runId: "r" },
-    { type: EventType.THINKING_TEXT_MESSAGE_CONTENT, delta: "consider" },
+    {
+      type: EventType.REASONING_MESSAGE_CONTENT,
+      messageId: "reasoning-1",
+      delta: "consider",
+    },
     {
       type: EventType.TEXT_MESSAGE_START,
       messageId: "resp-1",
