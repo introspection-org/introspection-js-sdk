@@ -336,7 +336,8 @@ for (const ev of page.records)
 creates, updates and deletes issues on the Data Plane's `/v1/issues`. An issue
 is a brief on a fixed worker task (a title, a description, a priority and a
 status), the people on it (its creator, an assignee, a reviewer and
-followers), its attachments (files, links, events and spans) and its comments.
+followers), its attachments (each a link, file, event or span with its own
+`id`) and its comments.
 Reading needs `issues:read`, creating, updating and commenting `issues:write`,
 and deleting `issues:delete`.
 
@@ -347,7 +348,23 @@ const issue = await client.issues.create({
   description: "Three conversations hit a 30s timeout on /checkout.",
   priority: "high",
   tags: ["customer:acme"],
-  links: [{ url: "https://github.com/acme/app/pull/7" }],
+  attachments: [{ kind: "link", url: "https://github.com/acme/app/pull/7" }],
+});
+
+// Add evidence without reading the issue first: one the issue already holds
+// is skipped. Remove one by its attachment id.
+const updated = await client.issues.update(
+  issue.id,
+  {
+    add_attachments: [{ kind: "span", trace_id: traceId, span_id: spanId }],
+  },
+  { include: ["attachments"] },
+);
+for (const a of updated.attachments ?? []) {
+  if (isKnownIssueAttachment(a) && a.kind === "link") console.log(a.id, a.url);
+}
+await client.issues.update(issue.id, {
+  remove_attachments: [staleAttachmentId],
 });
 
 // Ask a person something: assign the issue, mark it waiting, and comment.
@@ -376,8 +393,8 @@ for await (const mine of client.issues.list({
   console.log(mine.display_index, mine.title, mine.assignee_member_id);
 }
 
-// Edit the issue. Omitted fields are unchanged; each list replaces its list
-// wholesale, so `links: []` clears the links; `assignee_member_id: null`
+// Edit the issue. Omitted fields are unchanged; `tags`, `metadata` and the
+// followers replace theirs wholesale, so `tags: []` clears the tags; `assignee_member_id: null`
 // unassigns it. `ifMatch` is optional: with the issue's ETag, an edit against
 // a stale read is refused with 412.
 await client.issues.update(

@@ -12,15 +12,18 @@ import {
   IntrospectionAPIError,
   IntrospectionClient,
   IssuesApi,
+  isKnownIssueAttachment,
   issueEtag,
 } from "@introspection-sdk/introspection-node";
 import type {
   Issue,
+  IssueAttachment,
   IssueComment,
   IssueUpdateParams,
 } from "@introspection-sdk/introspection-node";
 import {
   IntrospectionApiClient,
+  isKnownIssueAttachment as browserIsKnownIssueAttachment,
   issueEtag as browserIssueEtag,
 } from "@introspection-sdk/introspection-browser/api";
 
@@ -31,6 +34,36 @@ const REVIEWER_ID = "0199a1b2-0000-7000-8000-0000000000dd";
 const COMMENT_ID = "0199a1b2-0000-7000-8000-000000000201";
 const EVENT_ID = "0199a1b2-0000-7000-8000-000000000301";
 const FILE_ID = "0199a1b2-0000-7000-8000-000000000401";
+const LINK_ATTACHMENT_ID = "0199a1b2-0000-7000-8000-000000000501";
+const FILE_ATTACHMENT_ID = "0199a1b2-0000-7000-8000-000000000502";
+const EVENT_ATTACHMENT_ID = "0199a1b2-0000-7000-8000-000000000503";
+const SPAN_ATTACHMENT_ID = "0199a1b2-0000-7000-8000-000000000504";
+const TRACE_ID = "0123456789abcdef0123456789abcdef";
+const SPAN_ID = "0123456789abcdef";
+
+const ATTACHMENTS: IssueAttachment[] = [
+  {
+    id: LINK_ATTACHMENT_ID,
+    kind: "link",
+    url: "https://github.com/acme/app/pull/7",
+    title: "Fix timeout",
+  },
+  {
+    id: FILE_ATTACHMENT_ID,
+    kind: "file",
+    file_id: FILE_ID,
+    name: "trace.json",
+    checksum: "sha256:abc",
+    source_event_ids: [EVENT_ID],
+  },
+  { id: EVENT_ATTACHMENT_ID, kind: "event", event_id: EVENT_ID },
+  {
+    id: SPAN_ATTACHMENT_ID,
+    kind: "span",
+    trace_id: TRACE_ID,
+    span_id: SPAN_ID,
+  },
+];
 
 const ISSUE: Issue = {
   id: ISSUE_ID,
@@ -80,6 +113,7 @@ const FULL_ISSUE: Issue = {
     { member_id: MEMBER_ID, relation: "assignee" },
     { member_id: REVIEWER_ID, relation: "follower" },
   ],
+  attachments: ATTACHMENTS,
   files: [
     {
       file_id: FILE_ID,
@@ -277,6 +311,131 @@ describe("IssuesApi", () => {
     expect(issue.spans?.[0]?.span_id).toBe("0123456789abcdef");
     expect(issue.comments).toHaveLength(2);
     expect(issue.comments?.[1]?.actor_member_type).toBe("agent");
+  });
+
+  it("get() reads attachments discriminated on kind, in order", async () => {
+    const http = mockHttp(FULL_ISSUE);
+    const issue = await new IssuesApi(http).get(ISSUE_ID, {
+      include: ["attachments"],
+    });
+
+    const attachments = issue.attachments ?? [];
+    expect(attachments.map((a) => [a.kind, a.id])).toEqual([
+      ["link", LINK_ATTACHMENT_ID],
+      ["file", FILE_ATTACHMENT_ID],
+      ["event", EVENT_ATTACHMENT_ID],
+      ["span", SPAN_ATTACHMENT_ID],
+    ]);
+    const described = attachments.map((a) => {
+      if (!isKnownIssueAttachment(a)) return a.kind;
+      switch (a.kind) {
+        case "link":
+          return a.url;
+        case "file":
+          return a.file_id;
+        case "event":
+          return a.event_id;
+        case "span":
+          return `${a.trace_id}/${a.span_id}`;
+      }
+    });
+    expect(described).toEqual([
+      "https://github.com/acme/app/pull/7",
+      FILE_ID,
+      EVENT_ID,
+      `${TRACE_ID}/${SPAN_ID}`,
+    ]);
+  });
+
+  it("keeps an attachment of a kind this SDK predates as the server sent it", async () => {
+    const unknown = {
+      id: LINK_ATTACHMENT_ID,
+      kind: "commit",
+      sha: "0123456789abcdef0123456789abcdef01234567",
+    };
+    const http = mockHttp({ ...ISSUE, attachments: [unknown] });
+    const issue = await new IssuesApi(http).get(ISSUE_ID, {
+      include: ["attachments"],
+    });
+
+    const [attachment] = issue.attachments ?? [];
+    expect(attachment).toEqual(unknown);
+    expect(isKnownIssueAttachment(attachment)).toBe(false);
+    expect(attachment.id).toBe(LINK_ATTACHMENT_ID);
+    expect(browserIsKnownIssueAttachment).toBe(isKnownIssueAttachment);
+  });
+
+  it("create() sends attachments tagged on kind", async () => {
+    const http = mockHttp(FULL_ISSUE);
+    await new IssuesApi(http).create({
+      task_id: TASK_ID,
+      title: "t",
+      description: "d",
+      attachments: [
+        { kind: "link", url: "https://github.com/acme/app/pull/7" },
+        { kind: "file", file_id: FILE_ID },
+        { kind: "event", event_id: EVENT_ID },
+        { kind: "span", trace_id: TRACE_ID, span_id: SPAN_ID },
+      ],
+    });
+
+    expect(calls(http)[0].body).toEqual({
+      task_id: TASK_ID,
+      title: "t",
+      description: "d",
+      attachments: [
+        { kind: "link", url: "https://github.com/acme/app/pull/7" },
+        { kind: "file", file_id: FILE_ID },
+        { kind: "event", event_id: EVENT_ID },
+        { kind: "span", trace_id: TRACE_ID, span_id: SPAN_ID },
+      ],
+    });
+  });
+
+  it("update() adds and removes attachments without If-Match", async () => {
+    const http = mockHttp(FULL_ISSUE);
+    await new IssuesApi(http).update(
+      ISSUE_ID,
+      {
+        add_attachments: [
+          {
+            kind: "link",
+            url: "https://github.com/acme/app/pull/8",
+            title: "Retry",
+          },
+        ],
+        remove_attachments: [SPAN_ATTACHMENT_ID],
+      },
+      { include: ["attachments"] },
+    );
+
+    const [sent] = calls(http);
+    expect(sent.body).toEqual({
+      add_attachments: [
+        {
+          kind: "link",
+          url: "https://github.com/acme/app/pull/8",
+          title: "Retry",
+        },
+      ],
+      remove_attachments: [SPAN_ATTACHMENT_ID],
+    });
+    expect(sent.headers).toBeUndefined();
+    expect(sent.query).toEqual({ include: ["attachments"] });
+  });
+
+  it("types an attachment to create without an id or an unknown kind", () => {
+    const withId: IssueUpdateParams = {
+      add_attachments: [
+        // @ts-expect-error the server assigns an attachment's id
+        { id: LINK_ATTACHMENT_ID, kind: "link", url: "https://x.test" },
+      ],
+    };
+    const unknownKind: IssueUpdateParams = {
+      // @ts-expect-error only the known kinds can be created
+      add_attachments: [{ kind: "commit", sha: "abc" }],
+    };
+    expect([withId, unknownKind]).toHaveLength(2);
   });
 
   it("create() and update() set the people and ask for includes", async () => {
@@ -541,6 +700,25 @@ describe("client.issues", () => {
     expect(sent[2].url.pathname).toBe(`/v1/issues/${ISSUE_ID}/comments`);
     expect(sent[2].body).toEqual({ comment: "Raised to 60s." });
     expect(comment.issue_id).toBe(ISSUE_ID);
+    await sdk.shutdown();
+  });
+
+  it("decodes attachments, an unknown kind included, under strictSchema", async () => {
+    const commit = { id: LINK_ATTACHMENT_ID, kind: "commit", sha: "abc" };
+    const sdk = new IntrospectionClient({
+      token: "intro_test",
+      advanced: {
+        baseApiUrl: "https://cp.test",
+        dpUrl: "https://dp.test",
+        strictSchema: true,
+        fetch: vi.fn(async () =>
+          json({ ...FULL_ISSUE, attachments: [...ATTACHMENTS, commit] }),
+        ) as unknown as typeof globalThis.fetch,
+      },
+    });
+
+    const issue = await sdk.issues.get(ISSUE_ID, { include: ["attachments"] });
+    expect(issue.attachments).toHaveLength(5);
     await sdk.shutdown();
   });
 });

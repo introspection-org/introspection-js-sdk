@@ -1157,6 +1157,18 @@
       "type": "object",
       "properties": {
         "assignee_member_id": {},
+        "attachments": {
+          "type": "array",
+          "items": {
+            "anyOf": [
+              { "$ref": "#/$defs/IssueEventAttachment" },
+              { "$ref": "#/$defs/IssueFileAttachment" },
+              { "$ref": "#/$defs/IssueLinkAttachment" },
+              { "$ref": "#/$defs/IssueSpanAttachment" },
+              { "$ref": "#/$defs/IssueUnknownAttachment" }
+            ]
+          }
+        },
         "closed_at": {},
         "comments": {
           "type": "array",
@@ -1276,6 +1288,11 @@
       },
       "additionalProperties": false
     },
+    "IssueEventAttachment": {
+      "type": "object",
+      "properties": { "event_id": {}, "id": {}, "kind": { "const": "event" } },
+      "additionalProperties": false
+    },
     "IssueEventReference": {
       "type": "object",
       "properties": { "event_id": {} },
@@ -1296,9 +1313,31 @@
       },
       "additionalProperties": false
     },
+    "IssueFileAttachment": {
+      "type": "object",
+      "properties": {
+        "checksum": {},
+        "file_id": {},
+        "id": {},
+        "kind": { "const": "file" },
+        "name": {},
+        "source_event_ids": { "type": "array" }
+      },
+      "additionalProperties": false
+    },
     "IssueLink": {
       "type": "object",
       "properties": { "title": {}, "url": {} },
+      "additionalProperties": false
+    },
+    "IssueLinkAttachment": {
+      "type": "object",
+      "properties": {
+        "id": {},
+        "kind": { "const": "link" },
+        "title": {},
+        "url": {}
+      },
       "additionalProperties": false
     },
     "IssueMember": {
@@ -1306,10 +1345,25 @@
       "properties": { "member_id": {}, "relation": {} },
       "additionalProperties": false
     },
+    "IssueSpanAttachment": {
+      "type": "object",
+      "properties": {
+        "id": {},
+        "kind": { "const": "span" },
+        "span_id": {},
+        "trace_id": {}
+      },
+      "additionalProperties": false
+    },
     "IssueSpanReference": {
       "type": "object",
       "properties": { "span_id": {}, "trace_id": {} },
       "additionalProperties": false
+    },
+    "IssueUnknownAttachment": {
+      "type": "object",
+      "properties": { "id": {}, "kind": {} },
+      "additionalProperties": true
     },
     "IssueUpdatedPayload": {
       "type": "object",
