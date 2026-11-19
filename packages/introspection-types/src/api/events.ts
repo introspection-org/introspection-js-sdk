@@ -229,6 +229,11 @@ export interface JudgementVerdictPayload extends JudgementBasePayload {
   judge_provider?: string | null;
   contract_version?: string | null;
   sequence_hash?: string | null;
+  /**
+   * A classifier judge's answers: each question's probability of true, 0-1,
+   * by question name. Absent for an LLM judge.
+   */
+  scores?: Record<string, number> | null;
   input_tokens?: number | null;
   output_tokens?: number | null;
   total_tokens?: number | null;
@@ -339,8 +344,8 @@ export interface RoutineTriggeredPayload {
 
 /**
  * One scheduled slot or event delivery that ran nothing
- * (`introspection.routines.skipped`). Project-owned, so it carries no
- * member. A hand trigger answers its skip to the caller instead.
+ * (`introspection.routines.skipped`). A hand trigger answers its skip to the
+ * caller instead.
  */
 export interface RoutineSkippedPayload {
   routine_id: Uuid;
@@ -351,6 +356,11 @@ export interface RoutineSkippedPayload {
   reason: RoutineSkipReason;
   /** The event trigger whose delivery it skipped; null for a scheduled slot. */
   event?: RoutineTriggerEventRef | null;
+  /**
+   * Who owns the event: the member who triggered the run, else the routine's
+   * creator, else the organization's Admin Agent.
+   */
+  member_id?: Uuid | null;
 }
 
 // --- whole-event members: envelope + typed payload, literal discriminator ---

@@ -34,6 +34,11 @@ export interface Project {
    * before slugs existed may have none.
    */
   slug?: string | null;
+  /**
+   * Slugs the project had before a rename; each still resolves to it. Absent
+   * from a server older than cloud 0.87.
+   */
+  previous_slugs?: string[];
   description: string | null;
   settings?: Record<string, unknown> | null;
   created_by_member_id?: Uuid | null;
@@ -64,6 +69,8 @@ export interface ProjectCreateParams {
 /** `PATCH /v1/projects/{project}`. */
 export interface ProjectUpdateParams {
   name?: string;
+  /** A new slug; the current one keeps resolving to this project as a previous slug. */
+  slug?: string;
   description?: string | null;
   /** The prefixes to change; one left out keeps its current value. */
   display_id_prefixes?: Partial<DisplayIdPrefixes>;

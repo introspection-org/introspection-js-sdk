@@ -346,6 +346,11 @@ export interface IntrospectionHistory {
   /** Whether the history hash lookup matched an existing conversation. */
   hash_hit?: boolean;
   new_messages?: IntrospectionHistoryNewMessages;
+  /**
+   * How many leading input messages a run's `messages` loaded rather than a
+   * model call produced.
+   */
+  loaded_messages?: number;
   [key: string]: unknown;
 }
 

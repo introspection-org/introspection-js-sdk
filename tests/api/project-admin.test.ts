@@ -125,6 +125,7 @@ describe("projects", () => {
       connection_integrations: ["google_workspace"],
     });
     await projects.update("sdk-tests", {
+      slug: "sdk-walk",
       description: "walk",
       display_id_prefixes: { task: "JOB" },
       connection_integrations: ["microsoft_365", "a_type_this_sdk_predates"],
@@ -146,6 +147,7 @@ describe("projects", () => {
         "PATCH",
         `${CP}/v1/projects/sdk-tests`,
         {
+          slug: "sdk-walk",
           description: "walk",
           display_id_prefixes: { task: "JOB" },
           connection_integrations: [
