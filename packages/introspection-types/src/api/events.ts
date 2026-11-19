@@ -3,6 +3,7 @@ import type {
   RoutineTriggerEventRef,
   RoutineTriggerType,
 } from "./routines.js";
+import type { IssueAttachment } from "./issues.js";
 import type {
   CursorParams,
   IsoDate,
@@ -251,10 +252,18 @@ export interface JudgementEgressPayload extends JudgementBasePayload {
 /** One judgement. Narrow on `kind`. */
 export type JudgementPayload = JudgementVerdictPayload | JudgementEgressPayload;
 
-/** One authored field's value on either side of an update; a null side is omitted. */
+/**
+ * One changed field of an update: an authored field's value on either side
+ * (a null side is omitted), or for `attachments` the items `added` and
+ * `removed`.
+ */
 export interface IssueFieldChange {
   before?: unknown;
   after?: unknown;
+  /** With `attachments`: the attachments the update added. */
+  added?: IssueAttachment[];
+  /** With `attachments`: the attachments the update removed. */
+  removed?: IssueAttachment[];
 }
 
 /** What every issue event carries, whichever action it records. */
@@ -280,7 +289,7 @@ export interface IssueUpdatedPayload extends IssueActivityBasePayload {
   action: "updated";
   /**
    * Each changed field, by name; `members` holds the people on the issue
-   * before and after.
+   * before and after, and `attachments` the items added and removed.
    */
   changes: Record<string, IssueFieldChange>;
 }
