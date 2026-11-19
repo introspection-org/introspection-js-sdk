@@ -20,7 +20,7 @@ jobs:
     runs-on: ubuntu-latest
     environment: build
     steps:
-      - uses: actions/create-github-app-token@v1
+      - uses: actions/create-github-app-token@v2
         id: app-token
         with:
           app-id: ${{ vars.GH_APP_ID }} # variable, not secret — app IDs aren't sensitive
