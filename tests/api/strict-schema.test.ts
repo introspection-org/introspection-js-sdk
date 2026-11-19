@@ -158,6 +158,7 @@ describe("strict decoding on", () => {
           ingest: { host: "processor-0", time: 1 },
           byok: false,
           termination_reason: "completed",
+          history: { position: 2, loaded_messages: 3 },
         }),
       ],
       { compaction: { applied: false, history: [] } },
@@ -263,8 +264,9 @@ describe("strict decoding on", () => {
             definition_hash: "abc123",
             engine_version: "1.2.3",
             judge_provider: "anthropic",
-            contract_version: "1",
+            contract_version: "3",
             sequence_hash: "def456",
+            scores: { grounded: 0.92, polite: 0.4 },
             input_tokens: 120,
             output_tokens: 30,
             total_tokens: 150,
@@ -287,6 +289,30 @@ describe("strict decoding on", () => {
     );
     const listed = await events.list({ event_name: "introspection.judgement" });
     expect(listed.records).toHaveLength(4);
+  });
+
+  it("models the member a routine skip belongs to", async () => {
+    const body = page([
+      {
+        id: "e1",
+        timestamp: "2026-11-19T05:00:00Z",
+        event_name: "introspection.routines.skipped",
+        payload: {
+          routine_id: "r1",
+          trigger_type: "schedule",
+          slot: "2026-11-19T05:00:00Z",
+          task_id: null,
+          reason: "conditions_not_met",
+          event: null,
+          member_id: "m1",
+        },
+      },
+    ]);
+    const events = new EventsApi(client(body, true));
+    const listed = await events.list({
+      event_name: "introspection.routines.skipped",
+    });
+    expect(listed.records).toHaveLength(1);
   });
 
   it("models every issue event action", async () => {
@@ -383,6 +409,8 @@ describe("strict decoding on", () => {
       },
     };
     await expect(strictGet("Project", project)).resolves.toEqual(project);
+    const renamed = { ...project, slug: "sdk", previous_slugs: ["old-sdk"] };
+    await expect(strictGet("Project", renamed)).resolves.toEqual(renamed);
     await expect(
       strictGet("Project", {
         ...project,

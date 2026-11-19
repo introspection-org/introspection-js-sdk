@@ -1075,6 +1075,7 @@
         "continuation_method": {},
         "hash_hit": {},
         "is_new": {},
+        "loaded_messages": {},
         "new_messages": { "$ref": "#/$defs/IntrospectionHistoryNewMessages" },
         "position": {}
       },
@@ -1486,6 +1487,7 @@
         "reasoning": {},
         "result": {},
         "runtime_slug": {},
+        "scores": {},
         "sequence_hash": {},
         "source_component": {},
         "status": {},
@@ -2220,6 +2222,7 @@
         "id": {},
         "name": {},
         "org_id": {},
+        "previous_slugs": { "type": "array" },
         "settings": {},
         "slug": {}
       },
@@ -2576,6 +2579,7 @@
       "type": "object",
       "properties": {
         "event": { "$ref": "#/$defs/RoutineTriggerEventRef" },
+        "member_id": {},
         "reason": {
           "type": "object",
           "properties": { "length": {} },

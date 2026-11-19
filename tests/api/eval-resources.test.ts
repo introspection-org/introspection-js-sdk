@@ -195,4 +195,13 @@ describe("tasks.commands", () => {
       commands: true,
     });
   });
+
+  it("a simulate task is created with its kind", async () => {
+    const { sent, dp } = fakeDataPlane(() =>
+      json({ task: { id: TASK_ID }, run: { id: "run-1", task_id: TASK_ID } }),
+    );
+    await dp.tasks.create({ prompt: "go", kind: "simulate" });
+
+    expect(sent[0].body).toEqual({ prompt: "go", kind: "simulate" });
+  });
 });

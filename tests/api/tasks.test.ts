@@ -293,6 +293,24 @@ describe("TaskRunsApi", () => {
     expect(handle.task).toBeNull();
   });
 
+  it("create() opens a conversation with loaded AG-UI messages", async () => {
+    const http = mockHttp({ requestResult: { run: RUN_FIXTURE } });
+    const runs = new TaskRunsApi(http);
+    const messages = [
+      { id: "m1", role: "user" as const, content: "What is 2 + 2?" },
+      { id: "m2", role: "assistant" as const, content: "4" },
+      { id: "m3", role: "user" as const, content: "And doubled?" },
+    ];
+    await runs.create("task-1", { messages });
+
+    expect(http.request).toHaveBeenCalledWith({
+      method: "POST",
+      path: "/v1/tasks/task-1/runs",
+      body: { messages },
+      schema: "TaskRunResponse",
+    });
+  });
+
   it("resume() posts AG-UI resume entries to POST /v1/tasks/:id/runs", async () => {
     const http = mockHttp({ requestResult: { run: RUN_FIXTURE } });
     const runs = new TaskRunsApi(http);

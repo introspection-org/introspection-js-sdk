@@ -1,4 +1,4 @@
-import type { ResumeEntry } from "@ag-ui/core";
+import type { Message, ResumeEntry } from "@ag-ui/core";
 import type { CursorParams, IsoDate, ListParams, Uuid } from "./common.js";
 
 /**
@@ -6,12 +6,13 @@ import type { CursorParams, IsoDate, ListParams, Uuid } from "./common.js";
  *
  * `agent` boots the runtime-agent image and runs an interactive LLM agent;
  * `eval` is the same shape run as an evaluation trial, governed separately at
- * admission; `process` runs a one-shot baked script and reports through the
+ * admission; `simulate` is the same shape run against a simulated user,
+ * admitted like `eval` and kept out of observations and patterns; `process` runs a one-shot baked script and reports through the
  * same completion path, and is internal-only. This replaced the retired
  * `TaskMode`: there are no task modes any more — every agent task is a
  * conversation, and the recipe agent is selected by `agent_name`.
  */
-export type TaskKind = "agent" | "eval" | "process";
+export type TaskKind = "agent" | "eval" | "simulate" | "process";
 
 export type TaskStatus =
   | "pending"
@@ -107,8 +108,8 @@ export interface TaskCreateParams {
   prompt?: string;
   /**
    * Omit for an agent task. `eval` needs the `evals` capability and is the
-   * only kind that takes {@link TaskCreateParams.commands}; `process` is
-   * internal and refused.
+   * only kind that takes {@link TaskCreateParams.commands}; `simulate` runs
+   * against a simulated user; `process` is internal and refused.
    */
   kind?: Exclude<TaskKind, "process">;
   /** Consent to `tasks.commands` against the live sandbox; eval tasks only. */
@@ -236,6 +237,13 @@ export interface TaskRunCreateParams {
    * Not accepted alongside `resume`.
    */
   files?: TaskFileRef[];
+  /**
+   * AG-UI user, assistant and tool messages that open the conversation, in
+   * place of `prompt`. Every message but the last is loaded without a model
+   * call; the last must be a user message and runs as this turn. Accepted only
+   * while the task's conversation is empty.
+   */
+  messages?: Message[];
 }
 
 export interface TaskRunResumeParams {
