@@ -10,9 +10,13 @@ import { describe, expect, it } from "vitest";
 import type {
   AssistantMessage,
   Message,
+  Model,
+  Tool,
   ToolResultMessage,
   UserMessage,
 } from "@earendil-works/pi-ai";
+import { normalizeContext } from "@earendil-works/pi-ai";
+import { streamSimple } from "@earendil-works/pi-ai/api/anthropic-messages";
 import { convertToLlm } from "@earendil-works/pi-coding-agent";
 import {
   assistantToOutputMessages,
@@ -516,5 +520,83 @@ describe("compaction summaries — structural detection via compactionSummaries"
     expect(inputs).toEqual([
       { role: "user", parts: [{ type: "compaction", content: SUMMARY }] },
     ]);
+  });
+});
+
+describe("system messages", () => {
+  const shell = {
+    name: "shell",
+    description: "Run a shell command",
+    parameters: { type: "object", properties: {} },
+  } as unknown as Tool;
+  // A leading system message and a later update that adds a tool, as Pi
+  // keeps them in its transcript.
+  const transcript: Message[] = [
+    {
+      role: "system",
+      content: "You are terse.",
+      sections: { rules: "<rules>Be brief.</rules>" },
+      toolsAdded: [shell],
+      timestamp: 1,
+    },
+    userMessage("List the files."),
+    assistantMessage({ content: [{ type: "text", text: "Two files." }] }),
+    {
+      role: "system",
+      content: [{ type: "text", text: "A tool was added." }],
+      toolsAdded: [{ ...shell, name: "read" }],
+      timestamp: 2,
+    },
+    userMessage("Read one."),
+  ];
+
+  it("come back in position, sections and tools included", () => {
+    const stored = JSON.parse(
+      JSON.stringify(messagesToInputMessages(transcript)),
+    );
+    expect(inputMessagesToMessages(stored)).toEqual(
+      transcript.map((message) =>
+        message.role === "assistant"
+          ? { ...message, model: "" }
+          : { ...message, timestamp: 0 },
+      ),
+    );
+  });
+
+  it("render the provider request byte for byte after a restore", async () => {
+    const model = {
+      id: "claude-sonnet-4-6",
+      name: "claude-sonnet-4-6",
+      api: "anthropic-messages",
+      provider: "anthropic",
+      baseUrl: "http://127.0.0.1:1",
+      reasoning: false,
+      input: ["text"],
+      cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+      contextWindow: 200000,
+      maxTokens: 8192,
+    } as Model<"anthropic-messages">;
+    const render = async (messages: Message[]) => {
+      let body = "";
+      await streamSimple(model, normalizeContext({ messages }), {
+        apiKey: "sk-test",
+        onPayload: (payload) => {
+          body = JSON.stringify(payload);
+          throw new Error("captured");
+        },
+      }).result();
+      return body;
+    };
+    // Assistant messages carry no recorded model yet, so the comparison holds
+    // the model fixed; the system messages are what this covers.
+    const live = transcript.map((message) =>
+      message.role === "assistant" ? { ...message, model: "" } : message,
+    );
+    const restored = inputMessagesToMessages(
+      JSON.parse(JSON.stringify(messagesToInputMessages(transcript))),
+    );
+    const sent = await render(live);
+    expect(sent).toContain("A tool was added.");
+    expect(await render(restored)).toBe(sent);
   });
 });

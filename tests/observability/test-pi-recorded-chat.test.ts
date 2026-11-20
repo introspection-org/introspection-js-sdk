@@ -155,7 +155,9 @@ describe("Pi chat spans — real Agent against a Polly-recorded Anthropic call",
     expect(instructions).toEqual([{ type: "text", content: SYSTEM_PROMPT }]);
 
     const input = jsonAttr<InputMessage[]>(span, "gen_ai.input.messages");
-    expect(input).toEqual([
+    // Pi's transcript opens with its system message, recorded in place.
+    expect(input[0]?.role).toBe("system");
+    expect(input.slice(1)).toEqual([
       {
         role: "user",
         parts: [
@@ -194,8 +196,12 @@ describe("Pi chat spans — real Agent against a Polly-recorded Anthropic call",
     // Turn 2 carries the whole prior transcript, so the durable conversation
     // can be rebuilt from the last span alone.
     const second = jsonAttr<InputMessage[]>(chats[1]!, "gen_ai.input.messages");
-    expect(second.map((m) => m.role)).toEqual(["user", "assistant", "user"]);
-    expect(second).toHaveLength(3);
+    expect(second.map((m) => m.role)).toEqual([
+      "system",
+      "user",
+      "assistant",
+      "user",
+    ]);
 
     // Each prompt is its own root — pi's Agent has no run span unless the
     // caller opts into one (see test-pi-recorded-run.test.ts).

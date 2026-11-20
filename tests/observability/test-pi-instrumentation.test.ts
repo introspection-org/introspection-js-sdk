@@ -155,7 +155,9 @@ describe("instrumentStream", () => {
       span?.attributes["gen_ai.usage.cache_creation.input_tokens"],
     ).toBeUndefined();
     expect(
-      JSON.parse(String(span?.attributes["gen_ai.input.messages"])),
+      JSON.parse(String(span?.attributes["gen_ai.input.messages"])).filter(
+        (message: { role: string }) => message.role !== "system",
+      ),
     ).toEqual([
       { role: "user", parts: [{ type: "text", content: "Inspect" }] },
     ]);

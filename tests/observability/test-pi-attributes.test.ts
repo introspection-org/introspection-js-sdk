@@ -215,8 +215,23 @@ describe("chatRequestAttributes", () => {
       "shell",
       "read",
     ]);
+    // System messages stay in place, so a restore sends them where they were.
     expect(JSON.parse(String(attrs["gen_ai.input.messages"]))).toEqual([
+      {
+        role: "system",
+        parts: [
+          { type: "text", content: "Be concise." },
+          { type: "system_state", tools_added: [shell] },
+        ],
+      },
       { role: "user", parts: [{ type: "text", content: "Inspect the repo" }] },
+      {
+        role: "system",
+        parts: [
+          { type: "text", content: "Also be kind." },
+          { type: "system_state", tools_added: [{ ...shell, name: "read" }] },
+        ],
+      },
     ]);
   });
 

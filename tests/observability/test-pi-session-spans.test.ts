@@ -194,6 +194,7 @@ describe("pi-session-spans", () => {
     const inputs = spans.map((span) => span.attributes.gen_ai?.input?.messages);
     // Calls made before the compaction still show the history they saw.
     expect(inputs[2]?.map((message) => message.role)).toEqual([
+      "system",
       "user",
       "assistant",
       "tool",
@@ -205,6 +206,7 @@ describe("pi-session-spans", () => {
         .map((span) => span.attributes.gen_ai?.system_instructions),
     ).toEqual(Array(3).fill([{ type: "text", content: "Be brief." }]));
     expect(inputs.at(-1)).toEqual([
+      { role: "system", parts: [{ type: "text", content: "Be brief." }] },
       { role: "user", parts: [{ type: "compaction", content: summary }] },
       { role: "user", parts: [{ type: "text", content: "Now list b" }] },
     ]);
