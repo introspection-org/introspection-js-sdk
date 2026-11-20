@@ -112,6 +112,7 @@ describe("messagesToInputMessages", () => {
             content: "aGVsbG8=",
           },
         ],
+        content_form: "blocks",
       },
     ]);
   });
@@ -442,7 +443,11 @@ ${SUMMARY}
     ]);
     const inputs = messagesToInputMessages(rendered as Message[]);
     expect(inputs).toEqual([
-      { role: "user", parts: [{ type: "compaction", content: SUMMARY }] },
+      {
+        role: "user",
+        parts: [{ type: "compaction", content: SUMMARY }],
+        content_form: "blocks",
+      },
     ]);
   });
 
@@ -515,6 +520,152 @@ describe("compaction summaries — structural detection via compactionSummaries"
     });
     expect(inputs).toEqual([
       { role: "user", parts: [{ type: "compaction", content: SUMMARY }] },
+    ]);
+  });
+});
+
+describe("a recorded transcript replays as the messages Pi sent", () => {
+  const shell = {
+    name: "shell",
+    description: "Run a shell command",
+    parameters: { type: "object", properties: { command: { type: "string" } } },
+  };
+  // Every field below reaches some provider's request bytes.
+  const transcript: Message[] = [
+    {
+      role: "system",
+      content: "You are terse.",
+      sections: { "<rules>": "<rules>Be brief.</rules>" },
+      toolsAdded: [shell as never],
+      timestamp: 1,
+    },
+    {
+      role: "user",
+      content: [{ type: "text", text: "Write a note." }],
+      timestamp: 2,
+    },
+    assistantMessage({
+      content: [
+        { type: "thinking", thinking: "plan it", thinkingSignature: "sig-1" },
+        { type: "thinking", thinking: "", thinkingSignature: "opaque", redacted: true },
+        { type: "text", text: "Writing." },
+        {
+          type: "toolCall",
+          id: "toolu_1",
+          name: "shell",
+          // Not in key order, and the order is what the model sent.
+          arguments: { path: "a.md", content: "hi" },
+          thoughtSignature: "call-sig",
+        },
+      ],
+      stopReason: "toolUse",
+    }),
+    {
+      role: "toolResult",
+      toolCallId: "toolu_1",
+      toolName: "shell",
+      content: [{ type: "text", text: "disk full" }],
+      isError: true,
+      timestamp: 3,
+    },
+    {
+      role: "system",
+      content: [{ type: "text", text: "A tool was removed." }],
+      toolsRemoved: [{ name: "shell" } as never],
+      timestamp: 4,
+    },
+    {
+      role: "user",
+      content: [
+        { type: "text", text: "Two lines:" },
+        { type: "text", text: "" },
+      ],
+      timestamp: 5,
+    },
+    assistantMessage({
+      content: [{ type: "text", text: "Stopped." }],
+      api: "openai-completions",
+      provider: "openai",
+      model: "gpt-test",
+      stopReason: "error",
+    }),
+    {
+      role: "toolResult",
+      toolCallId: "toolu_2",
+      toolName: "shell",
+      content: [
+        { type: "text", text: "line one" },
+        { type: "text", text: "line two" },
+      ],
+      isError: false,
+      timestamp: 6,
+    },
+  ];
+
+  /** What a provider request is built from: everything but bookkeeping. */
+  const replayed = (messages: readonly Message[]) =>
+    messages.map((message) => {
+      const { timestamp: _t, usage: _u, responseId: _r, ...rest } =
+        message as Record<string, unknown>;
+      return rest;
+    });
+
+  it("survives recording and a JSON round trip unchanged", () => {
+    const callsAnswered = transcript.slice(0, 6);
+    const stored = JSON.parse(
+      JSON.stringify(messagesToInputMessages(callsAnswered)),
+    );
+    expect(replayed(inputMessagesToMessages(stored))).toEqual(
+      replayed(callsAnswered),
+    );
+    // Key order is part of the bytes a provider is sent.
+    const call = inputMessagesToMessages(stored)[2] as AssistantMessage;
+    expect(
+      Object.keys((call.content[3] as { arguments: object }).arguments),
+    ).toEqual(["path", "content"]);
+  });
+
+  it("keeps a response's provider, model and stop reason, and a result's blocks", () => {
+    const stored = JSON.parse(
+      JSON.stringify(
+        messagesToInputMessages([
+          transcript[6]!,
+          { ...transcript[2]!, content: [] } as never,
+        ]),
+      ),
+    );
+    expect(stored[0]).toMatchObject({
+      api: "openai-completions",
+      provider: "openai",
+      model: "gpt-test",
+      finish_reason: "error",
+    });
+    expect(stored[0]).not.toHaveProperty("response_id");
+    expect(
+      messagesToInputMessages([transcript[7]!])[0]?.parts[0],
+    ).toMatchObject({
+      response: [
+        { type: "text", text: "line one" },
+        { type: "text", text: "line two" },
+      ],
+    });
+  });
+
+  it("restores a message recorded before these fields existed as it always did", () => {
+    expect(
+      inputMessagesToMessages([
+        { role: "user", parts: [{ type: "text", content: "Hi." }] },
+        { role: "assistant", parts: [{ type: "text", content: "Hello." }] },
+      ]),
+    ).toMatchObject([
+      { role: "user", content: "Hi." },
+      {
+        role: "assistant",
+        api: "anthropic-messages",
+        provider: "anthropic",
+        model: "",
+        stopReason: "stop",
+      },
     ]);
   });
 });

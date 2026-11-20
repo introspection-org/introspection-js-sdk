@@ -215,8 +215,26 @@ describe("chatRequestAttributes", () => {
       "shell",
       "read",
     ]);
+    // The system message stays in place, so a replay sends it where it was.
     expect(JSON.parse(String(attrs["gen_ai.input.messages"]))).toEqual([
+      {
+        role: "system",
+        parts: [
+          { type: "text", content: "Be concise." },
+          { type: "system_state", tools_added: [shell] },
+        ],
+      },
       { role: "user", parts: [{ type: "text", content: "Inspect the repo" }] },
+      {
+        role: "system",
+        parts: [
+          { type: "text", content: "Also be kind." },
+          {
+            type: "system_state",
+            tools_added: [{ ...shell, name: "read" }],
+          },
+        ],
+      },
     ]);
   });
 

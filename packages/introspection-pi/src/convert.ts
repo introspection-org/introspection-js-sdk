@@ -10,6 +10,7 @@ import type {
   AssistantMessage,
   ImageContent,
   Message,
+  SystemMessage,
   TextContent,
   ThinkingContent,
   ToolCall,
@@ -24,6 +25,7 @@ import type {
   OutputMessage,
   ReasoningPart,
   SystemInstruction,
+  SystemStatePart,
   TextPart,
   ToolCallRequestPart,
   ToolCallResponsePart,
@@ -119,17 +121,44 @@ function messageToSemconv(
     case "user":
       return userMessageToSemconv(message, options);
     case "assistant": {
-      const semconv = assistantMessageToSemconv(message);
-      // For input messages we include the assistant message as-is (no
-      // finish_reason / response_id metadata at the input layer).
-      return { role: "assistant", parts: semconv.parts };
+      // The response id stays on the output message; the rest decides how a
+      // provider replays the response (pi-ai drops another model's thinking).
+      const { response_id: _responseId, ...semconv } =
+        assistantMessageToSemconv(message);
+      return { role: "assistant", ...semconv };
     }
     case "toolResult":
       return toolResultToSemconv(message);
     case "system":
-      // Carried by `gen_ai.system_instructions`, replayed to the current prompt.
-      return null;
+      return systemMessageToSemconv(message);
   }
+}
+
+/**
+ * Pi keeps its system prompt and tool loadout as `system` messages in the
+ * transcript, and diffs the next request against the latest one; recorded in
+ * place, a replay sends the same request instead of appending a fresh copy.
+ */
+function systemMessageToSemconv(message: SystemMessage): InputMessage {
+  const parts: MessagePart[] =
+    typeof message.content === "string"
+      ? [{ type: "text", content: message.content }]
+      : message.content.map((block) => ({
+          type: "text",
+          content: block.text,
+        }));
+  const state: SystemStatePart = { type: "system_state" };
+  if (message.sections) state.sections = message.sections;
+  if (message.toolsAdded) state.tools_added = message.toolsAdded;
+  if (message.toolsRemoved) state.tools_removed = message.toolsRemoved;
+  if (Object.keys(state).length > 1) parts.push(state);
+  return {
+    role: "system",
+    parts,
+    ...(Array.isArray(message.content)
+      ? { content_form: "blocks" as const }
+      : {}),
+  };
 }
 
 function userMessageToSemconv(
@@ -140,11 +169,15 @@ function userMessageToSemconv(
     typeof message.content === "string"
       ? message.content
       : extractTextFromUserContent(message.content);
+  const form = Array.isArray(message.content)
+    ? { content_form: "blocks" as const }
+    : {};
   const summary = matchCompactionSummary(text, options);
   if (summary !== null) {
     return {
       role: "user",
       parts: [{ type: "compaction", content: summary }],
+      ...form,
     };
   }
   if (typeof message.content === "string") {
@@ -159,7 +192,7 @@ function userMessageToSemconv(
   const parts: MessagePart[] = [];
   for (const block of message.content) {
     if (block.type === "text") {
-      if (block.text) parts.push({ type: "text", content: block.text });
+      parts.push({ type: "text", content: block.text });
     } else {
       const blob: BlobPart = {
         type: "blob",
@@ -173,7 +206,7 @@ function userMessageToSemconv(
   if (parts.length === 0) {
     parts.push({ type: "text", content: "" });
   }
-  return { role: "user", parts };
+  return { role: "user", parts, ...form };
 }
 
 /**
@@ -256,18 +289,14 @@ function outputMessageFromSemconv(
 }
 
 function toolResultToSemconv(message: ToolResultMessage): InputMessage {
-  return {
-    role: "tool",
+  const part: ToolCallResponsePart = {
+    type: "tool_call_response",
+    id: message.toolCallId,
     name: message.toolName,
-    parts: [
-      {
-        type: "tool_call_response",
-        id: message.toolCallId,
-        name: message.toolName,
-        response: toolResultResponse(message.content),
-      },
-    ],
+    response: toolResultResponse(message.content),
   };
+  if (message.isError) part.is_error = true;
+  return { role: "tool", name: message.toolName, parts: [part] };
 }
 
 function assistantBlockToPart(
@@ -303,6 +332,9 @@ function assistantBlockToPart(
         id: block.id,
         arguments: block.arguments,
       };
+      if (block.thoughtSignature) {
+        part.thought_signature = block.thoughtSignature;
+      }
       return part;
     }
   }
@@ -320,22 +352,16 @@ function extractTextFromUserContent(
 /**
  * The value to put on a `tool_call_response` part.
  *
- * Text-only results stay a plain string, which is what a reader expects and
- * what every provider actually returns. A result carrying anything else --
- * pi's `ToolResultMessage.content` is `(TextContent | ImageContent)[]`, so a
- * screenshot or browser tool returns images -- keeps its blocks verbatim
- * instead of being flattened to the empty string.
+ * A result of one text block stays a plain string, which is what a reader
+ * expects. Any other result -- several blocks, or an image from a screenshot
+ * or browser tool -- keeps its blocks verbatim, so a replay sends the blocks
+ * the model was sent.
  */
 function toolResultResponse(content: ToolResultMessage["content"]): unknown {
   if (typeof content === "string") return content;
-  if (!Array.isArray(content)) return "";
-  if (content.every((block) => block.type === "text")) {
-    return content
-      .map((block) => (block.type === "text" ? block.text : ""))
-      .filter(Boolean)
-      .join("\n");
-  }
-  return content;
+  if (!Array.isArray(content) || content.length === 0) return "";
+  const [only] = content;
+  return content.length === 1 && only?.type === "text" ? only.text : content;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -353,9 +379,13 @@ function toolResultResponse(content: ToolResultMessage["content"]): unknown {
  * - Strips trailing assistant `tool_call` blocks that never received a
  *   matching tool result (e.g. an aborted turn).
  *
- * User content round-trips in both directions: a text-only message comes
- * back as the string form pi uses, and image blobs come back as
- * `ImageContent` blocks in their original position.
+ * User content round-trips in both directions: a message recorded with
+ * `content_form: "blocks"` comes back as blocks, any other text-only message
+ * as the string form, and image blobs as `ImageContent` blocks in their
+ * original position. A recorded assistant response keeps its provider, model,
+ * API and stop reason, a failed tool result its error flag, and a `system`
+ * message its sections and tools, so a replay sends what was sent; a message
+ * recorded before those fields existed comes back as it always did.
  */
 export function inputMessagesToMessages(
   messages: readonly InputMessage[],
@@ -367,6 +397,13 @@ export function inputMessagesToMessages(
 
   for (const message of messages) {
     const parts = message.parts ?? [];
+    const blocks = message.content_form === "blocks";
+
+    if (message.role === "system") {
+      const system = systemMessageFromSemconv(parts, blocks);
+      if (system) result.push(system);
+      continue;
+    }
 
     if (message.role === "user") {
       // Compaction parts are re-rendered into the exact prefixed text Pi
@@ -376,17 +413,17 @@ export function inputMessagesToMessages(
       // from the hydrated history.
       const content: (TextContent | ImageContent)[] = [];
       for (const part of parts) {
-        const block = partToUserBlock(part);
+        const block = partToUserBlock(part, blocks);
         if (block) content.push(block);
       }
       if (content.length === 0) continue;
-      // A text-only message round-trips to the string form Pi itself uses.
       const onlyText = content.every((block) => block.type === "text");
       result.push({
         role: "user",
-        content: onlyText
-          ? content.map((block) => (block as TextContent).text).join("")
-          : content,
+        content:
+          onlyText && !blocks
+            ? content.map((block) => (block as TextContent).text).join("")
+            : content,
         timestamp: 0,
       });
       continue;
@@ -402,11 +439,11 @@ export function inputMessagesToMessages(
       result.push({
         role: "assistant",
         content,
-        api: "anthropic-messages",
-        provider: "anthropic",
-        model: "",
+        api: (message.api ?? "anthropic-messages") as AssistantMessage["api"],
+        provider: message.provider ?? "anthropic",
+        model: message.model ?? "",
         usage: emptyUsage(),
-        stopReason: "stop",
+        stopReason: piStopReason(message.finish_reason),
         timestamp: 0,
       });
       continue;
@@ -424,9 +461,7 @@ export function inputMessagesToMessages(
           toolCallId: id,
           toolName,
           content: toolResultContent(part.response),
-          // The GenAI semconv has no field for a failed tool result, so the
-          // flag does not survive the round trip in either direction.
-          isError: false,
+          isError: part.is_error === true,
           timestamp: 0,
         });
       }
@@ -436,9 +471,44 @@ export function inputMessagesToMessages(
   return sanitizeToolPairing(result);
 }
 
-function partToUserBlock(part: MessagePart): TextContent | ImageContent | null {
+/** The `stopReason` a recorded finish reason came from; `stop` when none was recorded. */
+function piStopReason(
+  finishReason: string | undefined,
+): AssistantMessage["stopReason"] {
+  if (finishReason === "tool_call") return "toolUse";
+  return (finishReason ?? "stop") as AssistantMessage["stopReason"];
+}
+
+function systemMessageFromSemconv(
+  parts: readonly MessagePart[],
+  blocks: boolean,
+): SystemMessage | null {
+  const text = parts.filter(isTextPart).map((part) => part.content);
+  const state = parts.find(isSystemStatePart);
+  if (text.length === 0 && !state) return null;
+  const message: SystemMessage = {
+    role: "system",
+    content: blocks
+      ? text.map((content) => ({ type: "text", text: content }))
+      : text.join(""),
+    timestamp: 0,
+  };
+  if (state?.sections) message.sections = state.sections;
+  if (state?.tools_added) {
+    message.toolsAdded = state.tools_added as SystemMessage["toolsAdded"];
+  }
+  if (state?.tools_removed) {
+    message.toolsRemoved = state.tools_removed as SystemMessage["toolsRemoved"];
+  }
+  return message;
+}
+
+function partToUserBlock(
+  part: MessagePart,
+  blocks: boolean,
+): TextContent | ImageContent | null {
   if (isTextPart(part)) {
-    return part.content ? { type: "text", text: part.content } : null;
+    return part.content || blocks ? { type: "text", text: part.content } : null;
   }
   if (isCompactionPart(part)) {
     return { type: "text", text: renderCompactionSummary(part.content) };
@@ -477,12 +547,14 @@ function partToAssistantBlock(
     if (part.id && part.name) {
       toolNameById.set(part.id, part.name);
     }
-    return {
+    const call: ToolCall = {
       type: "toolCall",
       id: part.id ?? "",
       name: part.name,
       arguments: parseToolArguments(part.arguments),
     };
+    if (part.thought_signature) call.thoughtSignature = part.thought_signature;
+    return call;
   }
   return null;
 }
@@ -578,7 +650,8 @@ function sanitizeToolPairing(messages: readonly Message[]): Message[] {
       continue;
     }
 
-    activeToolCallIds = new Set();
+    // Pi can record a system message between a call and its results.
+    if (message.role !== "system") activeToolCallIds = new Set();
     result.push(message);
   }
 
@@ -626,6 +699,10 @@ function isReasoningPart(part: MessagePart): part is ReasoningPart {
   // says "thinking". Narrowing on one spelling silently drops the block —
   // including its signature, which extended thinking needs for continuity.
   return part.type === "reasoning" || part.type === "thinking";
+}
+
+function isSystemStatePart(part: MessagePart): part is SystemStatePart {
+  return part.type === "system_state";
 }
 
 function isToolCallRequestPart(part: MessagePart): part is ToolCallRequestPart {

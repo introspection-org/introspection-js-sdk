@@ -84,6 +84,8 @@ export interface ToolCallRequestPart {
   id?: string;
   /** Arguments passed to the tool. */
   arguments?: unknown;
+  /** Opaque signature a provider attaches to the call (Google `thoughtSignature`), kept for replay. */
+  thought_signature?: string;
 }
 
 /**
@@ -100,6 +102,8 @@ export interface ToolCallResponsePart {
   id?: string;
   /** Optional tool name. Stored on `tool` messages whose tool_call counterpart was lost. */
   name?: string;
+  /** True when the tool failed; providers send the flag back with the result. */
+  is_error?: boolean;
 }
 
 /**
@@ -198,6 +202,25 @@ export interface CompactionPart {
 }
 
 /**
+ * The structured state an agent's `system` message carries beside its text:
+ * named prompt sections and the tools it adds or removes. Pi keeps the system
+ * prompt and tool loadout as such messages in its transcript, and a replay
+ * needs them where they were to send the same request.
+ *
+ * @openSchema strict decoding tolerates keys it does not name.
+ */
+export interface SystemStatePart {
+  /** Discriminator — always `"system_state"`. */
+  type: "system_state";
+  /** Named, ordered prompt sections; `null` removes one. */
+  sections?: Record<string, string | null>;
+  /** Complete definitions of the tools that become available here. */
+  tools_added?: unknown[];
+  /** References to the tools that stop being available here. */
+  tools_removed?: unknown[];
+}
+
+/**
  * Union of all possible message-part shapes.
  *
  * Deliberately closed. TypeScript does not validate at runtime, so an
@@ -216,7 +239,8 @@ export type MessagePart =
   | MediaUrlPart
   | BinaryDataPart
   | BlobPart
-  | FilePart;
+  | FilePart
+  | SystemStatePart;
 
 /**
  * A system instruction entry for `gen_ai.system_instructions`.
@@ -243,6 +267,20 @@ export interface InputMessage {
   parts: MessagePart[];
   /** Optional tool name when `role` is `"tool"`. */
   name?: string;
+  /**
+   * `"blocks"` when the source message held its content as a list of blocks
+   * rather than one string. Providers serialize the two differently, so a
+   * replay needs to know which it was.
+   */
+  content_form?: "blocks";
+  /** Why the recorded assistant response stopped, as on an output message. */
+  finish_reason?: string;
+  /** Provider of a recorded assistant response, as on an output message. */
+  provider?: string;
+  /** Model of a recorded assistant response, as on an output message. */
+  model?: string;
+  /** API surface of a recorded assistant response, as on an output message. */
+  api?: string;
 }
 
 /**
