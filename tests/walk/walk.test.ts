@@ -278,14 +278,15 @@ walk("SDK end-to-end walk", { concurrent: false }, () => {
     async (ctx) => {
       await steps.run(ctx, "project", async () => {
         // The slug is new on every live run, so the snapshot leaves it out.
-        // A recording that predates `display_id_prefixes` or
-        // `connection_integrations` takes the server defaults, as an older
-        // server's project has them.
+        // A recording that predates `display_id_prefixes`,
+        // `connection_integrations` or `previous_slugs` takes the server
+        // defaults, as an older server's project has them.
         expect(
           stable({
             ...withDefaults(project, {
               display_id_prefixes: DEFAULT_DISPLAY_ID_PREFIXES,
               connection_integrations: [],
+              previous_slugs: [],
             }),
             name: undefined,
             slug: undefined,
@@ -306,6 +307,7 @@ walk("SDK end-to-end walk", { concurrent: false }, () => {
             "id": "[uuid]",
             "name": undefined,
             "org_id": "[uuid]",
+            "previous_slugs": [],
             "settings": null,
             "slug": undefined,
           }
@@ -333,6 +335,7 @@ walk("SDK end-to-end walk", { concurrent: false }, () => {
             ...withDefaults(sibling, {
               display_id_prefixes: DEFAULT_DISPLAY_ID_PREFIXES,
               connection_integrations: [],
+              previous_slugs: [],
             }),
             name: undefined,
             slug: undefined,
@@ -352,6 +355,7 @@ walk("SDK end-to-end walk", { concurrent: false }, () => {
             "id": "[uuid]",
             "name": undefined,
             "org_id": "[uuid]",
+            "previous_slugs": [],
             "settings": null,
             "slug": undefined,
           }
@@ -725,17 +729,23 @@ walk("SDK end-to-end walk", { concurrent: false }, () => {
           },
         );
         recipe = versioned!;
-        // The agents and issue providers are whatever the recipe declares,
-        // and a recording that predates them has neither.
+        // The agents, issue providers and description are whatever the recipe
+        // declares, and a recording that predates the first two has neither.
         if (recipe.agents) expect(recipe.agents.length).toBeGreaterThan(0);
+        expect(recipe.description).toBeTruthy();
         expect(
-          stable({ ...recipe, agents: undefined, issue_providers: undefined }),
+          stable({
+            ...recipe,
+            agents: undefined,
+            issue_providers: undefined,
+            description: undefined,
+          }),
         ).toMatchInlineSnapshot(`
           {
             "agents": undefined,
             "created_at": "[timestamp]",
             "created_by_member_id": "[uuid]",
-            "description": "Harbor E2B task calling a development MCP server",
+            "description": undefined,
             "git_commit_sha": "[sha]",
             "git_commit_subject": null,
             "git_ref": "main",
@@ -1039,6 +1049,9 @@ walk("SDK end-to-end walk", { concurrent: false }, () => {
             ...runtime,
             // Lanes come back in the order the runtime was promoted to them.
             environments: [...(runtime.environments ?? [])].sort(),
+            // The recipe's manifest declares the description and connectors.
+            config_json: undefined,
+            description: undefined,
             // A recording that predates `enabled` and `disabled_at` has neither.
             disabled_at: undefined,
             enabled: undefined,
@@ -1051,14 +1064,10 @@ walk("SDK end-to-end walk", { concurrent: false }, () => {
           }),
         ).toMatchInlineSnapshot(`
           {
-            "config_json": {
-              "connectors": [
-                "hello-mcp",
-              ],
-            },
+            "config_json": undefined,
             "created_at": "[timestamp]",
             "created_by_member_id": "[uuid]",
-            "description": "Harbor E2B task calling a development MCP server",
+            "description": undefined,
             "disabled_at": undefined,
             "enabled": undefined,
             "environment_ref": null,
@@ -1583,7 +1592,12 @@ walk("SDK end-to-end walk", { concurrent: false }, () => {
           () => true,
           { timeoutMs: 60_000, label: "conversation" },
         );
-        expect(stable(conversation)).toMatchInlineSnapshot(`
+        // A recording before cloud 0.87 publishes under the runtime's name.
+        expect(["introspection-agents", runtime.name]).toContain(
+          conversation.service_name,
+        );
+        expect(stable({ ...conversation, service_name: undefined }))
+          .toMatchInlineSnapshot(`
           {
             "agents": [
               {
@@ -1620,7 +1634,7 @@ walk("SDK end-to-end walk", { concurrent: false }, () => {
               "group_id": "[uuid]",
               "id": "[uuid]",
             },
-            "service_name": "hello-mcp-[run]",
+            "service_name": undefined,
             "task_title": "The walk's task",
             "updated_at": "[timestamp]",
             "usage": {
