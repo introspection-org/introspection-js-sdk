@@ -238,12 +238,18 @@ export function issueEtag(issue: Issue): string {
 
 // jscpd:ignore-start -- interface field lists mirroring the wire schema
 /**
- * `POST /v1/issues`: open an issue on its fixed worker task. It starts
- * `open`; set its status later with an update.
+ * `POST /v1/issues`: open an issue, on a fixed worker task or without one.
+ * It starts `open`; set its status later with an update.
  */
 export interface IssueCreateParams {
-  /** The worker task used by the issue chat and Slack replies. */
-  task_id: Uuid;
+  /**
+   * The issue's fixed worker task, used by the issue chat and Slack replies.
+   * It must be the caller's own task, otherwise the create is refused with
+   * 403. Omitted, the issue has no task (its `task_id` and `task_status` are
+   * null), and a project member or any agent task may create any number of
+   * them.
+   */
+  task_id?: Uuid;
   /** 1 to 500 characters. */
   title: string;
   /** 1 to 50000 characters. */

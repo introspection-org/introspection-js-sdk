@@ -334,12 +334,14 @@ for (const ev of page.records)
 
 `client.issues` (and `runner.issues`, `dataPlaneClient.issues`) lists, reads,
 creates, updates and deletes issues on the Data Plane's `/v1/issues`. An issue
-is a brief on a fixed worker task (a title, a description, a priority and a
-status), the people on it (its creator, an assignee, a reviewer and
+is a brief (a title, a description, a priority and a status), optionally on
+a fixed worker task, the people on it (its creator, an assignee, a reviewer and
 followers), its attachments (each a link, file, event or span with its own
 `id`) and its comments.
 Reading needs `issues:read`, creating, updating and commenting `issues:write`,
-and deleting `issues:delete`.
+and deleting `issues:delete`. `task_id` on create is optional: when set it
+must be the caller's own task (otherwise 403); left out, the issue has no task
+and its `task_id` and `task_status` are null.
 
 ```typescript
 const issue = await client.issues.create({

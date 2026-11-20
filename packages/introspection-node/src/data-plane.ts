@@ -38,7 +38,7 @@ export interface DataPlaneResources {
   /** The missions the hosted Person Server approved (`/v1/aauth/missions`). */
   readonly missions: MissionsApi;
   readonly routines: RoutinesApi;
-  /** `/v1/issues`: briefs on a worker task, their evidence and human requests. */
+  /** `/v1/issues`: briefs, optionally on a worker task, their evidence and human requests. */
   readonly issues: IssuesApi;
   /** `/v1/images`, what an eval task's compose services run as. */
   readonly images: ImagesApi;
