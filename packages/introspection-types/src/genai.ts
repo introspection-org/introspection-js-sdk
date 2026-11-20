@@ -198,23 +198,6 @@ export interface CompactionPart {
 }
 
 /**
- * The structured state an agent's `system` message carries beside its text:
- * named prompt sections and the tools it adds or removes.
- *
- * @openSchema strict decoding tolerates keys it does not name.
- */
-export interface SystemStatePart {
-  /** Discriminator — always `"system_state"`. */
-  type: "system_state";
-  /** Named, ordered prompt sections; `null` removes one. */
-  sections?: Record<string, string | null>;
-  /** Complete definitions of the tools that become available here. */
-  tools_added?: unknown[];
-  /** References to the tools that stop being available here. */
-  tools_removed?: unknown[];
-}
-
-/**
  * Union of all possible message-part shapes.
  *
  * Deliberately closed. TypeScript does not validate at runtime, so an
@@ -233,8 +216,7 @@ export type MessagePart =
   | MediaUrlPart
   | BinaryDataPart
   | BlobPart
-  | FilePart
-  | SystemStatePart;
+  | FilePart;
 
 /**
  * A system instruction entry for `gen_ai.system_instructions`.
@@ -261,8 +243,6 @@ export interface InputMessage {
   parts: MessagePart[];
   /** Optional tool name when `role` is `"tool"`. */
   name?: string;
-  /** `"blocks"` when a `system` message held its text as blocks rather than one string. */
-  content_form?: "blocks";
 }
 
 /**

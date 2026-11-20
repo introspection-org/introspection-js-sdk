@@ -10,7 +10,6 @@ import type {
   AssistantMessage,
   ImageContent,
   Message,
-  SystemMessage,
   TextContent,
   ThinkingContent,
   ToolCall,
@@ -25,7 +24,6 @@ import type {
   OutputMessage,
   ReasoningPart,
   SystemInstruction,
-  SystemStatePart,
   TextPart,
   ToolCallRequestPart,
   ToolCallResponsePart,
@@ -129,32 +127,9 @@ function messageToSemconv(
     case "toolResult":
       return toolResultToSemconv(message);
     case "system":
-      // Pi sends system messages inside the message list, so a restore must put
-      // them back in position or the cached prefix breaks at message 0.
-      return systemMessageToSemconv(message);
+      // Carried by `gen_ai.system_instructions`, replayed to the current prompt.
+      return null;
   }
-}
-
-function systemMessageToSemconv(message: SystemMessage): InputMessage {
-  const parts: MessagePart[] =
-    typeof message.content === "string"
-      ? [{ type: "text", content: message.content }]
-      : message.content.map((block) => ({
-          type: "text",
-          content: block.text,
-        }));
-  const state: SystemStatePart = { type: "system_state" };
-  if (message.sections) state.sections = message.sections;
-  if (message.toolsAdded) state.tools_added = message.toolsAdded;
-  if (message.toolsRemoved) state.tools_removed = message.toolsRemoved;
-  if (Object.keys(state).length > 1) parts.push(state);
-  return {
-    role: "system",
-    parts,
-    ...(Array.isArray(message.content)
-      ? { content_form: "blocks" as const }
-      : {}),
-  };
 }
 
 function userMessageToSemconv(
@@ -393,15 +368,6 @@ export function inputMessagesToMessages(
   for (const message of messages) {
     const parts = message.parts ?? [];
 
-    if (message.role === "system") {
-      const system = systemMessageFromSemconv(
-        parts,
-        message.content_form === "blocks",
-      );
-      if (system) result.push(system);
-      continue;
-    }
-
     if (message.role === "user") {
       // Compaction parts are re-rendered into the exact prefixed text Pi
       // originally sent to the model, so hydrated history is byte-identical.
@@ -468,30 +434,6 @@ export function inputMessagesToMessages(
   }
 
   return sanitizeToolPairing(result);
-}
-
-function systemMessageFromSemconv(
-  parts: readonly MessagePart[],
-  blocks: boolean,
-): SystemMessage | null {
-  const text = parts.filter(isTextPart).map((part) => part.content);
-  const state = parts.find(isSystemStatePart);
-  if (text.length === 0 && !state) return null;
-  const message: SystemMessage = {
-    role: "system",
-    content: blocks
-      ? text.map((content) => ({ type: "text", text: content }))
-      : text.join(""),
-    timestamp: 0,
-  };
-  if (state?.sections) message.sections = state.sections;
-  if (state?.tools_added) {
-    message.toolsAdded = state.tools_added as SystemMessage["toolsAdded"];
-  }
-  if (state?.tools_removed) {
-    message.toolsRemoved = state.tools_removed as SystemMessage["toolsRemoved"];
-  }
-  return message;
 }
 
 function partToUserBlock(part: MessagePart): TextContent | ImageContent | null {
@@ -636,8 +578,7 @@ function sanitizeToolPairing(messages: readonly Message[]): Message[] {
       continue;
     }
 
-    // Pi can record a system message between a call and its results.
-    if (message.role !== "system") activeToolCallIds = new Set();
+    activeToolCallIds = new Set();
     result.push(message);
   }
 
@@ -685,10 +626,6 @@ function isReasoningPart(part: MessagePart): part is ReasoningPart {
   // says "thinking". Narrowing on one spelling silently drops the block —
   // including its signature, which extended thinking needs for continuity.
   return part.type === "reasoning" || part.type === "thinking";
-}
-
-function isSystemStatePart(part: MessagePart): part is SystemStatePart {
-  return part.type === "system_state";
 }
 
 function isToolCallRequestPart(part: MessagePart): part is ToolCallRequestPart {
