@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.57.2](https://github.com/introspection-org/introspection-js-sdk/compare/v0.57.1...v0.57.2) (2026-11-20)
+
+
+### Features
+
+* **pi:** restore a Pi session from telemetry with the request prefix intact ([#661](https://github.com/introspection-org/introspection-js-sdk/issues/661)) ([9160b7c](https://github.com/introspection-org/introspection-js-sdk/commit/9160b7c42266979000b42594e92aa14ba0b328e1))
+
 ## [0.57.1](https://github.com/introspection-org/introspection-js-sdk/compare/v0.57.0...v0.57.1) (2026-11-19)
 
 
