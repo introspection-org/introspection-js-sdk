@@ -46,13 +46,14 @@ To re-record after a pi or provider upgrade, delete the cassette directory and
 run that one file with `POLLY_MODE=record` and a real `ANTHROPIC_API_KEY`.
 Credentials are scrubbed on write, never on read.
 
-The `pi-restore-*` cassettes drive a pi-coding-agent `AgentSession`, one per
-scenario. A Pi upgrade that changes the request shape fails their replay with
-an unmatched request: re-record them all
+The `pi-restore-<route>-<scenario>` cassettes drive a pi-coding-agent
+`AgentSession` for each route in `ROUTES` (`pi-restore-fixtures.ts`): Anthropic,
+OpenAI and OpenRouter, each reading its own key. A Pi upgrade that changes the
+request shape fails their replay with an unmatched request; re-record them
 (`POLLY_MODE=record pnpm --filter introspection-tests test observability/test-pi-restore.test.ts --silent=false`,
-which logs each restored call's `cache_read` beside the previous prompt) and
-read the body diff before committing it. A restore that no longer repeats the
-live request fails the re-record too.
+narrowed with `-t <route>`), which logs each restored call's `cache_read`
+beside the previous prompt, and read the body diff before committing it. A
+missing cassette fails the replay, and a missing key fails the record.
 
 ## Environment Variables
 

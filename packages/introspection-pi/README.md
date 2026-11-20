@@ -182,7 +182,9 @@ from cache, and writes only the new turn.
 ```ts
 import { restoreSession } from "@introspection-sdk/introspection-pi";
 
-// A fresh session, created as the original was.
+// A fresh session, created as the original was and under its session id
+// (SessionManager.inMemory(cwd, { id })): OpenAI's prompt_cache_key and
+// OpenRouter's session affinity are derived from it.
 await restoreSession(
   session,
   [...lastChat.inputMessages, ...lastChat.outputMessages],

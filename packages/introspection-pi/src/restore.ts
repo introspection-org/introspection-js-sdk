@@ -71,6 +71,9 @@ const transcript: Partial<
 /**
  * Append the recorded conversation to an empty `session`, behind the system
  * message its first run would have opened with, and refresh its context.
+ * Create `session` under the original session's id (`SessionManager`'s
+ * `id` option): OpenAI's `prompt_cache_key` and OpenRouter's session
+ * affinity are derived from it, so another id sends another request.
  * `inputMessages` is the latest chat span's `gen_ai.input.messages` followed
  * by its `gen_ai.output.messages`. Returns the number of messages in the
  * restored context.
@@ -146,12 +149,24 @@ export async function restoreSession(
   }
 
   let start = 0;
-  for (const loadout of options.toolLoadouts?.slice(1) ?? []) {
-    const at = loadout.inputMessageCount - offset;
-    if (at < start || at > history.length) continue;
+  const loadouts = options.toolLoadouts ?? [];
+  for (let i = 1; i < loadouts.length; i++) {
+    const loadout = loadouts[i]!;
     const names = declared.map((tool) => tool.name);
     if (sameNames(loadout.toolNames, names)) continue;
-    // Pi sends a tool change right before the response it was made for.
+    // Pi declares a change ahead of the request's first new user message (a
+    // run's prompt), else after its tool results: the messages that follow
+    // the previous request's response.
+    const end = loadout.inputMessageCount;
+    let at = end;
+    for (let j = loadouts[i - 1]!.inputMessageCount + 1; j < end; j++) {
+      if (inputMessages[j]?.role === "user") {
+        at = j;
+        break;
+      }
+    }
+    at -= offset;
+    if (at < start || at > history.length) continue;
     for (const message of inputMessagesToMessages(history.slice(start, at))) {
       append(message);
     }
