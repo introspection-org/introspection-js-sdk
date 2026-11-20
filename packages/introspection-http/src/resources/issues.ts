@@ -88,7 +88,10 @@ export class IssuesClient {
     );
   }
 
-  /** Open an issue on its worker task (`201`); see {@link IssueCreateParams}. */
+  /**
+   * Open an issue (`201`), on a worker task or without one; see
+   * {@link IssueCreateParams}.
+   */
   create(
     params: IssueCreateParams,
     options: IssueWriteOptions = {},

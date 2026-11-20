@@ -679,6 +679,37 @@ describe("client.issues", () => {
     await sdk.shutdown();
   });
 
+  it("creates an issue without a task and decodes its null task under strictSchema", async () => {
+    const sent: unknown[] = [];
+    const sdk = new IntrospectionClient({
+      token: "intro_test",
+      advanced: {
+        baseApiUrl: "https://cp.test",
+        dpUrl: "https://dp.test",
+        strictSchema: true,
+        fetch: vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+          sent.push(JSON.parse(String(init?.body)));
+          return json({ ...ISSUE, task_id: null, task_status: null }, 201);
+        }) as unknown as typeof globalThis.fetch,
+      },
+    });
+
+    const issue = await sdk.issues.create({
+      title: "Checkout times out",
+      description: "Three conversations hit a timeout.",
+    });
+
+    expect(sent).toEqual([
+      {
+        title: "Checkout times out",
+        description: "Three conversations hit a timeout.",
+      },
+    ]);
+    expect(issue.task_id).toBeNull();
+    expect(issue.task_status).toBeNull();
+    await sdk.shutdown();
+  });
+
   it("decodes attachments, an unknown kind included, under strictSchema", async () => {
     const commit = { id: LINK_ATTACHMENT_ID, kind: "commit", sha: "abc" };
     const sdk = new IntrospectionClient({
