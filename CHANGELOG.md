@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.57.3](https://github.com/introspection-org/introspection-js-sdk/compare/v0.57.2...v0.57.3) (2026-11-20)
+
+
+### Bug Fixes
+
+* **api:** make task_id optional when creating an issue ([#664](https://github.com/introspection-org/introspection-js-sdk/issues/664)) ([4cb391a](https://github.com/introspection-org/introspection-js-sdk/commit/4cb391aa5e05f3aae78c9dfd73346ce95f8e849d))
+
 ## [0.57.2](https://github.com/introspection-org/introspection-js-sdk/compare/v0.57.1...v0.57.2) (2026-11-20)
 
 
