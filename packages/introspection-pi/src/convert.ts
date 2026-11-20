@@ -119,10 +119,18 @@ function messageToSemconv(
     case "user":
       return userMessageToSemconv(message, options);
     case "assistant": {
-      const semconv = assistantMessageToSemconv(message);
-      // For input messages we include the assistant message as-is (no
-      // finish_reason / response_id metadata at the input layer).
-      return { role: "assistant", parts: semconv.parts };
+      // The fields a provider replays the response by: pi-ai drops thinking
+      // from another model, and Anthropic sends the effort before it.
+      const { parts, api, provider, model, provider_thinking_level } =
+        assistantMessageToSemconv(message);
+      return {
+        role: "assistant",
+        parts,
+        ...(api ? { api } : {}),
+        ...(provider ? { provider } : {}),
+        ...(model ? { model } : {}),
+        ...(provider_thinking_level ? { provider_thinking_level } : {}),
+      };
     }
     case "toolResult":
       return toolResultToSemconv(message);
@@ -214,6 +222,7 @@ interface SemconvAssistant {
   provider?: string;
   model?: string;
   response_id?: string;
+  provider_thinking_level?: string;
 }
 
 function assistantMessageToSemconv(
@@ -233,6 +242,9 @@ function assistantMessageToSemconv(
   if (message.provider) result.provider = message.provider;
   if (message.model) result.model = message.model;
   if (message.responseId) result.response_id = message.responseId;
+  if (message.providerThinkingLevel) {
+    result.provider_thinking_level = message.providerThinkingLevel;
+  }
   return result;
 }
 
@@ -252,22 +264,21 @@ function outputMessageFromSemconv(
   if (semconv.response_id ?? source.responseId) {
     result.response_id = semconv.response_id ?? source.responseId;
   }
+  if (semconv.provider_thinking_level) {
+    result.provider_thinking_level = semconv.provider_thinking_level;
+  }
   return result;
 }
 
 function toolResultToSemconv(message: ToolResultMessage): InputMessage {
-  return {
-    role: "tool",
+  const part: ToolCallResponsePart = {
+    type: "tool_call_response",
+    id: message.toolCallId,
     name: message.toolName,
-    parts: [
-      {
-        type: "tool_call_response",
-        id: message.toolCallId,
-        name: message.toolName,
-        response: toolResultResponse(message.content),
-      },
-    ],
+    response: toolResultResponse(message.content),
   };
+  if (message.isError) part.is_error = true;
+  return { role: "tool", name: message.toolName, parts: [part] };
 }
 
 function assistantBlockToPart(
@@ -353,9 +364,11 @@ function toolResultResponse(content: ToolResultMessage["content"]): unknown {
  * - Strips trailing assistant `tool_call` blocks that never received a
  *   matching tool result (e.g. an aborted turn).
  *
- * User content round-trips in both directions: a text-only message comes
- * back as the string form pi uses, and image blobs come back as
- * `ImageContent` blocks in their original position.
+ * User content comes back as the blocks Pi sends (a text-only message
+ * included), with image blobs as `ImageContent` blocks in their original
+ * position. An assistant response keeps the provider, model, API and effort
+ * it was recorded with, and a failed tool result its error flag, so a replay
+ * sends the request the model was sent.
  */
 export function inputMessagesToMessages(
   messages: readonly InputMessage[],
@@ -380,15 +393,7 @@ export function inputMessagesToMessages(
         if (block) content.push(block);
       }
       if (content.length === 0) continue;
-      // A text-only message round-trips to the string form Pi itself uses.
-      const onlyText = content.every((block) => block.type === "text");
-      result.push({
-        role: "user",
-        content: onlyText
-          ? content.map((block) => (block as TextContent).text).join("")
-          : content,
-        timestamp: 0,
-      });
+      result.push({ role: "user", content, timestamp: 0 });
       continue;
     }
 
@@ -399,16 +404,20 @@ export function inputMessagesToMessages(
         if (block) content.push(block);
       }
       if (content.length === 0) continue;
-      result.push({
+      const assistant: AssistantMessage = {
         role: "assistant",
         content,
-        api: "anthropic-messages",
-        provider: "anthropic",
-        model: "",
+        api: (message.api ?? "anthropic-messages") as AssistantMessage["api"],
+        provider: message.provider ?? "anthropic",
+        model: message.model ?? "",
         usage: emptyUsage(),
         stopReason: "stop",
         timestamp: 0,
-      });
+      };
+      if (message.provider_thinking_level) {
+        assistant.providerThinkingLevel = message.provider_thinking_level;
+      }
+      result.push(assistant);
       continue;
     }
 
@@ -424,9 +433,7 @@ export function inputMessagesToMessages(
           toolCallId: id,
           toolName,
           content: toolResultContent(part.response),
-          // The GenAI semconv has no field for a failed tool result, so the
-          // flag does not survive the round trip in either direction.
-          isError: false,
+          isError: part.is_error === true,
           timestamp: 0,
         });
       }

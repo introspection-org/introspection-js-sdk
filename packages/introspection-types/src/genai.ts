@@ -100,6 +100,8 @@ export interface ToolCallResponsePart {
   id?: string;
   /** Optional tool name. Stored on `tool` messages whose tool_call counterpart was lost. */
   name?: string;
+  /** True when the tool failed; providers send the flag back with the result. */
+  is_error?: boolean;
 }
 
 /**
@@ -243,6 +245,14 @@ export interface InputMessage {
   parts: MessagePart[];
   /** Optional tool name when `role` is `"tool"`. */
   name?: string;
+  /** Provider of a recorded assistant response, as on an output message. */
+  provider?: string;
+  /** Model of a recorded assistant response, as on an output message. */
+  model?: string;
+  /** API surface of a recorded assistant response, as on an output message. */
+  api?: string;
+  /** Reasoning effort the response was requested with, as on an output message. */
+  provider_thinking_level?: string;
 }
 
 /**
@@ -270,6 +280,12 @@ export interface OutputMessage {
   api?: string;
   /** Provider-specific response identifier when the upstream API exposes one. */
   response_id?: string;
+  /**
+   * Reasoning effort the provider was sent for this response (Pi's
+   * `providerThinkingLevel`). Anthropic replays it before the message as an
+   * effort marker, so a restored history needs it to send the same request.
+   */
+  provider_thinking_level?: string;
 }
 
 /**

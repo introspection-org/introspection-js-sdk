@@ -172,6 +172,40 @@ For each tool call (`execute_tool ${tool_name}` span):
   requested abort are marked with `introspection.termination_reason =
 "cancelled"` and are not marked as errors.
 
+## Restoring a session from telemetry
+
+`restoreSession` rebuilds a pi-coding-agent session from its recorded spans so
+the next request repeats the provider request prefix byte for byte: a restore
+inside the provider's prompt-cache lifetime reads the whole previous prompt
+from cache, and writes only the new turn.
+
+```ts
+import { restoreSession } from "@introspection-sdk/introspection-pi";
+
+// A fresh session, created as the original was.
+await restoreSession(
+  session,
+  [...lastChat.inputMessages, ...lastChat.outputMessages],
+  {
+    // Each chat span's input-message count and tool names since the latest compaction.
+    toolLoadouts,
+    // Pin a clock that dated prompt sections read to the conversation's start.
+    aroundHead: (build) => withClockAt(conversationStartedAt, build),
+  },
+);
+```
+
+Telemetry does not carry the system message Pi opens its transcript with (the
+prompt as named sections, and the tool loadout), so the restore rebuilds it
+as Pi's first run does: `before_agent_start` handlers, then the loadout. With
+`toolLoadouts` it declares the first request's tools and adds later ones where
+the live session added them. The prompt is rebuilt from the session's current
+configuration, so a prompt changed since the original run misses the cache
+from the system prompt on; that is accepted.
+
+The restore calls `AgentSession` internals that mirror Pi's run start and
+throws naming any that a Pi release renamed.
+
 ## Rendering a Pi run offline
 
 A Pi run that was not instrumented leaves only Pi's session file.
