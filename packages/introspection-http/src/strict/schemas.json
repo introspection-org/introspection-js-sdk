@@ -996,6 +996,7 @@
     "InputMessage": {
       "type": "object",
       "properties": {
+        "content_form": { "const": "blocks" },
         "name": {},
         "parts": {
           "type": "array",
@@ -1006,6 +1007,7 @@
               { "$ref": "#/$defs/CompactionPart" },
               { "$ref": "#/$defs/FilePart" },
               { "$ref": "#/$defs/MediaUrlPart" },
+              { "$ref": "#/$defs/SystemStatePart" },
               { "$ref": "#/$defs/TextPart" },
               { "$ref": "#/$defs/ThinkingPart" },
               { "$ref": "#/$defs/ToolCallRequestPart" },
@@ -1725,6 +1727,7 @@
               { "$ref": "#/$defs/CompactionPart" },
               { "$ref": "#/$defs/FilePart" },
               { "$ref": "#/$defs/MediaUrlPart" },
+              { "$ref": "#/$defs/SystemStatePart" },
               { "$ref": "#/$defs/TextPart" },
               { "$ref": "#/$defs/ThinkingPart" },
               { "$ref": "#/$defs/ToolCallRequestPart" },
@@ -2907,6 +2910,16 @@
     "SystemInstruction": {
       "type": "object",
       "properties": { "content": {}, "type": { "const": "text" } },
+      "additionalProperties": true
+    },
+    "SystemStatePart": {
+      "type": "object",
+      "properties": {
+        "sections": {},
+        "tools_added": { "type": "array" },
+        "tools_removed": { "type": "array" },
+        "type": { "const": "system_state" }
+      },
       "additionalProperties": true
     },
     "Tag": {
