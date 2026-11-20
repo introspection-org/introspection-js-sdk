@@ -86,6 +86,14 @@ export {
   type ConvertOptions,
 } from "./convert.js";
 
+// Restoring a live session from its telemetry with the request prefix intact.
+export {
+  restoreSession,
+  type RecordedToolLoadout,
+  type RestorableSession,
+  type RestoreSessionOptions,
+} from "./restore.js";
+
 // Offline rendering — a Pi session file as the span list the platform's
 // conversation export returns (also the `pi-session-spans` bin).
 export { piSessionToSpans } from "./session-spans.js";

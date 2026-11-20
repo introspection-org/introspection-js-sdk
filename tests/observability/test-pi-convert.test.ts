@@ -451,7 +451,11 @@ ${SUMMARY}
       { role: "user", parts: [{ type: "compaction", content: SUMMARY }] },
     ]);
     expect(replayed).toEqual([
-      { role: "user", content: RENDERED_COMPACTION_TEXT, timestamp: 0 },
+      {
+        role: "user",
+        content: [{ type: "text", text: RENDERED_COMPACTION_TEXT }],
+        timestamp: 0,
+      },
     ]);
   });
 
@@ -460,7 +464,11 @@ ${SUMMARY}
       messagesToInputMessages([userMessage(RENDERED_COMPACTION_TEXT)]),
     );
     expect(replayed).toEqual([
-      { role: "user", content: RENDERED_COMPACTION_TEXT, timestamp: 0 },
+      {
+        role: "user",
+        content: [{ type: "text", text: RENDERED_COMPACTION_TEXT }],
+        timestamp: 0,
+      },
     ]);
   });
 
@@ -515,6 +523,62 @@ describe("compaction summaries — structural detection via compactionSummaries"
     });
     expect(inputs).toEqual([
       { role: "user", parts: [{ type: "compaction", content: SUMMARY }] },
+    ]);
+  });
+});
+
+describe("replay fields", () => {
+  it("round-trips the fields a provider replays a request by", () => {
+    const history: Message[] = [
+      {
+        role: "user",
+        content: [
+          { type: "text", text: "first" },
+          { type: "text", text: "second" },
+        ],
+        timestamp: 0,
+      },
+      assistantMessage({
+        content: [
+          { type: "thinking", thinking: "hm", thinkingSignature: "sig" },
+          { type: "toolCall", id: "call_1", name: "lookup", arguments: {} },
+        ],
+        providerThinkingLevel: "low",
+        stopReason: "toolUse",
+      }),
+      {
+        role: "toolResult",
+        toolCallId: "call_1",
+        toolName: "lookup",
+        content: [{ type: "text", text: "boom" }],
+        isError: true,
+        timestamp: 0,
+      },
+    ];
+
+    const replayed = inputMessagesToMessages(messagesToInputMessages(history));
+
+    expect(replayed[0]).toEqual(history[0]);
+    expect(replayed[1]).toMatchObject({
+      api: "anthropic-messages",
+      provider: "anthropic",
+      model: "claude-sonnet-4-6",
+      providerThinkingLevel: "low",
+      content: [
+        { type: "thinking", thinking: "hm", thinkingSignature: "sig" },
+        { type: "toolCall", id: "call_1", name: "lookup", arguments: {} },
+      ],
+    });
+    expect(replayed[2]).toMatchObject({ isError: true });
+  });
+
+  it("restores a text-only user message as the blocks Pi sends", () => {
+    expect(
+      inputMessagesToMessages([
+        { role: "user", parts: [{ type: "text", content: "hi" }] },
+      ]),
+    ).toEqual([
+      { role: "user", content: [{ type: "text", text: "hi" }], timestamp: 0 },
     ]);
   });
 });

@@ -29,14 +29,15 @@ Pi is the only instrumented framework, so it is the only one with cassettes.
 Each file below drives a real `pi-agent-core` `Agent` against a committed HAR
 of the Anthropic response — no mocked pi events, no mocked stream.
 
-| Test file                         | Cassette     | What only a real run can prove                                                      |
-| --------------------------------- | ------------ | ----------------------------------------------------------------------------------- |
-| `test-pi-recorded-chat.test.ts`   | `pi-chat`    | chat-span semconv, provider response identity, usage, message serialization         |
-| `test-pi-recorded-tools.test.ts`  | `pi-tools`   | the tool loop: `execute_tool` spans, tool schema, call/result threading, active ctx |
-| `test-pi-recorded-run.test.ts`    | `pi-run`     | `invoke_agent` run span parenting the whole trace, and GenAI client metrics         |
-| `test-pi-recorded-errors.test.ts` | `pi-errors`  | a real provider 404 (status ERROR) vs. a real mid-stream abort (Unset + cancelled)  |
-| `test-pi-baggage.test.ts`         | `pi-baggage` | baggage overriding `AgentMeta` across concurrent agents                             |
-| `test-pi-recorded-mcp.test.ts`    | `pi-mcp`     | `mcp.*` on an MCP tool's span, none on a built-in tool                              |
+| Test file                         | Cassette       | What only a real run can prove                                                      |
+| --------------------------------- | -------------- | ----------------------------------------------------------------------------------- |
+| `test-pi-recorded-chat.test.ts`   | `pi-chat`      | chat-span semconv, provider response identity, usage, message serialization         |
+| `test-pi-recorded-tools.test.ts`  | `pi-tools`     | the tool loop: `execute_tool` spans, tool schema, call/result threading, active ctx |
+| `test-pi-recorded-run.test.ts`    | `pi-run`       | `invoke_agent` run span parenting the whole trace, and GenAI client metrics         |
+| `test-pi-recorded-errors.test.ts` | `pi-errors`    | a real provider 404 (status ERROR) vs. a real mid-stream abort (Unset + cancelled)  |
+| `test-pi-baggage.test.ts`         | `pi-baggage`   | baggage overriding `AgentMeta` across concurrent agents                             |
+| `test-pi-recorded-mcp.test.ts`    | `pi-mcp`       | `mcp.*` on an MCP tool's span, none on a built-in tool                              |
+| `test-pi-restore.test.ts`         | `pi-restore-*` | a session restored from its spans sends the live request prefix byte for byte       |
 
 The remaining `test-pi-*.test.ts` files are unit tests over the attribute
 builders, converters, and wrappers; they need no network and no cassette.
@@ -44,6 +45,15 @@ builders, converters, and wrappers; they need no network and no cassette.
 To re-record after a pi or provider upgrade, delete the cassette directory and
 run that one file with `POLLY_MODE=record` and a real `ANTHROPIC_API_KEY`.
 Credentials are scrubbed on write, never on read.
+
+The `pi-restore-<route>-<scenario>` cassettes drive a pi-coding-agent
+`AgentSession` for each route in `ROUTES` (`pi-restore-fixtures.ts`): Anthropic,
+OpenAI and OpenRouter, each reading its own key. A Pi upgrade that changes the
+request shape fails their replay with an unmatched request; re-record them
+(`POLLY_MODE=record pnpm --filter introspection-tests test observability/test-pi-restore.test.ts --silent=false`,
+narrowed with `-t <route>`), which logs each restored call's `cache_read`
+beside the previous prompt, and read the body diff before committing it. A
+missing cassette fails the replay, and a missing key fails the record.
 
 ## Environment Variables
 

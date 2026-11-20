@@ -996,6 +996,8 @@
     "InputMessage": {
       "type": "object",
       "properties": {
+        "api": {},
+        "model": {},
         "name": {},
         "parts": {
           "type": "array",
@@ -1013,6 +1015,8 @@
             ]
           }
         },
+        "provider": {},
+        "provider_thinking_level": {},
         "role": {}
       },
       "additionalProperties": true
@@ -1733,6 +1737,7 @@
           }
         },
         "provider": {},
+        "provider_thinking_level": {},
         "response_id": {},
         "role": {}
       },
@@ -3057,6 +3062,7 @@
       "type": "object",
       "properties": {
         "id": {},
+        "is_error": {},
         "name": {},
         "response": {},
         "type": { "const": "tool_call_response" }
