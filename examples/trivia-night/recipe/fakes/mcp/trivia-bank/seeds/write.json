@@ -1,0 +1,191 @@
+{
+  "bank": {
+    "user:quiz-and-quill": {
+      "week": 1,
+      "asked": [
+        {
+          "question_id": "sc-12",
+          "week": 1,
+          "genre": "science",
+          "difficulty": 3,
+          "answers": 4,
+          "correct": 4,
+          "blanks": 0
+        },
+        {
+          "question_id": "sc-36",
+          "week": 1,
+          "genre": "science",
+          "difficulty": 3,
+          "answers": 4,
+          "correct": 4,
+          "blanks": 0
+        },
+        {
+          "question_id": "sc-05",
+          "week": 1,
+          "genre": "science",
+          "difficulty": 3,
+          "answers": 4,
+          "correct": 4,
+          "blanks": 0
+        },
+        {
+          "question_id": "hi-36",
+          "week": 1,
+          "genre": "history",
+          "difficulty": 3,
+          "answers": 4,
+          "correct": 4,
+          "blanks": 0
+        },
+        {
+          "question_id": "hi-05",
+          "week": 1,
+          "genre": "history",
+          "difficulty": 3,
+          "answers": 4,
+          "correct": 4,
+          "blanks": 0
+        },
+        {
+          "question_id": "hi-06",
+          "week": 1,
+          "genre": "history",
+          "difficulty": 3,
+          "answers": 4,
+          "correct": 0,
+          "blanks": 4
+        },
+        {
+          "question_id": "mu-36",
+          "week": 1,
+          "genre": "music",
+          "difficulty": 3,
+          "answers": 4,
+          "correct": 2,
+          "blanks": 2
+        },
+        {
+          "question_id": "mu-05",
+          "week": 1,
+          "genre": "music",
+          "difficulty": 3,
+          "answers": 4,
+          "correct": 0,
+          "blanks": 4
+        },
+        {
+          "question_id": "mu-06",
+          "week": 1,
+          "genre": "music",
+          "difficulty": 3,
+          "answers": 4,
+          "correct": 0,
+          "blanks": 4
+        }
+      ]
+    }
+  },
+  "scores": {
+    "user:quiz-and-quill": {
+      "season": [
+        [
+          "The Know-It-Ales",
+          {
+            "nights": 1,
+            "points": 6
+          }
+        ],
+        [
+          "Les Quizerables",
+          {
+            "nights": 1,
+            "points": 6
+          }
+        ],
+        [
+          "Agatha Quiztie",
+          {
+            "nights": 1,
+            "points": 5
+          }
+        ],
+        [
+          "The Smarty Pints",
+          {
+            "nights": 1,
+            "points": 5
+          }
+        ]
+      ],
+      "tonight": {
+        "week": 1,
+        "teams": [
+          "The Know-It-Ales",
+          "Les Quizerables",
+          "Agatha Quiztie",
+          "The Smarty Pints"
+        ],
+        "points": [
+          ["The Know-It-Ales", 6],
+          ["Les Quizerables", 6],
+          ["Agatha Quiztie", 5],
+          ["The Smarty Pints", 5]
+        ]
+      },
+      "answered": [
+        "1:sc-12:The Know-It-Ales",
+        "1:sc-12:Les Quizerables",
+        "1:sc-12:Agatha Quiztie",
+        "1:sc-12:The Smarty Pints",
+        "1:sc-36:The Know-It-Ales",
+        "1:sc-36:Les Quizerables",
+        "1:sc-36:Agatha Quiztie",
+        "1:sc-36:The Smarty Pints",
+        "1:sc-05:The Know-It-Ales",
+        "1:sc-05:Les Quizerables",
+        "1:sc-05:Agatha Quiztie",
+        "1:sc-05:The Smarty Pints",
+        "1:hi-36:The Know-It-Ales",
+        "1:hi-36:Les Quizerables",
+        "1:hi-36:Agatha Quiztie",
+        "1:hi-36:The Smarty Pints",
+        "1:hi-05:The Know-It-Ales",
+        "1:hi-05:Les Quizerables",
+        "1:hi-05:Agatha Quiztie",
+        "1:hi-05:The Smarty Pints",
+        "1:hi-06:The Know-It-Ales",
+        "1:hi-06:Les Quizerables",
+        "1:hi-06:Agatha Quiztie",
+        "1:hi-06:The Smarty Pints",
+        "1:mu-36:The Know-It-Ales",
+        "1:mu-36:Les Quizerables",
+        "1:mu-36:Agatha Quiztie",
+        "1:mu-36:The Smarty Pints",
+        "1:mu-05:The Know-It-Ales",
+        "1:mu-05:Les Quizerables",
+        "1:mu-05:Agatha Quiztie",
+        "1:mu-05:The Smarty Pints",
+        "1:mu-06:The Know-It-Ales",
+        "1:mu-06:Les Quizerables",
+        "1:mu-06:Agatha Quiztie",
+        "1:mu-06:The Smarty Pints"
+      ],
+      "rounds": [
+        {
+          "week": 1,
+          "ids": ["sc-12", "sc-36", "sc-05"]
+        },
+        {
+          "week": 1,
+          "ids": ["hi-36", "hi-05", "hi-06"]
+        },
+        {
+          "week": 1,
+          "ids": ["mu-36", "mu-05", "mu-06"]
+        }
+      ]
+    }
+  }
+}

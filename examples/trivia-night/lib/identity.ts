@@ -12,6 +12,8 @@ const AUDIENCE = process.env.TRIVIA_AUDIENCE;
 const ACCEPT_ATTRIBUTION = process.env.TRIVIA_ACCEPT_ATTRIBUTION === "1";
 /** For local runs with no platform: trust an `x-trivia-owner` header. */
 const DEV_OWNER_HEADER = process.env.TRIVIA_DEV_OWNER_HEADER === "1";
+/** For an eval's sidecar, which serves one venue and sees no token. */
+const DEV_OWNER = process.env.TRIVIA_DEV_OWNER;
 
 const keys = ISSUER
   ? createRemoteJWKSet(new URL(`${ISSUER}/.well-known/jwks.json`))
@@ -42,5 +44,6 @@ export async function ownerOf(request: Request): Promise<string> {
   }
   const header = request.headers.get("x-trivia-owner");
   if (DEV_OWNER_HEADER && header) return header;
+  if (DEV_OWNER) return DEV_OWNER;
   throw new Unidentified("no end user: the call carried no accepted token");
 }

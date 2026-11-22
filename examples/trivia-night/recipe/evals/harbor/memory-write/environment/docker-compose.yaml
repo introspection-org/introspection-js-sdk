@@ -1,0 +1,29 @@
+# `main` is the agent container, with no notes yet. The bank starts from a
+# night Quiz & Quill has just played (seeds/write.json).
+services:
+  main:
+    depends_on:
+      bank:
+        condition: service_healthy
+
+  bank:
+    build:
+      context: ../../../../fakes/mcp/trivia-bank
+    expose:
+      - "8000"
+    environment:
+      PORT: "8000"
+      TRIVIA_DEV_OWNER: user:quiz-and-quill
+      TRIVIA_STATE_FILE: /app/seeds/write.json
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:8000/health').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))",
+        ]
+      interval: 2s
+      timeout: 5s
+      retries: 15
+      start_period: 2s

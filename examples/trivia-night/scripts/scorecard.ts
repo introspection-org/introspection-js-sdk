@@ -91,6 +91,13 @@ function leaked(nights: NightRecord[]): boolean {
   );
 }
 
+const cost = (rows: NightRecord[]) => {
+  const spent = rows
+    .map((row) => row.cost_usd)
+    .filter((value): value is number => value !== undefined);
+  return spent.length ? `$${mean(spent).toFixed(3)}` : "-";
+};
+
 export function report(records: NightRecord[]): string {
   const arms = [...new Set(records.map((record) => record.arm))];
   const scored = new Map<NightRecord, NightMetrics>();
@@ -157,7 +164,7 @@ export function report(records: NightRecord[]): string {
           : `${gain >= 0 ? "-" : "+"}${pts(Math.abs(gain))} ${gain > armSpread ? "(beats)" : "(tie)"}`;
     const complete = rows.filter((row) => scored.get(row)!.complete).length;
     lines.push(
-      `| ${arm} | ${pts(miss)} | ${verdict} | ${pts(armSpread)} | ${pct(of(rows, (m) => m.blankRate))} | ${pct(of(rows, (m) => m.askedFor))} | ${pct(of(rows, (m) => m.finishGap))} | ${worst ? `${worst.venue} ${pts(worst.miss)}` : "-"} | ${rows.reduce((s, r) => s + scored.get(r)!.unfair, 0)} | ${rows.reduce((s, r) => s + scored.get(r)!.repeats, 0)} | ${leaked(rows) ? "yes" : "no"} | ${complete}/${rows.length} |`,
+      `| ${arm} | ${pts(miss)} | ${verdict} | ${pts(armSpread)} | ${pct(of(rows, (m) => m.blankRate))} | ${pct(of(rows, (m) => m.askedFor))} | ${pct(of(rows, (m) => m.finishGap))} | ${worst ? `${worst.venue} ${pts(worst.miss)}` : "-"} | ${rows.reduce((s, r) => s + scored.get(r)!.unfair, 0)} | ${rows.reduce((s, r) => s + scored.get(r)!.repeats, 0)} | ${leaked(rows) ? "yes" : "no"} | ${cost(rows)} | ${complete}/${rows.length} |`,
     );
   }
   const nights = [...new Set(records.map((record) => record.night))].sort(

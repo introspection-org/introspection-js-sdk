@@ -79,6 +79,8 @@ export interface NightRecord {
   rounds: RoomState["rounds"];
   standings: RoomState["standings"];
   turns: number;
+  /** Times the host asked the trivia master about the venue. */
+  venue_asks: number;
   feedback: { round: number; rate: number; comment?: string }[];
   memory: Record<string, string>;
   seconds: number;
@@ -194,15 +196,47 @@ function teamsFor(venue: Venue): string[] {
   return TEAM_NAMES.slice(0, venue.teams);
 }
 
+/** What the venue says about itself: on its first night, and when asked. */
+function describe(venue: Venue): string {
+  const likes = venue.likes.join(" and ");
+  return `We're ${venue.name.split(",")[0]} in ${venue.name.split(", ")[1]}, ${COUNTRY[venue.region]}. The crowd here loves ${likes}.`;
+}
+
 function opening(venue: Venue, night: number): string {
-  const parts = ["Start tonight's quiz."];
-  if (night === 1) {
-    const likes = venue.likes.join(" and ");
-    parts.push(
-      `We're ${venue.name.split(",")[0]} in ${venue.name.split(", ")[1]}, ${COUNTRY[venue.region]}. The crowd here loves ${likes}.`,
-    );
+  return night === 1
+    ? `Start tonight's quiz. ${describe(venue)}`
+    : "Start tonight's quiz.";
+}
+
+const ASKS_ABOUT_VENUE =
+  /where (is|are) (the|this|your) (venue|pub|bar)|where are you|which (city|country)|what (genres?|topics?|subjects?)[^?]*(like|love|enjoy|prefer)|(crowd|room|they|you) (like|love|enjoy|prefer)[^?]*\?/i;
+
+async function lastReply(taskId: string): Promise<string> {
+  const dir = mkdtempSync(join(tmpdir(), "trivia-reply-"));
+  const file = join(dir, "trajectory.json");
+  await cli([
+    "conversations",
+    "get",
+    taskId,
+    "--format",
+    "trajectory",
+    "--output-file",
+    file,
+  ]);
+  const records = JSON.parse(readFileSync(file, "utf8")) as {
+    role?: string;
+    content?: unknown;
+  }[];
+  for (const record of records.reverse()) {
+    if (record.role !== "assistant") continue;
+    const text = Array.isArray(record.content)
+      ? record.content
+          .map((part: { text?: string }) => part.text ?? "")
+          .join("\n")
+      : String(record.content ?? "");
+    if (text.trim()) return text;
   }
-  return parts.join(" ");
+  return "";
 }
 
 function answerSheet(
@@ -284,6 +318,7 @@ async function night(
     rounds: [],
     standings: [],
     turns: 0,
+    venue_asks: 0,
     feedback: [],
     memory: {},
     seconds: 0,
@@ -349,6 +384,10 @@ async function night(
       seen = state.rounds.length;
       const tonight = state.rounds.filter((round) => round.week === state.week);
       let reply: string;
+      // A trivia master asked about the venue answers, wherever it falls.
+      const asked = ASKS_ABOUT_VENUE.test(await lastReply(taskId));
+      if (asked) record.venue_asks += 1;
+      const about = asked ? `${describe(venue)} ` : "";
       if (state.week <= before.week)
         reply =
           "Please start tonight's night with the bank before anything else.";
@@ -364,6 +403,7 @@ async function night(
         task = await settle(taskId, options.turnTimeout);
         break;
       }
+      if (about && !state.pending.length) reply = `${about}${reply}`;
       await cli(["tasks", "prompt", taskId, "--prompt", reply]);
       task = await settle(taskId, options.turnTimeout);
     }
