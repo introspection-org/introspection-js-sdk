@@ -5,6 +5,7 @@
 import { reset } from "../lib/bank";
 import { attentive, forgetful, resetNotes, type Host } from "../lib/host";
 import { playNight, type NightResult } from "../lib/night";
+import { resetScores } from "../lib/scorer";
 import { VENUES } from "../lib/venues";
 
 const WEEKS = Number(process.env.WEEKS ?? 4);
@@ -13,6 +14,7 @@ const SEED = Number(process.env.SEED ?? 1);
 export function simulate(weeks = WEEKS, seed = SEED): NightResult[] {
   reset();
   resetNotes();
+  resetScores();
   const nights: NightResult[] = [];
   for (const host of [forgetful, attentive] satisfies Host[])
     for (const venue of VENUES) {

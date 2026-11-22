@@ -1,13 +1,8 @@
 /** Play one quiz night at a simulated venue, through the bank. */
-import {
-  nextQuestions,
-  nextWeek,
-  recordAnswer,
-  summary,
-  type Summary,
-} from "./bank";
+import { nextQuestions, nextWeek, summary, type Summary } from "./bank";
 import type { Recorder } from "./events";
 import { QUESTIONS_PER_ROUND, TARGET, type Host } from "./host";
+import { registerTeams, submitRound, type TeamAnswer } from "./scorer";
 import { seeded, teamAnswer, type Venue } from "./venues";
 
 export interface NightResult {
@@ -27,6 +22,8 @@ export interface NightResult {
   /** Questions this venue had been asked before; the bank keeps this at 0. */
   repeats: number;
   close_calls: number;
+  /** Answer sheets left empty. */
+  blanks: number;
   summary: Summary;
 }
 
@@ -44,6 +41,11 @@ export function playNight(
   const who = owner(venue, host);
   const week = nextWeek(who);
   const random = seeded(seed + week * 7919);
+  const teams = Array.from(
+    { length: venue.teams },
+    (_, index) => `Team ${String.fromCharCode(65 + index)}`,
+  );
+  registerTeams(who, teams);
   const plan = host.plan(
     who,
     week,
@@ -56,31 +58,35 @@ export function playNight(
   let unfair = 0;
   let repeats = 0;
   let closeCalls = 0;
+  let blanks = 0;
   for (const round of plan) {
     const { questions } = nextQuestions(
       who,
       { count: QUESTIONS_PER_ROUND, ...round },
       recorder,
     );
-    let right = 0;
-    let answers = 0;
+    const sheet: TeamAnswer[] = [];
     for (const question of questions) {
       if (everAsked.has(question.id)) repeats += 1;
       everAsked.add(question.id);
       if (question.region !== "global" && question.region !== venue.region)
         unfair += 1;
-      for (let team = 0; team < venue.teams; team += 1) {
-        const mark = recordAnswer(
-          who,
-          question.id,
-          teamAnswer(venue, question, random),
-          recorder,
-        );
-        answers += 1;
-        if (mark.correct) right += 1;
-        if (mark.method === "close") closeCalls += 1;
-      }
+      for (const team of teams)
+        sheet.push({
+          question_id: question.id,
+          team,
+          answer: teamAnswer(venue, question, random),
+        });
     }
+    const marks = sheet.length
+      ? submitRound(who, sheet, recorder).questions.flatMap(
+          (entry) => entry.marks,
+        )
+      : [];
+    const answers = marks.length;
+    const right = marks.filter((mark) => mark.correct).length;
+    closeCalls += marks.filter((mark) => mark.method === "close").length;
+    blanks += marks.filter((mark) => mark.method === "blank").length;
     const rate = answers ? right / answers : 0;
     if (rate >= TARGET.low && rate <= TARGET.high) onTarget += 1;
     miss += Math.abs(rate - TARGET.aim);
@@ -107,6 +113,7 @@ export function playNight(
     unfair_questions: unfair,
     repeats,
     close_calls: closeCalls,
+    blanks,
     summary: result,
   };
 }

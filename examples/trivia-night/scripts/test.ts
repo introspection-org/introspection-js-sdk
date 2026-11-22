@@ -14,6 +14,8 @@ async function main() {
     summary,
   } = await import("../lib/bank");
   const { serve } = await import("../lib/mcp");
+  const { registerTeams, resetScores, scoreboard, submitRound } =
+    await import("../lib/scorer");
   const { QUESTIONS } = await import("../lib/questions");
   const { simulate } = await import("./simulate");
 
@@ -46,6 +48,7 @@ async function main() {
     assert.equal(mark(question("fi-05"), "Steven Spielberg"), "wrong");
     assert.equal(mark(question("mu-05"), "Quee"), "close");
     assert.equal(mark(question("sc-01"), "H2O"), "exact");
+    assert.equal(mark(question("sc-01"), "  "), "blank");
   });
 
   await check("marking: a number is never close", () => {
@@ -178,7 +181,14 @@ async function main() {
         .tools;
       assert.deepEqual(
         tools.map((item: { name: string }) => item.name),
-        ["start_night", "next_questions", "record_answer", "round_summary"],
+        [
+          "start_night",
+          "register_teams",
+          "next_questions",
+          "submit_round",
+          "round_summary",
+          "scoreboard",
+        ],
       );
       for (const item of tools)
         assert.ok(
@@ -186,6 +196,16 @@ async function main() {
           `${item.name} takes an owner`,
         );
       assert.equal((await tool("start_night", {}, anchor)).week, 1);
+      await tool("start_night", {}, quill);
+      const teams = await tool(
+        "register_teams",
+        { names: ["Quizzly Bears", "Les Quizerables"] },
+        anchor,
+      );
+      assert.deepEqual(
+        teams.teams.map((team: { regular: boolean }) => team.regular),
+        [false, false],
+      );
       const first = await tool(
         "next_questions",
         { count: 2, genre: "music" },
@@ -208,20 +228,70 @@ async function main() {
         0,
       );
       assert.deepEqual(ids(first), ids(other));
-      const marked = await tool(
-        "record_answer",
-        { question_id: ids(first)[0], answer: "The Beatles" },
-        anchor,
+      const sheet = [
+        {
+          question_id: ids(first)[0],
+          team: "Quizzly Bears",
+          answer: "Beatles",
+        },
+        { question_id: ids(first)[0], team: "Les Quizerables", answer: "" },
+      ];
+      const round = await tool("submit_round", { answers: sheet }, anchor);
+      assert.deepEqual(
+        round.questions[0].marks.map((mark: { method: string }) => mark.method),
+        ["exact", "blank"],
       );
-      assert.equal(marked.correct, true);
-      const stolen = await tool(
-        "record_answer",
-        { question_id: ids(again)[0], answer: "x" },
-        quill,
-      );
-      assert.match(stolen.error, /not served to this owner/);
+      assert.deepEqual(round.standings[0], {
+        team: "Quizzly Bears",
+        points: 1,
+      });
+      const stolen = await tool("submit_round", { answers: sheet }, quill);
+      assert.match(stolen.error, /register tonight's teams/);
     },
   );
+
+  await check("the scorer: regulars, the season table and bad sheets", () => {
+    reset();
+    resetScores();
+    nextWeek("a");
+    registerTeams("a", ["Reds", "Blues"]);
+    const [one] = nextQuestions("a", { count: 1, genre: "film" }).questions;
+    const answer = (team: string, text: string) => [
+      { question_id: one.id, team, answer: text },
+    ];
+    submitRound("a", [
+      ...answer("Reds", question(one.id).answer),
+      ...answer("Blues", "nope"),
+    ]);
+    assert.throws(
+      () => submitRound("a", answer("Reds", "x")),
+      /already answered/,
+    );
+    assert.throws(
+      () => submitRound("a", answer("Greens", "x")),
+      /not one of tonight's teams/,
+    );
+    nextWeek("a");
+    assert.throws(
+      () => submitRound("a", answer("Reds", "x")),
+      /register tonight's teams/,
+    );
+    const next = registerTeams("a", ["Reds", "Greens"]);
+    assert.deepEqual(
+      next.teams.map((team) => team.regular),
+      [true, false],
+    );
+    assert.throws(
+      () => submitRound("a", answer("Reds", "x")),
+      /not asked tonight/,
+    );
+    assert.deepEqual(scoreboard("a", "season").standings[0], {
+      team: "Reds",
+      nights: 2,
+      points: 1,
+    });
+    assert.equal(summary("a", 1).overall.blanks, 0);
+  });
 
   await check("the simulation repeats exactly for a seed", () => {
     const strip = (nights: ReturnType<typeof simulate>) =>

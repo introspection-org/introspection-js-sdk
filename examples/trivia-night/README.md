@@ -42,14 +42,15 @@ pnpm simulate   # every venue, both hosts, as a table
 
 ## What is here
 
-| Piece              | Where                                                                    | What it does                                                                                                                              |
-| ------------------ | ------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| Question bank      | [`lib/bank.ts`](./lib/bank.ts), [`lib/questions.ts`](./lib/questions.ts) | 72 questions with a genre, region and difficulty. Tracks what each venue was asked and how its teams answered. Marks answers.             |
-| MCP server         | [`lib/mcp.ts`](./lib/mcp.ts), served at `/bank/mcp`                      | `start_night`, `next_questions`, `record_answer`, `round_summary`. No tool takes a venue: the bank reads it from the caller's credential. |
-| Identity           | [`lib/identity.ts`](./lib/identity.ts)                                   | Verifies the end-user token the platform sends, and refuses a call without one.                                                           |
-| Simulated venues   | [`lib/venues.ts`](./lib/venues.ts)                                       | Five crowds, each a table of how well it knows each genre. Seeded, so a run repeats exactly. Two are held out.                            |
-| Two stand-in hosts | [`lib/host.ts`](./lib/host.ts)                                           | `forgetful` plans every night the same way. `attentive` keeps notes per venue and is the reference answer.                                |
-| The page           | [`components/trivia-demo.tsx`](./components/trivia-demo.tsx)             | Both hosts side by side, the attentive host's notes, and the event log.                                                                   |
+| Piece              | Where                                                                    | What it does                                                                                                                                                             |
+| ------------------ | ------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Question bank      | [`lib/bank.ts`](./lib/bank.ts), [`lib/questions.ts`](./lib/questions.ts) | 72 questions with a genre, region and difficulty. Tracks what each venue was asked and how its teams answered. Marks answers.                                            |
+| MCP server         | [`lib/mcp.ts`](./lib/mcp.ts), served at `/bank/mcp`                      | `start_night`, `register_teams`, `next_questions`, `submit_round`, `round_summary`, `scoreboard`. No tool takes a venue: the bank reads it from the caller's credential. |
+| Scorer             | [`lib/scorer.ts`](./lib/scorer.ts)                                       | Tonight's teams, the season table, and a whole round's answer sheet marked in one call. Served by the same server as the bank.                                           |
+| Identity           | [`lib/identity.ts`](./lib/identity.ts)                                   | Verifies the end-user token the platform sends, and refuses a call without one.                                                                                          |
+| Simulated venues   | [`lib/venues.ts`](./lib/venues.ts)                                       | Five crowds, each a table of how well it knows each genre. Seeded, so a run repeats exactly. Two are held out.                                                           |
+| Two stand-in hosts | [`lib/host.ts`](./lib/host.ts)                                           | `forgetful` plans every night the same way. `attentive` keeps notes per venue and is the reference answer.                                                               |
+| The page           | [`components/trivia-demo.tsx`](./components/trivia-demo.tsx)             | Both hosts side by side, the attentive host's notes, and the event log.                                                                                                  |
 
 ## Who owns what
 

@@ -4,6 +4,7 @@ import { clearEvents, record } from "./events";
 import { attentive, forgetful, notesFile, resetNotes, type Host } from "./host";
 import { owner, playNight, type NightResult } from "./night";
 import { QUESTIONS } from "./questions";
+import { resetScores } from "./scorer";
 import { VENUES } from "./venues";
 
 const HOSTS: Record<Host["name"], Host> = { forgetful, attentive };
@@ -32,6 +33,7 @@ export function play(venueId: string, hostName: string): NightResult {
 export function restart(): void {
   reset();
   resetNotes();
+  resetScores();
   clearEvents();
   demo.nights.length = 0;
   demo.asked.clear();

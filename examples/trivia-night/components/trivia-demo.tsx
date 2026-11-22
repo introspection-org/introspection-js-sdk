@@ -12,6 +12,7 @@ interface Night {
   unfair_questions: number;
   repeats: number;
   close_calls: number;
+  blanks: number;
 }
 
 interface HostState {
@@ -58,7 +59,6 @@ export function TriviaDemo() {
   const [venueId, setVenueId] = useState("the-anchor");
   const [events, setEvents] = useState<FlowEvent[]>([]);
   const [open, setOpen] = useState<number>();
-  const [quiet, setQuiet] = useState(true);
   const last = useRef(0);
   const log = useRef<HTMLOListElement>(null);
 
@@ -80,7 +80,7 @@ export function TriviaDemo() {
 
   useEffect(() => {
     log.current?.scrollTo({ top: log.current.scrollHeight });
-  }, [events, venueId, quiet]);
+  }, [events, venueId]);
 
   const act = async (body: Record<string, string>) => {
     await fetch("/api/demo/action", {
@@ -96,11 +96,7 @@ export function TriviaDemo() {
   };
 
   const venue = state?.venues.find((item) => item.id === venueId);
-  const shown = events.filter(
-    (event) =>
-      event.owner.endsWith(`:${venueId}`) &&
-      !(quiet && event.type === "bank.marked"),
-  );
+  const shown = events.filter((event) => event.owner.endsWith(`:${venueId}`));
 
   return (
     <main className="page">
@@ -162,13 +158,14 @@ export function TriviaDemo() {
                     <th>Pitch miss</th>
                     <th>Asked-for rounds</th>
                     <th>Unfair</th>
+                    <th>Blanks</th>
                     <th>Repeats</th>
                   </tr>
                 </thead>
                 <tbody>
                   {host.nights.length === 0 && (
                     <tr>
-                      <td colSpan={6} className="empty">
+                      <td colSpan={7} className="empty">
                         No nights played yet.
                       </td>
                     </tr>
@@ -186,6 +183,7 @@ export function TriviaDemo() {
                       >
                         {night.unfair_questions}
                       </td>
+                      <td>{night.blanks}</td>
                       <td className={night.repeats ? "bad" : undefined}>
                         {night.repeats}
                       </td>
@@ -208,14 +206,6 @@ export function TriviaDemo() {
         <aside className="scenes">
           <div className="scenes-head">
             <h2>Behind the scenes</h2>
-            <label>
-              <input
-                type="checkbox"
-                checked={!quiet}
-                onChange={(event) => setQuiet(!event.target.checked)}
-              />{" "}
-              Show every answer
-            </label>
           </div>
           <ol ref={log}>
             {shown.length === 0 && (

@@ -14,6 +14,8 @@ export interface Asked {
   difficulty: number;
   answers: number;
   correct: number;
+  /** Teams that wrote nothing: a sign the room gave up, not that it guessed wrong. */
+  blanks: number;
 }
 
 interface History {
@@ -34,7 +36,7 @@ export interface Mark {
   question_id: string;
   correct: boolean;
   /** How the bank decided: only `close` answers are a judgement call. */
-  method: "exact" | "alias" | "close" | "wrong";
+  method: "exact" | "alias" | "close" | "wrong" | "blank";
   accepted_answer: string;
 }
 
@@ -104,7 +106,7 @@ function close(given: string, accepted: string): boolean {
 
 export function mark(question: Question, answer: string): Mark["method"] {
   const given = normalise(answer);
-  if (!given) return "wrong";
+  if (!given) return "blank";
   if (given === normalise(question.answer)) return "exact";
   const aliases = question.aliases.map(normalise);
   if (aliases.includes(given)) return "alias";
@@ -181,6 +183,7 @@ export function nextQuestions(
       difficulty: item.difficulty,
       answers: 0,
       correct: 0,
+      blanks: 0,
     });
   recorder?.(
     owner,
@@ -208,9 +211,10 @@ export function recordAnswer(
   if (!asked || !question)
     throw new Error(`question ${questionId} was not served to this owner`);
   const method = mark(question, answer);
-  const correct = method !== "wrong";
+  const correct = method !== "wrong" && method !== "blank";
   asked.answers += 1;
   if (correct) asked.correct += 1;
+  if (method === "blank") asked.blanks += 1;
   recorder?.(
     owner,
     "bank.marked",
@@ -225,22 +229,26 @@ export function recordAnswer(
   };
 }
 
+export interface Tally {
+  answers: number;
+  correct: number;
+  blanks: number;
+  rate: number;
+}
+
 export interface Summary {
   week: number;
   asked_total: number;
-  by_genre: Record<string, { answers: number; correct: number; rate: number }>;
-  by_difficulty: Record<
-    string,
-    { answers: number; correct: number; rate: number }
-  >;
-  overall: { answers: number; correct: number; rate: number };
+  by_genre: Record<string, Tally>;
+  by_difficulty: Record<string, Tally>;
+  overall: Tally;
 }
 
 /** How one of the owner's weeks went; the current week when none is named. */
 export function summary(owner: string, ofWeek?: number): Summary {
   const mine = history(owner);
   const target = ofWeek ?? mine.week;
-  const tally = () => ({ answers: 0, correct: 0, rate: 0 });
+  const tally = (): Tally => ({ answers: 0, correct: 0, blanks: 0, rate: 0 });
   const result: Summary = {
     week: target,
     asked_total: mine.asked.size,
@@ -258,10 +266,20 @@ export function summary(owner: string, ofWeek?: number): Summary {
     for (const group of groups) {
       group.answers += asked.answers;
       group.correct += asked.correct;
+      group.blanks += asked.blanks;
       group.rate = group.answers ? group.correct / group.answers : 0;
     }
   }
   return result;
+}
+
+/** Whether the owner was served this question in the given week. */
+export function servedIn(
+  owner: string,
+  questionId: string,
+  ofWeek: number,
+): boolean {
+  return history(owner).asked.get(questionId)?.week === ofWeek;
 }
 
 /** Every question id the owner has been asked, for checks. */

@@ -122,7 +122,8 @@ export function teamAnswer(
   const others = QUESTIONS.filter(
     (item) => item.genre === question.genre && item.answer !== question.answer,
   );
+  // A team with no idea hands in a blank.
   return random() < 0.3
-    ? "no idea"
+    ? ""
     : others[Math.floor(random() * others.length)].answer;
 }

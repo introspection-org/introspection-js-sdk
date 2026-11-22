@@ -28,9 +28,11 @@
           "tools": {
             "include": [
               "start_night",
+              "register_teams",
               "next_questions",
-              "record_answer",
-              "round_summary"
+              "submit_round",
+              "round_summary",
+              "scoreboard"
             ],
             "exclude": []
           }

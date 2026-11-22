@@ -13,8 +13,10 @@ mcp:
     trivia-bank:
       include:
         - start_night
+        - register_teams
         - next_questions
-        - record_answer
+        - submit_round
         - round_summary
+        - scoreboard
 skills: []
 subagents: []

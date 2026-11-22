@@ -2,10 +2,16 @@
  * The question bank as a Streamable HTTP MCP server. No tool takes an owner:
  * the bank reads it from the call's credential (see `identity.ts`).
  */
-import { nextQuestions, nextWeek, recordAnswer, summary } from "./bank";
+import { nextQuestions, nextWeek, summary } from "./bank";
 import { record } from "./events";
 import { ownerOf, Unidentified } from "./identity";
 import { GENRES, type Genre, type Region } from "./questions";
+import {
+  registerTeams,
+  scoreboard,
+  submitRound,
+  type TeamAnswer,
+} from "./scorer";
 
 type JsonRpc = {
   jsonrpc: "2.0";
@@ -28,6 +34,24 @@ export const TOOLS = [
     },
   },
   {
+    name: "register_teams",
+    description:
+      "Set tonight's teams by name, after start_night. Returns which teams have played at this venue before.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        names: {
+          type: "array",
+          items: { type: "string" },
+          minItems: 1,
+          maxItems: 20,
+        },
+      },
+      required: ["names"],
+      additionalProperties: false,
+    },
+  },
+  {
     name: "next_questions",
     description:
       "Get questions this venue has never been asked. The bank excludes every question already asked here, so never track that yourself. When the filter runs dry it is relaxed and `relaxed` says how.",
@@ -44,16 +68,28 @@ export const TOOLS = [
     },
   },
   {
-    name: "record_answer",
+    name: "submit_round",
     description:
-      "Record one team's answer to a served question. The bank marks it; never mark an answer yourself.",
+      "Submit one round's answer sheet: every team's answer to every question in the round, in one call. The bank marks each answer; never mark one yourself. An empty answer is a blank. Returns each mark, the round's points and tonight's standings.",
     inputSchema: {
       type: "object",
       properties: {
-        question_id: { type: "string" },
-        answer: { type: "string" },
+        answers: {
+          type: "array",
+          minItems: 1,
+          items: {
+            type: "object",
+            properties: {
+              question_id: { type: "string" },
+              team: { type: "string" },
+              answer: { type: "string" },
+            },
+            required: ["question_id", "team", "answer"],
+            additionalProperties: false,
+          },
+        },
       },
-      required: ["question_id", "answer"],
+      required: ["answers"],
       additionalProperties: false,
     },
   },
@@ -64,6 +100,17 @@ export const TOOLS = [
     inputSchema: {
       type: "object",
       properties: { week: { type: "integer", minimum: 1 } },
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "scoreboard",
+    description:
+      "The standings: tonight's, or the season's across every night.",
+    inputSchema: {
+      type: "object",
+      properties: { scope: { type: "string", enum: ["tonight", "season"] } },
+      required: ["scope"],
       additionalProperties: false,
     },
   },
@@ -78,39 +125,40 @@ const text = (value: unknown, isError = false) => ({
 });
 
 function call(owner: string, name: string, args: Record<string, unknown>) {
-  switch (name) {
-    case "start_night":
-      return text({ week: nextWeek(owner) });
-    case "next_questions":
-      return text(
-        nextQuestions(
-          owner,
-          {
-            count: Math.min(10, Math.max(1, Number(args.count) || 1)),
-            genre: args.genre as Genre | undefined,
-            region: args.region as Region | undefined,
-            difficulty: args.difficulty ? Number(args.difficulty) : undefined,
-          },
-          record,
-        ),
-      );
-    case "record_answer":
-      try {
+  try {
+    switch (name) {
+      case "start_night":
+        return text({ week: nextWeek(owner) });
+      case "register_teams":
+        return text(registerTeams(owner, (args.names as string[]) ?? []));
+      case "next_questions":
         return text(
-          recordAnswer(
+          nextQuestions(
             owner,
-            String(args.question_id),
-            String(args.answer ?? ""),
+            {
+              count: Math.min(10, Math.max(1, Number(args.count) || 1)),
+              genre: args.genre as Genre | undefined,
+              region: args.region as Region | undefined,
+              difficulty: args.difficulty ? Number(args.difficulty) : undefined,
+            },
             record,
           ),
         );
-      } catch (error) {
-        return text({ error: (error as Error).message }, true);
-      }
-    case "round_summary":
-      return text(summary(owner, args.week ? Number(args.week) : undefined));
-    default:
-      return text({ error: `unknown tool ${name}` }, true);
+      case "submit_round":
+        return text(
+          submitRound(owner, (args.answers as TeamAnswer[]) ?? [], record),
+        );
+      case "round_summary":
+        return text(summary(owner, args.week ? Number(args.week) : undefined));
+      case "scoreboard":
+        return text(
+          scoreboard(owner, args.scope === "season" ? "season" : "tonight"),
+        );
+      default:
+        return text({ error: `unknown tool ${name}` }, true);
+    }
+  } catch (error) {
+    return text({ error: (error as Error).message }, true);
   }
 }
 
