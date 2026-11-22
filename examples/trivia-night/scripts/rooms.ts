@@ -15,7 +15,14 @@
  * The task token reaches the CLI in its environment, never its arguments.
  */
 import { execFile } from "node:child_process";
-import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { parseArgs, promisify } from "node:util";
@@ -25,6 +32,16 @@ import { IntrospectionLogs } from "@introspection-sdk/introspection-node/otel";
 import { TARGET } from "../lib/host";
 import type { RoomState } from "../lib/rooms";
 import { seeded, teamAnswer, VENUES, type Venue } from "../lib/venues";
+import {
+  answerSheet,
+  ASKS_ABOUT_VENUE,
+  describe,
+  opening,
+  teamsFor,
+  TONIGHT_ONLY,
+  TOO_EASY,
+  TOO_HARD,
+} from "./room-master";
 import { report } from "./scorecard";
 
 const run = promisify(execFile);
@@ -33,37 +50,6 @@ const BANK = process.env.TRIVIA_BANK_URL ?? "http://localhost:3500";
 const SETTLED = new Set(["awaiting_user", "idle", "completed"]);
 const FAILED = new Set(["failed", "cancelled"]);
 const MAX_TURNS = 16;
-
-const TEAM_NAMES = [
-  "Quizteama Aguilera",
-  "The Know-It-Ales",
-  "Les Quizerables",
-  "Trivia Newton John",
-  "Agatha Quiztie",
-  "Universally Challenged",
-  "The Smarty Pints",
-  "Quiz Khalifa",
-];
-
-const COUNTRY = { au: "Australia", uk: "the UK", us: "the US" } as const;
-
-/** A request for one night only: it must not reach the venue's notes. */
-const TONIGHT_ONLY: Record<string, { week: number; ask: string }> = {
-  "quiz-and-quill": {
-    week: 2,
-    ask: "It's a regular's birthday tonight and she's mad about music, so please make one round music, just for tonight.",
-  },
-};
-
-const TOO_HARD = [
-  "That round was brutal, half the room left it blank.",
-  "Way too hard, people stopped trying.",
-  "Nobody had a clue on that one.",
-];
-const TOO_EASY = [
-  "Too easy, every table got that.",
-  "Bit of a walkover, no one was stretched.",
-];
 
 export interface NightRecord {
   arm: string;
@@ -177,6 +163,20 @@ async function usage(
   };
 }
 
+/** A turn can read as settled a moment before the task takes another. */
+async function send(taskId: string, reply: string): Promise<void> {
+  for (let attempt = 1; ; attempt += 1) {
+    try {
+      await cli(["tasks", "prompt", taskId, "--prompt", reply]);
+      return;
+    } catch (error) {
+      if (attempt >= 6 || !(error as Error).message.includes("409"))
+        throw error;
+      await sleep(5000);
+    }
+  }
+}
+
 async function settle(taskId: string, timeout: number): Promise<Task> {
   const deadline = Date.now() + timeout * 1000;
   for (;;) {
@@ -191,25 +191,6 @@ async function settle(taskId: string, timeout: number): Promise<Task> {
     await sleep(3000);
   }
 }
-
-function teamsFor(venue: Venue): string[] {
-  return TEAM_NAMES.slice(0, venue.teams);
-}
-
-/** What the venue says about itself: on its first night, and when asked. */
-function describe(venue: Venue): string {
-  const likes = venue.likes.join(" and ");
-  return `We're ${venue.name.split(",")[0]} in ${venue.name.split(", ")[1]}, ${COUNTRY[venue.region]}. The crowd here loves ${likes}.`;
-}
-
-function opening(venue: Venue, night: number): string {
-  return night === 1
-    ? `Start tonight's quiz. ${describe(venue)}`
-    : "Start tonight's quiz.";
-}
-
-const ASKS_ABOUT_VENUE =
-  /where (is|are) (the|this|your) (venue|pub|bar)|where are you (based|located)|which (city|country) (is|are) (the|this|your) (venue|pub|bar)|(what|which) (genres?|topics?|subjects?)[^?]*(crowd|room|regulars|venue|teams?)[^?]*(like|love|enjoy|prefer)|(crowd|room|regulars) (likes?|loves?|enjoys?|prefers?)[^?]*\?/i;
 
 async function lastReply(taskId: string): Promise<string> {
   const dir = mkdtempSync(join(tmpdir(), "trivia-reply-"));
@@ -237,26 +218,6 @@ async function lastReply(taskId: string): Promise<string> {
     if (text.trim()) return text;
   }
   return "";
-}
-
-function answerSheet(
-  venue: Venue,
-  state: RoomState,
-  random: () => number,
-): string {
-  const lines = ["Here's the answer sheet for this round."];
-  for (const [index, question] of state.pending.entries()) {
-    lines.push("", `Question ${index + 1} (${question.id}):`);
-    for (const team of state.teams) {
-      const answer = teamAnswer(
-        venue,
-        question as Parameters<typeof teamAnswer>[1],
-        random,
-      );
-      lines.push(`- ${team}: ${answer || "(blank)"}`);
-    }
-  }
-  return lines.join("\n");
 }
 
 async function memoryFiles(
@@ -402,12 +363,12 @@ async function night(
         reply = "Thanks, that's the night. See you next week.";
       else reply = "Sounds good, go ahead.";
       if (tonight.length >= 3 && reply.startsWith("Thanks")) {
-        await cli(["tasks", "prompt", taskId, "--prompt", reply]);
+        await send(taskId, reply);
         task = await settle(taskId, options.turnTimeout);
         break;
       }
       if (about && !state.pending.length) reply = `${about}${reply}`;
-      await cli(["tasks", "prompt", taskId, "--prompt", reply]);
+      await send(taskId, reply);
       task = await settle(taskId, options.turnTimeout);
     }
     const final = await room(owner);
@@ -457,11 +418,23 @@ async function main(): Promise<void> {
     },
   });
   if (values.report) {
-    console.log(
-      report(
-        JSON.parse(readFileSync(join(values.report, "nights.json"), "utf8")),
-      ),
-    );
+    // One or more run folders: a driver run's nights.json, or a session
+    // run's nights/ folder with one file per night.
+    const records = values.report
+      .split(",")
+      .flatMap((folder) =>
+        existsSync(join(folder, "nights"))
+          ? readdirSync(join(folder, "nights")).map(
+              (name) =>
+                JSON.parse(
+                  readFileSync(join(folder, "nights", name), "utf8"),
+                ) as NightRecord,
+            )
+          : (JSON.parse(
+              readFileSync(join(folder, "nights.json"), "utf8"),
+            ) as NightRecord[]),
+      );
+    console.log(report(records));
     return;
   }
   const arms = (values.arm ?? []).map((spec) => {
