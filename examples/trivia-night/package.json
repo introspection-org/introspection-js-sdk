@@ -1,0 +1,31 @@
+{
+  "name": "introspection-example-trivia-night",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Trivia Night, a memory demo: a quiz host that never repeats a question at a venue and pitches each round to that venue's crowd. Hosts the question bank as an MCP server and shows every bank lookup and memory read and write as it happens.",
+  "scripts": {
+    "dev": "next dev --port 3500",
+    "build": "next build",
+    "start": "next start --port 3500",
+    "test": "node --import tsx scripts/test.ts",
+    "simulate": "node --import tsx scripts/simulate.ts",
+    "lint": "eslint .",
+    "check-types": "tsc --noEmit",
+    "clean": "rm -rf .next .turbo node_modules"
+  },
+  "dependencies": {
+    "jose": "^6.2.12",
+    "next": "^16.4.6",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.4",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "eslint": "^9.39.5",
+    "eslint-config-next": "^16.4.6",
+    "tsx": "^4.23.15",
+    "typescript": "^6.0.3"
+  }
+}

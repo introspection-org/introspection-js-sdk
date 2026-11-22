@@ -1,0 +1,78 @@
+# Trivia Night: a memory demo
+
+A quiz host for pubs. The question bank never repeats a question at a venue, and a host that remembers the venue pitches each night to its crowd. The page shows every bank lookup and every memory read and write as it happens.
+
+> **Status:** the first slice. The bank, its MCP server, the simulated venues and the page run with no platform. The quiz host is a stand-in, not an agent yet; [What's next](#whats-next) lists what is missing.
+
+## Run it
+
+You need Node 22 or later and pnpm.
+
+```bash
+pnpm install
+```
+
+```bash
+pnpm dev
+```
+
+Open `http://localhost:3500`, pick a venue and play a few weeks with each host.
+
+```bash
+pnpm test       # the bank, its MCP server and the scoring
+```
+
+```bash
+pnpm simulate   # every venue, both hosts, as a table
+```
+
+## What is here
+
+| Piece              | Where                                                                    | What it does                                                                                                                              |
+| ------------------ | ------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| Question bank      | [`lib/bank.ts`](./lib/bank.ts), [`lib/questions.ts`](./lib/questions.ts) | 72 questions with a genre, region and difficulty. Tracks what each venue was asked and how its teams answered. Marks answers.             |
+| MCP server         | [`lib/mcp.ts`](./lib/mcp.ts), served at `/bank/mcp`                      | `start_night`, `next_questions`, `record_answer`, `round_summary`. No tool takes a venue: the bank reads it from the caller's credential. |
+| Identity           | [`lib/identity.ts`](./lib/identity.ts)                                   | Verifies the end-user token the platform sends, and refuses a call without one.                                                           |
+| Simulated venues   | [`lib/venues.ts`](./lib/venues.ts)                                       | Five crowds, each a table of how well it knows each genre. Seeded, so a run repeats exactly. Two are held out.                            |
+| Two stand-in hosts | [`lib/host.ts`](./lib/host.ts)                                           | `forgetful` plans every night the same way. `attentive` keeps notes per venue and is the reference answer.                                |
+| The page           | [`components/trivia-demo.tsx`](./components/trivia-demo.tsx)             | Both hosts side by side, the attentive host's notes, and the event log.                                                                   |
+
+## Who owns what
+
+The bank owns facts: which questions a venue has been asked, and who got them right. It cannot forget, and it grows without limit.
+
+The host's memory owns judgement: the region, what the crowd likes, and the difficulty that suits it in each genre. That is small, and it gets rewritten.
+
+So "never repeat a question" is the bank's job, and a host cannot get it wrong. "Pitch the night right" is the memory's job.
+
+## How a night is scored
+
+- **Pitch miss:** how far each round's share of right answers sat from 65%, on average. Lower is better.
+- **Asked-for rounds:** rounds in a genre the venue said it likes.
+- **Unfair questions:** questions local to somewhere else.
+- **Repeats:** questions the venue had been asked before. The bank keeps this at zero.
+
+## Who is asking
+
+Link the bank to an application, as [Tell a partner who the end user is](https://docs.introspection.dev/identity/applications#tell-a-partner-who-the-end-user-is) describes, and each call carries a signed token naming the end user. Set:
+
+| Variable                    | Value                                                       |
+| --------------------------- | ----------------------------------------------------------- |
+| `TRIVIA_ISSUER`             | `https://api.introspection.dev/v1/applications/<client-id>` |
+| `TRIVIA_AUDIENCE`           | The endpoint's audience, when it sets one                   |
+| `TRIVIA_ACCEPT_ATTRIBUTION` | `1` to also accept a user that an API key named             |
+
+With no platform, `TRIVIA_DEV_OWNER_HEADER=1` trusts an `x-trivia-owner` header instead. Never set it on a deployed bank.
+
+## What the simulation found
+
+- The reference host pitches better the night after it learns: over 20 seeds its week-2 pitch miss is at least a fifth lower than the forgetful host's, and it serves no unfair questions.
+- **The bank is too small.** By week 3 a venue's liked genres run dry, the difficulty filter is relaxed away, and the reference host is no better than the forgetful one. 72 questions is a seed, not a bank.
+- **One venue on one night is noisy.** A round is 3 questions for 4 to 8 teams, so a single night can favour either host. Compare across venues and weeks, not one row.
+
+## What's next
+
+1. A larger bank: enough questions per genre, region and difficulty to hold the filter for a season.
+2. The Recipe: an agent as the host, with the attentive host's notes as its memory file, and this bank bound as `trivia-bank`.
+3. `pnpm dev` setting up a project, as [`aauth-travel`](../aauth-travel) does: the Recipe's repository, its runtime, the bank's binding and the venues as members.
+4. A judge for answers that are close but not a misspelling, calibrated on a labelled set before it marks anything.
