@@ -16,7 +16,8 @@
     "bank:bundle": "pnpm dlx esbuild@0.25.12 scripts/bank-server.ts --bundle --platform=node --format=esm --target=node22 --outfile=recipe/fakes/mcp/trivia-bank/server.mjs --log-level=warning",
     "seed:write-case": "node --import tsx scripts/seed-write-case.ts recipe/fakes/mcp/trivia-bank/seeds/write.json",
     "host": "node --import tsx scripts/host.ts",
-    "candidate": "node --import tsx scripts/candidate.ts"
+    "candidate": "node --import tsx scripts/candidate.ts",
+    "meta-input": "node --import tsx scripts/meta-input.ts"
   },
   "dependencies": {
     "jose": "^6.2.12",

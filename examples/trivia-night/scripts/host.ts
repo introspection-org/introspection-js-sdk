@@ -13,6 +13,7 @@
  * /workspace/memories) and the current night's state.
  */
 import {
+  appendFileSync,
   cpSync,
   existsSync,
   mkdirSync,
@@ -219,10 +220,18 @@ async function call(series: string, tool: string, json: string) {
     name: tool,
     arguments: json ? JSON.parse(json) : {},
   })) as { result?: { content: { text: string }[] }; error?: unknown };
-  console.log(
-    result.result
-      ? result.result.content[0].text
-      : JSON.stringify(result.error),
+  const text = result.result
+    ? result.result.content[0].text
+    : JSON.stringify(result.error);
+  log(series, night, { kind: "tool", tool, arguments: json, result: text });
+  console.log(text);
+}
+
+/** One line of the night's trajectory, for the meta agent to read. */
+function log(series: string, night: Night, entry: Record<string, unknown>) {
+  appendFileSync(
+    join(series, `trajectory-${night.night}.jsonl`),
+    `${JSON.stringify(entry)}\n`,
   );
 }
 
@@ -279,6 +288,8 @@ async function say(series: string, message: string) {
       random,
     );
   } else reply = `${about}Sounds good, go ahead.`;
+  log(series, night, { kind: "host", message });
+  log(series, night, { kind: "trivia_master", message: reply });
   writeNight(series, night);
   console.log(reply);
 }
@@ -327,6 +338,14 @@ async function finish(series: string, flags: Record<string, string>) {
     }),
   };
   mkdirSync(join(flags.out, "nights"), { recursive: true });
+  const trajectory = join(series, `trajectory-${night.night}.jsonl`);
+  if (existsSync(trajectory)) {
+    mkdirSync(join(flags.out, "trajectories"), { recursive: true });
+    cpSync(
+      trajectory,
+      join(flags.out, "trajectories", `${userId}-n${night.night}.jsonl`),
+    );
+  }
   writeFileSync(
     join(flags.out, "nights", `${userId}-n${night.night}.json`),
     JSON.stringify(record, null, 2),

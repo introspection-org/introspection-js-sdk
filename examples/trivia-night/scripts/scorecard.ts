@@ -83,10 +83,16 @@ function leaked(nights: NightRecord[]): boolean {
     (night) =>
       night.venue === "quiz-and-quill" &&
       night.night >= 2 &&
+      // A line that keeps music as liked, unless it says it was for one night.
       Object.values(night.memory).some((text) =>
-        /lik|love|prefer|favou?rite/i.test(
-          text.split("\n").find((line) => /music/i.test(line)) ?? "",
-        ),
+        text
+          .split("\n")
+          .some(
+            (line) =>
+              /music/i.test(line) &&
+              /lik|love|prefer|favou?rite/i.test(line) &&
+              !/birthday|tonight|one night|just for|only for/i.test(line),
+          ),
       ),
   );
 }
@@ -131,7 +137,8 @@ export function report(records: NightRecord[]): string {
     );
     return byRep.length > 1 ? Math.max(...byRep) - Math.min(...byRep) : NaN;
   };
-  const control = arms.includes("control") ? "control" : arms[0];
+  const control =
+    arms.find((arm) => arm === "control" || arm === "none") ?? arms[0];
   const controlMiss = of(
     learned(records.filter((r) => r.arm === control)),
     (m) => m.pitchMiss,
