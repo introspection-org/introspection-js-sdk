@@ -4,6 +4,20 @@ A quiz host for pubs. The question bank never repeats a question at a venue, and
 
 > **Status:** the first slice. The bank, its MCP server, the simulated venues and the page run with no platform. The quiz host is a stand-in, not an agent yet; [What's next](#whats-next) lists what is missing.
 
+## The point: improve
+
+The sample exists to show one thing: the host starts with no memory, and the Operator's improve step changes the Recipe so it keeps and uses notes on each venue.
+
+| Stage                         | What exists                                                                              | State                                      |
+| ----------------------------- | ---------------------------------------------------------------------------------------- | ------------------------------------------ |
+| The agent to improve          | [`recipe/`](./recipe): a host that pitches every night at difficulty 3 and keeps nothing | Passes `introspection check`; not deployed |
+| Evidence improve reads        | Each night's conversation, the venue's complaint afterwards, and the bank's results      | Not built                                  |
+| What improve may change       | The `## Memory` block in `recipe/SYSTEM.md`, a notes file, a skill for pitching a night  | Not built                                  |
+| Proof the change worked       | The simulated venues, scored as below                                                    | Scoring built; not wired to an agent       |
+| What a good result looks like | The `attentive` stand-in host                                                            | Built: it bounds how much improve can gain |
+
+Improve works on single conversations today, and memory spans several. So each memory case is one conversation with the venue's notes already in place: a **read** case checks that tonight's plan follows the notes, and a **write** case checks that the notes exist after a night.
+
 ## Run it
 
 You need Node 22 or later and pnpm.
@@ -72,7 +86,8 @@ With no platform, `TRIVIA_DEV_OWNER_HEADER=1` trusts an `x-trivia-owner` header 
 
 ## What's next
 
-1. A larger bank: enough questions per genre, region and difficulty to hold the filter for a season.
-2. The Recipe: an agent as the host, with the attentive host's notes as its memory file, and this bank bound as `trivia-bank`.
-3. `pnpm dev` setting up a project, as [`aauth-travel`](../aauth-travel) does: the Recipe's repository, its runtime, the bank's binding and the venues as members.
-4. A judge for answers that are close but not a misspelling, calibrated on a labelled set before it marks anything.
+1. The evidence: each simulated venue complains after a badly pitched night, as feedback on that conversation, so improve has failure modes to find.
+2. The read and write memory cases, as Harbor tasks with this bank as the sidecar.
+3. A larger bank: enough questions per genre, region and difficulty to hold the filter for a season.
+4. `pnpm dev` setting up a project, as [`aauth-travel`](../aauth-travel) does: the Recipe's repository, its runtime, the bank's binding and the venues as members.
+5. A judge for answers that are close but not a misspelling, calibrated on a labelled set before it marks anything.

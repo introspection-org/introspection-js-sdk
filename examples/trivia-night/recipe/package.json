@@ -1,0 +1,41 @@
+{
+  "name": "trivia-host",
+  "version": "0.1.0",
+  "description": "Hosts a pub quiz night from a question bank.",
+  "keywords": [
+    "pi-package",
+    "managed-agent",
+    "recipe"
+  ],
+  "type": "module",
+  "private": true,
+  "license": "Apache-2.0",
+  "peerDependencies": {
+    "@introspection-ai/recipes": "*"
+  },
+  "pi": {
+    "agents": [
+      "./agents/*.yaml"
+    ],
+    "prompts": [
+      "./prompts/*.md"
+    ],
+    "mcp": {
+      "servers": [
+        {
+          "id": "trivia-bank",
+          "required": true,
+          "tools": {
+            "include": [
+              "start_night",
+              "next_questions",
+              "record_answer",
+              "round_summary"
+            ],
+            "exclude": []
+          }
+        }
+      ]
+    }
+  }
+}
