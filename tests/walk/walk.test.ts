@@ -1013,8 +1013,16 @@ walk("SDK end-to-end walk", { concurrent: false }, () => {
             return out.find((r) => r.recipe_id === recipe.id) ?? null;
           },
           async () => {
+            // The owner's list: the service account's is scoped to its lane, which a failed version never takes.
+            const ownerQuiet = new IntrospectionClient({
+              cpSession: settings.cpSession,
+              advanced: {
+                baseApiUrl: settings.baseApiUrl,
+                fetch: NATIVE_FETCH,
+              },
+            });
             const out: Runtime[] = [];
-            for await (const r of saQuiet.runtimes.list({
+            for await (const r of ownerQuiet.runtimes.list({
               project: project.id,
               runtime: WALK.runtimeSlug,
             })) {
@@ -1022,10 +1030,7 @@ walk("SDK end-to-end walk", { concurrent: false }, () => {
             }
             return out.find((r) => r.recipe_id === recipe.id) ?? null;
           },
-          (r) =>
-            r !== null &&
-            (r.image_build_status === "ready" ||
-              r.image_build_status === "failed"),
+          baked,
           {
             timeoutMs: BAKE_TIMEOUT,
             intervalMs: 10_000,
@@ -1123,9 +1128,7 @@ walk("SDK end-to-end walk", { concurrent: false }, () => {
           mode,
           () => sa.runtimes.get(created.id),
           () => saQuiet.runtimes.get(created.id),
-          (r) =>
-            r.image_build_status === "ready" ||
-            r.image_build_status === "failed",
+          baked,
           {
             timeoutMs: BAKE_TIMEOUT,
             intervalMs: 10_000,
@@ -3027,6 +3030,13 @@ async function expectRefused(
   expect(refused.status).toBeGreaterThanOrEqual(400);
   expect(refused.status).toBeLessThan(500);
   return refused;
+}
+
+function baked(r: Runtime | null): boolean {
+  if (r?.image_build_status === "failed") {
+    throw new Error(`bake failed: ${r.image_build_error_message}`);
+  }
+  return r?.image_build_status === "ready";
 }
 
 /** A client whose token no plane issued: every authenticated route refuses it. */
