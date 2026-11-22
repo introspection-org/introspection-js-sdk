@@ -61,7 +61,7 @@ async function main() {
     reset();
     nextWeek("a");
     const seen = new Set<string>();
-    for (let round = 0; round < 30; round += 1)
+    for (let round = 0; round < Math.ceil(QUESTIONS.length / 4); round += 1)
       for (const item of nextQuestions("a", { count: 4 }).questions) {
         assert.ok(!seen.has(item.id), `${item.id} repeated`);
         seen.add(item.id);
@@ -145,16 +145,20 @@ async function main() {
     );
 
   await check(
-    "the MCP server refuses a call that names no end user",
+    "the MCP server lists its tools to anyone but refuses a call that names no end user",
     async () => {
-      assert.equal((await rpc("initialize", {}, {})).status, 401);
+      const opened = await rpc("initialize", {}, {});
+      assert.equal(opened.status, 200);
+      const session = opened.headers.get("mcp-session-id")!;
+      const listed = await rpc("tools/list", {}, { "mcp-session-id": session });
+      assert.equal((await result(listed)).tools.length, 6);
       const spoofed = await rpc(
         "tools/call",
         {
           name: "next_questions",
           arguments: { count: 1, owner: "the-anchor" },
         },
-        {},
+        { "mcp-session-id": session },
       );
       assert.equal(spoofed.status, 401);
     },

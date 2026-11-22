@@ -226,6 +226,9 @@ importers:
 
   examples/trivia-night:
     dependencies:
+      '@introspection-sdk/introspection-node':
+        specifier: workspace:*
+        version: link:../../packages/introspection-node
       jose:
         specifier: ^6.2.12
         version: 6.2.18
@@ -8547,7 +8550,7 @@ snapshots:
       tinyglobby: 0.2.17
       unrs-resolver: 1.13.0
     optionalDependencies:
-      eslint-plugin-import: 2.32.0(@typescript-eslint/parser@8.73.0(eslint@9.39.5(jiti@2.7.0))(typescript@6.0.3))(eslint-import-resolver-typescript@3.10.1)(eslint@9.39.5(jiti@2.7.0))
+      eslint-plugin-import: 2.32.0(@typescript-eslint/parser@8.72.2(eslint@9.39.5(jiti@2.7.0))(typescript@6.0.3))(eslint-import-resolver-typescript@3.10.1)(eslint@9.39.5(jiti@2.7.0))
     transitivePeerDependencies:
       - supports-color
 

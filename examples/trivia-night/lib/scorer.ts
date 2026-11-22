@@ -11,6 +11,8 @@ interface Scores {
   season: Map<string, { nights: number; points: number }>;
   tonight: { week: number; teams: string[]; points: Map<string, number> };
   answered: Set<string>;
+  /** Each submitted answer sheet: the questions one round covered. */
+  rounds: { week: number; ids: string[] }[];
 }
 
 export interface TeamAnswer {
@@ -34,6 +36,7 @@ function scores(owner: string): Scores {
       season: new Map(),
       tonight: { week: 0, teams: [], points: new Map() },
       answered: new Set(),
+      rounds: [],
     };
     all.set(owner, found);
   }
@@ -43,6 +46,54 @@ function scores(owner: string): Scores {
 export function resetScores(owner?: string): void {
   if (owner) all.delete(owner);
   else all.clear();
+}
+
+interface ScoresDump {
+  season: [string, { nights: number; points: number }][];
+  tonight: { week: number; teams: string[]; points: [string, number][] };
+  answered: string[];
+  rounds: { week: number; ids: string[] }[];
+}
+
+export function dumpScores(): Record<string, ScoresDump> {
+  return Object.fromEntries(
+    [...all].map(([owner, found]) => [
+      owner,
+      {
+        season: [...found.season],
+        tonight: { ...found.tonight, points: [...found.tonight.points] },
+        answered: [...found.answered],
+        rounds: found.rounds,
+      },
+    ]),
+  );
+}
+
+export function loadScores(dump: Record<string, ScoresDump>): void {
+  all.clear();
+  for (const [owner, found] of Object.entries(dump))
+    all.set(owner, {
+      season: new Map(found.season),
+      tonight: { ...found.tonight, points: new Map(found.tonight.points) },
+      answered: new Set(found.answered),
+      rounds: found.rounds ?? [],
+    });
+}
+
+/** Tonight's teams and standings, and every round this owner submitted. */
+export function scoresOf(owner: string): {
+  tonight: { week: number; teams: string[]; standings: Standing[] };
+  rounds: { week: number; ids: string[] }[];
+} {
+  const mine = scores(owner);
+  return {
+    tonight: {
+      week: mine.tonight.week,
+      teams: mine.tonight.teams,
+      standings: ranked(mine.tonight.points),
+    },
+    rounds: mine.rounds,
+  };
 }
 
 const ranked = (points: Map<string, number>): Standing[] =>
@@ -136,6 +187,7 @@ export function submitRound(
       mine.season.get(team)!.points += 1;
     }
   }
+  mine.rounds.push({ week: tonight.week, ids: [...questions.keys()] });
   const marks = [...questions.values()].flatMap((entry) => entry.marks);
   const count = (method: Mark["method"]) =>
     marks.filter((mark) => mark.method === method).length;

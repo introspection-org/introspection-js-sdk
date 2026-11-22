@@ -11,13 +11,15 @@
     "simulate": "node --import tsx scripts/simulate.ts",
     "lint": "eslint .",
     "check-types": "tsc --noEmit",
-    "clean": "rm -rf .next .turbo node_modules"
+    "clean": "rm -rf .next .turbo node_modules",
+    "rooms": "node --import tsx scripts/rooms.ts"
   },
   "dependencies": {
     "jose": "^6.2.12",
     "next": "^16.4.6",
     "react": "^19.3.1",
-    "react-dom": "^19.3.1"
+    "react-dom": "^19.3.1",
+    "@introspection-sdk/introspection-node": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^22.20.4",

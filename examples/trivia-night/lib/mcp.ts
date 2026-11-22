@@ -6,6 +6,7 @@ import { nextQuestions, nextWeek, summary } from "./bank";
 import { record } from "./events";
 import { ownerOf, Unidentified } from "./identity";
 import { GENRES, type Genre, type Region } from "./questions";
+import { loadState, saveState } from "./state";
 import {
   registerTeams,
   scoreboard,
@@ -174,19 +175,24 @@ const failure = (status: number, id: JsonRpc["id"], message: string) =>
   );
 
 export async function serve(request: Request): Promise<Response> {
+  loadState();
   let message: JsonRpc;
   try {
     message = await request.json();
   } catch {
     return failure(400, undefined, "body must be a JSON-RPC message");
   }
-  let owner: string;
-  try {
-    owner = await ownerOf(request);
-  } catch (error) {
-    if (error instanceof Unidentified)
-      return failure(401, message.id, error.message);
-    throw error;
+  // Listing tools reveals no venue's data, and the platform discovers the
+  // catalog with no end user, so only a tool call needs one.
+  let owner = "";
+  if (message.method === "tools/call") {
+    try {
+      owner = await ownerOf(request);
+    } catch (error) {
+      if (error instanceof Unidentified)
+        return failure(401, message.id, error.message);
+      throw error;
+    }
   }
   if (message.method === "initialize") {
     const id = crypto.randomUUID();
@@ -214,19 +220,15 @@ export async function serve(request: Request): Promise<Response> {
       { jsonrpc: "2.0", id: message.id, result: { tools: TOOLS } },
       id,
     );
-  if (message.method === "tools/call")
-    return sse(
-      {
-        jsonrpc: "2.0",
-        id: message.id,
-        result: call(
-          owner,
-          String(message.params?.name ?? ""),
-          (message.params?.arguments ?? {}) as Record<string, unknown>,
-        ),
-      },
-      id,
+  if (message.method === "tools/call") {
+    const result = call(
+      owner,
+      String(message.params?.name ?? ""),
+      (message.params?.arguments ?? {}) as Record<string, unknown>,
     );
+    saveState();
+    return sse({ jsonrpc: "2.0", id: message.id, result }, id);
+  }
   return failure(400, message.id, `unsupported method ${message.method}`);
 }
 

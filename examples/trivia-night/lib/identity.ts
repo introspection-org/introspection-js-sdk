@@ -28,8 +28,10 @@ export async function ownerOf(request: Request): Promise<string> {
       issuer: ISSUER,
       audience: AUDIENCE,
       algorithms: ["ES256"],
-    }).catch(() => {
-      throw new Unidentified("the end-user token did not verify");
+    }).catch((error: Error) => {
+      throw new Unidentified(
+        `the end-user token did not verify: ${error.message}`,
+      );
     });
     const accepted =
       payload.type === "identity_assertion" ||

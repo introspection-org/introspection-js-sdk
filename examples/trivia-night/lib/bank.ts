@@ -7,7 +7,7 @@
 import type { Recorder } from "./events";
 import { QUESTIONS, type Genre, type Question, type Region } from "./questions";
 
-interface Asked {
+export interface Asked {
   question_id: string;
   week: number;
   genre: Genre;
@@ -57,6 +57,31 @@ function history(owner: string): History {
 export function reset(owner?: string): void {
   if (owner) histories.delete(owner);
   else histories.clear();
+}
+
+export type BankDump = Record<string, { week: number; asked: Asked[] }>;
+
+export function dumpBank(): BankDump {
+  return Object.fromEntries(
+    [...histories].map(([owner, found]) => [
+      owner,
+      { week: found.week, asked: [...found.asked.values()] },
+    ]),
+  );
+}
+
+export function loadBank(dump: BankDump): void {
+  histories.clear();
+  for (const [owner, found] of Object.entries(dump))
+    histories.set(owner, {
+      week: found.week,
+      asked: new Map(found.asked.map((item) => [item.question_id, item])),
+    });
+}
+
+/** What this owner was served, in the order it was served. */
+export function askedRecords(owner: string): Asked[] {
+  return [...history(owner).asked.values()];
 }
 
 /** Start the owner's next quiz night. */
