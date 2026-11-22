@@ -58,7 +58,6 @@ interface Night {
   feedback: NightRecord["feedback"];
   started: number;
   done: boolean;
-  read_out_now?: boolean;
 }
 
 const nightFile = (series: string) => join(series, "night.json");
@@ -72,10 +71,10 @@ const venueOf = (night: Night): Venue =>
 
 const squash = (text: string) => text.toLowerCase().replace(/[^a-z0-9]+/g, " ");
 
-/** Whether the host's message reads a pending question out to the room. */
-function readsOut(message: string, state: RoomState): boolean {
+/** The pending questions the host's message reads out to the room. */
+function readOut(message: string, state: RoomState): RoomState["pending"] {
   const said = squash(message);
-  return state.pending.some((pending) => {
+  return state.pending.filter((pending) => {
     const text = QUESTIONS.find((item) => item.id === pending.id)?.text ?? "";
     return said.includes(squash(text).trim().slice(0, 30));
   });
@@ -203,7 +202,7 @@ How the agent's tools reach you here:
 The trivia-bank tools:
 ${tools.map((tool) => `- ${tool.name}: ${tool.description} Arguments: ${JSON.stringify(tool.inputSchema)}`).join("\n")}
 
-When the trivia master says the night is over, do whatever the system prompt says to do at the end of a night. Then end your own reply (not a message to the trivia master) with the single word: done.
+When the trivia master says the night is over, do whatever the system prompt says to do at the end of a night. Then your whole final reply (not a message to the trivia master) is the single word: done.
 
 ${existsSync(index) ? `The runtime loaded ${index} at the start of this conversation:\n\n${readFileSync(index, "utf8")}\n` : ""}
 <system_prompt>
@@ -259,8 +258,13 @@ async function say(series: string, message: string) {
     reply = "Please start tonight's night with the bank before anything else.";
   else if (!state.teams.length)
     reply = `${about}Tonight's teams: ${teamsFor(venue).join(", ")}.`;
-  else if (state.pending.length && !readsOut(message, state)) {
-    night.read_out_now = true;
+  else if (tonight.length >= 3) {
+    // Questions fetched and never read out don't hold the night open.
+    reply = night.done
+      ? "The night is over. Do what you do at the end of a night, then reply done."
+      : "Thanks, that's the night. See you next week.";
+    night.done = true;
+  } else if (state.pending.length && !readOut(message, state).length) {
     reply = `${about}Ready when you are: give me the round to read out.`;
   } else if (state.pending.length) {
     const random = seeded(
@@ -269,12 +273,11 @@ async function say(series: string, message: string) {
         101 * tonight.length +
         venue.id.length,
     );
-    reply = answerSheet(venue, state, random);
-  } else if (tonight.length >= 3) {
-    reply = night.done
-      ? "The night is over. Do what you do at the end of a night, then reply done."
-      : "Thanks, that's the night. See you next week.";
-    night.done = true;
+    reply = answerSheet(
+      venue,
+      { ...state, pending: readOut(message, state) },
+      random,
+    );
   } else reply = `${about}Sounds good, go ahead.`;
   writeNight(series, night);
   console.log(reply);
