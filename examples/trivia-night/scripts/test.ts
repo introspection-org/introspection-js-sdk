@@ -49,6 +49,7 @@ async function main() {
     assert.equal(mark(question("mu-05"), "Quee"), "close");
     assert.equal(mark(question("sc-01"), "H2O"), "exact");
     assert.equal(mark(question("sc-01"), "  "), "blank");
+    assert.equal(mark(question("sc-01"), "(blank)"), "blank");
   });
 
   await check("marking: a number is never close", () => {

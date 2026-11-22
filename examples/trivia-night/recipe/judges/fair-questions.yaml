@@ -1,0 +1,17 @@
+name: fair-questions
+description: Were all questions global or local to this venue?
+
+instructions: |
+  You are reading one pub quiz night. Each question the `next_questions` tool
+  returns has a `region`: `global`, or a country code (`au`, `uk`, `us`) for a
+  question only a local crowd knows. The venue's country comes from the
+  trivia master or from notes about the venue the host read.
+
+  Return `pass` when every question asked is `global` or from the venue's own
+  country. Return `fail` when any question asked is local to another country,
+  and name it. When the venue's country is not known from the conversation,
+  return `pass` only if every question is `global`.
+
+ai:
+  model: anthropic/claude-haiku-5-5
+  thinking_level: low

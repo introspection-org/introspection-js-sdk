@@ -15,7 +15,8 @@
  * The task token reaches the CLI in its environment, never its arguments.
  */
 import { execFile } from "node:child_process";
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { parseArgs, promisify } from "node:util";
 
@@ -81,6 +82,9 @@ export interface NightRecord {
   feedback: { round: number; rate: number; comment?: string }[];
   memory: Record<string, string>;
   seconds: number;
+  cost_usd?: number;
+  input_tokens?: number;
+  output_tokens?: number;
   error?: string;
 }
 
@@ -134,6 +138,42 @@ async function resetRoom(owner: string): Promise<void> {
 }
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/** The night's model spend, from the conversation's spans. */
+async function usage(
+  conversationId: string,
+  since: Date,
+): Promise<{ cost: number; input: number; output: number }> {
+  const query = {
+    view: "spans",
+    metrics: [
+      { measure: "gen_ai.cost.usd", aggregation: "sum" },
+      { measure: "gen_ai.usage.input_tokens", aggregation: "sum" },
+      { measure: "gen_ai.usage.output_tokens", aggregation: "sum" },
+    ],
+    filters: [
+      {
+        field: "gen_ai.conversation.id",
+        operator: "eq",
+        value: conversationId,
+      },
+    ],
+    from_timestamp: new Date(since.getTime() - 60_000).toISOString(),
+    to_timestamp: new Date(Date.now() + 60_000).toISOString(),
+  };
+  const dir = mkdtempSync(join(tmpdir(), "trivia-usage-"));
+  const file = join(dir, "query.json");
+  writeFileSync(file, JSON.stringify(query));
+  const result = (await cli(["metrics", "query", `@${file}`])) as {
+    data: { metrics: { value: number }[] }[];
+  };
+  const values = result.data[0]?.metrics.map((metric) => metric.value) ?? [];
+  return {
+    cost: values[0] ?? 0,
+    input: values[1] ?? 0,
+    output: values[2] ?? 0,
+  };
+}
 
 async function settle(taskId: string, timeout: number): Promise<Task> {
   const deadline = Date.now() + timeout * 1000;
@@ -331,7 +371,12 @@ async function night(
     record.week = final.week;
     record.rounds = final.rounds.slice(roundsBefore);
     record.standings = final.standings;
-    await sleep(5000);
+    // Spans land in telemetry a little after the turn ends.
+    await sleep(10_000);
+    const spent = await usage(record.conversation_id, new Date(started));
+    record.cost_usd = spent.cost;
+    record.input_tokens = spent.input;
+    record.output_tokens = spent.output;
     record.memory = await readMemory(
       task,
       join(out, "memory", userId, `night-${nightNo}`),

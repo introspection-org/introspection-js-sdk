@@ -129,9 +129,18 @@ function close(given: string, accepted: string): boolean {
   return distance(given, accepted) <= (accepted.length >= 10 ? 2 : 1);
 }
 
+/** How a sheet writes down that a team wrote nothing. */
+const WRITTEN_BLANKS = new Set([
+  "blank",
+  "no answer",
+  "none",
+  "n a",
+  "nothing",
+]);
+
 export function mark(question: Question, answer: string): Mark["method"] {
   const given = normalise(answer);
-  if (!given) return "blank";
+  if (!given || WRITTEN_BLANKS.has(given)) return "blank";
   if (given === normalise(question.answer)) return "exact";
   const aliases = question.aliases.map(normalise);
   if (aliases.includes(given)) return "alias";

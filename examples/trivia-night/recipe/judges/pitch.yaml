@@ -1,0 +1,18 @@
+name: pitch
+description: Did every round land in the target band, 55% to 75% of answers right?
+
+instructions: |
+  You are reading one pub quiz night. The host submits each round's answer
+  sheet with the `submit_round` tool, and the tool's result lists every team's
+  mark for every question (`correct: true` or `false`).
+
+  For each `submit_round` result, work out the round's share right: the number
+  of marks with `correct: true` divided by all marks in that result.
+
+  Return `pass` when every submitted round's share right is between 55% and
+  75%, inclusive. Return `fail` when any round is below 55% or above 75%, and
+  name the round and its share. Return `fail` when no round was submitted.
+
+ai:
+  model: anthropic/claude-haiku-5-5
+  thinking_level: low

@@ -130,8 +130,8 @@ export function report(records: NightRecord[]): string {
     (m) => m.pitchMiss,
   );
   const lines = [
-    "| Arm | Pitch miss, nights 2+ (pts from 65%) | vs control | Run-to-run spread | Blank rate | Asked-for rounds | Finish gap | Worst room (pitch miss) | Unfair | Repeats | Tonight-only leak | Complete nights |",
-    "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |",
+    "| Arm | Pitch miss, nights 2+ (pts from 65%) | vs control | Run-to-run spread | Blank rate | Asked-for rounds | Finish gap | Worst room (pitch miss) | Unfair | Repeats | Tonight-only leak | Cost / night | Complete nights |",
+    "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |",
   ];
   for (const arm of arms) {
     const rows = records.filter((record) => record.arm === arm);

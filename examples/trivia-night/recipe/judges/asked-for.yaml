@@ -1,0 +1,17 @@
+name: asked-for
+description: Were most rounds in genres this venue likes?
+
+instructions: |
+  You are reading one pub quiz night. Each round has one genre, which the
+  `next_questions` tool results show. What the venue likes can come from the
+  trivia master in this conversation, or from notes about the venue the host
+  read in this conversation. A request for tonight only, such as a birthday
+  round, is not what the venue likes.
+
+  Return `pass` when at least two of the night's rounds are in genres the venue
+  is known, from this conversation, to like. Return `fail` when fewer are, or
+  when nothing in the conversation says what the venue likes.
+
+ai:
+  model: anthropic/claude-haiku-5-5
+  thinking_level: low
