@@ -209,7 +209,7 @@ function opening(venue: Venue, night: number): string {
 }
 
 const ASKS_ABOUT_VENUE =
-  /where (is|are) (the|this|your) (venue|pub|bar)|where are you|which (city|country)|what (genres?|topics?|subjects?)[^?]*(like|love|enjoy|prefer)|(crowd|room|they|you) (like|love|enjoy|prefer)[^?]*\?/i;
+  /where (is|are) (the|this|your) (venue|pub|bar)|where are you (based|located)|which (city|country) (is|are) (the|this|your) (venue|pub|bar)|(what|which) (genres?|topics?|subjects?)[^?]*(crowd|room|regulars|venue|teams?)[^?]*(like|love|enjoy|prefer)|(crowd|room|regulars) (likes?|loves?|enjoys?|prefers?)[^?]*\?/i;
 
 async function lastReply(taskId: string): Promise<string> {
   const dir = mkdtempSync(join(tmpdir(), "trivia-reply-"));
@@ -385,7 +385,10 @@ async function night(
       const tonight = state.rounds.filter((round) => round.week === state.week);
       let reply: string;
       // A trivia master asked about the venue answers, wherever it falls.
-      const asked = ASKS_ABOUT_VENUE.test(await lastReply(taskId));
+      // A message reading out a round holds quiz questions, not questions
+      // for the trivia master.
+      const asked =
+        !state.pending.length && ASKS_ABOUT_VENUE.test(await lastReply(taskId));
       if (asked) record.venue_asks += 1;
       const about = asked ? `${describe(venue)} ` : "";
       if (state.week <= before.week)
