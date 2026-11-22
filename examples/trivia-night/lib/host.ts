@@ -11,18 +11,18 @@ import type { Summary } from "./bank";
 import type { Recorder } from "./events";
 import { GENRES, type Genre, type Region } from "./questions";
 
-export const ROUNDS = 3;
+const ROUNDS = 3;
 export const QUESTIONS_PER_ROUND = 3;
 /** A round is pitched right when about this share of answers is correct. */
 export const TARGET = { low: 0.55, aim: 0.65, high: 0.75 };
 
-export interface RoundPlan {
+interface RoundPlan {
   genre: Genre;
   difficulty: number;
   region?: Region;
 }
 
-export interface Notes {
+interface Notes {
   region?: Region;
   likes: Genre[];
   /** The difficulty that suits this crowd, per genre. */
@@ -42,7 +42,7 @@ export interface Host {
 }
 
 /** What a venue says about itself on its first night. */
-export interface Told {
+interface Told {
   region: Region;
   likes: Genre[];
 }

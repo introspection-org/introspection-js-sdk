@@ -87,7 +87,7 @@ export function seeded(seed: number): () => number {
   };
 }
 
-export function chanceRight(venue: Venue, question: Served): number {
+function chanceRight(venue: Venue, question: Served): number {
   const local =
     question.region === "global"
       ? 0

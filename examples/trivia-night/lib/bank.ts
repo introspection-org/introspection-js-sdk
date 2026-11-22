@@ -7,7 +7,7 @@
 import type { Recorder } from "./events";
 import { QUESTIONS, type Genre, type Question, type Region } from "./questions";
 
-export interface Asked {
+interface Asked {
   question_id: string;
   week: number;
   genre: Genre;
@@ -70,7 +70,7 @@ export function week(owner: string): number {
 
 const ARTICLES = /^(the|a|an)\s+/;
 
-export function normalise(answer: string): string {
+function normalise(answer: string): string {
   return answer
     .toLowerCase()
     .normalize("NFKD")
@@ -229,7 +229,7 @@ export function recordAnswer(
   };
 }
 
-export interface Tally {
+interface Tally {
   answers: number;
   correct: number;
   blanks: number;

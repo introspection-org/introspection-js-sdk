@@ -20,9 +20,9 @@ type JsonRpc = {
   params?: Record<string, unknown>;
 };
 
-export const PROTOCOL_VERSION = "2025-06-18";
+const PROTOCOL_VERSION = "2025-06-18";
 
-export const TOOLS = [
+const TOOLS = [
   {
     name: "start_night",
     description:

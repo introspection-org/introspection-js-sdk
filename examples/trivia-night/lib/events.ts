@@ -2,7 +2,7 @@
  * What happened behind the quiz, in order, so the page can show each bank
  * lookup and each memory read and write as it runs. In-memory and per process.
  */
-export type FlowEventType =
+type FlowEventType =
   | "bank.served"
   | "bank.relaxed"
   | "bank.marked"
