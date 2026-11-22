@@ -31,7 +31,7 @@ const block = (arm: string) => {
 const pct = (value: number) => `${Math.round(value * 100)}%`;
 
 const out = [
-  "Metrics, per night: `pitch miss` is how far each round's share of right answers sat from 65% (lower is better; the target band is 55% to 75%); `liked` is the share of rounds in genres the venue likes; `foreign` counts questions local to another country (0 is right); `blanks` is the share of answers left empty.",
+  "Metrics, per night, each lower or higher is better as it says: `pitch miss` is how far each round's share of right answers sat from what suits the room (lower is better); `liked` is the share of rounds in genres the venue likes (higher is better); `foreign` counts questions local to another country (0 is right); `blanks` is the share of answers left empty (lower is better).",
   "",
 ];
 for (const arm of arms) {
