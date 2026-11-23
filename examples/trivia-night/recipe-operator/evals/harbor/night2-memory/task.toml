@@ -1,0 +1,26 @@
+schema_version = "1.1"
+
+[task]
+name = "trivia-host/night2-memory"
+description = "The second night at a venue: the host plans from the notes night one left in memories/MEMORY.md"
+
+[metadata]
+case = "C3"
+
+[verifier]
+timeout_sec = 120.0
+
+[agent]
+timeout_sec = 900.0
+
+[environment]
+build_timeout_sec = 600.0
+cpus = 1
+memory_mb = 2048
+
+[environment.env]
+ANTHROPIC_API_KEY = "${ANTHROPIC_API_KEY:-}"
+
+[[artifacts]]
+source = "/workspace/memories"
+destination = "memories"

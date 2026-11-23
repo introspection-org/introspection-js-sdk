@@ -17,3 +17,6 @@ eval-runs/
 
 # Local runs against the fakes
 .introspection/local/
+
+# A same-day agent key for platform evals
+.agent.key
