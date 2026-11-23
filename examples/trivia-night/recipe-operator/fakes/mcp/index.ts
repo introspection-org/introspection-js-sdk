@@ -1,7 +1,3 @@
-import * as questionBank from "./question-bank/index.ts";
-import * as subject from "./subject/index.ts";
+import * as triviaBank from "./trivia-bank/index.ts";
 
-/** The fakes the Recipe binds. */
-export const recipeFakes = { "question-bank": questionBank };
-/** Every fake, including the trivia master's voice for simulated series. */
-export const fakes = { ...recipeFakes, subject };
+export const fakes = { "trivia-bank": triviaBank };

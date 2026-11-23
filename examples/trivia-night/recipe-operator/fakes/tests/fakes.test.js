@@ -1,19 +1,26 @@
 import { test } from "node:test";
 import { checkRecipeFakes } from "@introspection-ai/eval-simulate/mcp/checks";
-import { recipeFakes as fakes } from "../mcp/index.ts";
+import { fakes } from "../mcp/index.ts";
 import { SCENARIOS, world } from "../scenarios/index.ts";
+import { RECORD } from "./client.js";
 
 checkRecipeFakes({
   test,
   recipe: new URL("../../package.json", import.meta.url),
   fakes,
   world,
-  scenarios: Object.keys(SCENARIOS),
-  recording: new URL("./responses.jsonl", import.meta.url).pathname,
+  scenarios: SCENARIOS,
+  recording: RECORD,
   consistent: (w) => {
-    const bank = w["question-bank"];
-    for (const [cell, n] of Object.entries(bank.supply))
-      if (!Number.isInteger(n) || n < 0) throw new Error(`bad supply ${cell}`);
-    if (bank.asked.length) throw new Error("a world starts with nothing asked");
+    const bank = w["trivia-bank"];
+    const ids = new Set(bank.questions.map((q) => q.id));
+    if (ids.size !== bank.questions.length)
+      throw new Error("duplicate question ids");
+    for (const a of bank.asked)
+      if (!ids.has(a.question_id))
+        throw new Error(`asked ${a.question_id} is not in the supply`);
+    for (const m of bank.marks)
+      if (!ids.has(m.question_id))
+        throw new Error(`mark for ${m.question_id} is not in the supply`);
   },
 });

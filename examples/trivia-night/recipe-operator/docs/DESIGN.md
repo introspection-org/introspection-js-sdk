@@ -1,88 +1,74 @@
-# trivia-host: design
+# Trivia host: design
 
 ## Part A: the brief
 
-The trivia host works in a chat with a venue's trivia master, the person who runs pub quiz night at that venue. The host picks each round's questions from the question bank. It gives them to the trivia master, who reads them out to the room. After each round, the trivia master types in every team's answers. The host has the bank score the round, reads back the bank's summary of how the room did, and picks the next round. Each venue has its own crowd, its own region (Australia, the UK or the US) and its own favourite genres.
+The trivia host runs a pub's weekly quiz night together with the venue's trivia master. The trivia master opens a chat at the start of the night. Every venue is its own end user on the platform, so the bank and the host's notes are kept separately for each venue. At the start the host says tonight's plan: the rounds, each round's genre and starting difficulty, and why. It then starts the night, registers the teams and gives the trivia master one round of questions at a time to read out. The answers aren't shown until the round is marked. The trivia master types in every team's answers. The host submits the whole sheet to the bank, which does all the marking, and then reports the marks, the answers and the standings. The host is getting it right when rounds land near two in three answers correct, most rounds come from genres the crowd likes, and no question needs knowledge only another country would have. It's getting it wrong when it marks answers itself, changes difficulty in the middle of a round or by more than one level, asks another country's local questions, or repeats a question. The host adapts only between rounds, one difficulty level at a time. It must never treat a request for tonight as a lasting preference. It must never write team names, scores or the questions asked into its notes. Facts (what was asked, how each genre and level went) live in the bank. Judgement (what this crowd enjoys, where to start, the venue's country) lives in the venue's notes, which belong to the venue.
 
-A good night has rounds that land near two in three answers right, mostly in genres the crowd likes, and no questions that only people from another country would know. A bad night has rounds that are far too easy or too hard, genres the crowd doesn't care for, or questions from another country.
+**What it reaches:** the trivia bank MCP server (`trivia-bank`, https://trivia-bank.intro.dev/bank/mcp). It needs no key and tells venues apart by the platform's end-user token. Its tools are `start_night`, `register_teams`, `next_questions`, `submit_round`, `round_summary` and `scoreboard`, captured in `docs/trivia-bank-contract.json` on 2026-11-22.
 
-At the start of each night the host states its plan: the genres it will use and the difficulty it will start at. It changes difficulty only between rounds, never during one, and by one level at a time (the bank rates difficulty from 1 to 5).
-
-The host gets better at a venue week after week by keeping notes for that venue. Each venue owns its notes. Facts, such as questions, answers and scores, live in the bank. Judgement goes in the notes, and only judgement that will change what the host picks next week: which genres land, which difficulty to start at, and which genres or levels fall flat. A request for one night ("make tonight a Christmas round") is never saved as a lasting preference. The notes never hold team names, scores or the questions that were asked.
-
-The host never makes up questions or answers. Every question comes from the bank and the bank does all the scoring. If the bank fails, the host tells the trivia master and doesn't guess.
+**Who reads the output:** only the trivia master, in the chat, who reads the questions aloud. There is no second audience.
 
 ### Assumed defaults
 
-- **The question bank is faked** for this first version, since the real one isn't connected yet. The fake offers the bank's three functions: list questions by genre, region and difficulty; score a round's answers; and summarise a round.
-- **"Only another country would know"** means a question tagged for a region other than the venue's. Questions tagged as general or international are fine everywhere.
-- **The night's format:** the trivia master says how many rounds and how many questions per round. If they don't say, the host uses 4 rounds of 10 questions.
-- **The first round's difficulty** comes from the venue's notes. A venue with no notes starts at 3.
-- **"Near two in three"** means 55% to 75% right. Above 75%, the next round goes up one level. Below 55%, it goes down one level.
-- **A new venue:** when there are no notes, the host asks the trivia master for the venue's region and favourite genres before planning the night.
-- **The model:** Claude Opus 5.5 with low thinking, for quick replies in a live chat.
+- **Night shape:** 5 rounds of 8 questions, one genre per round, unless the trivia master says otherwise.
+- **Adapting:** the target is 67% correct across the round. Above 75% the next round goes up one level, below 58% it goes down one, and otherwise it stays.
+- **First night at a venue:** the host asks which country the venue is in, starts at difficulty 3 and plays a balanced mix of genres. After that, about 3 rounds in 5 come from the crowd's favourite genres.
+- **Region:** the host asks only for the venue's own region and `global`.
+- **Memory:** one notes file per venue. It's read at the start of each night and updated at the end, and it holds only what changes the next night's plan.
+- **Model:** `anthropic/claude-opus-5-5`, thinking low, for quick replies during a live night.
 
 ### Later cases (for improve)
 
-- A new venue with no notes: the host asks for the region and genres, then plans the night.
-- The bank goes down in the middle of a night.
-- The trivia master disputes one of the bank's scores, or types in an answer spelled close to right.
-- The trivia master asks the host to remember a team's name or its running total.
-- A liked genre runs out of questions at the right region and difficulty.
+- The bank relaxes a filter because questions run dry. The host should say how.
+- The trivia master types an answer sheet with a team missing, or with a typo in a team name.
+- A team asks the host to re-mark an answer.
+- A night is cut short after two rounds.
+- The trivia master asks for a question that isn't in the bank, or asks the host to write one.
 
-## Exact values
+### Exact values
 
 - Model: `anthropic/claude-opus-5-5`, thinking level `low` (assumed default).
-- Difficulty scale: 1 to 5, changed only between rounds, by at most one level.
-- Target band: 55% to 75% of answers right (assumed default).
+- Bank server id: `trivia-bank`.
 
 ## Part B: how it is built
 
-**Original.** The `template-starter` template from the introspection-recipes catalog (Apache-2.0), scaffolded 2026-11-22. No other base.
+**Original.** `template-starter`, via `introspection init` on 2026-11-22. No other base.
 
 **Behaviours and capabilities.**
 
-| Item                                                                                                        | Kind                                                               | Needed by  |
-| ----------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------ | ---------- |
-| State the night's plan (genres, starting level, why) before any question                                    | instruction (`SYSTEM.md`)                                          | C1, C2     |
-| One level per round; change only between rounds, one level at a time, from the 55% to 75% band              | instruction                                                        | C1, C2, C3 |
-| Only the venue's region or `general`; never fill from another country or with own questions                 | instruction                                                        | C1, C3     |
-| Score and summarise through the bank, never by hand                                                         | instruction + `question-bank` MCP (`score_round`, `round_summary`) | C1         |
-| Pick questions from the bank                                                                                | `question-bank` MCP (`list_questions`)                             | C1, C2, C3 |
-| Venue notes in `memories/notes.md`, read at the start, rewritten at the end, under the owner's memory rules | memory block in `SYSTEM.md` + `read`, `write`, `edit`              | C2         |
+| Item                                                                                                 | Kind                                                           | Needed by  |
+| ---------------------------------------------------------------------------------------------------- | -------------------------------------------------------------- | ---------- |
+| Plan stated before round one, with reasons                                                           | instruction (`SYSTEM.md`, Running the night)                   | C1, C3     |
+| One genre, one difficulty, own region or `global` per round                                          | instruction                                                    | C1, C3     |
+| Whole answer sheet in one `submit_round`; never marks itself                                         | instruction                                                    | C1         |
+| One level up or down between rounds (over 75% / under 58%)                                           | instruction                                                    | C1         |
+| Tonight-only requests honoured and not kept                                                          | instruction + memory block                                     | C2         |
+| Per-venue notes in `memories/notes.md`: country, tastes, start level; never teams, scores, questions | memory block (`<!-- memory:start -->` … `<!-- memory:end -->`) | C2, C3     |
+| Trivia bank                                                                                          | connection: MCP `trivia-bank`, `mode: tools`, six tools        | C1, C2, C3 |
+| `read`, `write`, `edit`                                                                              | tools, for the notes file                                      | C2, C3     |
 
-**Cut.** `bash` (no case needs a shell; the notes need only read and write), `show_artifact` (nothing is a file for people), skills (the rules fit in `SYSTEM.md`).
-**Custom code.** None in the Recipe. The bank fake and its synthetic supply under `fakes/` are for development only.
+**Cut.** `bash` (not needed once the bank's tools are exposed directly); `show_artifact` (the host makes no files).
 
-**Data during development.**
+**Custom code.** None in the Recipe.
 
-- `question-bank` (C1, C2, C3) is faked in `fakes/mcp/question-bank/`. The real server isn't bound yet, so there is no captured contract. As the owner asked, the fake is built on a **provisional `tools.ts` written by hand** from the owner's description (list by genre, region and difficulty; score a round; summarise a round), against the workflow's rule that only `introspection bindings mcp capture` writes it. Tool names, arguments and answer shapes are approximated. Deploy-connect must bind the real server, capture its contract over this file, and rewrite the handlers and answers to it; the cases then need a fresh run. The server is declared `required: false` with `discovery: defer` until then; deploy makes it required.
-- What the fake models: questions the venue has had scored are never listed again; answers are hidden until scoring; answers are matched case- and punctuation-insensitively. It does not model: fuzzy or alternative answers, disputes, outages, pagination past 30.
-- The supply is synthetic and generated (`fakes/scenarios/bank.ts`): 10 genres × 4 regions (general, AU, UK, US) × 5 levels, 16 to 24 per cell. Question text is a placeholder; nothing scored depends on it. Scenario `us-sport-scarce` (C3) leaves three US and two general sport questions per level.
+**Data during development.** `trivia-bank` is faked in `fakes/mcp/trivia-bank/`. Its tools come from `introspection bindings mcp capture` on 2026-11-23. Every answer's shape is approximated from the tool descriptions, because the real bank hasn't been observed yet (no `observed.ts`). In particular, `submit_round`'s `correct_answer` per mark and the shape of `round_summary` are assumptions. Run `introspection bindings mcp observe trivia-bank` once real nights exist. Questions are synthetic placeholders: 12 per genre × region × level, with code-word answers. The fake relaxes only difficulty when a filter runs dry. Scenarios: base (a new venue), `returning` (week 4, film and music strong), `second-week` (sport and history strong).
+
+**Model.** `anthropic/claude-opus-5-5`, thinking `low` (assumed default from brainstorm). `runtime.llm_mode: managed`, as the owner chose.
 
 **How each case is checked.**
 
-| ID  | Method                                                                     | Where                                                               |
-| --- | -------------------------------------------------------------------------- | ------------------------------------------------------------------- |
-| C1  | code (checks in `runs/harness/check.mjs` for now; improve writes the eval) | Pi run against the `base` scenario, notes seeded                    |
-| C2  | code                                                                       | two Pi runs, the second from the first's `memories/` and bank state |
-| C3  | code, plus a person on the explanation                                     | Pi run against `us-sport-scarce`, notes seeded                      |
+| ID  | Method         | Where                                                                                |
+| --- | -------------- | ------------------------------------------------------------------------------------ |
+| C1  | code (planned) | needs the venue's notes before the first turn; runs in the memory-series runner      |
+| C2  | code (planned) | two nights in a row for one venue; runs in the memory-series runner                  |
+| C3  | person         | first night run as local task `runs/C3-2`; weeks 2 and 3 in the memory-series runner |
 
-**Results.** Run locally on 2026-11-22 against the bank fake, each night a whole conversation with a person playing the trivia master (a fresh subagent given only the situation). All code checks pass:
+**Results.**
 
-- **C1 pass.** Plan (music and film, level 3) stated before the first question; four rounds, one level each (3, 4, 4, 4); round two at level 4 after round one came back 90%; every question UK or general and from the bank; mostly music and film, no sport; every round scored by the bank.
-- **C2 pass.** Night 1: rounds at 2, 3, 3, 3, all AU or general; the notes afterwards hold no team names, team scores, questions or Christmas preference. Night 2 (a new chat, the same notes and bank state): plan starts at level 3, all film and history, no Christmas round.
-- **C3 pass (code checks); explanation for the owner to review.** Every question US or general, one level per round, all from the bank. With five usable sport questions per level, the host told the trivia master why at the start and filled the rest with music. Weak spots for review: it offered a level change the rules don't allow, then withdrew it, and promised sport in round three, then withdrew that too.
-
-How the cases were run: a local task (`introspection tasks create`) always starts its folder fresh, so a venue's notes can't be in place before the first turn. C1, C2's second night and C3 need them. So each night ran in Pi directly (`pi --recipe trivia-host`), from a folder beside the repository with `memories/` seeded, the bank fake served with `eval-simulate serve`, and bound through `PI_RECIPES_MCP_LOCAL_CONFIG`. The harness and the checks are in `runs/harness/` beside the repository (not committed); improve turns them into evals.
-
-**Fix found by the first run.** The agent's MCP block named no mode, so Recipes exposed the bank through its CLI, which needs a shell the host doesn't have; the host said it couldn't reach the bank. `mcp.mode: tools` declares the three tools to the model.
-
-**Memory search (improve-memory m1, 2026-11-22, simulated in-session).** The memory block was searched as the Operator's improve-memory step says: three training venues and six held-out venues in a seeded simulation (`fakes/venues.ts`, `fakes/mcp/subject/`, `fakes/scoring.ts`), 3 nights of 3 rounds each. Candidates: the deployed block, three seed blocks (dated log, beliefs with evidence, settings file), and two meta-agent revisions that passed integrity review (beliefs with genres settled by results; settings with a per-level verdict). On the held-out venues neither finalist beat the deployed block by more than the paired standard error on any metric (rounds in range +0.06 and -0.04, SE about 0.09), so the deployed block is kept, as the owner asked. No candidate's notes broke the owner's memory rules. Known limits: the room's skill on two held-out venues reaches the bank's top level, so no host can land in range there; two broken measurements (a subagent reporting calls it never made) were rerun; world fixes made during the search are logged in the run's brief. The run's record is under `runs/improve-memory/m1/` (not committed).
+- `runs/C3-1` failed before reaching the bank. In CLI mode the tools sat behind a shell command the instructions never named. Fixed by switching to `mode: tools` (7329e29). The plan in that run also used genres the bank lacks; fixed by naming the six genres.
+- `runs/C3-2`, first night at a Manchester venue, rounds 1–2. The host read the empty notes and stated a plan. It called `start_night` and `register_teams`, then fetched music / `uk` / level 3. It submitted all 24 answers in one call. After 20 of 24 (83%) it moved round 2 up exactly one level (sport / `uk` / 4). The plan went out as text before round one, but the final reply shows only the round. A person should check whether the plan's "why" is clear enough. One turn was sent twice because I re-sent a cancelled prompt; the host noticed and submitted once.
+- Local tasks can't start with a venue's notes already in place, so C1 and C2, and C3's later weeks, are planned for the in-session memory-series runner (improve-memory).
 
 **Change log.**
 
-- 2026-11-22: brief and cases C1 to C3 approved by Julian Bright; model `anthropic/claude-opus-5-5`, thinking `low`, as an assumed default.
-- 2026-11-22: first Recipe and the question-bank fake (provisional contract).
-- 2026-11-22: eval-simulate 0.10.0 from npm; MCP mode set to tools; C1 to C3 pass locally.
-- 2026-11-22: simulated venues, a trivia-master fake and scoring for the memory search; improve-memory m1 kept the deployed memory block (no candidate beat it on held-out venues).
+- 2026-11-23: first draft; switched MCP to `mode: tools`; named the bank's genres.

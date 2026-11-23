@@ -1,36 +1,24 @@
-import { VENUES } from "../venues.ts";
-import { base, type World } from "./base.ts";
-import usSportScarce from "./us-sport-scarce.ts";
+import type { State } from "../mcp/trivia-bank/entities.ts";
+import { base } from "./base.ts";
+import returning from "./returning.ts";
+import secondWeek from "./second-week.ts";
 
-export type { World };
+export type World = { "trivia-bank": State };
 
-/** One scenario per simulated venue: the venue whose trivia master the host meets. */
-const venueScenarios = Object.fromEntries(
-  VENUES.map((v) => [
-    `venue-${v.id}`,
-    (w: World) => {
-      w.subject.venue = structuredClone(v);
-    },
-  ]),
-);
-
-export const SCENARIOS: Record<string, (w: World) => void> = {
-  base: () => {},
-  "us-sport-scarce": usSportScarce,
-  ...venueScenarios,
+export const SCENARIOS: Record<string, (world: World) => void> = {
+  returning,
+  "second-week": secondWeek,
 };
 
 export function world(
-  name: string = "base",
-  clock: Date = new Date(),
+  scenario: string | undefined,
+  _clock: Date,
   seed = 0,
 ): World {
-  const change = SCENARIOS[name];
-  if (!change)
-    throw new Error(
-      `Unknown scenario "${name}". Scenarios: ${Object.keys(SCENARIOS).join(", ")}.`,
-    );
-  const w = base(clock, seed);
+  const w = base(seed);
+  if (scenario === undefined) return w;
+  const change = SCENARIOS[scenario];
+  if (!change) throw new Error(`Unknown scenario: ${scenario}`);
   change(w);
   return w;
 }

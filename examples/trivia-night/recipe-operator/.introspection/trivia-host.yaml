@@ -1,5 +1,0 @@
-name: trivia-host
-path: .
-description: "Hosts pub trivia nights: picks questions from a bank, reads them out, scores rounds, and adapts to each venue week over week."
-runtime:
-  llm_mode: managed

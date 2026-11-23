@@ -1,0 +1,46 @@
+{
+  "server": {
+    "name": "trivia-bank",
+    "version": "0.1.0"
+  },
+  "capture": {
+    "at": "2026-11-23T04:54:36Z",
+    "endpoint": "https://trivia-bank.intro.dev/bank/mcp",
+    "protocolVersion": "2025-06-18",
+    "hash": "sha256:9eb61727bbd7233ad901d2fe460f4f7d9d061f7e8f02a5aaf7722dd1b9b3e615"
+  },
+  "entities": ["questions", "nights", "asked", "marks"],
+  "settings": [],
+  "tools": {
+    "next_questions": {
+      "kind": "stateful",
+      "reads": ["questions", "asked", "nights"],
+      "writes": ["asked"]
+    },
+    "register_teams": {
+      "kind": "stateful",
+      "reads": ["nights"],
+      "writes": ["nights"]
+    },
+    "round_summary": {
+      "kind": "stateful",
+      "reads": ["questions", "marks", "nights"],
+      "writes": []
+    },
+    "scoreboard": {
+      "kind": "stateful",
+      "reads": ["marks", "nights"],
+      "writes": []
+    },
+    "start_night": {
+      "kind": "stateful",
+      "reads": ["nights"],
+      "writes": ["nights"]
+    },
+    "submit_round": {
+      "kind": "stateful",
+      "reads": ["questions", "asked", "nights"],
+      "writes": ["marks"]
+    }
+  }
+}
