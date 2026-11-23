@@ -1,0 +1,4 @@
+control training seed-to-seed spread S = 0.046
+freeform-rev   off 0.106 0.130 0.106 mean 0.114 | parent freeform mean 0.154 | gain +0.040 | guard breaks 1 | does not qualify
+beliefs-rev2   off 0.130 0.139 0.116 mean 0.128 | parent beliefs mean 0.156 | gain +0.028 | guard breaks 2 | does not qualify
+SELECTED: none

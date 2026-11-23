@@ -1,0 +1,38 @@
+{
+  "layout": {
+    "notes": {
+      "load": "/workspace/memories is kept between nights at this venue, and /workspace/memories/MEMORY.md is loaded at the start of every night. Keep one notes file, /workspace/memories/venue.md, and keep MEMORY.md a one-line index: `- This venue: venue.md`.\n\n- **Before you start the night:** read venue.md and build tonight's plan from it. Say the plan before round 1.",
+      "save": "- **Before you finish:** call `round_summary` and rewrite venue.md, never append."
+    },
+    "log": {
+      "load": "/workspace/memories/MEMORY.md is loaded at the start of every night at this venue and is kept between nights. It has two parts: a `Next night` plan at the top, holding only settings, and a dated log below it.\n\n- **Before you start the night:** read it, run the `Next night` plan unless the venue asks for something else tonight, and say the plan before round 1.",
+      "save": "- **Before you finish:** call `round_summary`, then rewrite the `Next night` plan, never append to it. Then add one dated log line: which genres and difficulties you ran and how each did."
+    },
+    "kb": {
+      "load": "/workspace/memories is kept between nights at this venue. /workspace/memories/MEMORY.md is its index and is loaded at the start of every night: one line per page, `- [[<page>]]: what it holds`. Keep a `venue` page for the venue's region, liked genres and house rules, and one page per genre played, linked with `[[<page>]]`.\n\n- **Before you start the night:** read the index and the `venue` page, open the pages for the genres you plan to play, and say the plan before round 1.",
+      "save": "- **Before you finish:** call `round_summary` and rewrite each page you learned something for, never append. Create a page for a genre played for the first time, and keep the index and links current."
+    }
+  },
+  "kept": {
+    "settings": "- **Keep only settings you will use:** the venue's region, the genres its crowd likes, any house rules, and a difficulty from 1 to 5 for each genre. Write each with one line on why it last changed.",
+    "beliefs": "- **Keep each setting as a belief:** the venue's region, the genres its crowd likes, any house rules, and a difficulty from 1 to 5 for each genre, each marked `confirmed` or `guess` with its evidence in a few words. What the venue said outright is `confirmed`; what you infer from how the room did is a `guess`. Follow `confirmed` lines and `guess` lines unless the venue says otherwise tonight."
+  },
+  "update": {
+    "step": "- **Move each difficulty from tonight's results:** for each genre played, move its difficulty one step toward how the room did: harder when the room found it easy, easier when it struggled or left many answers blank, unchanged when it suited the room.",
+    "onlevel": "- **Move each difficulty from on-level evidence:** for each genre played, judge it only on its questions whose own difficulty matched the difficulty you planned; each question you were given carries its difficulty. Move the planned difficulty one step toward how the room did on those: harder when easy, easier when it struggled or left many answers blank, unchanged when it suited the room. Keep it when few were on-level.",
+    "confirm": "- **Move a difficulty only when two nights agree:** for each genre played, note whether the room found it easy, hard or about right. Move its difficulty one step that way only when the night before pointed the same way; otherwise keep it and note tonight's result as pending."
+  },
+  "within": {
+    "none": "",
+    "between": "- **A remembered difficulty is where a genre starts tonight.** After each round, if the room found that genre easy, play its next round tonight one step harder; if it struggled or left many answers blank, one step easier. Never change a round once its questions are out, and say any change when you announce the round. Remember the level each genre should start at next time."
+  },
+  "scope": {
+    "liked": "- **Every round is a liked genre,** repeating one when there are fewer liked genres than rounds. Play another genre only when the venue asks for it tonight.",
+    "spread": "- **Every round is a liked genre, spread by what the bank still has:** repeat a liked genre when there are fewer liked genres than rounds, but when a genre's page or tonight's results say it ran short at its level, give the next round to another liked genre that still has questions at its own level. Play another genre only when the venue asks for it tonight."
+  },
+  "common": "- Set `region` to the venue's region on every `next_questions` call.\n- A request that applies to tonight only is never kept as a lasting setting.\n- Never store team names, scores or the questions asked: the bank keeps those.",
+  "stock": {
+    "none": "",
+    "dry": "- **Plan around what the bank has run out of:** on each genre's page, keep the levels the bank ran short at for this venue, rewritten each night. When the remembered level is short, plan that genre one level towards what the room needs (harder when it found the genre easy), and say so in the plan."
+  }
+}

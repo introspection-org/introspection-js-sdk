@@ -1,0 +1,10 @@
+.next/
+tsconfig.tsbuildinfo
+.env.local
+# next dev writes these for coding agents
+AGENTS.md
+CLAUDE.md
+.introspection-work/
+.trivia-state.json*
+runs/
+recipe/eval-runs/

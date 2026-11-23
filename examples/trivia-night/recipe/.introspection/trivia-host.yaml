@@ -1,0 +1,5 @@
+name: trivia-host
+path: .
+description: Hosts a pub quiz night from a question bank
+runtime:
+  llm_mode: managed

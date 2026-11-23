@@ -1,7 +1,11 @@
 {
   "$schema": "https://unpkg.com/knip@6/schema.json",
   "ignoreBinaries": ["openssl"],
-  "ignoreWorkspaces": ["examples/auth", "examples/aauth-travel"],
+  "ignoreWorkspaces": [
+    "examples/auth",
+    "examples/aauth-travel",
+    "examples/trivia-night"
+  ],
   "workspaces": {
     ".": {
       "entry": ["scripts/*.mjs!"]

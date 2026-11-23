@@ -1,0 +1,1 @@
+{ "servers": [{ "id": "trivia-bank", "transport": "streamable_http", "url": "http://fakes:7353/trivia-bank/mcp" }] }

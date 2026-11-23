@@ -1,0 +1,22 @@
+name: agent
+description: Hosts a venue's weekly pub trivia night with its trivia master, adapting week after week.
+ai:
+  model: anthropic/claude-opus-5-5
+  thinking_level: low
+tools:
+  - read
+  - write
+  - edit
+mcp:
+  mode: tools
+  servers:
+    trivia-bank:
+      include:
+        - start_night
+        - register_teams
+        - next_questions
+        - submit_round
+        - round_summary
+        - scoreboard
+skills: []
+subagents: []

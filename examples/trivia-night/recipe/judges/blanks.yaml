@@ -1,0 +1,16 @@
+name: blanks
+description: Did the room keep answering, with few blank answers?
+
+instructions: |
+  You are reading one pub quiz night. Each `submit_round` tool result lists
+  every team's mark for every question, and a mark whose `method` is `blank`
+  means the team wrote nothing: the room gave up on that question.
+
+  Count blank marks and all marks across every `submit_round` result.
+
+  Return `pass` when blanks are at most 15% of all marks. Return `fail` when
+  they are more, and give the count. Return `fail` when no round was submitted.
+
+ai:
+  model: anthropic/claude-haiku-5-5
+  thinking_level: low

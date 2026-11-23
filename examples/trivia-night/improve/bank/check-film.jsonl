@@ -1,0 +1,320 @@
+{"line": 1, "verdict": "ok", "reason": "correct"}
+{"line": 2, "verdict": "ok", "reason": "correct"}
+{"line": 3, "verdict": "ok", "reason": "correct"}
+{"line": 4, "verdict": "ok", "reason": "correct"}
+{"line": 5, "verdict": "ok", "reason": "correct"}
+{"line": 6, "verdict": "ok", "reason": "correct"}
+{"line": 7, "verdict": "ok", "reason": "correct"}
+{"line": 8, "verdict": "ok", "reason": "correct"}
+{"line": 9, "verdict": "ok", "reason": "correct"}
+{"line": 10, "verdict": "ok", "reason": "correct"}
+{"line": 11, "verdict": "ok", "reason": "correct"}
+{"line": 12, "verdict": "ok", "reason": "correct"}
+{"line": 13, "verdict": "ok", "reason": "correct"}
+{"line": 14, "verdict": "ok", "reason": "correct"}
+{"line": 15, "verdict": "ok", "reason": "correct"}
+{"line": 16, "verdict": "ok", "reason": "correct"}
+{"line": 17, "verdict": "ok", "reason": "correct"}
+{"line": 18, "verdict": "ok", "reason": "correct"}
+{"line": 19, "verdict": "ok", "reason": "correct"}
+{"line": 20, "verdict": "ok", "reason": "correct"}
+{"line": 21, "verdict": "ok", "reason": "correct"}
+{"line": 22, "verdict": "ok", "reason": "correct"}
+{"line": 23, "verdict": "ok", "reason": "correct"}
+{"line": 24, "verdict": "ok", "reason": "correct"}
+{"line": 25, "verdict": "ok", "reason": "correct"}
+{"line": 26, "verdict": "ok", "reason": "correct"}
+{"line": 27, "verdict": "ok", "reason": "correct"}
+{"line": 28, "verdict": "ok", "reason": "correct"}
+{"line": 29, "verdict": "ok", "reason": "correct"}
+{"line": 30, "verdict": "ok", "reason": "correct"}
+{"line": 31, "verdict": "ok", "reason": "correct"}
+{"line": 32, "verdict": "ok", "reason": "correct"}
+{"line": 33, "verdict": "ok", "reason": "correct"}
+{"line": 34, "verdict": "ok", "reason": "correct"}
+{"line": 35, "verdict": "ok", "reason": "correct"}
+{"line": 36, "verdict": "ok", "reason": "correct"}
+{"line": 37, "verdict": "ok", "reason": "correct"}
+{"line": 38, "verdict": "ok", "reason": "correct"}
+{"line": 39, "verdict": "ok", "reason": "correct"}
+{"line": 40, "verdict": "ok", "reason": "correct"}
+{"line": 41, "verdict": "ok", "reason": "correct"}
+{"line": 42, "verdict": "fix", "reason": "difficulty/region label off", "difficulty": 2}
+{"line": 43, "verdict": "drop", "reason": "set location ambiguous (filmed in Australia, farm not clearly Australian)"}
+{"line": 44, "verdict": "ok", "reason": "correct"}
+{"line": 45, "verdict": "fix", "reason": "difficulty/region label off", "difficulty": 2}
+{"line": 46, "verdict": "fix", "reason": "difficulty/region label off", "difficulty": 2}
+{"line": 47, "verdict": "fix", "reason": "difficulty/region label off", "difficulty": 2}
+{"line": 48, "verdict": "fix", "reason": "difficulty/region label off", "difficulty": 2}
+{"line": 49, "verdict": "fix", "reason": "difficulty/region label off", "region": "global"}
+{"line": 50, "verdict": "ok", "reason": "correct"}
+{"line": 51, "verdict": "ok", "reason": "correct"}
+{"line": 52, "verdict": "ok", "reason": "correct"}
+{"line": 53, "verdict": "ok", "reason": "correct"}
+{"line": 54, "verdict": "fix", "reason": "difficulty/region label off", "difficulty": 2}
+{"line": 55, "verdict": "fix", "reason": "difficulty/region label off", "difficulty": 2}
+{"line": 56, "verdict": "fix", "reason": "difficulty/region label off", "difficulty": 2}
+{"line": 57, "verdict": "fix", "reason": "difficulty/region label off", "region": "global"}
+{"line": 58, "verdict": "fix", "reason": "difficulty/region label off", "region": "global"}
+{"line": 59, "verdict": "fix", "reason": "difficulty/region label off", "difficulty": 3}
+{"line": 60, "verdict": "fix", "reason": "difficulty/region label off", "region": "global"}
+{"line": 61, "verdict": "fix", "reason": "difficulty/region label off", "region": "global"}
+{"line": 62, "verdict": "fix", "reason": "difficulty/region label off", "difficulty": 2}
+{"line": 63, "verdict": "fix", "reason": "difficulty/region label off", "region": "global"}
+{"line": 64, "verdict": "fix", "reason": "difficulty/region label off", "region": "global"}
+{"line": 65, "verdict": "ok", "reason": "correct"}
+{"line": 66, "verdict": "ok", "reason": "correct"}
+{"line": 67, "verdict": "ok", "reason": "correct"}
+{"line": 68, "verdict": "ok", "reason": "correct"}
+{"line": 69, "verdict": "ok", "reason": "correct"}
+{"line": 70, "verdict": "ok", "reason": "correct"}
+{"line": 71, "verdict": "ok", "reason": "correct"}
+{"line": 72, "verdict": "ok", "reason": "correct"}
+{"line": 73, "verdict": "ok", "reason": "correct"}
+{"line": 74, "verdict": "ok", "reason": "correct"}
+{"line": 75, "verdict": "ok", "reason": "correct"}
+{"line": 76, "verdict": "ok", "reason": "correct"}
+{"line": 77, "verdict": "ok", "reason": "correct"}
+{"line": 78, "verdict": "ok", "reason": "correct"}
+{"line": 79, "verdict": "ok", "reason": "correct"}
+{"line": 80, "verdict": "ok", "reason": "correct"}
+{"line": 81, "verdict": "ok", "reason": "correct"}
+{"line": 82, "verdict": "ok", "reason": "correct"}
+{"line": 83, "verdict": "ok", "reason": "correct"}
+{"line": 84, "verdict": "ok", "reason": "correct"}
+{"line": 85, "verdict": "ok", "reason": "correct"}
+{"line": 86, "verdict": "ok", "reason": "correct"}
+{"line": 87, "verdict": "ok", "reason": "correct"}
+{"line": 88, "verdict": "ok", "reason": "correct"}
+{"line": 89, "verdict": "drop", "reason": "repeats fact of line 10"}
+{"line": 90, "verdict": "ok", "reason": "correct"}
+{"line": 91, "verdict": "ok", "reason": "correct"}
+{"line": 92, "verdict": "ok", "reason": "correct"}
+{"line": 93, "verdict": "ok", "reason": "correct"}
+{"line": 94, "verdict": "ok", "reason": "correct"}
+{"line": 95, "verdict": "ok", "reason": "correct"}
+{"line": 96, "verdict": "ok", "reason": "correct"}
+{"line": 97, "verdict": "ok", "reason": "correct"}
+{"line": 98, "verdict": "ok", "reason": "correct"}
+{"line": 99, "verdict": "ok", "reason": "correct"}
+{"line": 100, "verdict": "ok", "reason": "correct"}
+{"line": 101, "verdict": "ok", "reason": "correct"}
+{"line": 102, "verdict": "ok", "reason": "correct"}
+{"line": 103, "verdict": "ok", "reason": "correct"}
+{"line": 104, "verdict": "ok", "reason": "correct"}
+{"line": 105, "verdict": "ok", "reason": "correct"}
+{"line": 106, "verdict": "drop", "reason": "not about film"}
+{"line": 107, "verdict": "ok", "reason": "correct"}
+{"line": 108, "verdict": "ok", "reason": "correct"}
+{"line": 109, "verdict": "ok", "reason": "correct"}
+{"line": 110, "verdict": "ok", "reason": "correct"}
+{"line": 111, "verdict": "ok", "reason": "correct"}
+{"line": 112, "verdict": "ok", "reason": "correct"}
+{"line": 113, "verdict": "ok", "reason": "correct"}
+{"line": 114, "verdict": "ok", "reason": "correct"}
+{"line": 115, "verdict": "ok", "reason": "correct"}
+{"line": 116, "verdict": "ok", "reason": "correct"}
+{"line": 117, "verdict": "ok", "reason": "correct"}
+{"line": 118, "verdict": "ok", "reason": "correct"}
+{"line": 119, "verdict": "ok", "reason": "correct"}
+{"line": 120, "verdict": "fix", "reason": "difficulty/region label off", "difficulty": 3}
+{"line": 121, "verdict": "fix", "reason": "difficulty/region label off", "region": "global"}
+{"line": 122, "verdict": "fix", "reason": "difficulty/region label off", "region": "global"}
+{"line": 123, "verdict": "ok", "reason": "correct"}
+{"line": 124, "verdict": "fix", "reason": "difficulty/region label off", "region": "global", "difficulty": 1}
+{"line": 125, "verdict": "ok", "reason": "correct"}
+{"line": 126, "verdict": "ok", "reason": "correct"}
+{"line": 127, "verdict": "drop", "reason": "answer is in the question"}
+{"line": 128, "verdict": "ok", "reason": "correct"}
+{"line": 129, "verdict": "ok", "reason": "correct"}
+{"line": 130, "verdict": "ok", "reason": "correct"}
+{"line": 131, "verdict": "ok", "reason": "correct"}
+{"line": 132, "verdict": "ok", "reason": "correct"}
+{"line": 133, "verdict": "ok", "reason": "correct"}
+{"line": 134, "verdict": "ok", "reason": "correct"}
+{"line": 135, "verdict": "ok", "reason": "correct"}
+{"line": 136, "verdict": "ok", "reason": "correct"}
+{"line": 137, "verdict": "ok", "reason": "correct"}
+{"line": 138, "verdict": "ok", "reason": "correct"}
+{"line": 139, "verdict": "ok", "reason": "correct"}
+{"line": 140, "verdict": "drop", "reason": "repeats fact of line 139"}
+{"line": 141, "verdict": "ok", "reason": "correct"}
+{"line": 142, "verdict": "ok", "reason": "correct"}
+{"line": 143, "verdict": "ok", "reason": "correct"}
+{"line": 144, "verdict": "ok", "reason": "correct"}
+{"line": 145, "verdict": "ok", "reason": "correct"}
+{"line": 146, "verdict": "ok", "reason": "correct"}
+{"line": 147, "verdict": "fix", "reason": "difficulty/region label off", "difficulty": 2}
+{"line": 148, "verdict": "ok", "reason": "correct"}
+{"line": 149, "verdict": "ok", "reason": "correct"}
+{"line": 150, "verdict": "ok", "reason": "correct"}
+{"line": 151, "verdict": "ok", "reason": "correct"}
+{"line": 152, "verdict": "ok", "reason": "correct"}
+{"line": 153, "verdict": "ok", "reason": "correct"}
+{"line": 154, "verdict": "ok", "reason": "correct"}
+{"line": 155, "verdict": "ok", "reason": "correct"}
+{"line": 156, "verdict": "ok", "reason": "correct"}
+{"line": 157, "verdict": "ok", "reason": "correct"}
+{"line": 158, "verdict": "ok", "reason": "correct"}
+{"line": 159, "verdict": "ok", "reason": "correct"}
+{"line": 160, "verdict": "ok", "reason": "correct"}
+{"line": 161, "verdict": "fix", "reason": "difficulty/region label off", "difficulty": 2}
+{"line": 162, "verdict": "fix", "reason": "difficulty/region label off", "difficulty": 2}
+{"line": 163, "verdict": "ok", "reason": "correct"}
+{"line": 164, "verdict": "ok", "reason": "correct"}
+{"line": 165, "verdict": "ok", "reason": "correct"}
+{"line": 166, "verdict": "ok", "reason": "correct"}
+{"line": 167, "verdict": "ok", "reason": "correct"}
+{"line": 168, "verdict": "ok", "reason": "correct"}
+{"line": 169, "verdict": "ok", "reason": "correct"}
+{"line": 170, "verdict": "ok", "reason": "correct"}
+{"line": 171, "verdict": "ok", "reason": "correct"}
+{"line": 172, "verdict": "drop", "reason": "not about film (poetry)"}
+{"line": 173, "verdict": "ok", "reason": "correct"}
+{"line": 174, "verdict": "ok", "reason": "correct"}
+{"line": 175, "verdict": "ok", "reason": "correct"}
+{"line": 176, "verdict": "ok", "reason": "correct"}
+{"line": 177, "verdict": "ok", "reason": "correct"}
+{"line": 178, "verdict": "ok", "reason": "correct"}
+{"line": 179, "verdict": "ok", "reason": "correct"}
+{"line": 180, "verdict": "ok", "reason": "correct"}
+{"line": 181, "verdict": "ok", "reason": "correct"}
+{"line": 182, "verdict": "ok", "reason": "correct"}
+{"line": 183, "verdict": "ok", "reason": "correct"}
+{"line": 184, "verdict": "ok", "reason": "correct"}
+{"line": 185, "verdict": "ok", "reason": "correct"}
+{"line": 186, "verdict": "drop", "reason": "time-sensitive record"}
+{"line": 187, "verdict": "ok", "reason": "correct"}
+{"line": 188, "verdict": "fix", "reason": "difficulty/region label off", "region": "global", "difficulty": 2}
+{"line": 189, "verdict": "ok", "reason": "correct"}
+{"line": 190, "verdict": "ok", "reason": "correct"}
+{"line": 191, "verdict": "ok", "reason": "correct"}
+{"line": 192, "verdict": "ok", "reason": "correct"}
+{"line": 193, "verdict": "ok", "reason": "correct"}
+{"line": 194, "verdict": "fix", "reason": "difficulty/region label off", "difficulty": 2}
+{"line": 195, "verdict": "ok", "reason": "correct"}
+{"line": 196, "verdict": "ok", "reason": "correct"}
+{"line": 197, "verdict": "fix", "reason": "difficulty/region label off", "difficulty": 3}
+{"line": 198, "verdict": "ok", "reason": "correct"}
+{"line": 199, "verdict": "ok", "reason": "correct"}
+{"line": 200, "verdict": "ok", "reason": "correct"}
+{"line": 201, "verdict": "ok", "reason": "correct"}
+{"line": 202, "verdict": "ok", "reason": "correct"}
+{"line": 203, "verdict": "ok", "reason": "correct"}
+{"line": 204, "verdict": "ok", "reason": "correct"}
+{"line": 205, "verdict": "ok", "reason": "correct"}
+{"line": 206, "verdict": "ok", "reason": "correct"}
+{"line": 207, "verdict": "ok", "reason": "correct"}
+{"line": 208, "verdict": "ok", "reason": "correct"}
+{"line": 209, "verdict": "ok", "reason": "correct"}
+{"line": 210, "verdict": "ok", "reason": "correct"}
+{"line": 211, "verdict": "ok", "reason": "correct"}
+{"line": 212, "verdict": "ok", "reason": "correct"}
+{"line": 213, "verdict": "ok", "reason": "correct"}
+{"line": 214, "verdict": "ok", "reason": "correct"}
+{"line": 215, "verdict": "ok", "reason": "correct"}
+{"line": 216, "verdict": "ok", "reason": "correct"}
+{"line": 217, "verdict": "ok", "reason": "correct"}
+{"line": 218, "verdict": "ok", "reason": "correct"}
+{"line": 219, "verdict": "ok", "reason": "correct"}
+{"line": 220, "verdict": "ok", "reason": "correct"}
+{"line": 221, "verdict": "drop", "reason": "repeats Kubrick fact of line 132"}
+{"line": 222, "verdict": "ok", "reason": "correct"}
+{"line": 223, "verdict": "ok", "reason": "correct"}
+{"line": 224, "verdict": "ok", "reason": "correct"}
+{"line": 225, "verdict": "ok", "reason": "correct"}
+{"line": 226, "verdict": "ok", "reason": "correct"}
+{"line": 227, "verdict": "ok", "reason": "correct"}
+{"line": 228, "verdict": "ok", "reason": "correct"}
+{"line": 229, "verdict": "ok", "reason": "correct"}
+{"line": 230, "verdict": "ok", "reason": "correct"}
+{"line": 231, "verdict": "ok", "reason": "correct"}
+{"line": 232, "verdict": "ok", "reason": "correct"}
+{"line": 233, "verdict": "ok", "reason": "correct"}
+{"line": 234, "verdict": "ok", "reason": "correct"}
+{"line": 235, "verdict": "ok", "reason": "correct"}
+{"line": 236, "verdict": "drop", "reason": "repeats fact of line 111"}
+{"line": 237, "verdict": "ok", "reason": "correct"}
+{"line": 238, "verdict": "ok", "reason": "correct"}
+{"line": 239, "verdict": "ok", "reason": "correct"}
+{"line": 240, "verdict": "ok", "reason": "correct"}
+{"line": 241, "verdict": "ok", "reason": "correct"}
+{"line": 242, "verdict": "ok", "reason": "correct"}
+{"line": 243, "verdict": "ok", "reason": "correct"}
+{"line": 244, "verdict": "ok", "reason": "correct"}
+{"line": 245, "verdict": "ok", "reason": "correct"}
+{"line": 246, "verdict": "ok", "reason": "correct"}
+{"line": 247, "verdict": "ok", "reason": "correct"}
+{"line": 248, "verdict": "ok", "reason": "correct"}
+{"line": 249, "verdict": "ok", "reason": "correct"}
+{"line": 250, "verdict": "ok", "reason": "correct"}
+{"line": 251, "verdict": "ok", "reason": "correct"}
+{"line": 252, "verdict": "ok", "reason": "correct"}
+{"line": 253, "verdict": "ok", "reason": "correct"}
+{"line": 254, "verdict": "ok", "reason": "correct"}
+{"line": 255, "verdict": "ok", "reason": "correct"}
+{"line": 256, "verdict": "ok", "reason": "correct"}
+{"line": 257, "verdict": "ok", "reason": "correct"}
+{"line": 258, "verdict": "ok", "reason": "correct"}
+{"line": 259, "verdict": "ok", "reason": "correct"}
+{"line": 260, "verdict": "ok", "reason": "correct"}
+{"line": 261, "verdict": "ok", "reason": "correct"}
+{"line": 262, "verdict": "ok", "reason": "correct"}
+{"line": 263, "verdict": "ok", "reason": "correct"}
+{"line": 264, "verdict": "ok", "reason": "correct"}
+{"line": 265, "verdict": "ok", "reason": "correct"}
+{"line": 266, "verdict": "ok", "reason": "correct"}
+{"line": 267, "verdict": "ok", "reason": "correct"}
+{"line": 268, "verdict": "ok", "reason": "correct"}
+{"line": 269, "verdict": "ok", "reason": "correct"}
+{"line": 270, "verdict": "ok", "reason": "correct"}
+{"line": 271, "verdict": "ok", "reason": "correct"}
+{"line": 272, "verdict": "ok", "reason": "correct"}
+{"line": 273, "verdict": "ok", "reason": "correct"}
+{"line": 274, "verdict": "ok", "reason": "correct"}
+{"line": 275, "verdict": "ok", "reason": "correct"}
+{"line": 276, "verdict": "ok", "reason": "correct"}
+{"line": 277, "verdict": "ok", "reason": "correct"}
+{"line": 278, "verdict": "ok", "reason": "correct"}
+{"line": 279, "verdict": "ok", "reason": "correct"}
+{"line": 280, "verdict": "ok", "reason": "correct"}
+{"line": 281, "verdict": "ok", "reason": "correct"}
+{"line": 282, "verdict": "ok", "reason": "correct"}
+{"line": 283, "verdict": "fix", "reason": "difficulty/region label off", "difficulty": 4}
+{"line": 284, "verdict": "ok", "reason": "correct"}
+{"line": 285, "verdict": "ok", "reason": "correct"}
+{"line": 286, "verdict": "ok", "reason": "correct"}
+{"line": 287, "verdict": "ok", "reason": "correct"}
+{"line": 288, "verdict": "ok", "reason": "correct"}
+{"line": 289, "verdict": "ok", "reason": "correct"}
+{"line": 290, "verdict": "ok", "reason": "correct"}
+{"line": 291, "verdict": "ok", "reason": "correct"}
+{"line": 292, "verdict": "ok", "reason": "correct"}
+{"line": 293, "verdict": "ok", "reason": "correct"}
+{"line": 294, "verdict": "ok", "reason": "correct"}
+{"line": 295, "verdict": "ok", "reason": "correct"}
+{"line": 296, "verdict": "ok", "reason": "correct"}
+{"line": 297, "verdict": "ok", "reason": "correct"}
+{"line": 298, "verdict": "ok", "reason": "correct"}
+{"line": 299, "verdict": "ok", "reason": "correct"}
+{"line": 300, "verdict": "ok", "reason": "correct"}
+{"line": 301, "verdict": "ok", "reason": "correct"}
+{"line": 302, "verdict": "ok", "reason": "correct"}
+{"line": 303, "verdict": "ok", "reason": "correct"}
+{"line": 304, "verdict": "ok", "reason": "correct"}
+{"line": 305, "verdict": "ok", "reason": "correct"}
+{"line": 306, "verdict": "ok", "reason": "correct"}
+{"line": 307, "verdict": "ok", "reason": "correct"}
+{"line": 308, "verdict": "ok", "reason": "correct"}
+{"line": 309, "verdict": "ok", "reason": "correct"}
+{"line": 310, "verdict": "ok", "reason": "correct"}
+{"line": 311, "verdict": "ok", "reason": "correct"}
+{"line": 312, "verdict": "ok", "reason": "correct"}
+{"line": 313, "verdict": "ok", "reason": "correct"}
+{"line": 314, "verdict": "ok", "reason": "correct"}
+{"line": 315, "verdict": "ok", "reason": "correct"}
+{"line": 316, "verdict": "ok", "reason": "correct"}
+{"line": 317, "verdict": "ok", "reason": "correct"}
+{"line": 318, "verdict": "ok", "reason": "correct"}
+{"line": 319, "verdict": "ok", "reason": "correct"}
+{"line": 320, "verdict": "ok", "reason": "correct"}

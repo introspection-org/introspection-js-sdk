@@ -1,0 +1,320 @@
+{"genre": "geography", "region": "global", "difficulty": 1, "text": "What is the capital of Spain?", "answer": "Madrid", "aliases": []}
+{"genre": "geography", "region": "global", "difficulty": 1, "text": "What is the capital of France?", "answer": "Paris", "aliases": []}
+{"genre": "geography", "region": "global", "difficulty": 1, "text": "What is the capital of Russia?", "answer": "Moscow", "aliases": []}
+{"genre": "geography", "region": "global", "difficulty": 1, "text": "What is the capital of China?", "answer": "Beijing", "aliases": ["Peking"]}
+{"genre": "geography", "region": "global", "difficulty": 1, "text": "What is the capital of Greece?", "answer": "Athens", "aliases": []}
+{"genre": "geography", "region": "global", "difficulty": 1, "text": "What is the capital of Ireland?", "answer": "Dublin", "aliases": []}
+{"genre": "geography", "region": "global", "difficulty": 1, "text": "What is the capital of Portugal?", "answer": "Lisbon", "aliases": []}
+{"genre": "geography", "region": "global", "difficulty": 1, "text": "What is the capital of Cuba?", "answer": "Havana", "aliases": []}
+{"genre": "geography", "region": "global", "difficulty": 1, "text": "What is the capital of Peru?", "answer": "Lima", "aliases": []}
+{"genre": "geography", "region": "global", "difficulty": 1, "text": "What is the capital of Kenya?", "answer": "Nairobi", "aliases": []}
+{"genre": "geography", "region": "global", "difficulty": 1, "text": "What is the capital of Thailand?", "answer": "Bangkok", "aliases": []}
+{"genre": "geography", "region": "global", "difficulty": 1, "text": "What is the capital of South Korea?", "answer": "Seoul", "aliases": []}
+{"genre": "geography", "region": "global", "difficulty": 1, "text": "What is the capital of Mexico?", "answer": "Mexico City", "aliases": []}
+{"genre": "geography", "region": "global", "difficulty": 1, "text": "What is the capital of the Netherlands?", "answer": "Amsterdam", "aliases": []}
+{"genre": "geography", "region": "global", "difficulty": 1, "text": "What is the capital of Austria?", "answer": "Vienna", "aliases": ["Wien"]}
+{"genre": "geography", "region": "global", "difficulty": 1, "text": "What is the capital of Sweden?", "answer": "Stockholm", "aliases": []}
+{"genre": "geography", "region": "global", "difficulty": 1, "text": "What is the capital of Norway?", "answer": "Oslo", "aliases": []}
+{"genre": "geography", "region": "global", "difficulty": 1, "text": "What is the capital of India?", "answer": "New Delhi", "aliases": ["Delhi"]}
+{"genre": "geography", "region": "global", "difficulty": 1, "text": "What is the capital of Finland?", "answer": "Helsinki", "aliases": []}
+{"genre": "geography", "region": "global", "difficulty": 1, "text": "What is the capital of Denmark?", "answer": "Copenhagen", "aliases": []}
+{"genre": "geography", "region": "global", "difficulty": 1, "text": "What is the capital of Belgium?", "answer": "Brussels", "aliases": []}
+{"genre": "geography", "region": "global", "difficulty": 1, "text": "What is the capital of Poland?", "answer": "Warsaw", "aliases": []}
+{"genre": "geography", "region": "global", "difficulty": 1, "text": "What is the capital of Hungary?", "answer": "Budapest", "aliases": []}
+{"genre": "geography", "region": "global", "difficulty": 1, "text": "Which country is shaped like a boot?", "answer": "Italy", "aliases": []}
+{"genre": "geography", "region": "global", "difficulty": 1, "text": "Which continent is the largest by area?", "answer": "Asia", "aliases": []}
+{"genre": "geography", "region": "global", "difficulty": 1, "text": "Which continent is the coldest?", "answer": "Antarctica", "aliases": []}
+{"genre": "geography", "region": "global", "difficulty": 1, "text": "Which river flows through Cairo?", "answer": "The Nile", "aliases": ["Nile"]}
+{"genre": "geography", "region": "global", "difficulty": 1, "text": "In which country is Mount Fuji?", "answer": "Japan", "aliases": []}
+{"genre": "geography", "region": "global", "difficulty": 1, "text": "In which country is the Great Wall?", "answer": "China", "aliases": []}
+{"genre": "geography", "region": "global", "difficulty": 1, "text": "In which country is the Taj Mahal?", "answer": "India", "aliases": []}
+{"genre": "geography", "region": "global", "difficulty": 1, "text": "In which country are the Pyramids of Giza?", "answer": "Egypt", "aliases": []}
+{"genre": "geography", "region": "global", "difficulty": 1, "text": "In which country is Machu Picchu?", "answer": "Peru", "aliases": []}
+{"genre": "geography", "region": "global", "difficulty": 1, "text": "Which sea lies between southern Europe and North Africa?", "answer": "The Mediterranean", "aliases": ["Mediterranean Sea", "Mediterranean"]}
+{"genre": "geography", "region": "global", "difficulty": 1, "text": "What is the largest island in the world that is not a continent?", "answer": "Greenland", "aliases": []}
+{"genre": "geography", "region": "global", "difficulty": 1, "text": "Which ocean lies between Africa and Australia?", "answer": "The Indian Ocean", "aliases": ["Indian Ocean", "Indian"]}
+{"genre": "geography", "region": "global", "difficulty": 1, "text": "Which imaginary line divides the Earth into northern and southern hemispheres?", "answer": "The Equator", "aliases": ["Equator"]}
+{"genre": "geography", "region": "global", "difficulty": 1, "text": "On which continent is Brazil?", "answer": "South America", "aliases": []}
+{"genre": "geography", "region": "global", "difficulty": 1, "text": "Which Italian city is famous for its canals and gondolas?", "answer": "Venice", "aliases": []}
+{"genre": "geography", "region": "global", "difficulty": 1, "text": "In which country is Cape Town?", "answer": "South Africa", "aliases": []}
+{"genre": "geography", "region": "global", "difficulty": 1, "text": "Which is the smallest continent by land area?", "answer": "Australia", "aliases": ["Oceania", "Australia/Oceania"]}
+{"genre": "geography", "region": "au", "difficulty": 1, "text": "In which Australian city is the Sydney Opera House?", "answer": "Sydney", "aliases": []}
+{"genre": "geography", "region": "au", "difficulty": 1, "text": "What is the capital of the Australian state of Victoria?", "answer": "Melbourne", "aliases": []}
+{"genre": "geography", "region": "au", "difficulty": 1, "text": "The Great Barrier Reef lies off the coast of which Australian state?", "answer": "Queensland", "aliases": []}
+{"genre": "geography", "region": "au", "difficulty": 1, "text": "What is the capital of Queensland?", "answer": "Brisbane", "aliases": []}
+{"genre": "geography", "region": "au", "difficulty": 1, "text": "What is the capital of Western Australia?", "answer": "Perth", "aliases": []}
+{"genre": "geography", "region": "au", "difficulty": 1, "text": "Which bridge in Sydney is nicknamed the Coathanger?", "answer": "Sydney Harbour Bridge", "aliases": ["Harbour Bridge"]}
+{"genre": "geography", "region": "au", "difficulty": 1, "text": "Which animal appears with the emu on Australia's coat of arms?", "answer": "The kangaroo", "aliases": ["Kangaroo"]}
+{"genre": "geography", "region": "au", "difficulty": 1, "text": "What is the capital of South Australia?", "answer": "Adelaide", "aliases": []}
+{"genre": "geography", "region": "uk", "difficulty": 1, "text": "What is the capital of England?", "answer": "London", "aliases": []}
+{"genre": "geography", "region": "uk", "difficulty": 1, "text": "What is the capital of Wales?", "answer": "Cardiff", "aliases": []}
+{"genre": "geography", "region": "uk", "difficulty": 1, "text": "What is the capital of Northern Ireland?", "answer": "Belfast", "aliases": []}
+{"genre": "geography", "region": "uk", "difficulty": 1, "text": "Which stretch of water separates England from France?", "answer": "The English Channel", "aliases": ["English Channel", "the Channel"]}
+{"genre": "geography", "region": "uk", "difficulty": 1, "text": "Loch Ness is in which UK country?", "answer": "Scotland", "aliases": []}
+{"genre": "geography", "region": "uk", "difficulty": 1, "text": "Which English city was home to the Beatles?", "answer": "Liverpool", "aliases": []}
+{"genre": "geography", "region": "uk", "difficulty": 1, "text": "Which sea lies off the east coast of England and Scotland?", "answer": "The North Sea", "aliases": ["North Sea"]}
+{"genre": "geography", "region": "uk", "difficulty": 1, "text": "Which UK country is largest by area?", "answer": "England", "aliases": []}
+{"genre": "geography", "region": "us", "difficulty": 1, "text": "What is the capital of the United States?", "answer": "Washington, D.C.", "aliases": ["Washington DC", "Washington"]}
+{"genre": "geography", "region": "us", "difficulty": 1, "text": "In which US city is the Statue of Liberty?", "answer": "New York", "aliases": ["New York City", "NYC"]}
+{"genre": "geography", "region": "us", "difficulty": 1, "text": "In which US state is Hollywood?", "answer": "California", "aliases": []}
+{"genre": "geography", "region": "us", "difficulty": 1, "text": "In which US state is the city of Miami?", "answer": "Florida", "aliases": []}
+{"genre": "geography", "region": "us", "difficulty": 1, "text": "Which US city is the Golden Gate Bridge in?", "answer": "San Francisco", "aliases": []}
+{"genre": "geography", "region": "us", "difficulty": 1, "text": "In which US state is the Grand Canyon?", "answer": "Arizona", "aliases": []}
+{"genre": "geography", "region": "us", "difficulty": 1, "text": "Which US city is nicknamed the Windy City?", "answer": "Chicago", "aliases": []}
+{"genre": "geography", "region": "us", "difficulty": 1, "text": "Which US state is nicknamed the Lone Star State?", "answer": "Texas", "aliases": []}
+{"genre": "geography", "region": "global", "difficulty": 2, "text": "What is the capital of Iran?", "answer": "Tehran", "aliases": []}
+{"genre": "geography", "region": "global", "difficulty": 2, "text": "What is the capital of Saudi Arabia?", "answer": "Riyadh", "aliases": []}
+{"genre": "geography", "region": "global", "difficulty": 2, "text": "In which country is Mount Kilimanjaro?", "answer": "Tanzania", "aliases": []}
+{"genre": "geography", "region": "global", "difficulty": 2, "text": "What is the capital of Vietnam?", "answer": "Hanoi", "aliases": []}
+{"genre": "geography", "region": "global", "difficulty": 2, "text": "What is the capital of Indonesia?", "answer": "Jakarta", "aliases": []}
+{"genre": "geography", "region": "global", "difficulty": 2, "text": "What is the capital of Chile?", "answer": "Santiago", "aliases": []}
+{"genre": "geography", "region": "global", "difficulty": 2, "text": "What is the capital of Colombia?", "answer": "Bogota", "aliases": ["Bogotá"]}
+{"genre": "geography", "region": "global", "difficulty": 2, "text": "What is the capital of Pakistan?", "answer": "Islamabad", "aliases": []}
+{"genre": "geography", "region": "global", "difficulty": 2, "text": "What is the capital of the Czech Republic?", "answer": "Prague", "aliases": []}
+{"genre": "geography", "region": "global", "difficulty": 2, "text": "What is the capital of Romania?", "answer": "Bucharest", "aliases": []}
+{"genre": "geography", "region": "global", "difficulty": 2, "text": "What is the capital of Morocco?", "answer": "Rabat", "aliases": []}
+{"genre": "geography", "region": "global", "difficulty": 2, "text": "What is the capital of Ethiopia?", "answer": "Addis Ababa", "aliases": []}
+{"genre": "geography", "region": "global", "difficulty": 2, "text": "What is the capital of Ukraine?", "answer": "Kyiv", "aliases": ["Kiev"]}
+{"genre": "geography", "region": "global", "difficulty": 2, "text": "What is the capital of Jamaica?", "answer": "Kingston", "aliases": []}
+{"genre": "geography", "region": "global", "difficulty": 2, "text": "What is the capital of the Philippines?", "answer": "Manila", "aliases": []}
+{"genre": "geography", "region": "global", "difficulty": 2, "text": "What is the capital of New Zealand?", "answer": "Wellington", "aliases": []}
+{"genre": "geography", "region": "global", "difficulty": 2, "text": "Which river flows through Paris?", "answer": "The Seine", "aliases": ["Seine"]}
+{"genre": "geography", "region": "global", "difficulty": 2, "text": "Which river flows through Budapest and Vienna?", "answer": "The Danube", "aliases": ["Danube"]}
+{"genre": "geography", "region": "global", "difficulty": 2, "text": "Which is the largest of the Great Lakes?", "answer": "Lake Superior", "aliases": ["Superior"]}
+{"genre": "geography", "region": "global", "difficulty": 2, "text": "Which very salty lake between Israel and Jordan is the lowest point on land?", "answer": "The Dead Sea", "aliases": ["Dead Sea"]}
+{"genre": "geography", "region": "global", "difficulty": 2, "text": "What is the largest island in the Mediterranean Sea?", "answer": "Sicily", "aliases": []}
+{"genre": "geography", "region": "global", "difficulty": 2, "text": "Which mountain range runs along the west coast of South America?", "answer": "The Andes", "aliases": ["Andes"]}
+{"genre": "geography", "region": "global", "difficulty": 2, "text": "Which mountain range forms the border between France and Spain?", "answer": "The Pyrenees", "aliases": ["Pyrenees"]}
+{"genre": "geography", "region": "global", "difficulty": 2, "text": "Which is the smallest of the world's five oceans?", "answer": "The Arctic Ocean", "aliases": ["Arctic Ocean", "Arctic"]}
+{"genre": "geography", "region": "global", "difficulty": 2, "text": "Istanbul lies in Europe and Asia and is in which country?", "answer": "Turkey", "aliases": []}
+{"genre": "geography", "region": "global", "difficulty": 2, "text": "The ancient rock-cut city of Petra is in which country?", "answer": "Jordan", "aliases": []}
+{"genre": "geography", "region": "global", "difficulty": 2, "text": "What is the world's highest uninterrupted waterfall, in Venezuela?", "answer": "Angel Falls", "aliases": ["Salto Angel"]}
+{"genre": "geography", "region": "global", "difficulty": 2, "text": "Victoria Falls lies on the border of Zambia and which other country?", "answer": "Zimbabwe", "aliases": []}
+{"genre": "geography", "region": "global", "difficulty": 2, "text": "The Greek island of Santorini is in which sea?", "answer": "The Aegean Sea", "aliases": ["Aegean Sea", "Aegean"]}
+{"genre": "geography", "region": "global", "difficulty": 2, "text": "Which strait separates Alaska from Russia?", "answer": "The Bering Strait", "aliases": ["Bering Strait"]}
+{"genre": "geography", "region": "global", "difficulty": 2, "text": "Which sea lies between Turkey and Ukraine?", "answer": "The Black Sea", "aliases": ["Black Sea"]}
+{"genre": "geography", "region": "global", "difficulty": 2, "text": "Which gulf lies between Iran and the Arabian Peninsula?", "answer": "The Persian Gulf", "aliases": ["Persian Gulf", "Arabian Gulf"]}
+{"genre": "geography", "region": "global", "difficulty": 2, "text": "Which is the longest river in Europe?", "answer": "The Volga", "aliases": ["Volga"]}
+{"genre": "geography", "region": "global", "difficulty": 2, "text": "Timbuktu is in which African country?", "answer": "Mali", "aliases": []}
+{"genre": "geography", "region": "global", "difficulty": 2, "text": "What is the capital of Nepal?", "answer": "Kathmandu", "aliases": []}
+{"genre": "geography", "region": "global", "difficulty": 2, "text": "Which Scandinavian country is famous for its fjords?", "answer": "Norway", "aliases": []}
+{"genre": "geography", "region": "global", "difficulty": 2, "text": "Which island nation lies off the southern tip of India?", "answer": "Sri Lanka", "aliases": []}
+{"genre": "geography", "region": "global", "difficulty": 2, "text": "Which river flows through Cologne and Dusseldorf?", "answer": "The Rhine", "aliases": ["Rhine"]}
+{"genre": "geography", "region": "global", "difficulty": 2, "text": "Marrakesh is a city in which country?", "answer": "Morocco", "aliases": []}
+{"genre": "geography", "region": "global", "difficulty": 2, "text": "Mount Etna, Europe's tallest active volcano, is in which country?", "answer": "Italy", "aliases": []}
+{"genre": "geography", "region": "au", "difficulty": 2, "text": "What is the capital of Tasmania?", "answer": "Hobart", "aliases": []}
+{"genre": "geography", "region": "au", "difficulty": 2, "text": "What is the highest mountain on mainland Australia?", "answer": "Mount Kosciuszko", "aliases": ["Kosciuszko"]}
+{"genre": "geography", "region": "au", "difficulty": 2, "text": "Which sea lies off the north-east coast of Queensland?", "answer": "The Coral Sea", "aliases": ["Coral Sea"]}
+{"genre": "geography", "region": "au", "difficulty": 2, "text": "Which strait separates Tasmania from mainland Australia?", "answer": "Bass Strait", "aliases": []}
+{"genre": "geography", "region": "au", "difficulty": 2, "text": "Which famous Sydney beach is known for surfing and its Icebergs pool?", "answer": "Bondi Beach", "aliases": ["Bondi"]}
+{"genre": "geography", "region": "au", "difficulty": 2, "text": "The Melbourne Cup is run in which Australian state?", "answer": "Victoria", "aliases": []}
+{"genre": "geography", "region": "au", "difficulty": 2, "text": "What is the world's largest sand island, off Queensland, also called K'gari?", "answer": "Fraser Island", "aliases": ["K'gari", "Great Sandy Island"]}
+{"genre": "geography", "region": "au", "difficulty": 2, "text": "Which ocean lies off Australia's west coast?", "answer": "The Indian Ocean", "aliases": ["Indian Ocean"]}
+{"genre": "geography", "region": "uk", "difficulty": 2, "text": "What is the highest mountain in Wales?", "answer": "Snowdon", "aliases": ["Yr Wyddfa"]}
+{"genre": "geography", "region": "uk", "difficulty": 2, "text": "Which sea separates Great Britain from Ireland?", "answer": "The Irish Sea", "aliases": ["Irish Sea"]}
+{"genre": "geography", "region": "uk", "difficulty": 2, "text": "Which island lies off the south coast of England near Portsmouth?", "answer": "The Isle of Wight", "aliases": ["Isle of Wight"]}
+{"genre": "geography", "region": "uk", "difficulty": 2, "text": "The Giant's Causeway is in which UK country?", "answer": "Northern Ireland", "aliases": []}
+{"genre": "geography", "region": "uk", "difficulty": 2, "text": "Land's End is in which English county?", "answer": "Cornwall", "aliases": []}
+{"genre": "geography", "region": "uk", "difficulty": 2, "text": "Manchester United is based in which English city?", "answer": "Manchester", "aliases": []}
+{"genre": "geography", "region": "uk", "difficulty": 2, "text": "Which English city is known as the City of Dreaming Spires?", "answer": "Oxford", "aliases": []}
+{"genre": "geography", "region": "uk", "difficulty": 2, "text": "Stonehenge is in which English county?", "answer": "Wiltshire", "aliases": []}
+{"genre": "geography", "region": "us", "difficulty": 2, "text": "Las Vegas is in which US state?", "answer": "Nevada", "aliases": []}
+{"genre": "geography", "region": "us", "difficulty": 2, "text": "Mount Rushmore is in which US state?", "answer": "South Dakota", "aliases": []}
+{"genre": "geography", "region": "us", "difficulty": 2, "text": "What is the capital of Texas?", "answer": "Austin", "aliases": []}
+{"genre": "geography", "region": "us", "difficulty": 2, "text": "Which US city is nicknamed the Big Easy?", "answer": "New Orleans", "aliases": []}
+{"genre": "geography", "region": "us", "difficulty": 2, "text": "Yellowstone National Park lies mostly in which US state?", "answer": "Wyoming", "aliases": []}
+{"genre": "geography", "region": "us", "difficulty": 2, "text": "What is the capital of New York State?", "answer": "Albany", "aliases": []}
+{"genre": "geography", "region": "us", "difficulty": 2, "text": "Which US city is home to the Space Needle?", "answer": "Seattle", "aliases": []}
+{"genre": "geography", "region": "us", "difficulty": 2, "text": "In which US city is the Liberty Bell?", "answer": "Philadelphia", "aliases": []}
+{"genre": "geography", "region": "global", "difficulty": 3, "text": "What is the capital of Ghana?", "answer": "Accra", "aliases": []}
+{"genre": "geography", "region": "global", "difficulty": 3, "text": "What is the capital of Tanzania?", "answer": "Dodoma", "aliases": []}
+{"genre": "geography", "region": "global", "difficulty": 3, "text": "What is the capital of Bangladesh?", "answer": "Dhaka", "aliases": []}
+{"genre": "geography", "region": "global", "difficulty": 3, "text": "What is the capital of Uzbekistan?", "answer": "Tashkent", "aliases": []}
+{"genre": "geography", "region": "global", "difficulty": 3, "text": "What is the capital of Venezuela?", "answer": "Caracas", "aliases": []}
+{"genre": "geography", "region": "global", "difficulty": 3, "text": "What is the capital of Ecuador?", "answer": "Quito", "aliases": []}
+{"genre": "geography", "region": "global", "difficulty": 3, "text": "What is the capital of Uruguay?", "answer": "Montevideo", "aliases": []}
+{"genre": "geography", "region": "global", "difficulty": 3, "text": "What is the capital of Croatia?", "answer": "Zagreb", "aliases": []}
+{"genre": "geography", "region": "global", "difficulty": 3, "text": "What is the capital of Serbia?", "answer": "Belgrade", "aliases": []}
+{"genre": "geography", "region": "global", "difficulty": 3, "text": "What is the capital of Slovakia?", "answer": "Bratislava", "aliases": []}
+{"genre": "geography", "region": "global", "difficulty": 3, "text": "What is the capital of Bulgaria?", "answer": "Sofia", "aliases": []}
+{"genre": "geography", "region": "global", "difficulty": 3, "text": "What is the capital of Iceland?", "answer": "Reykjavik", "aliases": []}
+{"genre": "geography", "region": "global", "difficulty": 3, "text": "What is the capital of Cambodia?", "answer": "Phnom Penh", "aliases": []}
+{"genre": "geography", "region": "global", "difficulty": 3, "text": "What is the capital of Malaysia?", "answer": "Kuala Lumpur", "aliases": []}
+{"genre": "geography", "region": "global", "difficulty": 3, "text": "What is the capital of Libya?", "answer": "Tripoli", "aliases": []}
+{"genre": "geography", "region": "global", "difficulty": 3, "text": "What is the capital of Tunisia?", "answer": "Tunis", "aliases": []}
+{"genre": "geography", "region": "global", "difficulty": 3, "text": "What is the capital of Senegal?", "answer": "Dakar", "aliases": []}
+{"genre": "geography", "region": "global", "difficulty": 3, "text": "What is the capital of Zambia?", "answer": "Lusaka", "aliases": []}
+{"genre": "geography", "region": "global", "difficulty": 3, "text": "What is the capital of Uganda?", "answer": "Kampala", "aliases": []}
+{"genre": "geography", "region": "global", "difficulty": 3, "text": "What is the capital of Lithuania?", "answer": "Vilnius", "aliases": []}
+{"genre": "geography", "region": "global", "difficulty": 3, "text": "What is the capital of Latvia?", "answer": "Riga", "aliases": []}
+{"genre": "geography", "region": "global", "difficulty": 3, "text": "What is the capital of Estonia?", "answer": "Tallinn", "aliases": []}
+{"genre": "geography", "region": "global", "difficulty": 3, "text": "What is the capital of Georgia, the country?", "answer": "Tbilisi", "aliases": []}
+{"genre": "geography", "region": "global", "difficulty": 3, "text": "What is the capital of Azerbaijan?", "answer": "Baku", "aliases": []}
+{"genre": "geography", "region": "global", "difficulty": 3, "text": "What is the capital of Afghanistan?", "answer": "Kabul", "aliases": []}
+{"genre": "geography", "region": "global", "difficulty": 3, "text": "What is the capital of Iraq?", "answer": "Baghdad", "aliases": []}
+{"genre": "geography", "region": "global", "difficulty": 3, "text": "What is the capital of Syria?", "answer": "Damascus", "aliases": []}
+{"genre": "geography", "region": "global", "difficulty": 3, "text": "What is the capital of Lebanon?", "answer": "Beirut", "aliases": []}
+{"genre": "geography", "region": "global", "difficulty": 3, "text": "What is the capital of Jordan?", "answer": "Amman", "aliases": []}
+{"genre": "geography", "region": "global", "difficulty": 3, "text": "Which is the longest river in Asia?", "answer": "The Yangtze", "aliases": ["Yangtze", "Chang Jiang"]}
+{"genre": "geography", "region": "global", "difficulty": 3, "text": "Which shrinking Central Asian lake was once among the world's largest?", "answer": "The Aral Sea", "aliases": ["Aral Sea", "Aral"]}
+{"genre": "geography", "region": "global", "difficulty": 3, "text": "Which is the largest country in Africa by area?", "answer": "Algeria", "aliases": []}
+{"genre": "geography", "region": "global", "difficulty": 3, "text": "Which narrow strait links the Persian Gulf to the Gulf of Oman?", "answer": "The Strait of Hormuz", "aliases": ["Hormuz", "Strait of Hormuz"]}
+{"genre": "geography", "region": "global", "difficulty": 3, "text": "Which canal links the Mediterranean Sea to the Red Sea?", "answer": "The Suez Canal", "aliases": ["Suez Canal", "Suez"]}
+{"genre": "geography", "region": "global", "difficulty": 3, "text": "Which is the second-highest mountain in the world?", "answer": "K2", "aliases": ["Mount Godwin-Austen", "Chogori"]}
+{"genre": "geography", "region": "global", "difficulty": 3, "text": "Which is the largest lake in the world by surface area?", "answer": "The Caspian Sea", "aliases": ["Caspian Sea", "Caspian"]}
+{"genre": "geography", "region": "global", "difficulty": 3, "text": "Which river flows through Baghdad?", "answer": "The Tigris", "aliases": ["Tigris"]}
+{"genre": "geography", "region": "global", "difficulty": 3, "text": "Which mountain range includes Mont Blanc?", "answer": "The Alps", "aliases": ["Alps"]}
+{"genre": "geography", "region": "global", "difficulty": 3, "text": "Which desert lies between Mongolia and northern China?", "answer": "The Gobi Desert", "aliases": ["Gobi", "Gobi Desert"]}
+{"genre": "geography", "region": "global", "difficulty": 3, "text": "Which desert runs along the coast of Namibia?", "answer": "The Namib Desert", "aliases": ["Namib", "Namib Desert"]}
+{"genre": "geography", "region": "au", "difficulty": 3, "text": "Which river flows through Melbourne?", "answer": "The Yarra", "aliases": ["Yarra", "Yarra River"]}
+{"genre": "geography", "region": "au", "difficulty": 3, "text": "Which mountain range lies west of Sydney?", "answer": "The Blue Mountains", "aliases": ["Blue Mountains"]}
+{"genre": "geography", "region": "au", "difficulty": 3, "text": "Which South Australian town is known as the opal capital of the world?", "answer": "Coober Pedy", "aliases": []}
+{"genre": "geography", "region": "au", "difficulty": 3, "text": "Which Australian state is largest by area?", "answer": "Western Australia", "aliases": []}
+{"genre": "geography", "region": "au", "difficulty": 3, "text": "Which Northern Territory national park is famed for its wetlands and rock art?", "answer": "Kakadu National Park", "aliases": ["Kakadu"]}
+{"genre": "geography", "region": "au", "difficulty": 3, "text": "Which strait separates Cape York from Papua New Guinea?", "answer": "The Torres Strait", "aliases": ["Torres Strait"]}
+{"genre": "geography", "region": "au", "difficulty": 3, "text": "Lake Eyre, Australia's largest salt lake, is in which state?", "answer": "South Australia", "aliases": []}
+{"genre": "geography", "region": "au", "difficulty": 3, "text": "Which New South Wales city is a major coal export port?", "answer": "Newcastle", "aliases": []}
+{"genre": "geography", "region": "uk", "difficulty": 3, "text": "What is the largest lake in the United Kingdom by area?", "answer": "Lough Neagh", "aliases": []}
+{"genre": "geography", "region": "uk", "difficulty": 3, "text": "Which river flows through Glasgow?", "answer": "The Clyde", "aliases": ["Clyde"]}
+{"genre": "geography", "region": "uk", "difficulty": 3, "text": "In which English county is the Lake District?", "answer": "Cumbria", "aliases": []}
+{"genre": "geography", "region": "uk", "difficulty": 3, "text": "Which river flows through York?", "answer": "The Ouse", "aliases": ["Ouse"]}
+{"genre": "geography", "region": "uk", "difficulty": 3, "text": "Anglesey is an island off the coast of which UK country?", "answer": "Wales", "aliases": []}
+{"genre": "geography", "region": "uk", "difficulty": 3, "text": "Which Scottish mountain range is known for its ski resorts and Cairn Gorm?", "answer": "The Cairngorms", "aliases": ["Cairngorms"]}
+{"genre": "geography", "region": "uk", "difficulty": 3, "text": "Norwich is the county city of which English county?", "answer": "Norfolk", "aliases": []}
+{"genre": "geography", "region": "uk", "difficulty": 3, "text": "Which channel separates Northern Ireland from Scotland?", "answer": "The North Channel", "aliases": ["North Channel"]}
+{"genre": "geography", "region": "us", "difficulty": 3, "text": "What is the capital of Florida?", "answer": "Tallahassee", "aliases": []}
+{"genre": "geography", "region": "us", "difficulty": 3, "text": "Which Great Lake lies entirely within the United States?", "answer": "Lake Michigan", "aliases": ["Michigan"]}
+{"genre": "geography", "region": "us", "difficulty": 3, "text": "What is the capital of Illinois?", "answer": "Springfield", "aliases": []}
+{"genre": "geography", "region": "us", "difficulty": 3, "text": "What is the capital of Pennsylvania?", "answer": "Harrisburg", "aliases": []}
+{"genre": "geography", "region": "us", "difficulty": 3, "text": "Mount St. Helens is in which US state?", "answer": "Washington", "aliases": []}
+{"genre": "geography", "region": "us", "difficulty": 3, "text": "Crater Lake National Park is in which US state?", "answer": "Oregon", "aliases": []}
+{"genre": "geography", "region": "us", "difficulty": 3, "text": "What is the capital of Nevada?", "answer": "Carson City", "aliases": []}
+{"genre": "geography", "region": "us", "difficulty": 3, "text": "What is the capital of Ohio?", "answer": "Columbus", "aliases": []}
+{"genre": "geography", "region": "global", "difficulty": 4, "text": "What is the capital of Madagascar?", "answer": "Antananarivo", "aliases": ["Tana"]}
+{"genre": "geography", "region": "global", "difficulty": 4, "text": "What is the capital of Mali?", "answer": "Bamako", "aliases": []}
+{"genre": "geography", "region": "global", "difficulty": 4, "text": "What is the capital of Niger?", "answer": "Niamey", "aliases": []}
+{"genre": "geography", "region": "global", "difficulty": 4, "text": "What is the capital of Chad?", "answer": "N'Djamena", "aliases": ["Ndjamena"]}
+{"genre": "geography", "region": "global", "difficulty": 4, "text": "What is the capital of Sudan?", "answer": "Khartoum", "aliases": []}
+{"genre": "geography", "region": "global", "difficulty": 4, "text": "What is the capital of Mozambique?", "answer": "Maputo", "aliases": []}
+{"genre": "geography", "region": "global", "difficulty": 4, "text": "What is the capital of Malawi?", "answer": "Lilongwe", "aliases": []}
+{"genre": "geography", "region": "global", "difficulty": 4, "text": "What is the capital of Zimbabwe?", "answer": "Harare", "aliases": []}
+{"genre": "geography", "region": "global", "difficulty": 4, "text": "What is the capital of Botswana?", "answer": "Gaborone", "aliases": []}
+{"genre": "geography", "region": "global", "difficulty": 4, "text": "What is the capital of Namibia?", "answer": "Windhoek", "aliases": []}
+{"genre": "geography", "region": "global", "difficulty": 4, "text": "What is the capital of Angola?", "answer": "Luanda", "aliases": []}
+{"genre": "geography", "region": "global", "difficulty": 4, "text": "What is the capital of Eritrea?", "answer": "Asmara", "aliases": []}
+{"genre": "geography", "region": "global", "difficulty": 4, "text": "What is the capital of Rwanda?", "answer": "Kigali", "aliases": []}
+{"genre": "geography", "region": "global", "difficulty": 4, "text": "What is the capital of Kyrgyzstan?", "answer": "Bishkek", "aliases": []}
+{"genre": "geography", "region": "global", "difficulty": 4, "text": "What is the capital of Tajikistan?", "answer": "Dushanbe", "aliases": []}
+{"genre": "geography", "region": "global", "difficulty": 4, "text": "What is the capital of Turkmenistan?", "answer": "Ashgabat", "aliases": ["Ashkhabad"]}
+{"genre": "geography", "region": "global", "difficulty": 4, "text": "What is the capital of Oman?", "answer": "Muscat", "aliases": []}
+{"genre": "geography", "region": "global", "difficulty": 4, "text": "What is the capital of Moldova?", "answer": "Chisinau", "aliases": ["Kishinev"]}
+{"genre": "geography", "region": "global", "difficulty": 4, "text": "What is the capital of Belarus?", "answer": "Minsk", "aliases": []}
+{"genre": "geography", "region": "global", "difficulty": 4, "text": "What is the capital of Slovenia?", "answer": "Ljubljana", "aliases": []}
+{"genre": "geography", "region": "global", "difficulty": 4, "text": "What is the capital of Albania?", "answer": "Tirana", "aliases": []}
+{"genre": "geography", "region": "global", "difficulty": 4, "text": "What is the capital of North Macedonia?", "answer": "Skopje", "aliases": []}
+{"genre": "geography", "region": "global", "difficulty": 4, "text": "What is the capital of Malta?", "answer": "Valletta", "aliases": []}
+{"genre": "geography", "region": "global", "difficulty": 4, "text": "What is the capital of Cyprus?", "answer": "Nicosia", "aliases": []}
+{"genre": "geography", "region": "global", "difficulty": 4, "text": "What is the capital of Suriname?", "answer": "Paramaribo", "aliases": []}
+{"genre": "geography", "region": "global", "difficulty": 4, "text": "What is the capital of Guyana?", "answer": "Georgetown", "aliases": []}
+{"genre": "geography", "region": "global", "difficulty": 4, "text": "What is the capital of Honduras?", "answer": "Tegucigalpa", "aliases": []}
+{"genre": "geography", "region": "global", "difficulty": 4, "text": "What is the capital of Nicaragua?", "answer": "Managua", "aliases": []}
+{"genre": "geography", "region": "global", "difficulty": 4, "text": "What is the capital of Fiji?", "answer": "Suva", "aliases": []}
+{"genre": "geography", "region": "global", "difficulty": 4, "text": "What is the capital of Papua New Guinea?", "answer": "Port Moresby", "aliases": []}
+{"genre": "geography", "region": "global", "difficulty": 4, "text": "What is the highest mountain in South America?", "answer": "Aconcagua", "aliases": []}
+{"genre": "geography", "region": "global", "difficulty": 4, "text": "What is the largest lake in Europe by area?", "answer": "Lake Ladoga", "aliases": ["Ladoga"]}
+{"genre": "geography", "region": "global", "difficulty": 4, "text": "Which strait separates Sicily from mainland Italy?", "answer": "The Strait of Messina", "aliases": ["Messina", "Strait of Messina"]}
+{"genre": "geography", "region": "global", "difficulty": 4, "text": "Which strait links the Indian Ocean to the South China Sea past Singapore?", "answer": "The Strait of Malacca", "aliases": ["Malacca", "Strait of Malacca"]}
+{"genre": "geography", "region": "global", "difficulty": 4, "text": "The Galapagos Islands belong to which country?", "answer": "Ecuador", "aliases": []}
+{"genre": "geography", "region": "global", "difficulty": 4, "text": "Easter Island belongs to which country?", "answer": "Chile", "aliases": []}
+{"genre": "geography", "region": "global", "difficulty": 4, "text": "The Faroe Islands are a self-governing territory of which country?", "answer": "Denmark", "aliases": []}
+{"genre": "geography", "region": "global", "difficulty": 4, "text": "What is the capital of Bosnia and Herzegovina?", "answer": "Sarajevo", "aliases": []}
+{"genre": "geography", "region": "global", "difficulty": 4, "text": "What is the capital of Gabon?", "answer": "Libreville", "aliases": []}
+{"genre": "geography", "region": "global", "difficulty": 4, "text": "What is the capital of Cameroon?", "answer": "Yaounde", "aliases": ["Yaoundé"]}
+{"genre": "geography", "region": "au", "difficulty": 4, "text": "Which river flows through Adelaide?", "answer": "The Torrens", "aliases": ["Torrens", "River Torrens"]}
+{"genre": "geography", "region": "au", "difficulty": 4, "text": "Which desert in central Australia has the world's longest parallel sand dunes?", "answer": "The Simpson Desert", "aliases": ["Simpson Desert", "Simpson"]}
+{"genre": "geography", "region": "au", "difficulty": 4, "text": "Which sea separates Australia from New Zealand?", "answer": "The Tasman Sea", "aliases": ["Tasman Sea", "Tasman"]}
+{"genre": "geography", "region": "au", "difficulty": 4, "text": "Which large gulf lies on Australia's northern coast, east of Arnhem Land?", "answer": "The Gulf of Carpentaria", "aliases": ["Gulf of Carpentaria", "Carpentaria"]}
+{"genre": "geography", "region": "au", "difficulty": 4, "text": "Which river flows through Alice Springs?", "answer": "The Todd River", "aliases": ["Todd River", "Todd"]}
+{"genre": "geography", "region": "au", "difficulty": 4, "text": "Which mountain range contains Mount Kosciuszko?", "answer": "The Snowy Mountains", "aliases": ["Snowy Mountains"]}
+{"genre": "geography", "region": "au", "difficulty": 4, "text": "Which river is the main tributary of the Murray and is Australia's third-longest?", "answer": "The Darling", "aliases": ["Darling", "Darling River"]}
+{"genre": "geography", "region": "au", "difficulty": 4, "text": "Which peak looms over Hobart?", "answer": "Mount Wellington", "aliases": ["kunanyi"]}
+{"genre": "geography", "region": "uk", "difficulty": 4, "text": "What is the highest mountain in England?", "answer": "Scafell Pike", "aliases": []}
+{"genre": "geography", "region": "uk", "difficulty": 4, "text": "Which river flows through Cardiff?", "answer": "The Taff", "aliases": ["Taff", "River Taff"]}
+{"genre": "geography", "region": "uk", "difficulty": 4, "text": "Which Scottish city lies on the Firth of Tay?", "answer": "Dundee", "aliases": []}
+{"genre": "geography", "region": "uk", "difficulty": 4, "text": "Cheddar Gorge is in which English county?", "answer": "Somerset", "aliases": []}
+{"genre": "geography", "region": "uk", "difficulty": 4, "text": "Which river forms part of the border between England and Scotland?", "answer": "The Tweed", "aliases": ["Tweed", "River Tweed"]}
+{"genre": "geography", "region": "uk", "difficulty": 4, "text": "Which river flows through Belfast?", "answer": "The Lagan", "aliases": ["Lagan", "River Lagan"]}
+{"genre": "geography", "region": "uk", "difficulty": 4, "text": "Dartmoor National Park is in which English county?", "answer": "Devon", "aliases": []}
+{"genre": "geography", "region": "uk", "difficulty": 4, "text": "Which English spa city is famous for its Roman baths?", "answer": "Bath", "aliases": []}
+{"genre": "geography", "region": "us", "difficulty": 4, "text": "What is the capital of Alaska?", "answer": "Juneau", "aliases": []}
+{"genre": "geography", "region": "us", "difficulty": 4, "text": "What is the capital of Montana?", "answer": "Helena", "aliases": []}
+{"genre": "geography", "region": "us", "difficulty": 4, "text": "What is the capital of Michigan?", "answer": "Lansing", "aliases": []}
+{"genre": "geography", "region": "us", "difficulty": 4, "text": "What is the capital of Wisconsin?", "answer": "Madison", "aliases": []}
+{"genre": "geography", "region": "us", "difficulty": 4, "text": "What is the capital of Minnesota?", "answer": "Saint Paul", "aliases": ["St. Paul", "St Paul"]}
+{"genre": "geography", "region": "us", "difficulty": 4, "text": "What is the capital of Louisiana?", "answer": "Baton Rouge", "aliases": []}
+{"genre": "geography", "region": "us", "difficulty": 4, "text": "What is the capital of Kentucky?", "answer": "Frankfort", "aliases": []}
+{"genre": "geography", "region": "us", "difficulty": 4, "text": "The Great Salt Lake is in which US state?", "answer": "Utah", "aliases": []}
+{"genre": "geography", "region": "global", "difficulty": 5, "text": "What is the capital of Eswatini?", "answer": "Mbabane", "aliases": ["Lobamba"]}
+{"genre": "geography", "region": "global", "difficulty": 5, "text": "What is the capital of Lesotho?", "answer": "Maseru", "aliases": []}
+{"genre": "geography", "region": "global", "difficulty": 5, "text": "What is the capital of the Comoros?", "answer": "Moroni", "aliases": []}
+{"genre": "geography", "region": "global", "difficulty": 5, "text": "What is the capital of Mauritius?", "answer": "Port Louis", "aliases": []}
+{"genre": "geography", "region": "global", "difficulty": 5, "text": "What is the capital of Cape Verde?", "answer": "Praia", "aliases": []}
+{"genre": "geography", "region": "global", "difficulty": 5, "text": "What is the capital of Guinea?", "answer": "Conakry", "aliases": []}
+{"genre": "geography", "region": "global", "difficulty": 5, "text": "What is the capital of Guinea-Bissau?", "answer": "Bissau", "aliases": []}
+{"genre": "geography", "region": "global", "difficulty": 5, "text": "What is the capital of Sierra Leone?", "answer": "Freetown", "aliases": []}
+{"genre": "geography", "region": "global", "difficulty": 5, "text": "What is the capital of Liberia?", "answer": "Monrovia", "aliases": []}
+{"genre": "geography", "region": "global", "difficulty": 5, "text": "What is the capital of Togo?", "answer": "Lome", "aliases": ["Lomé"]}
+{"genre": "geography", "region": "global", "difficulty": 5, "text": "What is the official capital of Benin?", "answer": "Porto-Novo", "aliases": ["Porto Novo"]}
+{"genre": "geography", "region": "global", "difficulty": 5, "text": "What is the capital of Mauritania?", "answer": "Nouakchott", "aliases": []}
+{"genre": "geography", "region": "global", "difficulty": 5, "text": "What is the capital of the Central African Republic?", "answer": "Bangui", "aliases": []}
+{"genre": "geography", "region": "global", "difficulty": 5, "text": "What is the capital of Equatorial Guinea?", "answer": "Malabo", "aliases": []}
+{"genre": "geography", "region": "global", "difficulty": 5, "text": "What is the capital of Vanuatu?", "answer": "Port Vila", "aliases": []}
+{"genre": "geography", "region": "global", "difficulty": 5, "text": "What is the capital of the Solomon Islands?", "answer": "Honiara", "aliases": []}
+{"genre": "geography", "region": "global", "difficulty": 5, "text": "What is the capital atoll of Kiribati?", "answer": "Tarawa", "aliases": ["South Tarawa"]}
+{"genre": "geography", "region": "global", "difficulty": 5, "text": "What is the capital of Tuvalu?", "answer": "Funafuti", "aliases": []}
+{"genre": "geography", "region": "global", "difficulty": 5, "text": "What is the capital of the Marshall Islands?", "answer": "Majuro", "aliases": []}
+{"genre": "geography", "region": "global", "difficulty": 5, "text": "What is the capital of the Maldives?", "answer": "Male", "aliases": ["Malé"]}
+{"genre": "geography", "region": "global", "difficulty": 5, "text": "What is the capital of Timor-Leste?", "answer": "Dili", "aliases": []}
+{"genre": "geography", "region": "global", "difficulty": 5, "text": "What is the capital of Andorra?", "answer": "Andorra la Vella", "aliases": []}
+{"genre": "geography", "region": "global", "difficulty": 5, "text": "What is the capital of Liechtenstein?", "answer": "Vaduz", "aliases": []}
+{"genre": "geography", "region": "global", "difficulty": 5, "text": "What is the capital of the Bahamas?", "answer": "Nassau", "aliases": []}
+{"genre": "geography", "region": "global", "difficulty": 5, "text": "What is the capital of Barbados?", "answer": "Bridgetown", "aliases": []}
+{"genre": "geography", "region": "global", "difficulty": 5, "text": "What is the capital of Belize?", "answer": "Belmopan", "aliases": []}
+{"genre": "geography", "region": "global", "difficulty": 5, "text": "What is the capital of Dominica?", "answer": "Roseau", "aliases": []}
+{"genre": "geography", "region": "global", "difficulty": 5, "text": "What is the capital of Saint Lucia?", "answer": "Castries", "aliases": []}
+{"genre": "geography", "region": "global", "difficulty": 5, "text": "What is the capital of the Republic of the Congo?", "answer": "Brazzaville", "aliases": []}
+{"genre": "geography", "region": "global", "difficulty": 5, "text": "What is the capital of Haiti?", "answer": "Port-au-Prince", "aliases": []}
+{"genre": "geography", "region": "global", "difficulty": 5, "text": "What is the capital of Burundi?", "answer": "Gitega", "aliases": []}
+{"genre": "geography", "region": "global", "difficulty": 5, "text": "What is the capital of Sao Tome and Principe?", "answer": "Sao Tome", "aliases": ["São Tomé"]}
+{"genre": "geography", "region": "global", "difficulty": 5, "text": "Which ocean trench contains Challenger Deep, the deepest known point in the oceans?", "answer": "The Mariana Trench", "aliases": ["Mariana Trench", "Marianas Trench"]}
+{"genre": "geography", "region": "global", "difficulty": 5, "text": "What is the highest mountain in Europe, in the Caucasus?", "answer": "Mount Elbrus", "aliases": ["Elbrus"]}
+{"genre": "geography", "region": "global", "difficulty": 5, "text": "Which country has the longest coastline in the world?", "answer": "Canada", "aliases": []}
+{"genre": "geography", "region": "global", "difficulty": 5, "text": "Which is the deepest lake in Africa?", "answer": "Lake Tanganyika", "aliases": ["Tanganyika"]}
+{"genre": "geography", "region": "global", "difficulty": 5, "text": "What is the highest mountain in Antarctica?", "answer": "Vinson Massif", "aliases": ["Mount Vinson"]}
+{"genre": "geography", "region": "global", "difficulty": 5, "text": "Which lake in Djibouti is the lowest point in Africa?", "answer": "Lake Assal", "aliases": ["Assal"]}
+{"genre": "geography", "region": "global", "difficulty": 5, "text": "What is the capital of Costa Rica?", "answer": "San Jose", "aliases": ["San José"]}
+{"genre": "geography", "region": "global", "difficulty": 5, "text": "What is the capital of Kosovo?", "answer": "Pristina", "aliases": ["Prishtina"]}
+{"genre": "geography", "region": "au", "difficulty": 5, "text": "What is the highest mountain in Tasmania?", "answer": "Mount Ossa", "aliases": ["Ossa"]}
+{"genre": "geography", "region": "au", "difficulty": 5, "text": "What is the northernmost point of mainland Australia, a peninsula in Queensland?", "answer": "Cape York", "aliases": []}
+{"genre": "geography", "region": "au", "difficulty": 5, "text": "What is the southernmost point of mainland Australia, a promontory in Victoria?", "answer": "Wilsons Promontory", "aliases": ["South Point"]}
+{"genre": "geography", "region": "au", "difficulty": 5, "text": "Which large bight lies along Australia's southern coast beneath the Nullarbor Plain?", "answer": "The Great Australian Bight", "aliases": ["Great Australian Bight", "Australian Bight"]}
+{"genre": "geography", "region": "au", "difficulty": 5, "text": "Which sub-Antarctic island belongs to Tasmania?", "answer": "Macquarie Island", "aliases": []}
+{"genre": "geography", "region": "au", "difficulty": 5, "text": "What is the capital of Christmas Island?", "answer": "Flying Fish Cove", "aliases": []}
+{"genre": "geography", "region": "au", "difficulty": 5, "text": "What is the capital of Norfolk Island?", "answer": "Kingston", "aliases": []}
+{"genre": "geography", "region": "au", "difficulty": 5, "text": "Which river flows through Wagga Wagga?", "answer": "The Murrumbidgee", "aliases": ["Murrumbidgee"]}
+{"genre": "geography", "region": "uk", "difficulty": 5, "text": "What is the longest river in Scotland?", "answer": "The Tay", "aliases": ["Tay", "River Tay"]}
+{"genre": "geography", "region": "uk", "difficulty": 5, "text": "What is the highest mountain in Northern Ireland?", "answer": "Slieve Donard", "aliases": []}
+{"genre": "geography", "region": "uk", "difficulty": 5, "text": "What is the largest natural lake in England?", "answer": "Windermere", "aliases": []}
+{"genre": "geography", "region": "uk", "difficulty": 5, "text": "Which island group is the most northerly part of the UK?", "answer": "Shetland", "aliases": ["The Shetland Islands", "Shetland Islands"]}
+{"genre": "geography", "region": "uk", "difficulty": 5, "text": "Which strait separates Orkney from mainland Scotland?", "answer": "The Pentland Firth", "aliases": ["Pentland Firth"]}
+{"genre": "geography", "region": "uk", "difficulty": 5, "text": "Which island group lies off the south-west tip of Cornwall?", "answer": "The Isles of Scilly", "aliases": ["Isles of Scilly", "Scilly Isles"]}
+{"genre": "geography", "region": "uk", "difficulty": 5, "text": "Which river flows through Inverness?", "answer": "The Ness", "aliases": ["Ness", "River Ness"]}
+{"genre": "geography", "region": "uk", "difficulty": 5, "text": "What is the largest island of the Outer Hebrides?", "answer": "Lewis and Harris", "aliases": ["Lewis", "Harris"]}
+{"genre": "geography", "region": "us", "difficulty": 5, "text": "What is the capital of South Dakota?", "answer": "Pierre", "aliases": []}
+{"genre": "geography", "region": "us", "difficulty": 5, "text": "What is the capital of North Dakota?", "answer": "Bismarck", "aliases": []}
+{"genre": "geography", "region": "us", "difficulty": 5, "text": "What is the capital of Vermont?", "answer": "Montpelier", "aliases": []}
+{"genre": "geography", "region": "us", "difficulty": 5, "text": "What is the capital of Idaho?", "answer": "Boise", "aliases": []}
+{"genre": "geography", "region": "us", "difficulty": 5, "text": "What is the capital of New Mexico?", "answer": "Santa Fe", "aliases": []}
+{"genre": "geography", "region": "us", "difficulty": 5, "text": "What is the capital of West Virginia?", "answer": "Charleston", "aliases": []}
+{"genre": "geography", "region": "us", "difficulty": 5, "text": "What is the capital of Delaware?", "answer": "Dover", "aliases": []}
+{"genre": "geography", "region": "us", "difficulty": 5, "text": "What is the highest mountain in the United States?", "answer": "Denali", "aliases": ["Mount McKinley"]}

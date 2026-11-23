@@ -1,0 +1,1 @@
+That was the last round of tonight's quiz, thanks. We're the Quiz & Quill in Oxford, and our crowd loves science and history. Tonight's music round was only because it was a regular's birthday. Please wrap up the night.

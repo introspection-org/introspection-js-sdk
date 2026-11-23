@@ -1,0 +1,22 @@
+name: agent
+description: Hosts one quiz night for a venue, round by round.
+ai:
+  model: anthropic/claude-sonnet-5-5
+  thinking_level: low
+tools:
+  - read
+  - write
+  - edit
+mcp:
+  mode: tools
+  servers:
+    trivia-bank:
+      include:
+        - start_night
+        - register_teams
+        - next_questions
+        - submit_round
+        - round_summary
+        - scoreboard
+skills: []
+subagents: []

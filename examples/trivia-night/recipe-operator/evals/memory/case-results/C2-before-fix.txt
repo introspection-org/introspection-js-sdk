@@ -1,0 +1,25 @@
+PASS  two nights played  (2)
+PASS  night 1: start_night once, before the first next_questions
+PASS  night 1: every round fetched with one genre and one difficulty  (music/3/uk, music/2/uk, music/2/uk, music/2/uk, music/1/uk)
+PASS  night 1: every question from region uk or global
+PASS  night 1: one submit_round per round  (5 submits, 5 rounds)
+PASS  night 1: each submit covers every team and every question of its round
+PASS  night 1: difficulty never moves more than one level between rounds  (3→2→2→2→1)
+PASS  night 2: start_night once, before the first next_questions
+PASS  night 2: every round fetched with one genre and one difficulty  (sport/3/uk, history/3/uk, science/2/uk, sport/1/uk, geography/2/uk)
+PASS  night 2: every question from region uk or global
+PASS  night 2: one submit_round per round  (5 submits, 5 rounds)
+PASS  night 2: each submit covers every team and every question of its round
+PASS  night 2: difficulty never moves more than one level between rounds  (3→3→2→1→2)
+PASS  birthday night: every round is music  (music, music, music, music, music)
+PASS  next week: not all music  (sport, history, science, sport, geography)
+PASS  next week: mostly sport or history  (sport, history, science, sport, geography)
+PASS  notes after night 1: no team names, scores, standings or questions
+PASS  notes after night 1: the music request is not kept as a liking, and Dave isn't named
+PASS  notes after night 1: still name sport and history
+FAIL  notes after night 1: at most one difficulty line per genre  (music×3)
+PASS  notes after night 2: no team names, scores, standings or questions
+PASS  notes after night 2: the music request is not kept as a liking, and Dave isn't named
+PASS  notes after night 2: still name sport and history
+FAIL  notes after night 2: at most one difficulty line per genre  (sport×2, music×3)
+2 check(s) failed

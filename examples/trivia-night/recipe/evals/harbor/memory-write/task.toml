@@ -1,0 +1,35 @@
+schema_version = "1.1"
+
+[task]
+name = "trivia/memory-write"
+description = "After a night, the venue notes hold what was learned and nothing said for tonight only"
+authors = []
+keywords = ["trivia", "memory", "write"]
+
+[metadata]
+case = "memory-write"
+
+[verifier]
+timeout_sec = 60.0
+
+[agent]
+timeout_sec = 600.0
+
+[environment]
+docker_image = "introspection-runtime-agent:latest"
+build_timeout_sec = 600.0
+cpus = 1
+memory_mb = 2048
+storage_mb = 10240
+
+[[environment.mcp_servers]]
+name = "trivia-bank"
+transport = "streamable-http"
+url = "http://bank:8000/mcp"
+args = []
+
+[verifier.env]
+
+[environment.env]
+
+[solution.env]

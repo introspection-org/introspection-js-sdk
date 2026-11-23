@@ -1,0 +1,242 @@
+[
+  {
+    "region": "global",
+    "difficulty": 1,
+    "text": "Which film features a shark terrorising Amity Island?",
+    "answer": "Jaws"
+  },
+  {
+    "region": "global",
+    "difficulty": 1,
+    "text": "Who directed Jurassic Park?",
+    "answer": "Steven Spielberg"
+  },
+  {
+    "region": "global",
+    "difficulty": 2,
+    "text": "In The Matrix, which colour pill does Neo take?",
+    "answer": "Red"
+  },
+  {
+    "region": "global",
+    "difficulty": 2,
+    "text": "Which film won the first Academy Award for Best Animated Feature?",
+    "answer": "Shrek"
+  },
+  {
+    "region": "global",
+    "difficulty": 3,
+    "text": "Who directed Pulp Fiction?",
+    "answer": "Quentin Tarantino"
+  },
+  {
+    "region": "global",
+    "difficulty": 3,
+    "text": "Which actor played the Joker in The Dark Knight?",
+    "answer": "Heath Ledger"
+  },
+  {
+    "region": "global",
+    "difficulty": 4,
+    "text": "Which Japanese director made Seven Samurai?",
+    "answer": "Akira Kurosawa"
+  },
+  {
+    "region": "global",
+    "difficulty": 5,
+    "text": "Which 1927 film is regarded as the first feature-length talkie?",
+    "answer": "The Jazz Singer"
+  },
+  {
+    "region": "au",
+    "difficulty": 2,
+    "text": "Which 1986 film starred Paul Hogan as an outback crocodile hunter?",
+    "answer": "Crocodile Dundee"
+  },
+  {
+    "region": "au",
+    "difficulty": 3,
+    "text": "Which Australian director made the Mad Max films?",
+    "answer": "George Miller"
+  },
+  {
+    "region": "uk",
+    "difficulty": 2,
+    "text": "Which fictional spy has the code number 007?",
+    "answer": "James Bond"
+  },
+  {
+    "region": "us",
+    "difficulty": 3,
+    "text": "Which 1941 Orson Welles film opens with the word Rosebud?",
+    "answer": "Citizen Kane"
+  },
+  {
+    "region": "global",
+    "difficulty": 1,
+    "text": "In Star Wars, who is revealed to be Luke Skywalker's father?",
+    "answer": "Darth Vader"
+  },
+  {
+    "region": "global",
+    "difficulty": 1,
+    "text": "What kind of animal is Simba in The Lion King?",
+    "answer": "Lion"
+  },
+  {
+    "region": "global",
+    "difficulty": 1,
+    "text": "Which boy wizard attends Hogwarts in a series of eight films?",
+    "answer": "Harry Potter"
+  },
+  {
+    "region": "global",
+    "difficulty": 1,
+    "text": "Which 1997 film tells the story of a liner that hits an iceberg?",
+    "answer": "Titanic"
+  },
+  {
+    "region": "global",
+    "difficulty": 2,
+    "text": "Who directed both Titanic and Avatar?",
+    "answer": "James Cameron"
+  },
+  {
+    "region": "global",
+    "difficulty": 2,
+    "text": "In which fictional African country is Black Panther set?",
+    "answer": "Wakanda"
+  },
+  {
+    "region": "global",
+    "difficulty": 2,
+    "text": "What is the name of the cowboy doll in Toy Story?",
+    "answer": "Woody"
+  },
+  {
+    "region": "global",
+    "difficulty": 2,
+    "text": "Which actor played the title role in Forrest Gump?",
+    "answer": "Tom Hanks"
+  },
+  {
+    "region": "global",
+    "difficulty": 3,
+    "text": "Which 1994 film is set in Shawshank State Prison?",
+    "answer": "The Shawshank Redemption"
+  },
+  {
+    "region": "global",
+    "difficulty": 3,
+    "text": "Who directed the 1960 film Psycho?",
+    "answer": "Alfred Hitchcock"
+  },
+  {
+    "region": "global",
+    "difficulty": 3,
+    "text": "Which South Korean film won the Academy Award for Best Picture in 2020?",
+    "answer": "Parasite"
+  },
+  {
+    "region": "global",
+    "difficulty": 3,
+    "text": "Which composer wrote the scores for Jaws and Star Wars?",
+    "answer": "John Williams"
+  },
+  {
+    "region": "global",
+    "difficulty": 4,
+    "text": "What is the name of the hotel in The Shining?",
+    "answer": "The Overlook Hotel"
+  },
+  {
+    "region": "global",
+    "difficulty": 4,
+    "text": "Which Studio Ghibli film follows a girl named Chihiro?",
+    "answer": "Spirited Away"
+  },
+  {
+    "region": "global",
+    "difficulty": 4,
+    "text": "Which 1939 film won the Academy Award for Best Picture?",
+    "answer": "Gone with the Wind"
+  },
+  {
+    "region": "global",
+    "difficulty": 5,
+    "text": "Which Swedish director made The Seventh Seal?",
+    "answer": "Ingmar Bergman"
+  },
+  {
+    "region": "global",
+    "difficulty": 5,
+    "text": "Which Italian director made La Dolce Vita?",
+    "answer": "Federico Fellini"
+  },
+  {
+    "region": "global",
+    "difficulty": 5,
+    "text": "Which film won the first Academy Award for Best Picture?",
+    "answer": "Wings"
+  },
+  {
+    "region": "global",
+    "difficulty": 5,
+    "text": "Which Soviet director made Battleship Potemkin?",
+    "answer": "Sergei Eisenstein"
+  },
+  {
+    "region": "au",
+    "difficulty": 1,
+    "text": "Which Australian actor played Wolverine in the X-Men films?",
+    "answer": "Hugh Jackman"
+  },
+  {
+    "region": "au",
+    "difficulty": 3,
+    "text": "Which 1994 Australian film follows three drag performers crossing the outback in a bus?",
+    "answer": "The Adventures of Priscilla, Queen of the Desert"
+  },
+  {
+    "region": "au",
+    "difficulty": 4,
+    "text": "In which 1975 Peter Weir film do schoolgirls vanish on Valentine's Day 1900?",
+    "answer": "Picnic at Hanging Rock"
+  },
+  {
+    "region": "uk",
+    "difficulty": 2,
+    "text": "Which plasticine duo, an inventor and his dog, were created by Nick Park?",
+    "answer": "Wallace and Gromit"
+  },
+  {
+    "region": "uk",
+    "difficulty": 3,
+    "text": "Which 1996 Danny Boyle film follows a group of heroin users in Edinburgh?",
+    "answer": "Trainspotting"
+  },
+  {
+    "region": "uk",
+    "difficulty": 5,
+    "text": "In which Ealing comedy does Alec Guinness play eight members of one family?",
+    "answer": "Kind Hearts and Coronets"
+  },
+  {
+    "region": "us",
+    "difficulty": 1,
+    "text": "In which US city is the Hollywood district?",
+    "answer": "Los Angeles"
+  },
+  {
+    "region": "us",
+    "difficulty": 2,
+    "text": "In which New York City borough is Saturday Night Fever set?",
+    "answer": "Brooklyn"
+  },
+  {
+    "region": "us",
+    "difficulty": 4,
+    "text": "Which awards, held the night before the Oscars, honour the year's worst films?",
+    "answer": "The Golden Raspberry Awards"
+  }
+]

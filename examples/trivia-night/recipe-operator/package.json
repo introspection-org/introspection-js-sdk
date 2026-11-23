@@ -1,0 +1,51 @@
+{
+  "name": "trivia-host",
+  "version": "0.1.0",
+  "description": "Hosts a pub's weekly trivia night with the venue's trivia master, adapting to each venue week after week.",
+  "keywords": [
+    "pi-package",
+    "managed-agent",
+    "recipe"
+  ],
+  "type": "module",
+  "private": true,
+  "license": "Apache-2.0",
+  "scripts": {
+    "prepare": "git config core.hooksPath .githooks || true"
+  },
+  "peerDependencies": {
+    "@introspection-ai/recipes": "*"
+  },
+  "pi": {
+    "agents": [
+      "./agents/*.yaml"
+    ],
+    "prompts": [
+      "./prompts/*.md"
+    ],
+    "mcp": {
+      "servers": [
+        {
+          "id": "trivia-bank",
+          "required": true,
+          "tools": {
+            "include": [
+              "start_night",
+              "register_teams",
+              "next_questions",
+              "submit_round",
+              "round_summary",
+              "scoreboard"
+            ]
+          }
+        }
+      ]
+    }
+  },
+  "devDependencies": {
+    "@introspection-ai/vitest-evals": ">=0.13.0",
+    "vitest": "^4.1.12",
+    "vitest-evals": "^0.17.0",
+    "@introspection-ai/eval-simulate": "^0.10.0"
+  }
+}

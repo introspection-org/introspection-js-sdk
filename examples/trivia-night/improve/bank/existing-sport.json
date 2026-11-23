@@ -1,0 +1,242 @@
+[
+  {
+    "region": "global",
+    "difficulty": 1,
+    "text": "How many players does a football (soccer) team have on the pitch?",
+    "answer": "Eleven"
+  },
+  {
+    "region": "global",
+    "difficulty": 1,
+    "text": "In which sport would you perform a slam dunk?",
+    "answer": "Basketball"
+  },
+  {
+    "region": "global",
+    "difficulty": 2,
+    "text": "How many rings are on the Olympic flag?",
+    "answer": "Five"
+  },
+  {
+    "region": "global",
+    "difficulty": 2,
+    "text": "In tennis, what is a score of zero called?",
+    "answer": "Love"
+  },
+  {
+    "region": "global",
+    "difficulty": 3,
+    "text": "Which country won the first FIFA World Cup, in 1930?",
+    "answer": "Uruguay"
+  },
+  {
+    "region": "global",
+    "difficulty": 3,
+    "text": "How long is a marathon, to the nearest kilometre?",
+    "answer": "42 kilometres"
+  },
+  {
+    "region": "global",
+    "difficulty": 4,
+    "text": "Which city hosted the first modern Olympic Games, in 1896?",
+    "answer": "Athens"
+  },
+  {
+    "region": "global",
+    "difficulty": 5,
+    "text": "In which year did Roger Bannister run the first sub-four-minute mile?",
+    "answer": "1954"
+  },
+  {
+    "region": "au",
+    "difficulty": 2,
+    "text": "On which ground is the AFL Grand Final traditionally played?",
+    "answer": "Melbourne Cricket Ground"
+  },
+  {
+    "region": "au",
+    "difficulty": 3,
+    "text": "What was cricketer Don Bradman's Test batting average?",
+    "answer": "99.94"
+  },
+  {
+    "region": "uk",
+    "difficulty": 2,
+    "text": "Which tennis tournament is played on grass in London each summer?",
+    "answer": "Wimbledon"
+  },
+  {
+    "region": "us",
+    "difficulty": 2,
+    "text": "Which game decides the NFL championship?",
+    "answer": "The Super Bowl"
+  },
+  {
+    "region": "global",
+    "difficulty": 1,
+    "text": "In which sport do players hit a shuttlecock?",
+    "answer": "Badminton"
+  },
+  {
+    "region": "global",
+    "difficulty": 1,
+    "text": "How many holes are played in a standard round of golf?",
+    "answer": "Eighteen"
+  },
+  {
+    "region": "global",
+    "difficulty": 1,
+    "text": "How many players does a basketball team have on the court?",
+    "answer": "Five"
+  },
+  {
+    "region": "global",
+    "difficulty": 1,
+    "text": "Which country hosts the Tour de France?",
+    "answer": "France"
+  },
+  {
+    "region": "global",
+    "difficulty": 2,
+    "text": "Which Jamaican sprinter holds the men's 100 metres world record?",
+    "answer": "Usain Bolt"
+  },
+  {
+    "region": "global",
+    "difficulty": 2,
+    "text": "In which sport would you use a foil, an epee or a sabre?",
+    "answer": "Fencing"
+  },
+  {
+    "region": "global",
+    "difficulty": 2,
+    "text": "How many minutes does a football (soccer) match last, excluding stoppage time?",
+    "answer": "Ninety"
+  },
+  {
+    "region": "global",
+    "difficulty": 2,
+    "text": "Which country has won the most FIFA World Cups?",
+    "answer": "Brazil"
+  },
+  {
+    "region": "global",
+    "difficulty": 3,
+    "text": "Which city hosted the 2008 Summer Olympics?",
+    "answer": "Beijing"
+  },
+  {
+    "region": "global",
+    "difficulty": 3,
+    "text": "Which boxer called himself The Greatest?",
+    "answer": "Muhammad Ali"
+  },
+  {
+    "region": "global",
+    "difficulty": 3,
+    "text": "How many players does a rugby union team have on the field?",
+    "answer": "Fifteen"
+  },
+  {
+    "region": "global",
+    "difficulty": 3,
+    "text": "In golf, what is a score of one under par on a hole called?",
+    "answer": "Birdie"
+  },
+  {
+    "region": "global",
+    "difficulty": 4,
+    "text": "Which country won the first Rugby World Cup, in 1987?",
+    "answer": "New Zealand"
+  },
+  {
+    "region": "global",
+    "difficulty": 4,
+    "text": "Which city hosted the 1964 Summer Olympics?",
+    "answer": "Tokyo"
+  },
+  {
+    "region": "global",
+    "difficulty": 4,
+    "text": "In which sport is the Stanley Cup contested?",
+    "answer": "Ice hockey"
+  },
+  {
+    "region": "global",
+    "difficulty": 5,
+    "text": "Which Romanian gymnast scored the first perfect 10 at the Olympics, in 1976?",
+    "answer": "Nadia Comaneci"
+  },
+  {
+    "region": "global",
+    "difficulty": 5,
+    "text": "Which French town hosted the first Winter Olympics, in 1924?",
+    "answer": "Chamonix"
+  },
+  {
+    "region": "global",
+    "difficulty": 5,
+    "text": "Which American swimmer won seven gold medals at the 1972 Munich Olympics?",
+    "answer": "Mark Spitz"
+  },
+  {
+    "region": "global",
+    "difficulty": 5,
+    "text": "Which team won the first men's Cricket World Cup, in 1975?",
+    "answer": "The West Indies"
+  },
+  {
+    "region": "au",
+    "difficulty": 1,
+    "text": "Which horse race is known as the race that stops a nation?",
+    "answer": "The Melbourne Cup"
+  },
+  {
+    "region": "au",
+    "difficulty": 3,
+    "text": "Which football code is played in the State of Origin series?",
+    "answer": "Rugby league"
+  },
+  {
+    "region": "au",
+    "difficulty": 4,
+    "text": "Which yacht won the America's Cup for Australia in 1983?",
+    "answer": "Australia II"
+  },
+  {
+    "region": "uk",
+    "difficulty": 2,
+    "text": "Which London stadium hosts the FA Cup Final?",
+    "answer": "Wembley"
+  },
+  {
+    "region": "uk",
+    "difficulty": 3,
+    "text": "What is the maximum break in snooker, without a free ball?",
+    "answer": "147"
+  },
+  {
+    "region": "uk",
+    "difficulty": 5,
+    "text": "Which racecourse near Liverpool hosts the Grand National?",
+    "answer": "Aintree"
+  },
+  {
+    "region": "us",
+    "difficulty": 1,
+    "text": "In which sport is the World Series played?",
+    "answer": "Baseball"
+  },
+  {
+    "region": "us",
+    "difficulty": 2,
+    "text": "How many points is a touchdown worth in American football?",
+    "answer": "Six"
+  },
+  {
+    "region": "us",
+    "difficulty": 4,
+    "text": "Which baseball player was nicknamed the Bambino?",
+    "answer": "Babe Ruth"
+  }
+]

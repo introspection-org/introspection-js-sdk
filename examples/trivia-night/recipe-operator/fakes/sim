@@ -1,0 +1,5 @@
+#!/bin/sh
+# Calls one fake in a memory-search series: ./sim call <series-dir> <fake> <tool> '<json>' [--seed n --scenario s]
+#                                         ./sim state <series-dir> [<fake>]
+here=$(cd "$(dirname "$0")" && pwd)
+cd "$here" && exec node node_modules/@introspection-ai/eval-simulate/dist/cli.js "$@" --fakes mcp/series.ts --scenarios scenarios/index.ts

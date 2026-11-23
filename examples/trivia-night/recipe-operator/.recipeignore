@@ -1,0 +1,10 @@
+# Paths that never reach the agent in a deployed version.
+# Evals and their run output are for development only.
+evals/
+eval-runs/
+# The design, briefs and fakes of the data sources the evals bind.
+docs/
+fakes/
+# Repository tooling.
+.github/
+.githooks/
