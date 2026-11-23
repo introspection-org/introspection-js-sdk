@@ -7,7 +7,8 @@ let text = "";
 if (existsSync(atif)) {
   const steps = JSON.parse(readFileSync(atif, "utf8")).steps ?? [];
   calls = steps.flatMap((s) => (s.tool_calls ?? []).map((c) => ({ name: c.function_name, args: c.arguments ?? {} })));
-  text = steps.map((s) => s.message ?? "").join("\n");
+  // Only what the agent said: the system prompt itself tells it to ask the country.
+  text = steps.filter((s) => s.source === "agent").map((s) => s.message ?? "").join("\n");
 } else {
   const log = readFileSync("/logs/agent/pi.jsonl", "utf8");
   text = log;

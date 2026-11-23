@@ -16,13 +16,14 @@ The owner told brainstorm the bank already runs as an MCP server, so the session
 
 ## Run the memory evals
 
-Three Harbor tasks check that the host keeps a venue's notes from one night to the next. Each night is a trial against the bank's fakes (`fakes/`, served as a sidecar); its notes come back as the trial's `memories` artifact.
+Four Harbor tasks check that the host keeps a venue's notes from one night to the next. Each night is a trial against the bank's fakes (`fakes/`, served as a sidecar); its notes come back as the trial's `memories` artifact.
 
-| Task            | Night                           | Where memory comes from                           |
-| --------------- | ------------------------------- | ------------------------------------------------- |
-| `night1-memory` | first night at a new venue      | none: it writes `memories/MEMORY.md`              |
-| `night2-memory` | the next night, local Docker    | night 1's notes, mounted by `evals/run-series.sh` |
-| `night2-hosted` | the next night, on the platform | the identity's own memory                         |
+| Task             | Night                           | Where memory comes from                           |
+| ---------------- | ------------------------------- | ------------------------------------------------- |
+| `night1-memory`  | first night at a new venue      | none: it writes `memories/MEMORY.md`              |
+| `night2-memory`  | the next night, local Docker    | night 1's notes, mounted by `evals/run-series.sh` |
+| `night2-hosted`  | the next night, on the platform | the identity's own memory                         |
+| `night2-control` | the next night, a new identity  | none: it must ask where the venue is              |
 
 **Local Docker.** Runs the Recipe in the Runtime image with your own model key:
 
@@ -40,12 +41,24 @@ export INTROSPECTION_TOKEN="$(cat .agent.key)"
 export INTROSPECTION_DP_URL="$(introspection whoami --query dp_url -o table)"
 for task in night1-memory night2-hosted; do
   introspection eval run -r <runtime version> --commit-sha <pushed commit> \
-    --path evals/harbor/$task --identity anon:sim-venue-a-r1
+    --path evals/harbor/$task --identity anon:sim-<run>-venue-a
 done
-introspection api-keys revoke <key id>
+introspection eval run -r <runtime version> --commit-sha <pushed commit> \
+  --path evals/harbor/night2-control --identity anon:sim-<run>-venue-b
+introspection api-keys revoke --key <key id> --yes
 ```
 
-Night 2 recalls night 1 only for the same identity; a new identity starts with no notes and asks which country the venue is in. Each night runs and keeps its memory per identity today, but the trial isn't scored yet: the key that created the anonymous identity can't read its conversation back, so Harbor's ingest check times out.
+Night 2 recalls night 1 only for the same identity; the control, a new identity, starts with no notes and must ask which country the venue is in. Use a new `<run>` each time, since an identity keeps its memory.
+
+The key that created an anonymous identity can't read that user's conversation, so each trial is scored in its sandbox: the runtime keeps the conversation's GenAI spans at `/tmp/introspection/genai-spans.json` for an eval task, and the native adapter builds the verifier's `trajectory.json` from them (the trial's result records `trajectory_source: "sandbox"`). The verifiers read only the agent's own steps, since the system prompt itself tells the agent to ask for the country.
+
+On the local stack all three pass, each scored from the sandbox:
+
+| Trial            | Identity | Reward | What it shows                                                          |
+| ---------------- | -------- | ------ | ---------------------------------------------------------------------- |
+| `night1-memory`  | venue A  | 1      | notes hold the country, genres and difficulty, and no team names       |
+| `night2-hosted`  | venue A  | 1      | a UK round at difficulty 3 in a genre not yet played; no country asked |
+| `night2-control` | venue B  | 1      | asks the venue's country before fetching anything                      |
 
 ## Next iteration
 
