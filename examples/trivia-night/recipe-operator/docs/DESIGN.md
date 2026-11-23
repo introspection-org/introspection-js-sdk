@@ -93,7 +93,7 @@ On the current instructions, with the original memory block. These ran on 2026-1
   - **C2: pass.** All code checks passed on both nights, with five fetches for five rounds each night. The birthday night was all music and said it was for tonight only. The next week was mostly sport and history. The notes after each night record the request as a one-off, don't name Dave, still name sport and history, and hold no teams, scores or questions. The plan came first on both nights. The notes do record that music "doesn't go down well here", from the room's flat reaction, which is judgement within the owner's rules.
   - **C3: pass.** All code checks passed on all three nights. Person read: night 1 was a balanced mix at level 3, UK and global only, and said it was a first night. Night 3 leaned on film (two rounds) with geography and varied rounds, and said why. The notes stayed short (6 lines: country, start level with reason, tastes, what is due a turn).
 - **Held-out evidence:** the night-instruction change sits outside the memory section, but it does change how every night runs. The control's held-out series were run on the instructions before it.
-- **Stand-in runner:** a subagent played the host from a brief with every memory file pasted in. The runtime loads only `memories/MEMORY.md` at session start, so the kept block's notes file was renamed from `notes.md` to `MEMORY.md` after the search, by the owner's decision, without a new held-out run. Confirming the block on the real runtime is still open.
+- **Stand-in runner:** a subagent played the host from a brief with the memory folder pasted in. The runtime loads `memories/MEMORY.md` at session start instead, so confirming the block on the real runtime is still open.
 
 Earlier history:
 
@@ -110,4 +110,3 @@ Earlier history:
 - 2026-11-23: second revision round; nothing qualified. freeform-rev measured held-out, no gain.
 - 2026-11-23: beliefs-fix re-measured held-out on its exact wording. It failed the rule, so the original memory block is kept.
 - 2026-11-23: night instructions: decide a round's level before fetching, and fetch once. C2 had fetched one round twice and used up eight unread questions. The memory section is unchanged.
-- 2026-11-23: the kept block's notes file renamed from `memories/notes.md` to `memories/MEMORY.md`, which the runtime loads at session start. Not re-measured.

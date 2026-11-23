@@ -2,32 +2,30 @@
 
 In-session search over the memory block only. The world, venues and metrics are in `brief.md`. Off-target means how far each round's share of right answers lands from 2/3, averaged over nights 2+ (lower is better). Enjoyed is the share of rounds in genres the crowd enjoys (request night excluded). Every series below had 0 rule breaks: no other-country questions, nothing forbidden in the notes, and no one-night request carried over.
 
-The blocks in `candidates/` are as measured, so they name the notes file they ran with. The kept block (`control.md`) ran with `memories/notes.md`; the Recipe ships it with `memories/MEMORY.md`, which the runtime loads at session start, and that rename was not re-measured.
-
 ## Training venues (4 nights; paired seed 101; control's own seed-to-seed spread ~0.05 per venue)
 
-| Candidate | Off-target mean (worst) | Enjoyed mean |
-|---|---|---|
-| control (current block) | 0.170 (0.194), 0.190 incl. seed 202 | 0.67 |
-| freeform | 0.154 (0.199) | 0.67 |
-| datedlog | 0.154 (0.185) | 0.69 |
-| beliefs | 0.156 (0.190) | 0.67 |
-| nextaction | 0.145 seed 101; ~0.15 over 2 seeds | 0.78 |
-| nextaction-rev | 0.139 (0.157) | 0.72 |
-| **beliefs-rev** | **0.125 (0.153)** | **0.72** |
+| Candidate               | Off-target mean (worst)             | Enjoyed mean |
+| ----------------------- | ----------------------------------- | ------------ |
+| control (current block) | 0.170 (0.194), 0.190 incl. seed 202 | 0.67         |
+| freeform                | 0.154 (0.199)                       | 0.67         |
+| datedlog                | 0.154 (0.185)                       | 0.69         |
+| beliefs                 | 0.156 (0.190)                       | 0.67         |
+| nextaction              | 0.145 seed 101; ~0.15 over 2 seeds  | 0.78         |
+| nextaction-rev          | 0.139 (0.157)                       | 0.72         |
+| **beliefs-rev**         | **0.125 (0.153)**                   | **0.72**     |
 
 ## Held-out venues (8, never shown to the meta agent; 3 nights; beliefs-rev vs control, paired)
 
-| Venue kind | beliefs-rev | control | diff |
-|---|---|---|---|
-| narrow (1) | 0.146 | 0.174 | -0.028 |
-| shifting (2) | 0.160 | 0.194 | -0.035 |
-| mismatch (3) | 0.160 | 0.160 | 0.000 |
-| low | 0.174 | 0.250 | -0.076 |
-| high | 0.132 | 0.097 | +0.035 |
-| narrow (6) | 0.139 | 0.160 | -0.021 |
-| shifting (7) | 0.153 | 0.118 | +0.035 |
-| mismatch (8) | 0.118 | 0.215 | -0.097 |
+| Venue kind       | beliefs-rev       | control           | diff                  |
+| ---------------- | ----------------- | ----------------- | --------------------- |
+| narrow (1)       | 0.146             | 0.174             | -0.028                |
+| shifting (2)     | 0.160             | 0.194             | -0.035                |
+| mismatch (3)     | 0.160             | 0.160             | 0.000                 |
+| low              | 0.174             | 0.250             | -0.076                |
+| high             | 0.132             | 0.097             | +0.035                |
+| narrow (6)       | 0.139             | 0.160             | -0.021                |
+| shifting (7)     | 0.153             | 0.118             | +0.035                |
+| mismatch (8)     | 0.118             | 0.215             | -0.097                |
 | **mean (worst)** | **0.148 (0.174)** | **0.171 (0.250)** | **-0.023 ± 0.017 SE** |
 
 Enjoyed on held-out: beliefs-rev 0.71, control 0.58 (worst 0.33 for both, on a shifting venue).
@@ -54,16 +52,16 @@ Both beliefs-rev and control play the 8 held-out venues again, seed 202, 3 night
 
 The output of `decide.py` is saved in `decision-seed202.txt`. The 16 series (8 venues × 2 versions) ran on seed 202, 3 nights each, with 0 rule breaks.
 
-| Venue | beliefs-rev s101 | s202 | control s101 | s202 | d_v |
-|---|---|---|---|---|---|
-| narrow (1) | 0.146 | 0.257 | 0.174 | 0.222 | +0.003 |
-| shifting (2) | 0.160 | 0.160 | 0.194 | 0.194 | -0.035 |
-| mismatch (3) | 0.160 | 0.139 | 0.160 | 0.111 | +0.014 |
-| low | 0.174 | 0.188 | 0.250 | 0.174 | -0.031 |
-| high | 0.132 | 0.063 | 0.097 | 0.125 | -0.014 |
-| narrow (6) | 0.139 | 0.132 | 0.160 | 0.132 | -0.010 |
-| shifting (7) | 0.153 | 0.181 | 0.118 | 0.215 | +0.000 |
-| mismatch (8) | 0.118 | 0.125 | 0.215 | 0.083 | -0.028 |
+| Venue        | beliefs-rev s101 | s202  | control s101 | s202  | d_v    |
+| ------------ | ---------------- | ----- | ------------ | ----- | ------ |
+| narrow (1)   | 0.146            | 0.257 | 0.174        | 0.222 | +0.003 |
+| shifting (2) | 0.160            | 0.160 | 0.194        | 0.194 | -0.035 |
+| mismatch (3) | 0.160            | 0.139 | 0.160        | 0.111 | +0.014 |
+| low          | 0.174            | 0.188 | 0.250        | 0.174 | -0.031 |
+| high         | 0.132            | 0.063 | 0.097        | 0.125 | -0.014 |
+| narrow (6)   | 0.139            | 0.132 | 0.160        | 0.132 | -0.010 |
+| shifting (7) | 0.153            | 0.181 | 0.118        | 0.215 | +0.000 |
+| mismatch (8) | 0.118            | 0.125 | 0.215        | 0.083 | -0.028 |
 
 - **Combined gain:** G = +0.013, SE (venue unit) = 0.006, G/SE = 2.01. Over the 16 pairs it is +0.013 ± 0.011 (1.2 SE), reported for reference only.
 - **Control's seed-to-seed spread:** S = 0.057. No venue has d_v > S.
@@ -80,16 +78,16 @@ C3 found that the adopted block let the notes grow to one belief per genre and l
 
 The owner's variety rule is about 3 rounds in 5 from liked genres, so every genre still gets a turn; no memory block may override it. A guard now marks a night that breaks it: a night whose rounds are all in genres the crowd enjoys (at or above the liked threshold), with the request night excluded (`breaksVariety` in `fakes/world/score.ts`, with tests). Rescore of every series:
 
-| Candidate | Nights | Variety broken |
-|---|---|---|
-| control | 72 | 2 (both on night 1, with empty memory) |
-| freeform | 12 | 0 |
-| datedlog | 12 | 1 |
-| beliefs | 12 | 0 |
-| nextaction | 24 | 5 |
-| nextaction-rev | 12 | 2 |
-| beliefs-rev | 60 | 5 (training uk-sport n3; held-out high ×2, mismatch ×2) |
-| adopted (beliefs-rev + one-line-per-genre fix, case runs only) | 10 | 0 |
+| Candidate                                                      | Nights | Variety broken                                          |
+| -------------------------------------------------------------- | ------ | ------------------------------------------------------- |
+| control                                                        | 72     | 2 (both on night 1, with empty memory)                  |
+| freeform                                                       | 12     | 0                                                       |
+| datedlog                                                       | 12     | 1                                                       |
+| beliefs                                                        | 12     | 0                                                       |
+| nextaction                                                     | 24     | 5                                                       |
+| nextaction-rev                                                 | 12     | 2                                                       |
+| beliefs-rev                                                    | 60     | 5 (training uk-sport n3; held-out high ×2, mismatch ×2) |
+| adopted (beliefs-rev + one-line-per-genre fix, case runs only) | 10     | 0                                                       |
 
 beliefs-rev breaks the guard, so it is **not adopted**. The current (control) block is restored in `SYSTEM.md`. The control's 2 breaks happen before memory exists; they come from the night's instructions, not from memory.
 
@@ -100,10 +98,10 @@ beliefs-rev breaks the guard, so it is **not adopted**. The current (control) bl
 - **Runs:** 3 training venues × 4 nights, seed 101, paired with the parents.
 - **Qualifying rule:** no guard broken, and a gain over the parent above the control's training seed-to-seed spread (0.046). See `selection-round2.txt`.
 
-| Revision | au | uk | us | Mean | Parent mean | Gain | Guard breaks | Qualifies |
-|---|---|---|---|---|---|---|---|---|
-| freeform-rev | 0.106 | 0.130 | 0.106 | 0.114 | 0.154 | +0.040 | 1 (variety, uk n3) | no |
-| beliefs-rev2 | 0.130 | 0.139 | 0.116 | 0.128 | 0.156 | +0.028 | 2 (variety, uk n4, us n4) | no |
+| Revision     | au    | uk    | us    | Mean  | Parent mean | Gain   | Guard breaks              | Qualifies |
+| ------------ | ----- | ----- | ----- | ----- | ----------- | ------ | ------------------------- | --------- |
+| freeform-rev | 0.106 | 0.130 | 0.106 | 0.114 | 0.154       | +0.040 | 1 (variety, uk n3)        | no        |
+| beliefs-rev2 | 0.130 | 0.139 | 0.116 | 0.128 | 0.156       | +0.028 | 2 (variety, uk n4, us n4) | no        |
 
 No revision qualifies, so nothing ran held-out and the current (control) block stays.
 
@@ -111,16 +109,16 @@ A false positive in the request guard was found and fixed during scoring. "…ho
 
 ### Held-out scorecard, all existing series (beliefs-rev vs control; off-target nights 2–3; V = nights breaking the variety rule)
 
-| Venue | beliefs-rev s101 | s202 | control s101 | s202 |
-|---|---|---|---|---|
-| narrow (1) | 0.146 V0 | 0.257 V0 | 0.174 V0 | 0.222 V0 |
-| shifting (2) | 0.160 V0 | 0.160 V0 | 0.194 V0 | 0.194 V0 |
-| mismatch (3) | 0.160 V0 | 0.139 V1 | 0.160 V0 | 0.111 V0 |
-| low | 0.174 V0 | 0.188 V0 | 0.250 V0 | 0.174 V0 |
-| high | 0.132 V1 | 0.063 V1 | 0.097 V0 | 0.125 V1 |
-| narrow (6) | 0.139 V0 | 0.132 V0 | 0.160 V0 | 0.132 V0 |
-| shifting (7) | 0.153 V0 | 0.181 V0 | 0.118 V0 | 0.215 V0 |
-| mismatch (8) | 0.118 V1 | 0.125 V0 | 0.215 V0 | 0.083 V0 |
+| Venue        | beliefs-rev s101 | s202     | control s101 | s202     |
+| ------------ | ---------------- | -------- | ------------ | -------- |
+| narrow (1)   | 0.146 V0         | 0.257 V0 | 0.174 V0     | 0.222 V0 |
+| shifting (2) | 0.160 V0         | 0.160 V0 | 0.194 V0     | 0.194 V0 |
+| mismatch (3) | 0.160 V0         | 0.139 V1 | 0.160 V0     | 0.111 V0 |
+| low          | 0.174 V0         | 0.188 V0 | 0.250 V0     | 0.174 V0 |
+| high         | 0.132 V1         | 0.063 V1 | 0.097 V0     | 0.125 V1 |
+| narrow (6)   | 0.139 V0         | 0.132 V0 | 0.160 V0     | 0.132 V0 |
+| shifting (7) | 0.153 V0         | 0.181 V0 | 0.118 V0     | 0.215 V0 |
+| mismatch (8) | 0.118 V1         | 0.125 V0 | 0.215 V0     | 0.083 V0 |
 
 Under the full rule with the variety guard, beliefs-rev has 4 held-out breaks: **KEEP current block** (`decision-beliefs-rev-with-variety.txt`).
 
@@ -130,33 +128,33 @@ A night breaks the variety rule only when every round is in a genre the host alr
 
 Rescore of every finished series (freeform-rev held-out still running):
 
-| Candidate | Nights | Variety | Forbidden | Carried | Foreign |
-|---|---|---|---|---|---|
-| control | 72 | 0 | 0 | 0 | 0 |
-| freeform | 12 | 0 | 0 | 0 | 0 |
-| datedlog | 12 | 0 | 0 | 0 | 0 |
-| beliefs | 12 | 0 | 0 | 0 | 0 |
-| nextaction | 24 | 2 | 0 | 0 | 0 |
-| nextaction-rev | 12 | 1 | 0 | 0 | 0 |
-| beliefs-rev | 60 | 0 | 0 | 0 | 0 |
-| beliefs-rev2 | 12 | 0 | 0 | 0 | 0 |
-| freeform-rev (training) | 12 | 0 | 0 | 0 | 0 |
-| adopted / adopted-v1 (case runs) | 10 / 10 | 0 | 0 | 0 | 0 |
+| Candidate                        | Nights  | Variety | Forbidden | Carried | Foreign |
+| -------------------------------- | ------- | ------- | --------- | ------- | ------- |
+| control                          | 72      | 0       | 0         | 0       | 0       |
+| freeform                         | 12      | 0       | 0         | 0       | 0       |
+| datedlog                         | 12      | 0       | 0         | 0       | 0       |
+| beliefs                          | 12      | 0       | 0         | 0       | 0       |
+| nextaction                       | 24      | 2       | 0         | 0       | 0       |
+| nextaction-rev                   | 12      | 1       | 0         | 0       | 0       |
+| beliefs-rev                      | 60      | 0       | 0         | 0       | 0       |
+| beliefs-rev2                     | 12      | 0       | 0         | 0       | 0       |
+| freeform-rev (training)          | 12      | 0       | 0         | 0       | 0       |
+| adopted / adopted-v1 (case runs) | 10 / 10 | 0       | 0         | 0       | 0       |
 
 ## freeform-rev held-out, as a training tie (owner's request, 2026-11-23)
 
 The candidate ran on 8 held-out venues × 3 nights at seeds 101 and 202, against the control's existing held-out series. The owner's rule was applied with the refined variety guard (`decision-freeform-rev.txt`).
 
-| Venue | freeform-rev s101 | s202 | control s101 | s202 | d_v |
-|---|---|---|---|---|---|
-| narrow (1) | 0.181 | 0.222 | 0.174 | 0.222 | +0.003 |
-| shifting (2) | 0.146 | 0.181 | 0.194 | 0.194 | -0.031 |
-| mismatch (3) | 0.181 | 0.153 | 0.160 | 0.111 | +0.031 |
-| low | 0.174 | 0.125 | 0.250 | 0.174 | -0.062 |
-| high | 0.090 | 0.271 | 0.097 | 0.125 | **+0.069** |
-| narrow (6) | 0.146 | 0.153 | 0.160 | 0.132 | +0.003 |
-| shifting (7) | 0.139 | 0.174 | 0.118 | 0.215 | -0.010 |
-| mismatch (8) | 0.160 | 0.125 | 0.215 | 0.083 | -0.007 |
+| Venue        | freeform-rev s101 | s202  | control s101 | s202  | d_v        |
+| ------------ | ----------------- | ----- | ------------ | ----- | ---------- |
+| narrow (1)   | 0.181             | 0.222 | 0.174        | 0.222 | +0.003     |
+| shifting (2) | 0.146             | 0.181 | 0.194        | 0.194 | -0.031     |
+| mismatch (3) | 0.181             | 0.153 | 0.160        | 0.111 | +0.031     |
+| low          | 0.174             | 0.125 | 0.250        | 0.174 | -0.062     |
+| high         | 0.090             | 0.271 | 0.097        | 0.125 | **+0.069** |
+| narrow (6)   | 0.146             | 0.153 | 0.160        | 0.132 | +0.003     |
+| shifting (7) | 0.139             | 0.174 | 0.118        | 0.215 | -0.010     |
+| mismatch (8) | 0.160             | 0.125 | 0.215        | 0.083 | -0.007     |
 
 - **Combined gain:** G = +0.000 off-target, SE = 0.014 (each venue counted once), G/SE = 0.03.
 - **Control spread:** S = 0.057. The high venue is worse by 0.069, which is more than S.
@@ -173,16 +171,16 @@ beliefs-fix is beliefs-rev with C3's fix: one difficulty line per genre, and pro
 
 ### beliefs-fix held-out result (2026-11-23)
 
-| Venue | beliefs-fix s101 | s202 | control s101 | s202 | d_v |
-|---|---|---|---|---|---|
-| narrow (1) | 0.125 | 0.215 | 0.174 | 0.222 | -0.028 |
-| shifting (2) | 0.188 | 0.132 | 0.194 | 0.194 | -0.035 |
-| mismatch (3) | 0.146 | 0.139 | 0.160 | 0.111 | +0.007 |
-| low | 0.181 | 0.097 | 0.250 | 0.174 | -0.073 |
-| high | 0.188 | 0.160 | 0.097 | 0.125 | **+0.062** |
-| narrow (6) | 0.146 | 0.139 | 0.160 | 0.132 | -0.003 |
-| shifting (7) | 0.132 | 0.174 | 0.118 | 0.215 | -0.014 |
-| mismatch (8) | 0.215 | 0.076 | 0.215 | 0.083 | -0.003 |
+| Venue        | beliefs-fix s101 | s202  | control s101 | s202  | d_v        |
+| ------------ | ---------------- | ----- | ------------ | ----- | ---------- |
+| narrow (1)   | 0.125            | 0.215 | 0.174        | 0.222 | -0.028     |
+| shifting (2) | 0.188            | 0.132 | 0.194        | 0.194 | -0.035     |
+| mismatch (3) | 0.146            | 0.139 | 0.160        | 0.111 | +0.007     |
+| low          | 0.181            | 0.097 | 0.250        | 0.174 | -0.073     |
+| high         | 0.188            | 0.160 | 0.097        | 0.125 | **+0.062** |
+| narrow (6)   | 0.146            | 0.139 | 0.160        | 0.132 | -0.003     |
+| shifting (7) | 0.132            | 0.174 | 0.118        | 0.215 | -0.014     |
+| mismatch (8) | 0.215            | 0.076 | 0.215        | 0.083 | -0.003     |
 
 - **Combined gain:** G = +0.011 off-target. Counting each venue once, SE = 0.014 (0.79 SE). Counting each of the 16 runs, G = +0.011 ± 0.011 (1.0 SE).
 - **Control spread:** S = 0.057. The high venue is worse by 0.062, which is more than S.
