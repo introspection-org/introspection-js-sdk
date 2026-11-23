@@ -1,0 +1,15 @@
+{
+  "name": "trivia-host-fakes",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test --test-global-setup=tests/setup.js tests/question-bank.test.js tests/subject.test.js && node --test tests/fakes.test.js tests/world.test.js"
+  },
+  "dependencies": {
+    "@introspection-ai/eval-simulate": "^0.10.0",
+    "typebox": "^1.0.0"
+  },
+  "devDependencies": {
+    "@modelcontextprotocol/client": "2.3.1"
+  }
+}

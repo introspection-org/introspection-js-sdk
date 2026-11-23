@@ -1,0 +1,50 @@
+{
+  "name": "trivia-host",
+  "version": "0.1.0",
+  "description": "Hosts pub trivia nights: picks questions from a bank, reads them out, scores rounds, and adapts to each venue week over week.",
+  "keywords": [
+    "pi-package",
+    "pi-coding-agent",
+    "managed-agent",
+    "recipe"
+  ],
+  "type": "module",
+  "private": true,
+  "license": "Apache-2.0",
+  "scripts": {
+    "prepare": "git config core.hooksPath .githooks || true"
+  },
+  "peerDependencies": {
+    "@introspection-ai/recipes": "*"
+  },
+  "pi": {
+    "agents": [
+      "./agents/*.yaml"
+    ],
+    "prompts": [
+      "./prompts/*.md"
+    ],
+    "mcp": {
+      "servers": [
+        {
+          "id": "question-bank",
+          "required": false,
+          "discovery": "defer",
+          "tools": {
+            "include": [
+              "list_questions",
+              "score_round",
+              "round_summary"
+            ]
+          }
+        }
+      ]
+    }
+  },
+  "devDependencies": {
+    "@introspection-ai/vitest-evals": ">=0.13.0",
+    "vitest": "^4.1.12",
+    "vitest-evals": "^0.17.0",
+    "@introspection-ai/eval-simulate": "^0.10.0"
+  }
+}

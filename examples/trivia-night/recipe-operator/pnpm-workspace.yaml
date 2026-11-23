@@ -1,0 +1,11 @@
+packages:
+  - fakes
+# pnpm 12 skips releases younger than minimumReleaseAge. Introspection's own
+# packages (Recipes, the documents and channel tools) are exempt, so a fresh
+# install gets the release that carries a new tool or profile, not an older one.
+minimumReleaseAgeExclude:
+  - "@introspection-ai/*"
+# Install scripts Recipes' dependencies ask to run; none is needed.
+allowBuilds:
+  "@google/genai": false
+  protobufjs: false

@@ -1,0 +1,16 @@
+name: agent
+description: Hosts a pub quiz night with the venue's trivia master, picking each round from the question bank, scoring it, and adapting to the venue week over week.
+ai:
+  model: anthropic/claude-opus-5-5
+  thinking_level: low
+tools:
+  - read
+  - write
+  - edit
+skills: []
+subagents: []
+mcp:
+  mode: tools
+  servers:
+    question-bank:
+      include: [list_questions, score_round, round_summary]

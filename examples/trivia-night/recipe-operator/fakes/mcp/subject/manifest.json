@@ -1,0 +1,8 @@
+{
+  "server": { "name": "subject", "version": "0.0.0-simulation" },
+  "entities": ["nights"],
+  "settings": ["seed", "venue"],
+  "tools": {
+    "say": { "kind": "stateful", "reads": ["nights"], "writes": ["nights"] }
+  }
+}

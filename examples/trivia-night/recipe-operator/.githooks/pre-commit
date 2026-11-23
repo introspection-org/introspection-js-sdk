@@ -1,0 +1,4 @@
+#!/usr/bin/env sh
+set -eu
+
+npx -y -p @introspection-ai/cli introspection check

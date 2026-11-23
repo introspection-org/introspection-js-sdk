@@ -1,0 +1,19 @@
+# Generated Pi runtime state
+.pi/bin/
+.pi/mcp-session.json
+.pi/mcporter.json
+.introspection/local.json
+
+# Dependencies
+node_modules/
+
+# Secrets. `introspection dev` stages with `git add -A`, so anything untracked
+# and un-ignored here travels to the cloud inside the development patch.
+.env
+.env.*
+
+# Eval run output from `introspection eval run`
+eval-runs/
+files/
+outputs/
+runs/
