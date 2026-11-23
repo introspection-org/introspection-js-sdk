@@ -76,6 +76,65 @@ export const VENUES: Venue[] = [
   },
 ];
 
+const CITIES = {
+  au: ["Brisbane", "Perth", "Adelaide", "Hobart"],
+  uk: ["Bristol", "Glasgow", "Cardiff", "York"],
+  us: ["Denver", "Portland", "Chicago", "Atlanta"],
+} as const;
+const ALL_GENRES: Genre[] = [
+  "music",
+  "film",
+  "sport",
+  "science",
+  "history",
+  "geography",
+];
+
+/**
+ * Held-out venues drawn at random from a fixed seed, so a harness is never
+ * judged on venues chosen after seeing it run. Each has a region, a base skill,
+ * one to three strong genres, and one to three liked genres that only mostly
+ * match its strengths.
+ */
+export function sampleVenues(count: number, seed: number): Venue[] {
+  const random = seeded(seed);
+  const pick = <T>(items: readonly T[]) =>
+    items[Math.floor(random() * items.length)]!;
+  const shuffle = <T>(items: readonly T[]) =>
+    items
+      .map((item) => [random(), item] as const)
+      .sort((a, b) => a[0] - b[0])
+      .map(([, item]) => item);
+  return Array.from({ length: count }, (_, index) => {
+    const region = pick(["au", "uk", "us"] as const);
+    const base = Math.round((0.3 + random() * 0.5) * 100) / 100;
+    const strong = shuffle(ALL_GENRES).slice(0, 1 + Math.floor(random() * 3));
+    const skills: Partial<Record<Genre, number>> = {};
+    for (const genre of strong)
+      skills[genre] = Math.min(
+        0.95,
+        Math.round((base + 0.15 + random() * 0.25) * 100) / 100,
+      );
+    const likes = shuffle(ALL_GENRES)
+      .filter((genre) =>
+        strong.includes(genre) ? random() < 0.8 : random() < 0.15,
+      )
+      .slice(0, 3);
+    return {
+      id: `sampled-${index + 1}`,
+      name: `Venue ${index + 1}, ${pick(CITIES[region])}`,
+      region,
+      teams: 4 + Math.floor(random() * 5),
+      skill: skill(base, skills),
+      likes: likes.length ? likes : [strong[0]!],
+      heldOut: true,
+    };
+  });
+}
+
+if (process.env.TRIVIA_VENUES === "sampled")
+  VENUES.push(...sampleVenues(8, 20261122));
+
 /** A small seeded generator, so a simulation repeats exactly. */
 export function seeded(seed: number): () => number {
   let state = seed >>> 0;

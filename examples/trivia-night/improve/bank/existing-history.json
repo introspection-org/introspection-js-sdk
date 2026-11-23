@@ -1,0 +1,242 @@
+[
+  {
+    "region": "global",
+    "difficulty": 1,
+    "text": "Who was the first person to walk on the Moon?",
+    "answer": "Neil Armstrong"
+  },
+  {
+    "region": "global",
+    "difficulty": 1,
+    "text": "In which year did the Second World War end?",
+    "answer": "1945"
+  },
+  {
+    "region": "global",
+    "difficulty": 2,
+    "text": "Which ancient civilisation built Machu Picchu?",
+    "answer": "The Inca"
+  },
+  {
+    "region": "global",
+    "difficulty": 2,
+    "text": "Which wall fell in 1989, reuniting a European city?",
+    "answer": "The Berlin Wall"
+  },
+  {
+    "region": "global",
+    "difficulty": 3,
+    "text": "Who was the first emperor of Rome?",
+    "answer": "Augustus"
+  },
+  {
+    "region": "global",
+    "difficulty": 3,
+    "text": "In which year did the French Revolution begin?",
+    "answer": "1789"
+  },
+  {
+    "region": "global",
+    "difficulty": 4,
+    "text": "Which treaty ended the First World War with Germany?",
+    "answer": "The Treaty of Versailles"
+  },
+  {
+    "region": "global",
+    "difficulty": 5,
+    "text": "Which empire did Suleiman the Magnificent rule?",
+    "answer": "The Ottoman Empire"
+  },
+  {
+    "region": "au",
+    "difficulty": 2,
+    "text": "In which year did Australia become a federation?",
+    "answer": "1901"
+  },
+  {
+    "region": "au",
+    "difficulty": 3,
+    "text": "Who was Australia's first Prime Minister?",
+    "answer": "Edmund Barton"
+  },
+  {
+    "region": "uk",
+    "difficulty": 2,
+    "text": "In which year was the Battle of Hastings?",
+    "answer": "1066"
+  },
+  {
+    "region": "us",
+    "difficulty": 2,
+    "text": "In which year was the US Declaration of Independence signed?",
+    "answer": "1776"
+  },
+  {
+    "region": "global",
+    "difficulty": 1,
+    "text": "Which ocean liner sank on its maiden voyage in 1912?",
+    "answer": "Titanic"
+  },
+  {
+    "region": "global",
+    "difficulty": 1,
+    "text": "In which year did the First World War begin?",
+    "answer": "1914"
+  },
+  {
+    "region": "global",
+    "difficulty": 1,
+    "text": "Which Egyptian queen had relationships with Julius Caesar and Mark Antony?",
+    "answer": "Cleopatra"
+  },
+  {
+    "region": "global",
+    "difficulty": 1,
+    "text": "Which country gave the Statue of Liberty to the United States?",
+    "answer": "France"
+  },
+  {
+    "region": "global",
+    "difficulty": 2,
+    "text": "Which French emperor was defeated at Waterloo?",
+    "answer": "Napoleon Bonaparte"
+  },
+  {
+    "region": "global",
+    "difficulty": 2,
+    "text": "In which year did humans first land on the Moon?",
+    "answer": "1969"
+  },
+  {
+    "region": "global",
+    "difficulty": 2,
+    "text": "Which ancient civilisation built the pyramids of Giza?",
+    "answer": "The Ancient Egyptians"
+  },
+  {
+    "region": "global",
+    "difficulty": 2,
+    "text": "Who was the first President of the United States?",
+    "answer": "George Washington"
+  },
+  {
+    "region": "global",
+    "difficulty": 3,
+    "text": "Who founded the Mongol Empire?",
+    "answer": "Genghis Khan"
+  },
+  {
+    "region": "global",
+    "difficulty": 3,
+    "text": "In which city was President John F. Kennedy assassinated?",
+    "answer": "Dallas"
+  },
+  {
+    "region": "global",
+    "difficulty": 3,
+    "text": "Which South African leader spent 27 years in prison before becoming president?",
+    "answer": "Nelson Mandela"
+  },
+  {
+    "region": "global",
+    "difficulty": 3,
+    "text": "Who was the British Prime Minister for most of the Second World War?",
+    "answer": "Winston Churchill"
+  },
+  {
+    "region": "global",
+    "difficulty": 4,
+    "text": "Which empire was ruled from Constantinople for about a thousand years after Rome fell in the west?",
+    "answer": "The Byzantine Empire"
+  },
+  {
+    "region": "global",
+    "difficulty": 4,
+    "text": "Which dynasty ruled Russia until the revolution of 1917?",
+    "answer": "The Romanovs"
+  },
+  {
+    "region": "global",
+    "difficulty": 4,
+    "text": "In which year did Christopher Columbus first reach the Americas?",
+    "answer": "1492"
+  },
+  {
+    "region": "global",
+    "difficulty": 5,
+    "text": "Which Carthaginian general crossed the Alps with elephants?",
+    "answer": "Hannibal"
+  },
+  {
+    "region": "global",
+    "difficulty": 5,
+    "text": "Which Chinese dynasty built most of the Great Wall as it stands today?",
+    "answer": "The Ming"
+  },
+  {
+    "region": "global",
+    "difficulty": 5,
+    "text": "In which year AD is the Western Roman Empire traditionally said to have fallen?",
+    "answer": "476"
+  },
+  {
+    "region": "global",
+    "difficulty": 5,
+    "text": "Which Aztec emperor ruled when Hernan Cortes arrived in Mexico?",
+    "answer": "Moctezuma"
+  },
+  {
+    "region": "au",
+    "difficulty": 1,
+    "text": "Which bushranger wore home-made armour at his last stand at Glenrowan?",
+    "answer": "Ned Kelly"
+  },
+  {
+    "region": "au",
+    "difficulty": 3,
+    "text": "Which ship did James Cook command when he reached Australia's east coast in 1770?",
+    "answer": "HMS Endeavour"
+  },
+  {
+    "region": "au",
+    "difficulty": 4,
+    "text": "Which Australian Prime Minister disappeared while swimming in 1967?",
+    "answer": "Harold Holt"
+  },
+  {
+    "region": "uk",
+    "difficulty": 2,
+    "text": "Which Tudor king had six wives?",
+    "answer": "Henry VIII"
+  },
+  {
+    "region": "uk",
+    "difficulty": 3,
+    "text": "Which conspirator caught guarding the gunpowder in 1605 is remembered on Bonfire Night?",
+    "answer": "Guy Fawkes"
+  },
+  {
+    "region": "uk",
+    "difficulty": 5,
+    "text": "Which king of Wessex defeated the Danes at the Battle of Edington in 878?",
+    "answer": "Alfred the Great"
+  },
+  {
+    "region": "us",
+    "difficulty": 1,
+    "text": "Which US President was assassinated at Ford's Theatre?",
+    "answer": "Abraham Lincoln"
+  },
+  {
+    "region": "us",
+    "difficulty": 2,
+    "text": "Which civil rights leader gave the I Have a Dream speech?",
+    "answer": "Martin Luther King Jr."
+  },
+  {
+    "region": "us",
+    "difficulty": 4,
+    "text": "From which country did the United States buy Alaska in 1867?",
+    "answer": "Russia"
+  }
+]

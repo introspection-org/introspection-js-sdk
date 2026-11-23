@@ -1,0 +1,242 @@
+[
+  {
+    "region": "global",
+    "difficulty": 1,
+    "text": "What is the largest ocean on Earth?",
+    "answer": "The Pacific Ocean"
+  },
+  {
+    "region": "global",
+    "difficulty": 1,
+    "text": "Which country is home to the Eiffel Tower?",
+    "answer": "France"
+  },
+  {
+    "region": "global",
+    "difficulty": 2,
+    "text": "What is the capital of Japan?",
+    "answer": "Tokyo"
+  },
+  {
+    "region": "global",
+    "difficulty": 2,
+    "text": "Which is the longest river in South America?",
+    "answer": "The Amazon"
+  },
+  {
+    "region": "global",
+    "difficulty": 3,
+    "text": "What is the capital of Canada?",
+    "answer": "Ottawa"
+  },
+  {
+    "region": "global",
+    "difficulty": 3,
+    "text": "Which desert covers much of northern Africa?",
+    "answer": "The Sahara"
+  },
+  {
+    "region": "global",
+    "difficulty": 4,
+    "text": "What is the capital of Kazakhstan?",
+    "answer": "Astana"
+  },
+  {
+    "region": "global",
+    "difficulty": 5,
+    "text": "Which is the only country crossed by both the Equator and the Tropic of Capricorn?",
+    "answer": "Brazil"
+  },
+  {
+    "region": "au",
+    "difficulty": 2,
+    "text": "What is the capital of Australia?",
+    "answer": "Canberra"
+  },
+  {
+    "region": "au",
+    "difficulty": 3,
+    "text": "Which is Australia's longest river?",
+    "answer": "The Murray"
+  },
+  {
+    "region": "uk",
+    "difficulty": 2,
+    "text": "Which river runs through London?",
+    "answer": "The Thames"
+  },
+  {
+    "region": "us",
+    "difficulty": 2,
+    "text": "Which is the largest US state by area?",
+    "answer": "Alaska"
+  },
+  {
+    "region": "global",
+    "difficulty": 1,
+    "text": "What is the capital of Italy?",
+    "answer": "Rome"
+  },
+  {
+    "region": "global",
+    "difficulty": 1,
+    "text": "What is the tallest mountain in the world?",
+    "answer": "Mount Everest"
+  },
+  {
+    "region": "global",
+    "difficulty": 1,
+    "text": "On which continent is Egypt?",
+    "answer": "Africa"
+  },
+  {
+    "region": "global",
+    "difficulty": 1,
+    "text": "What is the capital of Germany?",
+    "answer": "Berlin"
+  },
+  {
+    "region": "global",
+    "difficulty": 2,
+    "text": "What is the capital of Egypt?",
+    "answer": "Cairo"
+  },
+  {
+    "region": "global",
+    "difficulty": 2,
+    "text": "Which is the largest country in the world by area?",
+    "answer": "Russia"
+  },
+  {
+    "region": "global",
+    "difficulty": 2,
+    "text": "What is the smallest country in the world by area?",
+    "answer": "Vatican City"
+  },
+  {
+    "region": "global",
+    "difficulty": 2,
+    "text": "What is the capital of Argentina?",
+    "answer": "Buenos Aires"
+  },
+  {
+    "region": "global",
+    "difficulty": 3,
+    "text": "What is the capital of Turkey?",
+    "answer": "Ankara"
+  },
+  {
+    "region": "global",
+    "difficulty": 3,
+    "text": "What is the capital of Brazil?",
+    "answer": "Brasilia"
+  },
+  {
+    "region": "global",
+    "difficulty": 3,
+    "text": "Which strait separates Spain from Morocco?",
+    "answer": "The Strait of Gibraltar"
+  },
+  {
+    "region": "global",
+    "difficulty": 3,
+    "text": "What is the capital of Switzerland?",
+    "answer": "Bern"
+  },
+  {
+    "region": "global",
+    "difficulty": 4,
+    "text": "Which mountain range is the traditional boundary between Europe and Asia?",
+    "answer": "The Urals"
+  },
+  {
+    "region": "global",
+    "difficulty": 4,
+    "text": "What is the capital of Nigeria?",
+    "answer": "Abuja"
+  },
+  {
+    "region": "global",
+    "difficulty": 4,
+    "text": "Which is the largest lake in Africa?",
+    "answer": "Lake Victoria"
+  },
+  {
+    "region": "global",
+    "difficulty": 5,
+    "text": "What is the capital of Bhutan?",
+    "answer": "Thimphu"
+  },
+  {
+    "region": "global",
+    "difficulty": 5,
+    "text": "Which is the deepest lake in the world?",
+    "answer": "Lake Baikal"
+  },
+  {
+    "region": "global",
+    "difficulty": 5,
+    "text": "What is the capital of Mongolia?",
+    "answer": "Ulaanbaatar"
+  },
+  {
+    "region": "global",
+    "difficulty": 5,
+    "text": "What is the capital of Burkina Faso?",
+    "answer": "Ouagadougou"
+  },
+  {
+    "region": "au",
+    "difficulty": 1,
+    "text": "What is the great sandstone monolith in central Australia called?",
+    "answer": "Uluru"
+  },
+  {
+    "region": "au",
+    "difficulty": 3,
+    "text": "Which Australian state is an island?",
+    "answer": "Tasmania"
+  },
+  {
+    "region": "au",
+    "difficulty": 4,
+    "text": "What is the capital of the Northern Territory?",
+    "answer": "Darwin"
+  },
+  {
+    "region": "uk",
+    "difficulty": 2,
+    "text": "What is the capital of Scotland?",
+    "answer": "Edinburgh"
+  },
+  {
+    "region": "uk",
+    "difficulty": 3,
+    "text": "What is the highest mountain in the British Isles?",
+    "answer": "Ben Nevis"
+  },
+  {
+    "region": "uk",
+    "difficulty": 5,
+    "text": "Which is the longest river in the United Kingdom?",
+    "answer": "The Severn"
+  },
+  {
+    "region": "us",
+    "difficulty": 1,
+    "text": "Which US state is made up entirely of islands in the Pacific?",
+    "answer": "Hawaii"
+  },
+  {
+    "region": "us",
+    "difficulty": 2,
+    "text": "What is the capital of California?",
+    "answer": "Sacramento"
+  },
+  {
+    "region": "us",
+    "difficulty": 4,
+    "text": "Which river forms the border between Texas and Mexico?",
+    "answer": "The Rio Grande"
+  }
+]

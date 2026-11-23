@@ -1,0 +1,242 @@
+[
+  {
+    "region": "global",
+    "difficulty": 1,
+    "text": "Which band released the album Abbey Road?",
+    "answer": "The Beatles"
+  },
+  {
+    "region": "global",
+    "difficulty": 1,
+    "text": "Which singer is known as the Queen of Pop?",
+    "answer": "Madonna"
+  },
+  {
+    "region": "global",
+    "difficulty": 2,
+    "text": "How many strings does a standard violin have?",
+    "answer": "Four"
+  },
+  {
+    "region": "global",
+    "difficulty": 2,
+    "text": "Which composer wrote The Four Seasons?",
+    "answer": "Antonio Vivaldi"
+  },
+  {
+    "region": "global",
+    "difficulty": 3,
+    "text": "Which band's frontman was Freddie Mercury?",
+    "answer": "Queen"
+  },
+  {
+    "region": "global",
+    "difficulty": 3,
+    "text": "Which instrument did jazz musician Miles Davis play?",
+    "answer": "Trumpet"
+  },
+  {
+    "region": "global",
+    "difficulty": 4,
+    "text": "Which composer wrote the opera The Magic Flute?",
+    "answer": "Wolfgang Amadeus Mozart"
+  },
+  {
+    "region": "global",
+    "difficulty": 5,
+    "text": "Which composer wrote the piano suite Pictures at an Exhibition?",
+    "answer": "Modest Mussorgsky"
+  },
+  {
+    "region": "au",
+    "difficulty": 2,
+    "text": "Which Australian band recorded Highway to Hell?",
+    "answer": "AC/DC"
+  },
+  {
+    "region": "au",
+    "difficulty": 3,
+    "text": "Which Australian band had a hit with Down Under?",
+    "answer": "Men at Work"
+  },
+  {
+    "region": "uk",
+    "difficulty": 2,
+    "text": "Which city did The Beatles come from?",
+    "answer": "Liverpool"
+  },
+  {
+    "region": "us",
+    "difficulty": 3,
+    "text": "Which US city is known as the home of country music?",
+    "answer": "Nashville"
+  },
+  {
+    "region": "global",
+    "difficulty": 1,
+    "text": "Which singer is known as the King of Rock and Roll?",
+    "answer": "Elvis Presley"
+  },
+  {
+    "region": "global",
+    "difficulty": 1,
+    "text": "Which singer released the 1982 album Thriller?",
+    "answer": "Michael Jackson"
+  },
+  {
+    "region": "global",
+    "difficulty": 1,
+    "text": "Which instrument has 88 keys in its standard form?",
+    "answer": "Piano"
+  },
+  {
+    "region": "global",
+    "difficulty": 1,
+    "text": "Which Swedish group sang Dancing Queen?",
+    "answer": "ABBA"
+  },
+  {
+    "region": "global",
+    "difficulty": 2,
+    "text": "Which band released the album The Dark Side of the Moon?",
+    "answer": "Pink Floyd"
+  },
+  {
+    "region": "global",
+    "difficulty": 2,
+    "text": "Which singer released the albums 19, 21, 25 and 30?",
+    "answer": "Adele"
+  },
+  {
+    "region": "global",
+    "difficulty": 2,
+    "text": "Which Jamaican musician recorded No Woman, No Cry with the Wailers?",
+    "answer": "Bob Marley"
+  },
+  {
+    "region": "global",
+    "difficulty": 2,
+    "text": "Which band was fronted by Mick Jagger?",
+    "answer": "The Rolling Stones"
+  },
+  {
+    "region": "global",
+    "difficulty": 3,
+    "text": "Which composer wrote the Moonlight Sonata?",
+    "answer": "Ludwig van Beethoven"
+  },
+  {
+    "region": "global",
+    "difficulty": 3,
+    "text": "Which band's 1991 album Nevermind featured Smells Like Teen Spirit?",
+    "answer": "Nirvana"
+  },
+  {
+    "region": "global",
+    "difficulty": 3,
+    "text": "How many lines make up a standard musical staff?",
+    "answer": "Five"
+  },
+  {
+    "region": "global",
+    "difficulty": 3,
+    "text": "Which singer was born Stefani Germanotta?",
+    "answer": "Lady Gaga"
+  },
+  {
+    "region": "global",
+    "difficulty": 4,
+    "text": "Which composer wrote the Brandenburg Concertos?",
+    "answer": "Johann Sebastian Bach"
+  },
+  {
+    "region": "global",
+    "difficulty": 4,
+    "text": "Which Italian composer wrote the opera La Traviata?",
+    "answer": "Giuseppe Verdi"
+  },
+  {
+    "region": "global",
+    "difficulty": 4,
+    "text": "Which Russian composer wrote the ballet Swan Lake?",
+    "answer": "Pyotr Ilyich Tchaikovsky"
+  },
+  {
+    "region": "global",
+    "difficulty": 5,
+    "text": "Which composer wrote the opera cycle The Ring of the Nibelung?",
+    "answer": "Richard Wagner"
+  },
+  {
+    "region": "global",
+    "difficulty": 5,
+    "text": "Which French composer wrote Bolero?",
+    "answer": "Maurice Ravel"
+  },
+  {
+    "region": "global",
+    "difficulty": 5,
+    "text": "Which composer wrote the ballet The Rite of Spring?",
+    "answer": "Igor Stravinsky"
+  },
+  {
+    "region": "global",
+    "difficulty": 5,
+    "text": "Which jazz saxophonist recorded the album A Love Supreme?",
+    "answer": "John Coltrane"
+  },
+  {
+    "region": "au",
+    "difficulty": 1,
+    "text": "Which Australian singer had a hit with Can't Get You Out of My Head?",
+    "answer": "Kylie Minogue"
+  },
+  {
+    "region": "au",
+    "difficulty": 3,
+    "text": "Which Australian band recorded Beds Are Burning?",
+    "answer": "Midnight Oil"
+  },
+  {
+    "region": "au",
+    "difficulty": 4,
+    "text": "Which Australian band had a 1987 hit with Need You Tonight?",
+    "answer": "INXS"
+  },
+  {
+    "region": "uk",
+    "difficulty": 2,
+    "text": "Which Manchester band released the album (What's the Story) Morning Glory?",
+    "answer": "Oasis"
+  },
+  {
+    "region": "uk",
+    "difficulty": 3,
+    "text": "Which summer season of classical concerts is held at the Royal Albert Hall?",
+    "answer": "The Proms"
+  },
+  {
+    "region": "uk",
+    "difficulty": 5,
+    "text": "Which English composer wrote the Pomp and Circumstance Marches?",
+    "answer": "Edward Elgar"
+  },
+  {
+    "region": "us",
+    "difficulty": 1,
+    "text": "Which American rock singer is nicknamed The Boss?",
+    "answer": "Bruce Springsteen"
+  },
+  {
+    "region": "us",
+    "difficulty": 2,
+    "text": "Which American city is known as the birthplace of jazz?",
+    "answer": "New Orleans"
+  },
+  {
+    "region": "us",
+    "difficulty": 4,
+    "text": "Which American composer wrote Rhapsody in Blue?",
+    "answer": "George Gershwin"
+  }
+]

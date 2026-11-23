@@ -5,6 +5,7 @@ import {
   type Question,
   type Region,
 } from "./question-types";
+import { LARGE_QUESTIONS } from "./questions-large";
 import { MORE_QUESTIONS } from "./questions-more";
 
 export { GENRES, q };
@@ -638,4 +639,6 @@ export const QUESTIONS: Question[] = [
     "Alaska",
   ),
   ...MORE_QUESTIONS,
+  // The larger bank, so a scarce supply stops deciding an improve run.
+  ...(process.env.TRIVIA_BANK === "large" ? LARGE_QUESTIONS : []),
 ];

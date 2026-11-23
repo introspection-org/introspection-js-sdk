@@ -1,0 +1,242 @@
+[
+  {
+    "region": "global",
+    "difficulty": 1,
+    "text": "What is the chemical symbol for water?",
+    "answer": "H2O"
+  },
+  {
+    "region": "global",
+    "difficulty": 1,
+    "text": "Which planet is known as the Red Planet?",
+    "answer": "Mars"
+  },
+  {
+    "region": "global",
+    "difficulty": 2,
+    "text": "What gas do plants absorb from the air?",
+    "answer": "Carbon dioxide"
+  },
+  {
+    "region": "global",
+    "difficulty": 2,
+    "text": "How many bones are in the adult human body?",
+    "answer": "206"
+  },
+  {
+    "region": "global",
+    "difficulty": 3,
+    "text": "What is the hardest natural substance?",
+    "answer": "Diamond"
+  },
+  {
+    "region": "global",
+    "difficulty": 3,
+    "text": "Which element has the chemical symbol Au?",
+    "answer": "Gold"
+  },
+  {
+    "region": "global",
+    "difficulty": 4,
+    "text": "What is the powerhouse of the cell?",
+    "answer": "Mitochondria"
+  },
+  {
+    "region": "global",
+    "difficulty": 4,
+    "text": "Which scientist proposed the three laws of planetary motion?",
+    "answer": "Johannes Kepler"
+  },
+  {
+    "region": "global",
+    "difficulty": 5,
+    "text": "What is the SI unit of electrical capacitance?",
+    "answer": "Farad"
+  },
+  {
+    "region": "global",
+    "difficulty": 5,
+    "text": "Which particle carries the electromagnetic force?",
+    "answer": "Photon"
+  },
+  {
+    "region": "au",
+    "difficulty": 3,
+    "text": "Which egg-laying Australian mammal has a duck-like bill?",
+    "answer": "Platypus"
+  },
+  {
+    "region": "uk",
+    "difficulty": 3,
+    "text": "Which English naturalist wrote On the Origin of Species?",
+    "answer": "Charles Darwin"
+  },
+  {
+    "region": "global",
+    "difficulty": 1,
+    "text": "What is the closest star to Earth?",
+    "answer": "The Sun"
+  },
+  {
+    "region": "global",
+    "difficulty": 1,
+    "text": "What is the chemical symbol for oxygen?",
+    "answer": "O"
+  },
+  {
+    "region": "global",
+    "difficulty": 1,
+    "text": "Which organ pumps blood around the body?",
+    "answer": "Heart"
+  },
+  {
+    "region": "global",
+    "difficulty": 1,
+    "text": "What is the largest planet in the Solar System?",
+    "answer": "Jupiter"
+  },
+  {
+    "region": "global",
+    "difficulty": 2,
+    "text": "At sea level, at how many degrees Celsius does water boil?",
+    "answer": "100"
+  },
+  {
+    "region": "global",
+    "difficulty": 2,
+    "text": "Which scientist developed the theory of relativity?",
+    "answer": "Albert Einstein"
+  },
+  {
+    "region": "global",
+    "difficulty": 2,
+    "text": "How many planets are in the Solar System?",
+    "answer": "Eight"
+  },
+  {
+    "region": "global",
+    "difficulty": 2,
+    "text": "What is the largest organ of the human body?",
+    "answer": "Skin"
+  },
+  {
+    "region": "global",
+    "difficulty": 3,
+    "text": "What is the chemical symbol for sodium?",
+    "answer": "Na"
+  },
+  {
+    "region": "global",
+    "difficulty": 3,
+    "text": "What is the most abundant gas in Earth's atmosphere?",
+    "answer": "Nitrogen"
+  },
+  {
+    "region": "global",
+    "difficulty": 3,
+    "text": "Which planet is closest to the Sun?",
+    "answer": "Mercury"
+  },
+  {
+    "region": "global",
+    "difficulty": 3,
+    "text": "What is the atomic number of carbon?",
+    "answer": "Six"
+  },
+  {
+    "region": "global",
+    "difficulty": 4,
+    "text": "Which scientist discovered penicillin in 1928?",
+    "answer": "Alexander Fleming"
+  },
+  {
+    "region": "global",
+    "difficulty": 4,
+    "text": "What is the chemical symbol for potassium?",
+    "answer": "K"
+  },
+  {
+    "region": "global",
+    "difficulty": 4,
+    "text": "Who was the first woman to win a Nobel Prize?",
+    "answer": "Marie Curie"
+  },
+  {
+    "region": "global",
+    "difficulty": 5,
+    "text": "What is the SI unit of magnetic flux density?",
+    "answer": "Tesla"
+  },
+  {
+    "region": "global",
+    "difficulty": 5,
+    "text": "Which noble gas has the atomic number 10?",
+    "answer": "Neon"
+  },
+  {
+    "region": "global",
+    "difficulty": 5,
+    "text": "Which physicist formulated the uncertainty principle?",
+    "answer": "Werner Heisenberg"
+  },
+  {
+    "region": "global",
+    "difficulty": 5,
+    "text": "What is the most abundant element in Earth's crust, by mass?",
+    "answer": "Oxygen"
+  },
+  {
+    "region": "au",
+    "difficulty": 1,
+    "text": "Which Australian marsupial feeds almost entirely on eucalyptus leaves?",
+    "answer": "Koala"
+  },
+  {
+    "region": "au",
+    "difficulty": 3,
+    "text": "Which Australian scientist shared the 1945 Nobel Prize for developing penicillin?",
+    "answer": "Howard Florey"
+  },
+  {
+    "region": "au",
+    "difficulty": 4,
+    "text": "Which deadly jellyfish of northern Australian waters is also called the sea wasp?",
+    "answer": "Box jellyfish"
+  },
+  {
+    "region": "uk",
+    "difficulty": 2,
+    "text": "Which British computer scientist invented the World Wide Web?",
+    "answer": "Tim Berners-Lee"
+  },
+  {
+    "region": "uk",
+    "difficulty": 3,
+    "text": "Which British naturalist presented Life on Earth and Blue Planet?",
+    "answer": "David Attenborough"
+  },
+  {
+    "region": "uk",
+    "difficulty": 5,
+    "text": "Which Scottish physicist formulated the classical equations of electromagnetism?",
+    "answer": "James Clerk Maxwell"
+  },
+  {
+    "region": "us",
+    "difficulty": 1,
+    "text": "Which US space agency landed astronauts on the Moon?",
+    "answer": "NASA"
+  },
+  {
+    "region": "us",
+    "difficulty": 2,
+    "text": "Which American inventor developed the phonograph?",
+    "answer": "Thomas Edison"
+  },
+  {
+    "region": "us",
+    "difficulty": 4,
+    "text": "What was the code name of the US project that built the first atomic bombs?",
+    "answer": "The Manhattan Project"
+  }
+]

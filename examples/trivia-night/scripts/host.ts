@@ -188,7 +188,10 @@ async function brief(series: string) {
   let first = opening(venue, night.night);
   const extra = TONIGHT_ONLY[venue.id];
   if (extra?.week === night.night) first += ` ${extra.ask}`;
-  const cmd = `cd ${HERE} && node --import tsx scripts/host.ts`;
+  const bank = process.env.TRIVIA_BANK
+    ? `TRIVIA_BANK=${process.env.TRIVIA_BANK} `
+    : "";
+  const cmd = `cd ${HERE} && ${bank}node --import tsx scripts/host.ts`;
   series = resolve(series);
   console.log(`You are standing in for an AI agent in an evaluation. Act exactly as the agent whose system prompt is below would: follow it, and nothing else. Never read, list or search any file outside ${dir}, and never look at this project's code, data or runs; the evaluation is void if you do.
 
