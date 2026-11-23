@@ -2,11 +2,26 @@
 
 This is the owner's script for replaying, from nothing, how this example's memory was built and improved. A fresh Operator session plays itself; you play the owner and answer from the script below. The session must never read this folder: work in an empty one, so everything it does comes from the Operator's skills and your answers.
 
-## What you need
+## Before you start
 
-- The `introspection` CLI 0.95.0 or later (`npm i -g @introspection-ai/cli@latest`), which has `introspection eval simulate call|state`; the Recipe's fakes pull `@introspection-ai/eval-simulate` 0.10.0 or later on their own.
-- The Operator 0.4.7 or later (`introspection upgrade`), with `improve-memory` and `eval-simulate`'s world reference.
-- A Claude Code session on a subscription (unset `ANTHROPIC_API_KEY` so it doesn't use an API key), and a current Pi sign-in (`pi`, then `/login`) for the local case runs during build. No platform stack is needed until the last step, which runs on the cloud staging lane; never run a simulation against production or a local stack.
+Use released tools only, and the cloud, never a local stack:
+
+```sh
+npm i -g @introspection-ai/cli@latest        # 0.95.0 or later: has `introspection eval simulate`
+unset INTROSPECTION_API_BASE_URL             # a local stack counts as production; log in to the cloud
+introspection login                          # opens your browser; pick the project the agent will live in
+introspection whoami                         # shows the cloud URL, your project and when the login expires
+introspection setup                          # Pi, Recipes and the Operator (0.4.7 or later), each at its latest release
+pi                                           # then type /login, so the local case runs during build can reach the model
+mkdir -p ~/replay/trivia-host && cd ~/replay/trivia-host && git init
+```
+
+Then start the Operator in that empty folder, in either:
+
+- **The Operator's own terminal UI:** `introspection operator` with no arguments starts the build agent there.
+- **Claude Code:** `unset ANTHROPIC_API_KEY ANTHROPIC_AUTH_TOKEN` so it runs on your subscription, then `claude`. Its `introspection` skill loads the Operator's workflow with `introspection operator`.
+
+The session must never read this folder: everything it does should come from the Operator's skills and your answers. The Recipe's fakes install `@introspection-ai/eval-simulate` 0.10.0 or later by themselves. No platform runtime is used until the last step, which runs on the cloud staging lane; never run a simulation against production or a local stack.
 
 ## 1. The prompt
 
