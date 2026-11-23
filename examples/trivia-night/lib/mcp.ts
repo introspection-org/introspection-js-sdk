@@ -189,10 +189,13 @@ export async function serve(request: Request): Promise<Response> {
     try {
       owner = await ownerOf(request);
     } catch (error) {
-      if (error instanceof Unidentified)
+      if (error instanceof Unidentified) {
+        console.warn(`[bank] refused tools/call: ${error.message}`);
         return failure(401, message.id, error.message);
+      }
       throw error;
     }
+    console.info(`[bank] tools/call as ${owner}`);
   }
   if (message.method === "initialize") {
     const id = crypto.randomUUID();

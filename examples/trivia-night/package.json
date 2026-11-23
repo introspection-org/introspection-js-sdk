@@ -4,7 +4,8 @@
   "private": true,
   "description": "Trivia Night, a memory demo: a quiz host that never repeats a question at a venue and pitches each round to that venue's crowd. Hosts the question bank as an MCP server and shows every bank lookup and memory read and write as it happens.",
   "scripts": {
-    "dev": "next dev --port 3500",
+    "dev": "bash scripts/dev.sh",
+    "dev:app": "next dev --port 3500",
     "build": "next build",
     "start": "next start --port 3500",
     "test": "node --import tsx scripts/test.ts",
