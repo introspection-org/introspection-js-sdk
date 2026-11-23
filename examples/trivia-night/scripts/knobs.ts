@@ -16,6 +16,7 @@ const block = [
   F.scope[config.scope ?? "liked"],
   F.within[config.within],
   F.update[config.update],
+  F.stock?.[config.stock ?? "none"] ?? "",
   layout.save,
   F.common,
   "",
@@ -28,6 +29,8 @@ const name = [
   config.kept,
   config.update,
   config.within,
+  ...(config.scope && config.scope !== "liked" ? [config.scope] : []),
+  ...(config.stock && config.stock !== "none" ? [config.stock] : []),
 ].join("-");
 mkdirSync("improve/knobs/blocks", { recursive: true });
 const file = `improve/knobs/blocks/${name}.md`;

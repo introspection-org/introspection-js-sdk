@@ -27,7 +27,12 @@
     "between": "- **A remembered difficulty is where a genre starts tonight.** After each round, if the room found that genre easy, play its next round tonight one step harder; if it struggled or left many answers blank, one step easier. Never change a round once its questions are out, and say any change when you announce the round. Remember the level each genre should start at next time."
   },
   "scope": {
-    "liked": "- **Every round is a liked genre,** repeating one when there are fewer liked genres than rounds. Play another genre only when the venue asks for it tonight."
+    "liked": "- **Every round is a liked genre,** repeating one when there are fewer liked genres than rounds. Play another genre only when the venue asks for it tonight.",
+    "spread": "- **Every round is a liked genre, spread by what the bank still has:** repeat a liked genre when there are fewer liked genres than rounds, but when a genre's page or tonight's results say it ran short at its level, give the next round to another liked genre that still has questions at its own level. Play another genre only when the venue asks for it tonight."
   },
-  "common": "- Set `region` to the venue's region on every `next_questions` call.\n- A request that applies to tonight only is never kept as a lasting setting.\n- Never store team names, scores or the questions asked: the bank keeps those."
+  "common": "- Set `region` to the venue's region on every `next_questions` call.\n- A request that applies to tonight only is never kept as a lasting setting.\n- Never store team names, scores or the questions asked: the bank keeps those.",
+  "stock": {
+    "none": "",
+    "dry": "- **Plan around what the bank has run out of:** on each genre's page, keep the levels the bank ran short at for this venue, rewritten each night. When the remembered level is short, plan that genre one level towards what the room needs (harder when it found the genre easy), and say so in the plan."
+  }
 }

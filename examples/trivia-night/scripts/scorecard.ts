@@ -91,7 +91,9 @@ function leaked(nights: NightRecord[]): boolean {
             (line) =>
               /music/i.test(line) &&
               /lik|love|prefer|favou?rite/i.test(line) &&
-              !/birthday|tonight|one night|just for|only for/i.test(line),
+              !/birthday|tonight|one night|just for|only for|not (a )?(liked|favou?rite)|dislike/i.test(
+                line,
+              ),
           ),
       ),
   );
