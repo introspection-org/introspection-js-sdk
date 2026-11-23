@@ -1,0 +1,14 @@
+venue               b s101  b s202  c s101  c s202     d_v  breaks b/c
+held-1-narrow        0.125   0.215   0.174   0.222  -0.028  0/0
+held-2-shifting      0.188   0.132   0.194   0.194  -0.035  1/0
+held-3-mismatch      0.146   0.139   0.160   0.111  +0.007  0/0
+held-4-low           0.181   0.097   0.250   0.174  -0.073  0/0
+held-5-high          0.188   0.160   0.097   0.125  +0.062  0/0
+held-6-narrow        0.146   0.139   0.160   0.132  -0.003  0/0
+held-7-shifting      0.132   0.174   0.118   0.215  -0.014  0/0
+held-8-mismatch      0.215   0.076   0.215   0.083  -0.003  0/0
+
+G = +0.011, SE (venue unit) = 0.014, G/SE = 0.79   [16 pairs: +0.011 ± 0.011]
+S (control seed-to-seed spread) = 0.057; venues with d_v > S: [('held-5-high', 0.062)]
+beliefs-fix guard breaks across held-out: 1
+VERDICT: KEEP current block

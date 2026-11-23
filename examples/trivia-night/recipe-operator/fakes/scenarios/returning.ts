@@ -1,6 +1,7 @@
 // A venue in its fourth week: three earlier nights at difficulty 3, where the
 // crowd did well on film and music and less well on everything else.
 import { randomOf } from "@introspection-ai/eval-simulate/mcp";
+import { supply } from "../mcp/trivia-bank/supply.ts";
 import type { World } from "./index.ts";
 
 const HISTORY_TEAMS = ["Team North", "Team South", "Team East", "Team West"];
@@ -25,7 +26,7 @@ export default function returning(world: World) {
     bank.nights.push({ week, teams: HISTORY_TEAMS });
     for (const genre of genres) {
       const asked = new Set(bank.asked.map((a) => a.question_id));
-      const round = bank.questions
+      const round = supply()
         .filter(
           (q) =>
             q.genre === genre &&
@@ -35,7 +36,11 @@ export default function returning(world: World) {
         )
         .slice(0, 8);
       for (const q of round) {
-        bank.asked.push({ question_id: q.id, week });
+        bank.asked.push({
+          question_id: q.id,
+          week,
+          request: Math.floor(bank.asked.length / 8) + 1,
+        });
         for (const team of HISTORY_TEAMS) {
           const correct =
             randomOf(bank.seed, "history", q.id, team)() < RATE[genre];

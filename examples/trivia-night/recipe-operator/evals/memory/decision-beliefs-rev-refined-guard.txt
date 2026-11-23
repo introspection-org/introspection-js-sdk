@@ -1,0 +1,14 @@
+venue               b s101  b s202  c s101  c s202     d_v  breaks b/c
+held-1-narrow        0.146   0.257   0.174   0.222  +0.003  0/0
+held-2-shifting      0.160   0.160   0.194   0.194  -0.035  0/0
+held-3-mismatch      0.160   0.139   0.160   0.111  +0.014  0/0
+held-4-low           0.174   0.188   0.250   0.174  -0.031  0/0
+held-5-high          0.132   0.063   0.097   0.125  -0.014  0/0
+held-6-narrow        0.139   0.132   0.160   0.132  -0.010  0/0
+held-7-shifting      0.153   0.181   0.118   0.215  +0.000  0/0
+held-8-mismatch      0.118   0.125   0.215   0.083  -0.028  0/0
+
+G = +0.013, SE (venue unit) = 0.006, G/SE = 2.01   [16 pairs: +0.013 ± 0.011]
+S (control seed-to-seed spread) = 0.057; venues with d_v > S: none
+beliefs-rev guard breaks across held-out: 0
+VERDICT: ADOPT beliefs-rev

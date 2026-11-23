@@ -1,0 +1,11 @@
+PASS  night 1: start_night once, before the first next_questions
+PASS  night 1: every round fetched with one genre and one difficulty  (film/3/au, science/4/au, music/5/au, history/5/au, film/5/au)
+PASS  night 1: every question from region au or global
+PASS  night 1: one submit_round per round  (5 submits, 5 rounds)
+PASS  night 1: each submit covers every team and every question of its round
+PASS  night 1: difficulty never moves more than one level between rounds  (3→4→5→5→5)
+PASS  night 1: the four teams registered
+PASS  round 1 landed above 75% (the case's situation)  (round 1 100%)
+FAIL  notes after night 1: at most one difficulty line per genre  (film×2)
+PASS  round 2 is exactly one level above round 1  (3→4)
+1 check(s) failed

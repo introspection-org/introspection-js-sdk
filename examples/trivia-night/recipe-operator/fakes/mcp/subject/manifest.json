@@ -1,0 +1,12 @@
+{
+  "server": { "name": "subject", "version": "0.1.0" },
+  "entities": ["conversation"],
+  "settings": [],
+  "tools": {
+    "say": {
+      "kind": "stateful",
+      "reads": ["conversation"],
+      "writes": ["conversation"]
+    }
+  }
+}

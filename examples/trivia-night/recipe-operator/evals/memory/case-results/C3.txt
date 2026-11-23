@@ -1,0 +1,26 @@
+PASS  three nights played  (3)
+PASS  night 1: start_night once, before the first next_questions
+PASS  night 1: every round fetched with one genre and one difficulty  (music/3/uk, sport/3/uk, film/3/uk, geography/4/uk, history/3/uk)
+PASS  night 1: every question from region uk or global
+PASS  night 1: one submit_round per round  (5 submits, 5 rounds)
+PASS  night 1: each submit covers every team and every question of its round
+PASS  night 1: difficulty never moves more than one level between rounds  (3→3→3→4→3)
+PASS  notes after night 1: no team names, scores, standings or questions
+PASS  notes after night 1: at most one difficulty line per genre
+PASS  night 2: start_night once, before the first next_questions
+PASS  night 2: every round fetched with one genre and one difficulty  (film/3/uk, science/3/uk, film/2/uk, geography/3/uk, film/3/uk)
+PASS  night 2: every question from region uk or global
+PASS  night 2: one submit_round per round  (5 submits, 5 rounds)
+PASS  night 2: each submit covers every team and every question of its round
+PASS  night 2: difficulty never moves more than one level between rounds  (3→3→2→3→3)
+PASS  notes after night 2: no team names, scores, standings or questions
+PASS  notes after night 2: at most one difficulty line per genre
+PASS  night 3: start_night once, before the first next_questions
+PASS  night 3: every round fetched with one genre and one difficulty  (film/3/uk, geography/3/uk, film/3/uk, film/4/uk, history/4/uk)
+PASS  night 3: every question from region uk or global
+PASS  night 3: one submit_round per round  (5 submits, 5 rounds)
+PASS  night 3: each submit covers every team and every question of its round
+PASS  night 3: difficulty never moves more than one level between rounds  (3→3→3→4→4)
+PASS  notes after night 3: no team names, scores, standings or questions
+PASS  notes after night 3: at most one difficulty line per genre
+all code checks passed

@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "node --test --test-global-setup=tests/setup.js tests/trivia-bank.test.js && node --test tests/fakes.test.js"
+    "test": "node --test --test-global-setup=tests/setup.js tests/trivia-bank.test.js && node --test tests/fakes.test.js && node --test --test-timeout=120000 tests/world.test.js"
   },
   "dependencies": {
     "@introspection-ai/eval-simulate": "^0.10.0",

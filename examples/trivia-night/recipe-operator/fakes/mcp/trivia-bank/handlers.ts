@@ -4,7 +4,10 @@ import {
   toolsOf,
 } from "@introspection-ai/eval-simulate/mcp";
 import { contract } from "./contract.ts";
+import { randomOf } from "@introspection-ai/eval-simulate/mcp";
+import { byId, chance } from "../../world/profiles.ts";
 import type { Mark, Question, State } from "./entities.ts";
+import { question, supply } from "./supply.ts";
 
 const { config, answer } = toolsOf(contract);
 
@@ -25,17 +28,13 @@ function standings(marks: Mark[], teams: string[]) {
     .sort((a, b) => b.points - a.points || a.team.localeCompare(b.team));
 }
 
-function rates(
-  marks: Mark[],
-  byId: Map<string, Question>,
-  key: (q: Question) => string,
-) {
+function rates(marks: Mark[], key: (q: Question) => string) {
   const out: Record<
     string,
     { asked: number; correct: number; correct_rate: number }
   > = {};
   for (const m of marks) {
-    const q = byId.get(m.question_id);
+    const q = question(m.question_id);
     if (!q) continue;
     const r = (out[key(q)] ??= { asked: 0, correct: 0, correct_rate: 0 });
     r.asked += 1;
@@ -53,7 +52,7 @@ export function register(server: McpServer, state: State) {
     async ({ count, genre, region, difficulty }) => {
       const night = tonight(state);
       const asked = new Set(state.asked.map((a) => a.question_id));
-      const fresh = state.questions.filter((q) => !asked.has(q.id));
+      const fresh = supply().filter((q) => !asked.has(q.id));
       const match = (q: Question, d: number | undefined) =>
         (!genre || q.genre === genre) &&
         (!region || q.region === region) &&
@@ -76,7 +75,9 @@ export function register(server: McpServer, state: State) {
       }
       const picked = pool.slice(0, count);
       const week = night?.week ?? 0;
-      for (const q of picked) state.asked.push({ question_id: q.id, week });
+      const request = new Set(state.asked.map((a) => a.request)).size + 1;
+      for (const q of picked)
+        state.asked.push({ question_id: q.id, week, request });
       return answer("next_questions", {
         questions: picked.map(({ id, genre, region, difficulty, text }) => ({
           id,
@@ -117,12 +118,11 @@ export function register(server: McpServer, state: State) {
     config("round_summary"),
     async ({ week }) => {
       const w = week ?? tonight(state)?.week ?? 0;
-      const byId = new Map(state.questions.map((q) => [q.id, q]));
       const marks = state.marks.filter((m) => m.week === w);
       return answer("round_summary", {
         week: w,
-        by_genre: rates(marks, byId, (q) => q.genre),
-        by_difficulty: rates(marks, byId, (q) => String(q.difficulty)),
+        by_genre: rates(marks, (q) => q.genre),
+        by_difficulty: rates(marks, (q) => String(q.difficulty)),
       });
     },
   );
@@ -161,7 +161,6 @@ export function register(server: McpServer, state: State) {
           "No night has been started at this venue. Call start_night first.",
           true,
         );
-      const byId = new Map(state.questions.map((q) => [q.id, q]));
       const servedTonight = new Set(
         state.asked
           .filter((a) => a.week === night.week)
@@ -176,15 +175,23 @@ export function register(server: McpServer, state: State) {
         if (!night.teams.includes(a.team))
           return text(`Team "${a.team}" is not registered tonight.`, true);
       }
+      const venue = state.venue ? byId(state.venue) : undefined;
       const marks: Mark[] = answers.map((a) => {
-        const q = byId.get(a.question_id) as Question;
+        const q = question(a.question_id) as Question;
         const given = normalise(a.answer);
+        // In a memory search the crowd's answers are the world's: whether a team got a question right is
+        // drawn from the venue's profile, keyed by the question and the team; a blank is always wrong.
+        const correct = venue
+          ? given !== "" &&
+            randomOf(state.seed, venue.id, q.id, a.team)() <
+              chance(venue, q, Math.max(0, venue.teams.indexOf(a.team)))
+          : given !== "" && given === normalise(q.answer);
         return {
           week: night.week,
           question_id: a.question_id,
           team: a.team,
           answer: a.answer,
-          correct: given !== "" && given === normalise(q.answer),
+          correct,
         };
       });
       state.marks.push(...marks);
@@ -195,7 +202,7 @@ export function register(server: McpServer, state: State) {
           team: m.team,
           answer: m.answer,
           correct: m.correct,
-          correct_answer: (byId.get(m.question_id) as Question).answer,
+          correct_answer: (question(m.question_id) as Question).answer,
         })),
         round_points: standings(marks, night.teams),
         standings: standings(

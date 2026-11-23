@@ -9,12 +9,12 @@
     "protocolVersion": "2025-06-18",
     "hash": "sha256:9eb61727bbd7233ad901d2fe460f4f7d9d061f7e8f02a5aaf7722dd1b9b3e615"
   },
-  "entities": ["questions", "nights", "asked", "marks"],
+  "entities": ["nights", "asked", "marks"],
   "settings": [],
   "tools": {
     "next_questions": {
       "kind": "stateful",
-      "reads": ["questions", "asked", "nights"],
+      "reads": ["asked", "nights"],
       "writes": ["asked"]
     },
     "register_teams": {
@@ -24,7 +24,7 @@
     },
     "round_summary": {
       "kind": "stateful",
-      "reads": ["questions", "marks", "nights"],
+      "reads": ["marks", "nights"],
       "writes": []
     },
     "scoreboard": {
@@ -39,7 +39,7 @@
     },
     "submit_round": {
       "kind": "stateful",
-      "reads": ["questions", "asked", "nights"],
+      "reads": ["asked", "nights"],
       "writes": ["marks"]
     }
   }

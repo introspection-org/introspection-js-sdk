@@ -8,6 +8,7 @@ import {
 import { fakes } from "../mcp/index.ts";
 import { world } from "../scenarios/index.ts";
 import { options } from "./client.js";
+import { supply } from "../mcp/trivia-bank/supply.ts";
 
 const json = (t) => JSON.parse(t);
 
@@ -45,10 +46,10 @@ test("a question is never given to the same venue twice, and a dry filter is rel
     async ({ "trivia-bank": bank }) => {
       await call(bank, "start_night", {});
       const seen = new Set();
-      for (let i = 0; i < 2; i++) {
+      for (let i = 0; i < 21; i++) {
         const r = json(
           await call(bank, "next_questions", {
-            count: 8,
+            count: 10,
             genre: "film",
             region: "au",
             difficulty: 2,
@@ -58,7 +59,7 @@ test("a question is never given to the same venue twice, and a dry filter is rel
           assert.ok(!seen.has(q.id));
           seen.add(q.id);
         }
-        if (i === 0) assert.equal(r.relaxed, null);
+        if (i < 20) assert.equal(r.relaxed, null);
         else assert.match(r.relaxed, /difficulty/);
       }
     },
@@ -82,9 +83,7 @@ test("a submitted round is marked by the bank and read back in the standings and
           difficulty: 3,
         }),
       );
-      const truth = new Map(
-        states["trivia-bank"].questions.map((q) => [q.id, q.answer]),
-      );
+      const truth = new Map(supply().map((q) => [q.id, q.answer]));
       const answerOf = (id) => truth.get(id) ?? "";
       const r = json(
         await call(bank, "submit_round", {

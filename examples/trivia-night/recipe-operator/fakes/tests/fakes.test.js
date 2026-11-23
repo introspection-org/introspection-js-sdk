@@ -3,6 +3,7 @@ import { checkRecipeFakes } from "@introspection-ai/eval-simulate/mcp/checks";
 import { fakes } from "../mcp/index.ts";
 import { SCENARIOS, world } from "../scenarios/index.ts";
 import { RECORD } from "./client.js";
+import { supply } from "../mcp/trivia-bank/supply.ts";
 
 checkRecipeFakes({
   test,
@@ -13,9 +14,8 @@ checkRecipeFakes({
   recording: RECORD,
   consistent: (w) => {
     const bank = w["trivia-bank"];
-    const ids = new Set(bank.questions.map((q) => q.id));
-    if (ids.size !== bank.questions.length)
-      throw new Error("duplicate question ids");
+    const ids = new Set(supply().map((q) => q.id));
+    if (ids.size !== supply().length) throw new Error("duplicate question ids");
     for (const a of bank.asked)
       if (!ids.has(a.question_id))
         throw new Error(`asked ${a.question_id} is not in the supply`);
