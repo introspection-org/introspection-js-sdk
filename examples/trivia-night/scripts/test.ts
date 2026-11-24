@@ -1439,6 +1439,32 @@ async function main() {
     );
   });
 
+  const results = await import("../lib/results");
+  await check("trial results: kept on disk past the bounded feed", () => {
+    const dir = mkdtempSync(path.join(tmpdir(), "trivia-results-"));
+    const file = results.resultsFile(dir, "r1");
+    assert.deepEqual(results.readResults(file), []);
+    for (let i = 0; i < 2500; i++)
+      results.appendResult(file, {
+        type: "eval.finished",
+        data: { run: "r1", venue: `pub-${i}`, night: "night2-fresh" },
+      });
+    results.appendResult(file, {
+      type: "eval.run_finished",
+      data: { run: "r1", trials: 2500 },
+    });
+    const lines = results.readResults(file);
+    assert.equal(lines.length, 2501);
+    assert.equal(lines[0].data.venue, "pub-0");
+    assert.equal(lines.at(-1)?.type, "eval.run_finished");
+  });
+  await check("trial results: an errored trial is never analysed", () => {
+    assert.equal(results.scored({ error: null }), true);
+    assert.equal(results.scored({}), true);
+    assert.equal(results.scored({ error: "sandbox failed" }), false);
+    assert.equal(results.scored(null), false);
+    assert.equal(results.scored(undefined), false);
+  });
   const experiment = await import("../lib/experiment");
   await check(
     "experiment: sign test, Holm, ordering and the validity gate",

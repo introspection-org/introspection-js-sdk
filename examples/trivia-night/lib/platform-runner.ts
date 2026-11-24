@@ -9,6 +9,7 @@ import path from "node:path";
 import { promisify } from "node:util";
 
 import { record } from "./events";
+import { appendResult, resultsFile } from "./results";
 import { judgeInput, judgeSpec, parseJudgement, type Judgement } from "./judge";
 import { measuresOf } from "./memory-measures";
 import {
@@ -280,6 +281,10 @@ function runStep(
         `${step.venue_label} ${step.task}: reward ${finished.reward ?? "none"} in ${seconds}s`,
         finished,
       );
+      appendResult(resultsFile(recipeDir(), step.run), {
+        type: "eval.finished",
+        data: finished,
+      });
       resolve(trial?.notes ?? null);
     };
     const child = spawn(spec.command, spec.args, {
@@ -356,6 +361,10 @@ export async function startRun(
       `run ${id} finished in ${finished.seconds}s`,
       finished,
     );
+    appendResult(resultsFile(recipeDir(), id), {
+      type: "eval.run_finished",
+      data: finished,
+    });
     platform.active = null;
   });
   return { run: id, target };

@@ -26,6 +26,7 @@ import {
   validityGate,
   type Pair,
 } from "@/lib/experiment";
+import { scored } from "@/lib/results";
 import type { Judgement } from "@/lib/judge";
 import { BAND, MEASURES, checkLine } from "@/lib/memory-measures";
 import {
@@ -735,6 +736,7 @@ export function PlatformEvals() {
   const measureAt = (venue: string, night: NightKey, key: string) => {
     if (!counted(venue, night)) return null;
     const finished = view?.trials.get(`${venue}/${night}`)?.finished;
+    if (!scored(finished)) return null;
     const value = (finished?.measures as Record<string, number> | undefined)?.[
       key
     ];

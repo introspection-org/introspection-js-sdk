@@ -1,3 +1,4 @@
+import path from "node:path";
 import {
   holm,
   lift,
@@ -5,19 +6,26 @@ import {
   signTest,
   validityGate,
 } from "../lib/experiment";
+import { readResults, resultsFile, scored } from "../lib/results";
 
 const run = process.argv[2];
-const res = await fetch("http://localhost:3500/api/events");
-const body = (await res.json()) as unknown;
-const events = (
-  Array.isArray(body) ? body : ((body as { events?: unknown[] }).events ?? [])
-) as {
-  type: string;
-  data: Record<string, unknown>;
-}[];
-const fin = events.filter(
+// The run's results file is the record; the page's bounded feed is only a fallback for older runs.
+const stored = readResults(
+  resultsFile(path.join(import.meta.dirname, "../recipe-operator"), run),
+);
+let events: { type: string; data: Record<string, unknown> }[] = stored;
+if (!stored.length) {
+  const res = await fetch("http://localhost:3500/api/events");
+  const body = (await res.json()) as unknown;
+  events = (
+    Array.isArray(body) ? body : ((body as { events?: unknown[] }).events ?? [])
+  ) as { type: string; data: Record<string, unknown> }[];
+}
+const all = events.filter(
   (e) => e.type === "eval.finished" && e.data.run === run,
 );
+// A trial that errored measured nothing: it is counted and reported, never analysed.
+const fin = all.filter((e) => scored(e.data));
 const by: Record<string, Record<string, Record<string, number>>> = {};
 // Runs before the verifier printed first_round_in_band: the first round's share right says the same.
 const BAND = [0.55, 0.75];
@@ -46,7 +54,7 @@ for (const e of fin) {
       opening >= BAND[0] && opening <= BAND[1] ? 1 : 0;
   (by[v] ??= {})[String(e.data.night)] = measures;
 }
-const errors = fin.filter((e) => e.data.error).length;
+const errors = all.length - fin.length;
 console.log(
   `trials ${fin.length}, errors ${errors}, pubs ${Object.keys(by).length}`,
 );
