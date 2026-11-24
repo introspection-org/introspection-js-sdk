@@ -8,12 +8,12 @@ The full report is `report.html` in this folder. Download it and open it in a br
 
 20 held-out pubs, model notes against no notes. Good rounds are rounds in a loved genre and 55–75% right, per night, out of 6.
 
-| Question | Model notes | No notes | Difference | |
-|---|---|---|---|---|
-| Good rounds of 6 (primary) | 1.8 | 1.2 | +0.6 [0.3, 1.0] | ✓ |
-| More than another pub's notes | 1.7 | 0.9 other | 15 better, 1 worse | ✓ |
-| Rounds in a loved genre | 59% | 33% | +26 pts | ✓ |
-| First round pitched right | 60% | 47% | +13 pts (chance) | ✗ |
+| Question                      | Model notes | No notes  | Difference         |     |
+| ----------------------------- | ----------- | --------- | ------------------ | --- |
+| Good rounds of 6 (primary)    | 1.8         | 1.2       | +0.6 [0.3, 1.0]    | ✓   |
+| More than another pub's notes | 1.7         | 0.9 other | 15 better, 1 worse | ✓   |
+| Rounds in a loved genre       | 59%         | 33%       | +26 pts            | ✓   |
+| First round pitched right     | 60%         | 47%       | +13 pts (chance)   | ✗   |
 
 ✓ supported · ✗ not supported. The primary pairs the 19 pubs with both nights: as a share of rounds, +0.10 [0.04, 0.16]. The other-notes comparison uses a sign test, p = 0.0005. Secondaries are Holm-corrected: loved genres p < 0.0001, first round p = 0.73. The order true ≥ model > none > other holds: 1.8 ≥ 1.7 > 1.2 > 0.9.
 
@@ -21,23 +21,23 @@ The full report is `report.html` in this folder. Download it and open it in a br
 
 The same 20 held-out pubs.
 
-| Question | Self-improved | No memory | Difference | |
-|---|---|---|---|---|
-| Good rounds of 6 (primary) | 2.2 | 1.7 | +0.5 [−0.5, 1.4] | ✗ |
-| Rounds in a loved genre | 70% | 39% | +31 pts [17, 45] | ✓ |
-| Rounds 55–75% right | 56% | 61% | −5 pts [−23, 12] | ✗ |
-| First round pitched right | 53% | 47% | +5 pts (chance) | ✗ |
+| Question                   | Self-improved | No memory | Difference       |     |
+| -------------------------- | ------------- | --------- | ---------------- | --- |
+| Good rounds of 6 (primary) | 2.2           | 1.7       | +0.5 [−0.5, 1.4] | ✗   |
+| Rounds in a loved genre    | 70%           | 39%       | +31 pts [17, 45] | ✓   |
+| Rounds 55–75% right        | 56%           | 61%       | −5 pts [−23, 12] | ✗   |
+| First round pitched right  | 53%           | 47%       | +5 pts (chance)  | ✗   |
 
 The primary here is the pre-registered share of rounds played, multiplied by 6, over 19 pubs. As a share it is +0.08 [−0.08, 0.23], with 13 pubs better and 3 worse.
 
 These analyses were chosen after seeing the data, so they are exploratory:
 
-| Analysis | Pubs | Difference, good rounds of 6 |
-|---|---|---|
-| Counted out of 6, unplayed rounds not good | 20 | +1.00 [+0.50, +1.50] |
-| Only nights that played all 6 rounds | 16 | +0.94 [+0.31, +1.57] |
-| Pre-registered measure, Edinburgh as 0 | 20 | +0.49 [−0.39, +1.37] |
-| Pre-registered measure, without Austin | 18 | +0.43 [−0.55, +1.42] |
+| Analysis                                   | Pubs | Difference, good rounds of 6 |
+| ------------------------------------------ | ---- | ---------------------------- |
+| Counted out of 6, unplayed rounds not good | 20   | +1.00 [+0.50, +1.50]         |
+| Only nights that played all 6 rounds       | 16   | +0.94 [+0.31, +1.57]         |
+| Pre-registered measure, Edinburgh as 0     | 20   | +0.49 [−0.39, +1.37]         |
+| Pre-registered measure, without Austin     | 18   | +0.43 [−0.55, +1.42]         |
 
 The self-improved memory against the hand-written memory used for H1 is reported, not tested: +0.4 good rounds of 6 [0.0, 0.7]. It pairs pubs across the two separate runs.
 
@@ -52,6 +52,7 @@ The self-improved memory against the hand-written memory used for H1 is reported
   - then two git fetch failures while the git server was down.
 
   This is beyond the one-rerun rule. The primary without Austin reaches the same verdict.
+
 - **H2, reruns:** 20 nights were rerun. Every one had failed before its host ran, and each was rerun as the same customer identity.
 
 ## Runs and commits
