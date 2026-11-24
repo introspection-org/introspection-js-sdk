@@ -69,3 +69,30 @@ On the 20 held-out pubs, with the development gate passed: memory is **supported
 - The gate fails on development pubs: no claim is made, and the world is changed before trying again.
 
 Secondary measures and the ordering are reported whatever they show, and do not change the decision.
+
+## Second hypothesis: a self-improved recipe
+
+Starting from the original Recipe, whose memory block is empty, a search writes a memory block that makes second nights better, and the gain holds on pubs the search never saw.
+
+### The search (development pubs only)
+
+Fixed before it ran, in `recipe-operator/evals/rsi/rsi.py`:
+
+- **Evaluation**: a candidate is the original Recipe with only the text between `<!-- memory:start -->` and `<!-- memory:end -->` replaced, checked by diff. It plays each of the 11 development pubs' night 1 and then night 2 from its own notes, in fresh sessions, under Vitest on the local Runtime (`evals/rsi/night-series.eval.ts`), with the same fakes, instructions and crowd as the platform tasks. Night 2 is scored by that pub's own `check.mjs`.
+- **Fitness**: mean good rounds over the 11 pubs; ties broken by rounds in a favourite genre.
+- **Proposer**: one fixed prompt (in `rsi.py`), Claude Opus with no tools. It sees the rest of the system prompt, the parent block, and per development pub the night-2 rounds, the scores, night 1's notes and that pub's true tastes, for diagnosis only.
+- **Schedule**: generation 0 is the original. Three generations of three children each; the best child becomes the next parent only when it beats the parent. A final merge child combines the best block per capability: favourite genre, rounds 55-75% right, and notes that name no team. The pick is the best block seen.
+- **Guards**: a block that names any team is rejected unscored; a block over 6,000 characters is rejected.
+- Every candidate's block, scores per pub and evidence are kept, so the search can be replayed.
+
+### Confirmation (held-out pubs)
+
+On the 20 held-out pubs, each recipe plays night 1 and then night 2 as the same customer:
+
+- **Original**: the empty block.
+- **Self-improved**: the block the search picked, frozen with this file.
+- **Hand-written**: the block the right-notes arm uses, for reference only.
+
+**Primary**: self-improved minus original on good rounds, the mean paired difference and its 95% t-interval. **Supported** when the interval excludes 0 above. Self-improved minus hand-written, and the secondary measures, are reported whatever they show.
+
+The search's own development score is not evidence: it was picked as the best of many, so it is optimistic by construction.
