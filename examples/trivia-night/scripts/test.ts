@@ -1,6 +1,6 @@
 /** Checks of the bank, its MCP server and the scoring: `pnpm test`. */
 import assert from "node:assert/strict";
-import { cpSync, mkdtempSync, rmSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
@@ -347,7 +347,89 @@ async function main() {
   const evals = await import("../lib/platform-evals");
   const { POST: startEvals, GET: evalsConfig } =
     await import("../app/api/evals/route");
-  const fixtures = path.join(import.meta.dirname, "fixtures", "platform-evals");
+  const writeRunFolder = (
+    folder: string,
+    files: Record<string, string | object>,
+  ) => {
+    for (const [name, content] of Object.entries(files)) {
+      const file = path.join(folder, name);
+      mkdirSync(path.dirname(file), { recursive: true });
+      writeFileSync(
+        file,
+        typeof content === "string" ? content : JSON.stringify(content),
+      );
+    }
+    return folder;
+  };
+  const passedTrial = "harbor/night1-memory__Ab12Cd";
+  const passedFiles = {
+    "run.json": {
+      schema_version: 11,
+      id: "2026-11-23__10-00-00",
+      runner: "harbor",
+      suite_path: "evals/harbor/night1-memory",
+      status: "completed",
+      candidate: { runtime: "00000000-0000-7000-8000-000000000001" },
+      result: {
+        metrics: { cases_passed: 1.0, cases_total: 1.0, reward: 1.0 },
+        completion_reason: "completed",
+        diagnostics: [],
+      },
+      started_at: "1795400000",
+      completed_at: "1795400180",
+    },
+    [`${passedTrial}/result.json`]: {
+      task_name: "trivia-host/night1-memory",
+      trial_name: "night1-memory__Ab12Cd",
+      agent_result: { metadata: { trajectory_source: "sandbox" } },
+      verifier_result: { rewards: { reward: 1.0 } },
+      exception_info: null,
+    },
+    [`${passedTrial}/verifier/test-stdout.txt`]: JSON.stringify(
+      {
+        reward: 1,
+        night_started: 1,
+        round_fetched: 1,
+        notes_written: 1,
+        notes_name_no_team: 1,
+        notes: "# The venue\n\n- Country: UK\n",
+      },
+      null,
+      2,
+    ),
+    [`${passedTrial}/artifacts/memories/MEMORY.md`]:
+      "# The venue\n\n- Country: UK\n- Likes: music, film\n- Difficulty: 3\n",
+  };
+  const failedFiles = {
+    "run.json": {
+      schema_version: 11,
+      id: "2026-11-23__10-00-01",
+      runner: "harbor",
+      suite_path: "evals/harbor/night2-control",
+      status: "completed",
+      result: {
+        metrics: { cases_incomplete: 1.0, cases_total: 1.0 },
+        completion_reason: "completed_with_errors",
+        diagnostics: [
+          {
+            trial: "night2-control__Zz99Yy",
+            kind: "RuntimeError",
+            message: "the trial sandbox did not start",
+          },
+        ],
+      },
+    },
+    "harbor/night2-control__Zz99Yy/result.json": {
+      task_name: "trivia-host/night2-control",
+      trial_name: "night2-control__Zz99Yy",
+      agent_result: null,
+      verifier_result: null,
+      exception_info: {
+        exception_type: "RuntimeError",
+        exception_message: "the trial sandbox did not start\n",
+      },
+    },
+  };
 
   await check("platform evals: one chain per venue and a control", () => {
     const chains = evals.plan("r1", 3);
@@ -377,7 +459,7 @@ async function main() {
       evals.plan("r1", 1)[0][1],
       { runtime: "rt-1", commit: "abc123" },
       "/work/recipe-operator",
-      { token: key, dpUrl: "https://dp.example" },
+      { token: key, apiBaseUrl: "http://localhost:8000" },
       { PATH: "/bin" },
     );
     assert.equal(spec.command, "introspection");
@@ -400,7 +482,10 @@ async function main() {
       "-y",
     ]);
     assert.equal(spec.options.env.INTROSPECTION_TOKEN, key);
-    assert.equal(spec.options.env.INTROSPECTION_DP_URL, "https://dp.example");
+    assert.equal(
+      spec.options.env.INTROSPECTION_API_BASE_URL,
+      "http://localhost:8000",
+    );
     assert.equal(
       spec.options.env.INTROSPECTION_EVAL_RUNS_DIR,
       "/work/recipe-operator/eval-runs/r1/venue-a-night2-hosted",
@@ -425,18 +510,16 @@ async function main() {
   });
 
   await check("platform evals: a run folder is found and read", () => {
-    const passedRun = path.join(fixtures, "passed");
+    const base = mkdtempSync(path.join(tmpdir(), "trivia-evals-"));
+    const passedRun = writeRunFolder(path.join(base, "passed"), passedFiles);
     const printed = `1 completed · 0 errors\nResults    ${passedRun}\n`;
     assert.equal(evals.findRunFolder(printed, "/nowhere"), passedRun);
-    const root = mkdtempSync(path.join(tmpdir(), "trivia-evals-"));
-    cpSync(passedRun, path.join(root, "2026-11-23__10-00-00"), {
-      recursive: true,
-    });
+    const root = path.join(base, "runs");
+    writeRunFolder(path.join(root, "2026-11-23__10-00-00"), passedFiles);
     assert.equal(
       evals.findRunFolder("no results line", root),
       path.join(root, "2026-11-23__10-00-00"),
     );
-    rmSync(root, { recursive: true });
 
     const ok = evals.readRunFolder(passedRun);
     assert.equal(ok.reward, 1);
@@ -450,10 +533,13 @@ async function main() {
     assert.match(ok.notes ?? "", /Difficulty: 3/);
     assert.equal(ok.error, null);
 
-    const failed = evals.readRunFolder(path.join(fixtures, "failed"));
+    const failed = evals.readRunFolder(
+      writeRunFolder(path.join(base, "failed"), failedFiles),
+    );
     assert.equal(failed.reward, null);
     assert.deepEqual(failed.checks, {});
     assert.equal(failed.error, "the trial sandbox did not start");
+    rmSync(base, { recursive: true });
   });
 
   await check("platform evals: the route refuses without a key", async () => {

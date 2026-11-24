@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
 
 import {
-  activeRun,
   KEY_HOW_TO,
+  activeRun,
+  apiBaseUrl,
   keyFile,
   notLocal,
   resolveTarget,
@@ -20,7 +21,10 @@ export async function GET(request: Request) {
   let target = null;
   let target_error = null;
   try {
-    target = await resolveTarget();
+    target = await resolveTarget({
+      ...process.env,
+      INTROSPECTION_API_BASE_URL: apiBaseUrl(),
+    });
   } catch (error) {
     target_error = (error as Error).message;
   }

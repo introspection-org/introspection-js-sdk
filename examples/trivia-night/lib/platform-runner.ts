@@ -24,6 +24,7 @@ import {
   type Target,
 } from "./platform-evals";
 
+const DEFAULT_API_BASE_URL = "https://api.introspection.dev";
 const run = promisify(execFile);
 const RUNTIME_SLUG = "trivia-host";
 
@@ -111,17 +112,9 @@ export async function resolveTarget(
   return { runtime: runtime ?? latest.id, commit: sha };
 }
 
-async function resolveDpUrl(env: NodeJS.ProcessEnv): Promise<string> {
-  const named = env.INTROSPECTION_DP_URL?.trim();
-  if (named) return named;
-  const { stdout } = await run(
-    "introspection",
-    ["whoami", "--query", "dp_url", "-o", "table"],
-    { env },
-  );
-  const url = stdout.trim();
-  if (!url) throw new Error("set INTROSPECTION_DP_URL in .env.local");
-  return url;
+/** The Control Plane the CLI talks to; it finds the Data Plane from there. */
+export function apiBaseUrl(env: NodeJS.ProcessEnv = process.env): string {
+  return env.INTROSPECTION_API_BASE_URL?.trim() || DEFAULT_API_BASE_URL;
 }
 
 export function activeRun(): string | null {
@@ -131,7 +124,7 @@ export function activeRun(): string | null {
 function runStep(
   step: Step,
   target: Target,
-  credentials: { token: string; dpUrl: string },
+  credentials: { token: string; apiBaseUrl: string },
 ): Promise<void> {
   const started: EvalStarted = { ...step };
   record(
@@ -205,11 +198,13 @@ export async function startRun(
   if (!token) throw new Error("the key file is empty");
   const id = newRunId();
   platform.active = id;
+  const api = apiBaseUrl();
   let target: Target;
-  let dpUrl: string;
   try {
-    target = await resolveTarget();
-    dpUrl = await resolveDpUrl(process.env);
+    target = await resolveTarget({
+      ...process.env,
+      INTROSPECTION_API_BASE_URL: api,
+    });
   } catch (error) {
     platform.active = null;
     throw error;
@@ -218,7 +213,8 @@ export async function startRun(
   const began = Date.now();
   void Promise.all(
     chains.map(async (chain) => {
-      for (const step of chain) await runStep(step, target, { token, dpUrl });
+      for (const step of chain)
+        await runStep(step, target, { token, apiBaseUrl: api });
     }),
   ).finally(() => {
     const finished: EvalRunFinished = {

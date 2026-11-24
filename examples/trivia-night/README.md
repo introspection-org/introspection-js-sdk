@@ -52,6 +52,8 @@ pnpm simulate   # every venue, both hosts, as a table
 
 The page's **Simulated** panel plays the stand-in hosts in-process. The **On the platform** panel below it runs the real memory evals, as [Run the memory evals](./recipe-operator/README.md#run-the-memory-evals) describes, against the `trivia-host` Runtime at its latest commit (or `INTROSPECTION_TRIVIA_RUNTIME_ID` and `INTROSPECTION_TRIVIA_COMMIT_SHA`, when both are set).
 
+Each eval task and its verifier come from the Runtime's Recipe at that commit: `eval run` resolves `--path` inside that checkout, so the page tests with that commit's verifiers. To test a newer commit than the Runtime's latest version, set `INTROSPECTION_TRIVIA_COMMIT_SHA` and `INTROSPECTION_TRIVIA_RUNTIME_ID` in `.env.local`.
+
 It needs a staging agent key that expires today, named in `.env.local`:
 
 ```bash
@@ -60,7 +62,7 @@ introspection api-keys create --environment staging --capabilities runtimes,eval
 echo TRIVIA_EVAL_KEY_FILE=recipe-operator/.agent.key >> .env.local
 ```
 
-`INTROSPECTION_DP_URL` comes from `.env.local` too, or else `introspection whoami`. Without a key file the panel shows these commands and the server refuses to run.
+The runs use your `introspection login`, on `https://api.introspection.dev` unless `INTROSPECTION_API_BASE_URL` names another stack, and find the Data Plane from there. Without a key file the panel shows these commands and the server refuses to run.
 
 Pick a number of venues and press **Run evals on the platform**. Each venue runs `night1-memory`, then `night2-hosted`, as its own `anon:sim-<run>-<venue>` identity, all venues at once, beside one `night2-control` as `anon:sim-<run>-control`. Every trial is tagged `simulation:<run>`. The table fills in as each trial ends: its reward, each check, where it was scored from, its notes, and the run's wall-clock time.
 

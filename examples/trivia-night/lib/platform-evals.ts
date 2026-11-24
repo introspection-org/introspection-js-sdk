@@ -99,7 +99,7 @@ export function spawnSpec(
   step: Step,
   target: Target,
   recipeDir: string,
-  credentials: { token: string; dpUrl: string },
+  credentials: { token: string; apiBaseUrl: string },
   baseEnv: Record<string, string | undefined> = process.env,
 ): SpawnSpec {
   const args = [
@@ -126,7 +126,7 @@ export function spawnSpec(
       env: {
         ...baseEnv,
         INTROSPECTION_TOKEN: credentials.token,
-        INTROSPECTION_DP_URL: credentials.dpUrl,
+        INTROSPECTION_API_BASE_URL: credentials.apiBaseUrl,
         INTROSPECTION_EVAL_RUNS_DIR: runsRoot(recipeDir, step),
       },
       shell: false,

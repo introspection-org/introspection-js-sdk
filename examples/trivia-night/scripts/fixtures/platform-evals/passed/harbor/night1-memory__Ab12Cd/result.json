@@ -1,7 +1,0 @@
-{
-  "task_name": "trivia-host/night1-memory",
-  "trial_name": "night1-memory__Ab12Cd",
-  "agent_result": { "metadata": { "trajectory_source": "sandbox" } },
-  "verifier_result": { "rewards": { "reward": 1.0 } },
-  "exception_info": null
-}
