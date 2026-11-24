@@ -567,14 +567,16 @@ if (
         TEAM_SIZES.map((size) => [size, world.crowd(p, size, 2)]),
       ),
     }));
+  // The tasks are generated, never committed: pass a Recipe's evals/harbor to write them there.
+  const harbor = path.resolve(process.argv[2] ?? path.join(here, "harbor"));
   const venues = writeVenues(
-    path.join(here, "harbor"),
+    harbor,
     path.join(here, "venues.json"),
     withTurnover(world.PAGE),
   );
   // The held-out pubs' tasks, by count only: their tastes stay out of sight until the frozen run.
   const held = writeVenues(
-    path.join(here, "harbor"),
+    harbor,
     path.join(here, "heldout.json"),
     withTurnover(world.HELDOUT),
     "held-",

@@ -1,4 +1,4 @@
-// Generates mcp/trivia-bank/questions.json, the trivia bank's real questions: 40 for each of the
+// Generates mcp/trivia-bank/questions.jsonll, the trivia bank's real questions: 40 for each of the
 // 120 genre x region x difficulty cells (supply.ts serves them first; the rest of a cell stays placeholders).
 // Each cell is half multiple choice (`format: "choice"`, four options, shuffled here by a stable hash)
 // and half short answer (`format: "short"`), each tagged with the decade it is about.
@@ -50,7 +50,20 @@ const CHECKER = "anthropic/claude-sonnet-5-5";
 let MODEL = MODELS[0];
 const DECADES = ["1960s", "1970s", "1980s", "1990s", "2000s", "2010s", "2020s"];
 const HERE = dirname(fileURLToPath(import.meta.url));
-const OUT = join(HERE, "../mcp/trivia-bank/questions.json");
+const OUT = join(HERE, "../mcp/trivia-bank/questions.jsonl");
+// The bank as cells of questions, kept on disk one question per line in its cell's order.
+const toLines = (cells) =>
+  Object.entries(cells)
+    .flatMap(([cell, qs]) => qs.map((q) => JSON.stringify({ cell, ...q })))
+    .join("\n") + "\n";
+const fromLines = (source) => {
+  const cells = {};
+  for (const line of source.split("\n").filter((l) => l.trim())) {
+    const { cell, ...q } = JSON.parse(line);
+    (cells[cell] ??= []).push(q);
+  }
+  return cells;
+};
 const { values: flags } = parseArgs({
   options: {
     cache: { type: "string" },
@@ -307,7 +320,7 @@ async function generate() {
   const ordered = Object.fromEntries(
     cells.map(([g, r, d]) => `${g}-${r}-${d}`).map((k) => [k, results.get(k)]),
   );
-  await writeFile(OUT, `${JSON.stringify(ordered, null, 1)}\n`);
+  await writeFile(OUT, toLines(ordered));
   console.log(`wrote ${cells.length} cells to ${OUT}`);
 }
 
@@ -392,7 +405,7 @@ Output ONLY a JSON array of groups, each an array of indexes; [] when there are 
 
 async function validate() {
   const source = await readFile(OUT, "utf8");
-  const bank = JSON.parse(source);
+  const bank = fromLines(source);
   // The state after each round, so a rerun resumes from the last round rather than redoing it.
   const checkpoint = join(CACHE, "validate-state.json");
   const sourceHash = hash(`${TARGET}\u0000${source}`).toString("hex");
@@ -592,7 +605,7 @@ Output ONLY a JSON array of the objects, no prose, no code fence.`;
       cells.map(([g, r, d]) => [`${g}-${r}-${d}`, []]),
     );
     for (const s of slots) out[cellOf(s)].push(s.q);
-    await writeFile(OUT, `${JSON.stringify(out, null, 2)}\n`);
+    await writeFile(OUT, toLines(out));
     console.log(`wrote ${cells.length} checked cells to ${OUT}`);
   }
 }

@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import {
   call,
@@ -18,7 +19,16 @@ import {
   nightOf,
   supply,
 } from "../mcp/trivia-bank/supply.ts";
-import questions from "../mcp/trivia-bank/questions.json" with { type: "json" };
+const questions = {};
+for (const line of readFileSync(
+  new URL("../mcp/trivia-bank/questions.jsonl", import.meta.url),
+  "utf8",
+)
+  .split("\n")
+  .filter((l) => l.trim())) {
+  const { cell, ...q } = JSON.parse(line);
+  (questions[cell] ??= []).push(q);
+}
 import { ALL } from "../world/profiles.ts";
 
 const json = (t) => JSON.parse(t);
@@ -226,7 +236,7 @@ const cells = GENRES.flatMap((genre) =>
 );
 const DECADE = /^(196|197|198|199|200|201|202)0s$/;
 
-test("questions.json holds REAL_PER_CELL valid questions in each of the 120 cells, half of them multiple choice", () => {
+test("questions.jsonl holds REAL_PER_CELL valid questions in each of the 120 cells, half of them multiple choice", () => {
   assert.equal(Object.keys(questions).length, 120);
   for (const { genre, region, difficulty } of cells) {
     const cell = questions[`${genre}-${region}-${difficulty}`];
@@ -250,7 +260,7 @@ test("questions.json holds REAL_PER_CELL valid questions in each of the 120 cell
   }
 });
 
-test("ids are unchanged, and the first REAL_PER_CELL of a cell come from questions.json", () => {
+test("ids are unchanged, and the first REAL_PER_CELL of a cell come from questions.jsonl", () => {
   const all = supply();
   assert.equal(all.length, cells.length * PER_CELL);
   let i = 0;

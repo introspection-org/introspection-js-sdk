@@ -9,6 +9,7 @@ import {
   statSync,
   writeFileSync,
 } from "node:fs";
+import { execFileSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
@@ -511,6 +512,18 @@ async function main() {
       evals.plan("r1", 1, profiles, 3)[1][0].task,
       "night2-melbourne-t3",
     );
+    // The tasks are generated, not committed: write them where the test can see them.
+    const generated = mkdtempSync(path.join(tmpdir(), "trivia-harbor-"));
+    execFileSync(
+      process.execPath,
+      [
+        "--import",
+        "tsx",
+        path.join(import.meta.dirname, "../recipe-operator/evals/venues.mjs"),
+        generated,
+      ],
+      { stdio: "ignore" },
+    );
     for (const pubs of ["development", "heldout"] as const)
       for (const size of evals.TEAM_SIZES)
         for (const step of evals
@@ -522,14 +535,7 @@ async function main() {
           )
           .flat())
           assert.ok(
-            existsSync(
-              path.join(
-                import.meta.dirname,
-                "../recipe-operator/evals/harbor",
-                step.task,
-                "task.toml",
-              ),
-            ),
+            existsSync(path.join(generated, step.task, "task.toml")),
             step.task,
           );
     assert.ok(evals.isPubs("heldout") && !evals.isPubs("held-out"));

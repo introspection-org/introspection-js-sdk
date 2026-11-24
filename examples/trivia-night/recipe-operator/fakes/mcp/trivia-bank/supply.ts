@@ -1,14 +1,23 @@
 // The question supply in balanced cells (every genre x region x difficulty), the same in every
 // world, so it lives here rather than in the state. The first REAL_PER_CELL of a cell are real
-// questions from questions.json (scripts/generate-questions.mjs); the rest are placeholders, sized
+// questions from questions.jsonl (scripts/generate-questions.mjs); the rest are placeholders, sized
 // so that no series empties a cell: a venue's longest series (4 nights of 5 rounds of 8) takes at
 // most 160 questions, all from one cell at worst.
 import { labelId } from "@introspection-ai/eval-simulate/mcp";
 import type { Genre, Question, Region } from "./entities.ts";
-import questions from "./questions.json" with { type: "json" };
+import { readFileSync } from "node:fs";
 
 type Real = Pick<Question, "format" | "text" | "options" | "answer" | "decade">;
-const REAL = questions as Record<string, Real[]>;
+// One question per line, in its cell's order: a question's id is its place in the cell.
+const REAL: Record<string, Real[]> = {};
+for (const line of readFileSync(
+  new URL("./questions.jsonl", import.meta.url),
+  "utf8",
+).split("\n")) {
+  if (!line.trim()) continue;
+  const { cell, ...q } = JSON.parse(line) as Real & { cell: string };
+  (REAL[cell] ??= []).push(q);
+}
 
 export const GENRES: Genre[] = [
   "music",
