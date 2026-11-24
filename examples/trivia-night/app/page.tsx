@@ -6,7 +6,7 @@ export default function Page() {
       <header>
         <h1>Trivia Night</h1>
         <p>
-          A quiz host that remembers each venue: night 1 leaves notes, night 2
+          A quiz host that remembers each pub: night 1 leaves notes, night 2
           uses them.
         </p>
       </header>

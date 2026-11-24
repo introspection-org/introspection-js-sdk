@@ -729,3 +729,64 @@ table.steps td.fine {
   gap: 6px 10px;
   align-items: baseline;
 }
+
+.control {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.control-label {
+  color: var(--muted);
+}
+
+.seg,
+.stepper {
+  display: inline-flex;
+}
+
+.seg button,
+.stepper button {
+  border-radius: 0;
+  padding: 4px 10px;
+  color: var(--ink);
+  border-color: var(--line);
+}
+
+.seg button + button,
+.stepper output,
+.stepper button + output + button {
+  border-left: none;
+}
+
+.seg button:first-child,
+.stepper button:first-child {
+  border-radius: 6px 0 0 6px;
+}
+
+.seg button:last-child,
+.stepper button:last-child {
+  border-radius: 0 6px 6px 0;
+}
+
+.seg button[aria-pressed="true"] {
+  background: var(--ink);
+  color: var(--panel);
+  border-color: var(--ink);
+}
+
+.stepper output {
+  min-width: 2.5ch;
+  padding: 4px 8px;
+  text-align: center;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  background: var(--panel);
+  font-variant-numeric: tabular-nums;
+}
+
+.seg button:disabled,
+.stepper button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}

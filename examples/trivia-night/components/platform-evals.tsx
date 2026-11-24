@@ -681,9 +681,8 @@ export function PlatformEvals() {
   // A run of one venue has no other pub's notes for a wrong-notes night.
   const trialsFor = (count: number) =>
     count * (config?.trials_per_venue ?? 6) - (count === 1 ? 1 : 0);
-  const trials = trialsFor(
-    Math.min(Math.max(Math.trunc(venues) || 1, 1), maxVenues),
-  );
+  const venueCount = Math.min(Math.max(Math.trunc(venues) || 1, 1), maxVenues);
+  const trials = trialsFor(venueCount);
 
   const start = async () => {
     setError(undefined);
@@ -691,7 +690,7 @@ export function PlatformEvals() {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
-        venues,
+        venues: venueCount,
         teams: teams ?? config?.default_teams,
         pubs,
       }),
@@ -1106,9 +1105,9 @@ export function PlatformEvals() {
       <div className="host-head">
         <div>
           <p>
-            Each pub plays night 1, then night 2 four ways: model notes (its
-            own, from night 1), no notes, other notes (another pub&apos;s) and
-            true notes (the crowd&apos;s real tastes).
+            Each pub plays night 1, then night 2 four ways: model notes, no
+            notes, other notes and true notes. Try a few development pubs; the
+            held-out set is kept for the final result.
           </p>
         </div>
       </div>
@@ -1124,50 +1123,75 @@ export function PlatformEvals() {
       )}
 
       <div className="platform-form">
-        <label>
-          Pub set
-          <select
-            value={pubs}
-            disabled={running}
-            onChange={(event) => setPubs(event.target.value as Pubs)}
-          >
-            <option value="development">
-              Development ({config?.max_venues_by_pubs?.development ?? 11} pubs)
-            </option>
-            <option value="heldout">
-              Held-out ({config?.max_venues_by_pubs?.heldout ?? 20} pubs)
-            </option>
-          </select>
-        </label>
-        <label>
-          Pubs
-          <input
-            type="number"
-            min={1}
-            max={maxVenues}
-            value={venues}
-            onChange={(event) => setVenues(Number(event.target.value))}
-          />
-        </label>
-        <label title="The teams that play at each pub; tasks exist for 3, 5 and 8">
-          Teams per pub
-          <select
-            value={teams ?? config?.default_teams ?? 5}
-            disabled={running}
-            onChange={(event) => setTeams(Number(event.target.value))}
-          >
-            {(config?.team_sizes ?? [3, 5, 8]).map((size) => (
-              <option key={size} value={size}>
-                {size}
-              </option>
+        <div className="control">
+          <span className="control-label" id="pub-set-label">
+            Pub set
+          </span>
+          <div className="seg" role="group" aria-labelledby="pub-set-label">
+            {(
+              [
+                ["development", "Development"],
+                ["heldout", "Held-out"],
+              ] as const
+            ).map(([value, label]) => (
+              <button
+                key={value}
+                type="button"
+                aria-pressed={pubs === value}
+                disabled={running}
+                title={`${config?.max_venues_by_pubs?.[value] ?? (value === "development" ? 11 : 20)} pubs`}
+                onClick={() => setPubs(value)}
+              >
+                {label}
+              </button>
             ))}
-          </select>
-        </label>
-        <span className="fine hint">
-          Development is for trying things and tuning; held-out is used once,
-          for the final result. 3 pubs is a quick look; {maxVenues} pubs gives a
-          statistically meaningful result.
-        </span>
+          </div>
+        </div>
+        <div className="control">
+          <span className="control-label" id="pubs-label">
+            Pubs
+          </span>
+          <div className="stepper" role="group" aria-labelledby="pubs-label">
+            <button
+              type="button"
+              aria-label="Fewer pubs"
+              disabled={running || venueCount <= 1}
+              onClick={() => setVenues(venueCount - 1)}
+            >
+              −
+            </button>
+            <output aria-live="polite">{venueCount}</output>
+            <button
+              type="button"
+              aria-label="More pubs"
+              disabled={running || venueCount >= maxVenues}
+              onClick={() => setVenues(venueCount + 1)}
+            >
+              +
+            </button>
+          </div>
+        </div>
+        <div
+          className="control"
+          title="The teams that play at each pub; tasks exist for 3, 5 and 8"
+        >
+          <span className="control-label" id="teams-label">
+            Teams per pub
+          </span>
+          <div className="seg" role="group" aria-labelledby="teams-label">
+            {(config?.team_sizes ?? [3, 5, 8]).map((size) => (
+              <button
+                key={size}
+                type="button"
+                aria-pressed={(teams ?? config?.default_teams ?? 5) === size}
+                disabled={running}
+                onClick={() => setTeams(size)}
+              >
+                {size}
+              </button>
+            ))}
+          </div>
+        </div>
         <button
           disabled={!config?.configured || !config?.target || running}
           onClick={start}
