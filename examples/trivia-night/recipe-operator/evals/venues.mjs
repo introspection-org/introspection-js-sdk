@@ -450,7 +450,7 @@ export function taskFiles(venue, size = DEFAULT_TEAMS) {
   const loved = venue.hinted.length
     ? ` From what I've seen, this crowd loves ${list(venue.hinted)}.`
     : "";
-  const rounds = `The bank records the crowd's answers as you serve each round, so you won't get a sheet back: after each round, check round_summary to see how they did.`;
+  const rounds = `The bank records the crowd's answers as you serve each round, so you won't get a sheet back: after each round, check round_summary to see how they did. I won't reply until the night is over, so run all six rounds straight through in this one go without waiting for me.`;
   const night1 = taskName(1, venue.slug, size);
   const night2 = taskName(2, venue.slug, size);
   const night0 = taskName(0, venue.slug);
