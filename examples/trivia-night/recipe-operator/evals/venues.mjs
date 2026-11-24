@@ -264,8 +264,22 @@ const fetches = [...byRound.values()].map((qs, i) => {
       : null,
   };
 });
-const rated = fetches.filter((f) => f.correct_rate !== null);
 const round2 = (x) => Math.round(x * 100) / 100;
+// Each round as it was played, for reading: every question with its answer and each team's mark.
+const rounds = [...byRound.values()].map((qs, i) => ({
+  ...fetches[i],
+  correct_rate:
+    fetches[i].correct_rate === null ? null : round2(fetches[i].correct_rate),
+  questions: qs.map((q) => ({
+    text: q.text ?? null,
+    ...(q.options ? { options: q.options } : {}),
+    answer: q.answer ?? null,
+    marks: roundMarks[i]
+      .filter((m) => m.question_id === q.question_id)
+      .map((m) => ({ team: m.team, answer: m.answer ?? "", correct: !!m.correct })),
+  })),
+}));
+const rated = fetches.filter((f) => f.correct_rate !== null);
 // The standings after each round, and who leads: a tie at the top keeps the leader it had.
 const points = new Map();
 let leader = null;
@@ -355,7 +369,7 @@ writeFileSync(
 );
 console.log(
   JSON.stringify(
-    { reward, ...scores, ...measures, round_rates, fetches, notes },
+    { reward, ...scores, ...measures, round_rates, fetches, rounds, notes },
     null,
     2,
   ),
@@ -415,7 +429,15 @@ writeFileSync(
 );
 console.log(
   JSON.stringify(
-    { reward, ...scores, round_rates, liked: expected.liked, fetches, notes },
+    {
+      reward,
+      ...scores,
+      round_rates,
+      liked: expected.liked,
+      fetches,
+      rounds,
+      notes,
+    },
     null,
     2,
   ),

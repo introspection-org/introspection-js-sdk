@@ -258,6 +258,7 @@ function runStep(
         plan: planText(planned),
         round: trial?.fetches[0] ?? null,
         fetches: trial?.fetches ?? [],
+        rounds: trial?.rounds ?? [],
         judge: judgement,
         measures: trial
           ? measuresOf(step.night, {

@@ -768,6 +768,59 @@ async function main() {
     );
   });
 
+  await check(
+    "platform evals: each round's questions and team marks are read from the verifier",
+    () => {
+      const rounds = evals.parseRounds([
+        {
+          round: 1,
+          genre: "film",
+          difficulty: 2,
+          correct_rate: 0.6,
+          questions: [
+            {
+              text: "Who directed Jaws?",
+              answer: "Steven Spielberg",
+              marks: [
+                { team: "Quizzly Bears", answer: "", correct: true },
+                { team: "The Blow-Ins", answer: "", correct: false },
+                { answer: "", correct: true },
+              ],
+            },
+            {
+              text: "Which film won Best Picture in 1998?",
+              options: ["Titanic", "Fargo", 3, "Good Will Hunting"],
+              answer: "Titanic",
+              marks: [],
+            },
+            "not a question",
+          ],
+        },
+        "not a round",
+        { genre: "music", questions: "none" },
+      ]);
+      assert.equal(rounds.length, 2);
+      assert.deepEqual(rounds[0].questions[0].marks, [
+        { team: "Quizzly Bears", correct: true },
+        { team: "The Blow-Ins", correct: false },
+      ]);
+      assert.deepEqual(rounds[0].questions[1].options, [
+        "Titanic",
+        "Fargo",
+        "Good Will Hunting",
+      ]);
+      assert.equal(rounds[0].questions.length, 2);
+      assert.deepEqual(rounds[1], {
+        round: 2,
+        genre: "music",
+        difficulty: 0,
+        correct_rate: null,
+        questions: [],
+      });
+      assert.deepEqual(evals.parseRounds(undefined), []);
+    },
+  );
+
   await check("platform evals: a run folder is found and read", () => {
     const base = mkdtempSync(path.join(tmpdir(), "trivia-evals-"));
     const passedRun = writeRunFolder(path.join(base, "passed"), passedFiles);
@@ -791,6 +844,7 @@ async function main() {
     assert.equal(ok.trajectory_source, "sandbox");
     assert.match(ok.notes ?? "", /Difficulty: 3/);
     assert.deepEqual(ok.fetches, []);
+    assert.deepEqual(ok.rounds, []);
     assert.equal(ok.error, null);
 
     const failed = evals.readRunFolder(

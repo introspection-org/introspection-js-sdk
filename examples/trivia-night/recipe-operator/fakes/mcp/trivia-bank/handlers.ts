@@ -141,6 +141,9 @@ export function register(server: McpServer, state: State) {
           genre: q.genre,
           region: q.region,
           difficulty: q.difficulty,
+          text: q.text,
+          ...(q.options ? { options: q.options } : {}),
+          answer: q.answer,
         });
       const venue = state.venue ? byId(state.venue) : undefined;
       if (state.crowd && venue)

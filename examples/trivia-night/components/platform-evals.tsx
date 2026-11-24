@@ -6,6 +6,7 @@ import type {
   EvalFinished,
   EvalRunFinished,
   EvalStarted,
+  PlayedRound,
 } from "@/lib/platform-evals";
 import {
   factChips,
@@ -232,6 +233,54 @@ function Summary({
   );
 }
 
+/** Each round as it was played: the questions with their answers, and which teams got each right. */
+function Rounds({ rounds }: { rounds: PlayedRound[] }) {
+  if (!rounds.length)
+    return <span className="fine">No quiz rounds on this night.</span>;
+  return (
+    <ol className="round-list">
+      {rounds.map((round) => (
+        <li key={round.round}>
+          <p className="round-head">
+            <strong>Round {round.round}</strong> · {round.genre} · difficulty{" "}
+            {round.difficulty}
+            {round.correct_rate !== null &&
+              ` · ${Math.round(round.correct_rate * 100)}% right`}
+          </p>
+          <ol className="question-list">
+            {round.questions.map((question, index) => (
+              <li key={index}>
+                <span>{question.text ?? "The question wasn't recorded."}</span>
+                {question.answer && (
+                  <span className="answer"> {question.answer}</span>
+                )}
+                {question.marks.length > 0 && (
+                  <span className="team-marks">
+                    {question.marks.map((mark) => (
+                      <span
+                        key={mark.team}
+                        className={
+                          mark.correct ? "team-mark right" : "team-mark wrong"
+                        }
+                        title={`${mark.team}: ${mark.correct ? "right" : "wrong"}`}
+                      >
+                        {mark.correct ? "✓" : "✗"} {mark.team}
+                      </span>
+                    ))}
+                  </span>
+                )}
+              </li>
+            ))}
+          </ol>
+        </li>
+      ))}
+    </ol>
+  );
+}
+
+type NightView = "questions" | "steps";
+const NIGHT_VIEW_KEY = "trivia-night:night-view";
+
 /** One step of a trial, from its trajectory. */
 function Step({ event }: { event: FeedEvent }) {
   const kind = (
@@ -318,6 +367,23 @@ export function PlatformEvals() {
   const [view, setView] = useState<RunView>();
   const [error, setError] = useState<string>();
   const [open, setOpen] = useState<string>();
+  const [nightView, setNightView] = useState<NightView>("questions");
+  useEffect(() => {
+    try {
+      if (window.localStorage.getItem(NIGHT_VIEW_KEY) === "steps")
+        setNightView("steps");
+    } catch {
+      // Storage blocked: the default view stays.
+    }
+  }, []);
+  const chooseView = (view: NightView) => {
+    setNightView(view);
+    try {
+      window.localStorage.setItem(NIGHT_VIEW_KEY, view);
+    } catch {
+      // Storage blocked: the choice lasts for this page only.
+    }
+  };
   const [steps, setSteps] = useState<FeedEvent[]>([]);
   const cursor = useRef(0);
 
@@ -727,41 +793,68 @@ export function PlatformEvals() {
                 <section key={night} className="card-night">
                   <h4>{NIGHT_TITLES[night]}</h4>
                   {!finished ? (
-                    <span className="fine">Steps show when it finishes.</span>
+                    <span className="fine">Rounds show when it finishes.</span>
                   ) : (
                     <>
-                      <ol className="step-list">
-                        {stepsOf(venue, night).map((event) => (
-                          <Step key={event.seq} event={event} />
-                        ))}
-                      </ol>
-                      <h5 className="verifiers">
-                        Verifiers{" "}
-                        <span className="fine">
-                          what the eval&apos;s verifier measured for this night
-                        </span>
-                      </h5>
-                      <ul className="check-list">
-                        {Object.entries(finished.checks).map(
-                          ([name, value]) => {
-                            const line = checkLine(
-                              name,
-                              value,
-                              finished.fetches ?? [],
-                            );
-                            return line.pass === undefined ? (
-                              <li key={name}>{line.text}</li>
-                            ) : (
-                              <li
-                                key={name}
-                                className={line.pass ? "pass" : "fine"}
-                              >
-                                {line.text} {line.pass ? "✓" : "✗"}
-                              </li>
-                            );
-                          },
-                        )}
-                      </ul>
+                      <div
+                        className="view-toggle"
+                        role="group"
+                        aria-label="View"
+                      >
+                        <button
+                          type="button"
+                          aria-pressed={nightView === "questions"}
+                          onClick={() => chooseView("questions")}
+                        >
+                          Questions
+                        </button>
+                        <button
+                          type="button"
+                          aria-pressed={nightView === "steps"}
+                          onClick={() => chooseView("steps")}
+                        >
+                          Under the hood
+                        </button>
+                      </div>
+                      {nightView === "questions" ? (
+                        <Rounds rounds={finished.rounds ?? []} />
+                      ) : (
+                        <>
+                          <ol className="step-list">
+                            {stepsOf(venue, night).map((event) => (
+                              <Step key={event.seq} event={event} />
+                            ))}
+                          </ol>
+                          <h5 className="verifiers">
+                            Verifiers{" "}
+                            <span className="fine">
+                              what the eval&apos;s verifier measured for this
+                              night
+                            </span>
+                          </h5>
+                          <ul className="check-list">
+                            {Object.entries(finished.checks).map(
+                              ([name, value]) => {
+                                const line = checkLine(
+                                  name,
+                                  value,
+                                  finished.fetches ?? [],
+                                );
+                                return line.pass === undefined ? (
+                                  <li key={name}>{line.text}</li>
+                                ) : (
+                                  <li
+                                    key={name}
+                                    className={line.pass ? "pass" : "fine"}
+                                  >
+                                    {line.text} {line.pass ? "✓" : "✗"}
+                                  </li>
+                                );
+                              },
+                            )}
+                          </ul>
+                        </>
+                      )}
                       <span className="fine">
                         reward {finished.reward ?? "none"} · {finished.seconds}s
                         {finished.trajectory_source &&
@@ -784,9 +877,6 @@ export function PlatformEvals() {
     <section className="platform">
       <div className="host-head">
         <div>
-          <h2>
-            On the platform <span className="tag">real evals</span>
-          </h2>
           <p>
             Each venue plays night 1, then night 2 four ways: with its own
             notes, with none, with another pub&apos;s, and with the true notes.
@@ -827,7 +917,7 @@ export function PlatformEvals() {
           />
         </label>
         <label>
-          Teams
+          Teams per pub
           <select
             value={teams ?? config?.default_teams ?? 5}
             disabled={running}
@@ -841,8 +931,8 @@ export function PlatformEvals() {
           </select>
         </label>
         <span className="fine hint">
-          3 is a quick look; {maxVenues} gives a statistically meaningful
-          result.
+          3 pubs is a quick look; {maxVenues} pubs gives a statistically
+          meaningful result.
         </span>
         <button
           disabled={!config?.configured || !config?.target || running}

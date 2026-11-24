@@ -99,6 +99,8 @@ export type EvalFinished = Step & {
   measures?: Measures;
   /** Each round it fetched, from the verifier. */
   fetches?: Fetch[];
+  /** Each round as played: its questions, their answers and each team's mark. */
+  rounds?: PlayedRound[];
   trajectory_source: string | null;
   seconds: number;
   exit_code: number | null;
@@ -355,6 +357,62 @@ export function findRunFolder(output: string, root: string): string | null {
   return folders[0] ?? null;
 }
 
+export interface TeamMark {
+  team: string;
+  correct: boolean;
+}
+
+export interface PlayedQuestion {
+  text: string | null;
+  options?: string[];
+  answer: string | null;
+  marks: TeamMark[];
+}
+
+export interface PlayedRound {
+  round: number;
+  genre: string;
+  difficulty: number;
+  /** Share of the crowd's answers marked right; null when nothing was marked. */
+  correct_rate: number | null;
+  questions: PlayedQuestion[];
+}
+
+const isRecord = (v: unknown): v is Record<string, unknown> =>
+  !!v && typeof v === "object" && !Array.isArray(v);
+const textOrNull = (v: unknown) => (typeof v === "string" ? v : null);
+
+/** The verifier's `rounds`, keeping only well-formed rounds and questions. */
+export function parseRounds(value: unknown): PlayedRound[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter(isRecord).map((r, i) => ({
+    round: typeof r.round === "number" ? r.round : i + 1,
+    genre: typeof r.genre === "string" ? r.genre : "",
+    difficulty: typeof r.difficulty === "number" ? r.difficulty : 0,
+    correct_rate: typeof r.correct_rate === "number" ? r.correct_rate : null,
+    questions: (Array.isArray(r.questions) ? r.questions : [])
+      .filter(isRecord)
+      .map((q) => ({
+        text: textOrNull(q.text),
+        ...(Array.isArray(q.options)
+          ? {
+              options: q.options.filter(
+                (o): o is string => typeof o === "string",
+              ),
+            }
+          : {}),
+        answer: textOrNull(q.answer),
+        marks: (Array.isArray(q.marks) ? q.marks : [])
+          .filter(isRecord)
+          .filter((m) => typeof m.team === "string")
+          .map((m) => ({
+            team: m.team as string,
+            correct: m.correct === true,
+          })),
+      })),
+  }));
+}
+
 export interface TrialResult {
   reward: number | null;
   checks: Record<string, number>;
@@ -362,6 +420,7 @@ export interface TrialResult {
   notes: string | null;
   /** Night 2's `next_questions` calls, as its verifier printed them. */
   fetches: Fetch[];
+  rounds: PlayedRound[];
   trajectory_source: string | null;
   error: string | null;
 }
@@ -461,6 +520,7 @@ export function readRunFolder(runFolder: string): TrialResult {
     fetches: Array.isArray(verifier?.fetches)
       ? (verifier.fetches as Fetch[])
       : [],
+    rounds: parseRounds(verifier?.rounds),
     trajectory_source: typeof source === "string" ? source : null,
     error: error ? error.trim() : null,
   };

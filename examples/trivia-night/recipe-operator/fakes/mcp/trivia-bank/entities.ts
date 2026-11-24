@@ -28,6 +28,10 @@ export type Asked = {
   genre?: Genre;
   region?: Region;
   difficulty?: number;
+  // What was read out, so a verifier can show each question with its answer.
+  text?: string;
+  options?: string[];
+  answer?: string;
 };
 
 // One team's marked answer to one question.

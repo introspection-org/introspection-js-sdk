@@ -559,3 +559,98 @@ table.steps td.fine {
   text-align: right;
   font-variant-numeric: tabular-nums;
 }
+
+/* The section's intro runs the section's width; other intros keep the reading cap. */
+.host-head p {
+  max-width: none;
+}
+
+.view-toggle {
+  display: inline-flex;
+  gap: 0;
+  margin: 2px 0 8px;
+}
+
+.view-toggle button {
+  font-size: 12px;
+  padding: 2px 10px;
+  border-radius: 0;
+}
+
+.view-toggle button:first-child {
+  border-radius: 6px 0 0 6px;
+}
+
+.view-toggle button:last-child {
+  border-radius: 0 6px 6px 0;
+  border-left: none;
+}
+
+.view-toggle button[aria-pressed="true"] {
+  background: var(--ink);
+  color: var(--panel);
+  border-color: var(--ink);
+}
+
+.round-list,
+.question-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.round-list {
+  gap: 12px;
+  width: 100%;
+}
+
+.question-list {
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.round-head {
+  margin: 0;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.round-head strong {
+  color: var(--ink);
+}
+
+.question-list li {
+  overflow-wrap: anywhere;
+}
+
+.question-list .answer {
+  color: var(--host);
+  font-weight: 600;
+}
+
+.team-marks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 4px;
+}
+
+.team-mark {
+  font-size: 11px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 0 6px;
+  white-space: nowrap;
+}
+
+.team-mark.right {
+  color: var(--host);
+  border-color: color-mix(in srgb, var(--host) 40%, var(--line));
+}
+
+.team-mark.wrong {
+  color: var(--bad);
+  border-color: color-mix(in srgb, var(--bad) 40%, var(--line));
+}
