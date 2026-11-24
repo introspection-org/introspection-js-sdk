@@ -120,35 +120,32 @@ function ArmsDiagram() {
       </defs>
       <rect
         x="1"
-        y="30"
+        y="22"
         width="176"
         height="60"
         rx="6"
         fill="var(--panel)"
         stroke="var(--line)"
       />
-      <rect x="1" y="30" width="5" height="60" rx="2" fill="var(--ink)" />
-      <text x="18" y="55" className="arm-name">
+      <rect x="1" y="22" width="5" height="60" rx="2" fill="var(--ink)" />
+      <text x="18" y="47" className="arm-name">
         Night 1
       </text>
-      <text x="18" y="74" className="arm-role">
+      <text x="18" y="66" className="arm-role">
         plays, writes notes
       </text>
       <path
-        d="M180,60 L222,60"
+        d="M180,52 L222,52"
         stroke="var(--muted)"
         strokeWidth="1.5"
         markerEnd="url(#arms-arrow)"
       />
-      <text x={boxX(0)} y="16" className="arm-role">
-        night 2, four ways
-      </text>
       {HOW_ARMS.map((arm, i) => (
         <g key={arm.name}>
           <rect
             x={boxX(i)}
-            y="30"
-            width="180"
+            y="22"
+            width="186"
             height="60"
             rx="6"
             fill="var(--panel)"
@@ -156,16 +153,16 @@ function ArmsDiagram() {
           />
           <rect
             x={boxX(i)}
-            y="30"
+            y="22"
             width="5"
             height="60"
             rx="2"
             fill={`var(${arm.color})`}
           />
-          <text x={boxX(i) + 17} y="55" className="arm-name">
+          <text x={boxX(i) + 17} y="47" className="arm-name">
             {arm.name}
           </text>
-          <text x={boxX(i) + 17} y="74" className="arm-role">
+          <text x={boxX(i) + 17} y="66" className="arm-role">
             {arm.role}
           </text>
         </g>
