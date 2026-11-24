@@ -5,7 +5,6 @@ import {
   activeRun,
   apiBaseUrl,
   keyFile,
-  notLocal,
   resolveTarget,
   startRun,
 } from "@/lib/platform-runner";
@@ -14,9 +13,7 @@ export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 /** What the panel shows: whether a key is set, and the target. Never the key. */
-export async function GET(request: Request) {
-  const refused = notLocal(request);
-  if (refused) return NextResponse.json({ error: refused }, { status: 403 });
+export async function GET() {
   const key = keyFile();
   let target = null;
   let target_error = null;
@@ -39,8 +36,6 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const refused = notLocal(request);
-  if (refused) return NextResponse.json({ error: refused }, { status: 403 });
   const key = keyFile();
   if ("missing" in key)
     return NextResponse.json(

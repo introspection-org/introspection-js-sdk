@@ -9,7 +9,6 @@
     "build": "next build",
     "start": "next start --port 3500",
     "test": "node --import tsx scripts/test.ts",
-    "simulate": "node --import tsx scripts/simulate.ts",
     "lint": "eslint .",
     "check-types": "tsc --noEmit",
     "clean": "rm -rf .next .turbo node_modules",

@@ -9,7 +9,6 @@ type FlowEventType =
   | "memory.read"
   | "memory.written"
   | "host.planned"
-  | "round.finished"
   | "eval.started"
   | "eval.finished"
   | "eval.run_finished";
@@ -54,8 +53,4 @@ export const record: Recorder = (owner, type, summary, data = {}) => {
 
 export function since(seq: number): FlowEvent[] {
   return log.events.filter((event) => event.seq > seq);
-}
-
-export function clearEvents(): void {
-  log.events.length = 0;
 }

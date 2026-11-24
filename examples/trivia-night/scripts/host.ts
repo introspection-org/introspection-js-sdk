@@ -25,10 +25,9 @@ import {
 } from "node:fs";
 import { join, relative, resolve } from "node:path";
 
-import { TARGET } from "../lib/host";
 import type { RoomState } from "../lib/rooms";
 import { QUESTIONS } from "../lib/questions";
-import { seeded, VENUES, type Venue } from "../lib/venues";
+import { seeded, TARGET, VENUES, type Venue } from "../lib/venues";
 import {
   answerSheet,
   ASKS_ABOUT_VENUE,

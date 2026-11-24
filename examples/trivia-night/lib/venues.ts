@@ -5,6 +5,9 @@
  */
 import { QUESTIONS, type Genre, type Question, type Region } from "./questions";
 
+/** A round is pitched right when about this share of answers is correct. */
+export const TARGET = { low: 0.55, aim: 0.65, high: 0.75 };
+
 export interface Venue {
   id: string;
   name: string;

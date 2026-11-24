@@ -1,4 +1,4 @@
-/** Checks of the bank, its MCP server and the scoring: `pnpm test`. */
+/** Checks of the bank, its MCP server, the scoring and the platform evals: `pnpm test`. */
 import assert from "node:assert/strict";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -20,7 +20,6 @@ async function main() {
   const { registerTeams, resetScores, scoreboard, submitRound } =
     await import("../lib/scorer");
   const { QUESTIONS } = await import("../lib/questions");
-  const { simulate } = await import("./simulate");
 
   let passed = 0;
   async function check(name: string, run: () => void | Promise<void>) {
@@ -301,52 +300,8 @@ async function main() {
     assert.equal(summary("a", 1).overall.blanks, 0);
   });
 
-  await check("the simulation repeats exactly for a seed", () => {
-    const strip = (nights: ReturnType<typeof simulate>) =>
-      nights.map(({ venue, host, week, rate }) => ({
-        venue,
-        host,
-        week,
-        rate,
-      }));
-    assert.deepEqual(strip(simulate(3, 5)), strip(simulate(3, 5)));
-  });
-
-  await check("no host ever repeats a question", () => {
-    for (const seed of [1, 2, 3])
-      assert.equal(
-        simulate(4, seed).reduce((total, night) => total + night.repeats, 0),
-        0,
-      );
-  });
-
-  await check(
-    "the reference host beats the forgetful one the night after it learns",
-    () => {
-      // Week 2 only: later weeks exhaust this small bank in a venue's liked
-      // genres, and a host can no longer choose the difficulty.
-      const totals = {
-        forgetful: { miss: 0, unfair: 0 },
-        attentive: { miss: 0, unfair: 0 },
-      };
-      const seeds = 20;
-      for (let seed = 1; seed <= seeds; seed += 1)
-        for (const night of simulate(2, seed)) {
-          totals[night.host].unfair += night.unfair_questions;
-          if (night.week === 2) totals[night.host].miss += night.pitch_miss;
-        }
-      assert.ok(
-        totals.attentive.miss < totals.forgetful.miss * 0.8,
-        `pitch miss ${totals.attentive.miss} vs ${totals.forgetful.miss}`,
-      );
-      assert.equal(totals.attentive.unfair, 0);
-      assert.ok(totals.forgetful.unfair > 0);
-    },
-  );
-
   const evals = await import("../lib/platform-evals");
-  const { POST: startEvals, GET: evalsConfig } =
-    await import("../app/api/evals/route");
+  const { POST: startEvals } = await import("../app/api/evals/route");
   const writeRunFolder = (
     folder: string,
     files: Record<string, string | object>,
@@ -558,15 +513,324 @@ async function main() {
     assert.equal(response.status, 403);
     assert.match((await response.json()).error, /does not exist/);
     delete process.env.TRIVIA_EVAL_KEY_FILE;
-    response = await startEvals(
-      local({ headers: { "cf-connecting-ip": "203.0.113.7" } }),
-    );
-    assert.equal(response.status, 403);
-    response = await evalsConfig(
-      new Request("https://abc.trycloudflare.com/api/evals"),
-    );
-    assert.equal(response.status, 403);
   });
+
+  const trial = await import("../lib/trial-stream");
+  const TASK = "01a20baa-4fd6-75ff-972d-958abcaadb64";
+  const notes = "# Venue notes\n\n- Country: UK\n- Difficulty: 3\n";
+  const kinds = (events: { type: string }[]) => events.map((e) => e.type);
+
+  await check(
+    "trial stream: the task id is read from eval run's output",
+    () => {
+      assert.equal(
+        trial.parseTaskId(
+          `Running night1-memory\ntask ${TASK} is queued on the org's \`eval\` lane\n`,
+        ),
+        TASK,
+      );
+      assert.equal(trial.parseTaskId("Running night1-memory\n"), null);
+    },
+  );
+
+  await check("trial stream: AG-UI lines become the page's events", () => {
+    let seq = 0;
+    const line = (event: Record<string, unknown>) =>
+      JSON.stringify({
+        task_id: TASK,
+        run_id: "run-1",
+        event_id: String((seq += 1)),
+        event,
+      });
+    const call = (id: string, name: string, args: object) => [
+      line({ type: "TOOL_CALL_START", toolCallId: id, toolCallName: name }),
+      line({
+        type: "TOOL_CALL_ARGS",
+        toolCallId: id,
+        delta: JSON.stringify(args).slice(0, 5),
+      }),
+      line({
+        type: "TOOL_CALL_ARGS",
+        toolCallId: id,
+        delta: JSON.stringify(args).slice(5),
+      }),
+      line({ type: "TOOL_CALL_END", toolCallId: id }),
+    ];
+    const result = (id: string, text: string) =>
+      line({
+        type: "TOOL_CALL_RESULT",
+        messageId: `run-1:result:${id}`,
+        toolCallId: id,
+        role: "tool",
+        content: JSON.stringify({ content: [{ type: "text", text }] }),
+      });
+    const lines = [
+      line({ type: "RUN_STARTED", threadId: TASK, runId: "run-1" }),
+      ...call("toolu_recipe_memory_read", "read", {
+        path: "/workspace/memories/MEMORY.md",
+      }),
+      result("toolu_recipe_memory_read", notes),
+      ...call("t1", "mcp_trivia-bank_start_night_33be65a290", {}),
+      result("t1", '{"week":2}'),
+      ...call("t2", "mcp_trivia-bank_next_questions_520f9420fe", {
+        count: 8,
+        difficulty: 3,
+        genre: "history",
+        region: "uk",
+      }),
+      ...call("t3", "mcp_trivia-bank_submit_round_0a1b2c3d4e", {
+        answers: [{}, {}],
+      }),
+      ...call("t4", "bash", { command: "ls" }),
+      ...call("t5", "write", {
+        path: "/workspace/memories/MEMORY.md",
+        content: notes,
+      }),
+      line({ type: "TEXT_MESSAGE_START", messageId: "m1", role: "assistant" }),
+      line({
+        type: "TEXT_MESSAGE_CONTENT",
+        messageId: "m1",
+        delta: "Evening! ",
+      }),
+      line({
+        type: "TEXT_MESSAGE_CONTENT",
+        messageId: "m1",
+        delta: "Tonight is history at 3.",
+      }),
+      line({ type: "TEXT_MESSAGE_END", messageId: "m1" }),
+      line({ type: "CUSTOM", name: "something.else", value: {} }),
+      "not json",
+      line({ type: "RUN_FINISHED", threadId: TASK, runId: "run-1" }),
+    ];
+    const mapper = new trial.StreamMapper();
+    const events = lines.flatMap((text) => mapper.push(text));
+    assert.deepEqual(kinds(events), [
+      "memory.read",
+      "bank.served",
+      "bank.served",
+      "bank.marked",
+      "memory.written",
+      "host.planned",
+    ]);
+    assert.equal(events[0].data.file, notes);
+    assert.deepEqual(events[2].data, {
+      tool: "next_questions",
+      arguments: { count: 8, difficulty: 3, genre: "history", region: "uk" },
+    });
+    assert.match(
+      events[2].summary,
+      /genre history, difficulty 3, region uk, 8 questions/,
+    );
+    assert.equal(events[4].data.file, notes);
+    assert.equal(events[5].data.file, "Evening! Tonight is history at 3.");
+    assert.ok(mapper.ended);
+    assert.equal(mapper.runId, "run-1");
+    assert.equal(mapper.cursor, seq);
+
+    // A reattach behind the replay buffer gets one snapshot of the run.
+    const again = new trial.StreamMapper();
+    const snapshot = again.push(
+      JSON.stringify({
+        task_id: TASK,
+        run_id: "run-1",
+        event_id: "40",
+        event: {
+          type: "MESSAGES_SNAPSHOT",
+          messages: [
+            {
+              id: "a1",
+              role: "assistant",
+              toolCalls: [
+                {
+                  id: "t2",
+                  type: "function",
+                  function: {
+                    name: "mcp_trivia-bank_next_questions_520f9420fe",
+                    arguments: '{"count":2}',
+                  },
+                },
+                {
+                  id: "t6",
+                  type: "function",
+                  function: {
+                    name: "read",
+                    arguments: '{"path":"memories/MEMORY.md"}',
+                  },
+                },
+              ],
+            },
+            { id: "r1", role: "tool", toolCallId: "t6", content: notes },
+          ],
+        },
+      }),
+    );
+    assert.deepEqual(kinds(snapshot), ["bank.served", "memory.read"]);
+    assert.equal(snapshot[1].data.file, notes);
+    assert.equal(again.cursor, 40);
+  });
+
+  await check(
+    "trial stream: a trajectory fills what the stream missed, once",
+    () => {
+      const base = mkdtempSync(path.join(tmpdir(), "trivia-trajectory-"));
+      const steps = [
+        { step_id: 1, source: "system", message: "You are the trivia host." },
+        { step_id: 2, source: "user", message: "Evening!" },
+        {
+          step_id: 3,
+          source: "agent",
+          message: "",
+          tool_calls: [
+            {
+              tool_call_id: "toolu_recipe_memory_read",
+              function_name: "read",
+              arguments: { path: "/workspace/memories/MEMORY.md" },
+            },
+            {
+              tool_call_id: "t1",
+              function_name: "mcp_trivia-bank_next_questions_520f9420fe",
+              arguments: { count: 8, genre: "history" },
+            },
+          ],
+          observation: {
+            results: [
+              { source_call_id: "toolu_recipe_memory_read", content: notes },
+              { source_call_id: "t1", content: '{"questions":[]}' },
+            ],
+          },
+        },
+        {
+          step_id: 4,
+          source: "agent",
+          message: "Now the notes.",
+          tool_calls: [
+            {
+              tool_call_id: "t2",
+              function_name: "edit",
+              arguments: {
+                path: "/workspace/memories/MEMORY.md",
+                oldText: "Difficulty: 3",
+                newText: "Difficulty: 4",
+              },
+            },
+          ],
+          observation: { results: [{ source_call_id: "t2", content: "ok" }] },
+        },
+        {
+          step_id: 5,
+          source: "agent",
+          message: "Tonight: history at 3. " + "x".repeat(400),
+        },
+      ];
+      writeRunFolder(base, {
+        "run.json": {},
+        "harbor/night2-hosted__getFCyA/result.json": {},
+        "harbor/night2-hosted__getFCyA/agent/trajectory.json": {
+          schema_version: "ATIF-v1.7",
+          steps,
+        },
+      });
+      const file = trial.trajectoryFile(base);
+      assert.equal(
+        file,
+        path.join(base, "harbor/night2-hosted__getFCyA/agent/trajectory.json"),
+      );
+      const events = trial.trajectoryEvents(file!);
+      assert.deepEqual(kinds(events), [
+        "memory.read",
+        "bank.served",
+        "memory.written",
+        "host.planned",
+      ]);
+      assert.equal(events[0].data.file, notes);
+      assert.equal((events[3].data.file as string).length, 300);
+
+      // The keys match the stream's, so the runner shows each event once.
+      const streamed = new trial.StreamMapper().push(
+        JSON.stringify({
+          event_id: "1",
+          event: {
+            type: "TOOL_CALL_START",
+            toolCallId: "t1",
+            toolCallName: "mcp_trivia-bank_next_questions_520f9420fe",
+          },
+        }),
+      );
+      assert.equal(streamed.length, 0);
+      const ended = new trial.StreamMapper();
+      for (const event of [
+        {
+          type: "TOOL_CALL_START",
+          toolCallId: "t1",
+          toolCallName: "mcp_trivia-bank_next_questions_520f9420fe",
+        },
+        { type: "TOOL_CALL_ARGS", toolCallId: "t1", delta: '{"count":8}' },
+        { type: "TOOL_CALL_END", toolCallId: "t1" },
+      ])
+        streamed.push(...ended.push(JSON.stringify({ event })));
+      const keys = new Set(streamed.map((event) => event.key));
+      assert.deepEqual(
+        events
+          .filter((event) => !keys.has(event.key))
+          .map((event) => event.type),
+        ["memory.read", "memory.written", "host.planned"],
+      );
+      rmSync(base, { recursive: true });
+    },
+  );
+
+  await check(
+    "trial stream: the key goes only in the stream's environment",
+    () => {
+      const key = "intro_sk_secret_value";
+      const credentials = {
+        token: key,
+        apiBaseUrl: "https://api.example.test",
+      };
+      const first = trial.streamSpec(
+        TASK,
+        "/work/recipe-operator",
+        credentials,
+        {
+          runId: null,
+          since: 0,
+        },
+      );
+      assert.deepEqual(first.args, [
+        "tasks",
+        "stream",
+        TASK,
+        "--non-interactive",
+      ]);
+      const resumed = trial.streamSpec(
+        TASK,
+        "/work/recipe-operator",
+        credentials,
+        { runId: "run-1", since: 17 },
+        { PATH: "/bin" },
+      );
+      assert.deepEqual(resumed.args, [
+        "tasks",
+        "stream",
+        TASK,
+        "--non-interactive",
+        "--run",
+        "run-1",
+        "--since",
+        "17",
+      ]);
+      for (const spec of [first, resumed]) {
+        assert.equal(spec.command, "introspection");
+        assert.equal(spec.options.shell, false);
+        assert.ok(spec.args.every((arg) => !arg.includes(key)));
+        assert.equal(spec.options.env.INTROSPECTION_TOKEN, key);
+        assert.equal(
+          spec.options.env.INTROSPECTION_API_BASE_URL,
+          "https://api.example.test",
+        );
+      }
+    },
+  );
 
   console.log(`\n${passed} checks passed`);
 }

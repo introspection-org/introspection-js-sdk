@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# `pnpm dev`: the Trivia Night page and its question bank on :3500, the bank on
-# a public https URL, and your Introspection project set up to call it.
+# `pnpm dev`: the Trivia Night page on :3500, the question bank on its own
+# loopback port with only its MCP server on a public https URL, and your
+# Introspection project set up to call it. The page and /api/* are never public.
 #
 # Which Introspection it connects to is whichever stack `introspection login`
 # chose: staging, production, or your own. Not logged in, the app runs alone.
@@ -23,6 +24,7 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 PORT=3500
+BANK_PORT=3501
 ENV_FILE=.env.local
 WORK=.introspection-work
 RUNTIME=trivia-host
@@ -101,7 +103,7 @@ PIDS=()
 trap 'kill "${PIDS[@]}" 2>/dev/null || true' EXIT
 
 TUNNEL_LOG="$(mktemp "${TMPDIR:-/tmp}/trivia-tunnel.XXXXXX")"
-cloudflared tunnel --no-autoupdate --url "http://localhost:$PORT" >"$TUNNEL_LOG" 2>&1 &
+cloudflared tunnel --no-autoupdate --url "http://127.0.0.1:$BANK_PORT" >"$TUNNEL_LOG" 2>&1 &
 PIDS+=($!)
 TUNNEL=""
 for _ in $(seq 60); do
@@ -110,7 +112,7 @@ for _ in $(seq 60); do
   sleep 1
 done
 [ -n "$TUNNEL" ] || fail "the tunnel did not start; its log: $TUNNEL_LOG"
-BANK_URL="$TUNNEL/bank/mcp"
+BANK_URL="$TUNNEL/mcp"
 say "bank: $BANK_URL"
 
 # ---------------------------------------------------------------------------
@@ -204,8 +206,12 @@ elif ! connect; then
   say "not connected to Introspection: the bank refuses every call until you run \`introspection login\` and restart pnpm dev"
 fi
 
-# The app starts last: it reads TRIVIA_ISSUER and TRIVIA_AUDIENCE when it loads.
-node_modules/.bin/next dev --port "$PORT" &
+# The bank starts after the setup: it reads TRIVIA_ISSUER and TRIVIA_AUDIENCE
+# when it loads. It serves only /mcp, and only on loopback, for the tunnel.
+PORT="$BANK_PORT" HOST=127.0.0.1 TRIVIA_BANK_MCP_ONLY=1 \
+  node --env-file-if-exists="$ENV_FILE" --import tsx scripts/bank-server.ts &
+PIDS+=($!)
+node_modules/.bin/next dev --hostname 127.0.0.1 --port "$PORT" &
 PIDS+=($!)
 APP=$!
 say "page: http://localhost:$PORT, bank: $BANK_URL"

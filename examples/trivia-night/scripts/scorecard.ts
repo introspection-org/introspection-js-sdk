@@ -3,8 +3,7 @@
  * whether it beats the control by more than the run-to-run spread. Metrics are
  * kept apart, never summed into one score.
  */
-import { TARGET } from "../lib/host";
-import { VENUES } from "../lib/venues";
+import { TARGET, VENUES } from "../lib/venues";
 import type { NightRecord } from "./rooms";
 
 const mean = (values: number[]) =>

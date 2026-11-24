@@ -23,10 +23,23 @@ import {
   type Step,
   type Target,
 } from "./platform-evals";
+import {
+  parseTaskId,
+  StreamMapper,
+  streamSpec,
+  tagged,
+  trajectoryEvents,
+  trajectoryFile,
+  type TrialEvent,
+} from "./trial-stream";
 
 const DEFAULT_API_BASE_URL = "https://api.introspection.dev";
 const run = promisify(execFile);
 const RUNTIME_SLUG = "trivia-host";
+/** How soon a stream that ended before its run did is reattached. */
+const REATTACH_MS = 3000;
+/** How long a stream may run on once its trial has finished. */
+const STREAM_GRACE_MS = 15_000;
 
 export const KEY_HOW_TO = [
   "introspection api-keys create --environment staging --capabilities runtimes,evals \\",
@@ -52,29 +65,6 @@ export function keyFile(
   const file = path.resolve(process.cwd(), named);
   if (!existsSync(file)) return { missing: `${named} does not exist` };
   return { file };
-}
-
-/**
- * The page is also served on a public tunnel. Only a browser on this machine
- * may spend the key, so a proxied or cross-origin request is refused.
- */
-export function notLocal(request: Request): string | null {
-  const headers = request.headers;
-  if (headers.has("cf-connecting-ip") || headers.has("cf-ray"))
-    return "only a browser on this machine can run the evals";
-  const host = (headers.get("host") ?? new URL(request.url).host).replace(
-    /:\d+$/,
-    "",
-  );
-  if (!["localhost", "127.0.0.1", "[::1]"].includes(host))
-    return "only a browser on this machine can run the evals";
-  const origin = headers.get("origin");
-  if (
-    origin &&
-    !/^http:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/.test(origin)
-  )
-    return "cross-origin requests are refused";
-  return null;
 }
 
 interface RuntimeRecord {
@@ -121,27 +111,123 @@ export function activeRun(): string | null {
   return platform.active;
 }
 
+type Credentials = { token: string; apiBaseUrl: string };
+
+/** One trial's agent work on the events feed, each event once. */
+function trialFeed(step: Step) {
+  const shown = new Set<string>();
+  return (taskId: string, events: TrialEvent[]) => {
+    for (const event of events) {
+      if (shown.has(event.key)) continue;
+      shown.add(event.key);
+      record(
+        `platform:${step.run}:${step.venue}`,
+        event.type,
+        event.summary,
+        tagged(step, taskId, event),
+      );
+    }
+  };
+}
+
+/**
+ * Follows a trial's task with `introspection tasks stream`, reattaching from
+ * the cursor when a stream ends before its run does (a task still queued has
+ * no run to attach to yet). Resolves once the run ended on the stream, or the
+ * attach running when `settle` is called ends, or `stop` kills it.
+ */
+function follow(
+  taskId: string,
+  credentials: Credentials,
+  emit: (events: TrialEvent[]) => void,
+): { done: Promise<void>; settle: () => void; stop: () => void } {
+  const mapper = new StreamMapper();
+  let settled = false;
+  let child: ReturnType<typeof spawn> | null = null;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  let wake: () => void = () => {};
+  const attach = () =>
+    new Promise<void>((resolve) => {
+      const spec = streamSpec(taskId, recipeDir(), credentials, {
+        runId: mapper.runId,
+        since: mapper.cursor,
+      });
+      child = spawn(spec.command, spec.args, {
+        ...spec.options,
+        env: spec.options.env as NodeJS.ProcessEnv,
+      });
+      let pending = "";
+      child.stdout?.on("data", (chunk: Buffer) => {
+        pending += chunk.toString();
+        const lines = pending.split("\n");
+        pending = lines.pop() ?? "";
+        for (const line of lines) emit(mapper.push(line));
+      });
+      // Its errors name the task and the cursor only; the trajectory fills any gap.
+      child.stderr?.resume();
+      child.on("error", () => resolve());
+      child.on("close", () => {
+        emit(mapper.push(pending));
+        resolve();
+      });
+    });
+  const done = (async () => {
+    while (!settled) {
+      await attach();
+      if (settled || mapper.ended) return;
+      await new Promise<void>((resolve) => {
+        wake = resolve;
+        timer = setTimeout(resolve, REATTACH_MS);
+      });
+    }
+  })();
+  const settle = () => {
+    settled = true;
+    clearTimeout(timer);
+    wake();
+  };
+  return {
+    done,
+    settle,
+    stop: () => {
+      settle();
+      child?.kill();
+    },
+  };
+}
+
 function runStep(
   step: Step,
   target: Target,
-  credentials: { token: string; apiBaseUrl: string },
+  credentials: Credentials,
 ): Promise<void> {
   const started: EvalStarted = { ...step };
   record(
-    `platform:${step.run}`,
+    `platform:${step.run}:${step.venue}`,
     "eval.started",
     `${step.venue} ${step.night} as ${step.identity}`,
     started,
   );
   const spec = spawnSpec(step, target, recipeDir(), credentials);
+  const emit = trialFeed(step);
   const began = Date.now();
+  let taskId: string | null = null;
+  let stream: ReturnType<typeof follow> | null = null;
   return new Promise((resolve) => {
     let output = "";
     let done = false;
-    const finish = (exitCode: number | null, failure?: string) => {
+    const finish = async (exitCode: number | null, failure?: string) => {
       // A spawn failure can be followed by `close` as well.
       if (done) return;
       done = true;
+      if (stream) {
+        const current = stream;
+        current.settle();
+        const grace = setTimeout(current.stop, STREAM_GRACE_MS);
+        await current.done;
+        clearTimeout(grace);
+        current.stop();
+      }
       const seconds = Math.round((Date.now() - began) / 1000);
       const folder = findRunFolder(output, runsRoot(recipeDir(), step));
       let trial: ReturnType<typeof readRunFolder> | null = null;
@@ -151,6 +237,15 @@ function runStep(
           trial = readRunFolder(folder);
         } catch (error) {
           readError = `could not read ${folder}: ${(error as Error).message}`;
+        }
+        // Whatever the stream missed, from the finished trial's record.
+        const trajectory = trajectoryFile(folder);
+        if (trajectory) {
+          try {
+            emit(taskId ?? "", trajectoryEvents(trajectory));
+          } catch (error) {
+            readError ??= `could not read ${trajectory}: ${(error as Error).message}`;
+          }
         }
       }
       const error =
@@ -169,7 +264,7 @@ function runStep(
         error: error ? errorText(error, credentials.token) : null,
       };
       record(
-        `platform:${step.run}`,
+        `platform:${step.run}:${step.venue}`,
         "eval.finished",
         `${step.venue} ${step.night}: reward ${finished.reward ?? "none"} in ${seconds}s`,
         finished,
@@ -180,10 +275,19 @@ function runStep(
       ...spec.options,
       env: spec.options.env as NodeJS.ProcessEnv,
     });
-    child.stdout.on("data", (chunk: Buffer) => (output += chunk.toString()));
-    child.stderr.on("data", (chunk: Buffer) => (output += chunk.toString()));
-    child.on("error", (error) => finish(null, error.message));
-    child.on("close", (code) => finish(code));
+    const read = (chunk: Buffer) => {
+      output += chunk.toString();
+      if (taskId) return;
+      taskId = parseTaskId(output);
+      if (taskId) {
+        const id = taskId;
+        stream = follow(id, credentials, (events) => emit(id, events));
+      }
+    };
+    child.stdout.on("data", read);
+    child.stderr.on("data", read);
+    child.on("error", (error) => void finish(null, error.message));
+    child.on("close", (code) => void finish(code));
   });
 }
 

@@ -8,8 +8,7 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 
-import { TARGET } from "../lib/host";
-import { VENUES } from "../lib/venues";
+import { TARGET, VENUES } from "../lib/venues";
 import type { NightRecord } from "./rooms";
 
 const [run, ...arms] = process.argv.slice(2);

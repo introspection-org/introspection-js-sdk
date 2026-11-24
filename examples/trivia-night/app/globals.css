@@ -65,7 +65,6 @@ h3 {
 }
 
 header p,
-.about,
 .host-head p,
 .fine {
   color: var(--muted);
@@ -87,17 +86,12 @@ button {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-  margin: 20px 0 8px;
+  margin: 12px 0 0;
 }
 
 .venues .current {
   border-color: var(--accent);
   color: var(--accent);
-}
-
-.venues .quiet {
-  margin-left: auto;
-  color: var(--muted);
 }
 
 .tag {
@@ -117,12 +111,6 @@ button {
   align-items: start;
 }
 
-.hosts {
-  display: grid;
-  gap: 16px;
-}
-
-.host,
 .scenes {
   background: var(--panel);
   border: 1px solid var(--line);
@@ -138,7 +126,7 @@ button {
   gap: 12px;
 }
 
-.host-head button {
+.platform-form button {
   border-color: var(--accent);
   color: var(--accent);
   white-space: nowrap;
@@ -239,8 +227,7 @@ pre {
   color: var(--memory);
 }
 
-.kind-host,
-.kind-round {
+.kind-host {
   color: var(--host);
 }
 
@@ -258,21 +245,12 @@ pre {
     position: static;
   }
 
-  .venues .quiet {
-    margin-left: 0;
-  }
-
   table {
     font-size: 13px;
   }
 }
 
-.mode {
-  margin: 20px 0 0;
-}
-
 .platform {
-  margin-top: 32px;
   padding: 16px;
   background: var(--panel);
   border: 1px solid var(--line);
