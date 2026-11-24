@@ -17,7 +17,8 @@
     "seed:write-case": "node --import tsx scripts/seed-write-case.ts recipe/fakes/mcp/trivia-bank/seeds/write.json",
     "host": "node --import tsx scripts/host.ts",
     "candidate": "node --import tsx scripts/candidate.ts",
-    "meta-input": "node --import tsx scripts/meta-input.ts"
+    "meta-input": "node --import tsx scripts/meta-input.ts",
+    "evals:venues": "node recipe-operator/evals/venues.mjs"
   },
   "dependencies": {
     "jose": "^6.2.12",

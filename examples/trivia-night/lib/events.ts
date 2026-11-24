@@ -29,7 +29,7 @@ export type Recorder = (
   data?: Record<string, unknown>,
 ) => void;
 
-const MAX_EVENTS = 400;
+const MAX_EVENTS = 2000;
 const store = globalThis as unknown as {
   __triviaEvents?: { seq: number; events: FlowEvent[] };
 };

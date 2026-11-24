@@ -1,0 +1,1 @@
+Evening! Same teams as last week: Glasgow Brainiacs and Quiz Pro Quo 7. One round again tonight: plan it, fetch it and read it out. I'll mark it myself. After that we're done, so leave your notes ready for next week.

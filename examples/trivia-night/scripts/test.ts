@@ -1,6 +1,14 @@
 /** Checks of the bank, its MCP server, the scoring and the platform evals: `pnpm test`. */
 import assert from "node:assert/strict";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
@@ -386,32 +394,153 @@ async function main() {
     },
   };
 
-  await check("platform evals: one chain per venue and a control", () => {
-    const chains = evals.plan("r1", 3);
-    assert.equal(chains.length, 4);
+  await check("platform evals: each venue with memory and without", () => {
+    const profiles = [
+      { slug: "melbourne", label: "Melbourne (AU)", region: "au" },
+      { slug: "leeds", label: "Leeds (UK)", region: "uk" },
+    ];
+    const chains = evals.plan("r1", 3, profiles);
+    assert.equal(chains.length, 6);
+    assert.equal(chains.flat().length, 9);
     assert.deepEqual(
-      chains[0].map((step) => [step.night, step.identity]),
+      chains[0].map((step) => [
+        step.night,
+        step.task,
+        step.identity,
+        step.variant,
+      ]),
       [
-        ["night1-memory", "anon:sim-r1-venue-a"],
-        ["night2-hosted", "anon:sim-r1-venue-a"],
+        [
+          "night1-memory",
+          "night1-melbourne",
+          "anon:sim-r1-melbourne",
+          undefined,
+        ],
+        ["night2-hosted", "night2-melbourne", "anon:sim-r1-melbourne", "with"],
       ],
     );
-    assert.deepEqual(chains[3], [
+    assert.deepEqual(chains[1], [
       {
         run: "r1",
-        venue: "control",
-        night: "night2-control",
-        identity: "anon:sim-r1-control",
+        venue: "melbourne",
+        venue_label: "Melbourne (AU)",
+        night: "night2-fresh",
+        task: "night2-melbourne",
+        identity: "anon:sim-r1-melbourne-fresh",
+        variant: "without",
       },
     ]);
-    assert.equal(evals.plan("r1", 50).length, evals.MAX_VENUES + 1);
+    assert.equal(chains[2][0].task, "night1-leeds");
+    // More venues than profiles: the third plays Melbourne again, as its own identity.
+    assert.deepEqual(
+      [chains[4][1].venue, chains[4][1].venue_label, chains[4][1].task],
+      ["melbourne-2", "Melbourne (AU) #2", "night2-melbourne"],
+    );
+    assert.ok(
+      chains.every((chain) => chain.every((s) => s.task !== "night2-control")),
+    );
+    const all = evals.plan("r1", 50);
+    assert.equal(all.length, evals.MAX_VENUES * 2);
+    assert.equal(
+      new Set(all.map((chain) => chain[0].identity)).size,
+      all.length,
+    );
+    assert.ok(evals.MAX_VENUES >= 6);
     assert.match(evals.newRunId(new Date(1700000000000)), /^r1700000000000$/);
+  });
+
+  const venuesGen = await import("../recipe-operator/evals/venues.mjs");
+  await check("venue tasks: a night-1 and night-2 task per profile", () => {
+    const dir = mkdtempSync(path.join(tmpdir(), "trivia-venues-"));
+    try {
+      const harbor = path.join(dir, "harbor");
+      const manifest = path.join(dir, "venues.json");
+      const profile = (
+        id: string,
+        city: string,
+        region: "au" | "uk" | "us",
+      ) => ({
+        id,
+        pub: `The ${city} Arms`,
+        city,
+        region,
+        teams: [`${city} Owls`, "The Quizzards", "Third Team"],
+        stated: ["film", "music"],
+      });
+      const venues = venuesGen.writeVenues(harbor, manifest, [
+        { ...profile("au-a", "Melbourne", "au"), level: 3.8 },
+        profile("us-b", "New York", "us"),
+      ]);
+      assert.equal(
+        JSON.parse(
+          readFileSync(
+            path.join(harbor, "night1-melbourne/tests/expected.json"),
+            "utf8",
+          ),
+        ).start_difficulty,
+        4,
+      );
+      assert.deepEqual(
+        venues.map((v) => [v.slug, v.label]),
+        [
+          ["melbourne", "Melbourne (AU)"],
+          ["new-york", "New York (US)"],
+        ],
+      );
+      assert.deepEqual(JSON.parse(readFileSync(manifest, "utf8")), venues);
+      const read = (file: string) =>
+        readFileSync(path.join(harbor, file), "utf8");
+      const night1 = read("night1-melbourne/instruction.md");
+      assert.match(night1, /We're in Melbourne, in Australia/);
+      assert.match(night1, /Melbourne Owls and The Quizzards\./);
+      assert.match(night1, /keen on film and music/);
+      assert.doesNotMatch(night1, /Third Team/);
+      assert.match(
+        read("night2-new-york/instruction.md"),
+        /Same teams as last week: New York Owls and The Quizzards/,
+      );
+      assert.deepEqual(
+        JSON.parse(read("night2-new-york/tests/expected.json")),
+        {
+          venue: "us-b",
+          region: "us",
+          teams: ["New York Owls", "The Quizzards"],
+          likes: ["film", "music"],
+        },
+      );
+      assert.match(
+        read("night2-new-york/environment/docker-compose.yaml"),
+        /EVAL_SIMULATE_SCENARIO: us-b/,
+      );
+      assert.match(
+        read("night1-melbourne/task.toml"),
+        /name = "trivia-host\/night1-melbourne"/,
+      );
+      assert.match(
+        read("night2-melbourne/tests/check.mjs"),
+        /\[expected\.region, "global"\]/,
+      );
+      for (const file of ["tests/test.sh", "solution/solve.sh"])
+        assert.ok(
+          statSync(path.join(harbor, "night1-melbourne", file)).mode & 0o100,
+        );
+      // A venue the profiles no longer list loses its tasks.
+      venuesGen.writeVenues(harbor, manifest, [
+        profile("au-a", "Melbourne", "au"),
+      ]);
+      assert.ok(!existsSync(path.join(harbor, "night1-new-york")));
+      assert.ok(existsSync(path.join(harbor, "night2-melbourne")));
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 
   await check("platform evals: the key goes only in the environment", () => {
     const key = "intro_sk_secret_value";
     const spec = evals.spawnSpec(
-      evals.plan("r1", 1)[0][1],
+      evals.plan("r1", 1, [
+        { slug: "sydney", label: "Sydney (AU)", region: "au" },
+      ])[0][1],
       { runtime: "rt-1", commit: "abc123" },
       "/work/recipe-operator",
       { token: key, apiBaseUrl: "http://localhost:8000" },
@@ -429,9 +558,9 @@ async function main() {
       "--commit-sha",
       "abc123",
       "--path",
-      "evals/harbor/night2-hosted",
+      "evals/harbor/night2-sydney",
       "--identity",
-      "anon:sim-r1-venue-a",
+      "anon:sim-r1-sydney",
       "--tag",
       "simulation:r1",
       "-y",
@@ -443,7 +572,7 @@ async function main() {
     );
     assert.equal(
       spec.options.env.INTROSPECTION_EVAL_RUNS_DIR,
-      "/work/recipe-operator/eval-runs/r1/venue-a-night2-hosted",
+      "/work/recipe-operator/eval-runs/r1/sydney-night2-hosted",
     );
     assert.equal(
       evals.errorText(`failed with ${key}`, key),
@@ -486,6 +615,7 @@ async function main() {
     });
     assert.equal(ok.trajectory_source, "sandbox");
     assert.match(ok.notes ?? "", /Difficulty: 3/);
+    assert.deepEqual(ok.fetches, []);
     assert.equal(ok.error, null);
 
     const failed = evals.readRunFolder(
@@ -614,6 +744,7 @@ async function main() {
     ]);
     assert.equal(events[0].data.file, notes);
     assert.deepEqual(events[2].data, {
+      server: "trivia-bank",
       tool: "next_questions",
       arguments: { count: 8, difficulty: 3, genre: "history", region: "uk" },
     });
@@ -831,6 +962,178 @@ async function main() {
       }
     },
   );
+
+  const display = await import("../lib/display");
+
+  await check("notes previews and event text drop markdown", () => {
+    assert.equal(
+      display.plainLine("- **Country:** UK. Use region `uk` only."),
+      "Country: UK. Use region uk only.",
+    );
+    assert.equal(
+      display.notesPreview(
+        "# Venue\n\n- **Crowd:** loves music and hates sport",
+      ),
+      "Crowd: loves music and hates sport",
+    );
+    const long = display.truncateWords(
+      "the crowd liked music so it's a safe opener for next week",
+      30,
+    );
+    assert.equal(long, "the crowd liked music so it's…");
+    assert.ok(long.length <= 30);
+    assert.equal(display.truncateWords("short", 30), "short");
+  });
+
+  await check("event labels are short", () => {
+    assert.equal(display.kindLabel("bank.served"), "tool");
+    assert.equal(display.kindLabel("bank.marked"), "tool");
+    assert.equal(display.kindLabel("memory.read"), "read");
+    assert.equal(display.kindLabel("memory.written"), "write");
+    assert.equal(display.kindLabel("host.planned"), "plan");
+    assert.equal(
+      display.toolLine("trivia-bank", "next_questions", {
+        genre: "music",
+        difficulty: 3,
+        region: "uk",
+        count: 8,
+      }),
+      "trivia-bank · next_questions · music · difficulty 3 · uk · 8 questions",
+    );
+    assert.equal(
+      display.toolLine("trivia-bank", "start_night", {}),
+      "trivia-bank · start_night",
+    );
+    assert.equal(
+      display.toolLine("trivia-bank", "register_teams", { names: ["a", "b"] }),
+      "trivia-bank · register_teams · 2 teams",
+    );
+    assert.equal(
+      display.targetLabel("trivia-host", "e328209abcdef0123"),
+      "trivia-host @ e328209",
+    );
+    assert.equal(
+      display.targetLabel("0199a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5b", "e328209ab"),
+      "0199a1b2 @ e328209",
+    );
+    assert.equal(
+      display.targetLabel(
+        "0199a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5b",
+        "e328209ab",
+        "trivia-host",
+      ),
+      "trivia-host @ e328209",
+    );
+  });
+
+  await check(
+    "notes become fact chips, marking what changed since night 1",
+    () => {
+      const night1 = [
+        "# Venue notes",
+        "- **Country:** UK (Manchester). Use region `uk` or `global` only.",
+        "- **Starting difficulty:** 3. Raise it if they ace a round.",
+        "- **Notes on pace:** keep it brisk.",
+        "- **Genres:** played two rounds (music, then history) tonight.",
+      ].join("\n");
+      assert.deepEqual(
+        display.factChips(night1).map((chip) => chip.text),
+        ["UK", "diff 3", "played: music, history"],
+      );
+      const night2 = night1.replace("difficulty:** 3", "difficulty:** 4");
+      const chips = display.factChips(night2, night1);
+      assert.deepEqual(
+        chips.map((chip) => [chip.text, chip.changed]),
+        [
+          ["UK", false],
+          ["diff 3→4", true],
+          ["played: music, history", false],
+        ],
+      );
+      assert.deepEqual(
+        display.factChips("Just a sentence about the room."),
+        [],
+      );
+    },
+  );
+
+  const memory = await import("../lib/memory-measures");
+
+  await check("memory measures: night 1, night 2 with and without", () => {
+    const tastes = {
+      region: "uk",
+      likes: ["sport", "history"],
+      start_difficulty: 2,
+    };
+    const night1Notes = "- **Country:** UK\n- **Starting difficulty:** 2.";
+    assert.deepEqual(
+      memory.measuresOf("night1-memory", {
+        checks: { notes_written: 1 },
+        notes: night1Notes,
+      }),
+      { notes_written: 1 },
+    );
+    const fetches = [
+      { genre: "sport", difficulty: 2, region: "uk", count: 8 },
+      { genre: "film", difficulty: 3, region: "global", count: 8 },
+    ];
+    const withMemory = memory.measuresOf("night2-hosted", {
+      checks: { did_not_ask_country: 1, own_region_or_global_only: 1 },
+      fetches,
+      tastes,
+      night1Notes,
+    });
+    assert.deepEqual(withMemory, {
+      recalled: 1,
+      right_region: 1,
+      liked_genres: 0.5,
+      difficulty_from_notes: 1,
+    });
+    const without = memory.measuresOf("night2-fresh", {
+      checks: { did_not_ask_country: 0, own_region_or_global_only: 0 },
+      fetches: [{ genre: "music", difficulty: 3, region: "us", count: 8 }],
+      tastes,
+    });
+    assert.deepEqual(without, {
+      recalled: 0,
+      right_region: 0,
+      liked_genres: 0,
+    });
+    // No fetches: region falls back to the verifier's check; genres can't be told.
+    assert.deepEqual(
+      memory.measuresOf("night2-hosted", {
+        checks: { did_not_ask_country: 1, own_region_or_global_only: 0 },
+        tastes,
+        night1Notes: "no difficulty here",
+      }),
+      { recalled: 1, right_region: 0 },
+    );
+
+    const rows = memory.compare(
+      [withMemory, withMemory, { ...withMemory, recalled: 0 }],
+      [without, without, { ...without, recalled: 1 }],
+    );
+    assert.deepEqual(
+      rows.map((row) => [
+        row.key,
+        row.with?.percent,
+        row.without?.percent ?? null,
+        row.difference,
+      ]),
+      [
+        ["recalled", 67, 33, 34],
+        ["right_region", 100, 0, 100],
+        ["liked_genres", 50, 0, 50],
+        ["difficulty_from_notes", 100, null, null],
+      ],
+    );
+    assert.equal(rows[0].with?.counts, "2/3 venues");
+    assert.equal(rows[2].with?.counts, "50% avg over 3 venues");
+    assert.deepEqual(memory.compare([], []), []);
+    assert.equal(memory.signed(67), "+67");
+    assert.equal(memory.signed(-20), "−20");
+    assert.equal(memory.signed(0), "±0");
+  });
 
   console.log(`\n${passed} checks passed`);
 }

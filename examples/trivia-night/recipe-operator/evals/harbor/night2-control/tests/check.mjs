@@ -23,8 +23,8 @@ const fetches = calls.filter((c) => c.name.includes("next_questions"));
 const notes = existsSync("/workspace/memories/MEMORY.md") ? readFileSync("/workspace/memories/MEMORY.md", "utf8") : "";
 const asked = /which country|what country|where (are you|is the venue|is this)|which region/i.test(text);
 const scores = {
-  // Without this venue's notes, a UK-only round can only come from another venue's memory.
-  no_recall_without_memory: asked || fetches.every((c) => c.args.region !== "uk") ? 1 : 0,
+  // Without this venue's notes, a regional round can only come from another venue's memory.
+  no_recall_without_memory: asked || fetches.every((c) => !c.args.region || c.args.region === "global") ? 1 : 0,
   asked_where: asked ? 1 : 0,
 };
 const reward = Object.values(scores).every((v) => v === 1) ? 1 : 0;

@@ -9,12 +9,15 @@ import path from "node:path";
 import { promisify } from "node:util";
 
 import { record } from "./events";
+import { measuresOf } from "./memory-measures";
 import {
   errorText,
   findRunFolder,
   newRunId,
   plan,
+  previewNotes,
   readRunFolder,
+  readTastes,
   runsRoot,
   spawnSpec,
   type EvalFinished,
@@ -79,7 +82,7 @@ export async function resolveTarget(
 ): Promise<Target> {
   const runtime = env.INTROSPECTION_TRIVIA_RUNTIME_ID?.trim();
   const commit = env.INTROSPECTION_TRIVIA_COMMIT_SHA?.trim();
-  if (runtime && commit) return { runtime, commit };
+  if (runtime && commit) return { runtime, commit, slug: RUNTIME_SLUG };
   const { stdout } = await run(
     "introspection",
     ["runtimes", "list", "-o", "json"],
@@ -99,7 +102,7 @@ export async function resolveTarget(
     );
   const sha = commit ?? latest.git_commit_sha;
   if (!sha) throw new Error(`the ${RUNTIME_SLUG} runtime has no commit yet`);
-  return { runtime: runtime ?? latest.id, commit: sha };
+  return { runtime: runtime ?? latest.id, commit: sha, slug: RUNTIME_SLUG };
 }
 
 /** The Control Plane the CLI talks to; it finds the Data Plane from there. */
@@ -196,16 +199,18 @@ function follow(
   };
 }
 
+/** Runs one step; resolves with the notes it left, for the chain's next night. */
 function runStep(
   step: Step,
   target: Target,
   credentials: Credentials,
-): Promise<void> {
+  night1Notes: string | null = null,
+): Promise<string | null> {
   const started: EvalStarted = { ...step };
   record(
     `platform:${step.run}:${step.venue}`,
     "eval.started",
-    `${step.venue} ${step.night} as ${step.identity}`,
+    `${step.venue_label} ${step.task} as ${step.identity}`,
     started,
   );
   const spec = spawnSpec(step, target, recipeDir(), credentials);
@@ -253,11 +258,21 @@ function runStep(
         trial?.error ??
         readError ??
         (exitCode === 0 ? null : errorText(output, credentials.token));
+      const checks = trial?.checks ?? {};
       const finished: EvalFinished = {
         ...step,
         reward: trial?.reward ?? null,
-        checks: trial?.checks ?? {},
-        notes: trial?.notes ?? null,
+        checks,
+        notes: previewNotes(trial?.notes ?? null),
+        measures: trial
+          ? measuresOf(step.night, {
+              checks,
+              notes: trial.notes,
+              fetches: trial.fetches,
+              tastes: readTastes(recipeDir(), step.task),
+              night1Notes,
+            })
+          : {},
         trajectory_source: trial?.trajectory_source ?? null,
         seconds,
         exit_code: exitCode,
@@ -266,10 +281,10 @@ function runStep(
       record(
         `platform:${step.run}:${step.venue}`,
         "eval.finished",
-        `${step.venue} ${step.night}: reward ${finished.reward ?? "none"} in ${seconds}s`,
+        `${step.venue_label} ${step.task}: reward ${finished.reward ?? "none"} in ${seconds}s`,
         finished,
       );
-      resolve();
+      resolve(trial?.notes ?? null);
     };
     const child = spawn(spec.command, spec.args, {
       ...spec.options,
@@ -317,8 +332,9 @@ export async function startRun(
   const began = Date.now();
   void Promise.all(
     chains.map(async (chain) => {
+      let notes: string | null = null;
       for (const step of chain)
-        await runStep(step, target, { token, apiBaseUrl: api });
+        notes = await runStep(step, target, { token, apiBaseUrl: api }, notes);
     }),
   ).finally(() => {
     const finished: EvalRunFinished = {

@@ -1,0 +1,123 @@
+[
+  {
+    "slug": "sydney",
+    "label": "Sydney (AU)",
+    "profile": "au-film",
+    "pub": "The Lord Nelson",
+    "city": "Sydney",
+    "region": "au",
+    "teams": ["Quizzly Bears", "Les Quizerables"],
+    "likes": ["film", "music"],
+    "start_difficulty": 4
+  },
+  {
+    "slug": "manchester",
+    "label": "Manchester (UK)",
+    "profile": "uk-sport",
+    "pub": "The Crown",
+    "city": "Manchester",
+    "region": "uk",
+    "teams": ["The Mancunian Candidates", "Quiz Team Aguilera"],
+    "likes": ["sport"],
+    "start_difficulty": 2
+  },
+  {
+    "slug": "chicago",
+    "label": "Chicago (US)",
+    "profile": "us-science",
+    "pub": "Kelly's Tap",
+    "city": "Chicago",
+    "region": "us",
+    "teams": ["Smarty Pints", "The Quizzards"],
+    "likes": ["science"],
+    "start_difficulty": 3
+  },
+  {
+    "slug": "leeds",
+    "label": "Leeds (UK)",
+    "profile": "held-1-narrow",
+    "pub": "The Royal Oak",
+    "city": "Leeds",
+    "region": "uk",
+    "teams": ["Leeds Brainiacs", "Quiz Pro Quo 1"],
+    "likes": ["history"],
+    "start_difficulty": 2
+  },
+  {
+    "slug": "melbourne",
+    "label": "Melbourne (AU)",
+    "profile": "held-2-shifting",
+    "pub": "The Esplanade",
+    "city": "Melbourne",
+    "region": "au",
+    "teams": ["Melbourne Brainiacs", "Quiz Pro Quo 2"],
+    "likes": ["film"],
+    "start_difficulty": 3
+  },
+  {
+    "slug": "boston",
+    "label": "Boston (US)",
+    "profile": "held-3-mismatch",
+    "pub": "Murphy's",
+    "city": "Boston",
+    "region": "us",
+    "teams": ["Boston Brainiacs", "Quiz Pro Quo 3"],
+    "likes": ["sport"],
+    "start_difficulty": 4
+  },
+  {
+    "slug": "bristol",
+    "label": "Bristol (UK)",
+    "profile": "held-4-low",
+    "pub": "The Swan",
+    "city": "Bristol",
+    "region": "uk",
+    "teams": ["Bristol Brainiacs", "Quiz Pro Quo 4"],
+    "likes": ["sport"],
+    "start_difficulty": 2
+  },
+  {
+    "slug": "brisbane",
+    "label": "Brisbane (AU)",
+    "profile": "held-5-high",
+    "pub": "The Grand",
+    "city": "Brisbane",
+    "region": "au",
+    "teams": ["Brisbane Brainiacs", "Quiz Pro Quo 5"],
+    "likes": ["science"],
+    "start_difficulty": 4
+  },
+  {
+    "slug": "seattle",
+    "label": "Seattle (US)",
+    "profile": "held-6-narrow",
+    "pub": "Dockside",
+    "city": "Seattle",
+    "region": "us",
+    "teams": ["Seattle Brainiacs", "Quiz Pro Quo 6"],
+    "likes": ["sport"],
+    "start_difficulty": 2
+  },
+  {
+    "slug": "glasgow",
+    "label": "Glasgow (UK)",
+    "profile": "held-7-shifting",
+    "pub": "The Anchor",
+    "city": "Glasgow",
+    "region": "uk",
+    "teams": ["Glasgow Brainiacs", "Quiz Pro Quo 7"],
+    "likes": ["history"],
+    "start_difficulty": 2
+  },
+  {
+    "slug": "perth",
+    "label": "Perth (AU)",
+    "profile": "held-8-mismatch",
+    "pub": "The Railway",
+    "city": "Perth",
+    "region": "au",
+    "teams": ["Perth Brainiacs", "Quiz Pro Quo 8"],
+    "likes": ["music"],
+    "start_difficulty": 4
+  }
+]

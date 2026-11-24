@@ -1,7 +1,7 @@
 name: agent
 description: Hosts a venue's weekly pub trivia night with its trivia master, adapting week after week.
 ai:
-  model: anthropic/claude-opus-5-5
+  model: anthropic/claude-sonnet-5-5
   thinking_level: low
 tools:
   - read

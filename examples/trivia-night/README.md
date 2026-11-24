@@ -57,11 +57,31 @@ echo TRIVIA_EVAL_KEY_FILE=recipe-operator/.agent.key >> .env.local
 
 The runs use your `introspection login`, on `https://api.introspection.dev` unless `INTROSPECTION_API_BASE_URL` names another stack, and find the Data Plane from there. Without a key file the panel shows these commands and the server refuses to run.
 
-Pick a number of venues and press **Run evals on the platform**. Each venue runs `night1-memory`, then `night2-hosted`, as its own `anon:sim-<run>-<venue>` identity, all venues at once, beside one `night2-control` as `anon:sim-<run>-control`. Every trial is tagged `simulation:<run>`. The table fills in as each trial ends: its reward, each check, where it was scored from, its notes, and the run's wall-clock time.
+Pick a number of venues and press **Run**. Venue _i_ plays the _i_-th venue profile (Sydney, Manchester, Chicago, and on across AU, UK and US pubs), all venues at once, each as its own customer:
 
-**Behind the scenes** shows what the agent does in each trial, per venue, as it runs. Each `eval run` prints its trial's task id, and the server follows that task with `introspection tasks stream`, reattaching until its run ends. From the AG-UI events it shows each `trivia-bank` tool call with its arguments (`bank.served`, or `bank.marked` for `submit_round`, `round_summary` and `scoreboard`), each read of `memories/MEMORY.md` with its content (`memory.read`, including the read the runtime makes before the first turn), each write or edit of it (`memory.written`), and the agent's final message (`host.planned`). When a trial ends, the same events are read from its `trajectory.json`, so anything the stream missed still shows, once. Click an event for its content.
+| Trial               | Task             | Customer                                       | What it shows                                  |
+| ------------------- | ---------------- | ---------------------------------------------- | ---------------------------------------------- |
+| Night 1             | `night1-<venue>` | `anon:sim-<run>-<venue>`                       | the host learns the venue and writes its notes |
+| Night 2 with memory | `night2-<venue>` | the same customer                              | it reads those notes                           |
+| Night 2 without     | `night2-<venue>` | `anon:sim-<run>-<venue>-fresh`, a new customer | the same night with no notes                   |
+
+Every trial is tagged `simulation:<run>`. The two night 2s differ only in the notes, so **What memory changed** compares them per measure: knew the venue without asking, right region, the crowd's genres, and difficulty from the notes. Each run starts new customers, so nothing carries over between runs; a run measures one version of the agent and changes nothing.
+
+**Behind the scenes** shows what the agent does in each trial as it runs. Each `eval run` prints its trial's task id, and the server follows that task with `introspection tasks stream`, reattaching until its run ends. It shows each `trivia-bank` tool call with its arguments (**tool**), each read of `memories/MEMORY.md` with its content (**read**, including the read the runtime makes before the first turn), each write of it (**write**), and the agent's final message (**plan**). When a trial ends, the same events are read from its `trajectory.json`, so anything the stream missed still shows, once.
 
 The key reaches each `introspection eval run` and `introspection tasks stream` only as `INTROSPECTION_TOKEN` in its environment: never in its arguments, the logs or the browser. The page is served only on this machine. Each trial's run folder is under `recipe-operator/eval-runs/<run>/`.
+
+## What it costs
+
+Every trial is a real model conversation. Measured on the hosted agent, a trial is about 20 to 25 thousand input tokens, nine tenths of them cached, and 1.5 thousand output: **$0.02 to $0.05 a trial**.
+
+| What                                                       | Trials                                                                 | Approximate cost | Billed to                                                     |
+| ---------------------------------------------------------- | ---------------------------------------------------------------------- | ---------------- | ------------------------------------------------------------- |
+| **Run** with 3 venues                                      | 9                                                                      | $0.40            | your organization's platform usage                            |
+| **Run** with 11 venues                                     | 33                                                                     | $1.50            | your organization's platform usage                            |
+| One improve cycle, `introspection operator improve/memory` | 150 to 200 nights of 4-night series, plus the Operator's own reasoning | $10 to $50       | the model key or subscription the Operator and its trials use |
+
+Run trials on the platform use the platform's models. An improve cycle runs its trials locally in Docker: each trial reads `ANTHROPIC_API_KEY` from its environment, and the Operator itself runs in Pi on your Pi sign-in unless a key in its environment takes precedence. Measure an actual run from each trial's `trajectory.json` (`final_metrics.total_cost_usd`).
 
 ## What is here
 

@@ -11,18 +11,42 @@ import type {
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
 
-export type Night = "night1-memory" | "night2-hosted" | "night2-control";
+import VENUES from "../recipe-operator/evals/venues.json";
+import type { Fetch, Measures, VenueTastes } from "./memory-measures";
+
+/** A venue profile's task pair, as `pnpm evals:venues` writes it. */
+export interface VenueProfile {
+  slug: string;
+  label: string;
+  region: string;
+}
+
+/**
+ * The night's role; the Harbor task it runs is `Step.task`. `night2-fresh` is
+ * the venue's night 2 as a new customer, with no night 1 and so no notes.
+ */
+export type Night = "night1-memory" | "night2-hosted" | "night2-fresh";
+
+/** Whether a night 2 had the venue's notes from night 1. */
+export type Variant = "with" | "without";
 
 export interface Target {
   runtime: string;
   commit: string;
+  /** The runtime's slug, for display. */
+  slug?: string;
 }
 
 export type Step = {
   run: string;
   venue: string;
+  /** The venue's display name, such as "Melbourne (AU)". */
+  venue_label: string;
   night: Night;
+  /** The Harbor task under evals/harbor, such as night1-melbourne. */
+  task: string;
   identity: string;
+  variant?: Variant;
 };
 
 export type EvalStarted = Step;
@@ -31,6 +55,8 @@ export type EvalFinished = Step & {
   reward: number | null;
   checks: Record<string, number>;
   notes: string | null;
+  /** Absent on trials recorded before measures existed. */
+  measures?: Measures;
   trajectory_source: string | null;
   seconds: number;
   exit_code: number | null;
@@ -43,37 +69,59 @@ export type EvalRunFinished = {
   trials: number;
 };
 
-export const MAX_VENUES = 8;
+export const MAX_VENUES = VENUES.length;
 const NOTES_PREVIEW = 600;
 
 export function newRunId(now = new Date()): string {
   return `r${now.getTime()}`;
 }
 
-export function venueLabel(index: number): string {
-  return `venue-${String.fromCharCode(97 + index)}`;
-}
-
-/** One chain per venue (night 1, then night 2 on the same identity), and one control. */
-export function plan(run: string, venues: number): Step[][] {
+/**
+ * Two chains per venue, run at once: night 1 then night 2 on the same identity
+ * (with memory), and that night 2 alone on a fresh identity (without). Venue i
+ * plays profile i, cycling when there are more venues than profiles.
+ */
+export function plan(
+  run: string,
+  venues: number,
+  profiles: VenueProfile[] = VENUES,
+): Step[][] {
   const count = Math.min(Math.max(Math.trunc(venues) || 1, 1), MAX_VENUES);
   const chains: Step[][] = [];
   for (let index = 0; index < count; index += 1) {
-    const venue = venueLabel(index);
+    const profile = profiles[index % profiles.length];
+    const lap = Math.floor(index / profiles.length);
+    const venue = lap ? `${profile.slug}-${lap + 1}` : profile.slug;
+    const venue_label = lap ? `${profile.label} #${lap + 1}` : profile.label;
     const identity = `anon:sim-${run}-${venue}`;
-    chains.push([
-      { run, venue, night: "night1-memory", identity },
-      { run, venue, night: "night2-hosted", identity },
-    ]);
+    const base = { run, venue, venue_label };
+    chains.push(
+      [
+        {
+          ...base,
+          night: "night1-memory",
+          task: `night1-${profile.slug}`,
+          identity,
+        },
+        {
+          ...base,
+          night: "night2-hosted",
+          task: `night2-${profile.slug}`,
+          identity,
+          variant: "with",
+        },
+      ],
+      [
+        {
+          ...base,
+          night: "night2-fresh",
+          task: `night2-${profile.slug}`,
+          identity: `${identity}-fresh`,
+          variant: "without",
+        },
+      ],
+    );
   }
-  chains.push([
-    {
-      run,
-      venue: "control",
-      night: "night2-control",
-      identity: `anon:sim-${run}-control`,
-    },
-  ]);
   return chains;
 }
 
@@ -111,7 +159,7 @@ export function spawnSpec(
     target.commit,
     // Resolved inside the runtime's Recipe at --commit-sha, so it is relative.
     "--path",
-    `evals/harbor/${step.night}`,
+    `evals/harbor/${step.task}`,
     "--identity",
     step.identity,
     "--tag",
@@ -164,7 +212,10 @@ export function findRunFolder(output: string, root: string): string | null {
 export interface TrialResult {
   reward: number | null;
   checks: Record<string, number>;
+  /** The whole MEMORY.md; previewNotes() cuts it for the feed. */
   notes: string | null;
+  /** Night 2's `next_questions` calls, as its verifier printed them. */
+  fetches: Fetch[];
   trajectory_source: string | null;
   error: string | null;
 }
@@ -260,10 +311,33 @@ export function readRunFolder(runFolder: string): TrialResult {
   return {
     reward,
     checks,
-    notes: notes ? notes.trim().slice(0, NOTES_PREVIEW) : null,
+    notes: notes ? notes.trim() : null,
+    fetches: Array.isArray(verifier?.fetches)
+      ? (verifier.fetches as Fetch[])
+      : [],
     trajectory_source: typeof source === "string" ? source : null,
     error: error ? error.trim() : null,
   };
+}
+
+export function previewNotes(notes: string | null): string | null {
+  return notes ? notes.slice(0, NOTES_PREVIEW) : null;
+}
+
+/** The venue's facts from its task's tests/expected.json, or null when it has none. */
+export function readTastes(
+  recipeDir: string,
+  task: string,
+): VenueTastes | null {
+  const file = path.join(
+    recipeDir,
+    "evals",
+    "harbor",
+    task,
+    "tests",
+    "expected.json",
+  );
+  return existsSync(file) ? (readJson(file) as VenueTastes) : null;
 }
 
 /**

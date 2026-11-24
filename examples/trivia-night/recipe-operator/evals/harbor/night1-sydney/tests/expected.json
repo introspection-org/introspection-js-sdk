@@ -1,0 +1,13 @@
+{
+  "venue": "au-film",
+  "region": "au",
+  "teams": [
+    "Quizzly Bears",
+    "Les Quizerables"
+  ],
+  "likes": [
+    "film",
+    "music"
+  ],
+  "start_difficulty": 4
+}

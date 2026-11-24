@@ -25,7 +25,7 @@ export interface TrialEvent {
 }
 
 const PLAN_PREVIEW = 300;
-const BANK_TOOL = /^mcp_trivia-bank_([a-z_]+?)(?:_[0-9a-f]{6,})?$/;
+const BANK_TOOL = /^mcp_(trivia-bank)_([a-z_]+?)(?:_[0-9a-f]{6,})?$/;
 const MARKING_TOOLS = new Set(["submit_round", "round_summary", "scoreboard"]);
 const MEMORY_FILE = /(^|\/)memories\/MEMORY\.md$/;
 
@@ -100,12 +100,12 @@ export function toolCallEvent(
 ): TrialEvent | null {
   const bank = BANK_TOOL.exec(name);
   if (bank) {
-    const tool = bank[1];
+    const [, server, tool] = bank;
     return {
       key: `tool:${id}`,
       type: MARKING_TOOLS.has(tool) ? "bank.marked" : "bank.served",
       summary: bankSummary(tool, args),
-      data: { tool, arguments: args },
+      data: { server, tool, arguments: args },
     };
   }
   const file = typeof args.path === "string" ? args.path : "";
@@ -379,7 +379,9 @@ export function tagged(step: Step, taskId: string, event: TrialEvent) {
     ...event.data,
     run: step.run,
     venue: step.venue,
+    venue_label: step.venue_label,
     night: step.night,
+    variant: step.variant,
     task_id: taskId,
     key: event.key,
   };

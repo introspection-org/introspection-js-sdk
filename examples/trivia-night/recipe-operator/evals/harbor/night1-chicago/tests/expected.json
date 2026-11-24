@@ -1,0 +1,12 @@
+{
+  "venue": "us-science",
+  "region": "us",
+  "teams": [
+    "Smarty Pints",
+    "The Quizzards"
+  ],
+  "likes": [
+    "science"
+  ],
+  "start_difficulty": 3
+}

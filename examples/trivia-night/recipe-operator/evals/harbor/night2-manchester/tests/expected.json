@@ -1,0 +1,12 @@
+{
+  "venue": "uk-sport",
+  "region": "uk",
+  "teams": [
+    "The Mancunian Candidates",
+    "Quiz Team Aguilera"
+  ],
+  "likes": [
+    "sport"
+  ],
+  "start_difficulty": 2
+}

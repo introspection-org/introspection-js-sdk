@@ -105,7 +105,7 @@ button {
 
 .columns {
   display: grid;
-  grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 16px;
   margin-top: 16px;
   align-items: start;
@@ -177,6 +177,10 @@ pre {
 .scenes {
   position: sticky;
   top: 16px;
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100vh - 32px);
+  min-width: 0;
 }
 
 .scenes-head label {
@@ -188,7 +192,8 @@ pre {
   list-style: none;
   margin: 12px 0 0;
   padding: 0;
-  max-height: 70vh;
+  flex: 1 1 auto;
+  min-height: 120px;
   overflow-y: auto;
 }
 
@@ -196,11 +201,26 @@ pre {
   border-bottom: 1px solid var(--line);
 }
 
+.scene-filters {
+  flex-wrap: nowrap;
+  gap: 6px;
+  overflow-x: auto;
+  flex: none;
+}
+
+.scene-filters button {
+  flex: none;
+  padding: 3px 8px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
 .event {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: 6px;
   align-items: baseline;
+  white-space: nowrap;
   width: 100%;
   text-align: left;
   border: 0;
@@ -231,6 +251,18 @@ pre {
   color: var(--host);
 }
 
+.event .kind,
+.event .who {
+  flex: none;
+}
+
+.event .text {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .who {
   color: var(--muted);
   font-size: 12px;
@@ -243,6 +275,11 @@ pre {
 
   .scenes {
     position: static;
+    max-height: none;
+  }
+
+  .scenes ol {
+    max-height: 70vh;
   }
 
   table {
@@ -251,6 +288,7 @@ pre {
 }
 
 .platform {
+  min-width: 0;
   padding: 16px;
   background: var(--panel);
   border: 1px solid var(--line);
@@ -259,15 +297,34 @@ pre {
 
 .platform-form {
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
-  gap: 12px;
+  gap: 0.75rem;
   margin-top: 12px;
+  white-space: nowrap;
+}
+
+.platform-form label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
 }
 
 .platform-form input {
-  width: 4em;
+  width: 4.5ch;
+  box-sizing: content-box;
+  padding: 6px 4px;
   font: inherit;
+  text-align: center;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+
+.platform-form .target {
+  margin: 0;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 13px;
 }
 
 .platform tbody tr {
@@ -275,17 +332,270 @@ pre {
   vertical-align: top;
 }
 
-.check {
-  white-space: nowrap;
-  margin-right: 6px;
+.run-summary {
+  margin-top: 16px;
 }
 
-.preview {
+.results {
+  table-layout: fixed;
+  width: 100%;
+}
+
+.results .night-col {
+  width: 27%;
+}
+
+.results .venue-col {
+  width: 19%;
+}
+
+.results thead th {
+  font-size: 13px;
+  line-height: 1.25;
+  vertical-align: bottom;
+}
+
+.results th[scope="row"] {
+  font-size: 14px;
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: top;
+  padding-top: 8px;
+}
+
+.results th[scope="row"] .sub {
   display: block;
-  max-width: 48ch;
+  font-size: 12px;
+  font-weight: 400;
+}
+
+.results td,
+.results th[scope="row"] {
+  padding-block: 8px;
+}
+
+.trial {
+  overflow-wrap: anywhere;
+  font-size: 13px;
+}
+
+.trial > span {
+  display: block;
+}
+
+.trial.pending {
+  color: var(--muted);
+  cursor: default;
+}
+
+.trial:not(.pending):hover,
+.trial.open {
+  background: var(--bg);
+}
+
+.status {
+  white-space: nowrap;
+}
+
+.status .tag {
+  white-space: nowrap;
+}
+
+.pass {
+  color: var(--host);
+  font-weight: 600;
+}
+
+.checks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 8px;
+  font-size: 13px;
+}
+
+.check {
+  white-space: nowrap;
+}
+
+.error {
+  font-size: 13px;
+  font-weight: 400;
+}
+
+.facts {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 4px;
+  margin-top: 4px;
+  overflow: hidden;
+}
+
+.fact {
+  flex: 0 1 auto;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  font-size: 11px;
+  color: var(--muted);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 0 5px;
+}
+
+.fact.changed {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+.marks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 6px;
+  margin-top: 4px;
+  font-size: 12px;
+}
+
+.mark {
+  white-space: nowrap;
+  font-weight: 400;
+}
+
+.memory-chart {
+  margin: 12px 0 16px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--bg);
+}
+
+.memory-chart h3 {
+  margin: 0;
+}
+
+.memory-chart > p {
+  margin: 4px 0 8px;
+}
+
+.chart-legend {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  margin-bottom: 6px;
+}
+
+.swatch {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  margin-left: 6px;
+}
+
+.swatch-without,
+.bar-without .bar-fill {
+  background: var(--muted);
+}
+
+.swatch-with,
+.bar-with .bar-fill {
+  background: var(--host);
+}
+
+.chart-rows {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.chart-row {
+  display: grid;
+  grid-template-columns: minmax(0, 9.5em) minmax(0, 1fr) 3.2em;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.chart-label {
+  line-height: 1.25;
+}
+
+.chart-bars {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.bar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 2.8em;
+  align-items: center;
+  gap: 6px;
+}
+
+.bar-track {
+  height: 9px;
+  border-radius: 3px;
+  background: var(--line);
+  overflow: hidden;
+}
+
+.bar-fill {
+  display: block;
+  height: 100%;
+  border-radius: 3px;
+}
+
+.bar-value {
+  font-size: 11px;
+  color: var(--muted);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.chart-diff {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.preview {
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.platform tbody tr.detail {
+  cursor: default;
+}
+
+.detail td {
+  padding: 4px 0 12px;
+  background: var(--bg);
+}
+
+.detail h3 {
+  margin: 4px 8px 6px;
+}
+
+.detail pre {
+  margin: 8px 8px 0;
+  background: var(--panel);
+}
+
+.check-list {
+  list-style: none;
+  margin: 0 8px;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 16px;
+  font-size: 13px;
 }
 
 .notice pre {

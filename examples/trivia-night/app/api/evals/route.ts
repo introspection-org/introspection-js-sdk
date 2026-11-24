@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 
+import { MAX_VENUES } from "@/lib/platform-evals";
+
 import {
   KEY_HOW_TO,
   activeRun,
@@ -27,6 +29,7 @@ export async function GET() {
   }
   return NextResponse.json({
     configured: "file" in key,
+    max_venues: MAX_VENUES,
     missing: "missing" in key ? key.missing : null,
     how_to: KEY_HOW_TO,
     target,
