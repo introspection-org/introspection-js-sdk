@@ -392,7 +392,7 @@ async function main() {
       "--commit-sha",
       "abc123",
       "--path",
-      "/work/recipe-operator/evals/harbor/night2-hosted",
+      "evals/harbor/night2-hosted",
       "--identity",
       "anon:sim-r1-venue-a",
       "--tag",

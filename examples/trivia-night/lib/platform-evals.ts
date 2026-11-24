@@ -109,8 +109,9 @@ export function spawnSpec(
     target.runtime,
     "--commit-sha",
     target.commit,
+    // Resolved inside the runtime's Recipe at --commit-sha, so it is relative.
     "--path",
-    path.join(recipeDir, "evals", "harbor", step.night),
+    `evals/harbor/${step.night}`,
     "--identity",
     step.identity,
     "--tag",
