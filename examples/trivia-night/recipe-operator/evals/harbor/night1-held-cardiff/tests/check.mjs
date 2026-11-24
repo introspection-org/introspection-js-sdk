@@ -1,9 +1,9 @@
 // Night 1's checks (reward 1 when all are 1): night_started, round_fetched,
-// notes_written, notes_name_no_team. The crowd's measures are printed too,
+// notes_written, notes_name_no_team (in any note file), notes_indexed (every note file named in MEMORY.md). The crowd's measures are printed too,
 // as on night 2, for comparison: good_rounds, pitch_miss, in_band,
 // close_finish, lead_changes, bottom_share, favourite_genre, right_region,
 // and round_rates (each round's share right, in the order played).
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 
 const expected = JSON.parse(
   readFileSync(new URL("./expected.json", import.meta.url), "utf8"),
@@ -12,8 +12,17 @@ const state = await (
   await fetch("http://fakes:7353/trivia-bank/admin/state")
 ).json();
 const bank = state["trivia-bank"] ?? state;
-const notesPath = "/workspace/memories/MEMORY.md";
-const notes = existsSync(notesPath) ? readFileSync(notesPath, "utf8") : "";
+// Only MEMORY.md is loaded on the next night; another note file is read only when MEMORY.md names it.
+const memories = "/workspace/memories";
+const noteFiles = existsSync(memories)
+  ? readdirSync(memories).filter((f) => f.endsWith(".md"))
+  : [];
+const read = (f) => readFileSync(memories + "/" + f, "utf8");
+const notes = noteFiles.includes("MEMORY.md") ? read("MEMORY.md") : "";
+const allNotes = noteFiles.map(read).join("\n").toLowerCase();
+const notesIndexed = noteFiles.every((f) => f === "MEMORY.md" || notes.includes(f))
+  ? 1
+  : 0;
 const TARGET = 0.65;
 const BAND = [0.55, 0.75];
 const asked = bank.asked ?? [];
@@ -114,7 +123,8 @@ const scores = {
   round_fetched: (bank.asked?.length ?? 0) > 0 ? 1 : 0,
   notes_written: notes.trim() ? 1 : 0,
   notes_name_no_team:
-    notes && !teams.some((t) => notes.toLowerCase().includes(t)) ? 1 : 0,
+    notes && !teams.some((t) => allNotes.includes(t)) ? 1 : 0,
+  notes_indexed: notesIndexed,
 };
 const reward = Object.values(scores).every((v) => v === 1) ? 1 : 0;
 writeFileSync(

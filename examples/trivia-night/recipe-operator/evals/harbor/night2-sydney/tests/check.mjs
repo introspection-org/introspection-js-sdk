@@ -7,9 +7,10 @@
 // bottom_share (the last team's points as a share of the winner's),
 // favourite_genre (share of rounds in a genre the crowd loves), right_region
 // (every question the venue's country or global), round_rates (each round's
-// share right), plus fetched_a_round and notes_kept (notes left, naming no
-// team from either night). Reward is 1 when in_band is at least 0.5.
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+// share right), plus fetched_a_round, notes_kept (MEMORY.md written, and no
+// note file naming a team from either night) and notes_indexed (every note file
+// named in MEMORY.md). Reward is 1 when in_band is at least 0.5.
+import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 
 const expected = JSON.parse(
   readFileSync(new URL("./expected.json", import.meta.url), "utf8"),
@@ -18,8 +19,17 @@ const state = await (
   await fetch("http://fakes:7353/trivia-bank/admin/state")
 ).json();
 const bank = state["trivia-bank"] ?? state;
-const notesPath = "/workspace/memories/MEMORY.md";
-const notes = existsSync(notesPath) ? readFileSync(notesPath, "utf8") : "";
+// Only MEMORY.md is loaded on the next night; another note file is read only when MEMORY.md names it.
+const memories = "/workspace/memories";
+const noteFiles = existsSync(memories)
+  ? readdirSync(memories).filter((f) => f.endsWith(".md"))
+  : [];
+const read = (f) => readFileSync(memories + "/" + f, "utf8");
+const notes = noteFiles.includes("MEMORY.md") ? read("MEMORY.md") : "";
+const allNotes = noteFiles.map(read).join("\n").toLowerCase();
+const notesIndexed = noteFiles.every((f) => f === "MEMORY.md" || notes.includes(f))
+  ? 1
+  : 0;
 const TARGET = 0.65;
 const BAND = [0.55, 0.75];
 const asked = bank.asked ?? [];
@@ -117,8 +127,8 @@ const teams = [
 ].map((t) => t.replace(/^the\s+/i, "").toLowerCase());
 const scores = {
   fetched_a_round: fetches.length > 0 ? 1 : 0,
-  notes_kept:
-    notes.trim() && !teams.some((t) => notes.toLowerCase().includes(t)) ? 1 : 0,
+  notes_kept: notes.trim() && !teams.some((t) => allNotes.includes(t)) ? 1 : 0,
+  notes_indexed: notesIndexed,
   ...measures,
 };
 const reward = (measures.in_band ?? 0) >= 0.5 ? 1 : 0;

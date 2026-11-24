@@ -72,10 +72,7 @@ function score(
       /await \(\s*await fetch\("http:\/\/fakes:7353\/trivia-bank\/admin\/state"\)\s*\)\.json\(\)/,
       `JSON.parse(readFileSync(${JSON.stringify(join(out, "state.json"))}, "utf8"))`,
     )
-    .replace(
-      '"/workspace/memories/MEMORY.md"',
-      JSON.stringify(join(memories, "MEMORY.md")),
-    )
+    .replace('"/workspace/memories"', JSON.stringify(memories))
     .replace(
       '"/logs/verifier/reward.json"',
       JSON.stringify(join(out, "reward.json")),
