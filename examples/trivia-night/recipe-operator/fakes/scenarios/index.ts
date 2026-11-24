@@ -66,7 +66,9 @@ export function world(
   const change = SCENARIOS[scenario];
   if (!change) throw new Error(`Unknown scenario: ${scenario}`);
   change(w);
-  const night = seriesNight(process.env.EVAL_SIMULATE_NIGHT);
+  const nights = seriesNights(process.env.EVAL_SIMULATE_SERIES_NIGHTS);
+  if (nights !== undefined) w["trivia-bank"].series_nights = nights;
+  const night = seriesNight(process.env.EVAL_SIMULATE_NIGHT, nights);
   if (night !== undefined) w["trivia-bank"].series_night = night;
   const teams = crowdSize(process.env.EVAL_SIMULATE_TEAMS);
   if (teams !== undefined) w["trivia-bank"].crowd_size = teams;
@@ -84,13 +86,27 @@ export function crowdSize(value: string | undefined): number | undefined {
   return teams;
 }
 
-/** `EVAL_SIMULATE_NIGHT`, the night of the series a sandbox plays (1 to SERIES_NIGHTS); unset or empty is none. */
-export function seriesNight(value: string | undefined): number | undefined {
+/** `EVAL_SIMULATE_SERIES_NIGHTS`, the nights a series splits a venue's questions across; unset or empty is SERIES_NIGHTS. */
+export function seriesNights(value: string | undefined): number | undefined {
+  if (!value) return undefined;
+  const nights = Number(value);
+  if (!Number.isInteger(nights) || nights < 1 || nights > SERIES_NIGHTS)
+    throw new Error(
+      `EVAL_SIMULATE_SERIES_NIGHTS must be from 1 to ${SERIES_NIGHTS}: ${value}`,
+    );
+  return nights;
+}
+
+/** `EVAL_SIMULATE_NIGHT`, the night of the series a sandbox plays (1 to its nights); unset or empty is none. */
+export function seriesNight(
+  value: string | undefined,
+  nights = SERIES_NIGHTS,
+): number | undefined {
   if (!value) return undefined;
   const night = Number(value);
-  if (!Number.isInteger(night) || night < 1 || night > SERIES_NIGHTS)
+  if (!Number.isInteger(night) || night < 1 || night > nights)
     throw new Error(
-      `EVAL_SIMULATE_NIGHT must be a night from 1 to ${SERIES_NIGHTS}: ${value}`,
+      `EVAL_SIMULATE_NIGHT must be a night from 1 to ${nights}: ${value}`,
     );
   return night;
 }

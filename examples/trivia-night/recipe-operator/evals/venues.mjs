@@ -145,7 +145,8 @@ source = "/workspace/memories"
 destination = "memories"
 `;
 
-// Each night runs in its own sandbox from a fresh bank; EVAL_SIMULATE_NIGHT gives it that night's share of the venue's questions.
+// Each night runs in its own sandbox from a fresh bank; EVAL_SIMULATE_NIGHT gives it that night's share of the venue's questions,
+// split across the series' two nights (EVAL_SIMULATE_SERIES_NIGHTS).
 const compose = (venue, night, teams) => `services:
   main:
     depends_on:
@@ -159,6 +160,7 @@ const compose = (venue, night, teams) => `services:
     environment:
       EVAL_SIMULATE_SCENARIO: crowd-${venue.profile}
       EVAL_SIMULATE_NIGHT: "${night}"
+      EVAL_SIMULATE_SERIES_NIGHTS: "2"
       EVAL_SIMULATE_TEAMS: "${teams}"
       EVAL_SIMULATE_MANIFEST_DIR: /verifier
     volumes:

@@ -11,6 +11,7 @@ services:
     environment:
       EVAL_SIMULATE_SCENARIO: crowd-held-geelong
       EVAL_SIMULATE_NIGHT: "2"
+      EVAL_SIMULATE_SERIES_NIGHTS: "2"
       EVAL_SIMULATE_TEAMS: "8"
       EVAL_SIMULATE_MANIFEST_DIR: /verifier
     volumes:

@@ -4,10 +4,9 @@ import {
   toolsOf,
 } from "@introspection-ai/eval-simulate/mcp";
 import { contract } from "./contract.ts";
-import { randomOf } from "@introspection-ai/eval-simulate/mcp";
-import { byId, chance } from "../../world/profiles.ts";
+import { answersRight, byId, crowd } from "../../world/profiles.ts";
 import type { Mark, Question, State } from "./entities.ts";
-import { question, supply } from "./supply.ts";
+import { nightOf, question, shuffled, supply } from "./supply.ts";
 
 const { config, answer } = toolsOf(contract);
 
@@ -45,6 +44,54 @@ function rates(marks: Mark[], key: (q: Question) => string) {
   return out;
 }
 
+/** The teams in the room when the crowd answers on its own: crowd_size of them, with night 2's turnover. */
+function crowdTeams(state: State) {
+  const venue = state.crowd && state.venue ? byId(state.venue) : undefined;
+  return venue ? crowd(venue, state.crowd_size, state.series_night) : [];
+}
+
+/** Teams that played here on an earlier night: this bank's earlier nights, or night 1's crowd for a later series night. */
+function playedBefore(state: State) {
+  const before = new Set(state.nights.slice(0, -1).flatMap((n) => n.teams));
+  const venue = state.crowd && state.venue ? byId(state.venue) : undefined;
+  if (venue && (state.series_night ?? 1) >= 2)
+    for (const team of crowd(venue, state.crowd_size, 1)) before.add(team);
+  return before;
+}
+
+/** Tonight's rounds (one per next_questions call), each with its marks, for a crowd that answers on its own. */
+function roundsOf(state: State, week: number) {
+  const teams = crowdTeams(state);
+  const byRequest = new Map<number, string[]>();
+  for (const a of state.asked.filter((a) => a.week === week))
+    byRequest.set(a.request, [
+      ...(byRequest.get(a.request) ?? []),
+      a.question_id,
+    ]);
+  return [...byRequest.values()].map((ids, i) => {
+    const qs = ids.map((id) => question(id) as Question);
+    const count = (g: string) => qs.filter((q) => q.genre === g).length;
+    const marks = state.marks.filter(
+      (m) => m.week === week && ids.includes(m.question_id),
+    );
+    return {
+      round: i + 1,
+      genre: [...qs.map((q) => q.genre)].sort((a, b) => count(b) - count(a))[0],
+      difficulty:
+        Math.round(
+          (qs.reduce((s, q) => s + q.difficulty, 0) / qs.length) * 10,
+        ) / 10,
+      questions: qs.length,
+      correct_rate: marks.length
+        ? Math.round(
+            (marks.filter((m) => m.correct).length / marks.length) * 100,
+          ) / 100
+        : 0,
+      points: standings(marks, teams),
+    };
+  });
+}
+
 export function register(server: McpServer, state: State) {
   server.registerTool(
     "next_questions",
@@ -52,7 +99,17 @@ export function register(server: McpServer, state: State) {
     async ({ count, genre, region, difficulty }) => {
       const night = tonight(state);
       const asked = new Set(state.asked.map((a) => a.question_id));
-      const fresh = supply().filter((q) => !asked.has(q.id));
+      const share = state.series_night;
+      const fresh = shuffled(
+        supply().filter(
+          (q) =>
+            !asked.has(q.id) &&
+            (share === undefined ||
+              nightOf(state.venue ?? "", q.id, state.series_nights) === share),
+        ),
+        state.venue ?? "",
+        share ?? night?.week ?? 0,
+      );
       const match = (q: Question, d: number | undefined) =>
         (!genre || q.genre === genre) &&
         (!region || q.region === region) &&
@@ -77,15 +134,47 @@ export function register(server: McpServer, state: State) {
       const week = night?.week ?? 0;
       const request = new Set(state.asked.map((a) => a.request)).size + 1;
       for (const q of picked)
-        state.asked.push({ question_id: q.id, week, request });
+        state.asked.push({
+          question_id: q.id,
+          week,
+          request,
+          genre: q.genre,
+          region: q.region,
+          difficulty: q.difficulty,
+        });
+      const venue = state.venue ? byId(state.venue) : undefined;
+      if (state.crowd && venue)
+        for (const q of picked)
+          for (const team of crowdTeams(state))
+            state.marks.push({
+              week,
+              question_id: q.id,
+              team,
+              answer: "",
+              correct: answersRight(venue, q, team, state.seed),
+            });
       return answer("next_questions", {
-        questions: picked.map(({ id, genre, region, difficulty, text }) => ({
-          id,
-          genre,
-          region,
-          difficulty,
-          text,
-        })),
+        questions: picked.map(
+          ({
+            id,
+            genre,
+            region,
+            difficulty,
+            format,
+            text,
+            options,
+            decade,
+          }) => ({
+            id,
+            genre,
+            region,
+            difficulty,
+            format,
+            text,
+            ...(options && { options }),
+            ...(decade && { decade }),
+          }),
+        ),
         relaxed,
       });
     },
@@ -101,7 +190,7 @@ export function register(server: McpServer, state: State) {
           "No night has been started at this venue. Call start_night first.",
           true,
         );
-      const before = new Set(state.nights.slice(0, -1).flatMap((n) => n.teams));
+      const before = playedBefore(state);
       night.teams = [...new Set(names)];
       return answer("register_teams", {
         week: night.week,
@@ -123,6 +212,12 @@ export function register(server: McpServer, state: State) {
         week: w,
         by_genre: rates(marks, (q) => q.genre),
         by_difficulty: rates(marks, (q) => String(q.difficulty)),
+        ...(state.crowd
+          ? {
+              rounds: roundsOf(state, w),
+              standings: standings(marks, crowdTeams(state)),
+            }
+          : {}),
       });
     },
   );
@@ -155,6 +250,11 @@ export function register(server: McpServer, state: State) {
     "submit_round",
     config("submit_round"),
     async ({ answers }) => {
+      if (state.crowd)
+        return text(
+          "The bank records this crowd's answers itself as each round is served; call round_summary for the marks.",
+          true,
+        );
       const night = tonight(state);
       if (!night)
         return text(
@@ -182,9 +282,7 @@ export function register(server: McpServer, state: State) {
         // In a memory search the crowd's answers are the world's: whether a team got a question right is
         // drawn from the venue's profile, keyed by the question and the team; a blank is always wrong.
         const correct = venue
-          ? given !== "" &&
-            randomOf(state.seed, venue.id, q.id, a.team)() <
-              chance(venue, q, Math.max(0, venue.teams.indexOf(a.team)))
+          ? given !== "" && answersRight(venue, q, a.team, state.seed)
           : given !== "" && given === normalise(q.answer);
         return {
           week: night.week,

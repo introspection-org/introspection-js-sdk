@@ -226,13 +226,16 @@ const cells = GENRES.flatMap((genre) =>
 );
 const DECADE = /^(196|197|198|199|200|201|202)0s$/;
 
-test("questions.json holds 40 valid questions in each of the 120 cells, half of them multiple choice", () => {
+test("questions.json holds REAL_PER_CELL valid questions in each of the 120 cells, half of them multiple choice", () => {
   assert.equal(Object.keys(questions).length, 120);
   for (const { genre, region, difficulty } of cells) {
     const cell = questions[`${genre}-${region}-${difficulty}`];
     assert.equal(cell.length, REAL_PER_CELL);
     assert.equal(new Set(cell.map((q) => q.text)).size, REAL_PER_CELL);
-    assert.equal(cell.filter((q) => q.format === "choice").length, 20);
+    assert.equal(
+      cell.filter((q) => q.format === "choice").length,
+      REAL_PER_CELL / 2,
+    );
     for (const q of cell) {
       assert.ok(q.text.trim() && q.answer.trim());
       assert.match(q.decade, DECADE);
@@ -247,7 +250,7 @@ test("questions.json holds 40 valid questions in each of the 120 cells, half of 
   }
 });
 
-test("ids are unchanged, and the first 40 of a cell come from questions.json", () => {
+test("ids are unchanged, and the first REAL_PER_CELL of a cell come from questions.json", () => {
   const all = supply();
   assert.equal(all.length, cells.length * PER_CELL);
   let i = 0;
@@ -304,4 +307,33 @@ test("each venue meets its own shuffle of real questions, the same for the same 
     assert.ok(["choice", "short"].includes(q.format));
     if (q.format === "choice") assert.equal(q.options.length, 4);
   }
+});
+
+test("EVAL_SIMULATE_SERIES_NIGHTS splits each venue's real questions across that many nights", () => {
+  const before = process.env.EVAL_SIMULATE_SERIES_NIGHTS;
+  process.env.EVAL_SIMULATE_SERIES_NIGHTS = "2";
+  try {
+    assert.equal(
+      world(ALL[0].id, new Date(), 0)["trivia-bank"].series_nights,
+      2,
+    );
+  } finally {
+    if (before === undefined) delete process.env.EVAL_SIMULATE_SERIES_NIGHTS;
+    else process.env.EVAL_SIMULATE_SERIES_NIGHTS = before;
+  }
+  for (const p of ALL)
+    for (const { genre, region, difficulty } of cells) {
+      const real = supply().filter(
+        (q) =>
+          q.genre === genre &&
+          q.region === region &&
+          q.difficulty === difficulty &&
+          q.decade,
+      );
+      for (const night of [1, 2])
+        assert.ok(
+          real.filter((q) => nightOf(p.id, q.id, 2) === night).length >= 12,
+          `${p.id} ${genre}/${region}/${difficulty} night ${night}`,
+        );
+    }
 });
