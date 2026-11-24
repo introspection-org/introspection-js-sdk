@@ -654,3 +654,29 @@ table.steps td.fine {
   color: var(--bad);
   border-color: color-mix(in srgb, var(--bad) 40%, var(--line));
 }
+
+/* "How it's tested": night 1, then night 2 four ways, across the page's width. */
+.how,
+.how p {
+  max-width: none;
+}
+.how ul {
+  margin: 8px 0 0;
+  padding-left: 18px;
+}
+.arms-svg {
+  display: block;
+  width: 100%;
+  max-width: 1100px;
+  height: auto;
+  margin: 10px 0 4px;
+}
+.arms-svg .arm-name {
+  fill: var(--ink);
+  font-size: 17px;
+  font-weight: 600;
+}
+.arms-svg .arm-role {
+  fill: var(--muted);
+  font-size: 14px;
+}

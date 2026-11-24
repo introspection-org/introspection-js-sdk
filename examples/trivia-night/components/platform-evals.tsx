@@ -95,8 +95,92 @@ const ARMS = [
 ] as const;
 type ArmKind = (typeof ARMS)[number]["kind"];
 
-const HYPOTHESIS =
-  "If the host keeps notes on each venue, the second night is tuned to that crowd — questions they can mostly answer, in topics they like, with a close race.";
+/** Night 1, then night 2 four ways, each named for what it shows. */
+function ArmsDiagram() {
+  const boxX = (i: number) => 236 + i * 191;
+  return (
+    <svg
+      className="arms-svg"
+      viewBox="0 0 1000 104"
+      role="img"
+      aria-label="Night 1, then night 2 four ways: its own notes (the test), no notes (the baseline), another pub's notes (the placebo) and the true notes (the ceiling)"
+    >
+      <defs>
+        <marker
+          id="arms-arrow"
+          viewBox="0 0 8 8"
+          refX="7"
+          refY="4"
+          markerWidth="7"
+          markerHeight="7"
+          orient="auto"
+        >
+          <path d="M0,0 L8,4 L0,8 z" fill="var(--muted)" />
+        </marker>
+      </defs>
+      <rect
+        x="1"
+        y="30"
+        width="176"
+        height="60"
+        rx="6"
+        fill="var(--panel)"
+        stroke="var(--line)"
+      />
+      <rect x="1" y="30" width="5" height="60" rx="2" fill="var(--ink)" />
+      <text x="18" y="55" className="arm-name">
+        Night 1
+      </text>
+      <text x="18" y="74" className="arm-role">
+        plays, writes notes
+      </text>
+      <path
+        d="M180,60 L222,60"
+        stroke="var(--muted)"
+        strokeWidth="1.5"
+        markerEnd="url(#arms-arrow)"
+      />
+      <text x={boxX(0)} y="16" className="arm-role">
+        night 2, four ways
+      </text>
+      {HOW_ARMS.map((arm, i) => (
+        <g key={arm.name}>
+          <rect
+            x={boxX(i)}
+            y="30"
+            width="180"
+            height="60"
+            rx="6"
+            fill="var(--panel)"
+            stroke="var(--line)"
+          />
+          <rect
+            x={boxX(i)}
+            y="30"
+            width="5"
+            height="60"
+            rx="2"
+            fill={`var(${arm.color})`}
+          />
+          <text x={boxX(i) + 17} y="55" className="arm-name">
+            {arm.name}
+          </text>
+          <text x={boxX(i) + 17} y="74" className="arm-role">
+            {arm.role}
+          </text>
+        </g>
+      ))}
+    </svg>
+  );
+}
+
+/** Night 2's four ways, as the "How it's tested" diagram names them. */
+const HOW_ARMS = [
+  { name: "Its own notes", role: "the test", color: "--memory" },
+  { name: "No notes", role: "the baseline", color: "--muted" },
+  { name: "Another pub's notes", role: "the placebo", color: "--bad" },
+  { name: "The true notes", role: "the ceiling", color: "--host" },
+] as const;
 
 /** The primary measures: how far each round's share right was from 65%, and the share of rounds 55–75% right. */
 const GOOD_ROUNDS = "good_rounds";
@@ -1045,28 +1129,29 @@ export function PlatformEvals() {
               </div>
             )}
             {judgeError && <p className="amber">Judge: {judgeError}</p>}
-            <details className="fine">
-              <summary>How it was tested</summary>
+            <details className="fine how">
+              <summary>How it&apos;s tested</summary>
               <p>
-                <strong>Hypothesis:</strong> {HYPOTHESIS}
+                <strong>The bet:</strong> notes from night 1 make night 2 fit
+                the crowd: topics they like, pitched so most answers land.
               </p>
-              <p>
-                {trialVenues.length} pub{trialVenues.length === 1 ? "" : "s"}
-                {countries.length > 0 && ` across ${listWords(countries)}`}.
-                Each plays night 1, then night 2 four ways: with its own notes,
-                as a new customer with none, as another pub&apos;s customer
-                (wrong notes), and with the venue&apos;s true notes written in
-                beforehand (perfect notes). The same simulated teams answer
-                every night 2, so only the host&apos;s choices differ.
-              </p>
-              <p>
-                The wrong notes are a placebo: if memory only helped by being
-                there, another pub&apos;s notes would help too, so right notes
-                beating them shows it is what was remembered that helps. Good
-                rounds is the primary measure, called better or worse when its
-                95% interval over the pubs excludes no difference; the others
-                need a sign test that survives Holm correction.
-              </p>
+              <ArmsDiagram />
+              <ul>
+                <li>
+                  The same teams answer every night 2, so only the host&apos;s
+                  choices differ.
+                </li>
+                <li>
+                  Scored on <strong>good rounds</strong>: a topic the crowd
+                  loves, with 55–75% of answers right.
+                </li>
+                <li>
+                  A difference counts when its 95% range over the{" "}
+                  {trialVenues.length} pub{trialVenues.length === 1 ? "" : "s"}
+                  {countries.length > 0 && ` (${listWords(countries)})`} leaves
+                  out zero.
+                </li>
+              </ul>
             </details>
           </div>
           <div className="venue-cards">{trialVenues.map(card)}</div>
