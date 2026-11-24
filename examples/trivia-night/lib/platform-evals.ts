@@ -286,6 +286,9 @@ export interface SpawnSpec {
   };
 }
 
+/** Tags every trial so a member who holds it can read them; an owner adds it to a member. */
+export const TRIALS_TAG = "simulation:trivia-night";
+
 /**
  * The child's command line and environment. The key travels only as
  * INTROSPECTION_TOKEN; each step gets its own runs root, so concurrent runs
@@ -312,6 +315,9 @@ export function spawnSpec(
     step.identity,
     "--tag",
     `simulation:${step.run}`,
+    // A stable tag on every run's trials: a member given it can read them all.
+    "--tag",
+    TRIALS_TAG,
     "-y",
   ];
   return {

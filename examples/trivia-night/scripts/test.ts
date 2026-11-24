@@ -738,6 +738,8 @@ async function main() {
       "anon:sim-r1-sydney",
       "--tag",
       "simulation:r1",
+      "--tag",
+      "simulation:trivia-night",
       "-y",
     ]);
     assert.equal(spec.options.env.INTROSPECTION_TOKEN, key);
