@@ -138,7 +138,14 @@ ensure_runtime() {
   fi
   (cd recipe-operator && git ls-files -z --cached --others --exclude-standard |
     rsync -a --from0 --files-from=- . "../$WORK/$RUNTIME/")
-  node recipe-operator/evals/venues.mjs "$WORK/$RUNTIME/evals/harbor" >/dev/null ||
+  # The generator reads the fakes' world, so their dependencies come first; the
+  # page reads each task's tastes from recipe-operator/evals/harbor, so the tasks
+  # are generated there too, beside the copy the runtime gets.
+  [ -d recipe-operator/fakes/node_modules ] ||
+    (cd recipe-operator/fakes && npm ci --silent) ||
+    fail "could not install recipe-operator/fakes' dependencies"
+  node recipe-operator/evals/venues.mjs >/dev/null &&
+    node recipe-operator/evals/venues.mjs "$WORK/$RUNTIME/evals/harbor" >/dev/null ||
     fail "could not generate the Harbor tasks"
   (cd "$WORK/$RUNTIME" && git add -A && git add -f evals/harbor &&
     { git diff --cached --quiet HEAD 2>/dev/null ||
