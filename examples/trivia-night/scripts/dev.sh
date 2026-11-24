@@ -10,8 +10,8 @@
 # new each run; the project follows it.
 #
 # The project setup, the first time on a stack (safe to re-run):
-#   1. the trivia-host Runtime: a repository Introspection hosts, seeded from
-#      this example's recipe/, and its runtime
+#   1. the trivia-host Runtime: a repository Introspection hosts, synced from
+#      this example's recipe-operator/ with its generated Harbor tasks, and its runtime
 #   2. the application the bank is linked to: the platform signs a token
 #      naming the end user, as that application, on every call to the bank
 #   3. the trivia-bank MCP binding, on the tunnel, linked to that application
@@ -120,15 +120,14 @@ say "bank: $BANK_URL"
 # ---------------------------------------------------------------------------
 
 ensure_runtime() {
-  if introspection runtimes list -o json | json "v.some((r) => r.slug === '$RUNTIME')" | grep -q true; then
-    say "runtime $RUNTIME exists"
-    return
-  fi
-  # The recipe is a folder of this repository, so its hosted repository holds
-  # a copy of that folder with a history of its own.
+  # The runtime runs recipe-operator/ with its Harbor tasks, which
+  # recipe-operator/evals/venues.mjs generates and git ignores, so its hosted
+  # repository holds a copy of that folder plus the generated tasks, synced on
+  # every run so the platform evals use the tasks this checkout generates.
   local git_id=(-c user.name=trivia-night -c user.email=trivia-night@example.invalid)
-  local repo_url
+  local repo_url exists
   repo_url="$(introspection repositories list -o json | json "v.find((r) => r.slug === '$RUNTIME')?.url")"
+  exists="$(introspection runtimes list -o json | json "v.some((r) => r.slug === '$RUNTIME')")"
   rm -rf "${WORK:?}/$RUNTIME"
   mkdir -p "$WORK"
   if [ -n "$repo_url" ]; then
@@ -137,27 +136,32 @@ ensure_runtime() {
     mkdir -p "$WORK/$RUNTIME"
     git -C "$WORK/$RUNTIME" init -q -b main
   fi
-  (cd recipe && git ls-files -z --cached --others --exclude-standard |
+  (cd recipe-operator && git ls-files -z --cached --others --exclude-standard |
     rsync -a --from0 --files-from=- . "../$WORK/$RUNTIME/")
-  (cd "$WORK/$RUNTIME" && git add -A &&
+  node recipe-operator/evals/venues.mjs "$WORK/$RUNTIME/evals/harbor" >/dev/null ||
+    fail "could not generate the Harbor tasks"
+  (cd "$WORK/$RUNTIME" && git add -A && git add -f evals/harbor &&
     { git diff --cached --quiet HEAD 2>/dev/null ||
-      git "${git_id[@]}" commit -q -m "feat: trivia-host from introspection-js-sdk examples/trivia-night/recipe"; })
+      git "${git_id[@]}" commit -q -m "feat: trivia-host from introspection-js-sdk examples/trivia-night/recipe-operator"; })
   if [ -z "$repo_url" ]; then
-    say "creating the $RUNTIME repository from recipe/"
+    say "creating the $RUNTIME repository from recipe-operator/"
     # Run inside a repository with commits and no origin, `add` pushes it as
     # the first commit and sets it as origin.
     (cd "$WORK/$RUNTIME" && introspection repositories add "$RUNTIME" --provider introspection >/dev/null) ||
       fail "could not create the $RUNTIME repository"
   fi
-  say "creating the $RUNTIME runtime"
-  (cd "$WORK/$RUNTIME" && introspection runtimes create --yes >/dev/null) ||
-    fail "could not create the $RUNTIME runtime from $WORK/$RUNTIME"
-  # A hosted recipe is checked from the files a push carries, and the seed push
-  # came before the runtime existed, so push once more to check and build it.
-  say "pushing to $RUNTIME so the platform checks and builds the recipe"
-  (cd "$WORK/$RUNTIME" &&
-    git "${git_id[@]}" commit -q --allow-empty -m "chore: check the recipe" &&
-    git push -q origin HEAD:main)
+  if [ "$exists" != "true" ]; then
+    say "creating the $RUNTIME runtime"
+    (cd "$WORK/$RUNTIME" && introspection runtimes create --yes >/dev/null) ||
+      fail "could not create the $RUNTIME runtime from $WORK/$RUNTIME"
+    # A hosted recipe is checked from the files a push carries, and the seed push
+    # came before the runtime existed, so push once more to check and build it.
+    (cd "$WORK/$RUNTIME" &&
+      git "${git_id[@]}" commit -q --allow-empty -m "chore: check the recipe")
+  fi
+  say "pushing $RUNTIME so the platform checks and builds the recipe and its tasks"
+  (cd "$WORK/$RUNTIME" && git push -q origin HEAD:main) ||
+    fail "could not push $RUNTIME"
 }
 
 # The application the bank is linked to, by name; its id on stdout.
