@@ -33,7 +33,7 @@ node --import tsx spike/sdk-trial.mts
 
 ## Setting up the page on your platform
 
-Register the page as a `spa` application on your project (Max or Enterprise plan), with the evals and images scopes named, since an application's default leaves them out:
+The page signs in by redirecting to your platform's hosted login (`/v1/oauth/authorize` on the Control Plane, as `examples/auth` does) and returning to `/callback`. Register it as a `spa` application on your project (Max or Enterprise plan), naming the evals and images scopes, since an application's default leaves them out:
 
 ```sh
 introspection applications create --type spa --name "Trivia night" \
@@ -45,11 +45,19 @@ introspection applications create --type spa --name "Trivia night" \
   --allowed-scope conversations:read
 ```
 
-This targets `https://api.introspection.dev` and the production lane; `--url` and `-e` point it at another platform or lane. You need those scopes yourself, as an org admin or owner, since an application's are capped at its creator's.
+You need those scopes yourself, as an org admin or owner, since an application's are capped at its creator's. Then set the page's public settings:
+
+| Variable                                  | Default                              | What it is                                       |
+| ----------------------------------------- | ------------------------------------ | ------------------------------------------------ |
+| `NEXT_PUBLIC_INTROSPECTION_SPA_CLIENT_ID` | none                                 | The `client_id` the command above printed        |
+| `NEXT_PUBLIC_INTROSPECTION_API_URL`       | `https://api.introspection.dev`      | The Control Plane: sign-in and the code exchange |
+| `NEXT_PUBLIC_INTROSPECTION_PLATFORM_URL`  | `https://platform.introspection.dev` | The dashboard, for links to tasks and runs       |
+
+The defaults are production. To use another platform, pass `--url` to the CLI and override both URLs: staging is `https://api.staging.introspection.dev` and `https://platform.staging.introspection.dev`, and a local stack is `http://localhost:8000` and `http://localhost:3000`.
 
 ## What has to land for the page to run as an SPA
 
 - **cloud, the blocker:** memory per pub for a member's trials. For example, a `kind: eval` task a member creates owns memory by its asserted identity in a reserved simulation namespace (`anon:sim-…`). This changes who owns memory, so it needs design review. The alternative needs no change: a small server route that runs trials as a `service_account` application (the `examples/auth` broker), at the cost of attributing tasks to the app's agent with the member named only in caller metadata.
 - **JS SDK:** `compose` and `recipe_git_commit_sha` on `TaskCreateParams`, an image's pinned pull reference, and a trial helper (sidecar, task, tests, verifier) the page and other evals can share.
-- **trivia-night page:** sign-in and `/callback` from `examples/auth`, the sidecar archive built in the browser or a catalog image, and the run loop moved client-side; the tab stays open for the run.
+- **trivia-night page:** sign-in by redirect to `NEXT_PUBLIC_INTROSPECTION_API_URL`'s hosted login and `/callback`, from `examples/auth`, the sidecar archive built in the browser or a catalog image, and the run loop moved client-side; the tab stays open for the run.
 - **CLI:** nothing.
