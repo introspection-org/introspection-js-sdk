@@ -1312,7 +1312,7 @@ export function PlatformEvals() {
         </button>
         {config?.cost_per_trial !== undefined && (
           <span
-            className="cost"
+            className="fine cost"
             title="Sonnet 5.5 list price, measured per trial; billed to your organization's platform usage"
           >
             Estimated cost ${(trials * config.cost_per_trial).toFixed(2)} ·{" "}
