@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.58.0](https://github.com/introspection-org/introspection-js-sdk/compare/v0.57.2...v0.58.0) (2026-11-23)
+
+
+### Features
+
+* **examples:** add trivia-night, a memory demo with a question bank over MCP ([#666](https://github.com/introspection-org/introspection-js-sdk/issues/666)) ([2804426](https://github.com/introspection-org/introspection-js-sdk/commit/2804426e5b7248d364b793b7a752c0cb2037068e))
+
+
+### Bug Fixes
+
+* **api:** make task_id optional when creating an issue ([#664](https://github.com/introspection-org/introspection-js-sdk/issues/664)) ([4cb391a](https://github.com/introspection-org/introspection-js-sdk/commit/4cb391aa5e05f3aae78c9dfd73346ce95f8e849d))
+
 ## [0.57.2](https://github.com/introspection-org/introspection-js-sdk/compare/v0.57.1...v0.57.2) (2026-11-20)
 
 
