@@ -26,7 +26,7 @@ import {
   validityGate,
   type Pair,
 } from "@/lib/experiment";
-import { scored } from "@/lib/results";
+import { scored } from "@/lib/scored";
 import type { Judgement } from "@/lib/judge";
 import { BAND, MEASURES, checkLine } from "@/lib/memory-measures";
 import {

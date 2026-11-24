@@ -27,6 +27,4 @@ export function readResults(file: string): ResultLine[] {
     .map((line) => JSON.parse(line) as ResultLine);
 }
 
-/** A trial counts in the analysis only when it ran: one that errored measured nothing. */
-export const scored = (trial: { error?: unknown } | null | undefined) =>
-  Boolean(trial) && !trial?.error;
+export { scored } from "./scored";
