@@ -21,8 +21,20 @@ const fin = events.filter(
 const by: Record<string, Record<string, Record<string, number>>> = {};
 // Runs before the verifier printed first_round_in_band: the first round's share right says the same.
 const BAND = [0.55, 0.75];
+// A true-notes night 2 counts only when its night 0 seeded the true notes (the pre-registration's rule).
+const seeded = new Set(
+  fin
+    .filter(
+      (e) =>
+        e.data.night === "night0-seed" &&
+        (e.data.checks as Record<string, number> | undefined)?.notes_seeded ===
+          1,
+    )
+    .map((e) => String(e.data.venue)),
+);
 for (const e of fin) {
   const v = String(e.data.venue);
+  if (e.data.night === "night2-perfect" && !seeded.has(v)) continue;
   const measures = { ...(e.data.measures ?? {}) } as Record<string, number>;
   const opening = (e.data.fetches as { correct_rate?: number | null }[])?.[0]
     ?.correct_rate;

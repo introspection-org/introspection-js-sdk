@@ -977,13 +977,17 @@ export function PlatformEvals() {
       : "No results yet."
     : !order
       ? `Model notes vs no notes, across ${pubCount} pub${pubCount === 1 ? "" : "s"}: ${primary?.verdict.toLowerCase() ?? "no result"} on good rounds; waiting for the other notes.`
-      : order.holds
+      : order.holds &&
+          primary?.verdict === "Better" &&
+          primary.wrong?.tone === "good"
         ? "Memory helps because of what it remembered: model notes beat no notes, and other notes did worst."
-        : `On good rounds across ${pubCount} pubs: model notes ${order.rightOverNone ? "beat" : "did not beat"} no notes, no notes ${order.noneOverWrong ? "beat" : "did not beat"} other notes${
-            typeof primary?.means.perfect === "number"
-              ? `, and true notes ${order.perfectAtLeastRight ? "matched or beat" : "fell short of"} model notes`
-              : ""
-          }.`;
+        : order.holds
+          ? `In the expected order on good rounds across ${pubCount} pubs, but not yet supported by the pre-registered tests: model notes need an interval above no notes and a sign-test win over other notes.`
+          : `On good rounds across ${pubCount} pubs: model notes ${order.rightOverNone ? "beat" : "did not beat"} no notes, no notes ${order.noneOverWrong ? "beat" : "did not beat"} other notes${
+              typeof primary?.means.perfect === "number"
+                ? `, and true notes ${order.perfectAtLeastRight ? "matched or beat" : "fell short of"} model notes`
+                : ""
+            }.`;
   const gate = validityGate(
     trialVenues.flatMap((venue) => {
       const perfect = measureAt(venue, "night2-perfect", GOOD_ROUNDS);
