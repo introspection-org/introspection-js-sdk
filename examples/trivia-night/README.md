@@ -64,7 +64,8 @@ Pick a number of venues and press **Run**. Venue _i_ plays the _i_-th venue prof
 | Night 1              | `night1-<venue>` | `anon:sim-<run>-<venue>`                       | the host learns the venue and writes its notes |
 | Night 2, model notes | `night2-<venue>` | the same customer                              | it reads those notes                           |
 | Night 2, no notes    | `night2-<venue>` | `anon:sim-<run>-<venue>-fresh`, a new customer | the same night with no notes                   |
-| Night 2, other notes | `night2-<venue>` | another pub's night-1 customer                 | the same night with a different pub's notes    |
+| Night 1, another pub | `night1-<other>` | `anon:sim-<run>-<venue>-wrong`, a new customer | another pub's night, writing its notes         |
+| Night 2, other notes | `night2-<venue>` | that same customer                             | the same night with a different pub's notes    |
 | Night 2, true notes  | `night2-<venue>` | a customer night 0 seeded with the true notes  | the same night with the crowd's real tastes    |
 
 Every trial is tagged `simulation:<run>` and `simulation:trivia-night`. Trials are scored in their own sandbox, so seeing results needs neither tag; to browse the trials themselves, an admin already can, and an owner can give another member the `simulation:trivia-night` tag. The page reads as an experiment: the hypothesis that notes tune night 2 to the crowd, the method, and the result. The two night 2s at a pub differ only in the notes, so each pub is a paired comparison: the result is how far each round's share right was from 65%, with memory against without, as a mean of per-pub differences with a 95% t-interval (from 3 pubs; 11 pubs gives a meaningful result), with the other measures beside it. Each run starts new customers, so nothing carries over between runs; a run measures one version of the agent and changes nothing.

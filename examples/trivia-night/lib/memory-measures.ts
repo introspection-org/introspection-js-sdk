@@ -292,7 +292,7 @@ export function night2Measures(input: MeasureInput): Measures {
 }
 
 export function measuresOf(night: string, input: MeasureInput): Measures {
-  return night === "night1-memory"
+  return night === "night1-memory" || night === "night1-donor"
     ? night1Measures(input)
     : night2Measures(input);
 }

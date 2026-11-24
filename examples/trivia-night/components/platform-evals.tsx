@@ -82,10 +82,11 @@ const NIGHTS = [
   "night2-hosted",
   "night2-perfect",
 ] as const;
-type NightKey = (typeof NIGHTS)[number] | "night0-seed";
+type NightKey = (typeof NIGHTS)[number] | "night0-seed" | "night1-donor";
 
 const NIGHT_TITLES: Record<NightKey, string> = {
   "night0-seed": "Night 0 · true notes seeded",
+  "night1-donor": "Night 1 at another pub · the other notes",
   "night1-memory": "Night 1 · what it learned",
   "night2-wrong": "Night 2 · other notes",
   "night2-fresh": "Night 2 · no notes",
@@ -685,12 +686,12 @@ export function PlatformEvals() {
     return () => clearInterval(timer);
   }, [running, poll]);
 
-  // A run of one venue has no other pub's notes for a wrong-notes night.
+  // A run of one venue has no other pub's night 1 or wrong-notes night 2.
   const trialsFor = (count: number) =>
-    count * (config?.trials_per_venue ?? 6) - (count === 1 ? 1 : 0);
+    count * (config?.trials_per_venue ?? 7) - (count === 1 ? 2 : 0);
   const setSize = (set: Pubs) =>
     config?.max_venues_by_pubs?.[set] ?? (set === "development" ? 11 : 20);
-  const trialsPerPub = config?.trials_per_venue ?? 6;
+  const trialsPerPub = config?.trials_per_venue ?? 7;
   const pubCost = (trialsPerPub * (config?.cost_per_trial ?? 0.086)).toFixed(2);
   const venueCount = Math.min(Math.max(Math.trunc(venues) || 1, 1), maxVenues);
   const trials = trialsFor(venueCount);
@@ -1023,7 +1024,7 @@ export function PlatformEvals() {
         missingNights,
         gatePasses: gate?.passes ?? null,
         costPerTrial: config?.cost_per_trial ?? 0.086,
-        trialsPerPub: config?.trials_per_venue ?? 6,
+        trialsPerPub: config?.trials_per_venue ?? 7,
       })
     : null;
   const accuracy = trialVenues.flatMap((venue) => {
@@ -1146,6 +1147,22 @@ export function PlatformEvals() {
               <NightQuestions night={chosen} finished={finished} />
             ) : (
               <>
+                {chosen === "night2-wrong" &&
+                  trialAt(venue, "night1-donor")?.finished && (
+                    <div className="hood-summary">
+                      <h5 className="verifiers">
+                        {NIGHT_TITLES["night1-donor"]}{" "}
+                        <span className="fine">
+                          played first, as this customer, to write the notes
+                          night 2 loads
+                        </span>
+                      </h5>
+                      <Summary
+                        night="night1-donor"
+                        finished={trialAt(venue, "night1-donor")!.finished!}
+                      />
+                    </div>
+                  )}
                 <div className="hood-summary">
                   <Summary night={chosen} finished={finished} />
                 </div>

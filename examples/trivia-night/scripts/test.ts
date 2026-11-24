@@ -404,7 +404,7 @@ async function main() {
     const chains = evals.plan("r1", 3, profiles);
     // Three chains per venue, then one wrong-notes chain per venue.
     assert.equal(chains.length, 12);
-    assert.equal(chains.flat().length, 18);
+    assert.equal(chains.flat().length, 21);
     assert.deepEqual(
       chains[0].map((step) => [
         step.night,
@@ -447,27 +447,65 @@ async function main() {
       [chains[6][1].venue, chains[6][1].venue_label, chains[6][1].task],
       ["melbourne-2", "Melbourne (AU) #2", "night2-melbourne"],
     );
-    // Wrong notes: Melbourne's night 2 runs as Leeds's customer, after Leeds's night 1 and 2.
-    const wrong = chains.slice(9).map(([step]) => step);
+    // Other notes: each pub's placebo is a customer of its own whose memory
+    // another pub's night 1 wrote first; no placebo shares an identity or waits
+    // for the donor's own nights.
+    const wrong = chains.slice(9);
     assert.deepEqual(
-      wrong.map((step) => [step.venue, step.donor, step.identity]),
+      wrong.map((chain) =>
+        chain.map((step) => [step.night, step.task, step.identity, step.donor]),
+      ),
       [
-        ["melbourne", "leeds", "anon:sim-r1-leeds"],
-        ["leeds", "melbourne-2", "anon:sim-r1-melbourne-2"],
-        ["melbourne-2", "leeds", "anon:sim-r1-leeds"],
+        [
+          [
+            "night1-donor",
+            "night1-leeds",
+            "anon:sim-r1-melbourne-wrong",
+            "leeds",
+          ],
+          [
+            "night2-wrong",
+            "night2-melbourne",
+            "anon:sim-r1-melbourne-wrong",
+            "leeds",
+          ],
+        ],
+        [
+          [
+            "night1-donor",
+            "night1-melbourne",
+            "anon:sim-r1-leeds-wrong",
+            "melbourne-2",
+          ],
+          [
+            "night2-wrong",
+            "night2-leeds",
+            "anon:sim-r1-leeds-wrong",
+            "melbourne-2",
+          ],
+        ],
+        [
+          [
+            "night1-donor",
+            "night1-leeds",
+            "anon:sim-r1-melbourne-2-wrong",
+            "leeds",
+          ],
+          [
+            "night2-wrong",
+            "night2-melbourne",
+            "anon:sim-r1-melbourne-2-wrong",
+            "leeds",
+          ],
+        ],
       ],
     );
-    assert.deepEqual(wrong[0].after, [
-      "leeds/night1-memory",
-      "leeds/night2-hosted",
-    ]);
-    assert.equal(wrong[0].task, "night2-melbourne");
-    assert.equal(wrong[0].variant, "wrong");
-    const keys = new Set(chains.flat().map(evals.stepKey));
-    for (const step of wrong) {
-      assert.notEqual(step.donor, step.venue);
-      assert.ok(step.after?.every((key) => keys.has(key)));
-      assert.equal(step.after?.[0], `${step.donor}/night1-memory`);
+    assert.equal(wrong[0][1].variant, "wrong");
+    const identities = wrong.map((chain) => chain[0].identity);
+    assert.equal(new Set(identities).size, identities.length);
+    for (const chain of wrong) {
+      assert.notEqual(chain[0].donor, chain[0].venue);
+      assert.ok(chain.every((step) => !step.after?.length));
     }
     assert.ok(
       chains.every((chain) => chain.every((s) => s.task !== "night2-control")),

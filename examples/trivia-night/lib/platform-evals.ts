@@ -29,12 +29,14 @@ export interface VenueProfile {
 /**
  * The night's role; the Harbor task it runs is `Step.task`. `night2-fresh` is
  * the venue's night 2 as a new customer, with no notes; `night2-wrong` runs as
- * another pub's customer, so it loads that pub's notes; `night0-seed` writes
+ * a customer of its own whose memory `night1-donor` wrote by playing another
+ * pub's night 1, so it loads that pub's night-1 notes; `night0-seed` writes
  * the venue's true notes for `night2-perfect`.
  */
 export type Night =
   | "night0-seed"
   | "night1-memory"
+  | "night1-donor"
   | "night2-hosted"
   | "night2-fresh"
   | "night2-wrong"
@@ -69,13 +71,9 @@ export type Step = {
   task: string;
   identity: string;
   variant?: Variant;
-  /**
-   * Steps (`stepKey`) this one waits for; the first's notes are its night-1
-   * notes. A wrong-notes night 2 waits for its donor's night 1 and night 2,
-   * so neither of the donor's reads sees its writes.
-   */
+  /** Steps (`stepKey`) this one waits for; the first's notes are its night-1 notes. */
   after?: string[];
-  /** The pub whose customer a wrong-notes night 2 runs as. */
+  /** The pub whose night 1 wrote a wrong-notes night 2's notes. */
   donor?: string;
   donor_label?: string;
 };
@@ -123,11 +121,12 @@ export const TEAM_SIZES = [3, 5, 8] as const;
 export type TeamSize = (typeof TEAM_SIZES)[number];
 export const DEFAULT_TEAMS: TeamSize = 5;
 /**
- * Trials a venue runs: night 1, night 0 (seeding the true notes), and night 2
- * four ways: its own notes, none, another pub's, and the true ones. A run of
- * one venue has no other pub's notes, so it runs one fewer.
+ * Trials a venue runs: night 1, night 0 (seeding the true notes), another
+ * pub's night 1 (writing the wrong notes), and night 2 four ways: its own
+ * notes, none, another pub's, and the true ones. A run of one venue has no
+ * other pub, so it runs two fewer.
  */
-export const TRIALS_PER_VENUE = 6;
+export const TRIALS_PER_VENUE = 7;
 /**
  * An estimate, in US dollars, of one trial's model cost: Sonnet 5.5 at list
  * price, measured at $0.086 over 66 six-round trials on 2026-11-24. Team size
@@ -175,8 +174,9 @@ export function donorOf(
  * The chains of a run, all started at once; a chain runs its steps in order,
  * and a step with `after` waits for those steps too. Per venue: night 1 then
  * night 2 on one identity (its own notes); night 2 on a fresh identity (none);
- * night 0 then night 2 on a third (the true notes); and, after every venue's,
- * night 2 as another pub's customer (wrong notes). Venue i plays profile i,
+ * night 0 then night 2 on a third (the true notes); and another pub's night 1
+ * then this venue's night 2 on a fourth (wrong notes), so each placebo loads a
+ * fresh night-1 notes file of its own, shared with no other trial. Venue i plays profile i,
  * cycling when there are more venues than profiles, to a crowd of `teams`.
  */
 export function plan(
@@ -245,28 +245,32 @@ export function plan(
       ],
     );
   }
-  planned.forEach(({ profile, venue, venue_label }, index) => {
+  planned.forEach(({ profile, venue, venue_label, identity }, index) => {
     const donor = donorOf(
       index,
       planned.map((p) => p.profile),
     );
     if (donor === null) return;
     const from = planned[donor];
+    const base = {
+      run,
+      venue,
+      venue_label,
+      identity: `${identity}-wrong`,
+      donor: from.venue,
+      donor_label: from.venue_label,
+    };
     chains.push([
       {
-        run,
-        venue,
-        venue_label,
+        ...base,
+        night: "night1-donor",
+        task: taskName(1, from.profile.slug, teams),
+      },
+      {
+        ...base,
         night: "night2-wrong",
         task: taskName(2, profile.slug, teams),
-        identity: from.identity,
         variant: "wrong",
-        after: [
-          stepKey({ venue: from.venue, night: "night1-memory" }),
-          stepKey({ venue: from.venue, night: "night2-hosted" }),
-        ],
-        donor: from.venue,
-        donor_label: from.venue_label,
       },
     ]);
   });
