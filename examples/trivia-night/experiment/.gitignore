@@ -1,0 +1,7 @@
+node_modules/
+candidates/
+evidence/
+proposals/
+search.log
+search.json
+FINAL_BLOCK.md

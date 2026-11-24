@@ -76,9 +76,9 @@ Starting from the original Recipe, whose memory block is empty, a search writes 
 
 ### The search (development pubs only)
 
-Fixed before it ran:
+Fixed before it ran, in `experiment/search.py`:
 
-- **Evaluation**: a candidate is the original Recipe with only the text between `<!-- memory:start -->` and `<!-- memory:end -->` replaced, checked by diff. It plays each of the 11 development pubs' night 1 and then night 2 from its own notes, in fresh sessions, under Vitest on the local Runtime, with the same fakes, instructions and crowd as the platform tasks. Night 2 is scored by that pub's own `check.mjs`.
+- **Evaluation**: a candidate is the original Recipe with only the text between `<!-- memory:start -->` and `<!-- memory:end -->` replaced, checked by diff. It plays each of the 11 development pubs' night 1 and then night 2 from its own notes, in fresh sessions, under Vitest on the local Runtime (`experiment/night-series.eval.ts`), with the same fakes, instructions and crowd as the platform tasks. Night 2 is scored by that pub's own `check.mjs`.
 - **Fitness**: mean good rounds over the 11 pubs; ties broken by rounds in a favourite genre.
 - **Proposer**: one fixed prompt, Claude Opus with no tools. It sees the rest of the system prompt, the parent block, and per development pub the night-2 rounds, the scores, night 1's notes and that pub's true tastes, for diagnosis only.
 - **Schedule**: generation 0 is the original. Three generations of three children each; the best child becomes the next parent only when it beats the parent. A final merge child combines the best block per capability: favourite genre, rounds 55-75% right, and notes that name no team. The pick is the best block seen.
