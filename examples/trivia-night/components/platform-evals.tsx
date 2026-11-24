@@ -84,6 +84,19 @@ export function PlatformEvals() {
         .filter((event) => event.type.startsWith("eval."))
         .reduce(fold, current),
     );
+    const finished = new Set(
+      more.events
+        .filter((event) => event.type === "eval.run_finished")
+        .map((event) => event.data.run as string),
+    );
+    if (finished.size)
+      setConfig(
+        (current) =>
+          current &&
+          (current.active && finished.has(current.active)
+            ? { ...current, active: null }
+            : current),
+      );
   }, []);
 
   useEffect(() => {
