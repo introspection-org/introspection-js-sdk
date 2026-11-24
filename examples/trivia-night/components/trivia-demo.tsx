@@ -71,8 +71,19 @@ export function TriviaDemo() {
     ]);
     setState(next);
     if (more.events.length) {
-      last.current = more.events[more.events.length - 1].seq;
-      setEvents((current) => [...current, ...more.events].slice(-400));
+      last.current = Math.max(
+        last.current,
+        more.events[more.events.length - 1].seq,
+      );
+      // Two refreshes can overlap (React runs effects twice in development),
+      // so an event already shown is skipped rather than shown again.
+      setEvents((current) => {
+        const seen = new Set(current.map((event) => event.seq));
+        const fresh = (more.events as FlowEvent[]).filter(
+          (event) => !seen.has(event.seq),
+        );
+        return [...current, ...fresh].slice(-400);
+      });
     }
   }, []);
 
