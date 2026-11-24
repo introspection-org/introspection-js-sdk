@@ -266,3 +266,50 @@ pre {
     font-size: 13px;
   }
 }
+
+.mode {
+  margin: 20px 0 0;
+}
+
+.platform {
+  margin-top: 32px;
+  padding: 16px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.platform-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.platform-form input {
+  width: 4em;
+  font: inherit;
+}
+
+.platform tbody tr {
+  cursor: pointer;
+  vertical-align: top;
+}
+
+.check {
+  white-space: nowrap;
+  margin-right: 6px;
+}
+
+.preview {
+  display: block;
+  max-width: 48ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.notice pre {
+  overflow-x: auto;
+}

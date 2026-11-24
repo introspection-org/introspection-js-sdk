@@ -1,0 +1,8 @@
+{
+  "reward": 1,
+  "night_started": 1,
+  "round_fetched": 1,
+  "notes_written": 1,
+  "notes_name_no_team": 1,
+  "notes": "# The venue\n\n- Country: UK\n"
+}

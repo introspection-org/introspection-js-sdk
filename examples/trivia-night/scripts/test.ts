@@ -1,5 +1,8 @@
 /** Checks of the bank, its MCP server and the scoring: `pnpm test`. */
 import assert from "node:assert/strict";
+import { cpSync, mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import path from "node:path";
 
 process.env.TRIVIA_DEV_OWNER_HEADER = "1";
 
@@ -340,6 +343,131 @@ async function main() {
       assert.ok(totals.forgetful.unfair > 0);
     },
   );
+
+  const evals = await import("../lib/platform-evals");
+  const { POST: startEvals, GET: evalsConfig } =
+    await import("../app/api/evals/route");
+  const fixtures = path.join(import.meta.dirname, "fixtures", "platform-evals");
+
+  await check("platform evals: one chain per venue and a control", () => {
+    const chains = evals.plan("r1", 3);
+    assert.equal(chains.length, 4);
+    assert.deepEqual(
+      chains[0].map((step) => [step.night, step.identity]),
+      [
+        ["night1-memory", "anon:sim-r1-venue-a"],
+        ["night2-hosted", "anon:sim-r1-venue-a"],
+      ],
+    );
+    assert.deepEqual(chains[3], [
+      {
+        run: "r1",
+        venue: "control",
+        night: "night2-control",
+        identity: "anon:sim-r1-control",
+      },
+    ]);
+    assert.equal(evals.plan("r1", 50).length, evals.MAX_VENUES + 1);
+    assert.match(evals.newRunId(new Date(1700000000000)), /^r1700000000000$/);
+  });
+
+  await check("platform evals: the key goes only in the environment", () => {
+    const key = "intro_sk_secret_value";
+    const spec = evals.spawnSpec(
+      evals.plan("r1", 1)[0][1],
+      { runtime: "rt-1", commit: "abc123" },
+      "/work/recipe-operator",
+      { token: key, dpUrl: "https://dp.example" },
+      { PATH: "/bin" },
+    );
+    assert.equal(spec.command, "introspection");
+    assert.equal(spec.options.shell, false);
+    assert.equal(spec.options.cwd, "/work/recipe-operator");
+    assert.ok(spec.args.every((arg) => !arg.includes(key)));
+    assert.deepEqual(spec.args, [
+      "eval",
+      "run",
+      "-r",
+      "rt-1",
+      "--commit-sha",
+      "abc123",
+      "--path",
+      "/work/recipe-operator/evals/harbor/night2-hosted",
+      "--identity",
+      "anon:sim-r1-venue-a",
+      "--tag",
+      "simulation:r1",
+      "-y",
+    ]);
+    assert.equal(spec.options.env.INTROSPECTION_TOKEN, key);
+    assert.equal(spec.options.env.INTROSPECTION_DP_URL, "https://dp.example");
+    assert.equal(
+      spec.options.env.INTROSPECTION_EVAL_RUNS_DIR,
+      "/work/recipe-operator/eval-runs/r1/venue-a-night2-hosted",
+    );
+    assert.equal(
+      evals.errorText(`failed with ${key}`, key),
+      "failed with [redacted]",
+    );
+  });
+
+  await check("platform evals: a run folder is found and read", () => {
+    const passedRun = path.join(fixtures, "passed");
+    const printed = `1 completed · 0 errors\nResults    ${passedRun}\n`;
+    assert.equal(evals.findRunFolder(printed, "/nowhere"), passedRun);
+    const root = mkdtempSync(path.join(tmpdir(), "trivia-evals-"));
+    cpSync(passedRun, path.join(root, "2026-11-23__10-00-00"), {
+      recursive: true,
+    });
+    assert.equal(
+      evals.findRunFolder("no results line", root),
+      path.join(root, "2026-11-23__10-00-00"),
+    );
+    rmSync(root, { recursive: true });
+
+    const ok = evals.readRunFolder(passedRun);
+    assert.equal(ok.reward, 1);
+    assert.deepEqual(ok.checks, {
+      night_started: 1,
+      round_fetched: 1,
+      notes_written: 1,
+      notes_name_no_team: 1,
+    });
+    assert.equal(ok.trajectory_source, "sandbox");
+    assert.match(ok.notes ?? "", /Difficulty: 3/);
+    assert.equal(ok.error, null);
+
+    const failed = evals.readRunFolder(path.join(fixtures, "failed"));
+    assert.equal(failed.reward, null);
+    assert.deepEqual(failed.checks, {});
+    assert.equal(failed.error, "the trial sandbox did not start");
+  });
+
+  await check("platform evals: the route refuses without a key", async () => {
+    const local = (init: RequestInit = {}) =>
+      new Request("http://localhost:3500/api/evals", {
+        method: "POST",
+        body: "{}",
+        ...init,
+      });
+    delete process.env.TRIVIA_EVAL_KEY_FILE;
+    let response: Response = await startEvals(local());
+    assert.equal(response.status, 403);
+    assert.match((await response.json()).how_to, /--secret-file/);
+    process.env.TRIVIA_EVAL_KEY_FILE = "no-such-file.key";
+    response = await startEvals(local());
+    assert.equal(response.status, 403);
+    assert.match((await response.json()).error, /does not exist/);
+    delete process.env.TRIVIA_EVAL_KEY_FILE;
+    response = await startEvals(
+      local({ headers: { "cf-connecting-ip": "203.0.113.7" } }),
+    );
+    assert.equal(response.status, 403);
+    response = await evalsConfig(
+      new Request("https://abc.trycloudflare.com/api/evals"),
+    );
+    assert.equal(response.status, 403);
+  });
 
   console.log(`\n${passed} checks passed`);
 }

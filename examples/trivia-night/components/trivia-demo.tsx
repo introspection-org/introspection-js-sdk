@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { PlatformEvals } from "./platform-evals";
+
 interface Night {
   week: number;
   rate: number;
@@ -108,6 +110,10 @@ export function TriviaDemo() {
           crowd.
         </p>
       </header>
+
+      <h2 className="mode">
+        Simulated <span className="tag">stand-in hosts, seeded teams</span>
+      </h2>
 
       <nav className="venues" aria-label="Venue">
         {state?.venues.map((item) => (
@@ -237,6 +243,8 @@ export function TriviaDemo() {
           </ol>
         </aside>
       </div>
+
+      <PlatformEvals />
     </main>
   );
 }

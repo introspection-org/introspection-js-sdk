@@ -1,0 +1,15 @@
+{
+  "schema_version": 11,
+  "id": "2026-11-23__10-00-00",
+  "runner": "harbor",
+  "suite_path": "evals/harbor/night1-memory",
+  "status": "completed",
+  "candidate": { "runtime": "00000000-0000-7000-8000-000000000001" },
+  "result": {
+    "metrics": { "cases_passed": 1.0, "cases_total": 1.0, "reward": 1.0 },
+    "completion_reason": "completed",
+    "diagnostics": []
+  },
+  "started_at": "1795400000",
+  "completed_at": "1795400180"
+}

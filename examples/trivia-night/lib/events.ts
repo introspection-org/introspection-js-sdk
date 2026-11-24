@@ -9,7 +9,10 @@ type FlowEventType =
   | "memory.read"
   | "memory.written"
   | "host.planned"
-  | "round.finished";
+  | "round.finished"
+  | "eval.started"
+  | "eval.finished"
+  | "eval.run_finished";
 
 export interface FlowEvent {
   seq: number;

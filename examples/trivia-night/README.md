@@ -48,6 +48,24 @@ pnpm test       # the bank, its MCP server and the scoring
 pnpm simulate   # every venue, both hosts, as a table
 ```
 
+## Run the evals from the page
+
+The page's **Simulated** panel plays the stand-in hosts in-process. The **On the platform** panel below it runs the real memory evals, as [Run the memory evals](./recipe-operator/README.md#run-the-memory-evals) describes, against the `trivia-host` Runtime at its latest commit (or `INTROSPECTION_TRIVIA_RUNTIME_ID` and `INTROSPECTION_TRIVIA_COMMIT_SHA`, when both are set).
+
+It needs a staging agent key that expires today, named in `.env.local`:
+
+```bash
+introspection api-keys create --environment staging --capabilities runtimes,evals \
+  --expires-at <today, 23:59 UTC> --secret-file recipe-operator/.agent.key
+echo TRIVIA_EVAL_KEY_FILE=recipe-operator/.agent.key >> .env.local
+```
+
+`INTROSPECTION_DP_URL` comes from `.env.local` too, or else `introspection whoami`. Without a key file the panel shows these commands and the server refuses to run.
+
+Pick a number of venues and press **Run evals on the platform**. Each venue runs `night1-memory`, then `night2-hosted`, as its own `anon:sim-<run>-<venue>` identity, all venues at once, beside one `night2-control` as `anon:sim-<run>-control`. Every trial is tagged `simulation:<run>`. The table fills in as each trial ends: its reward, each check, where it was scored from, its notes, and the run's wall-clock time.
+
+The key reaches each `introspection eval run` only as `INTROSPECTION_TOKEN` in its environment: never in its arguments, the logs or the browser. The server only runs evals for a browser on this machine, not one that reaches the page through the tunnel. Each trial's run folder is under `recipe-operator/eval-runs/<run>/`.
+
 ## What is here
 
 [ARCHITECTURE.md](./ARCHITECTURE.md) shows how the pieces fit, with diagrams of the system, a night, and how it is tested and improved.
@@ -62,6 +80,7 @@ pnpm simulate   # every venue, both hosts, as a table
 | Two stand-in hosts    | [`lib/host.ts`](./lib/host.ts)                                           | `forgetful` plans every night the same way. `attentive` keeps notes per venue and is the reference answer.                                                               |
 | Operator-built Recipe | [`recipe-operator/`](./recipe-operator)                                  | What a fresh Operator session built from [WALKTHROUGH.md](./WALKTHROUGH.md): the version to hill-climb on. Its bank is a contract it designed, not this one.             |
 | The page              | [`components/trivia-demo.tsx`](./components/trivia-demo.tsx)             | Both hosts side by side, the attentive host's notes, and the event log.                                                                                                  |
+| Platform evals        | [`lib/platform-runner.ts`](./lib/platform-runner.ts), `/api/evals`       | Runs the memory evals as cloud trials from the page, and puts each trial's result on the events feed.                                                                    |
 
 ## Who owns what
 
