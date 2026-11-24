@@ -96,7 +96,33 @@ const ARMS = [
 type ArmKind = (typeof ARMS)[number]["kind"];
 
 /** Night 1, then night 2 four ways, each named for what it shows. */
-function ArmsDiagram() {
+/** How far one night has got across the run's pubs. */
+interface ArmStatus {
+  total: number;
+  started: number;
+  done: number;
+  failed: number;
+  /** Mean good rounds over the pubs that finished without failing. */
+  good: number | null;
+}
+
+/** One box's status line: waiting, running n of N pubs, or done with its good rounds. */
+function armStatusText(status: ArmStatus | undefined, night1 = false): string {
+  if (!status || !status.started) return "waiting";
+  const failed = status.failed ? ` · ${status.failed} failed` : "";
+  if (status.done < status.total)
+    return `running · ${status.done} of ${status.total} pubs${failed}`;
+  if (status.failed === status.total)
+    return `failed · ${status.failed} of ${status.total} pubs`;
+  if (night1 || status.good === null) return `done${failed}`;
+  return `${points(status.good)}% good rounds${failed}`;
+}
+
+function ArmsDiagram({
+  status = {},
+}: {
+  status?: Partial<Record<NightKey, ArmStatus>>;
+}) {
   const boxX = (i: number) => 236 + i * 191;
   return (
     <svg
@@ -120,22 +146,25 @@ function ArmsDiagram() {
       </defs>
       <rect
         x="1"
-        y="22"
+        y="12"
         width="176"
-        height="60"
+        height="82"
         rx="6"
         fill="var(--panel)"
         stroke="var(--line)"
       />
-      <rect x="1" y="22" width="5" height="60" rx="2" fill="var(--ink)" />
-      <text x="18" y="47" className="arm-name">
+      <rect x="1" y="12" width="5" height="82" rx="2" fill="var(--ink)" />
+      <text x="18" y="38" className="arm-name">
         Night 1
       </text>
-      <text x="18" y="66" className="arm-role">
+      <text x="18" y="57" className="arm-role">
         plays, writes notes
       </text>
+      <text x="18" y="79" className="arm-status">
+        {armStatusText(status["night1-memory"], true)}
+      </text>
       <path
-        d="M180,52 L222,52"
+        d="M180,53 L222,53"
         stroke="var(--muted)"
         strokeWidth="1.5"
         markerEnd="url(#arms-arrow)"
@@ -144,26 +173,29 @@ function ArmsDiagram() {
         <g key={arm.name}>
           <rect
             x={boxX(i)}
-            y="22"
+            y="12"
             width="186"
-            height="60"
+            height="82"
             rx="6"
             fill="var(--panel)"
             stroke="var(--line)"
           />
           <rect
             x={boxX(i)}
-            y="22"
+            y="12"
             width="5"
-            height="60"
+            height="82"
             rx="2"
             fill={`var(${arm.color})`}
           />
-          <text x={boxX(i) + 17} y="47" className="arm-name">
+          <text x={boxX(i) + 17} y="38" className="arm-name">
             {arm.name}
           </text>
-          <text x={boxX(i) + 17} y="66" className="arm-role">
+          <text x={boxX(i) + 17} y="57" className="arm-role">
             {arm.role}
+          </text>
+          <text x={boxX(i) + 17} y="79" className="arm-status">
+            {armStatusText(status[arm.night])}
           </text>
         </g>
       ))}
@@ -173,10 +205,30 @@ function ArmsDiagram() {
 
 /** Night 2's four ways, as the "How it's tested" diagram names them. */
 const HOW_ARMS = [
-  { name: "Its own notes", role: "the test", color: "--memory" },
-  { name: "No notes", role: "the baseline", color: "--muted" },
-  { name: "Another pub's notes", role: "the placebo", color: "--bad" },
-  { name: "The true notes", role: "the ceiling", color: "--host" },
+  {
+    name: "Its own notes",
+    role: "the test",
+    color: "--memory",
+    night: "night2-hosted",
+  },
+  {
+    name: "No notes",
+    role: "the baseline",
+    color: "--muted",
+    night: "night2-fresh",
+  },
+  {
+    name: "Another pub's notes",
+    role: "the placebo",
+    color: "--bad",
+    night: "night2-wrong",
+  },
+  {
+    name: "The true notes",
+    role: "the ceiling",
+    color: "--host",
+    night: "night2-perfect",
+  },
 ] as const;
 
 /** The primary measures: how far each round's share right was from 65%, and the share of rounds 55–75% right. */
@@ -317,7 +369,11 @@ function Summary({
 /** Each round as it was played: the questions with their answers, and which teams got each right. */
 function Rounds({ rounds }: { rounds: PlayedRound[] }) {
   if (!rounds.length)
-    return <span className="fine">No quiz rounds on this night.</span>;
+    return (
+      <span className="fine">
+        This night&apos;s questions weren&apos;t recorded.
+      </span>
+    );
   return (
     <ol className="round-list">
       {rounds.map((round) => (
@@ -360,6 +416,86 @@ function Rounds({ rounds }: { rounds: PlayedRound[] }) {
 }
 
 type NightView = "questions" | "steps";
+
+/** The night tabs, short enough to sit in one row. */
+const TAB_LABELS: Record<(typeof NIGHTS)[number], string> = {
+  "night1-memory": "Night 1",
+  "night2-wrong": "Wrong notes",
+  "night2-fresh": "No notes",
+  "night2-hosted": "Right notes",
+  "night2-perfect": "Perfect notes",
+};
+
+/** A night's state for its tab: waiting, running, failed, or done with its good rounds. */
+function nightStatus(
+  trial: Trial | undefined,
+  runDone: boolean,
+): { kind: string; mark: string; title: string } {
+  if (!trial)
+    return runDone
+      ? { kind: "skipped", mark: "—", title: "Didn't run" }
+      : { kind: "waiting", mark: "·", title: "Waiting to start" };
+  const finished = trial.finished;
+  if (!finished) return { kind: "running", mark: "", title: "Running" };
+  if (finished.error)
+    return { kind: "failed", mark: "✗", title: finished.error };
+  const good = finished.measures?.[GOOD_ROUNDS];
+  return {
+    kind: "done",
+    mark: typeof good === "number" ? `✓ ${points(good)}%` : "✓",
+    title:
+      typeof good === "number" ? `Done: ${points(good)}% good rounds` : "Done",
+  };
+}
+
+/** A failed night in one line; the raw message is its title and sits under the hood. */
+function failureLine(finished: EvalFinished): string {
+  if (finished.rounds?.length)
+    return "Stopped part way: the platform task failed.";
+  return /did not start|failed to start|fetch failed|Git fetch/i.test(
+    finished.error ?? "",
+  )
+    ? "Didn't start: the platform task failed."
+    : "Didn't finish: the platform task failed.";
+}
+
+/** A night as the room saw it: what night 1 learned or whose notes it had, then its rounds. */
+function NightQuestions({
+  night,
+  finished,
+}: {
+  night: NightKey;
+  finished: EvalFinished;
+}) {
+  const chips =
+    night === "night1-memory" && finished.notes
+      ? factChips(finished.notes)
+      : [];
+  return (
+    <>
+      {finished.error && (
+        <p className="fine" title={finished.error}>
+          {failureLine(finished)}
+        </p>
+      )}
+      {chips.length > 0 && (
+        <span className="facts">
+          {chips.map((chip) => (
+            <span key={chip.key} className="fact">
+              {chip.text}
+            </span>
+          ))}
+        </span>
+      )}
+      {night === "night2-wrong" && finished.donor_label && (
+        <p className="fine">Notes from {finished.donor_label}.</p>
+      )}
+      {(!finished.error || (finished.rounds?.length ?? 0) > 0) && (
+        <Rounds rounds={finished.rounds ?? []} />
+      )}
+    </>
+  );
+}
 const NIGHT_VIEW_KEY = "trivia-night:night-view";
 
 /** One step of a trial, from its trajectory. */
@@ -449,6 +585,7 @@ export function PlatformEvals() {
   const [error, setError] = useState<string>();
   const [open, setOpen] = useState<string>();
   const [nightView, setNightView] = useState<NightView>("questions");
+  const [tabs, setTabs] = useState<Record<string, (typeof NIGHTS)[number]>>({});
   useEffect(() => {
     try {
       if (window.localStorage.getItem(NIGHT_VIEW_KEY) === "steps")
@@ -814,6 +951,28 @@ export function PlatformEvals() {
   const judgeError = night2s.find((finished) => finished.judge?.error)?.judge
     ?.error;
 
+  const armStatus = (night: NightKey): ArmStatus => {
+    const runs = trialVenues.map((venue) =>
+      view?.trials.get(`${venue}/${night}`),
+    );
+    const finished = runs.flatMap((t) => (t?.finished ? [t.finished] : []));
+    const goods = finished
+      .filter((f) => !f.error)
+      .map((f) => f.measures?.[GOOD_ROUNDS])
+      .filter((g): g is number => typeof g === "number");
+    return {
+      total: trialVenues.length,
+      started: runs.filter(Boolean).length,
+      done: finished.length,
+      failed: finished.filter((f) => f.error).length,
+      good: goods.length
+        ? goods.reduce((a, b) => a + b, 0) / goods.length
+        : null,
+    };
+  };
+  const armStatuses = Object.fromEntries(
+    NIGHTS.map((night) => [night, armStatus(night)]),
+  ) as Partial<Record<NightKey, ArmStatus>>;
   const trialAt = (venue: string, night: NightKey) =>
     view?.trials.get(`${venue}/${night}`);
   const stepsOf = (venue: string, night: NightKey) =>
@@ -826,128 +985,103 @@ export function PlatformEvals() {
 
   const card = (venue: string) => {
     const trials = NIGHTS.map((night) => trialAt(venue, night));
-    const busy = !view?.finished && trials.some((trial) => !trial?.finished);
     const expanded = open === venue;
+    const firstDone = NIGHTS.find((_, i) => trials[i]?.finished);
+    const chosen: (typeof NIGHTS)[number] =
+      tabs[venue] ??
+      (trials[NIGHTS.indexOf("night2-hosted")]?.finished
+        ? "night2-hosted"
+        : (firstDone ?? "night2-hosted"));
+    const trial = trials[NIGHTS.indexOf(chosen)];
+    const finished = trial?.finished;
     return (
       <article
         key={venue}
         className={expanded ? "venue-card open" : "venue-card"}
-        onClick={() => setOpen(expanded ? undefined : venue)}
       >
-        <header className="card-head">
+        <header
+          className="card-head"
+          onClick={() => setOpen(expanded ? undefined : venue)}
+        >
           <h3>{venueParts(trials.find(Boolean), venue)}</h3>
-          {busy && (
-            <span className="fine running">
-              <span className="spinner" aria-hidden /> running
-            </span>
-          )}
         </header>
-        <div className="card-nights">
-          {NIGHTS.map((night, index) => {
-            const trial = trials[index];
-            const finished = trial?.finished;
+        <div className="night-tabs" role="tablist" aria-label="Nights">
+          {NIGHTS.map((night, i) => {
+            const status = nightStatus(trials[i], Boolean(view?.finished));
             return (
-              <section key={night} className="card-night">
-                <h4>{NIGHT_TITLES[night]}</h4>
-                {finished ? (
-                  <>
-                    <Summary night={night} finished={finished} />
-                    <span className="fine">{finished.seconds}s</span>
-                  </>
-                ) : (
-                  <span className="fine">
-                    {trial ? "running" : view?.finished ? "—" : "waiting"}
-                  </span>
-                )}
-              </section>
+              <button
+                key={night}
+                type="button"
+                role="tab"
+                aria-selected={expanded && night === chosen}
+                className={`night-tab ${status.kind}`}
+                title={status.title}
+                onClick={() => {
+                  setTabs((current) => ({ ...current, [venue]: night }));
+                  setOpen(venue);
+                }}
+              >
+                {TAB_LABELS[night]}{" "}
+                <span className="tab-mark">
+                  {status.kind === "running" ? (
+                    <span className="spinner" aria-hidden />
+                  ) : (
+                    status.mark
+                  )}
+                </span>
+              </button>
             );
           })}
         </div>
         {expanded && (
-          <div
-            className="card-nights steps"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {NIGHTS.map((night, index) => {
-              const finished = trials[index]?.finished;
-              return (
-                <section key={night} className="card-night">
-                  <h4>{NIGHT_TITLES[night]}</h4>
-                  {!finished ? (
-                    <span className="fine">Rounds show when it finishes.</span>
-                  ) : (
-                    <>
-                      <div
-                        className="view-toggle"
-                        role="group"
-                        aria-label="View"
-                      >
-                        <button
-                          type="button"
-                          aria-pressed={nightView === "questions"}
-                          onClick={() => chooseView("questions")}
-                        >
-                          Questions
-                        </button>
-                        <button
-                          type="button"
-                          aria-pressed={nightView === "steps"}
-                          onClick={() => chooseView("steps")}
-                        >
-                          Under the hood
-                        </button>
-                      </div>
-                      {nightView === "questions" ? (
-                        <Rounds rounds={finished.rounds ?? []} />
-                      ) : (
-                        <>
-                          <ol className="step-list">
-                            {stepsOf(venue, night).map((event) => (
-                              <Step key={event.seq} event={event} />
-                            ))}
-                          </ol>
-                          <h5 className="verifiers">
-                            Verifiers{" "}
-                            <span className="fine">
-                              what the eval&apos;s verifier measured for this
-                              night
-                            </span>
-                          </h5>
-                          <ul className="check-list">
-                            {Object.entries(finished.checks).map(
-                              ([name, value]) => {
-                                const line = checkLine(
-                                  name,
-                                  value,
-                                  finished.fetches ?? [],
-                                );
-                                return line.pass === undefined ? (
-                                  <li key={name}>{line.text}</li>
-                                ) : (
-                                  <li
-                                    key={name}
-                                    className={line.pass ? "pass" : "fine"}
-                                  >
-                                    {line.text} {line.pass ? "✓" : "✗"}
-                                  </li>
-                                );
-                              },
-                            )}
-                          </ul>
-                        </>
-                      )}
-                      <span className="fine">
-                        reward {finished.reward ?? "none"} · {finished.seconds}s
-                        {finished.trajectory_source &&
-                          finished.trajectory_source !== "sandbox" &&
-                          ` · ${finished.trajectory_source}`}
-                      </span>
-                      {finished.error && <pre>{finished.error}</pre>}
-                    </>
-                  )}
-                </section>
-              );
-            })}
+          <div className="night-body">
+            {!finished ? (
+              <span className="fine">
+                {trial
+                  ? "Running…"
+                  : view?.finished
+                    ? "This night didn't run."
+                    : "Waiting to start."}
+              </span>
+            ) : nightView === "questions" ? (
+              <NightQuestions night={chosen} finished={finished} />
+            ) : (
+              <>
+                <div className="hood-summary">
+                  <Summary night={chosen} finished={finished} />
+                </div>
+                <ol className="step-list">
+                  {stepsOf(venue, chosen).map((event) => (
+                    <Step key={event.seq} event={event} />
+                  ))}
+                </ol>
+                <h5 className="verifiers">
+                  Verifiers{" "}
+                  <span className="fine">
+                    what the eval&apos;s verifier measured for this night
+                  </span>
+                </h5>
+                <ul className="check-list">
+                  {Object.entries(finished.checks).map(([name, value]) => {
+                    const line = checkLine(name, value, finished.fetches ?? []);
+                    return line.pass === undefined ? (
+                      <li key={name}>{line.text}</li>
+                    ) : (
+                      <li key={name} className={line.pass ? "pass" : "fine"}>
+                        {line.text} {line.pass ? "✓" : "✗"}
+                      </li>
+                    );
+                  })}
+                </ul>
+                <span className="fine">
+                  reward {finished.reward ?? "none"} · {finished.seconds}s
+                  {finished.trajectory_source &&
+                    finished.trajectory_source !== "sandbox" &&
+                    ` · ${finished.trajectory_source}`}
+                </span>
+                {finished.error && <pre>{finished.error}</pre>}
+              </>
+            )}
           </div>
         )}
       </article>
@@ -1132,7 +1266,7 @@ export function PlatformEvals() {
                 <strong>The bet:</strong> notes from night 1 make night 2 fit
                 the crowd: topics they like, pitched so most answers land.
               </p>
-              <ArmsDiagram />
+              <ArmsDiagram status={armStatuses} />
               <ul>
                 <li>
                   The same teams answer every night 2, so only the host&apos;s
@@ -1151,8 +1285,26 @@ export function PlatformEvals() {
               </ul>
             </details>
           </div>
+          <div className="cards-head">
+            <div className="view-toggle" role="group" aria-label="View">
+              <button
+                type="button"
+                aria-pressed={nightView === "questions"}
+                onClick={() => chooseView("questions")}
+              >
+                Questions
+              </button>
+              <button
+                type="button"
+                aria-pressed={nightView === "steps"}
+                onClick={() => chooseView("steps")}
+              >
+                Under the hood
+              </button>
+            </div>
+            <span className="fine">Click a night to see its rounds.</span>
+          </div>
           <div className="venue-cards">{trialVenues.map(card)}</div>
-          <p className="fine">Click a venue for each trial&apos;s steps.</p>
         </>
       )}
     </section>

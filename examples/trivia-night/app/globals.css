@@ -282,6 +282,9 @@ pre {
   padding: 12px;
   border: 1px solid var(--line);
   border-radius: 8px;
+}
+
+.card-head {
   cursor: pointer;
 }
 
@@ -304,43 +307,17 @@ pre {
   overflow-wrap: anywhere;
 }
 
-.card-nights {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  gap: 12px;
-  margin-top: 8px;
-}
-
-.card-nights.steps {
-  margin-top: 12px;
-  padding-top: 12px;
-  border-top: 1px solid var(--line);
-  cursor: default;
-}
-
-.card-night {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 4px;
-  min-width: 0;
+.night-body {
   font-size: 13px;
   overflow-wrap: anywhere;
 }
 
-.card-night h4 {
-  margin: 0;
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--muted);
-}
-
-.card-night .facts {
+.night-body .facts {
   flex-wrap: wrap;
   margin: 0;
 }
 
-.card-night .fact {
+.night-body .fact {
   white-space: normal;
 }
 
@@ -368,7 +345,7 @@ pre {
   cursor: pointer;
 }
 
-.card-night .check-list {
+.night-body .check-list {
   margin: 0;
   flex-direction: column;
 }
@@ -679,4 +656,76 @@ table.steps td.fine {
 .arms-svg .arm-role {
   fill: var(--muted);
   font-size: 13px;
+}
+.arms-svg .arm-status {
+  fill: var(--ink);
+  font-size: 13px;
+}
+
+.cards-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 12px;
+  margin-bottom: 8px;
+}
+
+.cards-head .view-toggle {
+  margin: 0;
+}
+
+.night-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.night-tab {
+  font-size: 12px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.night-tab[aria-selected="true"] {
+  border-color: var(--ink);
+  font-weight: 600;
+}
+
+.night-tab .tab-mark {
+  color: var(--muted);
+  font-weight: 400;
+}
+
+.night-tab.done .tab-mark {
+  color: var(--host);
+}
+
+.night-tab.failed .tab-mark {
+  color: var(--bad);
+}
+
+.night-body {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.night-body .fine,
+.night-body p {
+  max-width: none;
+}
+
+.hood-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  align-items: baseline;
 }
