@@ -1,0 +1,19 @@
+{
+  "venue": "held-nashville",
+  "region": "us",
+  "teams": [
+    "The Nashville Regulars",
+    "The Nashville Quizzards",
+    "The Nashville Brainiacs",
+    "Nashville Know-It-Alls",
+    "Nashville Fact Finders",
+    "Nashville Smarty Pints",
+    "Quizzy Nashville",
+    "The Nashville Thinkers"
+  ],
+  "liked": ["film", "sport"],
+  "disliked": ["history"],
+  "hinted": ["film"],
+  "best_decades": ["2000s", "2010s"],
+  "target_difficulty": 3
+}

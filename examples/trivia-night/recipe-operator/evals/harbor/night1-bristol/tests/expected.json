@@ -1,12 +1,16 @@
 {
-  "venue": "held-4-low",
+  "venue": "page-bristol",
   "region": "uk",
   "teams": [
     "Bristol Brainiacs",
-    "Quiz Pro Quo 4"
+    "Quiz Pro Quo 4",
+    "The Swan Regulars",
+    "Banksy's Bright Sparks",
+    "The Clifton Suspenders"
   ],
-  "likes": [
-    "sport"
-  ],
-  "start_difficulty": 2
+  "liked": ["sport", "geography"],
+  "disliked": ["science"],
+  "hinted": ["sport"],
+  "best_decades": ["2010s", "2000s"],
+  "target_difficulty": 3
 }

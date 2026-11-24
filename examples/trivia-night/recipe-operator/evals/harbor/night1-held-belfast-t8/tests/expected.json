@@ -1,0 +1,19 @@
+{
+  "venue": "held-belfast",
+  "region": "uk",
+  "teams": [
+    "The Belfast Brainiacs",
+    "Belfast Smarty Pints",
+    "Belfast Know-It-Alls",
+    "The Belfast Quizzards",
+    "Belfast Fact Finders",
+    "The Belfast Thinkers",
+    "Quizzy Belfast",
+    "The Belfast Regulars"
+  ],
+  "liked": ["music", "sport"],
+  "disliked": ["geography"],
+  "hinted": ["music"],
+  "best_decades": ["2010s", "2020s"],
+  "target_difficulty": 3
+}

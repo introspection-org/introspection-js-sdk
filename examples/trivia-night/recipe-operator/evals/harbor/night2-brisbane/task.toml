@@ -2,11 +2,11 @@ schema_version = "1.1"
 
 [task]
 name = "trivia-host/night2-brisbane"
-description = "The second night at The Grand, Brisbane, on the platform: the notes come from the identity's own memory"
+description = "The second night at The Grand, Brisbane: six rounds to a simulated crowd, most of it night 1's teams, pitched from the identity's own memory or from nothing"
 
 [metadata]
 case = "C3"
-venue = "held-5-high"
+venue = "page-brisbane"
 
 [verifier]
 timeout_sec = 120.0

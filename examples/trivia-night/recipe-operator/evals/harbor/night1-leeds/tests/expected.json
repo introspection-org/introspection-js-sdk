@@ -1,12 +1,16 @@
 {
-  "venue": "held-1-narrow",
+  "venue": "page-leeds",
   "region": "uk",
   "teams": [
     "Leeds Brainiacs",
-    "Quiz Pro Quo 1"
+    "Quiz Pro Quo 1",
+    "The Oak Regulars",
+    "Yorkshire Puddingheads",
+    "The Headingley Hopefuls"
   ],
-  "likes": [
-    "history"
-  ],
-  "start_difficulty": 2
+  "liked": ["film", "music"],
+  "disliked": ["sport"],
+  "hinted": ["film"],
+  "best_decades": ["2010s", "2000s"],
+  "target_difficulty": 2
 }

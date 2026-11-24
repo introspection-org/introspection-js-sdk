@@ -1,0 +1,19 @@
+{
+  "venue": "page-brisbane",
+  "region": "au",
+  "teams": [
+    "Brisbane Brainiacs",
+    "Quiz Pro Quo 5",
+    "The Grand Regulars",
+    "Bris-Vegas Brainstrust",
+    "The Story Bridge Club",
+    "The South Bank Thinkers",
+    "Lamington Legends",
+    "The Gabba Grey Matter"
+  ],
+  "liked": ["science", "film"],
+  "disliked": ["sport"],
+  "hinted": ["science"],
+  "best_decades": ["2010s", "2020s"],
+  "target_difficulty": 2
+}

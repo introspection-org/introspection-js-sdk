@@ -1,13 +1,16 @@
 {
-  "venue": "au-film",
+  "venue": "page-sydney",
   "region": "au",
   "teams": [
     "Quizzly Bears",
-    "Les Quizerables"
+    "Les Quizerables",
+    "Trivia Newton-John",
+    "The Bondi Brainstormers",
+    "Opera House Party"
   ],
-  "likes": [
-    "film",
-    "music"
-  ],
-  "start_difficulty": 4
+  "liked": ["film", "music"],
+  "disliked": ["science"],
+  "hinted": ["film"],
+  "best_decades": ["2010s", "2000s"],
+  "target_difficulty": 2
 }

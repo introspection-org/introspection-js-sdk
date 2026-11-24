@@ -1,0 +1,16 @@
+{
+  "venue": "held-geelong",
+  "region": "au",
+  "teams": [
+    "Quizzy Geelong",
+    "Geelong Smarty Pints",
+    "The Geelong Quizzards",
+    "Geelong Fact Finders",
+    "The Geelong Regulars"
+  ],
+  "liked": ["film", "music"],
+  "disliked": ["science"],
+  "hinted": ["film"],
+  "best_decades": ["2010s", "2020s"],
+  "target_difficulty": 3
+}

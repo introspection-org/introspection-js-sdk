@@ -1,0 +1,16 @@
+{
+  "venue": "held-edinburgh",
+  "region": "uk",
+  "teams": [
+    "Quizzy Edinburgh",
+    "Edinburgh Fact Finders",
+    "The Edinburgh Regulars",
+    "The Edinburgh Quizzards",
+    "The Edinburgh Thinkers"
+  ],
+  "liked": ["geography", "music"],
+  "disliked": ["science"],
+  "hinted": ["geography"],
+  "best_decades": ["2000s", "2010s"],
+  "target_difficulty": 2
+}

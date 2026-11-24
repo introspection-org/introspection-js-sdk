@@ -1,0 +1,14 @@
+{
+  "venue": "held-hobart",
+  "region": "au",
+  "teams": [
+    "The Hobart Quizzards",
+    "The Hobart Brainiacs",
+    "Hobart Know-It-Alls"
+  ],
+  "liked": ["music", "film"],
+  "disliked": ["science"],
+  "hinted": ["music"],
+  "best_decades": ["2020s", "2010s"],
+  "target_difficulty": 3
+}

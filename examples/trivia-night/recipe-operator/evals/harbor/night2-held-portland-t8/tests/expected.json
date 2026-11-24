@@ -1,0 +1,29 @@
+{
+  "venue": "held-portland",
+  "region": "us",
+  "teams": [
+    "The Portland Thinkers",
+    "The Portland Quizzards",
+    "Quizzy Portland",
+    "Portland Fact Finders",
+    "Portland Smarty Pints",
+    "Portland Know-It-Alls",
+    "New Kids on the Quiz",
+    "The Walk-Ins"
+  ],
+  "night1_teams": [
+    "The Portland Thinkers",
+    "The Portland Quizzards",
+    "Quizzy Portland",
+    "Portland Fact Finders",
+    "The Portland Brainiacs",
+    "The Portland Regulars",
+    "Portland Smarty Pints",
+    "Portland Know-It-Alls"
+  ],
+  "liked": ["film", "science"],
+  "disliked": ["history"],
+  "hinted": ["film"],
+  "best_decades": ["2000s", "2010s"],
+  "target_difficulty": 2
+}

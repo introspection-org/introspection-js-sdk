@@ -1,0 +1,15 @@
+{
+  "venue": "page-boston",
+  "region": "us",
+  "teams": ["Quiz Pro Quo 3", "The Murphy's Regulars", "The Late Arrivals"],
+  "night1_teams": [
+    "Boston Brainiacs",
+    "Quiz Pro Quo 3",
+    "The Murphy's Regulars"
+  ],
+  "liked": ["music", "film"],
+  "disliked": ["sport"],
+  "hinted": ["music"],
+  "best_decades": ["2000s", "2010s"],
+  "target_difficulty": 3
+}

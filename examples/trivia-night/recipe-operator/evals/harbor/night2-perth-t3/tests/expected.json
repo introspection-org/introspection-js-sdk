@@ -1,0 +1,11 @@
+{
+  "venue": "page-perth",
+  "region": "au",
+  "teams": ["Quiz Pro Quo 8", "The Railway Regulars", "Beginners' Luck"],
+  "night1_teams": ["Perth Brainiacs", "Quiz Pro Quo 8", "The Railway Regulars"],
+  "liked": ["history", "film"],
+  "disliked": ["science"],
+  "hinted": ["history"],
+  "best_decades": ["2010s", "2020s"],
+  "target_difficulty": 3
+}

@@ -1,0 +1,29 @@
+{
+  "venue": "page-sydney",
+  "region": "au",
+  "teams": [
+    "Les Quizerables",
+    "Trivia Newton-John",
+    "The Bondi Brainstormers",
+    "Opera House Party",
+    "Manly Know-It-Alls",
+    "The Harbour Bridge Players",
+    "Surry Hills Have Eyes",
+    "The Blow-Ins"
+  ],
+  "night1_teams": [
+    "Quizzly Bears",
+    "Les Quizerables",
+    "Trivia Newton-John",
+    "The Bondi Brainstormers",
+    "Opera House Party",
+    "Manly Know-It-Alls",
+    "The Harbour Bridge Players",
+    "Surry Hills Have Eyes"
+  ],
+  "liked": ["film", "music"],
+  "disliked": ["science"],
+  "hinted": ["film"],
+  "best_decades": ["2010s", "2000s"],
+  "target_difficulty": 2
+}

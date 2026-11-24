@@ -1,12 +1,23 @@
 {
-  "venue": "held-5-high",
+  "venue": "page-brisbane",
   "region": "au",
   "teams": [
     "Brisbane Brainiacs",
-    "Quiz Pro Quo 5"
+    "The Grand Regulars",
+    "Bris-Vegas Brainstrust",
+    "The Story Bridge Club",
+    "The Plus Ones"
   ],
-  "likes": [
-    "science"
+  "night1_teams": [
+    "Brisbane Brainiacs",
+    "Quiz Pro Quo 5",
+    "The Grand Regulars",
+    "Bris-Vegas Brainstrust",
+    "The Story Bridge Club"
   ],
-  "start_difficulty": 4
+  "liked": ["science", "film"],
+  "disliked": ["sport"],
+  "hinted": ["science"],
+  "best_decades": ["2010s", "2020s"],
+  "target_difficulty": 2
 }

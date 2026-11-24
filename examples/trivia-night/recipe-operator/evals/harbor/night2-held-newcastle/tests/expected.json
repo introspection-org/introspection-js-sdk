@@ -1,0 +1,23 @@
+{
+  "venue": "held-newcastle",
+  "region": "au",
+  "teams": [
+    "The Newcastle Quizzards",
+    "The Newcastle Brainiacs",
+    "Newcastle Fact Finders",
+    "Quizzy Newcastle",
+    "The Late Arrivals"
+  ],
+  "night1_teams": [
+    "The Newcastle Quizzards",
+    "The Newcastle Brainiacs",
+    "The Newcastle Regulars",
+    "Newcastle Fact Finders",
+    "Quizzy Newcastle"
+  ],
+  "liked": ["science", "geography"],
+  "disliked": ["sport"],
+  "hinted": ["science"],
+  "best_decades": ["2010s", "2000s"],
+  "target_difficulty": 3
+}

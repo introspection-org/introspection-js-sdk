@@ -1,0 +1,16 @@
+{
+  "venue": "held-canberra",
+  "region": "au",
+  "teams": [
+    "Canberra Fact Finders",
+    "The Canberra Regulars",
+    "Canberra Know-It-Alls",
+    "Canberra Smarty Pints",
+    "The Canberra Thinkers"
+  ],
+  "liked": ["film", "music"],
+  "disliked": ["science"],
+  "hinted": ["film"],
+  "best_decades": ["2010s", "1990s"],
+  "target_difficulty": 3
+}

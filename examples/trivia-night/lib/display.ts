@@ -154,3 +154,25 @@ export function startingDifficulty(notes: string): number | null {
   const value = parseFacts(notes).difficulty;
   return value ? Number(value) : null;
 }
+
+/** The first sentence or two of a message, as plain text, cut to `max` characters. */
+export function firstSentences(text: string, count = 2, max = 200): string {
+  const plain = plainText(text);
+  const sentences = plain.match(/[^.!?]+(?:[.!?]+|$)/g) ?? [plain];
+  return truncateWords(sentences.slice(0, count).join("").trim(), max);
+}
+
+/** A fetched round as `history · uk · diff 3`. */
+export function roundLabel(round: {
+  genre?: string;
+  region?: string;
+  difficulty?: number;
+}): string {
+  return [
+    round.genre,
+    round.region,
+    typeof round.difficulty === "number" ? `diff ${round.difficulty}` : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+}

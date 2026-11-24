@@ -1,0 +1,29 @@
+{
+  "venue": "held-canberra",
+  "region": "au",
+  "teams": [
+    "Canberra Fact Finders",
+    "The Canberra Regulars",
+    "Canberra Smarty Pints",
+    "The Canberra Thinkers",
+    "The Canberra Brainiacs",
+    "Quizzy Canberra",
+    "The Canberra Quizzards",
+    "Fresh Faces"
+  ],
+  "night1_teams": [
+    "Canberra Fact Finders",
+    "The Canberra Regulars",
+    "Canberra Know-It-Alls",
+    "Canberra Smarty Pints",
+    "The Canberra Thinkers",
+    "The Canberra Brainiacs",
+    "Quizzy Canberra",
+    "The Canberra Quizzards"
+  ],
+  "liked": ["film", "music"],
+  "disliked": ["science"],
+  "hinted": ["film"],
+  "best_decades": ["2010s", "1990s"],
+  "target_difficulty": 3
+}

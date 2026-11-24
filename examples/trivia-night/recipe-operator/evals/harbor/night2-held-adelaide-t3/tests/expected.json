@@ -1,0 +1,19 @@
+{
+  "venue": "held-adelaide",
+  "region": "au",
+  "teams": [
+    "Adelaide Smarty Pints",
+    "Adelaide Fact Finders",
+    "The Adelaide Brainiacs"
+  ],
+  "night1_teams": [
+    "Adelaide Smarty Pints",
+    "Adelaide Fact Finders",
+    "The Adelaide Brainiacs"
+  ],
+  "liked": ["music", "film"],
+  "disliked": ["science"],
+  "hinted": ["music"],
+  "best_decades": ["2010s", "2020s"],
+  "target_difficulty": 3
+}

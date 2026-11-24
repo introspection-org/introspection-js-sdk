@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import type {
   EvalFinished,
@@ -9,30 +9,42 @@ import type {
 } from "@/lib/platform-evals";
 import {
   factChips,
+  firstSentences,
   kindLabel,
   notesPreview,
-  plainText,
+  roundLabel,
   targetLabel,
   toolLine,
 } from "@/lib/display";
 import {
-  compare,
-  MEASURES,
-  signed,
-  type MeasureKey,
-  type Measures,
-  type Tally,
-} from "@/lib/memory-measures";
+  GATE_MIN,
+  holm,
+  lift,
+  ordering,
+  signTest,
+  validityGate,
+  type Pair,
+} from "@/lib/experiment";
+import type { Judgement } from "@/lib/judge";
+import { MEASURES, checkLine } from "@/lib/memory-measures";
 
 interface Config {
   configured: boolean;
   max_venues?: number;
+  max_venues_by_pubs?: Record<Pubs, number>;
+  team_sizes?: number[];
+  default_teams?: number;
+  /** An estimate of one trial's model cost, in US dollars. */
+  cost_per_trial?: number;
+  trials_per_venue?: number;
   missing: string | null;
   how_to: string;
   target: { runtime: string; commit: string; slug?: string } | null;
   target_error: string | null;
   active: string | null;
 }
+
+type Pubs = "development" | "heldout";
 
 interface FeedEvent {
   seq: number;
@@ -41,7 +53,7 @@ interface FeedEvent {
   data: Record<string, unknown>;
 }
 
-const MAX_SCENES = 400;
+const MAX_STEPS = 3000;
 
 interface Trial {
   started: EvalStarted;
@@ -54,123 +66,65 @@ interface RunView {
   finished?: EvalRunFinished;
 }
 
-const NIGHT_NAMES: Record<string, string> = {
-  "night1-memory": "Night 1",
-  "night2-hosted": "Night 2 with memory",
-  "night2-fresh": "Night 2 without",
+// The night 2s from worst expected to best; night 0 only seeds the perfect notes.
+const NIGHTS = [
+  "night1-memory",
+  "night2-wrong",
+  "night2-fresh",
+  "night2-hosted",
+  "night2-perfect",
+] as const;
+type NightKey = (typeof NIGHTS)[number] | "night0-seed";
+
+const NIGHT_TITLES: Record<NightKey, string> = {
+  "night0-seed": "Night 0 · true notes seeded",
+  "night1-memory": "Night 1 · what it learned",
+  "night2-wrong": "Night 2 · wrong notes",
+  "night2-fresh": "Night 2 · no notes",
+  "night2-hosted": "Night 2 · right notes",
+  "night2-perfect": "Night 2 · perfect notes",
 };
 
-/** The scenes' night filter: every night, or one of a venue's three. */
-const NIGHT_FILTERS: [string | undefined, string][] = [
-  [undefined, "All nights"],
-  ["night1-memory", "Night 1"],
-  ["night2-hosted", "Night 2 with memory"],
-  ["night2-fresh", "Night 2 without"],
-];
+/** The bars, top to bottom: each night 2 arm, its label and its bar colour. */
+const ARMS = [
+  { night: "night2-perfect", label: "Perfect notes", kind: "perfect" },
+  { night: "night2-hosted", label: "Right notes", kind: "with" },
+  { night: "night2-fresh", label: "No notes", kind: "without" },
+  { night: "night2-wrong", label: "Wrong notes", kind: "wrong" },
+] as const;
+type ArmKind = (typeof ARMS)[number]["kind"];
 
-const CELL_MEASURES: MeasureKey[] = [
-  "notes_written",
-  "recalled",
-  "right_region",
-  "liked_genres",
-  "difficulty_from_notes",
-];
+const HYPOTHESIS =
+  "If the host keeps notes on each venue, the second night is tuned to that crowd — questions they can mostly answer, in topics they like, with a close race.";
 
-/** A trial's measures as compact marks: `✓ region`, `genres 67%`. */
-function MeasureMarks({ measures }: { measures: Measures }) {
-  const shown = CELL_MEASURES.filter(
-    (key) => typeof measures[key] === "number",
-  );
-  if (!shown.length) return null;
-  return (
-    <span className="marks">
-      {shown.map((key) => {
-        const value = measures[key]!;
-        const { short, why } = MEASURES[key];
-        if (key === "liked_genres")
-          return (
-            <span
-              key={key}
-              className={value >= 0.5 ? "mark pass" : "mark bad"}
-              title={why}
-            >
-              {short} {Math.round(value * 100)}%
-            </span>
-          );
-        return (
-          <span
-            key={key}
-            className={value ? "mark pass" : "mark bad"}
-            title={why}
-          >
-            {value ? "✓" : "✗"} {short}
-          </span>
-        );
-      })}
-    </span>
-  );
+/** The primary measures: how far each round's share right was from 65%, and the share of rounds 55–75% right. */
+const GOOD_ROUNDS = "good_rounds";
+
+/** A share (0-1) as points, `0.12` as 12. */
+const points = (value: number) => Math.round(value * 100);
+
+/** A measure key in plain words: `favourite_genre` as "favourite genre". */
+const measureLabel = (key: string) => key.replace(/_/g, " ");
+
+/** The country code of a "City (CC)" label. */
+const countryOf = (label: string) => /\(([^)]+)\)$/.exec(label)?.[1] ?? null;
+
+function listWords(items: string[]): string {
+  return items.length < 2
+    ? (items[0] ?? "")
+    : `${items.slice(0, -1).join(", ")} and ${items[items.length - 1]}`;
 }
 
-function Bar({
-  side,
-  tally,
-}: {
-  side: "with" | "without";
-  tally: Tally | null;
-}) {
-  const name = side === "with" ? "With memory" : "Without memory";
-  return (
-    <div
-      className={`bar bar-${side}`}
-      title={tally ? `${name}: ${tally.counts}` : `${name}: n/a`}
-    >
-      <span className="bar-track">
-        {tally && (
-          <span className="bar-fill" style={{ width: `${tally.percent}%` }} />
-        )}
-      </span>
-      <span className="bar-value">{tally ? `${tally.percent}%` : "n/a"}</span>
-    </div>
-  );
-}
-
-// Venue labels ("Melbourne (AU)") arrive on each trial's events.
-const labels = new Map<string, string>();
-
-function venueName(venue: string): string {
-  return (
-    labels.get(venue) ??
+/** A venue as its city and, from a "City (CC)" label, its country code. */
+function venueParts(trial: Trial | undefined, venue: string) {
+  const label =
+    trial?.started.venue_label ??
     venue.replace(
       /(^|-)([a-z])/g,
       (_, dash, letter) => `${dash ? " " : ""}${letter.toUpperCase()}`,
-    )
-  );
-}
-
-function sceneLabel(data: Record<string, unknown>): string {
-  const venue = String(data.venue);
-  if (typeof data.venue_label === "string") labels.set(venue, data.venue_label);
-  const night = NIGHT_NAMES[String(data.night)] ?? String(data.night ?? "");
-  return night ? `${venueName(venue)} · ${night}` : venueName(venue);
-}
-
-/** An event's text on one line, without markdown. */
-function eventText(event: FeedEvent): string {
-  if (event.type.startsWith("bank.") && typeof event.data.tool === "string")
-    return toolLine(
-      typeof event.data.server === "string" ? event.data.server : "trivia-bank",
-      event.data.tool,
-      (event.data.arguments as Record<string, unknown>) ?? {},
     );
-  if (event.type === "memory.read" && !String(event.data.file ?? "").trim())
-    return "No notes on file yet";
-  return plainText(event.summary);
-}
-
-/** When the run began, from its id (`r` + epoch milliseconds). */
-function runStartedAt(run: string): number | null {
-  const at = Number(run.slice(1));
-  return Number.isFinite(at) && at > 0 ? at : null;
+  const match = /^(.*?)\s*\(([^)]+)\)$/.exec(label);
+  return match ? `${match[1]} · ${match[2]}` : label;
 }
 
 function fold(
@@ -184,7 +138,6 @@ function fold(
       : { run, trials: new Map<string, Trial>() };
   if (event.type === "eval.started") {
     const started = event.data as unknown as EvalStarted;
-    if (started.venue_label) labels.set(started.venue, started.venue_label);
     current.trials.set(`${started.venue}/${started.night}`, { started });
   } else if (event.type === "eval.finished") {
     const finished = event.data as unknown as EvalFinished;
@@ -196,18 +149,177 @@ function fold(
   return current;
 }
 
+/** A night 2's judge score and its reason, or why it has none. */
+function Score({ judge }: { judge?: Judgement | null }) {
+  if (!judge) return null;
+  if (judge.score === null)
+    return <span className="fine">judge: {judge.error ?? "no score"}</span>;
+  return (
+    <span className="score">
+      <strong>{judge.score}/5</strong>
+      {judge.reason && <span className="fine"> {judge.reason}</span>}
+    </span>
+  );
+}
+
+/** What a finished trial's card column says: night 1's facts, night 2's opening words. */
+function Summary({
+  night,
+  finished,
+}: {
+  night: NightKey;
+  finished: EvalFinished;
+}) {
+  const checks = Object.values(finished.checks);
+  const missed = checks.filter((value) => !value).length;
+  if (night === "night1-memory") {
+    const chips = finished.notes ? factChips(finished.notes) : [];
+    const preview =
+      finished.notes && !chips.length ? notesPreview(finished.notes) : null;
+    return (
+      <>
+        {chips.length > 0 ? (
+          <span className="facts">
+            {chips.map((chip) => (
+              <span key={chip.key} className="fact">
+                {chip.text}
+              </span>
+            ))}
+          </span>
+        ) : (
+          <span className="fine">{preview ?? "No notes left."}</span>
+        )}
+        {finished.error ? (
+          <span className="amber">error, see details</span>
+        ) : (
+          missed > 0 && (
+            <span className="amber">
+              missed {missed} of {checks.length} checks
+            </span>
+          )
+        )}
+      </>
+    );
+  }
+  return (
+    <>
+      {night === "night2-wrong" && finished.donor_label && (
+        <span className="fine">notes from {finished.donor_label}</span>
+      )}
+      {finished.plan ? (
+        <q className="quote">{firstSentences(finished.plan)}</q>
+      ) : (
+        <span className="fine">No message.</span>
+      )}
+      <span className={finished.round ? "fact" : "fine"}>
+        {finished.round ? roundLabel(finished.round) : "no round fetched"}
+      </span>
+      <Score judge={finished.judge} />
+      {night === "night2-hosted" &&
+        (finished.error ? (
+          <span className="amber">error, see details</span>
+        ) : (
+          missed > 0 && (
+            <span className="amber">
+              missed {missed} of {checks.length} checks
+            </span>
+          )
+        ))}
+      {night !== "night2-hosted" && finished.error && (
+        <span className="fine">error, see details</span>
+      )}
+    </>
+  );
+}
+
+/** One step of a trial, from its trajectory. */
+function Step({ event }: { event: FeedEvent }) {
+  const kind = (
+    <span className={`kind kind-${event.type.split(".")[0]}`}>
+      {kindLabel(event.type)}
+    </span>
+  );
+  const error =
+    typeof event.data.error === "string" ? (
+      <span className="step-error"> {event.data.error}</span>
+    ) : null;
+  if (event.type === "memory.read") {
+    const file = String(event.data.file ?? "").trim();
+    // Events recorded before the step builder knew a missing file carry its error as the file.
+    if (!file || /ENOENT|no such file/i.test(file))
+      return (
+        <li>
+          {kind} Loading memory{" "}
+          <span className="fine">· none yet — first visit</span>
+          {error}
+        </li>
+      );
+    return (
+      <li>
+        {kind} Loading memory
+        <pre>{file}</pre>
+      </li>
+    );
+  }
+  if (event.type === "memory.written")
+    return (
+      <li>
+        <details>
+          <summary>{kind} Saving memory</summary>
+          <pre>
+            {typeof event.data.file === "string"
+              ? event.data.file
+              : JSON.stringify(event.data.edit, null, 2)}
+          </pre>
+        </details>
+      </li>
+    );
+  if (event.type === "host.planned") {
+    const plan = String(event.data.file ?? "");
+    return (
+      <li>
+        <details>
+          <summary>
+            {kind} {firstSentences(plan, 1, 100) || "Planning"}
+          </summary>
+          <pre className="plan">{plan}</pre>
+        </details>
+      </li>
+    );
+  }
+  if (event.type.startsWith("bank.") && typeof event.data.tool === "string")
+    return (
+      <li>
+        {kind}{" "}
+        {toolLine(
+          typeof event.data.server === "string"
+            ? event.data.server
+            : "trivia-bank",
+          event.data.tool,
+          (event.data.arguments as Record<string, unknown>) ?? {},
+        )}
+        {error}
+      </li>
+    );
+  return (
+    <li>
+      {kind} {event.summary}
+    </li>
+  );
+}
+
 export function PlatformEvals() {
   const [config, setConfig] = useState<Config>();
   const [venues, setVenues] = useState(3);
+  const [teams, setTeams] = useState<number>();
+  const [pubs, setPubs] = useState<Pubs>("development");
+  const maxVenues =
+    config?.max_venues_by_pubs?.[pubs] ?? config?.max_venues ?? 1;
   const [view, setView] = useState<RunView>();
   const [error, setError] = useState<string>();
   const [open, setOpen] = useState<string>();
-  const [scenes, setScenes] = useState<FeedEvent[]>([]);
-  const [sceneVenue, setSceneVenue] = useState<string>();
-  const [sceneNight, setSceneNight] = useState<string>();
-  const [openScene, setOpenScene] = useState<number>();
+  const [steps, setSteps] = useState<FeedEvent[]>([]);
   const cursor = useRef(0);
-  const log = useRef<HTMLOListElement>(null);
 
   const loadConfig = useCallback(async () => {
     const response = await fetch("/api/evals");
@@ -231,8 +343,8 @@ export function PlatformEvals() {
         .reduce(fold, current),
     );
     // Two polls can overlap (React runs effects twice in development), so an
-    // event already shown is skipped rather than shown again.
-    setScenes((current) => {
+    // event already kept is skipped rather than kept again.
+    setSteps((current) => {
       const seen = new Set(current.map((event) => event.seq));
       const fresh = more.events.filter(
         (event) =>
@@ -240,7 +352,7 @@ export function PlatformEvals() {
           typeof event.data.venue === "string" &&
           !seen.has(event.seq),
       );
-      return fresh.length ? [...current, ...fresh].slice(-MAX_SCENES) : current;
+      return fresh.length ? [...current, ...fresh].slice(-MAX_STEPS) : current;
     });
     const finished = new Set(
       more.events
@@ -269,12 +381,23 @@ export function PlatformEvals() {
     return () => clearInterval(timer);
   }, [running, poll]);
 
+  // A run of one venue has no other pub's notes for a wrong-notes night.
+  const trialsFor = (count: number) =>
+    count * (config?.trials_per_venue ?? 6) - (count === 1 ? 1 : 0);
+  const trials = trialsFor(
+    Math.min(Math.max(Math.trunc(venues) || 1, 1), maxVenues),
+  );
+
   const start = async () => {
     setError(undefined);
     const response = await fetch("/api/evals", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ venues }),
+      body: JSON.stringify({
+        venues,
+        teams: teams ?? config?.default_teams,
+        pubs,
+      }),
     });
     const body = await response.json();
     if (!response.ok) setError(body.error);
@@ -285,414 +408,611 @@ export function PlatformEvals() {
   const trialList = view ? [...view.trials.values()] : [];
   const trialVenues = [
     ...new Set(trialList.map(({ started }) => started.venue)),
-  ].sort();
-  const filters = trialVenues;
-  const shownVenue =
-    sceneVenue && filters.includes(sceneVenue) ? sceneVenue : undefined;
-  const shown = scenes.filter(
-    (event) =>
-      event.data.run === view?.run &&
-      (!shownVenue || event.data.venue === shownVenue) &&
-      (!sceneNight || event.data.night === sceneNight),
-  );
-
-  useEffect(() => {
-    log.current?.scrollTo({ top: log.current.scrollHeight });
-  }, [shown.length, shownVenue, sceneNight]);
-
-  const [now, setNow] = useState(0);
-  useEffect(() => {
-    if (!running) return;
-    const tick = () => setNow(Date.now());
-    tick();
-    const timer = setInterval(tick, 1000);
-    return () => clearInterval(timer);
-  }, [running]);
-
+  ];
   const done = trialList.filter(({ finished }) => finished).length;
-  // Each venue plays night 1, night 2 with memory and night 2 without.
-  const expected = trialVenues.length * 3;
-  const measuresAt = (night: string) =>
+  const expected = view?.finished?.trials ?? trialsFor(trialVenues.length);
+  const finishedAt = (night: NightKey) =>
     trialList
       .filter(({ started, finished }) => started.night === night && finished)
-      .map(({ finished }) => finished!.measures ?? {});
-  const withMemory = measuresAt("night2-hosted");
-  const withoutMemory = measuresAt("night2-fresh");
-  const comparison = compare(withMemory, withoutMemory);
-  const compared = Math.max(withMemory.length, withoutMemory.length);
-  const startedAt = view ? runStartedAt(view.run) : null;
-  const elapsed = view?.finished
-    ? view.finished.seconds
-    : startedAt && now
-      ? Math.max(0, Math.round((now - startedAt) / 1000))
+      .map(({ finished }) => finished!);
+  // A perfect-notes night 2 counts only when night 0 seeded exactly the true notes.
+  const counted = (venue: string, night: NightKey) =>
+    night !== "night2-perfect" ||
+    view?.trials.get(`${venue}/night0-seed`)?.finished?.checks.notes_seeded ===
+      1;
+  const scoreOf = (venue: string, night: NightKey) =>
+    counted(venue, night)
+      ? (view?.trials.get(`${venue}/${night}`)?.finished?.judge?.score ?? null)
       : null;
-
-  const trialAt = (venue: string, night: string) =>
-    view?.trials.get(`${venue}/${night}`);
-
-  const toggle = (key: string) => setOpen(open === key ? undefined : key);
-
-  const cell = (venue: string, night: string) => {
-    const key = `${venue}/${night}`;
-    const trial = trialAt(venue, night);
-    if (!trial)
-      return (
-        <td key={key} className="trial pending">
-          {view?.finished ? "—" : "waiting"}
-        </td>
+  const measureAt = (venue: string, night: NightKey, key: string) => {
+    if (!counted(venue, night)) return null;
+    const value = (
+      view?.trials.get(`${venue}/${night}`)?.finished?.measures as
+        Record<string, number> | undefined
+    )?.[key];
+    return typeof value === "number" ? value : null;
+  };
+  const pairedOf = (
+    of: (venue: string, night: NightKey) => number | null,
+    a: NightKey,
+    b: NightKey,
+  ) =>
+    trialVenues.flatMap((venue): Pair[] => {
+      const x = of(venue, a);
+      const y = of(venue, b);
+      return x !== null && y !== null ? [{ with: x, without: y }] : [];
+    });
+  const countries = [
+    ...new Set(
+      trialList
+        .map(({ started }) => countryOf(started.venue_label ?? ""))
+        .filter((code): code is string => Boolean(code)),
+    ),
+  ].sort();
+  type Row = {
+    key: string;
+    label: string;
+    why: string;
+    primary: boolean;
+    bars: { label: string; kind: ArmKind; text: string; share: number }[];
+    means: Partial<Record<ArmKind, number>>;
+    verdict: string;
+    tone: string;
+    /** The right-vs-none sign test's p, Holm-adjusted across secondary rows later. */
+    p: number;
+    wrong: { text: string; tone: string } | null;
+  };
+  const percent = (value: number | null) =>
+    value === null ? "–" : `${points(value)}%`;
+  const meanOf = (values: number[]) =>
+    values.length
+      ? values.reduce((sum, v) => sum + v, 0) / values.length
+      : null;
+  const rowFor = (
+    key: string,
+    label: string,
+    why: string,
+    primary: boolean,
+    of: (venue: string, night: NightKey) => number | null,
+    show: (value: number | null) => string,
+    scale: [number, number] = [0, 1],
+  ): Row | null => {
+    const pairs = pairedOf(of, "night2-hosted", "night2-fresh");
+    const result = lift(pairs);
+    if (!result) return null;
+    const means: Row["means"] = {};
+    const bars = ARMS.flatMap((arm) => {
+      const mean = meanOf(
+        trialVenues
+          .map((venue) => of(venue, arm.night))
+          .filter((v): v is number => v !== null),
       );
-    const { finished } = trial;
-    const checks = finished ? Object.entries(finished.checks) : [];
-    const failed = checks.filter(([, value]) => !value).map(([name]) => name);
-    const previous =
-      night === "night2-hosted"
-        ? trialAt(venue, "night1-memory")?.finished?.notes
-        : undefined;
-    const chips = finished?.notes
-      ? factChips(finished.notes, previous ?? undefined)
-      : [];
-    const preview =
-      finished?.notes && !chips.length ? notesPreview(finished.notes) : null;
-    return (
-      <td
-        key={key}
-        className={open === key ? "trial open" : "trial"}
-        onClick={() => toggle(key)}
-      >
-        <span className="status">
-          {!finished ? (
-            <span className="fine">running</span>
-          ) : finished.reward === 1 ? (
-            <span className="pass">✓ passed</span>
-          ) : finished.reward === 0 ? (
-            <span className="bad">✗ failed</span>
-          ) : (
-            <span className="fine">no reward</span>
-          )}
-          {finished && <span className="fine"> · {finished.seconds}s</span>}
-          {finished?.trajectory_source &&
-            finished.trajectory_source !== "sandbox" && (
-              <span className="tag">{finished.trajectory_source}</span>
-            )}
-        </span>
-        {checks.length > 0 && (
-          <span className="checks">
-            {failed.map((name) => (
-              <span key={name} className="check bad">
-                ✗ {name}
-              </span>
-            ))}
-            <span className="fine check">
-              {checks.length - failed.length}/{checks.length} checks
-            </span>
-          </span>
-        )}
-        {finished?.error && (
-          <span className="bad error" title={finished.error}>
-            {finished.error.split("\n")[0]}
-          </span>
-        )}
-        {chips.length > 0 && (
-          <span className="facts">
-            {chips.map((chip) => (
-              <span
-                key={chip.key}
-                className={chip.changed ? "fact changed" : "fact"}
-                title={chip.changed ? "Changed since night 1" : undefined}
-              >
-                {chip.text}
-              </span>
-            ))}
-          </span>
-        )}
-        {finished?.measures && <MeasureMarks measures={finished.measures} />}
-        {preview && <span className="fine preview">{preview}</span>}
-      </td>
+      if (mean === null) return [];
+      means[arm.kind] = mean;
+      return [
+        {
+          label: arm.label,
+          kind: arm.kind,
+          text: show(mean),
+          share: fraction(mean, scale),
+        },
+      ];
+    });
+    const verdict =
+      result.verdict === "supported"
+        ? "Better"
+        : result.verdict === "not supported"
+          ? "Worse"
+          : `Better at ${result.higher} of ${result.pubs}`;
+    const tone =
+      result.verdict === "supported"
+        ? "good"
+        : result.verdict === "not supported"
+          ? "bad"
+          : "fine";
+    const versusWrong = signTest(
+      pairedOf(of, "night2-hosted", "night2-wrong").map(
+        (p) => p.with - p.without,
+      ),
+    );
+    const compared = versusWrong.positive + versusWrong.negative;
+    const wrongPairs = pairedOf(of, "night2-hosted", "night2-wrong").length;
+    return {
+      key,
+      label,
+      why,
+      primary,
+      bars,
+      means,
+      verdict,
+      tone,
+      p: signTest(pairs.map((p) => p.with - p.without)).p,
+      wrong: wrongPairs
+        ? {
+            text: `vs wrong notes: better at ${versusWrong.positive} of ${wrongPairs}`,
+            tone:
+              compared && versusWrong.p < 0.05
+                ? versusWrong.positive > versusWrong.negative
+                  ? "good"
+                  : "bad"
+                : "fine",
+          }
+        : null,
+    };
+  };
+  // Every row reads "longer bar is better": a lower-is-better measure is shown as its complement.
+  const measureRow = (key: string, label: string, primary = false) => {
+    const meta = MEASURES[key as keyof typeof MEASURES];
+    const flip = meta?.better === "lower";
+    return rowFor(
+      key,
+      label,
+      meta?.why ?? "",
+      primary,
+      (venue, night) => {
+        const value = measureAt(venue, night, key);
+        return value === null ? null : flip ? 1 - value : value;
+      },
+      percent,
     );
   };
+  const built = [
+    measureRow(
+      GOOD_ROUNDS,
+      "Good rounds (favourite genre and 55–75% right)",
+      true,
+    ),
+    measureRow("favourite_genre", "Rounds in their favourite genres"),
+    measureRow("in_band", "Rounds pitched right (55–75% correct)"),
+    measureRow("close_finish", "How close the finish was"),
+    measureRow(
+      "lead_changes",
+      "Lead changes (share of rounds after the first)",
+    ),
+    measureRow(
+      "bottom_share",
+      "Last place's points, as a share of the winner's",
+    ),
+    rowFor(
+      "judge",
+      "Judge: how tailored it felt (1–5)",
+      "A model judge's 1–5 score of how well night 2 suited this crowd",
+      false,
+      scoreOf,
+      (value) => (value === null ? "–" : value.toFixed(1)),
+      [1, 5],
+    ),
+  ].filter((row): row is Row => row !== null);
+  // Secondary rows are called better or worse only past a Holm-corrected sign test.
+  const secondary = built.filter((row) => !row.primary);
+  const adjusted = holm(secondary.map((row) => row.p));
+  const rows = built.map((row) => {
+    if (row.primary) return row;
+    const p = adjusted[secondary.indexOf(row)];
+    const right = row.means.with ?? 0;
+    const none = row.means.without ?? 0;
+    return p < 0.05
+      ? {
+          ...row,
+          verdict: right > none ? "Better" : "Worse",
+          tone: right > none ? "good" : "bad",
+        }
+      : {
+          ...row,
+          verdict: row.verdict.startsWith("Better at")
+            ? row.verdict
+            : row.verdict.replace(/^(Better|Worse)$/, (word) => `${word}?`),
+          tone: "fine",
+        };
+  });
+  const primary = rows.find((row) => row.primary);
+  const order =
+    primary &&
+    typeof primary.means.with === "number" &&
+    typeof primary.means.without === "number" &&
+    typeof primary.means.wrong === "number"
+      ? ordering({
+          perfect: primary.means.perfect ?? null,
+          right: primary.means.with,
+          none: primary.means.without,
+          wrong: primary.means.wrong,
+        })
+      : null;
+  const pubCount = pairedOf(
+    (venue, night) => measureAt(venue, night, GOOD_ROUNDS),
+    "night2-hosted",
+    "night2-fresh",
+  ).length;
+  const headline = !rows.length
+    ? running
+      ? "Waiting for the night 2s at a pub…"
+      : "No results yet."
+    : !order
+      ? `Right notes vs no notes, across ${pubCount} pub${pubCount === 1 ? "" : "s"}: ${primary?.verdict.toLowerCase() ?? "no result"} on good rounds; waiting for the wrong notes.`
+      : order.holds
+        ? "Memory helps because of what it remembered: right notes beat no notes, and wrong notes did worst."
+        : `On good rounds across ${pubCount} pubs: right notes ${order.rightOverNone ? "beat" : "did not beat"} no notes, no notes ${order.noneOverWrong ? "beat" : "did not beat"} wrong notes${
+            typeof primary?.means.perfect === "number"
+              ? `, and perfect notes ${order.perfectAtLeastRight ? "matched or beat" : "fell short of"} right notes`
+              : ""
+          }.`;
+  const gate = validityGate(
+    trialVenues.flatMap((venue) => {
+      const perfect = measureAt(venue, "night2-perfect", GOOD_ROUNDS);
+      const none = measureAt(venue, "night2-fresh", GOOD_ROUNDS);
+      return perfect !== null && none !== null ? [{ perfect, none }] : [];
+    }),
+  );
+  const accuracy = trialVenues.flatMap((venue) => {
+    const value = measureAt(venue, "night1-memory", "notes_accuracy");
+    return value === null
+      ? []
+      : [
+          {
+            venue,
+            label: venueParts(
+              view?.trials.get(`${venue}/night1-memory`),
+              venue,
+            ),
+            value,
+          },
+        ];
+  });
+  const night2s = [
+    ...finishedAt("night2-hosted"),
+    ...finishedAt("night2-fresh"),
+    ...finishedAt("night2-wrong"),
+    ...finishedAt("night2-perfect"),
+  ];
+  const judgeError = night2s.find((finished) => finished.judge?.error)?.judge
+    ?.error;
 
-  const detail = (venue: string, nights: string[]) => {
-    const night = nights.find((item) => open === `${venue}/${item}`);
-    const finished = night ? trialAt(venue, night)?.finished : undefined;
-    if (!night) return null;
+  const trialAt = (venue: string, night: NightKey) =>
+    view?.trials.get(`${venue}/${night}`);
+  const stepsOf = (venue: string, night: NightKey) =>
+    steps.filter(
+      (event) =>
+        event.data.run === view?.run &&
+        event.data.venue === venue &&
+        event.data.night === night,
+    );
+
+  const card = (venue: string) => {
+    const trials = NIGHTS.map((night) => trialAt(venue, night));
+    const busy = !view?.finished && trials.some((trial) => !trial?.finished);
+    const expanded = open === venue;
     return (
-      <tr className="detail">
-        <td colSpan={4}>
-          <h3>
-            {venueName(venue)} · {NIGHT_NAMES[night]}
-          </h3>
-          {!finished ? (
-            <p className="fine">Still running.</p>
-          ) : (
-            <>
-              <ul className="check-list">
-                {Object.entries(finished.checks).map(([name, value]) => (
-                  <li key={name} className={value ? "pass" : "bad"}>
-                    {value ? "✓" : "✗"} {name}
-                  </li>
-                ))}
-              </ul>
-              {finished.error && <pre className="bad">{finished.error}</pre>}
-              {finished.notes ? (
-                <pre className="notes">{finished.notes}</pre>
-              ) : (
-                <p className="fine">No notes left.</p>
-              )}
-            </>
+      <article
+        key={venue}
+        className={expanded ? "venue-card open" : "venue-card"}
+        onClick={() => setOpen(expanded ? undefined : venue)}
+      >
+        <header className="card-head">
+          <h3>{venueParts(trials.find(Boolean), venue)}</h3>
+          {busy && (
+            <span className="fine running">
+              <span className="spinner" aria-hidden /> running
+            </span>
           )}
-        </td>
-      </tr>
+        </header>
+        <div className="card-nights">
+          {NIGHTS.map((night, index) => {
+            const trial = trials[index];
+            const finished = trial?.finished;
+            return (
+              <section key={night} className="card-night">
+                <h4>{NIGHT_TITLES[night]}</h4>
+                {finished ? (
+                  <>
+                    <Summary night={night} finished={finished} />
+                    <span className="fine">{finished.seconds}s</span>
+                  </>
+                ) : (
+                  <span className="fine">
+                    {trial ? "running" : view?.finished ? "—" : "waiting"}
+                  </span>
+                )}
+              </section>
+            );
+          })}
+        </div>
+        {expanded && (
+          <div
+            className="card-nights steps"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {NIGHTS.map((night, index) => {
+              const finished = trials[index]?.finished;
+              return (
+                <section key={night} className="card-night">
+                  <h4>{NIGHT_TITLES[night]}</h4>
+                  {!finished ? (
+                    <span className="fine">Steps show when it finishes.</span>
+                  ) : (
+                    <>
+                      <ol className="step-list">
+                        {stepsOf(venue, night).map((event) => (
+                          <Step key={event.seq} event={event} />
+                        ))}
+                      </ol>
+                      <h5 className="verifiers">
+                        Verifiers{" "}
+                        <span className="fine">
+                          what the eval&apos;s verifier measured for this night
+                        </span>
+                      </h5>
+                      <ul className="check-list">
+                        {Object.entries(finished.checks).map(
+                          ([name, value]) => {
+                            const line = checkLine(
+                              name,
+                              value,
+                              finished.fetches ?? [],
+                            );
+                            return line.pass === undefined ? (
+                              <li key={name}>{line.text}</li>
+                            ) : (
+                              <li
+                                key={name}
+                                className={line.pass ? "pass" : "fine"}
+                              >
+                                {line.text} {line.pass ? "✓" : "✗"}
+                              </li>
+                            );
+                          },
+                        )}
+                      </ul>
+                      <span className="fine">
+                        reward {finished.reward ?? "none"} · {finished.seconds}s
+                        {finished.trajectory_source &&
+                          finished.trajectory_source !== "sandbox" &&
+                          ` · ${finished.trajectory_source}`}
+                      </span>
+                      {finished.error && <pre>{finished.error}</pre>}
+                    </>
+                  )}
+                </section>
+              );
+            })}
+          </div>
+        )}
+      </article>
     );
   };
 
   return (
-    <div className="columns">
-      <section className="platform">
-        <div className="host-head">
-          <div>
-            <h2>
-              On the platform <span className="tag">real evals</span>
-            </h2>
-            <p>
-              Each venue plays night 1, then night 2 with its notes, and night 2
-              again as a new customer, all at once.
-            </p>
-          </div>
+    <section className="platform">
+      <div className="host-head">
+        <div>
+          <h2>
+            On the platform <span className="tag">real evals</span>
+          </h2>
+          <p>
+            Each venue plays night 1, then night 2 four ways: with its own
+            notes, with none, with another pub&apos;s, and with the true notes.
+          </p>
         </div>
+      </div>
 
-        {config && !config.configured && (
-          <div className="notice">
-            <p>
-              No agent key: {config.missing}. Create a key that expires today,
-              then restart <code>pnpm dev</code>:
-            </p>
-            <pre className="notes">{config.how_to}</pre>
-          </div>
-        )}
+      {config && !config.configured && (
+        <div className="notice">
+          <p>
+            No agent key: {config.missing}. Create a key that expires today,
+            then restart <code>pnpm dev</code>:
+          </p>
+          <pre className="notes">{config.how_to}</pre>
+        </div>
+      )}
 
-        <div className="platform-form">
-          <label>
-            Venues
-            <input
-              type="number"
-              min={1}
-              max={config?.max_venues ?? 3}
-              value={venues}
-              onChange={(event) => setVenues(Number(event.target.value))}
-            />
-          </label>
-          <button
-            disabled={!config?.configured || !config?.target || running}
-            onClick={start}
-            title="Starts new venues with no memory: night 1 then night 2 at each, and each night 2 again without memory"
+      <div className="platform-form">
+        <label>
+          Pubs
+          <select
+            value={pubs}
+            disabled={running}
+            onChange={(event) => setPubs(event.target.value as Pubs)}
           >
-            {running ? "Running…" : "Run"}
-          </button>
+            <option value="development">development</option>
+            <option value="heldout">held out</option>
+          </select>
+        </label>
+        <label>
+          Venues
+          <input
+            type="number"
+            min={1}
+            max={maxVenues}
+            value={venues}
+            onChange={(event) => setVenues(Number(event.target.value))}
+          />
+        </label>
+        <label>
+          Teams
+          <select
+            value={teams ?? config?.default_teams ?? 5}
+            disabled={running}
+            onChange={(event) => setTeams(Number(event.target.value))}
+          >
+            {(config?.team_sizes ?? [3, 5, 8]).map((size) => (
+              <option key={size} value={size}>
+                {size}
+              </option>
+            ))}
+          </select>
+        </label>
+        <span className="fine hint">
+          3 is a quick look; {maxVenues} gives a statistically meaningful
+          result.
+        </span>
+        <button
+          disabled={!config?.configured || !config?.target || running}
+          onClick={start}
+          title="Starts new venues with no memory: night 1, then night 2 with its own notes, none, another pub's and the true notes"
+        >
+          {running ? "Running…" : "Run"}
+        </button>
+        {config?.cost_per_trial !== undefined && (
           <span
-            className="fine target"
-            title={
-              config?.target
-                ? `Runtime ${config.target.runtime} at ${config.target.commit}`
-                : undefined
-            }
+            className="fine cost"
+            title="Sonnet 5.5 list price, measured per trial; billed to your organization's platform usage"
           >
-            {config?.target
-              ? targetLabel(
-                  config.target.runtime,
-                  config.target.commit,
-                  config.target.slug,
-                )
-              : "…"}
+            ≈ ${(trials * config.cost_per_trial).toFixed(2)} · {trials} trials
           </span>
-        </div>
-        {config?.target_error && <p className="bad">{config.target_error}</p>}
-        {error && <p className="bad">{error}</p>}
+        )}
+        <span
+          className="fine target"
+          title={
+            config?.target
+              ? `Runtime ${config.target.runtime} at ${config.target.commit}`
+              : undefined
+          }
+        >
+          {config?.target
+            ? targetLabel(
+                config.target.runtime,
+                config.target.commit,
+                config.target.slug,
+              )
+            : "…"}
+        </span>
+      </div>
+      {config?.target_error && <p className="bad">{config.target_error}</p>}
+      {error && <p className="bad">{error}</p>}
 
-        {view && (
-          <>
-            <p className="fine run-summary">
-              Run <code>{view.run}</code> · {done} of{" "}
-              {view.finished?.trials ?? expected} done
-              {elapsed !== null &&
-                (view.finished
-                  ? ` · ${elapsed}s total`
-                  : ` · ${elapsed}s elapsed`)}
-            </p>
-            <div className="memory-chart">
-              <h3>
-                What memory changed
-                {compared > 0 && (
-                  <span className="fine">
-                    {" "}
-                    · night 2 at {compared} venue{compared === 1 ? "" : "s"}
-                  </span>
-                )}
-              </h3>
-              <p className="fine">
-                Night 2 with memory reads the notes from night 1; night 2
-                without is the same venue as a new customer, so the difference
-                is what memory buys.
-              </p>
-              {comparison.length > 0 ? (
-                <>
-                  <div className="chart-legend fine" aria-hidden>
-                    <span className="swatch swatch-without" /> without memory
-                    <span className="swatch swatch-with" /> with memory
-                  </div>
-                  <ul className="chart-rows">
-                    {comparison.map((row) => (
-                      <li key={row.key} className="chart-row">
-                        <span className="chart-label" title={row.why}>
-                          {row.label}
-                        </span>
-                        <span className="chart-bars">
-                          <Bar side="without" tally={row.without} />
-                          <Bar side="with" tally={row.with} />
-                        </span>
-                        <strong
-                          className={
-                            row.difference === null
-                              ? "chart-diff fine"
-                              : row.difference > 0
-                                ? "chart-diff pass"
-                                : row.difference < 0
-                                  ? "chart-diff bad"
-                                  : "chart-diff"
-                          }
-                          title={
-                            row.difference === null
-                              ? "Needs both sides to compare"
-                              : "With memory minus without, in points"
-                          }
-                        >
-                          {row.difference === null
-                            ? "n/a"
-                            : signed(row.difference)}
-                        </strong>
-                      </li>
-                    ))}
-                  </ul>
-                </>
-              ) : (
-                <p className="fine">The chart fills in as night 2s finish.</p>
+      {view && (
+        <>
+          <p className="fine run-summary">
+            {view.finished ? (
+              <>
+                Run <code>{view.run}</code> · {done} of {expected} trials ·{" "}
+                {view.finished.seconds}s
+              </>
+            ) : (
+              <>
+                <span className="spinner" aria-hidden /> Running… {done} of{" "}
+                {expected} trials
+              </>
+            )}
+          </p>
+          <div className="experiment">
+            <div className="pick">
+              <p className="big">{headline}</p>
+              {pubCount > 0 && (
+                <p className="fine">
+                  Night 2 at the same {pubCount} pub
+                  {pubCount === 1 ? "" : "s"}, the same teams answering, with
+                  the host&apos;s own notes, none, another pub&apos;s, and the
+                  true notes.
+                </p>
+              )}
+              {gate && (
+                <p className={gate.passes ? "fine" : "amber"}>
+                  World check: perfect notes beat no notes by{" "}
+                  {points(gate.difference)} pts (needs ≥ {points(GATE_MIN)} pts){" "}
+                  {gate.passes ? "✓" : "✗"}
+                </p>
               )}
             </div>
-            <table className="results">
-              <colgroup>
-                <col className="venue-col" />
-                <col className="night-col" />
-                <col className="night-col" />
-                <col className="night-col" />
-              </colgroup>
-              <thead>
-                <tr>
-                  <th>Venue</th>
-                  <th>Night 1</th>
-                  <th>Night 2 with memory</th>
-                  <th>Night 2 without</th>
-                </tr>
-              </thead>
-              <tbody>
-                {trialVenues.map((venue) => (
-                  <Fragment key={venue}>
-                    <tr>
-                      <th scope="row">{venueName(venue)}</th>
-                      {cell(venue, "night1-memory")}
-                      {cell(venue, "night2-hosted")}
-                      {cell(venue, "night2-fresh")}
-                    </tr>
-                    {detail(venue, [
-                      "night1-memory",
-                      "night2-hosted",
-                      "night2-fresh",
-                    ])}
-                  </Fragment>
-                ))}
-              </tbody>
-            </table>
-            <p className="fine">Click a trial for its checks and notes.</p>
-          </>
-        )}
-      </section>
-
-      <aside className="scenes">
-        <div className="scenes-head">
-          <h2>Behind the scenes</h2>
-        </div>
-        <p className="fine">
-          Each trial&apos;s tool calls and notes, streamed as it runs.
-        </p>
-        <nav className="venues scene-filters" aria-label="Venue">
-          <button
-            className={shownVenue ? undefined : "current"}
-            onClick={() => setSceneVenue(undefined)}
-          >
-            All
-          </button>
-          {filters.map((item) => (
-            <button
-              key={item}
-              className={item === shownVenue ? "current" : undefined}
-              onClick={() => setSceneVenue(item)}
-            >
-              {venueName(item)}
-            </button>
-          ))}
-        </nav>
-        <nav className="venues scene-filters" aria-label="Night">
-          {NIGHT_FILTERS.map(([night, label]) => (
-            <button
-              key={label}
-              className={night === sceneNight ? "current" : undefined}
-              onClick={() => setSceneNight(night)}
-            >
-              {label}
-            </button>
-          ))}
-        </nav>
-        <ol ref={log}>
-          {shown.length === 0 && (
-            <li className="empty">
-              {view
-                ? "Nothing here yet."
-                : "Run the evals to see what the agent does."}
-            </li>
-          )}
-          {shown.map((event) => {
-            const text = eventText(event);
-            return (
-              <li key={event.seq}>
-                <button
-                  className="event"
-                  title={text}
-                  onClick={() =>
-                    setOpenScene(
-                      openScene === event.seq ? undefined : event.seq,
-                    )
-                  }
-                >
-                  <span className={`kind kind-${event.type.split(".")[0]}`}>
-                    {kindLabel(event.type)}
+            {accuracy.length > 0 && (
+              <div className="accuracy" title={MEASURES.notes_accuracy.why}>
+                <strong>Night 1 notes matched the crowd</strong>{" "}
+                {accuracy.map((item) => (
+                  <span key={item.venue} className="fact">
+                    {item.label} {points(item.value)}%
                   </span>
-                  <span className="who">{sceneLabel(event.data)}</span>
-                  <span className="text">{text}</span>
-                </button>
-                {openScene === event.seq && (
-                  <pre>
-                    {typeof event.data.file === "string"
-                      ? event.data.file || "(empty)"
-                      : JSON.stringify(
-                          event.data.arguments ?? event.data.edit ?? event.data,
-                          null,
-                          2,
+                ))}
+              </div>
+            )}
+            {rows.length > 0 && (
+              <div className="bars">
+                <p className="fine bars-key">
+                  Longer bar is better on every row.
+                </p>
+                {rows.map((row) => (
+                  <div className="bar-row" key={row.key} title={row.why}>
+                    <div className="bar-label">
+                      {row.label}
+                      <span className={`bar-verdict ${row.tone}`}>
+                        {row.verdict}
+                        {row.wrong && (
+                          <small className={`bar-verdict ${row.wrong.tone}`}>
+                            {row.wrong.text}
+                          </small>
                         )}
-                  </pre>
-                )}
-              </li>
-            );
-          })}
-        </ol>
-      </aside>
+                      </span>
+                    </div>
+                    {row.bars.map((bar) => (
+                      <Bar
+                        key={bar.kind}
+                        label={bar.label}
+                        text={bar.text}
+                        share={bar.share}
+                        kind={bar.kind}
+                      />
+                    ))}
+                  </div>
+                ))}
+              </div>
+            )}
+            {judgeError && <p className="amber">Judge: {judgeError}</p>}
+            <details className="fine">
+              <summary>How it was tested</summary>
+              <p>
+                <strong>Hypothesis:</strong> {HYPOTHESIS}
+              </p>
+              <p>
+                {trialVenues.length} pub{trialVenues.length === 1 ? "" : "s"}
+                {countries.length > 0 && ` across ${listWords(countries)}`}.
+                Each plays night 1, then night 2 four ways: with its own notes,
+                as a new customer with none, as another pub&apos;s customer
+                (wrong notes), and with the venue&apos;s true notes written in
+                beforehand (perfect notes). The same simulated teams answer
+                every night 2, so only the host&apos;s choices differ.
+              </p>
+              <p>
+                The wrong notes are a placebo: if memory only helped by being
+                there, another pub&apos;s notes would help too, so right notes
+                beating them shows it is what was remembered that helps. Good
+                rounds is the primary measure, called better or worse when its
+                95% interval over the pubs excludes no difference; the others
+                need a sign test that survives Holm correction.
+              </p>
+            </details>
+          </div>
+          <div className="venue-cards">{trialVenues.map(card)}</div>
+          <p className="fine">Click a venue for each trial&apos;s steps.</p>
+        </>
+      )}
+    </section>
+  );
+}
+
+/** A value's position on its scale, 0 to 1. */
+const fraction = (value: number, [low, high]: [number, number]) =>
+  Math.min(Math.max((value - low) / (high - low || 1), 0), 1);
+
+/** One labelled horizontal bar. */
+function Bar({
+  label,
+  text,
+  share,
+  kind,
+}: {
+  label: string;
+  text: string;
+  share: number;
+  kind: ArmKind;
+}) {
+  return (
+    <div className="bar">
+      <span className="bar-name">{label}</span>
+      <span className="bar-track">
+        <span
+          className={`bar-fill ${kind}`}
+          style={{ width: `${Math.max(share * 100, 1.5)}%` }}
+        />
+      </span>
+      <span className="bar-value">{text}</span>
     </div>
   );
 }

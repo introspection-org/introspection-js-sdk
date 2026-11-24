@@ -1,0 +1,15 @@
+{
+  "venue": "held-minneapolis",
+  "region": "us",
+  "teams": ["The Minneapolis Quizzards", "Quizzy Minneapolis", "The Blow-Ins"],
+  "night1_teams": [
+    "The Minneapolis Quizzards",
+    "Minneapolis Smarty Pints",
+    "Quizzy Minneapolis"
+  ],
+  "liked": ["history", "geography"],
+  "disliked": ["sport"],
+  "hinted": ["history"],
+  "best_decades": ["2010s", "2020s"],
+  "target_difficulty": 3
+}

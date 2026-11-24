@@ -1,0 +1,23 @@
+{
+  "venue": "held-sheffield",
+  "region": "uk",
+  "teams": [
+    "Quizzy Sheffield",
+    "Sheffield Fact Finders",
+    "Sheffield Know-It-Alls",
+    "The Sheffield Quizzards",
+    "The Blow-Ins"
+  ],
+  "night1_teams": [
+    "Quizzy Sheffield",
+    "Sheffield Fact Finders",
+    "Sheffield Know-It-Alls",
+    "The Sheffield Quizzards",
+    "The Sheffield Brainiacs"
+  ],
+  "liked": ["history", "geography"],
+  "disliked": ["science"],
+  "hinted": ["history"],
+  "best_decades": ["1990s", "2000s"],
+  "target_difficulty": 3
+}

@@ -1,12 +1,16 @@
 {
-  "venue": "us-science",
+  "venue": "page-chicago",
   "region": "us",
   "teams": [
     "Smarty Pints",
-    "The Quizzards"
+    "The Quizzards",
+    "Universally Challenged",
+    "Deep Dish Thinkers",
+    "The Windy City Wits"
   ],
-  "likes": [
-    "science"
-  ],
-  "start_difficulty": 3
+  "liked": ["science", "film"],
+  "disliked": ["geography"],
+  "hinted": ["science"],
+  "best_decades": ["2000s", "1990s"],
+  "target_difficulty": 2
 }

@@ -2,11 +2,11 @@ schema_version = "1.1"
 
 [task]
 name = "trivia-host/night1-brisbane"
-description = "A new venue's first night (The Grand, Brisbane): the host plays a round against the bank fake and leaves its notes in memories/MEMORY.md"
+description = "A new venue's first night (The Grand, Brisbane): the host plays six rounds to a simulated crowd and leaves its notes in memories/MEMORY.md"
 
 [metadata]
 case = "C3"
-venue = "held-5-high"
+venue = "page-brisbane"
 
 [verifier]
 timeout_sec = 120.0

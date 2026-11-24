@@ -1,0 +1,16 @@
+{
+  "venue": "held-nottingham",
+  "region": "uk",
+  "teams": [
+    "The Nottingham Brainiacs",
+    "The Nottingham Thinkers",
+    "The Nottingham Quizzards",
+    "Nottingham Fact Finders",
+    "Nottingham Smarty Pints"
+  ],
+  "liked": ["music", "film"],
+  "disliked": ["sport"],
+  "hinted": ["music"],
+  "best_decades": ["2010s", "2020s"],
+  "target_difficulty": 2
+}

@@ -1,0 +1,15 @@
+{
+  "venue": "page-glasgow",
+  "region": "uk",
+  "teams": ["Glasgow Brainiacs", "Quiz Pro Quo 7", "The Anchor Regulars"],
+  "night1_teams": [
+    "Glasgow Brainiacs",
+    "Quiz Pro Quo 7",
+    "The Anchor Regulars"
+  ],
+  "liked": ["geography", "music"],
+  "disliked": ["sport"],
+  "hinted": ["geography"],
+  "best_decades": ["2010s", "2000s"],
+  "target_difficulty": 3
+}

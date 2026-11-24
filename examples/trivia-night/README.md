@@ -65,23 +65,37 @@ Pick a number of venues and press **Run**. Venue _i_ plays the _i_-th venue prof
 | Night 2 with memory | `night2-<venue>` | the same customer                              | it reads those notes                           |
 | Night 2 without     | `night2-<venue>` | `anon:sim-<run>-<venue>-fresh`, a new customer | the same night with no notes                   |
 
-Every trial is tagged `simulation:<run>`. The two night 2s differ only in the notes, so **What memory changed** compares them per measure: knew the venue without asking, right region, the crowd's genres, and difficulty from the notes. Each run starts new customers, so nothing carries over between runs; a run measures one version of the agent and changes nothing.
+Every trial is tagged `simulation:<run>`. The page reads as an experiment: the hypothesis that notes tune night 2 to the crowd, the method, and the result. The two night 2s at a pub differ only in the notes, so each pub is a paired comparison: the result is how far each round's share right was from 65%, with memory against without, as a mean of per-pub differences with a 95% t-interval (from 3 pubs; 11 gives a meaningful result), with the other measures beside it. Each run starts new customers, so nothing carries over between runs; a run measures one version of the agent and changes nothing.
 
-**Behind the scenes** shows what the agent does in each trial as it runs. Each `eval run` prints its trial's task id, and the server follows that task with `introspection tasks stream`, reattaching until its run ends. It shows each `trivia-bank` tool call with its arguments (**tool**), each read of `memories/MEMORY.md` with its content (**read**, including the read the runtime makes before the first turn), each write of it (**write**), and the agent's final message (**plan**). When a trial ends, the same events are read from its `trajectory.json`, so anything the stream missed still shows, once.
+As a second opinion, the server grades each finished night 2 with the `return-visit` judge (`recipe-operator/judges/return-visit.yaml`): it converts the trial's local `trajectory.json` to the judge's conversation input and runs `introspection judges run --conversation <trial>/judge/input.jsonl`, scoring from 1 to 5 how tailored the night felt, with a one-line reason. It is one Sonnet judgement per night 2, about $0.01 to $0.03 each; the judge's model uses `ANTHROPIC_API_KEY` from the server's environment, or your Pi sign-in.
 
-The key reaches each `introspection eval run` and `introspection tasks stream` only as `INTROSPECTION_TOKEN` in its environment: never in its arguments, the logs or the browser. The page is served only on this machine. Each trial's run folder is under `recipe-operator/eval-runs/<run>/`.
+Each venue gets a card: what night 1 learned, and how each night 2 opened. Click a card for each trial's steps, read from its `trajectory.json` once the trial ends: each read of `memories/MEMORY.md` with its content (**read**, including the read the runtime makes before the first turn), each `trivia-bank` tool call with its arguments (**tool**), each write of the notes (**write**), and the agent's final message (**plan**), then its checks, reward and time. While a run is going the page shows its progress; a card fills in as its venue's trials finish.
+
+The key reaches each `introspection eval run` only as `INTROSPECTION_TOKEN` in its environment: never in its arguments, the logs or the browser. The page is served only on this machine. Each trial's run folder is under `recipe-operator/eval-runs/<run>/`.
 
 ## What it costs
 
-Every trial is a real model conversation. Measured on the hosted agent, a trial is about 20 to 25 thousand input tokens, nine tenths of them cached, and 1.5 thousand output: **$0.02 to $0.05 a trial**.
+Every trial is a real model conversation, and the cost is mostly how many there are and how long each one runs.
 
-| What                                                       | Trials                                                                 | Approximate cost | Billed to                                                     |
-| ---------------------------------------------------------- | ---------------------------------------------------------------------- | ---------------- | ------------------------------------------------------------- |
-| **Run** with 3 venues                                      | 9                                                                      | $0.40            | your organization's platform usage                            |
-| **Run** with 11 venues                                     | 33                                                                     | $1.50            | your organization's platform usage                            |
-| One improve cycle, `introspection operator improve/memory` | 150 to 200 nights of 4-night series, plus the Operator's own reasoning | $10 to $50       | the model key or subscription the Operator and its trials use |
+| What                            | Volume                                               | Cost                                                   | Billed to                                               |
+| ------------------------------- | ---------------------------------------------------- | ------------------------------------------------------ | ------------------------------------------------------- |
+| **Run** with 3 venues           | 9 trials                                             | about $1                                               | your organization's platform usage                      |
+| **Run** with 11 venues          | 33 trials                                            | about $3                                               | your organization's platform usage                      |
+| One improve cycle, as first run | 178 four-night series nights plus 135 Operator turns | about $20 for the search, before held-out confirmation | the key or subscription the Operator and its trials use |
 
-Run trials on the platform use the platform's models. An improve cycle runs its trials locally in Docker: each trial reads `ANTHROPIC_API_KEY` from its environment, and the Operator itself runs in Pi on your Pi sign-in unless a key in its environment takes precedence. Measure an actual run from each trial's `trajectory.json` (`final_metrics.total_cost_usd`).
+What the first improve cycle spent, measured from each trial's `trajectory.json` (`final_metrics`) and the Operator's Pi session:
+
+- **Trials, $11.89:** 178 nights on Sonnet 5.5 at $0.067 each. A night is about 19 model turns (start the night, fetch, read out, mark, summarize, write notes), re-sending about 91 thousand input tokens, nine tenths cached, and writing 3.7 thousand. The volume is 5 designs, 3 venues, 4-night series and 2 repeats, plus the control's repeats to measure noise.
+- **The Operator, $7.91:** 135 turns on Opus 5.5, each carrying about 92 thousand tokens of context (its skill references, scorecards and logs), billed to the API key because the key was in its environment.
+
+To run an improve cycle for a few dollars instead:
+
+1. Run the Operator on your Pi sign-in and give the API key only to the trials, not to the Operator's shell. The same search costs about 40% less.
+2. Search smaller: 3 designs, 3-night series, one repeat, and the control's spread measured once. About 45 nights instead of 178.
+3. Keep nights short: two short rounds bring a night from about 19 turns to about 8, roughly halving its cost.
+4. Mount `~/.pi/agent/auth.json` into each trial's runtime container, so the trials use your Pi sign-in too.
+
+With the first three, a full cycle on API keys is about $3 to $5.
 
 ## What is here
 
@@ -95,8 +109,8 @@ Run trials on the platform use the platform's models. An improve cycle runs its 
 | Identity              | [`lib/identity.ts`](./lib/identity.ts)                                     | Verifies the end-user token the platform sends, and refuses a call without one.                                                                                          |
 | Simulated venues      | [`lib/venues.ts`](./lib/venues.ts)                                         | Crowds for the in-session room scripts, each a table of how well it knows each genre. Seeded, so a run repeats exactly.                                                  |
 | Operator-built Recipe | [`recipe-operator/`](./recipe-operator)                                    | What a fresh Operator session built from [WALKTHROUGH.md](./WALKTHROUGH.md): the version to hill-climb on. Its bank is a contract it designed, not this one.             |
-| The page              | [`components/platform-evals.tsx`](./components/platform-evals.tsx)         | Each trial's reward, checks and notes, and Behind the scenes per venue.                                                                                                  |
-| Platform evals        | [`lib/platform-runner.ts`](./lib/platform-runner.ts), `/api/evals`         | Runs the memory evals as cloud trials, and puts each trial's result and the agent's work ([`lib/trial-stream.ts`](./lib/trial-stream.ts)) on the events feed.            |
+| The page              | [`components/platform-evals.tsx`](./components/platform-evals.tsx)         | A card per venue: what night 1 learned, how each night 2 opened, and each trial's steps and checks.                                                                      |
+| Platform evals        | [`lib/platform-runner.ts`](./lib/platform-runner.ts), `/api/evals`         | Runs the memory evals as cloud trials, and puts each trial's result and its steps ([`lib/trial-steps.ts`](./lib/trial-steps.ts)) on the events feed.                     |
 
 ## Who owns what
 

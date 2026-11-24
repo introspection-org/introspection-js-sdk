@@ -1,0 +1,16 @@
+{
+  "venue": "held-portland",
+  "region": "us",
+  "teams": [
+    "The Portland Thinkers",
+    "The Portland Quizzards",
+    "Quizzy Portland",
+    "Portland Fact Finders",
+    "The Portland Brainiacs"
+  ],
+  "liked": ["film", "science"],
+  "disliked": ["history"],
+  "hinted": ["film"],
+  "best_decades": ["2000s", "2010s"],
+  "target_difficulty": 2
+}

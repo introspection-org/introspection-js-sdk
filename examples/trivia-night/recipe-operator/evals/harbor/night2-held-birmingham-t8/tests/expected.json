@@ -1,0 +1,29 @@
+{
+  "venue": "held-birmingham",
+  "region": "uk",
+  "teams": [
+    "Birmingham Fact Finders",
+    "Birmingham Know-It-Alls",
+    "The Birmingham Brainiacs",
+    "Quizzy Birmingham",
+    "Birmingham Smarty Pints",
+    "The Birmingham Thinkers",
+    "The Walk-Ins",
+    "The Plus Ones"
+  ],
+  "night1_teams": [
+    "Birmingham Fact Finders",
+    "Birmingham Know-It-Alls",
+    "The Birmingham Brainiacs",
+    "The Birmingham Regulars",
+    "Quizzy Birmingham",
+    "The Birmingham Quizzards",
+    "Birmingham Smarty Pints",
+    "The Birmingham Thinkers"
+  ],
+  "liked": ["science", "film"],
+  "disliked": ["sport"],
+  "hinted": ["science"],
+  "best_decades": ["2010s", "2000s"],
+  "target_difficulty": 3
+}

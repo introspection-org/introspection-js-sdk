@@ -1,0 +1,23 @@
+{
+  "venue": "held-darwin",
+  "region": "au",
+  "teams": [
+    "The Darwin Thinkers",
+    "Darwin Fact Finders",
+    "Darwin Smarty Pints",
+    "The Darwin Quizzards",
+    "First Timers"
+  ],
+  "night1_teams": [
+    "The Darwin Regulars",
+    "The Darwin Thinkers",
+    "Darwin Fact Finders",
+    "Darwin Smarty Pints",
+    "The Darwin Quizzards"
+  ],
+  "liked": ["film", "science"],
+  "disliked": ["sport"],
+  "hinted": ["film"],
+  "best_decades": ["1990s", "2000s"],
+  "target_difficulty": 2
+}

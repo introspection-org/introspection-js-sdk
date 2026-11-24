@@ -1,0 +1,14 @@
+{
+  "venue": "held-liverpool",
+  "region": "uk",
+  "teams": [
+    "Liverpool Know-It-Alls",
+    "Liverpool Fact Finders",
+    "Quizzy Liverpool"
+  ],
+  "liked": ["history", "film"],
+  "disliked": ["sport"],
+  "hinted": ["history"],
+  "best_decades": ["2000s", "2010s"],
+  "target_difficulty": 3
+}

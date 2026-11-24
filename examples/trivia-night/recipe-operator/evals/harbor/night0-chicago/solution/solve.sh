@@ -1,0 +1,11 @@
+#!/bin/sh
+mkdir -p /workspace/memories
+cat > /workspace/memories/MEMORY.md <<'NOTES'
+# Venue notes
+
+- Country: US (Chicago). Use region `us` (or `global`).
+- Genres: the crowd loves science and film. Plan about 4 of 6 rounds on those and keep the other genres in rotation.
+- They don't enjoy geography: keep it rare.
+- Difficulty: start next night at 2. Aim for about two in three right and adjust from round_summary.
+- Eras: the crowd knows the 2000s and 1990s best.
+NOTES

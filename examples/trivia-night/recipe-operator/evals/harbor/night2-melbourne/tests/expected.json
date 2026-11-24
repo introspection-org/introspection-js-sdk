@@ -1,12 +1,23 @@
 {
-  "venue": "held-2-shifting",
+  "venue": "page-melbourne",
   "region": "au",
   "teams": [
     "Melbourne Brainiacs",
-    "Quiz Pro Quo 2"
+    "Quiz Pro Quo 2",
+    "The Esplanade Regulars",
+    "Flat White Thinkers",
+    "The Late Arrivals"
   ],
-  "likes": [
-    "film"
+  "night1_teams": [
+    "Melbourne Brainiacs",
+    "Quiz Pro Quo 2",
+    "The Esplanade Regulars",
+    "Flat White Thinkers",
+    "The Laneway Legends"
   ],
-  "start_difficulty": 3
+  "liked": ["geography", "music"],
+  "disliked": ["science"],
+  "hinted": ["geography"],
+  "best_decades": ["2020s", "2010s"],
+  "target_difficulty": 3
 }

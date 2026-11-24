@@ -11,7 +11,10 @@ import type {
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
 
+import HELDOUT from "../recipe-operator/evals/heldout.json";
 import VENUES from "../recipe-operator/evals/venues.json";
+import { plainText, truncateWords } from "./display";
+import type { Judgement } from "./judge";
 import type { Fetch, Measures, VenueTastes } from "./memory-measures";
 
 /** A venue profile's task pair, as `pnpm evals:venues` writes it. */
@@ -19,16 +22,35 @@ export interface VenueProfile {
   slug: string;
   label: string;
   region: string;
+  /** The crowd's favourite genres, to pick a donor pub with other tastes. */
+  liked?: string[];
 }
 
 /**
  * The night's role; the Harbor task it runs is `Step.task`. `night2-fresh` is
- * the venue's night 2 as a new customer, with no night 1 and so no notes.
+ * the venue's night 2 as a new customer, with no notes; `night2-wrong` runs as
+ * another pub's customer, so it loads that pub's notes; `night0-seed` writes
+ * the venue's true notes for `night2-perfect`.
  */
-export type Night = "night1-memory" | "night2-hosted" | "night2-fresh";
+export type Night =
+  | "night0-seed"
+  | "night1-memory"
+  | "night2-hosted"
+  | "night2-fresh"
+  | "night2-wrong"
+  | "night2-perfect";
 
-/** Whether a night 2 had the venue's notes from night 1. */
-export type Variant = "with" | "without";
+/** Which notes a night 2 had: its own night 1's, none, another pub's, or the true ones. */
+export type Variant = "with" | "without" | "wrong" | "perfect";
+
+/** Development pubs are for building the host; held-out pubs only for the preregistered run. */
+export type Pubs = "development" | "heldout";
+export const PUB_SETS: Record<Pubs, VenueProfile[]> = {
+  development: VENUES,
+  heldout: HELDOUT,
+};
+export const isPubs = (value: unknown): value is Pubs =>
+  value === "development" || value === "heldout";
 
 export interface Target {
   runtime: string;
@@ -47,7 +69,19 @@ export type Step = {
   task: string;
   identity: string;
   variant?: Variant;
+  /**
+   * Steps (`stepKey`) this one waits for; the first's notes are its night-1
+   * notes. A wrong-notes night 2 waits for its donor's night 1 and night 2,
+   * so neither of the donor's reads sees its writes.
+   */
+  after?: string[];
+  /** The pub whose customer a wrong-notes night 2 runs as. */
+  donor?: string;
+  donor_label?: string;
 };
+
+export const stepKey = (step: { venue: string; night: string }) =>
+  `${step.venue}/${step.night}`;
 
 export type EvalStarted = Step;
 
@@ -55,8 +89,16 @@ export type EvalFinished = Step & {
   reward: number | null;
   checks: Record<string, number>;
   notes: string | null;
+  /** The agent's last message, as plain text. */
+  plan?: string | null;
+  /** The first round it fetched, from the verifier. */
+  round?: Fetch | null;
+  /** The return-visit judge's grade of a night 2. */
+  judge?: Judgement | null;
   /** Absent on trials recorded before measures existed. */
   measures?: Measures;
+  /** Each round it fetched, from the verifier. */
+  fetches?: Fetch[];
   trajectory_source: string | null;
   seconds: number;
   exit_code: number | null;
@@ -70,43 +112,107 @@ export type EvalRunFinished = {
 };
 
 export const MAX_VENUES = VENUES.length;
+export const MAX_VENUES_BY_PUBS: Record<Pubs, number> = {
+  development: VENUES.length,
+  heldout: HELDOUT.length,
+};
+/** The crowd sizes each venue has tasks for, as evals/venues.mjs writes them; 5 is unsuffixed. */
+export const TEAM_SIZES = [3, 5, 8] as const;
+export type TeamSize = (typeof TEAM_SIZES)[number];
+export const DEFAULT_TEAMS: TeamSize = 5;
+/**
+ * Trials a venue runs: night 1, night 0 (seeding the true notes), and night 2
+ * four ways: its own notes, none, another pub's, and the true ones. A run of
+ * one venue has no other pub's notes, so it runs one fewer.
+ */
+export const TRIALS_PER_VENUE = 6;
+/**
+ * An estimate, in US dollars, of one trial's model cost: Sonnet 5.5 at list
+ * price, scaled from about $0.03 measured over two rounds of five to six
+ * rounds of four; to be re-measured. Team size barely moves it.
+ */
+export const COST_PER_TRIAL = 0.07;
+
+export const isTeamSize = (value: unknown): value is TeamSize =>
+  (TEAM_SIZES as readonly unknown[]).includes(value);
+
+/** A venue's Harbor task for a night and crowd size, such as night1-leeds or night2-leeds-t8. */
+export const taskName = (
+  night: 0 | 1 | 2,
+  slug: string,
+  teams: TeamSize = DEFAULT_TEAMS,
+) => `night${night}-${slug}${teams === DEFAULT_TEAMS ? "" : `-t${teams}`}`;
 const NOTES_PREVIEW = 600;
+const PLAN_PREVIEW = 300;
 
 export function newRunId(now = new Date()): string {
   return `r${now.getTime()}`;
 }
 
 /**
- * Two chains per venue, run at once: night 1 then night 2 on the same identity
- * (with memory), and that night 2 alone on a fresh identity (without). Venue i
- * plays profile i, cycling when there are more venues than profiles.
+ * The pub whose notes venue i's wrong-notes night 2 loads: the next pub in the
+ * list in another country with none of its favourites, else the next in
+ * another country, else the next; null when there is no other pub.
+ */
+export function donorOf(
+  index: number,
+  venues: { region: string; liked?: string[] }[],
+): number | null {
+  const n = venues.length;
+  if (n < 2) return null;
+  const me = venues[index];
+  const others = Array.from({ length: n - 1 }, (_, k) => (index + k + 1) % n);
+  const abroad = others.filter((j) => venues[j].region !== me.region);
+  const unlike = abroad.filter(
+    (j) => !(venues[j].liked ?? []).some((g) => me.liked?.includes(g)),
+  );
+  return unlike[0] ?? abroad[0] ?? others[0];
+}
+
+/**
+ * The chains of a run, all started at once; a chain runs its steps in order,
+ * and a step with `after` waits for those steps too. Per venue: night 1 then
+ * night 2 on one identity (its own notes); night 2 on a fresh identity (none);
+ * night 0 then night 2 on a third (the true notes); and, after every venue's,
+ * night 2 as another pub's customer (wrong notes). Venue i plays profile i,
+ * cycling when there are more venues than profiles, to a crowd of `teams`.
  */
 export function plan(
   run: string,
   venues: number,
   profiles: VenueProfile[] = VENUES,
+  teams: TeamSize = DEFAULT_TEAMS,
 ): Step[][] {
-  const count = Math.min(Math.max(Math.trunc(venues) || 1, 1), MAX_VENUES);
-  const chains: Step[][] = [];
-  for (let index = 0; index < count; index += 1) {
+  const count = Math.min(
+    Math.max(Math.trunc(venues) || 1, 1),
+    Math.max(profiles.length, MAX_VENUES),
+  );
+  const planned = Array.from({ length: count }, (_, index) => {
     const profile = profiles[index % profiles.length];
     const lap = Math.floor(index / profiles.length);
-    const venue = lap ? `${profile.slug}-${lap + 1}` : profile.slug;
-    const venue_label = lap ? `${profile.label} #${lap + 1}` : profile.label;
-    const identity = `anon:sim-${run}-${venue}`;
+    return {
+      profile,
+      venue: lap ? `${profile.slug}-${lap + 1}` : profile.slug,
+      venue_label: lap ? `${profile.label} #${lap + 1}` : profile.label,
+      identity: `anon:sim-${run}-${lap ? `${profile.slug}-${lap + 1}` : profile.slug}`,
+    };
+  });
+  const chains: Step[][] = [];
+  for (const { profile, venue, venue_label, identity } of planned) {
     const base = { run, venue, venue_label };
+    const night2 = taskName(2, profile.slug, teams);
     chains.push(
       [
         {
           ...base,
           night: "night1-memory",
-          task: `night1-${profile.slug}`,
+          task: taskName(1, profile.slug, teams),
           identity,
         },
         {
           ...base,
           night: "night2-hosted",
-          task: `night2-${profile.slug}`,
+          task: night2,
           identity,
           variant: "with",
         },
@@ -115,13 +221,53 @@ export function plan(
         {
           ...base,
           night: "night2-fresh",
-          task: `night2-${profile.slug}`,
+          task: night2,
           identity: `${identity}-fresh`,
           variant: "without",
         },
       ],
+      [
+        {
+          ...base,
+          night: "night0-seed",
+          task: taskName(0, profile.slug),
+          identity: `${identity}-perfect`,
+        },
+        {
+          ...base,
+          night: "night2-perfect",
+          task: night2,
+          identity: `${identity}-perfect`,
+          variant: "perfect",
+        },
+      ],
     );
   }
+  planned.forEach(({ profile, venue, venue_label }, index) => {
+    const donor = donorOf(
+      index,
+      planned.map((p) => p.profile),
+    );
+    if (donor === null) return;
+    const from = planned[donor];
+    chains.push([
+      {
+        run,
+        venue,
+        venue_label,
+        night: "night2-wrong",
+        task: taskName(2, profile.slug, teams),
+        identity: from.identity,
+        variant: "wrong",
+        after: [
+          stepKey({ venue: from.venue, night: "night1-memory" }),
+          stepKey({ venue: from.venue, night: "night2-hosted" }),
+        ],
+        donor: from.venue,
+        donor_label: from.venue_label,
+      },
+    ]);
+  });
   return chains;
 }
 
@@ -318,6 +464,12 @@ export function readRunFolder(runFolder: string): TrialResult {
     trajectory_source: typeof source === "string" ? source : null,
     error: error ? error.trim() : null,
   };
+}
+
+/** The agent's message as plain text, cut to a preview. */
+export function planText(message: string | null): string | null {
+  const text = message ? plainText(message) : "";
+  return text ? truncateWords(text, PLAN_PREVIEW) : null;
 }
 
 export function previewNotes(notes: string | null): string | null {

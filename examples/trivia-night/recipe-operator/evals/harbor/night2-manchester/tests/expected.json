@@ -1,12 +1,23 @@
 {
-  "venue": "uk-sport",
+  "venue": "page-manchester",
   "region": "uk",
   "teams": [
+    "Quiz Team Aguilera",
+    "Agatha Quiztie",
+    "Oasis of Knowledge",
+    "Quiz Division",
+    "The Blow-Ins"
+  ],
+  "night1_teams": [
     "The Mancunian Candidates",
-    "Quiz Team Aguilera"
+    "Quiz Team Aguilera",
+    "Agatha Quiztie",
+    "Oasis of Knowledge",
+    "Quiz Division"
   ],
-  "likes": [
-    "sport"
-  ],
-  "start_difficulty": 2
+  "liked": ["science", "geography"],
+  "disliked": ["sport"],
+  "hinted": ["science"],
+  "best_decades": ["2000s", "2010s"],
+  "target_difficulty": 3
 }

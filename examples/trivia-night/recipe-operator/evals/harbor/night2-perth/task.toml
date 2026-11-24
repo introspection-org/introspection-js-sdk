@@ -2,11 +2,11 @@ schema_version = "1.1"
 
 [task]
 name = "trivia-host/night2-perth"
-description = "The second night at The Railway, Perth, on the platform: the notes come from the identity's own memory"
+description = "The second night at The Railway, Perth: six rounds to a simulated crowd, most of it night 1's teams, pitched from the identity's own memory or from nothing"
 
 [metadata]
 case = "C3"
-venue = "held-8-mismatch"
+venue = "page-perth"
 
 [verifier]
 timeout_sec = 120.0

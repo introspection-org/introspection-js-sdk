@@ -1,0 +1,27 @@
+schema_version = "1.1"
+
+[task]
+name = "trivia-host/night1-leeds-t3"
+description = "A new venue's first night (The Royal Oak, Leeds): the host plays six rounds to a simulated crowd and leaves its notes in memories/MEMORY.md"
+
+[metadata]
+case = "C3"
+venue = "page-leeds"
+
+[verifier]
+timeout_sec = 120.0
+
+[agent]
+timeout_sec = 900.0
+
+[environment]
+build_timeout_sec = 600.0
+cpus = 1
+memory_mb = 2048
+
+[environment.env]
+ANTHROPIC_API_KEY = "${ANTHROPIC_API_KEY:-}"
+
+[[artifacts]]
+source = "/workspace/memories"
+destination = "memories"

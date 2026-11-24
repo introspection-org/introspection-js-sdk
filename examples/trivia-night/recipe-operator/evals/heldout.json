@@ -1,0 +1,918 @@
+[
+  {
+    "slug": "held-adelaide",
+    "label": "Adelaide (AU)",
+    "profile": "held-adelaide",
+    "pub": "The Wheatsheaf",
+    "city": "Adelaide",
+    "region": "au",
+    "teams": [
+      "Adelaide Smarty Pints",
+      "Adelaide Fact Finders",
+      "The Adelaide Brainiacs",
+      "Adelaide Know-It-Alls",
+      "The Adelaide Quizzards",
+      "Quizzy Adelaide",
+      "The Adelaide Thinkers",
+      "The Adelaide Regulars"
+    ],
+    "night2_teams": {
+      "3": [
+        "Adelaide Smarty Pints",
+        "Adelaide Fact Finders",
+        "The Adelaide Brainiacs"
+      ],
+      "5": [
+        "Adelaide Smarty Pints",
+        "Adelaide Fact Finders",
+        "Adelaide Know-It-Alls",
+        "The Adelaide Quizzards",
+        "The Plus Ones"
+      ],
+      "8": [
+        "Adelaide Smarty Pints",
+        "Adelaide Fact Finders",
+        "The Adelaide Brainiacs",
+        "Adelaide Know-It-Alls",
+        "The Adelaide Quizzards",
+        "Quizzy Adelaide",
+        "The Plus Ones",
+        "Fresh Faces"
+      ]
+    },
+    "liked": ["music", "film"],
+    "disliked": ["science"],
+    "hinted": ["music"],
+    "best_decades": ["2010s", "2020s"],
+    "target_difficulty": 3
+  },
+  {
+    "slug": "held-hobart",
+    "label": "Hobart (AU)",
+    "profile": "held-hobart",
+    "pub": "The White Hart",
+    "city": "Hobart",
+    "region": "au",
+    "teams": [
+      "The Hobart Quizzards",
+      "The Hobart Brainiacs",
+      "Hobart Know-It-Alls",
+      "Hobart Smarty Pints",
+      "Hobart Fact Finders",
+      "The Hobart Thinkers",
+      "The Hobart Regulars",
+      "Quizzy Hobart"
+    ],
+    "night2_teams": {
+      "3": [
+        "The Hobart Quizzards",
+        "The Hobart Brainiacs",
+        "Hobart Know-It-Alls"
+      ],
+      "5": [
+        "The Hobart Brainiacs",
+        "Hobart Know-It-Alls",
+        "Hobart Smarty Pints",
+        "Hobart Fact Finders",
+        "First Timers"
+      ],
+      "8": [
+        "The Hobart Brainiacs",
+        "Hobart Know-It-Alls",
+        "Hobart Smarty Pints",
+        "The Hobart Thinkers",
+        "The Hobart Regulars",
+        "Quizzy Hobart",
+        "First Timers",
+        "The Late Arrivals"
+      ]
+    },
+    "liked": ["music", "film"],
+    "disliked": ["science"],
+    "hinted": ["music"],
+    "best_decades": ["2020s", "2010s"],
+    "target_difficulty": 3
+  },
+  {
+    "slug": "held-darwin",
+    "label": "Darwin (AU)",
+    "profile": "held-darwin",
+    "pub": "The Red Lion",
+    "city": "Darwin",
+    "region": "au",
+    "teams": [
+      "The Darwin Regulars",
+      "The Darwin Thinkers",
+      "Darwin Fact Finders",
+      "Darwin Smarty Pints",
+      "The Darwin Quizzards",
+      "Darwin Know-It-Alls",
+      "The Darwin Brainiacs",
+      "Quizzy Darwin"
+    ],
+    "night2_teams": {
+      "3": [
+        "The Darwin Regulars",
+        "The Darwin Thinkers",
+        "Darwin Fact Finders"
+      ],
+      "5": [
+        "The Darwin Thinkers",
+        "Darwin Fact Finders",
+        "Darwin Smarty Pints",
+        "The Darwin Quizzards",
+        "First Timers"
+      ],
+      "8": [
+        "The Darwin Regulars",
+        "The Darwin Thinkers",
+        "Darwin Fact Finders",
+        "Darwin Smarty Pints",
+        "Darwin Know-It-Alls",
+        "The Darwin Brainiacs",
+        "First Timers",
+        "The Late Arrivals"
+      ]
+    },
+    "liked": ["film", "science"],
+    "disliked": ["sport"],
+    "hinted": ["film"],
+    "best_decades": ["1990s", "2000s"],
+    "target_difficulty": 2
+  },
+  {
+    "slug": "held-canberra",
+    "label": "Canberra (AU)",
+    "profile": "held-canberra",
+    "pub": "The White Hart",
+    "city": "Canberra",
+    "region": "au",
+    "teams": [
+      "Canberra Fact Finders",
+      "The Canberra Regulars",
+      "Canberra Know-It-Alls",
+      "Canberra Smarty Pints",
+      "The Canberra Thinkers",
+      "The Canberra Brainiacs",
+      "Quizzy Canberra",
+      "The Canberra Quizzards"
+    ],
+    "night2_teams": {
+      "3": [
+        "Canberra Fact Finders",
+        "The Canberra Regulars",
+        "Canberra Know-It-Alls"
+      ],
+      "5": [
+        "Canberra Fact Finders",
+        "The Canberra Regulars",
+        "Canberra Know-It-Alls",
+        "The Canberra Thinkers",
+        "Fresh Faces"
+      ],
+      "8": [
+        "Canberra Fact Finders",
+        "The Canberra Regulars",
+        "Canberra Smarty Pints",
+        "The Canberra Thinkers",
+        "The Canberra Brainiacs",
+        "Quizzy Canberra",
+        "The Canberra Quizzards",
+        "Fresh Faces"
+      ]
+    },
+    "liked": ["film", "music"],
+    "disliked": ["science"],
+    "hinted": ["film"],
+    "best_decades": ["2010s", "1990s"],
+    "target_difficulty": 3
+  },
+  {
+    "slug": "held-newcastle",
+    "label": "Newcastle (AU)",
+    "profile": "held-newcastle",
+    "pub": "The Fox",
+    "city": "Newcastle",
+    "region": "au",
+    "teams": [
+      "The Newcastle Quizzards",
+      "The Newcastle Brainiacs",
+      "The Newcastle Regulars",
+      "Newcastle Fact Finders",
+      "Quizzy Newcastle",
+      "Newcastle Smarty Pints",
+      "Newcastle Know-It-Alls",
+      "The Newcastle Thinkers"
+    ],
+    "night2_teams": {
+      "3": [
+        "The Newcastle Quizzards",
+        "The Newcastle Brainiacs",
+        "The Newcastle Regulars"
+      ],
+      "5": [
+        "The Newcastle Quizzards",
+        "The Newcastle Brainiacs",
+        "Newcastle Fact Finders",
+        "Quizzy Newcastle",
+        "The Late Arrivals"
+      ],
+      "8": [
+        "The Newcastle Quizzards",
+        "The Newcastle Brainiacs",
+        "The Newcastle Regulars",
+        "Newcastle Fact Finders",
+        "Quizzy Newcastle",
+        "Newcastle Smarty Pints",
+        "Newcastle Know-It-Alls",
+        "The Late Arrivals"
+      ]
+    },
+    "liked": ["science", "geography"],
+    "disliked": ["sport"],
+    "hinted": ["science"],
+    "best_decades": ["2010s", "2000s"],
+    "target_difficulty": 3
+  },
+  {
+    "slug": "held-geelong",
+    "label": "Geelong (AU)",
+    "profile": "held-geelong",
+    "pub": "The Rose and Crown",
+    "city": "Geelong",
+    "region": "au",
+    "teams": [
+      "Quizzy Geelong",
+      "Geelong Smarty Pints",
+      "The Geelong Quizzards",
+      "Geelong Fact Finders",
+      "The Geelong Regulars",
+      "The Geelong Brainiacs",
+      "Geelong Know-It-Alls",
+      "The Geelong Thinkers"
+    ],
+    "night2_teams": {
+      "3": ["Geelong Smarty Pints", "The Geelong Quizzards", "The Blow-Ins"],
+      "5": [
+        "Quizzy Geelong",
+        "Geelong Smarty Pints",
+        "Geelong Fact Finders",
+        "The Geelong Regulars",
+        "The Blow-Ins"
+      ],
+      "8": [
+        "Geelong Smarty Pints",
+        "The Geelong Quizzards",
+        "Geelong Fact Finders",
+        "The Geelong Regulars",
+        "The Geelong Brainiacs",
+        "Geelong Know-It-Alls",
+        "The Blow-Ins",
+        "The Late Arrivals"
+      ]
+    },
+    "liked": ["film", "music"],
+    "disliked": ["science"],
+    "hinted": ["film"],
+    "best_decades": ["2010s", "2020s"],
+    "target_difficulty": 3
+  },
+  {
+    "slug": "held-cairns",
+    "label": "Cairns (AU)",
+    "profile": "held-cairns",
+    "pub": "The Rose and Crown",
+    "city": "Cairns",
+    "region": "au",
+    "teams": [
+      "The Cairns Thinkers",
+      "The Cairns Regulars",
+      "Cairns Smarty Pints",
+      "Quizzy Cairns",
+      "The Cairns Brainiacs",
+      "Cairns Fact Finders",
+      "The Cairns Quizzards",
+      "Cairns Know-It-Alls"
+    ],
+    "night2_teams": {
+      "3": [
+        "The Cairns Thinkers",
+        "The Cairns Regulars",
+        "Cairns Smarty Pints"
+      ],
+      "5": [
+        "The Cairns Thinkers",
+        "The Cairns Regulars",
+        "Cairns Smarty Pints",
+        "Quizzy Cairns",
+        "The Late Arrivals"
+      ],
+      "8": [
+        "The Cairns Thinkers",
+        "The Cairns Regulars",
+        "Cairns Smarty Pints",
+        "Quizzy Cairns",
+        "The Cairns Brainiacs",
+        "Cairns Know-It-Alls",
+        "The Late Arrivals",
+        "Beginners' Luck"
+      ]
+    },
+    "liked": ["sport", "music"],
+    "disliked": ["science"],
+    "hinted": ["sport"],
+    "best_decades": ["2000s", "2010s"],
+    "target_difficulty": 3
+  },
+  {
+    "slug": "held-liverpool",
+    "label": "Liverpool (UK)",
+    "profile": "held-liverpool",
+    "pub": "The Wheatsheaf",
+    "city": "Liverpool",
+    "region": "uk",
+    "teams": [
+      "Liverpool Know-It-Alls",
+      "Liverpool Fact Finders",
+      "Quizzy Liverpool",
+      "The Liverpool Regulars",
+      "The Liverpool Brainiacs",
+      "The Liverpool Quizzards",
+      "The Liverpool Thinkers",
+      "Liverpool Smarty Pints"
+    ],
+    "night2_teams": {
+      "3": [
+        "Liverpool Know-It-Alls",
+        "Liverpool Fact Finders",
+        "Quizzy Liverpool"
+      ],
+      "5": [
+        "Liverpool Know-It-Alls",
+        "Liverpool Fact Finders",
+        "The Liverpool Regulars",
+        "The Liverpool Brainiacs",
+        "The Late Arrivals"
+      ],
+      "8": [
+        "Liverpool Know-It-Alls",
+        "Liverpool Fact Finders",
+        "Quizzy Liverpool",
+        "The Liverpool Regulars",
+        "The Liverpool Brainiacs",
+        "The Liverpool Quizzards",
+        "The Liverpool Thinkers",
+        "The Late Arrivals"
+      ]
+    },
+    "liked": ["history", "film"],
+    "disliked": ["sport"],
+    "hinted": ["history"],
+    "best_decades": ["2000s", "2010s"],
+    "target_difficulty": 3
+  },
+  {
+    "slug": "held-birmingham",
+    "label": "Birmingham (UK)",
+    "profile": "held-birmingham",
+    "pub": "The White Hart",
+    "city": "Birmingham",
+    "region": "uk",
+    "teams": [
+      "Birmingham Fact Finders",
+      "Birmingham Know-It-Alls",
+      "The Birmingham Brainiacs",
+      "The Birmingham Regulars",
+      "Quizzy Birmingham",
+      "The Birmingham Quizzards",
+      "Birmingham Smarty Pints",
+      "The Birmingham Thinkers"
+    ],
+    "night2_teams": {
+      "3": [
+        "Birmingham Fact Finders",
+        "The Birmingham Brainiacs",
+        "The Walk-Ins"
+      ],
+      "5": [
+        "Birmingham Fact Finders",
+        "Birmingham Know-It-Alls",
+        "The Birmingham Brainiacs",
+        "Quizzy Birmingham",
+        "The Walk-Ins"
+      ],
+      "8": [
+        "Birmingham Fact Finders",
+        "Birmingham Know-It-Alls",
+        "The Birmingham Brainiacs",
+        "Quizzy Birmingham",
+        "Birmingham Smarty Pints",
+        "The Birmingham Thinkers",
+        "The Walk-Ins",
+        "The Plus Ones"
+      ]
+    },
+    "liked": ["science", "film"],
+    "disliked": ["sport"],
+    "hinted": ["science"],
+    "best_decades": ["2010s", "2000s"],
+    "target_difficulty": 3
+  },
+  {
+    "slug": "held-edinburgh",
+    "label": "Edinburgh (UK)",
+    "profile": "held-edinburgh",
+    "pub": "The Rose and Crown",
+    "city": "Edinburgh",
+    "region": "uk",
+    "teams": [
+      "Quizzy Edinburgh",
+      "Edinburgh Fact Finders",
+      "The Edinburgh Regulars",
+      "The Edinburgh Quizzards",
+      "The Edinburgh Thinkers",
+      "The Edinburgh Brainiacs",
+      "Edinburgh Know-It-Alls",
+      "Edinburgh Smarty Pints"
+    ],
+    "night2_teams": {
+      "3": [
+        "Quizzy Edinburgh",
+        "Edinburgh Fact Finders",
+        "The Edinburgh Regulars"
+      ],
+      "5": [
+        "Quizzy Edinburgh",
+        "Edinburgh Fact Finders",
+        "The Edinburgh Regulars",
+        "The Edinburgh Thinkers",
+        "Fresh Faces"
+      ],
+      "8": [
+        "Quizzy Edinburgh",
+        "Edinburgh Fact Finders",
+        "The Edinburgh Regulars",
+        "The Edinburgh Thinkers",
+        "The Edinburgh Brainiacs",
+        "Edinburgh Know-It-Alls",
+        "Fresh Faces",
+        "Beginners' Luck"
+      ]
+    },
+    "liked": ["geography", "music"],
+    "disliked": ["science"],
+    "hinted": ["geography"],
+    "best_decades": ["2000s", "2010s"],
+    "target_difficulty": 2
+  },
+  {
+    "slug": "held-cardiff",
+    "label": "Cardiff (UK)",
+    "profile": "held-cardiff",
+    "pub": "The Rose and Crown",
+    "city": "Cardiff",
+    "region": "uk",
+    "teams": [
+      "The Cardiff Brainiacs",
+      "The Cardiff Thinkers",
+      "Cardiff Fact Finders",
+      "The Cardiff Regulars",
+      "Cardiff Know-It-Alls",
+      "Cardiff Smarty Pints",
+      "The Cardiff Quizzards",
+      "Quizzy Cardiff"
+    ],
+    "night2_teams": {
+      "3": [
+        "The Cardiff Brainiacs",
+        "The Cardiff Thinkers",
+        "Cardiff Fact Finders"
+      ],
+      "5": [
+        "The Cardiff Thinkers",
+        "Cardiff Fact Finders",
+        "The Cardiff Regulars",
+        "Cardiff Know-It-Alls",
+        "The Blow-Ins"
+      ],
+      "8": [
+        "The Cardiff Brainiacs",
+        "The Cardiff Thinkers",
+        "Cardiff Fact Finders",
+        "The Cardiff Regulars",
+        "Cardiff Know-It-Alls",
+        "The Cardiff Quizzards",
+        "Quizzy Cardiff",
+        "The Blow-Ins"
+      ]
+    },
+    "liked": ["science", "history"],
+    "disliked": ["music"],
+    "hinted": ["science"],
+    "best_decades": ["2010s", "2020s"],
+    "target_difficulty": 3
+  },
+  {
+    "slug": "held-nottingham",
+    "label": "Nottingham (UK)",
+    "profile": "held-nottingham",
+    "pub": "The Ship",
+    "city": "Nottingham",
+    "region": "uk",
+    "teams": [
+      "The Nottingham Brainiacs",
+      "The Nottingham Thinkers",
+      "The Nottingham Quizzards",
+      "Nottingham Fact Finders",
+      "Nottingham Smarty Pints",
+      "Quizzy Nottingham",
+      "Nottingham Know-It-Alls",
+      "The Nottingham Regulars"
+    ],
+    "night2_teams": {
+      "3": [
+        "The Nottingham Brainiacs",
+        "The Nottingham Quizzards",
+        "First Timers"
+      ],
+      "5": [
+        "The Nottingham Thinkers",
+        "The Nottingham Quizzards",
+        "Nottingham Fact Finders",
+        "Nottingham Smarty Pints",
+        "First Timers"
+      ],
+      "8": [
+        "The Nottingham Brainiacs",
+        "The Nottingham Thinkers",
+        "The Nottingham Quizzards",
+        "Nottingham Fact Finders",
+        "Nottingham Smarty Pints",
+        "Quizzy Nottingham",
+        "The Nottingham Regulars",
+        "First Timers"
+      ]
+    },
+    "liked": ["music", "film"],
+    "disliked": ["sport"],
+    "hinted": ["music"],
+    "best_decades": ["2010s", "2020s"],
+    "target_difficulty": 2
+  },
+  {
+    "slug": "held-sheffield",
+    "label": "Sheffield (UK)",
+    "profile": "held-sheffield",
+    "pub": "The Red Lion",
+    "city": "Sheffield",
+    "region": "uk",
+    "teams": [
+      "Quizzy Sheffield",
+      "Sheffield Fact Finders",
+      "Sheffield Know-It-Alls",
+      "The Sheffield Quizzards",
+      "The Sheffield Brainiacs",
+      "Sheffield Smarty Pints",
+      "The Sheffield Regulars",
+      "The Sheffield Thinkers"
+    ],
+    "night2_teams": {
+      "3": ["Quizzy Sheffield", "Sheffield Know-It-Alls", "The Blow-Ins"],
+      "5": [
+        "Quizzy Sheffield",
+        "Sheffield Fact Finders",
+        "Sheffield Know-It-Alls",
+        "The Sheffield Quizzards",
+        "The Blow-Ins"
+      ],
+      "8": [
+        "Quizzy Sheffield",
+        "Sheffield Fact Finders",
+        "Sheffield Know-It-Alls",
+        "The Sheffield Quizzards",
+        "The Sheffield Brainiacs",
+        "The Sheffield Regulars",
+        "The Sheffield Thinkers",
+        "The Blow-Ins"
+      ]
+    },
+    "liked": ["history", "geography"],
+    "disliked": ["science"],
+    "hinted": ["history"],
+    "best_decades": ["1990s", "2000s"],
+    "target_difficulty": 3
+  },
+  {
+    "slug": "held-belfast",
+    "label": "Belfast (UK)",
+    "profile": "held-belfast",
+    "pub": "The Fox",
+    "city": "Belfast",
+    "region": "uk",
+    "teams": [
+      "The Belfast Brainiacs",
+      "Belfast Smarty Pints",
+      "Belfast Know-It-Alls",
+      "The Belfast Quizzards",
+      "Belfast Fact Finders",
+      "The Belfast Thinkers",
+      "Quizzy Belfast",
+      "The Belfast Regulars"
+    ],
+    "night2_teams": {
+      "3": ["The Belfast Brainiacs", "Belfast Know-It-Alls", "The Blow-Ins"],
+      "5": [
+        "The Belfast Brainiacs",
+        "Belfast Smarty Pints",
+        "Belfast Know-It-Alls",
+        "Belfast Fact Finders",
+        "The Blow-Ins"
+      ],
+      "8": [
+        "The Belfast Brainiacs",
+        "Belfast Smarty Pints",
+        "Belfast Know-It-Alls",
+        "The Belfast Quizzards",
+        "Belfast Fact Finders",
+        "The Belfast Thinkers",
+        "The Belfast Regulars",
+        "The Blow-Ins"
+      ]
+    },
+    "liked": ["music", "sport"],
+    "disliked": ["geography"],
+    "hinted": ["music"],
+    "best_decades": ["2010s", "2020s"],
+    "target_difficulty": 3
+  },
+  {
+    "slug": "held-denver",
+    "label": "Denver (US)",
+    "profile": "held-denver",
+    "pub": "The Rose and Crown",
+    "city": "Denver",
+    "region": "us",
+    "teams": [
+      "Quizzy Denver",
+      "The Denver Regulars",
+      "The Denver Quizzards",
+      "Denver Know-It-Alls",
+      "Denver Fact Finders",
+      "Denver Smarty Pints",
+      "The Denver Thinkers",
+      "The Denver Brainiacs"
+    ],
+    "night2_teams": {
+      "3": ["Quizzy Denver", "The Denver Regulars", "The Denver Quizzards"],
+      "5": [
+        "The Denver Regulars",
+        "The Denver Quizzards",
+        "Denver Know-It-Alls",
+        "Denver Fact Finders",
+        "Beginners' Luck"
+      ],
+      "8": [
+        "Quizzy Denver",
+        "The Denver Regulars",
+        "Denver Fact Finders",
+        "Denver Smarty Pints",
+        "The Denver Thinkers",
+        "The Denver Brainiacs",
+        "Beginners' Luck",
+        "The Plus Ones"
+      ]
+    },
+    "liked": ["music", "science"],
+    "disliked": ["sport"],
+    "hinted": ["music"],
+    "best_decades": ["2010s", "2000s"],
+    "target_difficulty": 2
+  },
+  {
+    "slug": "held-austin",
+    "label": "Austin (US)",
+    "profile": "held-austin",
+    "pub": "The Kings Arms",
+    "city": "Austin",
+    "region": "us",
+    "teams": [
+      "Austin Fact Finders",
+      "Austin Know-It-Alls",
+      "The Austin Regulars",
+      "Austin Smarty Pints",
+      "The Austin Thinkers",
+      "The Austin Quizzards",
+      "The Austin Brainiacs",
+      "Quizzy Austin"
+    ],
+    "night2_teams": {
+      "3": [
+        "Austin Fact Finders",
+        "Austin Know-It-Alls",
+        "The Austin Regulars"
+      ],
+      "5": [
+        "Austin Know-It-Alls",
+        "The Austin Regulars",
+        "Austin Smarty Pints",
+        "The Austin Thinkers",
+        "New Kids on the Quiz"
+      ],
+      "8": [
+        "Austin Fact Finders",
+        "The Austin Regulars",
+        "Austin Smarty Pints",
+        "The Austin Thinkers",
+        "The Austin Quizzards",
+        "Quizzy Austin",
+        "New Kids on the Quiz",
+        "Beginners' Luck"
+      ]
+    },
+    "liked": ["sport", "science"],
+    "disliked": ["history"],
+    "hinted": ["sport"],
+    "best_decades": ["2020s", "2010s"],
+    "target_difficulty": 2
+  },
+  {
+    "slug": "held-portland",
+    "label": "Portland (US)",
+    "profile": "held-portland",
+    "pub": "The Fox",
+    "city": "Portland",
+    "region": "us",
+    "teams": [
+      "The Portland Thinkers",
+      "The Portland Quizzards",
+      "Quizzy Portland",
+      "Portland Fact Finders",
+      "The Portland Brainiacs",
+      "The Portland Regulars",
+      "Portland Smarty Pints",
+      "Portland Know-It-Alls"
+    ],
+    "night2_teams": {
+      "3": [
+        "The Portland Thinkers",
+        "The Portland Quizzards",
+        "Quizzy Portland"
+      ],
+      "5": [
+        "The Portland Thinkers",
+        "The Portland Quizzards",
+        "Quizzy Portland",
+        "The Portland Brainiacs",
+        "New Kids on the Quiz"
+      ],
+      "8": [
+        "The Portland Thinkers",
+        "The Portland Quizzards",
+        "Quizzy Portland",
+        "Portland Fact Finders",
+        "Portland Smarty Pints",
+        "Portland Know-It-Alls",
+        "New Kids on the Quiz",
+        "The Walk-Ins"
+      ]
+    },
+    "liked": ["film", "science"],
+    "disliked": ["history"],
+    "hinted": ["film"],
+    "best_decades": ["2000s", "2010s"],
+    "target_difficulty": 2
+  },
+  {
+    "slug": "held-atlanta",
+    "label": "Atlanta (US)",
+    "profile": "held-atlanta",
+    "pub": "The Red Lion",
+    "city": "Atlanta",
+    "region": "us",
+    "teams": [
+      "The Atlanta Quizzards",
+      "Quizzy Atlanta",
+      "Atlanta Fact Finders",
+      "The Atlanta Regulars",
+      "The Atlanta Brainiacs",
+      "Atlanta Smarty Pints",
+      "The Atlanta Thinkers",
+      "Atlanta Know-It-Alls"
+    ],
+    "night2_teams": {
+      "3": ["The Atlanta Quizzards", "Atlanta Fact Finders", "The Walk-Ins"],
+      "5": [
+        "The Atlanta Quizzards",
+        "Atlanta Fact Finders",
+        "The Atlanta Regulars",
+        "The Atlanta Brainiacs",
+        "The Walk-Ins"
+      ],
+      "8": [
+        "The Atlanta Quizzards",
+        "Atlanta Fact Finders",
+        "The Atlanta Regulars",
+        "The Atlanta Brainiacs",
+        "Atlanta Smarty Pints",
+        "The Atlanta Thinkers",
+        "The Walk-Ins",
+        "Fresh Faces"
+      ]
+    },
+    "liked": ["science", "film"],
+    "disliked": ["music"],
+    "hinted": ["science"],
+    "best_decades": ["2010s", "2000s"],
+    "target_difficulty": 3
+  },
+  {
+    "slug": "held-nashville",
+    "label": "Nashville (US)",
+    "profile": "held-nashville",
+    "pub": "The Red Lion",
+    "city": "Nashville",
+    "region": "us",
+    "teams": [
+      "The Nashville Regulars",
+      "The Nashville Quizzards",
+      "The Nashville Brainiacs",
+      "Nashville Know-It-Alls",
+      "Nashville Fact Finders",
+      "Nashville Smarty Pints",
+      "Quizzy Nashville",
+      "The Nashville Thinkers"
+    ],
+    "night2_teams": {
+      "3": [
+        "The Nashville Regulars",
+        "The Nashville Quizzards",
+        "The Plus Ones"
+      ],
+      "5": [
+        "The Nashville Quizzards",
+        "The Nashville Brainiacs",
+        "Nashville Know-It-Alls",
+        "Nashville Fact Finders",
+        "The Plus Ones"
+      ],
+      "8": [
+        "The Nashville Regulars",
+        "The Nashville Quizzards",
+        "The Nashville Brainiacs",
+        "Nashville Fact Finders",
+        "Quizzy Nashville",
+        "The Nashville Thinkers",
+        "The Plus Ones",
+        "First Timers"
+      ]
+    },
+    "liked": ["film", "sport"],
+    "disliked": ["history"],
+    "hinted": ["film"],
+    "best_decades": ["2000s", "2010s"],
+    "target_difficulty": 3
+  },
+  {
+    "slug": "held-minneapolis",
+    "label": "Minneapolis (US)",
+    "profile": "held-minneapolis",
+    "pub": "The Kings Arms",
+    "city": "Minneapolis",
+    "region": "us",
+    "teams": [
+      "The Minneapolis Quizzards",
+      "Minneapolis Smarty Pints",
+      "Quizzy Minneapolis",
+      "The Minneapolis Thinkers",
+      "Minneapolis Fact Finders",
+      "The Minneapolis Brainiacs",
+      "The Minneapolis Regulars",
+      "Minneapolis Know-It-Alls"
+    ],
+    "night2_teams": {
+      "3": ["The Minneapolis Quizzards", "Quizzy Minneapolis", "The Blow-Ins"],
+      "5": [
+        "The Minneapolis Quizzards",
+        "Minneapolis Smarty Pints",
+        "Quizzy Minneapolis",
+        "Minneapolis Fact Finders",
+        "The Blow-Ins"
+      ],
+      "8": [
+        "The Minneapolis Quizzards",
+        "Minneapolis Smarty Pints",
+        "Quizzy Minneapolis",
+        "The Minneapolis Thinkers",
+        "Minneapolis Fact Finders",
+        "The Minneapolis Regulars",
+        "Minneapolis Know-It-Alls",
+        "The Blow-Ins"
+      ]
+    },
+    "liked": ["history", "geography"],
+    "disliked": ["sport"],
+    "hinted": ["history"],
+    "best_decades": ["2010s", "2020s"],
+    "target_difficulty": 3
+  }
+]

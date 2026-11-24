@@ -1,0 +1,29 @@
+{
+  "venue": "held-hobart",
+  "region": "au",
+  "teams": [
+    "The Hobart Brainiacs",
+    "Hobart Know-It-Alls",
+    "Hobart Smarty Pints",
+    "The Hobart Thinkers",
+    "The Hobart Regulars",
+    "Quizzy Hobart",
+    "First Timers",
+    "The Late Arrivals"
+  ],
+  "night1_teams": [
+    "The Hobart Quizzards",
+    "The Hobart Brainiacs",
+    "Hobart Know-It-Alls",
+    "Hobart Smarty Pints",
+    "Hobart Fact Finders",
+    "The Hobart Thinkers",
+    "The Hobart Regulars",
+    "Quizzy Hobart"
+  ],
+  "liked": ["music", "film"],
+  "disliked": ["science"],
+  "hinted": ["music"],
+  "best_decades": ["2020s", "2010s"],
+  "target_difficulty": 3
+}

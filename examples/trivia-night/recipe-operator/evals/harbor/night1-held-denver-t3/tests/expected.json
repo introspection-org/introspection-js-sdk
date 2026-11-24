@@ -1,0 +1,10 @@
+{
+  "venue": "held-denver",
+  "region": "us",
+  "teams": ["Quizzy Denver", "The Denver Regulars", "The Denver Quizzards"],
+  "liked": ["music", "science"],
+  "disliked": ["sport"],
+  "hinted": ["music"],
+  "best_decades": ["2010s", "2000s"],
+  "target_difficulty": 2
+}

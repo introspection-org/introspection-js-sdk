@@ -1,12 +1,16 @@
 {
-  "venue": "held-6-narrow",
+  "venue": "page-seattle",
   "region": "us",
   "teams": [
     "Seattle Brainiacs",
-    "Quiz Pro Quo 6"
+    "Quiz Pro Quo 6",
+    "The Dockside Regulars",
+    "The Space Needlers",
+    "Grunge Against the Machine"
   ],
-  "likes": [
-    "sport"
-  ],
-  "start_difficulty": 2
+  "liked": ["history", "geography"],
+  "disliked": ["science"],
+  "hinted": ["history"],
+  "best_decades": ["2010s", "2020s"],
+  "target_difficulty": 3
 }

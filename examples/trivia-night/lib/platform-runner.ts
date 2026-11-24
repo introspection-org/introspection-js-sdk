@@ -4,45 +4,45 @@
  * the events feed. Server only.
  */
 import { execFile, spawn } from "node:child_process";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { promisify } from "node:util";
 
 import { record } from "./events";
+import { judgeInput, judgeSpec, parseJudgement, type Judgement } from "./judge";
 import { measuresOf } from "./memory-measures";
 import {
+  DEFAULT_TEAMS,
   errorText,
   findRunFolder,
   newRunId,
+  PUB_SETS,
   plan,
+  planText,
   previewNotes,
   readRunFolder,
   readTastes,
   runsRoot,
   spawnSpec,
+  stepKey,
   type EvalFinished,
   type EvalRunFinished,
   type EvalStarted,
+  type Pubs,
   type Step,
   type Target,
+  type TeamSize,
 } from "./platform-evals";
 import {
-  parseTaskId,
-  StreamMapper,
-  streamSpec,
   tagged,
   trajectoryEvents,
   trajectoryFile,
   type TrialEvent,
-} from "./trial-stream";
+} from "./trial-steps";
 
 const DEFAULT_API_BASE_URL = "https://api.introspection.dev";
 const run = promisify(execFile);
 const RUNTIME_SLUG = "trivia-host";
-/** How soon a stream that ended before its run did is reattached. */
-const REATTACH_MS = 3000;
-/** How long a stream may run on once its trial has finished. */
-const STREAM_GRACE_MS = 15_000;
 
 export const KEY_HOW_TO = [
   "introspection api-keys create --environment staging --capabilities runtimes,evals \\",
@@ -116,86 +116,60 @@ export function activeRun(): string | null {
 
 type Credentials = { token: string; apiBaseUrl: string };
 
-/** One trial's agent work on the events feed, each event once. */
-function trialFeed(step: Step) {
-  const shown = new Set<string>();
-  return (taskId: string, events: TrialEvent[]) => {
-    for (const event of events) {
-      if (shown.has(event.key)) continue;
-      shown.add(event.key);
-      record(
-        `platform:${step.run}:${step.venue}`,
-        event.type,
-        event.summary,
-        tagged(step, taskId, event),
-      );
-    }
-  };
+/** A finished trial's steps on the events feed; returns its last message. */
+function recordSteps(step: Step, events: TrialEvent[]): string | null {
+  let planned: string | null = null;
+  for (const event of events) {
+    if (event.type === "host.planned" && typeof event.data.file === "string")
+      planned = event.data.file;
+    record(
+      `platform:${step.run}:${step.venue}`,
+      event.type,
+      event.summary,
+      tagged(step, event),
+    );
+  }
+  return planned;
 }
 
-/**
- * Follows a trial's task with `introspection tasks stream`, reattaching from
- * the cursor when a stream ends before its run does (a task still queued has
- * no run to attach to yet). Resolves once the run ended on the stream, or the
- * attach running when `settle` is called ends, or `stop` kills it.
- */
-function follow(
-  taskId: string,
-  credentials: Credentials,
-  emit: (events: TrialEvent[]) => void,
-): { done: Promise<void>; settle: () => void; stop: () => void } {
-  const mapper = new StreamMapper();
-  let settled = false;
-  let child: ReturnType<typeof spawn> | null = null;
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  let wake: () => void = () => {};
-  const attach = () =>
-    new Promise<void>((resolve) => {
-      const spec = streamSpec(taskId, recipeDir(), credentials, {
-        runId: mapper.runId,
-        since: mapper.cursor,
-      });
-      child = spawn(spec.command, spec.args, {
-        ...spec.options,
-        env: spec.options.env as NodeJS.ProcessEnv,
-      });
-      let pending = "";
-      child.stdout?.on("data", (chunk: Buffer) => {
-        pending += chunk.toString();
-        const lines = pending.split("\n");
-        pending = lines.pop() ?? "";
-        for (const line of lines) emit(mapper.push(line));
-      });
-      // Its errors name the task and the cursor only; the trajectory fills any gap.
-      child.stderr?.resume();
-      child.on("error", () => resolve());
-      child.on("close", () => {
-        emit(mapper.push(pending));
-        resolve();
-      });
+/** Grades a finished night 2 with the return-visit judge, from its local trajectory. */
+async function judge(
+  step: Step,
+  folder: string,
+  trajectory: string,
+): Promise<Judgement> {
+  const customId = `${step.venue}-${step.night}`;
+  const dir = path.join(folder, "judge");
+  mkdirSync(dir, { recursive: true });
+  const input = path.join(dir, "input.jsonl");
+  writeFileSync(
+    input,
+    `${JSON.stringify(judgeInput(customId, JSON.parse(readFileSync(trajectory, "utf8"))))}\n`,
+  );
+  const spec = judgeSpec(input, dir, recipeDir());
+  const output = await new Promise<string>((resolve) => {
+    let text = "";
+    const child = spawn(spec.command, spec.args, {
+      ...spec.options,
+      env: spec.options.env as NodeJS.ProcessEnv,
     });
-  const done = (async () => {
-    while (!settled) {
-      await attach();
-      if (settled || mapper.ended) return;
-      await new Promise<void>((resolve) => {
-        wake = resolve;
-        timer = setTimeout(resolve, REATTACH_MS);
-      });
-    }
-  })();
-  const settle = () => {
-    settled = true;
-    clearTimeout(timer);
-    wake();
-  };
+    child.stdout.on("data", (chunk: Buffer) => (text += chunk.toString()));
+    child.stderr.on("data", (chunk: Buffer) => (text += chunk.toString()));
+    child.on("error", (error) => resolve(error.message));
+    child.on("close", () => resolve(text));
+  });
+  const results = path.join(dir, "results.jsonl");
+  const found = existsSync(results)
+    ? parseJudgement(readFileSync(results, "utf8"), customId)
+    : null;
+  if (found) return found;
+  const hint = process.env.ANTHROPIC_API_KEY
+    ? ""
+    : " (the judge's model needs ANTHROPIC_API_KEY or a Pi sign-in)";
   return {
-    done,
-    settle,
-    stop: () => {
-      settle();
-      child?.kill();
-    },
+    score: null,
+    reason: null,
+    error: `${output.trim().split("\n").pop() || "the judge wrote no result"}${hint}`,
   };
 }
 
@@ -214,10 +188,7 @@ function runStep(
     started,
   );
   const spec = spawnSpec(step, target, recipeDir(), credentials);
-  const emit = trialFeed(step);
   const began = Date.now();
-  let taskId: string | null = null;
-  let stream: ReturnType<typeof follow> | null = null;
   return new Promise((resolve) => {
     let output = "";
     let done = false;
@@ -225,32 +196,33 @@ function runStep(
       // A spawn failure can be followed by `close` as well.
       if (done) return;
       done = true;
-      if (stream) {
-        const current = stream;
-        current.settle();
-        const grace = setTimeout(current.stop, STREAM_GRACE_MS);
-        await current.done;
-        clearTimeout(grace);
-        current.stop();
-      }
       const seconds = Math.round((Date.now() - began) / 1000);
       const folder = findRunFolder(output, runsRoot(recipeDir(), step));
       let trial: ReturnType<typeof readRunFolder> | null = null;
       let readError: string | null = null;
+      let planned: string | null = null;
+      let judgement: Judgement | null = null;
       if (folder) {
         try {
           trial = readRunFolder(folder);
         } catch (error) {
           readError = `could not read ${folder}: ${(error as Error).message}`;
         }
-        // Whatever the stream missed, from the finished trial's record.
         const trajectory = trajectoryFile(folder);
         if (trajectory) {
           try {
-            emit(taskId ?? "", trajectoryEvents(trajectory));
+            planned = recordSteps(step, trajectoryEvents(trajectory));
           } catch (error) {
             readError ??= `could not read ${trajectory}: ${(error as Error).message}`;
           }
+          if (step.night.startsWith("night2"))
+            judgement = await judge(step, folder, trajectory).catch(
+              (error: Error) => ({
+                score: null,
+                reason: null,
+                error: error.message,
+              }),
+            );
         }
       }
       const error =
@@ -264,6 +236,10 @@ function runStep(
         reward: trial?.reward ?? null,
         checks,
         notes: previewNotes(trial?.notes ?? null),
+        plan: planText(planned),
+        round: trial?.fetches[0] ?? null,
+        fetches: trial?.fetches ?? [],
+        judge: judgement,
         measures: trial
           ? measuresOf(step.night, {
               checks,
@@ -292,12 +268,6 @@ function runStep(
     });
     const read = (chunk: Buffer) => {
       output += chunk.toString();
-      if (taskId) return;
-      taskId = parseTaskId(output);
-      if (taskId) {
-        const id = taskId;
-        stream = follow(id, credentials, (events) => emit(id, events));
-      }
     };
     child.stdout.on("data", read);
     child.stderr.on("data", read);
@@ -309,6 +279,8 @@ function runStep(
 /** Starts a run and returns its id; the trials report on the events feed. */
 export async function startRun(
   venues: number,
+  teams: TeamSize = DEFAULT_TEAMS,
+  pubs: Pubs = "development",
 ): Promise<{ run: string; target: Target }> {
   if (platform.active) throw new Error(`run ${platform.active} is still going`);
   const found = keyFile();
@@ -328,13 +300,27 @@ export async function startRun(
     platform.active = null;
     throw error;
   }
-  const chains = plan(id, venues);
+  const chains = plan(id, venues, PUB_SETS[pubs], teams);
   const began = Date.now();
+  // Each step's notes once it finishes, for the steps that wait on it.
+  const settled = new Map<string, Promise<string | null>>();
+  const finishers = new Map<string, (notes: string | null) => void>();
+  for (const step of chains.flat())
+    settled.set(
+      stepKey(step),
+      new Promise((resolve) => finishers.set(stepKey(step), resolve)),
+    );
   void Promise.all(
     chains.map(async (chain) => {
       let notes: string | null = null;
-      for (const step of chain)
+      for (const step of chain) {
+        if (step.after?.length)
+          [notes] = await Promise.all(
+            step.after.map((key) => settled.get(key) ?? null),
+          );
         notes = await runStep(step, target, { token, apiBaseUrl: api }, notes);
+        finishers.get(stepKey(step))?.(notes);
+      }
     }),
   ).finally(() => {
     const finished: EvalRunFinished = {
