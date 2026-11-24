@@ -59,11 +59,13 @@ The runs use your `introspection login`, on `https://api.introspection.dev` unle
 
 Pick a number of venues and press **Run**. Venue _i_ plays the _i_-th venue profile (Sydney, Manchester, Chicago, and on across AU, UK and US pubs), all venues at once, each as its own customer:
 
-| Trial               | Task             | Customer                                       | What it shows                                  |
-| ------------------- | ---------------- | ---------------------------------------------- | ---------------------------------------------- |
-| Night 1             | `night1-<venue>` | `anon:sim-<run>-<venue>`                       | the host learns the venue and writes its notes |
-| Night 2 with memory | `night2-<venue>` | the same customer                              | it reads those notes                           |
-| Night 2 without     | `night2-<venue>` | `anon:sim-<run>-<venue>-fresh`, a new customer | the same night with no notes                   |
+| Trial                | Task             | Customer                                       | What it shows                                  |
+| -------------------- | ---------------- | ---------------------------------------------- | ---------------------------------------------- |
+| Night 1              | `night1-<venue>` | `anon:sim-<run>-<venue>`                       | the host learns the venue and writes its notes |
+| Night 2, model notes | `night2-<venue>` | the same customer                              | it reads those notes                           |
+| Night 2, no notes    | `night2-<venue>` | `anon:sim-<run>-<venue>-fresh`, a new customer | the same night with no notes                   |
+| Night 2, other notes | `night2-<venue>` | another pub's night-1 customer                 | the same night with a different pub's notes    |
+| Night 2, true notes  | `night2-<venue>` | a customer night 0 seeded with the true notes  | the same night with the crowd's real tastes    |
 
 Every trial is tagged `simulation:<run>`. The page reads as an experiment: the hypothesis that notes tune night 2 to the crowd, the method, and the result. The two night 2s at a pub differ only in the notes, so each pub is a paired comparison: the result is how far each round's share right was from 65%, with memory against without, as a mean of per-pub differences with a 95% t-interval (from 3 pubs; 11 pubs gives a meaningful result), with the other measures beside it. Each run starts new customers, so nothing carries over between runs; a run measures one version of the agent and changes nothing.
 

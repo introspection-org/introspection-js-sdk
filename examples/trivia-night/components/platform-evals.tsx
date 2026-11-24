@@ -80,18 +80,18 @@ type NightKey = (typeof NIGHTS)[number] | "night0-seed";
 const NIGHT_TITLES: Record<NightKey, string> = {
   "night0-seed": "Night 0 · true notes seeded",
   "night1-memory": "Night 1 · what it learned",
-  "night2-wrong": "Night 2 · wrong notes",
+  "night2-wrong": "Night 2 · other notes",
   "night2-fresh": "Night 2 · no notes",
-  "night2-hosted": "Night 2 · right notes",
-  "night2-perfect": "Night 2 · perfect notes",
+  "night2-hosted": "Night 2 · model notes",
+  "night2-perfect": "Night 2 · true notes",
 };
 
 /** The bars, top to bottom: each night 2 arm, its label and its bar colour. */
 const ARMS = [
-  { night: "night2-perfect", label: "Perfect notes", kind: "perfect" },
-  { night: "night2-hosted", label: "Right notes", kind: "with" },
+  { night: "night2-perfect", label: "True notes", kind: "perfect" },
+  { night: "night2-hosted", label: "Model notes", kind: "with" },
   { night: "night2-fresh", label: "No notes", kind: "without" },
-  { night: "night2-wrong", label: "Wrong notes", kind: "wrong" },
+  { night: "night2-wrong", label: "Other notes", kind: "wrong" },
 ] as const;
 type ArmKind = (typeof ARMS)[number]["kind"];
 
@@ -110,8 +110,9 @@ interface ArmStatus {
 function armStatusText(status: ArmStatus | undefined, night1 = false): string {
   if (!status || !status.started) return "waiting";
   const failed = status.failed ? ` · ${status.failed} failed` : "";
+  // Kept to about 26 characters, the width of a box at 13px.
   if (status.done < status.total)
-    return `running · ${status.done} of ${status.total} pubs${failed}`;
+    return `${status.done}/${status.total} pubs done${failed}`;
   if (status.failed === status.total)
     return `failed · ${status.failed} of ${status.total} pubs`;
   if (night1 || status.good === null) return `done${failed}`;
@@ -124,12 +125,14 @@ function ArmsDiagram({
   status?: Partial<Record<NightKey, ArmStatus>>;
 }) {
   const boxX = (i: number) => 236 + i * 191;
+  // Name at 15px, two 13px lines of explanation, then the live status.
+  const Y = { box: 12, height: 94, name: 36, line1: 56, line2: 73, status: 95 };
   return (
     <svg
       className="arms-svg"
-      viewBox="0 0 1000 104"
+      viewBox="0 0 1000 116"
       role="img"
-      aria-label="Night 1, then night 2 four ways: its own notes (the test), no notes (the baseline), another pub's notes (the placebo) and the true notes (the ceiling)"
+      aria-label="Night 1, then night 2 four ways: model notes (the host's own notes from night 1, the test), no notes (the baseline), other notes (another pub's, the placebo) and true notes (the crowd's real tastes, the ceiling)"
     >
       <defs>
         <marker
@@ -146,25 +149,32 @@ function ArmsDiagram({
       </defs>
       <rect
         x="1"
-        y="12"
+        y={Y.box}
         width="176"
-        height="82"
+        height={Y.height}
         rx="6"
         fill="var(--panel)"
         stroke="var(--line)"
       />
-      <rect x="1" y="12" width="5" height="82" rx="2" fill="var(--ink)" />
-      <text x="18" y="38" className="arm-name">
+      <rect
+        x="1"
+        y={Y.box}
+        width="5"
+        height={Y.height}
+        rx="2"
+        fill="var(--ink)"
+      />
+      <text x="18" y={Y.name} className="arm-name">
         Night 1
       </text>
-      <text x="18" y="57" className="arm-role">
+      <text x="18" y={Y.line1} className="arm-role">
         plays, writes notes
       </text>
-      <text x="18" y="79" className="arm-status">
+      <text x="18" y={Y.status} className="arm-status">
         {armStatusText(status["night1-memory"], true)}
       </text>
       <path
-        d="M180,53 L222,53"
+        d={`M180,${Y.box + Y.height / 2} L222,${Y.box + Y.height / 2}`}
         stroke="var(--muted)"
         strokeWidth="1.5"
         markerEnd="url(#arms-arrow)"
@@ -173,28 +183,31 @@ function ArmsDiagram({
         <g key={arm.name}>
           <rect
             x={boxX(i)}
-            y="12"
+            y={Y.box}
             width="186"
-            height="82"
+            height={Y.height}
             rx="6"
             fill="var(--panel)"
             stroke="var(--line)"
           />
           <rect
             x={boxX(i)}
-            y="12"
+            y={Y.box}
             width="5"
-            height="82"
+            height={Y.height}
             rx="2"
             fill={`var(${arm.color})`}
           />
-          <text x={boxX(i) + 17} y="38" className="arm-name">
+          <text x={boxX(i) + 17} y={Y.name} className="arm-name">
             {arm.name}
           </text>
-          <text x={boxX(i) + 17} y="57" className="arm-role">
-            {arm.role}
+          <text x={boxX(i) + 17} y={Y.line1} className="arm-role">
+            {arm.lines[0]}
           </text>
-          <text x={boxX(i) + 17} y="79" className="arm-status">
+          <text x={boxX(i) + 17} y={Y.line2} className="arm-role">
+            {arm.lines[1]}
+          </text>
+          <text x={boxX(i) + 17} y={Y.status} className="arm-status">
             {armStatusText(status[arm.night])}
           </text>
         </g>
@@ -203,29 +216,29 @@ function ArmsDiagram({
   );
 }
 
-/** Night 2's four ways, as the "How it's tested" diagram names them. */
+/** Night 2's four ways, as the "How it's tested" diagram names and explains them. */
 const HOW_ARMS = [
   {
-    name: "Its own notes",
-    role: "the test",
+    name: "Model notes",
+    lines: ["the host's own notes", "from night 1 · the test"],
     color: "--memory",
     night: "night2-hosted",
   },
   {
     name: "No notes",
-    role: "the baseline",
+    lines: ["starts fresh, like a", "new pub · the baseline"],
     color: "--muted",
     night: "night2-fresh",
   },
   {
-    name: "Another pub's notes",
-    role: "the placebo",
+    name: "Other notes",
+    lines: ["another pub's notes ·", "the placebo"],
     color: "--bad",
     night: "night2-wrong",
   },
   {
-    name: "The true notes",
-    role: "the ceiling",
+    name: "True notes",
+    lines: ["the crowd's real tastes ·", "the ceiling"],
     color: "--host",
     night: "night2-perfect",
   },
@@ -420,10 +433,10 @@ type NightView = "questions" | "steps";
 /** The night tabs, short enough to sit in one row. */
 const TAB_LABELS: Record<(typeof NIGHTS)[number], string> = {
   "night1-memory": "Night 1",
-  "night2-wrong": "Wrong notes",
+  "night2-wrong": "Other notes",
   "night2-fresh": "No notes",
-  "night2-hosted": "Right notes",
-  "night2-perfect": "Perfect notes",
+  "night2-hosted": "Model notes",
+  "night2-perfect": "True notes",
 };
 
 /** A night's state for its tab: waiting, running, failed, or done with its good rounds. */
@@ -813,7 +826,7 @@ export function PlatformEvals() {
       p: signTest(pairs.map((p) => p.with - p.without)).p,
       wrong: wrongPairs
         ? {
-            text: `vs wrong notes: better at ${versusWrong.positive} of ${wrongPairs}`,
+            text: `vs other notes: better at ${versusWrong.positive} of ${wrongPairs}`,
             tone:
               compared && versusWrong.p < 0.05
                 ? versusWrong.positive > versusWrong.negative
@@ -912,12 +925,12 @@ export function PlatformEvals() {
       ? "Waiting for the night 2s at a pub…"
       : "No results yet."
     : !order
-      ? `Right notes vs no notes, across ${pubCount} pub${pubCount === 1 ? "" : "s"}: ${primary?.verdict.toLowerCase() ?? "no result"} on good rounds; waiting for the wrong notes.`
+      ? `Model notes vs no notes, across ${pubCount} pub${pubCount === 1 ? "" : "s"}: ${primary?.verdict.toLowerCase() ?? "no result"} on good rounds; waiting for the other notes.`
       : order.holds
-        ? "Memory helps because of what it remembered: right notes beat no notes, and wrong notes did worst."
-        : `On good rounds across ${pubCount} pubs: right notes ${order.rightOverNone ? "beat" : "did not beat"} no notes, no notes ${order.noneOverWrong ? "beat" : "did not beat"} wrong notes${
+        ? "Memory helps because of what it remembered: model notes beat no notes, and other notes did worst."
+        : `On good rounds across ${pubCount} pubs: model notes ${order.rightOverNone ? "beat" : "did not beat"} no notes, no notes ${order.noneOverWrong ? "beat" : "did not beat"} other notes${
             typeof primary?.means.perfect === "number"
-              ? `, and perfect notes ${order.perfectAtLeastRight ? "matched or beat" : "fell short of"} right notes`
+              ? `, and true notes ${order.perfectAtLeastRight ? "matched or beat" : "fell short of"} model notes`
               : ""
           }.`;
   const gate = validityGate(
@@ -1093,8 +1106,9 @@ export function PlatformEvals() {
       <div className="host-head">
         <div>
           <p>
-            Each pub plays night 1, then night 2 four ways: with its own notes,
-            with none, with another pub&apos;s, and with the true notes.
+            Each pub plays night 1, then night 2 four ways: model notes (its
+            own, from night 1), no notes, other notes (another pub&apos;s) and
+            true notes (the crowd&apos;s real tastes).
           </p>
         </div>
       </div>
@@ -1157,7 +1171,7 @@ export function PlatformEvals() {
         <button
           disabled={!config?.configured || !config?.target || running}
           onClick={start}
-          title="Starts new pubs with no memory: night 1, then night 2 with its own notes, none, another pub's and the true notes"
+          title="Starts new pubs with no memory: night 1, then night 2 with model notes, no notes, other notes and true notes"
         >
           {running ? "Running…" : "Run"}
         </button>
@@ -1211,13 +1225,12 @@ export function PlatformEvals() {
                 <p className="fine">
                   Night 2 at the same {pubCount} pub
                   {pubCount === 1 ? "" : "s"}, the same teams answering, with
-                  the host&apos;s own notes, none, another pub&apos;s, and the
-                  true notes.
+                  model notes, no notes, other notes and true notes.
                 </p>
               )}
               {gate && (
                 <p className={gate.passes ? "fine" : "amber"}>
-                  World check: perfect notes beat no notes by{" "}
+                  World check: true notes beat no notes by{" "}
                   {points(gate.difference)} pts (needs ≥ {points(GATE_MIN)} pts){" "}
                   {gate.passes ? "✓" : "✗"}
                 </p>
