@@ -266,8 +266,14 @@ export function readRunFolder(runFolder: string): TrialResult {
   };
 }
 
-/** The tail of a child's output, for a run that left no folder, with the key removed. */
+/**
+ * Why a run failed, with the key removed: from the CLI's last `Error:` line
+ * on, which carries its hint (such as the setup command), else the output's
+ * last lines.
+ */
 export function errorText(output: string, secret: string): string {
   const text = secret ? output.split(secret).join("[redacted]") : output;
-  return text.trim().split("\n").slice(-6).join("\n");
+  const lines = text.trim().split("\n");
+  const last = lines.findLastIndex((line) => line.startsWith("Error:"));
+  return (last >= 0 ? lines.slice(last) : lines.slice(-6)).join("\n").trim();
 }

@@ -409,6 +409,19 @@ async function main() {
       evals.errorText(`failed with ${key}`, key),
       "failed with [redacted]",
     );
+    assert.equal(
+      evals.errorText(
+        [
+          "  Harbor adapter native, environment introspection_harbor.task_environment:IntrospectionEnvironment",
+          "Error: The installed Introspection Harbor adapter is not compatible with this CLI.",
+          "",
+          "Run:",
+          "  introspection setup --target harbor",
+        ].join("\n"),
+        key,
+      ),
+      "Error: The installed Introspection Harbor adapter is not compatible with this CLI.\n\nRun:\n  introspection setup --target harbor",
+    );
   });
 
   await check("platform evals: a run folder is found and read", () => {

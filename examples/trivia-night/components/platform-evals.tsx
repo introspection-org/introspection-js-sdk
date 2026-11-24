@@ -213,7 +213,7 @@ export function PlatformEvals() {
                           </span>
                         ))}
                       {finished?.error && (
-                        <span className="bad">
+                        <span className="bad" title={finished.error}>
                           {finished.error.split("\n")[0]}
                         </span>
                       )}
