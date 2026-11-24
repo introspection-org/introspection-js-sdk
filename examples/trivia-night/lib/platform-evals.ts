@@ -130,10 +130,10 @@ export const DEFAULT_TEAMS: TeamSize = 5;
 export const TRIALS_PER_VENUE = 6;
 /**
  * An estimate, in US dollars, of one trial's model cost: Sonnet 5.5 at list
- * price, scaled from about $0.03 measured over two rounds of five to six
- * rounds of four; to be re-measured. Team size barely moves it.
+ * price, measured at $0.086 over 66 six-round trials on 2026-11-24. Team size
+ * barely moves it.
  */
-export const COST_PER_TRIAL = 0.07;
+export const COST_PER_TRIAL = 0.086;
 
 export const isTeamSize = (value: unknown): value is TeamSize =>
   (TEAM_SIZES as readonly unknown[]).includes(value);

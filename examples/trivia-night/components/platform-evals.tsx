@@ -1204,7 +1204,8 @@ export function PlatformEvals() {
             className="fine cost"
             title="Sonnet 5.5 list price, measured per trial; billed to your organization's platform usage"
           >
-            ≈ ${(trials * config.cost_per_trial).toFixed(2)} · {trials} trials
+            Cost ≈ ${(trials * config.cost_per_trial).toFixed(2)} · {trials}{" "}
+            trials
           </span>
         )}
         <span
