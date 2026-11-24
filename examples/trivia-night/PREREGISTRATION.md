@@ -1,6 +1,18 @@
 # Preregistration: does what the host remembers help?
 
-Frozen at commit: `<commit hash, filled in before the held-out run>`
+Frozen at the commit tagged `trivia-night-prereg-v1` in this repository, before any held-out pub was run.
+
+## What runs
+
+The held-out run is one run of the 20 held-out pubs with **5 teams per pub**, the crowd size every development run used, at these commits of the trivia-host Recipe, which differ only in the text between the memory markers:
+
+| Recipe        | Commit    | Memory block                                                                                                     | Plays                                            |
+| ------------- | --------- | ---------------------------------------------------------------------------------------------------------------- | ------------------------------------------------ |
+| Hand-written  | `393c952` | `recipe-operator/SYSTEM.md` in this repository                                                                   | night 1, then night 2 four ways (the arms below) |
+| Original      | `18b2845` | empty                                                                                                            | night 1, then night 2 from its own notes         |
+| Self-improved | `ca51467` | `experiment/self-improved-block.md` (sha256 `cc6a4c394ded0a87`), chosen by `improve/memory` from the empty block | night 1, then night 2 from its own notes         |
+
+The development gate passed before freezing: on the 11 development pubs (run `r1795541226673`), true minus no notes on good rounds was +0.22, 95% interval [0.15, 0.30]. Trials run through `introspection eval run` at each commit, as the customer `anon:sim-<run>-<pub>`. A trial that fails before its host runs is rerun once with the same identity; one that fails again is reported missing, never imputed.
 
 ## Hypothesis
 
