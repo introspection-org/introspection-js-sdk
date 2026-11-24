@@ -526,11 +526,18 @@ table.steps td.fine {
   text-align: right;
 }
 .accuracy {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 6px;
   font-size: 13px;
   margin: 4px 0 10px;
 }
+.accuracy strong {
+  flex-basis: 100%;
+}
 .accuracy .fact {
-  margin-right: 6px;
+  flex: 0 0 auto;
 }
 .bar-value {
   text-align: right;
