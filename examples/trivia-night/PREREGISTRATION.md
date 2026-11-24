@@ -43,8 +43,8 @@ An other-notes night 2 starts only after the donor pub's night 1 and model-notes
 Each is computed by the task's verifier from the bank's record of the crowd's answers, with no model.
 
 - **Primary: good rounds.** The share of a night's rounds that are both in a genre the crowd loves and 55-75% right.
-- **Secondary:** how close the finish was (the gap between the top two as a share of the points on offer); lead changes (times the lead changed hands after a round, divided by the five chances it had); the last-placed team's points as a share of the winner's; notes accuracy; right region (every question from the pub's country or global).
-- **Descriptive:** rounds in a favourite genre; rounds 55-75% right; each round's share right by round number per arm; the return-visit judge's 1-5 score.
+- **Secondary**, the two that explain good rounds: **loved genres played** (`favourite_genre`, the share of rounds in a genre the crowd loves: taste) and **first round pitched right** (`first_round_in_band`, 1 when night 2's first round landed 55-75% right, before any of the night's marks could guide it: level).
+- **Descriptive:** how close the finish was (the gap between the top two as a share of the points on offer); lead changes (times the lead changed hands after a round, divided by the five chances it had); the last-placed team's points as a share of the winner's; right region (every question from the pub's country or global); rounds 55-75% right; each round's share right by round number per arm; the return-visit judge's 1-5 score. Finish, lead changes and last place's share describe how the night felt and don't test memory.
 - **Notes accuracy** (night 1): the mean of four checks of night 1's notes against night 1's crowd: the favourite it was not told about named as liked, no disliked genre named as liked, the right country and no other, and a starting difficulty within one of the crowd's level. Whether the notes name the decade the crowd knows best is reported but not scored: best decades are mostly the 2000s or 2010s, so it barely tells pubs apart.
 - **Notes stay crowd-level**: notes must name no team, from either night; the verifier's `notes_name_no_team` (night 1) and `notes_kept` (night 2) guards measure it as before.
 
@@ -55,7 +55,7 @@ Per pub, the paired difference between arms (`lib/experiment.ts`).
 1. **World validity gate**, on development pubs before any held-out run: true notes minus no notes on good rounds must be at least 0.15, with its 95% t-interval excluding 0 (`validityGate`). If it fails, the world can't tell a weak host from a strong one, and the held-out run does not go ahead.
 2. **Model vs no notes** on good rounds: mean paired difference with its 95% t-interval.
 3. **Model vs other notes** on good rounds: exact two-sided sign test, ties dropped.
-4. **Secondary measures**, model vs no notes: exact sign tests, Holm-corrected across the five (close finish, lead changes, last place's share, notes accuracy, right region).
+4. **Secondary measures**, model vs no notes: exact sign tests, Holm-corrected across the two (loved genres played, first round pitched right). Notes accuracy, which only night 1 has, is reported beside them where computed.
 5. **Ordering** on good rounds: true ≥ model > no notes > other, on the arm means (`ordering`), reported descriptively.
 
 ## Decision rule

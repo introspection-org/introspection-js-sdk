@@ -19,22 +19,31 @@ const fin = events.filter(
   (e) => e.type === "eval.finished" && e.data.run === run,
 );
 const by: Record<string, Record<string, Record<string, number>>> = {};
+// Runs before the verifier printed first_round_in_band: the first round's share right says the same.
+const BAND = [0.55, 0.75];
 for (const e of fin) {
   const v = String(e.data.venue);
-  (by[v] ??= {})[String(e.data.night)] = (e.data.measures ?? {}) as Record<
-    string,
-    number
-  >;
+  const measures = { ...(e.data.measures ?? {}) } as Record<string, number>;
+  const opening = (e.data.fetches as { correct_rate?: number | null }[])?.[0]
+    ?.correct_rate;
+  if (
+    typeof measures.first_round_in_band !== "number" &&
+    typeof opening === "number"
+  )
+    measures.first_round_in_band =
+      opening >= BAND[0] && opening <= BAND[1] ? 1 : 0;
+  (by[v] ??= {})[String(e.data.night)] = measures;
 }
 const errors = fin.filter((e) => e.data.error).length;
 console.log(
   `trials ${fin.length}, errors ${errors}, pubs ${Object.keys(by).length}`,
 );
+// Night 2's arms by their display names: model, no, other and true notes.
 const arms = {
-  right: "night2-hosted",
+  model: "night2-hosted",
   none: "night2-fresh",
-  wrong: "night2-wrong",
-  perfect: "night2-perfect",
+  other: "night2-wrong",
+  true: "night2-perfect",
 };
 console.log(
   "arms seen:",
@@ -43,6 +52,7 @@ console.log(
 const measures = [
   "good_rounds",
   "favourite_genre",
+  "first_round_in_band",
   "close_finish",
   "lead_changes",
   "bottom_share",
@@ -73,61 +83,67 @@ const pairsOf = (a: string, b: string, m: string) =>
       (n) => typeof n[a]?.[m] === "number" && typeof n[b]?.[m] === "number",
     )
     .map((n) => ({ with: n[a][m], without: n[b][m] }));
-const gp = pairsOf(arms.perfect, arms.none, "good_rounds").map((p) => ({
+const gp = pairsOf(arms.true, arms.none, "good_rounds").map((p) => ({
   perfect: p.with,
   none: p.without,
 }));
 console.log(
-  "\nWORLD GATE (perfect − none, good_rounds):",
+  "\nWORLD GATE (true − no notes, good_rounds):",
   JSON.stringify(validityGate(gp)),
 );
 for (const m of ["good_rounds", "favourite_genre"]) {
-  const g = pairsOf(arms.perfect, arms.none, m);
+  const g = pairsOf(arms.true, arms.none, m);
   console.log(
-    `perfect vs none ${m}:`,
+    `true vs no notes ${m}:`,
     JSON.stringify(lift(g)),
     "sign",
     JSON.stringify(signTest(g.map((p) => p.with - p.without))),
   );
 }
-const rn = pairsOf(arms.right, arms.none, "good_rounds");
-console.log("right vs none good_rounds:", JSON.stringify(lift(rn)));
+const rn = pairsOf(arms.model, arms.none, "good_rounds");
+console.log(
+  "PRIMARY model vs no notes, good_rounds:",
+  JSON.stringify(lift(rn)),
+);
+const ro = pairsOf(arms.model, arms.other, "good_rounds");
+console.log(
+  "model vs other notes, good_rounds sign test:",
+  JSON.stringify(signTest(ro.map((p) => p.with - p.without))),
+);
 const ms = (a: string) => mean(pick(a, "good_rounds").map((r) => r.x));
 console.log(
   "ordering:",
   JSON.stringify(
     ordering({
-      perfect: ms(arms.perfect),
-      right: ms(arms.right),
+      perfect: ms(arms.true),
+      right: ms(arms.model),
       none: ms(arms.none),
-      wrong: ms(arms.wrong),
+      wrong: ms(arms.other),
     }),
   ),
 );
-const sec = [
-  "favourite_genre",
-  "close_finish",
-  "lead_changes",
-  "bottom_share",
-  "right_region",
-];
+// The two secondaries that explain good rounds: taste and level. The rest are descriptive.
+const sec = ["favourite_genre", "first_round_in_band"];
 const ps = sec.map(
   (m) =>
     signTest(
-      pairsOf(arms.right, arms.none, m).map((p) =>
+      pairsOf(arms.model, arms.none, m).map((p) =>
         lower.has(m) ? p.without - p.with : p.with - p.without,
       ),
     ).p,
 );
 console.log(
-  "right vs none secondaries, Holm:",
+  "model vs no notes secondaries, Holm:",
   JSON.stringify(Object.fromEntries(sec.map((m, i) => [m, holm(ps)[i]]))),
 );
-console.log("\nper pub good_rounds  [none, right, perfect, wrong]:");
+console.log(
+  "descriptive only: close_finish, lead_changes, bottom_share, right_region, in_band (means above)",
+);
+console.log("\nper pub good_rounds  [no, model, true, other]:");
 for (const [v, n] of Object.entries(by))
   console.log(
     v.padEnd(12),
-    [arms.none, arms.right, arms.perfect, arms.wrong]
+    [arms.none, arms.model, arms.true, arms.other]
       .map((a) => n[a]?.good_rounds ?? "-")
       .join("  "),
   );

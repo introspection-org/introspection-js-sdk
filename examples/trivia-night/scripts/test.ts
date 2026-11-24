@@ -1142,6 +1142,90 @@ async function main() {
     },
   );
 
+  const summaryRules = await import("../lib/summary");
+  await check("summary: each arm's reason against no notes, by rule", () => {
+    const stats = (good: number, loved: number, firstHits: number) => ({
+      good,
+      loved,
+      firstHits,
+    });
+    // Model notes win on taste, not level.
+    const model = {
+      pubs: 11,
+      arm: stats(0.33, 0.61, 4),
+      none: stats(0.17, 0.33, 4),
+    };
+    assert.equal(
+      summaryRules.modelWhy(model),
+      "Model notes beat no notes (0.33 vs 0.17) because the host remembered what this crowd likes: loved genres in 61% of rounds vs 33%. It opened at the right level at 4 of 11 pubs, so pitch didn't help.",
+    );
+    // A difference under one round per pub is noise, and so is anything under 3 pubs.
+    assert.match(
+      summaryRules.modelWhy({ ...model, arm: stats(0.2, 0.4, 4) }) ?? "",
+      /^Model notes and no notes are within noise on good rounds \(0\.20 vs 0\.17\)\.$/,
+    );
+    assert.match(
+      summaryRules.modelWhy({ ...model, pubs: 2 }) ?? "",
+      /^With 2 pubs this is within noise/,
+    );
+    assert.equal(summaryRules.modelWhy(null), null);
+    // Other notes: taste doesn't transfer, the level may.
+    assert.equal(
+      summaryRules.otherWhy({
+        pubs: 11,
+        arm: stats(0.05, 0.2, 7),
+        none: stats(0.17, 0.33, 4),
+      }),
+      "Other notes did worse than no notes (0.05 vs 0.17): another pub's tastes don't transfer, though their opening level carried over at 7 of 11 pubs.",
+    );
+    // True notes, the ceiling, with how far model notes reached.
+    assert.equal(
+      summaryRules.trueWhy(
+        { pubs: 11, arm: stats(0.41, 0.68, 6), none: stats(0.17, 0.33, 4) },
+        model,
+      ),
+      "True notes, the ceiling: 0.41 good rounds vs 0.17 with no notes; model notes reached 0.33.",
+    );
+  });
+
+  await check("summary: the one next step, by rule", () => {
+    const base = {
+      pubSet: "development" as const,
+      pubsRun: 11,
+      developmentPubs: 11,
+      heldoutPubs: 20,
+      intervalIncludesZero: false,
+      missingNights: 0,
+      gatePasses: true,
+      costPerTrial: 0.086,
+      trialsPerPub: 6,
+    };
+    assert.equal(
+      summaryRules.nextStep(base),
+      "Ready for the held-out run (20 pubs, estimated cost $10.32): it is used once, for the final result.",
+    );
+    assert.equal(
+      summaryRules.nextStep({ ...base, pubsRun: 3 }),
+      "Run all 11 development pubs to get an interval (estimated cost $5.68).",
+    );
+    assert.match(
+      summaryRules.nextStep({ ...base, intervalIncludesZero: true }),
+      /^Run all 11 development pubs/,
+    );
+    assert.match(
+      summaryRules.nextStep({ ...base, missingNights: 2 }),
+      /^Rerun to fill the missing nights: 2 pubs lost a night 2\.$/,
+    );
+    assert.match(
+      summaryRules.nextStep({ ...base, gatePasses: false }),
+      /^The world check failed/,
+    );
+    assert.match(
+      summaryRules.nextStep({ ...base, pubSet: "heldout", pubsRun: 20 }),
+      /^This is the held-out result/,
+    );
+  });
+
   await check("memory measures: night 1, night 2 with and without", () => {
     const tastes = {
       region: "uk",
@@ -1182,6 +1266,8 @@ async function main() {
         pitch_miss: 0.2,
         in_band: 0.5,
         favourite_genre: 0.5,
+        // The first round (70% right) landed in the band.
+        first_round_in_band: 1,
         right_region: 1,
       },
     );
@@ -1209,6 +1295,8 @@ async function main() {
         in_band: 1,
         close_finish: 0.1,
         favourite_genre: 1,
+        // Not printed by this (older) verifier, so derived from the first round.
+        first_round_in_band: 1,
         right_region: 1,
         notes_kept: 1,
       },
@@ -1232,6 +1320,8 @@ async function main() {
         pitch_miss: 0.55,
         in_band: 0,
         favourite_genre: 0,
+        // A first round 10% right missed the band.
+        first_round_in_band: 0,
         right_region: 0,
       },
     );

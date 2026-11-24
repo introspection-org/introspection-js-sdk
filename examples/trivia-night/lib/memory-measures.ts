@@ -37,6 +37,7 @@ export type MeasureKey =
   | "lead_changes"
   | "bottom_share"
   | "favourite_genre"
+  | "first_round_in_band"
   | "right_region";
 
 /** Each a number from 0 to 1; absent when it can't be told (no round fetched, say). */
@@ -110,6 +111,11 @@ export const MEASURES: Record<
     why: "Share of rounds in a genre the crowd loves",
     better: "higher",
   },
+  first_round_in_band: {
+    label: "first round pitched right",
+    why: "Night 2's first round landed 55-75% right, before any of the night's marks could guide it",
+    better: "higher",
+  },
   right_region: {
     label: "right region",
     why: "Every question from the pub's country, or global",
@@ -139,6 +145,10 @@ export function crowdMeasures({
       rated.filter((r) => r >= BAND[0] && r <= BAND[1]).length / rated.length,
     );
   }
+  const opening = fetches[0]?.correct_rate;
+  if (num(opening))
+    derived.first_round_in_band =
+      opening >= BAND[0] && opening <= BAND[1] ? 1 : 0;
   if (fetches.length && tastes) {
     const liked = tastes.liked ?? [];
     derived.good_rounds = round2(
@@ -171,6 +181,7 @@ export function crowdMeasures({
     "lead_changes",
     "bottom_share",
     "favourite_genre",
+    "first_round_in_band",
     "right_region",
   ] as const) {
     const value = num(checks[key]) ? checks[key] : derived[key];

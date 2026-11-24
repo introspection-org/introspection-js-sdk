@@ -790,3 +790,20 @@ table.steps td.fine {
   opacity: 0.5;
   cursor: default;
 }
+
+.cost {
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.reasons {
+  margin: 8px 0 0;
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.next-step {
+  margin: 10px 0 0;
+}

@@ -334,6 +334,12 @@ if (fetches.length) {
   )
     ? 1
     : 0;
+  // Whether the night opened at the right level, before any of tonight's marks could guide it.
+  if (fetches[0].correct_rate !== null)
+    measures.first_round_in_band =
+      fetches[0].correct_rate >= BAND[0] && fetches[0].correct_rate <= BAND[1]
+        ? 1
+        : 0;
 }
 const round_rates = fetches.map((f) =>
   f.correct_rate === null ? null : round2(f.correct_rate),
@@ -402,7 +408,8 @@ const NIGHT2_CHECK = String.raw`// Night 2's measures, from the bank's record of
 // the top two teams as a share of the points on offer; lower is closer),
 // lead_changes (times the lead changed hands, as a share of the chances it had),
 // bottom_share (the last team's points as a share of the winner's),
-// favourite_genre (share of rounds in a genre the crowd loves), right_region
+// favourite_genre (share of rounds in a genre the crowd loves), first_round_in_band
+// (1 when the first round landed 55-75% right), right_region
 // (every question the venue's country or global), round_rates (each round's
 // share right), plus fetched_a_round, notes_kept (MEMORY.md written, and no
 // note file naming a team from either night) and notes_indexed (every note file

@@ -27,7 +27,14 @@ import {
   type Pair,
 } from "@/lib/experiment";
 import type { Judgement } from "@/lib/judge";
-import { MEASURES, checkLine } from "@/lib/memory-measures";
+import { BAND, MEASURES, checkLine } from "@/lib/memory-measures";
+import {
+  type Comparison,
+  modelWhy,
+  nextStep,
+  otherWhy,
+  trueWhy,
+} from "@/lib/summary";
 
 interface Config {
   configured: boolean;
@@ -681,6 +688,10 @@ export function PlatformEvals() {
   // A run of one venue has no other pub's notes for a wrong-notes night.
   const trialsFor = (count: number) =>
     count * (config?.trials_per_venue ?? 6) - (count === 1 ? 1 : 0);
+  const setSize = (set: Pubs) =>
+    config?.max_venues_by_pubs?.[set] ?? (set === "development" ? 11 : 20);
+  const trialsPerPub = config?.trials_per_venue ?? 6;
+  const pubCost = (trialsPerPub * (config?.cost_per_trial ?? 0.086)).toFixed(2);
   const venueCount = Math.min(Math.max(Math.trunc(venues) || 1, 1), maxVenues);
   const trials = trialsFor(venueCount);
 
@@ -722,11 +733,16 @@ export function PlatformEvals() {
       : null;
   const measureAt = (venue: string, night: NightKey, key: string) => {
     if (!counted(venue, night)) return null;
-    const value = (
-      view?.trials.get(`${venue}/${night}`)?.finished?.measures as
-        Record<string, number> | undefined
-    )?.[key];
-    return typeof value === "number" ? value : null;
+    const finished = view?.trials.get(`${venue}/${night}`)?.finished;
+    const value = (finished?.measures as Record<string, number> | undefined)?.[
+      key
+    ];
+    if (typeof value === "number") return value;
+    // Runs before the verifier printed it: the first round's share right says the same.
+    const opening = finished?.fetches?.[0]?.correct_rate;
+    if (key === "first_round_in_band" && typeof opening === "number")
+      return opening >= BAND[0] && opening <= BAND[1] ? 1 : 0;
+    return null;
   };
   const pairedOf = (
     of: (venue: string, night: NightKey) => number | null,
@@ -852,14 +868,18 @@ export function PlatformEvals() {
       percent,
     );
   };
+  // The three measures shown up front: good rounds, and the two that explain it (taste and level).
   const built = [
     measureRow(
       GOOD_ROUNDS,
-      "Good rounds (favourite genre and 55–75% right)",
+      "Good rounds (a genre the crowd loves and 55–75% right)",
       true,
     ),
-    measureRow("favourite_genre", "Rounds in their favourite genres"),
-    measureRow("in_band", "Rounds pitched right (55–75% correct)"),
+    measureRow("favourite_genre", "Loved genres played"),
+    measureRow("first_round_in_band", "First round pitched right"),
+  ].filter((row): row is Row => row !== null);
+  // Under the hood: how the night felt, which doesn't test memory, and the rest.
+  const experienceRows = [
     measureRow("close_finish", "How close the finish was"),
     measureRow(
       "lead_changes",
@@ -869,6 +889,9 @@ export function PlatformEvals() {
       "bottom_share",
       "Last place's points, as a share of the winner's",
     ),
+  ].filter((row): row is Row => row !== null);
+  const otherRows = [
+    measureRow("in_band", "Rounds 55–75% right"),
     rowFor(
       "judge",
       "Judge: how tailored it felt (1–5)",
@@ -902,6 +925,35 @@ export function PlatformEvals() {
         };
   });
   const primary = rows.find((row) => row.primary);
+  // Each arm against no notes at the same pubs, for the summary's reasons.
+  const mean = (values: number[]) =>
+    values.reduce((a, b) => a + b, 0) / (values.length || 1);
+  const compare = (night: NightKey): Comparison | null => {
+    const pubs = trialVenues.filter(
+      (venue) =>
+        measureAt(venue, night, GOOD_ROUNDS) !== null &&
+        measureAt(venue, "night2-fresh", GOOD_ROUNDS) !== null,
+    );
+    if (!pubs.length) return null;
+    const stats = (arm: NightKey) => ({
+      good: mean(pubs.map((v) => measureAt(v, arm, GOOD_ROUNDS) ?? 0)),
+      loved: mean(pubs.map((v) => measureAt(v, arm, "favourite_genre") ?? 0)),
+      firstHits: pubs.filter(
+        (v) => measureAt(v, arm, "first_round_in_band") === 1,
+      ).length,
+    });
+    return {
+      pubs: pubs.length,
+      arm: stats(night),
+      none: stats("night2-fresh"),
+    };
+  };
+  const modelVsNone = compare("night2-hosted");
+  const reasons = [
+    modelWhy(modelVsNone),
+    otherWhy(compare("night2-wrong")),
+    trueWhy(compare("night2-perfect"), modelVsNone),
+  ].filter((line): line is string => line !== null);
   const order =
     primary &&
     typeof primary.means.with === "number" &&
@@ -939,6 +991,37 @@ export function PlatformEvals() {
       return perfect !== null && none !== null ? [{ perfect, none }] : [];
     }),
   );
+  const goodLift = lift(
+    pairedOf(
+      (venue, night) => measureAt(venue, night, GOOD_ROUNDS),
+      "night2-hosted",
+      "night2-fresh",
+    ),
+  );
+  const night2Keys = NIGHTS.filter((night) => night.startsWith("night2-"));
+  const missingNights = trialVenues.filter((venue) =>
+    night2Keys.some((night) => {
+      const trial = view?.trials.get(`${venue}/${night}`);
+      return trial?.finished ? Boolean(trial.finished.error) : view?.finished;
+    }),
+  ).length;
+  const suggestion = view?.finished
+    ? nextStep({
+        pubSet: trialVenues.some((venue) => venue.startsWith("held-"))
+          ? "heldout"
+          : "development",
+        pubsRun: trialVenues.length,
+        developmentPubs: config?.max_venues_by_pubs?.development ?? 11,
+        heldoutPubs: config?.max_venues_by_pubs?.heldout ?? 20,
+        intervalIncludesZero:
+          !goodLift?.interval ||
+          (goodLift.interval[0] <= 0 && goodLift.interval[1] >= 0),
+        missingNights,
+        gatePasses: gate?.passes ?? null,
+        costPerTrial: config?.cost_per_trial ?? 0.086,
+        trialsPerPub: config?.trials_per_venue ?? 6,
+      })
+    : null;
   const accuracy = trialVenues.flatMap((venue) => {
     const value = measureAt(venue, "night1-memory", "notes_accuracy");
     return value === null
@@ -1100,6 +1183,31 @@ export function PlatformEvals() {
     );
   };
 
+  const barRow = (row: Row) => (
+    <div className="bar-row" key={row.key} title={row.why}>
+      <div className="bar-label">
+        {row.label}
+        <span className={`bar-verdict ${row.tone}`}>
+          {row.verdict}
+          {row.wrong && (
+            <small className={`bar-verdict ${row.wrong.tone}`}>
+              {row.wrong.text}
+            </small>
+          )}
+        </span>
+      </div>
+      {row.bars.map((bar) => (
+        <Bar
+          key={bar.kind}
+          label={bar.label}
+          text={bar.text}
+          share={bar.share}
+          kind={bar.kind}
+        />
+      ))}
+    </div>
+  );
+
   return (
     <section className="platform">
       <div className="host-head">
@@ -1139,8 +1247,11 @@ export function PlatformEvals() {
                 type="button"
                 aria-pressed={pubs === value}
                 disabled={running}
-                title={`${config?.max_venues_by_pubs?.[value] ?? (value === "development" ? 11 : 20)} pubs`}
-                onClick={() => setPubs(value)}
+                title={`${setSize(value)} pubs; a pub costs about $${pubCost} (${trialsPerPub} trials) in either set`}
+                onClick={() => {
+                  setPubs(value);
+                  setVenues(setSize(value));
+                }}
               >
                 {label}
               </button>
@@ -1201,7 +1312,7 @@ export function PlatformEvals() {
         </button>
         {config?.cost_per_trial !== undefined && (
           <span
-            className="fine cost"
+            className="cost"
             title="Sonnet 5.5 list price, measured per trial; billed to your organization's platform usage"
           >
             Estimated cost ${(trials * config.cost_per_trial).toFixed(2)} ·{" "}
@@ -1246,6 +1357,18 @@ export function PlatformEvals() {
           <div className="experiment">
             <div className="pick">
               <p className="big">{headline}</p>
+              {reasons.length > 0 && (
+                <ul className="reasons">
+                  {reasons.map((line) => (
+                    <li key={line}>{line}</li>
+                  ))}
+                </ul>
+              )}
+              {suggestion && (
+                <p className="next-step">
+                  <strong>Next:</strong> {suggestion}
+                </p>
+              )}
               {pubCount > 0 && (
                 <p className="fine">
                   Night 2 at the same {pubCount} pub
@@ -1276,30 +1399,16 @@ export function PlatformEvals() {
                 <p className="fine bars-key">
                   Longer bar is better on every row.
                 </p>
-                {rows.map((row) => (
-                  <div className="bar-row" key={row.key} title={row.why}>
-                    <div className="bar-label">
-                      {row.label}
-                      <span className={`bar-verdict ${row.tone}`}>
-                        {row.verdict}
-                        {row.wrong && (
-                          <small className={`bar-verdict ${row.wrong.tone}`}>
-                            {row.wrong.text}
-                          </small>
-                        )}
-                      </span>
-                    </div>
-                    {row.bars.map((bar) => (
-                      <Bar
-                        key={bar.kind}
-                        label={bar.label}
-                        text={bar.text}
-                        share={bar.share}
-                        kind={bar.kind}
-                      />
-                    ))}
-                  </div>
-                ))}
+                {rows.map(barRow)}
+              </div>
+            )}
+            {nightView === "steps" && experienceRows.length > 0 && (
+              <div className="bars">
+                <p className="fine bars-key">
+                  <strong>Experience measures (don&apos;t test memory)</strong>
+                </p>
+                {experienceRows.map(barRow)}
+                {otherRows.map(barRow)}
               </div>
             )}
             {judgeError && <p className="amber">Judge: {judgeError}</p>}
