@@ -173,6 +173,25 @@ async function judge(
   };
 }
 
+/** More trials at once than this and the CLI's Control Plane calls time out. */
+const MAX_PARALLEL_TRIALS = 6;
+let runningTrials = 0;
+const waitingTrials: (() => void)[] = [];
+
+/** Runs `work` once a trial slot is free; a finished trial hands its slot on. */
+async function inSlot<T>(work: () => Promise<T>): Promise<T> {
+  if (runningTrials >= MAX_PARALLEL_TRIALS)
+    await new Promise<void>((resolve) => waitingTrials.push(resolve));
+  else runningTrials += 1;
+  try {
+    return await work();
+  } finally {
+    const next = waitingTrials.shift();
+    if (next) next();
+    else runningTrials -= 1;
+  }
+}
+
 /** Runs one step; resolves with the notes it left, for the chain's next night. */
 function runStep(
   step: Step,
@@ -318,7 +337,9 @@ export async function startRun(
           [notes] = await Promise.all(
             step.after.map((key) => settled.get(key) ?? null),
           );
-        notes = await runStep(step, target, { token, apiBaseUrl: api }, notes);
+        notes = await inSlot(() =>
+          runStep(step, target, { token, apiBaseUrl: api }, notes),
+        );
         finishers.get(stepKey(step))?.(notes);
       }
     }),
