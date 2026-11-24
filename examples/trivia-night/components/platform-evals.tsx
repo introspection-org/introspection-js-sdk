@@ -1093,8 +1093,8 @@ export function PlatformEvals() {
       <div className="host-head">
         <div>
           <p>
-            Each venue plays night 1, then night 2 four ways: with its own
-            notes, with none, with another pub&apos;s, and with the true notes.
+            Each pub plays night 1, then night 2 four ways: with its own notes,
+            with none, with another pub&apos;s, and with the true notes.
           </p>
         </div>
       </div>
@@ -1111,18 +1111,22 @@ export function PlatformEvals() {
 
       <div className="platform-form">
         <label>
-          Pubs
+          Pub set
           <select
             value={pubs}
             disabled={running}
             onChange={(event) => setPubs(event.target.value as Pubs)}
           >
-            <option value="development">development</option>
-            <option value="heldout">held out</option>
+            <option value="development">
+              Development ({config?.max_venues_by_pubs?.development ?? 11} pubs)
+            </option>
+            <option value="heldout">
+              Held-out ({config?.max_venues_by_pubs?.heldout ?? 20} pubs)
+            </option>
           </select>
         </label>
         <label>
-          Venues
+          Pubs
           <input
             type="number"
             min={1}
@@ -1131,7 +1135,7 @@ export function PlatformEvals() {
             onChange={(event) => setVenues(Number(event.target.value))}
           />
         </label>
-        <label>
+        <label title="The teams that play at each pub; tasks exist for 3, 5 and 8">
           Teams per pub
           <select
             value={teams ?? config?.default_teams ?? 5}
@@ -1146,13 +1150,14 @@ export function PlatformEvals() {
           </select>
         </label>
         <span className="fine hint">
-          3 pubs is a quick look; {maxVenues} pubs gives a statistically
-          meaningful result.
+          Development is for trying things and tuning; held-out is used once,
+          for the final result. 3 pubs is a quick look; {maxVenues} pubs gives a
+          statistically meaningful result.
         </span>
         <button
           disabled={!config?.configured || !config?.target || running}
           onClick={start}
-          title="Starts new venues with no memory: night 1, then night 2 with its own notes, none, another pub's and the true notes"
+          title="Starts new pubs with no memory: night 1, then night 2 with its own notes, none, another pub's and the true notes"
         >
           {running ? "Running…" : "Run"}
         </button>
@@ -1275,6 +1280,14 @@ export function PlatformEvals() {
                 <li>
                   Scored on <strong>good rounds</strong>: a topic the crowd
                   loves, with 55–75% of answers right.
+                </li>
+                <li>
+                  No AI answers the questions. Each team&apos;s chance of a
+                  right answer comes from its members&apos; interests and ages,
+                  whether the question is local to their country, and its
+                  difficulty, rolled with a fixed seed: the same team answers
+                  the same question the same way on every night and in every
+                  arm.
                 </li>
                 <li>
                   A difference counts when its 95% range over the{" "}

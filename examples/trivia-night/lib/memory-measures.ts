@@ -67,7 +67,7 @@ export const MEASURES: Record<
   },
   notes_written: {
     label: "notes written",
-    why: "Night 1 left notes on the venue for next week",
+    why: "Night 1 left notes on the pub for next week",
     better: "higher",
   },
   notes_accuracy: {
@@ -112,7 +112,7 @@ export const MEASURES: Record<
   },
   right_region: {
     label: "right region",
-    why: "Every question from the venue's country, or global",
+    why: "Every question from the pub's country, or global",
     better: "higher",
   },
 };
