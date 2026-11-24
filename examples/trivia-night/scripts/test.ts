@@ -730,7 +730,11 @@ async function main() {
       );
       assert.match(
         read("night2-melbourne/tests/check.mjs"),
-        /reward = \(measures\.in_band \?\? 0\) >= 0\.5/,
+        /reward =\s+fetches\.length >= 6 && \(measures\.in_band \?\? 0\) >= 0\.5/,
+      );
+      assert.match(
+        read("night2-melbourne/tests/check.mjs"),
+        /\.length \/ Math\.max\(6, fetches\.length\)/,
       );
       for (const file of ["tests/test.sh", "solution/solve.sh"])
         assert.ok(

@@ -193,13 +193,50 @@ async function inSlot<T>(work: () => Promise<T>): Promise<T> {
   }
 }
 
-/** Runs one step; resolves with the notes it left, for the chain's next night. */
+/** What a finished step leaves for the nights that wait on it. */
+interface Settled {
+  notes: string | null;
+  failed: boolean;
+}
+
+/** Records a night that never ran because a night it depends on failed, so it is never scored. */
+function recordSkipped(step: Step, reason: string): Settled {
+  const finished: EvalFinished = {
+    ...step,
+    reward: null,
+    checks: {},
+    notes: null,
+    plan: null,
+    round: null,
+    fetches: [],
+    rounds: [],
+    judge: null,
+    measures: {},
+    trajectory_source: null,
+    seconds: 0,
+    exit_code: null,
+    error: reason,
+  };
+  record(
+    `platform:${step.run}:${step.venue}`,
+    "eval.finished",
+    `${step.venue_label} ${step.task}: skipped, ${reason}`,
+    finished,
+  );
+  appendResult(resultsFile(recipeDir(), step.run), {
+    type: "eval.finished",
+    data: finished,
+  });
+  return { notes: null, failed: true };
+}
+
+/** Runs one step; resolves with the notes it left and whether it failed, for the chain's next night. */
 function runStep(
   step: Step,
   target: Target,
   credentials: Credentials,
   night1Notes: string | null = null,
-): Promise<string | null> {
+): Promise<Settled> {
   const started: EvalStarted = { ...step };
   record(
     `platform:${step.run}:${step.venue}`,
@@ -285,7 +322,7 @@ function runStep(
         type: "eval.finished",
         data: finished,
       });
-      resolve(trial?.notes ?? null);
+      resolve({ notes: trial?.notes ?? null, failed: Boolean(error) });
     };
     const child = spawn(spec.command, spec.args, {
       ...spec.options,
@@ -328,8 +365,8 @@ export async function startRun(
   const chains = plan(id, venues, PUB_SETS[pubs], teams);
   const began = Date.now();
   // Each step's notes once it finishes, for the steps that wait on it.
-  const settled = new Map<string, Promise<string | null>>();
-  const finishers = new Map<string, (notes: string | null) => void>();
+  const settled = new Map<string, Promise<Settled>>();
+  const finishers = new Map<string, (result: Settled) => void>();
   for (const step of chains.flat())
     settled.set(
       stepKey(step),
@@ -337,16 +374,29 @@ export async function startRun(
     );
   void Promise.all(
     chains.map(async (chain) => {
-      let notes: string | null = null;
+      let previous: Settled = { notes: null, failed: false };
+      let previousNight: string | null = null;
       for (const step of chain) {
-        if (step.after?.length)
-          [notes] = await Promise.all(
-            step.after.map((key) => settled.get(key) ?? null),
+        if (step.after?.length) {
+          const waited = await Promise.all(
+            step.after.map(
+              (key) => settled.get(key) ?? { notes: null, failed: false },
+            ),
           );
-        notes = await inSlot(() =>
-          runStep(step, target, { token, apiBaseUrl: api }, notes),
-        );
-        finishers.get(stepKey(step))?.(notes);
+          previous = {
+            notes: waited[0].notes,
+            failed: waited.some((w) => w.failed),
+          };
+          previousNight = step.after.join(", ");
+        }
+        const result = previous.failed
+          ? recordSkipped(step, `skipped: ${previousNight} failed`)
+          : await inSlot(() =>
+              runStep(step, target, { token, apiBaseUrl: api }, previous.notes),
+            );
+        finishers.get(stepKey(step))?.(result);
+        previous = result;
+        previousNight = step.night;
       }
     }),
   ).finally(() => {
