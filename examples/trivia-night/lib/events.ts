@@ -34,7 +34,9 @@ const MAX_EVENTS = 400;
 const store = globalThis as unknown as {
   __triviaEvents?: { seq: number; events: FlowEvent[] };
 };
-const log = (store.__triviaEvents ??= { seq: 0, events: [] });
+// Starts at the boot time, so a restarted server never reuses a number a page
+// already holds: the page asks for events after the last one it has.
+const log = (store.__triviaEvents ??= { seq: Date.now(), events: [] });
 
 export const record: Recorder = (owner, type, summary, data = {}) => {
   log.seq += 1;
