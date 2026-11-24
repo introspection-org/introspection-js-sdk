@@ -315,7 +315,8 @@ if (rated.length) {
     measures.lead_changes = round2(leadChanges / (roundMarks.length - 1));
 }
 if (fetches.length) {
-  // The primary measure: rounds both in a favourite genre and 55-75% right.
+  // The primary measure: rounds both in a favourite genre and 55-75% right, out of the
+  // night's ${ROUNDS}, so a host that stops early scores its unplayed rounds as not good.
   measures.good_rounds = round2(
     fetches.filter(
       (f) =>
@@ -323,11 +324,11 @@ if (fetches.length) {
         f.correct_rate !== null &&
         f.correct_rate >= BAND[0] &&
         f.correct_rate <= BAND[1],
-    ).length / fetches.length,
+    ).length / Math.max(${ROUNDS}, fetches.length),
   );
   measures.favourite_genre = round2(
     fetches.filter((f) => expected.liked.includes(f.genre)).length /
-      fetches.length,
+      Math.max(${ROUNDS}, fetches.length),
   );
   measures.right_region = asked.every((a) =>
     [expected.region, "global"].includes(a.region),
@@ -341,6 +342,7 @@ if (fetches.length) {
         ? 1
         : 0;
 }
+measures.rounds_played = fetches.length;
 const round_rates = fetches.map((f) =>
   f.correct_rate === null ? null : round2(f.correct_rate),
 );
@@ -429,7 +431,8 @@ const scores = {
   notes_indexed: notesIndexed,
   ...measures,
 };
-const reward = (measures.in_band ?? 0) >= 0.5 ? 1 : 0;
+const reward =
+  fetches.length >= ${ROUNDS} && (measures.in_band ?? 0) >= 0.5 ? 1 : 0;
 writeFileSync(
   "/logs/verifier/reward.json",
   JSON.stringify({ reward, ...scores }),
