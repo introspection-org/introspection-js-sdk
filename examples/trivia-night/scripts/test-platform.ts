@@ -36,6 +36,8 @@ interface Bootstrap {
   member: string;
   /** The click that starts the recorded run, new each recording so it names a new run. */
   click: string;
+  /** A Runtime of the project whose commit has no generated venue tasks. */
+  untasked: string;
 }
 
 async function main() {
@@ -58,6 +60,7 @@ async function main() {
       project: runtime.project_id,
       member: "recorded-member",
       click: `recorded-${Date.now()}`,
+      untasked: process.env.TRIVIA_RECORD_UNTASKED_RUNTIME_ID ?? "",
       started_at: new Date().toISOString(),
       api,
       dp: process.env.INTROSPECTION_DP_URL ?? api,
@@ -132,6 +135,38 @@ async function main() {
     };
     const steps = evals.runSteps(record);
     const first = steps[0];
+
+    await check(
+      "platform evals: the run takes a Runtime whose commit holds the generated tasks",
+      async () => {
+        assert.equal(await runner.hasTasks(client, target), true);
+        // A pinned Runtime without them is never taken; here the project's trivia-host runs a
+        // commit without them too, so the run refuses and says how to push them.
+        await assert.rejects(
+          runner.resolveTarget(client, bootstrap.project, {
+            ...env,
+            INTROSPECTION_TRIVIA_RUNTIME_ID: bootstrap.untasked,
+          }),
+          (error) => error instanceof runner.NoTasks,
+        );
+        const untasked = await client.runtimes.get(bootstrap.untasked);
+        const recipe = await client.recipes.get(untasked.recipe_id);
+        assert.equal(
+          await runner.hasTasks(client, {
+            runtime: untasked.id,
+            commit: untasked.git_commit_sha!,
+            slug: untasked.slug,
+            repository: recipe.repository_id,
+            recipe_path: "",
+          }),
+          false,
+        );
+        assert.match(
+          new runner.NoTasks(["trivia-night"]).message,
+          /generated venue tasks.*pnpm dev.*runtimes create --manifest/,
+        );
+      },
+    );
 
     await check(
       "platform evals: a Harbor task is read from the Runtime's repository at its commit",

@@ -23,6 +23,8 @@ import { parse as parseYaml } from "yaml";
 import { measuresOf, type VenueTastes } from "./memory-measures";
 import {
   DEFAULT_TEAMS,
+  PUB_SETS,
+  taskName,
   previewNotes,
   readyToComplete,
   runSteps,
@@ -114,48 +116,87 @@ export class NoRuntime extends Error {
   }
 }
 
-/** The Runtime the trials run, the commit they run at, and the repository that holds its Recipe. */
+/** The project's trivia Runtimes run commits without the generated venue tasks. */
+export class NoTasks extends Error {
+  constructor(slugs: string[]) {
+    super(
+      `the ${slugs.join(" and ")} runtime${slugs.length === 1 ? "" : "s"} carry no generated venue tasks (evals/harbor is git-ignored): push them with the recipe, as pnpm dev does, after ${ADD_RUNTIME.replace(/^add/, "adding")}`,
+    );
+  }
+}
+
+/** Whether a target's commit holds the generated tasks, by the first planned venue's night 1. */
+export async function hasTasks(
+  client: PlatformClient,
+  target: Target,
+): Promise<boolean> {
+  const file = repoPath(
+    target,
+    TASKS_DIR,
+    taskName(1, PUB_SETS.development[0].slug),
+    "task.toml",
+  );
+  try {
+    await client.repositories.contents.get(target.repository!, file, {
+      ref: target.commit,
+    });
+    return true;
+  } catch (error) {
+    if (error instanceof NotFoundError) return false;
+    throw error;
+  }
+}
+
+/**
+ * The Runtime the trials run, the commit they run at, and the repository that
+ * holds its Recipe: `INTROSPECTION_TRIVIA_RUNTIME_ID` when it is in the
+ * project, then the project's trivia-night or trivia-host Runtime, the first
+ * whose commit holds the generated venue tasks.
+ */
 export async function resolveTarget(
   client: PlatformClient,
   project: string,
   env: Env = process.env,
 ): Promise<Target> {
+  const candidates: { runtime: Runtime; pinned: boolean }[] = [];
   const pinnedId = env.INTROSPECTION_TRIVIA_RUNTIME_ID?.trim();
-  let runtime: Runtime | null = null;
   if (pinnedId) {
     try {
       const read = await client.runtimes.get(pinnedId);
-      if (read.project_id === project) runtime = read;
+      if (read.project_id === project)
+        candidates.push({ runtime: read, pinned: true });
     } catch (error) {
       if (!(error instanceof NotFoundError)) throw error;
     }
   }
-  // The pinned commit goes with the pinned Runtime only.
-  const pinned = runtime !== null;
   for (const slug of RUNTIME_SLUGS) {
-    if (runtime) break;
     try {
-      runtime = await client.runtimes.resolve(slug, project);
+      const found = await client.runtimes.resolve(slug, project);
+      if (!candidates.some(({ runtime }) => runtime.id === found.id))
+        candidates.push({ runtime: found, pinned: false });
     } catch (error) {
       if (!(error instanceof NotFoundError)) throw error;
     }
   }
-  if (!runtime) throw new NoRuntime();
-  const commit =
-    (pinned && env.INTROSPECTION_TRIVIA_COMMIT_SHA?.trim()) ||
-    runtime.git_commit_sha;
-  if (!commit) throw new Error(`the ${runtime.slug} runtime has no commit yet`);
-  if (!runtime.recipe_id)
-    throw new Error(`the ${runtime.slug} runtime has no Recipe`);
-  const recipe = await client.recipes.get(runtime.recipe_id);
-  return {
-    runtime: runtime.id,
-    commit,
-    slug: runtime.slug,
-    repository: recipe.repository_id,
-    recipe_path:
-      recipe.sub_path && recipe.sub_path !== "." ? recipe.sub_path : "",
-  };
+  if (!candidates.length) throw new NoRuntime();
+  for (const { runtime, pinned } of candidates) {
+    // The pinned commit goes with the pinned Runtime only.
+    const commit =
+      (pinned && env.INTROSPECTION_TRIVIA_COMMIT_SHA?.trim()) ||
+      runtime.git_commit_sha;
+    if (!commit || !runtime.recipe_id) continue;
+    const recipe = await client.recipes.get(runtime.recipe_id);
+    const target: Target = {
+      runtime: runtime.id,
+      commit,
+      slug: runtime.slug,
+      repository: recipe.repository_id,
+      recipe_path:
+        recipe.sub_path && recipe.sub_path !== "." ? recipe.sub_path : "",
+    };
+    if (await hasTasks(client, target)) return target;
+  }
+  throw new NoTasks(candidates.map(({ runtime }) => runtime.slug));
 }
 
 const repoPath = (target: Target, ...parts: string[]) =>
