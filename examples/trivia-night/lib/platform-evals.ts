@@ -6,8 +6,6 @@
  */
 import HELDOUT from "../recipe-operator/evals/heldout.json";
 import VENUES from "../recipe-operator/evals/venues.json";
-import { plainText, truncateWords } from "./display";
-import type { Judgement } from "./judge";
 import type { Fetch, Measures } from "./memory-measures";
 
 /** A venue profile's task pair, as `pnpm evals:venues` writes it. */
@@ -86,19 +84,12 @@ export type EvalFinished = Step & {
   reward: number | null;
   checks: Record<string, number>;
   notes: string | null;
-  /** The agent's last message, as plain text. */
-  plan?: string | null;
-  /** The first round it fetched, from the verifier. */
-  round?: Fetch | null;
-  /** The return-visit judge's grade of a night 2. */
-  judge?: Judgement | null;
   /** Absent on trials recorded before measures existed. */
   measures?: Measures;
   /** Each round it fetched, from the verifier. */
   fetches?: Fetch[];
   /** Each round as played: its questions, their answers and each team's mark. */
   rounds?: PlayedRound[];
-  trajectory_source: string | null;
   seconds: number;
   exit_code: number | null;
   error: string | null;
@@ -144,7 +135,6 @@ export const taskName = (
   teams: TeamSize = DEFAULT_TEAMS,
 ) => `night${night}-${slug}${teams === DEFAULT_TEAMS ? "" : `-t${teams}`}`;
 const NOTES_PREVIEW = 600;
-const PLAN_PREVIEW = 300;
 
 export function newRunId(now = new Date()): string {
   return `r${now.getTime()}`;
@@ -483,13 +473,9 @@ export function skippedTrial(step: Step, reason: string): EvalFinished {
     reward: null,
     checks: {},
     notes: null,
-    plan: null,
-    round: null,
     fetches: [],
     rounds: [],
-    judge: null,
     measures: {},
-    trajectory_source: null,
     seconds: 0,
     exit_code: null,
     error: reason,
@@ -549,11 +535,6 @@ export function verifierOutput(
     fetches: Array.isArray(printed.fetches) ? (printed.fetches as Fetch[]) : [],
     rounds: parseRounds(printed.rounds),
   };
-}
-
-export function planText(message: string | null): string | null {
-  const text = message ? plainText(message) : "";
-  return text ? truncateWords(text, PLAN_PREVIEW) : null;
 }
 
 export function previewNotes(notes: string | null): string | null {

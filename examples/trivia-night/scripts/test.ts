@@ -1304,7 +1304,7 @@ async function main() {
       assert.equal(result.checks.good_rounds, 0.5);
       assert.equal(result.seconds, 90);
       assert.equal(result.error, null);
-      assert.equal(result.round?.correct_rate, 0.6);
+      assert.equal(result.fetches?.[0]?.correct_rate, 0.6);
       assert.ok(result.measures && Object.keys(result.measures).length > 0);
       const seed = (await runner.trialResult(
         client,
@@ -1312,6 +1312,22 @@ async function main() {
       ))!;
       assert.equal(seed.error, "no sandbox");
       assert.deepEqual(seed.measures, {});
+
+      // The analysis reads the same run without moving it on.
+      calls.length = 0;
+      const results = (await runner.runResults(client, run))!;
+      assert.deepEqual(calls, []);
+      assert.deepEqual(
+        results.map((r) => [`${r.venue}/${r.night}`, r.error]),
+        [
+          ["sydney/night1-memory", null],
+          ["sydney/night2-hosted", null],
+          ["sydney/night2-fresh", null],
+          ["sydney/night0-seed", "no sandbox"],
+          ["sydney/night2-perfect", "skipped: night0-seed failed"],
+        ],
+      );
+      assert.equal(await runner.runResults(client, "r0"), null);
     },
   );
 
@@ -1384,201 +1400,36 @@ async function main() {
     },
   );
 
-  const trial = await import("../lib/trial-steps");
-  const notes = "# Venue notes\n\n- Country: UK\n- Difficulty: 3\n";
-  const kinds = (events: { type: string }[]) => events.map((e) => e.type);
-
-  await check(
-    "trial steps: a finished trajectory becomes the page's events",
-    () => {
-      const base = mkdtempSync(path.join(tmpdir(), "trivia-trajectory-"));
-      const steps = [
-        { step_id: 1, source: "system", message: "You are the trivia host." },
-        { step_id: 2, source: "user", message: "Evening!" },
-        {
-          step_id: 3,
-          source: "agent",
-          message: "",
-          tool_calls: [
-            {
-              tool_call_id: "toolu_recipe_memory_read",
-              function_name: "read",
-              arguments: { path: "/workspace/memories/MEMORY.md" },
-            },
-            {
-              tool_call_id: "t1",
-              function_name: "mcp_trivia-bank_next_questions_520f9420fe",
-              arguments: { count: 8, genre: "history" },
-            },
-          ],
-          observation: {
-            results: [
-              { source_call_id: "toolu_recipe_memory_read", content: notes },
-              { source_call_id: "t1", content: '{"questions":[]}' },
-            ],
-          },
-        },
-        {
-          step_id: 4,
-          source: "agent",
-          message: "Now the notes.",
-          tool_calls: [
-            {
-              tool_call_id: "t2",
-              function_name: "edit",
-              arguments: {
-                path: "/workspace/memories/MEMORY.md",
-                oldText: "Difficulty: 3",
-                newText: "Difficulty: 4",
-              },
-            },
-          ],
-          observation: { results: [{ source_call_id: "t2", content: "ok" }] },
-        },
-        {
-          step_id: 5,
-          source: "agent",
-          message: "Tonight: history at 3. " + "x".repeat(2400),
-        },
-      ];
-      writeRunFolder(base, {
-        "run.json": {},
-        "harbor/night2-hosted__getFCyA/result.json": {},
-        "harbor/night2-hosted__getFCyA/agent/trajectory.json": {
-          schema_version: "ATIF-v1.7",
-          steps,
-        },
-      });
-      const file = trial.trajectoryFile(base);
-      assert.equal(
-        file,
-        path.join(base, "harbor/night2-hosted__getFCyA/agent/trajectory.json"),
-      );
-      const events = trial.trajectoryEvents(file!);
-      assert.deepEqual(kinds(events), [
-        "memory.read",
-        "bank.served",
-        "memory.written",
-        "host.planned",
-      ]);
-      assert.equal(events[0].data.file, notes);
-      assert.equal((events[3].data.file as string).length, 2000);
-
-      assert.deepEqual(events[1].data, {
-        server: "trivia-bank",
-        tool: "next_questions",
-        arguments: { count: 8, genre: "history" },
-      });
-      assert.match(events[1].summary, /genre history, 8 questions/);
-
-      // A first visit's read of notes that don't exist yet is no error.
-      const missing =
-        "ENOENT: no such file or directory, access '/workspace/memories/MEMORY.md'";
-      for (const result of [missing, ""])
-        assert.deepEqual(
-          trial.toolCallEvent(
-            "r1",
-            "read",
-            { path: "/workspace/memories/MEMORY.md" },
-            result,
-            result !== "",
-          ),
-          {
-            key: "tool:r1",
-            type: "memory.read",
-            summary: "Loading memory · none yet — first visit",
-            data: {
-              path: "/workspace/memories/MEMORY.md",
-              file: "",
-              first_visit: true,
-            },
-          },
-        );
-      // Other tool errors still show, shortened to one line.
-      const failed = trial.toolCallEvent(
-        "t9",
-        "mcp_trivia-bank_next_questions_520f9420fe",
-        { genre: "history" },
-        "Error: unknown region\nstack…",
-        true,
-      );
-      assert.equal(failed?.data.error, "Error: unknown region");
-      rmSync(base, { recursive: true });
-    },
-  );
-
   const display = await import("../lib/display");
 
-  await check("notes previews and event text drop markdown", () => {
-    assert.equal(
-      display.plainLine("- **Country:** UK. Use region `uk` only."),
-      "Country: UK. Use region uk only.",
-    );
-    assert.equal(
-      display.notesPreview(
-        "# Venue\n\n- **Crowd:** loves music and hates sport",
-      ),
-      "Crowd: loves music and hates sport",
-    );
-    const long = display.truncateWords(
-      "the crowd liked music so it's a safe opener for next week",
-      30,
-    );
-    assert.equal(long, "the crowd liked music so it's…");
-    assert.ok(long.length <= 30);
-    assert.equal(display.truncateWords("short", 30), "short");
-    assert.equal(
-      display.firstSentences(
-        "**Before I fetch anything**, which country is the venue in? Then I'll pick rounds. Third.",
-      ),
-      "Before I fetch anything, which country is the venue in? Then I'll pick rounds.",
-    );
-    assert.equal(
-      display.roundLabel({ genre: "history", region: "uk", difficulty: 3 }),
-      "history · uk · diff 3",
-    );
-  });
-
-  await check("event labels are short", () => {
-    assert.equal(display.kindLabel("bank.served"), "tool");
-    assert.equal(display.kindLabel("bank.marked"), "tool");
-    assert.equal(display.kindLabel("memory.read"), "read");
-    assert.equal(display.kindLabel("memory.written"), "write");
-    assert.equal(display.kindLabel("host.planned"), "plan");
-    assert.equal(
-      display.toolLine("trivia-bank", "next_questions", {
-        genre: "music",
-        difficulty: 3,
-        region: "uk",
-        count: 8,
-      }),
-      "trivia-bank · next_questions · music · difficulty 3 · uk · 8 questions",
-    );
-    assert.equal(
-      display.toolLine("trivia-bank", "start_night", {}),
-      "trivia-bank · start_night",
-    );
-    assert.equal(
-      display.toolLine("trivia-bank", "register_teams", { names: ["a", "b"] }),
-      "trivia-bank · register_teams · 2 teams",
-    );
-    assert.equal(
-      display.targetLabel("trivia-host", "e328209abcdef0123"),
-      "trivia-host @ e328209",
-    );
-    assert.equal(
-      display.targetLabel("0199a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5b", "e328209ab"),
-      "0199a1b2 @ e328209",
-    );
-    assert.equal(
-      display.targetLabel(
-        "0199a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5b",
-        "e328209ab",
-        "trivia-host",
-      ),
-      "trivia-host @ e328209",
-    );
-  });
+  await check(
+    "display: a notes line drops its markdown, a target is short",
+    () => {
+      assert.equal(
+        display.plainLine("- **Country:** UK. Use region `uk` only."),
+        "Country: UK. Use region uk only.",
+      );
+      assert.equal(
+        display.targetLabel("trivia-host", "e328209abcdef0123"),
+        "trivia-host @ e328209",
+      );
+      assert.equal(
+        display.targetLabel(
+          "0199a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5b",
+          "e328209ab",
+        ),
+        "0199a1b2 @ e328209",
+      );
+      assert.equal(
+        display.targetLabel(
+          "0199a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5b",
+          "e328209ab",
+          "trivia-host",
+        ),
+        "trivia-host @ e328209",
+      );
+    },
+  );
 
   await check(
     "notes become fact chips, marking what changed since night 1",
@@ -1608,47 +1459,6 @@ async function main() {
         display.factChips("Just a sentence about the room."),
         [],
       );
-    },
-  );
-
-  await check(
-    "verifier rows: yes/no checks tick, measures read in words",
-    () => {
-      const fetches = [
-        { genre: "sport", count: 5, correct_rate: 0.68 },
-        { genre: "history", count: 5, correct_rate: 0.41 },
-      ];
-      const line = (key: string, value: number, f = fetches) =>
-        memory.checkLine(key, value, f);
-      assert.deepEqual(line("fetched_a_round", 1), {
-        key: "fetched_a_round",
-        text: "Quiz run",
-        pass: true,
-      });
-      assert.equal(line("notes_kept", 0).pass, false);
-      assert.equal(
-        line("right_region", 1).text,
-        "Questions from the right region",
-      );
-      assert.deepEqual(line("in_band", 0.5), {
-        key: "in_band",
-        text: "Rounds pitched right: 1 of 2 (68%, 41% right)",
-      });
-      assert.equal(line("in_band", 0.5, []).text, "Rounds pitched right: 50%");
-      assert.equal(
-        line("favourite_genre", 1).text,
-        "Rounds in favourite genres: 2 of 2",
-      );
-      assert.equal(
-        line("close_finish", 0.2).text,
-        "How close the finish was: within 2 points",
-      );
-      assert.equal(
-        line("close_finish", 0.2, []).text,
-        "How close the finish was: 20% gap",
-      );
-      assert.equal(line("some_new_key", 3).text, "Some new key: 3");
-      assert.equal(line("in_band", 0.5).pass, undefined);
     },
   );
 
@@ -1909,32 +1719,6 @@ async function main() {
     );
   });
 
-  const results = await import("../lib/results");
-  await check("trial results: kept on disk past the bounded feed", () => {
-    const dir = mkdtempSync(path.join(tmpdir(), "trivia-results-"));
-    const file = results.resultsFile(dir, "r1");
-    assert.deepEqual(results.readResults(file), []);
-    for (let i = 0; i < 2500; i++)
-      results.appendResult(file, {
-        type: "eval.finished",
-        data: { run: "r1", venue: `pub-${i}`, night: "night2-fresh" },
-      });
-    results.appendResult(file, {
-      type: "eval.run_finished",
-      data: { run: "r1", trials: 2500 },
-    });
-    const lines = results.readResults(file);
-    assert.equal(lines.length, 2501);
-    assert.equal(lines[0].data.venue, "pub-0");
-    assert.equal(lines.at(-1)?.type, "eval.run_finished");
-  });
-  await check("trial results: an errored trial is never analysed", () => {
-    assert.equal(results.scored({ error: null }), true);
-    assert.equal(results.scored({}), true);
-    assert.equal(results.scored({ error: "sandbox failed" }), false);
-    assert.equal(results.scored(null), false);
-    assert.equal(results.scored(undefined), false);
-  });
   const experiment = await import("../lib/experiment");
   await check(
     "experiment: sign test, Holm, ordering and the validity gate",

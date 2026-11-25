@@ -8,15 +8,7 @@ import type {
   EvalStarted,
   PlayedRound,
 } from "@/lib/platform-evals";
-import {
-  factChips,
-  firstSentences,
-  kindLabel,
-  notesPreview,
-  roundLabel,
-  targetLabel,
-  toolLine,
-} from "@/lib/display";
+import { factChips, targetLabel } from "@/lib/display";
 import {
   GATE_MIN,
   holm,
@@ -26,9 +18,7 @@ import {
   validityGate,
   type Pair,
 } from "@/lib/experiment";
-import { scored } from "@/lib/scored";
-import type { Judgement } from "@/lib/judge";
-import { BAND, MEASURES, checkLine } from "@/lib/memory-measures";
+import { BAND, MEASURES } from "@/lib/memory-measures";
 import {
   type Comparison,
   MIN_PUBS,
@@ -58,13 +48,6 @@ interface Config {
 
 type Pubs = "development" | "heldout";
 
-interface FeedEvent {
-  seq: number;
-  type: string;
-  summary: string;
-  data: Record<string, unknown>;
-}
-
 /** A session that ended sends the browser back through the sign-in. */
 function signedOut(response: Response): boolean {
   if (response.status !== 401) return false;
@@ -92,16 +75,6 @@ const NIGHTS = [
   "night2-perfect",
 ] as const;
 type NightKey = (typeof NIGHTS)[number] | "night0-seed" | "night1-donor";
-
-const NIGHT_TITLES: Record<NightKey, string> = {
-  "night0-seed": "Night 0 · true notes seeded",
-  "night1-donor": "Night 1 at another pub · the other notes",
-  "night1-memory": "Night 1 · what it learned",
-  "night2-wrong": "Night 2 · other notes",
-  "night2-fresh": "Night 2 · no notes",
-  "night2-hosted": "Night 2 · model notes",
-  "night2-perfect": "Night 2 · true notes",
-};
 
 /** The bars, top to bottom: each night 2 arm, its label and its bar colour. */
 const ARMS = [
@@ -267,9 +240,6 @@ const GOOD_ROUNDS = "good_rounds";
 /** A share (0-1) as points, `0.12` as 12. */
 const points = (value: number) => Math.round(value * 100);
 
-/** A measure key in plain words: `favourite_genre` as "favourite genre". */
-const measureLabel = (key: string) => key.replace(/_/g, " ");
-
 /** The country code of a "City (CC)" label. */
 const countryOf = (label: string) => /\(([^)]+)\)$/.exec(label)?.[1] ?? null;
 
@@ -322,89 +292,6 @@ function runView(state: RunState, results: Map<string, EvalFinished>): RunView {
   };
 }
 
-/** A night 2's judge score and its reason, or why it has none. */
-function Score({ judge }: { judge?: Judgement | null }) {
-  if (!judge) return null;
-  if (judge.score === null)
-    return <span className="fine">judge: {judge.error ?? "no score"}</span>;
-  return (
-    <span className="score">
-      <strong>{judge.score}/5</strong>
-      {judge.reason && <span className="fine"> {judge.reason}</span>}
-    </span>
-  );
-}
-
-/** What a finished trial's card column says: night 1's facts, night 2's opening words. */
-function Summary({
-  night,
-  finished,
-}: {
-  night: NightKey;
-  finished: EvalFinished;
-}) {
-  const checks = Object.values(finished.checks);
-  const missed = checks.filter((value) => !value).length;
-  if (night === "night1-memory") {
-    const chips = finished.notes ? factChips(finished.notes) : [];
-    const preview =
-      finished.notes && !chips.length ? notesPreview(finished.notes) : null;
-    return (
-      <>
-        {chips.length > 0 ? (
-          <span className="facts">
-            {chips.map((chip) => (
-              <span key={chip.key} className="fact">
-                {chip.text}
-              </span>
-            ))}
-          </span>
-        ) : (
-          <span className="fine">{preview ?? "No notes left."}</span>
-        )}
-        {finished.error ? (
-          <span className="amber">error, see details</span>
-        ) : (
-          missed > 0 && (
-            <span className="amber">
-              missed {missed} of {checks.length} checks
-            </span>
-          )
-        )}
-      </>
-    );
-  }
-  return (
-    <>
-      {night === "night2-wrong" && finished.donor_label && (
-        <span className="fine">notes from {finished.donor_label}</span>
-      )}
-      {finished.plan ? (
-        <q className="quote">{firstSentences(finished.plan)}</q>
-      ) : (
-        <span className="fine">No message.</span>
-      )}
-      <span className={finished.round ? "fact" : "fine"}>
-        {finished.round ? roundLabel(finished.round) : "no round fetched"}
-      </span>
-      <Score judge={finished.judge} />
-      {night === "night2-hosted" &&
-        (finished.error ? (
-          <span className="amber">error, see details</span>
-        ) : (
-          missed > 0 && (
-            <span className="amber">
-              missed {missed} of {checks.length} checks
-            </span>
-          )
-        ))}
-      {night !== "night2-hosted" && finished.error && (
-        <span className="fine">error, see details</span>
-      )}
-    </>
-  );
-}
-
 /** Each round as it was played: the questions with their answers, and which teams got each right. */
 function Rounds({ rounds }: { rounds: PlayedRound[] }) {
   if (!rounds.length)
@@ -454,8 +341,6 @@ function Rounds({ rounds }: { rounds: PlayedRound[] }) {
   );
 }
 
-type NightView = "questions" | "steps";
-
 /** The night tabs, short enough to sit in one row. */
 const TAB_LABELS: Record<(typeof NIGHTS)[number], string> = {
   "night1-memory": "Night 1",
@@ -487,7 +372,7 @@ function nightStatus(
   };
 }
 
-/** A failed night in one line; the raw message is its title and sits under the hood. */
+/** A failed night in one line; the raw message is its title. */
 function failureLine(finished: EvalFinished): string {
   if (finished.rounds?.length)
     return "Stopped part way: the platform task failed.";
@@ -535,83 +420,6 @@ function NightQuestions({
     </>
   );
 }
-const NIGHT_VIEW_KEY = "trivia-night:night-view";
-
-/** One step of a trial, from its trajectory. */
-function Step({ event }: { event: FeedEvent }) {
-  const kind = (
-    <span className={`kind kind-${event.type.split(".")[0]}`}>
-      {kindLabel(event.type)}
-    </span>
-  );
-  const error =
-    typeof event.data.error === "string" ? (
-      <span className="step-error"> {event.data.error}</span>
-    ) : null;
-  if (event.type === "memory.read") {
-    const file = String(event.data.file ?? "").trim();
-    // Events recorded before the step builder knew a missing file carry its error as the file.
-    if (!file || /ENOENT|no such file/i.test(file))
-      return (
-        <li>
-          {kind} Loading memory{" "}
-          <span className="fine">· none yet — first visit</span>
-          {error}
-        </li>
-      );
-    return (
-      <li>
-        {kind} Loading memory
-        <pre>{file}</pre>
-      </li>
-    );
-  }
-  if (event.type === "memory.written")
-    return (
-      <li>
-        <details>
-          <summary>{kind} Saving memory</summary>
-          <pre>
-            {typeof event.data.file === "string"
-              ? event.data.file
-              : JSON.stringify(event.data.edit, null, 2)}
-          </pre>
-        </details>
-      </li>
-    );
-  if (event.type === "host.planned") {
-    const plan = String(event.data.file ?? "");
-    return (
-      <li>
-        <details>
-          <summary>
-            {kind} {firstSentences(plan, 1, 100) || "Planning"}
-          </summary>
-          <pre className="plan">{plan}</pre>
-        </details>
-      </li>
-    );
-  }
-  if (event.type.startsWith("bank.") && typeof event.data.tool === "string")
-    return (
-      <li>
-        {kind}{" "}
-        {toolLine(
-          typeof event.data.server === "string"
-            ? event.data.server
-            : "trivia-bank",
-          event.data.tool,
-          (event.data.arguments as Record<string, unknown>) ?? {},
-        )}
-        {error}
-      </li>
-    );
-  return (
-    <li>
-      {kind} {event.summary}
-    </li>
-  );
-}
 
 export function PlatformEvals() {
   const [config, setConfig] = useState<Config>();
@@ -623,26 +431,7 @@ export function PlatformEvals() {
   const [view, setView] = useState<RunView>();
   const [error, setError] = useState<string>();
   const [open, setOpen] = useState<string>();
-  const [nightView, setNightView] = useState<NightView>("questions");
   const [tabs, setTabs] = useState<Record<string, (typeof NIGHTS)[number]>>({});
-  useEffect(() => {
-    try {
-      if (window.localStorage.getItem(NIGHT_VIEW_KEY) === "steps")
-        setNightView("steps");
-    } catch {
-      // Storage blocked: the default view stays.
-    }
-  }, []);
-  const chooseView = (view: NightView) => {
-    setNightView(view);
-    try {
-      window.localStorage.setItem(NIGHT_VIEW_KEY, view);
-    } catch {
-      // Storage blocked: the choice lasts for this page only.
-    }
-  };
-  // A platform trial's steps would come from its trajectory, which the page cannot read yet.
-  const steps: FeedEvent[] = [];
   const run = useRef<string | null>(null);
   const results = useRef(new Map<string, EvalFinished>());
 
@@ -737,23 +526,16 @@ export function PlatformEvals() {
   ];
   const done = trialList.filter(({ finished }) => finished).length;
   const expected = view?.finished?.trials ?? trialsFor(trialVenues.length);
-  const finishedAt = (night: NightKey) =>
-    trialList
-      .filter(({ started, finished }) => started.night === night && finished)
-      .map(({ finished }) => finished!);
   // A perfect-notes night 2 counts only when night 0 seeded exactly the true notes.
   const counted = (venue: string, night: NightKey) =>
     night !== "night2-perfect" ||
     view?.trials.get(`${venue}/night0-seed`)?.finished?.checks.notes_seeded ===
       1;
-  const scoreOf = (venue: string, night: NightKey) =>
-    counted(venue, night)
-      ? (view?.trials.get(`${venue}/${night}`)?.finished?.judge?.score ?? null)
-      : null;
   const measureAt = (venue: string, night: NightKey, key: string) => {
     if (!counted(venue, night)) return null;
     const finished = view?.trials.get(`${venue}/${night}`)?.finished;
-    if (!scored(finished)) return null;
+    // A trial that errored measured nothing.
+    if (!finished || finished.error) return null;
     const value = (finished?.measures as Record<string, number> | undefined)?.[
       key
     ];
@@ -898,7 +680,7 @@ export function PlatformEvals() {
     measureRow("favourite_genre", "Loved genres played"),
     measureRow("first_round_in_band", "First round pitched right"),
   ].filter((row): row is Row => row !== null);
-  // Under the hood: how the night felt, which doesn't test memory, and the rest.
+  // How the night felt, which doesn't test memory, and rounds in band.
   const experienceRows = [
     measureRow("close_finish", "How close the finish was"),
     measureRow(
@@ -910,18 +692,7 @@ export function PlatformEvals() {
       "Last place's points, as a share of the winner's",
     ),
   ].filter((row): row is Row => row !== null);
-  const otherRows = [
-    measureRow("in_band", "Rounds 55–75% right"),
-    rowFor(
-      "judge",
-      "Judge: how tailored it felt (1–5)",
-      "A model judge's 1–5 score of how well night 2 suited this crowd",
-      false,
-      scoreOf,
-      (value) => (value === null ? "–" : value.toFixed(1)),
-      [1, 5],
-    ),
-  ].filter((row): row is Row => row !== null);
+  const inBand = measureRow("in_band", "Rounds 55–75% right");
   // Secondary rows are called better or worse only past a Holm-corrected sign test.
   const secondary = built.filter((row) => !row.primary);
   const adjusted = holm(secondary.map((row) => row.p));
@@ -1067,14 +838,6 @@ export function PlatformEvals() {
           },
         ];
   });
-  const night2s = [
-    ...finishedAt("night2-hosted"),
-    ...finishedAt("night2-fresh"),
-    ...finishedAt("night2-wrong"),
-    ...finishedAt("night2-perfect"),
-  ];
-  const judgeError = night2s.find((finished) => finished.judge?.error)?.judge
-    ?.error;
 
   const armStatus = (night: NightKey): ArmStatus => {
     const runs = trialVenues.map((venue) =>
@@ -1100,13 +863,6 @@ export function PlatformEvals() {
   ) as Partial<Record<NightKey, ArmStatus>>;
   const trialAt = (venue: string, night: NightKey) =>
     view?.trials.get(`${venue}/${night}`);
-  const stepsOf = (venue: string, night: NightKey) =>
-    steps.filter(
-      (event) =>
-        event.data.run === view?.run &&
-        event.data.venue === venue &&
-        event.data.night === night,
-    );
 
   const card = (venue: string) => {
     const trials = NIGHTS.map((night) => trialAt(venue, night));
@@ -1168,60 +924,8 @@ export function PlatformEvals() {
                     ? "This night didn't run."
                     : "Waiting to start."}
               </span>
-            ) : nightView === "questions" ? (
-              <NightQuestions night={chosen} finished={finished} />
             ) : (
-              <>
-                {chosen === "night2-wrong" &&
-                  trialAt(venue, "night1-donor")?.finished && (
-                    <div className="hood-summary">
-                      <h5 className="verifiers">
-                        {NIGHT_TITLES["night1-donor"]}{" "}
-                        <span className="fine">
-                          played first, as this customer, to write the notes
-                          night 2 loads
-                        </span>
-                      </h5>
-                      <Summary
-                        night="night1-donor"
-                        finished={trialAt(venue, "night1-donor")!.finished!}
-                      />
-                    </div>
-                  )}
-                <div className="hood-summary">
-                  <Summary night={chosen} finished={finished} />
-                </div>
-                <ol className="step-list">
-                  {stepsOf(venue, chosen).map((event) => (
-                    <Step key={event.seq} event={event} />
-                  ))}
-                </ol>
-                <h5 className="verifiers">
-                  Verifiers{" "}
-                  <span className="fine">
-                    what the eval&apos;s verifier measured for this night
-                  </span>
-                </h5>
-                <ul className="check-list">
-                  {Object.entries(finished.checks).map(([name, value]) => {
-                    const line = checkLine(name, value, finished.fetches ?? []);
-                    return line.pass === undefined ? (
-                      <li key={name}>{line.text}</li>
-                    ) : (
-                      <li key={name} className={line.pass ? "pass" : "fine"}>
-                        {line.text} {line.pass ? "✓" : "✗"}
-                      </li>
-                    );
-                  })}
-                </ul>
-                <span className="fine">
-                  reward {finished.reward ?? "none"} · {finished.seconds}s
-                  {finished.trajectory_source &&
-                    finished.trajectory_source !== "sandbox" &&
-                    ` · ${finished.trajectory_source}`}
-                </span>
-                {finished.error && <pre>{finished.error}</pre>}
-              </>
+              <NightQuestions night={chosen} finished={finished} />
             )}
           </div>
         )}
@@ -1461,10 +1165,9 @@ export function PlatformEvals() {
                   <strong>More measures (don&apos;t test memory)</strong>
                 </summary>
                 {experienceRows.map(barRow)}
-                {otherRows.map(barRow)}
+                {inBand && barRow(inBand)}
               </details>
             )}
-            {judgeError && <p className="amber">Judge: {judgeError}</p>}
             <details className="fine how">
               <summary>How it&apos;s tested</summary>
               <p>
@@ -1499,22 +1202,6 @@ export function PlatformEvals() {
             </details>
           </div>
           <div className="cards-head">
-            <div className="view-toggle" role="group" aria-label="View">
-              <button
-                type="button"
-                aria-pressed={nightView === "questions"}
-                onClick={() => chooseView("questions")}
-              >
-                Questions
-              </button>
-              <button
-                type="button"
-                aria-pressed={nightView === "steps"}
-                onClick={() => chooseView("steps")}
-              >
-                Under the hood
-              </button>
-            </div>
             <span className="fine">Click a night to see its rounds.</span>
           </div>
           <div className="venue-cards">{trialVenues.map(card)}</div>

@@ -6,9 +6,9 @@ The scripts behind [`PREREGISTRATION.md`](../PREREGISTRATION.md). They sit outsi
 | ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `night-series.eval.ts` | The frozen series `improve/memory` searches with. One pub's two nights under Vitest: night 1 writes the notes, a fresh session plays night 2 from them, and the pub's own `check.mjs` scores night 2. |
 | `run-series.sh`        | Runs that suite for one Recipe folder, pub and arm (`hosted` or `fresh`), with no API key in its environment, so the model runs on your Pi sign-in.                                                   |
-| `analyze.mts`          | The pre-registered analysis of a platform run: arm means, the validity gate, paired intervals, sign tests and Holm correction.                                                                        |
+| `analyze.mts`          | The pre-registered analysis of a platform run, read from its trial tasks with the agent key: arm means, the validity gate, paired intervals, sign tests and Holm correction.                          |
 
 ```sh
-pnpm install --dir experiment
-node --import tsx experiment/analyze.mts <run-id>  # with the page running on :3500
+pnpm install --dir experiment  # for the series
+node --env-file-if-exists=.env.local --import tsx experiment/analyze.mts <run-id>  # the agent key as the page reads it
 ```

@@ -2,16 +2,7 @@
  * What happened behind the quiz, in order, so the page can show each bank
  * lookup and each memory read and write as it runs. In-memory and per process.
  */
-type FlowEventType =
-  | "bank.served"
-  | "bank.relaxed"
-  | "bank.marked"
-  | "memory.read"
-  | "memory.written"
-  | "host.planned"
-  | "eval.started"
-  | "eval.finished"
-  | "eval.run_finished";
+type FlowEventType = "bank.served" | "bank.relaxed" | "bank.marked";
 
 export interface FlowEvent {
   seq: number;

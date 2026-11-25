@@ -1,6 +1,6 @@
 # Trivia Night: a memory demo
 
-A quiz host for pubs. The question bank never repeats a question at a venue, and a host that remembers the venue pitches each night to its crowd. The page runs the real memory evals on the platform and shows, as each trial runs, every bank call the agent makes and every read and write of its notes.
+A quiz host for pubs. The question bank never repeats a question at a venue, and a host that remembers the venue pitches each night to its crowd. The page runs the real memory evals on the platform and shows each night's rounds as its verifier scored them.
 
 > **Status:** the bank and its MCP server run with no platform. `pnpm dev` also deploys the Recipe as the `trivia-host` Runtime and binds the bank to it on a public URL, and the agent calls the bank, but the bank does not yet accept the token the platform sends for it; [What's next](#whats-next) says why and what is missing.
 
@@ -81,7 +81,7 @@ echo TRIVIA_SPA_CLIENT_ID=<the printed client_id> >> .env.local
 | `TRIVIA_EVAL_KEY_FILE`       | none                            | The agent key file, when `TRIVIA_AGENT_KEY` is not set.                                  |
 | `TRIVIA_SESSION_SECRET`      | none                            | At least 32 characters the sign-in cookie is sealed with; `pnpm dev` writes one.         |
 
-The server exchanges the code itself (PKCE, through the SDK's `authorizationCodeToken`) and keeps only the member's id, org, project and the token's expiry, in an httpOnly cookie sealed with AES-256-GCM under `TRIVIA_SESSION_SECRET`. It refuses a sign-in to any project but the one the agent key's runtime is in, and `/api/evals` and `/api/events` answer 401 without a live session and 403 for another project. The trials still run with the agent key, since per-pub memory needs an agent's credentials; the key stays on the server and never reaches the browser. Each trial and the run's `eval.run_finished` record the signed-in member's id as `started_by`. The server holds no sessions, so a restart or another instance keeps everyone signed in; changing the secret signs everyone out.
+The server exchanges the code itself (PKCE, through the SDK's `authorizationCodeToken`) and keeps only the member's id, org, project and the token's expiry, in an httpOnly cookie sealed with AES-256-GCM under `TRIVIA_SESSION_SECRET`. It refuses a sign-in to any project but the one the agent key's runtime is in, and `/api/evals` and `/api/events` answer 401 without a live session and 403 for another project. The trials still run with the agent key, since per-pub memory needs an agent's credentials; the key stays on the server and never reaches the browser. Each trial records the signed-in member's id as `started_by` in its metadata. The server holds no sessions, so a restart or another instance keeps everyone signed in; changing the secret signs everyone out.
 
 Pick a number of venues and press **Run**. Venue _i_ plays the _i_-th venue profile (Sydney, Manchester, Chicago, and on across AU, UK and US pubs), all venues at once, each as its own customer:
 
@@ -96,9 +96,7 @@ Pick a number of venues and press **Run**. Venue _i_ plays the _i_-th venue prof
 
 Every trial is tagged `simulation:<run>` and `simulation:trivia-night`. Trials are scored in their own sandbox, so seeing results needs neither tag; to browse the trials themselves, an admin already can, and an owner can give another member the `simulation:trivia-night` tag. The page reads as an experiment: the hypothesis that notes tune night 2 to the crowd, the method, and the result. The two night 2s at a pub differ only in the notes, so each pub is a paired comparison: the result is how far each round's share right was from 65%, with memory against without, as a mean of per-pub differences with a 95% t-interval (from 3 pubs; 11 pubs gives a meaningful result), with the other measures beside it. Each run starts new customers, so nothing carries over between runs; a run measures one version of the agent and changes nothing.
 
-The `return-visit` judge (`recipe-operator/judges/return-visit.yaml`) no longer grades night 2 from the page: it ran `introspection judges run` over a local `trajectory.json`, and the page now spawns nothing and keeps no files.
-
-Each venue gets a card: what night 1 learned, and how each night 2 opened, with each round's questions and marks, the checks, reward and time, all from the verifier's output. A trial runs as an end user, so its conversation is not the key's to read, and the card has no step list (each read and write of the notes, each bank call, the agent's last message) until the page can read a trial's trajectory. While a run is going the page shows its progress; a card fills in as its venue's trials finish.
+Each venue gets a card with a tab per night: what night 1 learned, whose notes the other-notes night had, and each round's questions and team marks, all from the verifier's output. A trial runs as an end user, so its conversation is not the key's to read. While a run is going the page shows its progress; a card fills in as its venue's trials finish. [`experiment/analyze.mts`](./experiment/README.md) prints a run's pre-registered analysis from the same tasks.
 
 The key stays on the server: it never reaches a command line, the logs or the browser.
 
@@ -138,7 +136,7 @@ With the first three, a full cycle on API keys is about $3 to $5.
 | Identity              | [`lib/identity.ts`](./lib/identity.ts)                                     | Verifies the end-user token the platform sends, and refuses a call without one.                                                                                          |
 | Simulated venues      | [`lib/venues.ts`](./lib/venues.ts)                                         | Crowds for the in-session room scripts, each a table of how well it knows each genre. Seeded, so a run repeats exactly.                                                  |
 | Operator-built Recipe | [`recipe-operator/`](./recipe-operator)                                    | What a fresh Operator session built from [WALKTHROUGH.md](./WALKTHROUGH.md): the version to hill-climb on. Its bank is a contract it designed, not this one.             |
-| The page              | [`components/platform-evals.tsx`](./components/platform-evals.tsx)         | A card per venue: what night 1 learned, how each night 2 opened, and each trial's rounds and checks.                                                                     |
+| The page              | [`components/platform-evals.tsx`](./components/platform-evals.tsx)         | A card per venue: what night 1 learned and each night's rounds.                                                                                                          |
 | Platform evals        | [`lib/platform-runner.ts`](./lib/platform-runner.ts), `/api/evals`         | Runs the memory evals as `kind: eval` tasks that verify themselves, through the SDK; `/api/evals/<run>` moves a run on and `/api/evals/trials/<task>` reads a result.    |
 
 ## Who owns what

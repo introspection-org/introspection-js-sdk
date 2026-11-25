@@ -500,6 +500,9 @@ async function runTasks(
   );
 }
 
+const skipReason = (failed: string[]) =>
+  `skipped: ${failed.map((k) => k.split("/")[1]).join(", ")} failed`;
+
 /** The newest run this page started, by id, or null. */
 export async function latestRun(
   client: PlatformClient = platformClient(),
@@ -541,7 +544,7 @@ export async function advanceRun(
       const before = (step.after ?? []).map((k) => [k, states.get(k)] as const);
       const failed = before.filter(([, state]) => state?.failed);
       if (failed.length) {
-        const reason = `skipped: ${failed.map(([k]) => k.split("/")[1]).join(", ")} failed`;
+        const reason = skipReason(failed.map(([k]) => k));
         states.set(key, {
           done: true,
           failed: true,
@@ -682,11 +685,8 @@ export async function trialResult(
     reward: out.reward,
     checks: out.checks,
     notes: previewNotes(out.notes),
-    plan: null,
-    round: out.fetches[0] ?? null,
     fetches: out.fetches,
     rounds: out.rounds,
-    judge: null,
     measures:
       log || result
         ? measuresOf(step.night, {
@@ -697,7 +697,6 @@ export async function trialResult(
             night1Notes,
           })
         : {},
-    trajectory_source: null,
     seconds:
       task.started_at && scoredAt
         ? Math.round(
@@ -707,4 +706,39 @@ export async function trialResult(
     exit_code: verification?.exit_code ?? null,
     error: state.error,
   };
+}
+
+/**
+ * A run's results without moving it on: each scored trial's, and the record
+ * of each night skipped because one before it failed. Null for no such run.
+ */
+export async function runResults(
+  client: PlatformClient,
+  run: string,
+): Promise<EvalFinished[] | null> {
+  const tasks = await runTasks(client, run);
+  if (!tasks.length) return null;
+  const byStep = new Map<string, Task>();
+  for (const { task, meta } of tasks)
+    if (!byStep.has(meta.step)) byStep.set(meta.step, task);
+  const failed = new Set<string>();
+  const results: EvalFinished[] = [];
+  for (const step of runSteps(tasks[0].meta.record)) {
+    const key = stepKey(step);
+    const task = byStep.get(key);
+    if (!task) {
+      const before = (step.after ?? []).filter((k) => failed.has(k));
+      if (before.length) {
+        failed.add(key);
+        results.push(skippedTrial(step, skipReason(before)));
+      }
+      continue;
+    }
+    const state = trialState(task);
+    if (state.failed) failed.add(key);
+    if (!state.done) continue;
+    const result = await trialResult(client, task.id);
+    if (result) results.push(result);
+  }
+  return results;
 }

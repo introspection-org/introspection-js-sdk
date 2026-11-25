@@ -1,4 +1,3 @@
-import path from "node:path";
 import {
   holm,
   lift,
@@ -6,55 +5,38 @@ import {
   signTest,
   validityGate,
 } from "../lib/experiment";
-import { readResults, resultsFile, scored } from "../lib/results";
+import { platformClient, runResults } from "../lib/platform-runner";
 
 const run = process.argv[2];
-// The run's results file is the record; the page's bounded feed is only a fallback for older runs.
-const stored = readResults(
-  resultsFile(path.join(import.meta.dirname, "../recipe-operator"), run),
-);
-let events: { type: string; data: Record<string, unknown> }[] = stored;
-if (!stored.length) {
-  const res = await fetch("http://localhost:3500/api/events");
-  const body = (await res.json()) as unknown;
-  events = (
-    Array.isArray(body) ? body : ((body as { events?: unknown[] }).events ?? [])
-  ) as { type: string; data: Record<string, unknown> }[];
-}
-const all = events.filter(
-  (e) => e.type === "eval.finished" && e.data.run === run,
-);
+if (!run) throw new Error("usage: analyze.mts <run-id>");
+// The run is its tasks on the platform, read with the agent key.
+const results = await runResults(platformClient(), run);
+if (!results) throw new Error(`no trials found for run ${run}`);
 // A trial that errored measured nothing: it is counted and reported, never analysed.
-const fin = all.filter((e) => scored(e.data));
+const fin = results.filter((e) => !e.error);
 const by: Record<string, Record<string, Record<string, number>>> = {};
 // Runs before the verifier printed first_round_in_band: the first round's share right says the same.
 const BAND = [0.55, 0.75];
 // A true-notes night 2 counts only when its night 0 seeded the true notes (the pre-registration's rule).
 const seeded = new Set(
   fin
-    .filter(
-      (e) =>
-        e.data.night === "night0-seed" &&
-        (e.data.checks as Record<string, number> | undefined)?.notes_seeded ===
-          1,
-    )
-    .map((e) => String(e.data.venue)),
+    .filter((e) => e.night === "night0-seed" && e.checks.notes_seeded === 1)
+    .map((e) => e.venue),
 );
 for (const e of fin) {
-  const v = String(e.data.venue);
-  if (e.data.night === "night2-perfect" && !seeded.has(v)) continue;
-  const measures = { ...(e.data.measures ?? {}) } as Record<string, number>;
-  const opening = (e.data.fetches as { correct_rate?: number | null }[])?.[0]
-    ?.correct_rate;
+  const v = e.venue;
+  if (e.night === "night2-perfect" && !seeded.has(v)) continue;
+  const measures: Record<string, number> = { ...e.measures };
+  const opening = e.fetches?.[0]?.correct_rate;
   if (
     typeof measures.first_round_in_band !== "number" &&
     typeof opening === "number"
   )
     measures.first_round_in_band =
       opening >= BAND[0] && opening <= BAND[1] ? 1 : 0;
-  (by[v] ??= {})[String(e.data.night)] = measures;
+  (by[v] ??= {})[e.night] = measures;
 }
-const errors = all.length - fin.length;
+const errors = results.length - fin.length;
 console.log(
   `trials ${fin.length}, errors ${errors}, pubs ${Object.keys(by).length}`,
 );
@@ -65,10 +47,7 @@ const arms = {
   other: "night2-wrong",
   true: "night2-perfect",
 };
-console.log(
-  "arms seen:",
-  [...new Set(fin.map((e) => String(e.data.night)))].join(", "),
-);
+console.log("arms seen:", [...new Set(fin.map((e) => e.night))].join(", "));
 const measures = [
   "good_rounds",
   "favourite_genre",
