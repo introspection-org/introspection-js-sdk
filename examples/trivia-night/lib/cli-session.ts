@@ -7,9 +7,10 @@ import { readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import path from "node:path";
 
-import { memberClient, type Env } from "./platform-runner";
+import { apiBaseUrl, memberClient, type Env } from "./platform-runner";
 
 interface Credentials {
+  cp_url?: string;
   access_token?: string;
   dp_url?: string | null;
   project_id?: string;
@@ -27,14 +28,22 @@ export function cliSession(env: Env = process.env) {
     throw new Error(
       `${file} holds no signed-in project: run introspection login`,
     );
+  // The stack the CLI signed in to, unless the environment names another, so a
+  // script never falls through to production.
+  const scoped: Env = {
+    ...env,
+    INTROSPECTION_API_BASE_URL:
+      env.INTROSPECTION_API_BASE_URL?.trim() || credentials.cp_url,
+  };
   return {
     client: memberClient(
       {
         access_token: credentials.access_token,
         dp_url: credentials.dp_url ?? null,
       },
-      env,
+      scoped,
     ),
+    api: apiBaseUrl(scoped),
     project: credentials.project_id,
     member: credentials.member_id ?? "",
     token: credentials.access_token,

@@ -735,6 +735,41 @@ async function main() {
   );
 
   await check(
+    "platform evals: a local script acts on the stack the CLI signed in to",
+    async () => {
+      const { cliSession } = await import("../lib/cli-session");
+      const dir = mkdtempSync(path.join(tmpdir(), "trivia-cli-"));
+      const file = path.join(dir, "credentials.json");
+      writeFileSync(
+        file,
+        JSON.stringify({
+          cp_url: "http://localhost:8000",
+          dp_url: "http://localhost:8002",
+          access_token: "a-token",
+          project_id: "p-1",
+          member_id: "m-1",
+        }),
+      );
+      const signedIn = cliSession({ INTROSPECTION_CREDENTIALS: file });
+      assert.equal(signedIn.api, "http://localhost:8000");
+      assert.deepEqual([signedIn.project, signedIn.member], ["p-1", "m-1"]);
+      assert.equal(
+        cliSession({
+          INTROSPECTION_CREDENTIALS: file,
+          INTROSPECTION_API_BASE_URL: "http://localhost:9000",
+        }).api,
+        "http://localhost:9000",
+      );
+      writeFileSync(file, JSON.stringify({ cp_url: "http://localhost:8000" }));
+      assert.throws(
+        () => cliSession({ INTROSPECTION_CREDENTIALS: file }),
+        /introspection login/,
+      );
+      rmSync(dir, { recursive: true });
+    },
+  );
+
+  await check(
     "platform evals: a tests archive unpacks with plain tar and has no . entry",
     () => {
       const dir = mkdtempSync(path.join(tmpdir(), "trivia-tar-"));
@@ -870,73 +905,18 @@ async function main() {
     "platform evals: the verifier keeps the host's steps from the sandbox's GenAI spans",
     async () => {
       const dir = mkdtempSync(path.join(tmpdir(), "trivia-steps-"));
-      const tool = (name: string, args: object, text: string, code = "Ok") => ({
-        name: `execute_tool ${name}`,
-        start_time: `2026-11-25T02:20:0${next++}.000Z`,
-        status: { code },
-        attributes: {
-          gen_ai: {
-            agent: { id: "root" },
-            operation: { name: "execute_tool" },
-            tool: {
-              name,
-              call: {
-                id: `toolu_${next}`,
-                arguments: JSON.stringify(args),
-                result: JSON.stringify({ content: [{ type: "text", text }] }),
-              },
-            },
-          },
-        },
-      });
-      let next = 0;
-      const spans = {
-        object: "list",
-        data: [
-          tool(
-            "read",
-            { path: "memories/MEMORY.md" },
-            "ENOENT: no such file or directory",
-            "Error",
-          ),
-          tool(
-            "mcp_trivia-bank_next_questions_520f9420fe",
-            {
-              count: 4,
-              genre: "film",
-              token: "intro_sk_abcdefghijklmnopqrstu",
-            },
-            "x".repeat(1000),
-          ),
-          tool(
-            "write",
-            { path: "memories/MEMORY.md", content: "# Sydney" },
-            "ok",
-          ),
-          {
-            name: "chat",
-            start_time: "2026-11-25T02:20:09.000Z",
-            attributes: {
-              gen_ai: {
-                agent: { id: "root" },
-                operation: { name: "chat" },
-                output: {
-                  messages: [
-                    {
-                      role: "assistant",
-                      parts: [
-                        { type: "text", content: "Tonight's plan: film." },
-                      ],
-                    },
-                  ],
-                },
-              },
-            },
-          },
-        ],
+      // A real night 1's spans file, as the runtime wrote it in the sandbox, trimmed to the
+      // fields the verifier reads (scripts/fixtures/night1-genai-spans.json).
+      const file = path.join(
+        import.meta.dirname,
+        "fixtures/night1-genai-spans.json",
+      );
+      const spans = JSON.parse(readFileSync(file, "utf8")) as {
+        data: { name: string }[];
       };
-      const file = path.join(dir, "genai-spans.json");
-      writeFileSync(file, JSON.stringify(spans));
+      const tools = spans.data.filter((span) =>
+        span.name.startsWith("execute_tool "),
+      );
       const checkFile = path.join(dir, "check.mjs");
       writeFileSync(
         checkFile,
@@ -946,11 +926,12 @@ async function main() {
           "const writeFileSync = (to, text) => { written[to] = JSON.parse(text); };",
           venuesGen.HOST_STEPS,
           "writeResult({ reward: 1, notes_written: 1 });",
-          "export { written };",
+          "export { clip, written };",
         ].join("\n"),
       );
       process.env.PI_RECIPE_GENAI_SPANS_FILE = file;
-      const { written } = (await import(checkFile)) as {
+      const { clip, written } = (await import(checkFile)) as {
+        clip: (text: string, max: number) => string;
         written: Record<string, Record<string, unknown>>;
       };
       delete process.env.PI_RECIPE_GENAI_SPANS_FILE;
@@ -961,29 +942,50 @@ async function main() {
       });
       const result = written["/logs/verifier/result.json"];
       assert.equal(result.reward, 1);
-      assert.equal(result.plan, "Tonight's plan: film.");
-      const steps = result.steps as { result: string }[];
-      assert.equal(steps.length, 3);
-      assert.ok(steps[1].result.length <= 240);
-      assert.ok(!JSON.stringify(result).includes("intro_sk_"));
-      const events = hostEvents(result.steps, result.plan);
+      const steps = result.steps as {
+        name: string;
+        result: string;
+        error: boolean;
+      }[];
+      // Every tool call, in order, each result cut short except a memory file's.
       assert.deepEqual(
-        events.map((e) => [e.type, e.summary]),
-        [
-          ["memory.read", "Loading memory · none yet — first visit"],
-          ["bank.served", "next_questions: genre film, 4 questions"],
-          ["memory.written", "Saving memory"],
-          ["host.planned", "Tonight's plan: film."],
-        ],
+        steps.map((step) => step.name),
+        tools.map((span) => span.name.slice("execute_tool ".length)),
       );
+      for (const step of steps)
+        if (step.name !== "write" && step.name !== "read")
+          assert.ok(step.result.length <= 240);
+      assert.ok(steps.some((step) => step.result.endsWith("…")));
+      assert.equal(steps[0].error, true);
+      assert.ok((result.plan as string).length > 0);
+      assert.ok((result.plan as string).length <= 2000);
+      // Anything credential-shaped is redacted before it is kept.
+      assert.equal(
+        clip("token intro_sk_abcdefghijklmnopqrstu end", 4000),
+        "token [redacted] end",
+      );
+      assert.equal(clip("x".repeat(300), 240).length, 240);
+      const events = hostEvents(result.steps, result.plan);
+      assert.equal(
+        events[0].summary,
+        "Loading memory · none yet — first visit",
+      );
+      const types = new Set(events.map((e) => e.type));
+      for (const type of [
+        "bank.served",
+        "bank.marked",
+        "memory.written",
+        "host.planned",
+      ])
+        assert.ok(types.has(type as never), type);
       // The page reads them from the result file, which the log never cuts.
       const out = evals.verifierOutput("tail only", JSON.stringify(result));
-      assert.equal(out.steps.length, 4);
+      assert.equal(out.steps.length, events.length);
+      assert.equal(out.checks.notes_written, 1);
       assert.deepEqual(loadedMemory("# Sydney").data, {
         path: "memories/MEMORY.md",
         file: "# Sydney",
       });
-      assert.equal(out.checks.notes_written, 1);
       assert.deepEqual(
         hostEvents([{ name: "bash", arguments: { command: "ls" } }], null).map(
           (e) => e.type,
