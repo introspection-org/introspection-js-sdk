@@ -1,5 +1,5 @@
 {
-  ".": "0.58.0",
+  ".": "0.59.0",
   "packages/introspection-aauth-protocol": "0.57.2",
   "packages/introspection-aauth-person-server": "0.57.2",
   "packages/introspection-aauth-access-server": "0.57.2"
