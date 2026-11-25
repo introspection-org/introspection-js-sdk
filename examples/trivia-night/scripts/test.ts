@@ -899,7 +899,7 @@ async function main() {
             5,
           ),
           // The runtime by its slug, at the version the Data Plane deploys.
-          runtime_slug: "trivia-night",
+          runtime: "trivia-night",
           commands: true,
           tags: ["simulation:r1", "simulation:trivia-night"],
           compose: undefined,

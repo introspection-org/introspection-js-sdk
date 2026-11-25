@@ -156,6 +156,8 @@ export interface TaskCreateParams {
    * whose token already does. Validated against the token's project.
    */
   runtime_id?: Uuid;
+  /** The same runtime by its slug in the token's project; name it or `runtime_id`, not both. */
+  runtime?: string;
   /**
    * Workspace repositories to clone into the sandbox's `workspace/repos/`
    * before the first turn. No count limit — the server refuses a statically

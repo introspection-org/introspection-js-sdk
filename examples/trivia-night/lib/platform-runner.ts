@@ -148,12 +148,14 @@ export function trialCompose(
 }
 
 /**
- * Which runtime a trial runs on: the project's trivia-night, at the version
- * the Data Plane deploys for the lane.
+ * Which runtime a trial runs on: the project's trivia-night by its slug, at
+ * the version the Data Plane deploys for the lane.
  */
-// todo: name the runtime as task create takes a slug (introspection-cloud #4275).
-export const trialRuntime = (target: Target) =>
-  ({ runtime_slug: target.runtime }) as Pick<CreateTaskParams, "runtime_id">;
+export const trialRuntime = (
+  target: Target,
+): Pick<CreateTaskParams, "runtime"> => ({
+  runtime: target.runtime,
+});
 
 /** The end user a step runs as: `anon:<id>` or `user:<id>`, carrying the run's tags to the member it mints. */
 export function trialIdentity(step: Step): Record<string, unknown> {
