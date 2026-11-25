@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.59.0](https://github.com/introspection-org/introspection-js-sdk/compare/v0.58.0...v0.59.0) (2026-11-25)
+
+
+### ⚠ BREAKING CHANGES
+
+* **examples:** TRIVIA_AGENT_KEY and TRIVIA_EVAL_KEY_FILE are gone; the spa application's ceiling must allow the run's scopes.
+
+### Features
+
+* **examples:** trivia-night runs its memory evals from the browser, signed in through the platform ([#671](https://github.com/introspection-org/introspection-js-sdk/issues/671)) ([25b6b0d](https://github.com/introspection-org/introspection-js-sdk/commit/25b6b0d77a181e020ddb1abb0e2a4dac3337b0a0))
+* **examples:** trivia-night runs the real memory evals on the platform, and shows the agent's work as it runs ([#669](https://github.com/introspection-org/introspection-js-sdk/issues/669)) ([636abab](https://github.com/introspection-org/introspection-js-sdk/commit/636abab705a1315146c28c5a457d7baf470b5587))
+
 ## [0.58.0](https://github.com/introspection-org/introspection-js-sdk/compare/v0.57.2...v0.58.0) (2026-11-23)
 
 
