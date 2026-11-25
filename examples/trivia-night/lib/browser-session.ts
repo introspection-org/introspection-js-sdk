@@ -198,13 +198,20 @@ export async function sessionClient(
     environment: session.environment as IntrospectionApiClientEnvironment,
   });
   if (!session.environment) {
-    await client.connect();
-    storage.setItem(
-      SESSION_KEY,
-      JSON.stringify({ ...session, environment: client.environment }),
-    );
+    // The exchange is single use, so concurrent callers (React runs effects twice in
+    // development) share one redemption of the token.
+    connecting ??= client.connect().then(() => client.environment);
+    const environment = await connecting;
+    storage.setItem(SESSION_KEY, JSON.stringify({ ...session, environment }));
+    return new IntrospectionApiClient({
+      dpUrl: config.dpUrl,
+      getToken: () => session.access_token,
+      environment,
+    });
   }
   return client;
 }
 
 type IntrospectionApiClientEnvironment = IntrospectionApiClient["environment"];
+
+let connecting: Promise<IntrospectionApiClientEnvironment> | null = null;
