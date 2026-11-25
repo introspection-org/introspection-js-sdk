@@ -341,6 +341,7 @@ function runStep(
 /** Starts a run and returns its id; the trials report on the events feed. */
 export async function startRun(
   venues: number,
+  startedBy: string,
   teams: TeamSize = DEFAULT_TEAMS,
   pubs: Pubs = "development",
 ): Promise<{ run: string; target: Target }> {
@@ -362,7 +363,9 @@ export async function startRun(
     platform.active = null;
     throw error;
   }
-  const chains = plan(id, venues, PUB_SETS[pubs], teams);
+  const chains = plan(id, venues, PUB_SETS[pubs], teams).map((chain) =>
+    chain.map((step) => ({ ...step, started_by: startedBy })),
+  );
   const began = Date.now();
   // Each step's notes once it finishes, for the steps that wait on it.
   const settled = new Map<string, Promise<Settled>>();
@@ -404,6 +407,7 @@ export async function startRun(
       run: id,
       seconds: Math.round((Date.now() - began) / 1000),
       trials: chains.flat().length,
+      started_by: startedBy,
     };
     record(
       `platform:${id}`,

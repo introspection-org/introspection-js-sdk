@@ -19,12 +19,16 @@ import {
   resolveTarget,
   startRun,
 } from "@/lib/platform-runner";
+import { requireSession } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 /** What the panel shows: whether a key is set, and the target. Never the key. */
-export async function GET() {
+export async function GET(request: Request) {
+  const auth = await requireSession(request);
+  if ("error" in auth)
+    return NextResponse.json({ error: auth.error }, { status: auth.status });
   const key = keyFile();
   let target = null;
   let target_error = null;
@@ -53,6 +57,9 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
+  const auth = await requireSession(request);
+  if ("error" in auth)
+    return NextResponse.json({ error: auth.error }, { status: auth.status });
   const key = keyFile();
   if ("missing" in key)
     return NextResponse.json(
@@ -78,7 +85,12 @@ export async function POST(request: Request) {
     );
   try {
     return NextResponse.json(
-      await startRun(Number(body.venues ?? 3), teams, pubs),
+      await startRun(
+        Number(body.venues ?? 3),
+        auth.session.member_id,
+        teams,
+        pubs,
+      ),
     );
   } catch (error) {
     return NextResponse.json(

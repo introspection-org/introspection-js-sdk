@@ -57,6 +57,25 @@ echo TRIVIA_EVAL_KEY_FILE=recipe-operator/.agent.key >> .env.local
 
 The runs use your `introspection login`, on `https://api.introspection.dev` unless `INTROSPECTION_API_BASE_URL` names another stack, and find the Data Plane from there. Without a key file the panel shows these commands and the server refuses to run.
 
+### Sign in
+
+The page opens only to a member signed in to the project the agent key runs in. Opening it without a session sends you straight to the platform's hosted login (`/v1/oauth/authorize` on `INTROSPECTION_API_BASE_URL`, so production unless that names another stack), and back to `/callback`. Register the page once as a `spa` application, on the same platform as the key, with `introspection login --url <Control Plane>` first for anything but production:
+
+```bash
+introspection applications create --type spa --name "Trivia night" \
+  --redirect-uri http://localhost:3500/callback \
+  --allowed-origin http://localhost:3500 --allowed-scope tasks:read
+echo TRIVIA_SPA_CLIENT_ID=<the printed client_id> >> .env.local
+```
+
+| Variable                     | Default                         | What it is                                                                               |
+| ---------------------------- | ------------------------------- | ---------------------------------------------------------------------------------------- |
+| `TRIVIA_SPA_CLIENT_ID`       | none                            | The `spa` application's `client_id`. Without it the page refuses to open.                |
+| `INTROSPECTION_API_BASE_URL` | `https://api.introspection.dev` | The Control Plane, for the login and the runs. A local stack is `http://localhost:8000`. |
+| `TRIVIA_EVAL_KEY_FILE`       | none                            | The agent key file, as above.                                                            |
+
+The server exchanges the code itself (PKCE, through the SDK's `authorizationCodeToken`) and keeps only the member's id, org, project and the token's expiry, behind an httpOnly cookie. It refuses a sign-in to any project but the one the agent key's runtime is in, and `/api/evals` and `/api/events` answer 401 without a live session and 403 for another project. The trials still run with the agent key, since per-pub memory needs an agent's credentials; the key stays on the server and never reaches the browser. Each trial and the run's `eval.run_finished` record the signed-in member's id as `started_by`. Sessions live in the server's memory, so a restart signs everyone in again.
+
 Pick a number of venues and press **Run**. Venue _i_ plays the _i_-th venue profile (Sydney, Manchester, Chicago, and on across AU, UK and US pubs), all venues at once, each as its own customer:
 
 | Trial                | Task             | Customer                                       | What it shows                                  |

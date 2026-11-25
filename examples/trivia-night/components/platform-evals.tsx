@@ -64,6 +64,13 @@ interface FeedEvent {
 
 const MAX_STEPS = 3000;
 
+/** A session that ended sends the browser back through the sign-in. */
+function signedOut(response: Response): boolean {
+  if (response.status !== 401) return false;
+  window.location.reload();
+  return true;
+}
+
 interface Trial {
   started: EvalStarted;
   finished?: EvalFinished;
@@ -629,15 +636,18 @@ export function PlatformEvals() {
 
   const loadConfig = useCallback(async () => {
     const response = await fetch("/api/evals");
+    if (signedOut(response)) return;
     const body = await response.json();
     if (!response.ok) setError(body.error);
     else setConfig(body);
   }, []);
 
   const poll = useCallback(async () => {
-    const more = (await fetch(`/api/events?after=${cursor.current}`).then((r) =>
-      r.json(),
-    )) as { events: FeedEvent[] };
+    const response = await fetch(`/api/events?after=${cursor.current}`);
+    if (signedOut(response)) return;
+    const more = { events: [], ...(await response.json()) } as {
+      events: FeedEvent[];
+    };
     if (!more.events.length) return;
     cursor.current = Math.max(
       cursor.current,
@@ -708,6 +718,7 @@ export function PlatformEvals() {
         pubs,
       }),
     });
+    if (signedOut(response)) return;
     const body = await response.json();
     if (!response.ok) setError(body.error);
     else setConfig((current) => current && { ...current, active: body.run });

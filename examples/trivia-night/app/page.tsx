@@ -1,6 +1,14 @@
-import { PlatformEvals } from "@/components/platform-evals";
+import { cookies } from "next/headers";
+import { redirect } from "next/navigation";
 
-export default function Page() {
+import { PlatformEvals } from "@/components/platform-evals";
+import { SESSION_COOKIE, sessionFor } from "@/lib/session";
+
+export const dynamic = "force-dynamic";
+
+export default async function Page() {
+  if (!sessionFor((await cookies()).get(SESSION_COOKIE)?.value))
+    redirect("/login");
   return (
     <main className="page">
       <header>

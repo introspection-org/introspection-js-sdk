@@ -900,23 +900,21 @@ async function main() {
     rmSync(base, { recursive: true });
   });
 
-  await check("platform evals: the route refuses without a key", async () => {
-    const local = (init: RequestInit = {}) =>
-      new Request("http://localhost:3500/api/evals", {
-        method: "POST",
-        body: "{}",
-        ...init,
-      });
-    delete process.env.TRIVIA_EVAL_KEY_FILE;
-    let response: Response = await startEvals(local());
-    assert.equal(response.status, 403);
-    assert.match((await response.json()).how_to, /--secret-file/);
-    process.env.TRIVIA_EVAL_KEY_FILE = "no-such-file.key";
-    response = await startEvals(local());
-    assert.equal(response.status, 403);
-    assert.match((await response.json()).error, /does not exist/);
-    delete process.env.TRIVIA_EVAL_KEY_FILE;
-  });
+  await check(
+    "platform evals: the route refuses without a sign-in",
+    async () => {
+      const post = (cookie?: string) =>
+        startEvals(
+          new Request("http://localhost:3500/api/evals", {
+            method: "POST",
+            body: "{}",
+            headers: cookie ? { cookie } : {},
+          }),
+        );
+      assert.equal((await post()).status, 401);
+      assert.equal((await post("trivia_session=forged")).status, 401);
+    },
+  );
 
   const trial = await import("../lib/trial-steps");
   const notes = "# Venue notes\n\n- Country: UK\n- Difficulty: 3\n";
@@ -1541,6 +1539,149 @@ async function main() {
         false,
       );
       assert.equal(experiment.validityGate([]), null);
+    },
+  );
+
+  const login = await import("../lib/session");
+  const PROJECT = "01a1f15d-4fb5-700d-841b-6fb6ff2a783d";
+  const jwt = (claims: Record<string, unknown>) =>
+    ["{}", JSON.stringify(claims), "sig"]
+      .map((part) => Buffer.from(part).toString("base64url"))
+      .join(".");
+  const exchangeFor =
+    (claims: Record<string, unknown>) =>
+    async (params: { codeVerifier: string }) => {
+      assert.ok(params.codeVerifier.length >= 43);
+      return {
+        access_token: jwt(claims),
+        token_type: "Bearer",
+        expires_in: 60,
+        scope: "tasks:read",
+        dp_url: null,
+      };
+    };
+  const callbackFor = (cookie: string) => ({
+    code: "the-code",
+    state: (JSON.parse(cookie) as { state: string }).state,
+    cookie,
+    redirectUri: "http://localhost:3510/callback",
+    clientId: "intro_app_x",
+    project: async () => PROJECT,
+  });
+
+  await check(
+    "sign-in: the hosted login asks for one project with an S256 challenge",
+    () => {
+      const { url, cookie } = login.loginRequest(
+        "intro_app_x",
+        PROJECT,
+        "http://localhost:3510/callback",
+        "http://localhost:8000/",
+      );
+      const parsed = new URL(url);
+      assert.equal(
+        parsed.origin + parsed.pathname,
+        "http://localhost:8000/v1/oauth/authorize",
+      );
+      assert.equal(parsed.searchParams.get("project"), PROJECT);
+      assert.equal(parsed.searchParams.get("code_challenge_method"), "S256");
+      const { verifier, state } = JSON.parse(cookie);
+      assert.equal(parsed.searchParams.get("state"), state);
+      assert.ok(!url.includes(verifier));
+    },
+  );
+
+  await check(
+    "sign-in: a member of the key's project gets a session until the token expires",
+    async () => {
+      const { cookie } = login.loginRequest(
+        "intro_app_x",
+        PROJECT,
+        "http://localhost:3510/callback",
+      );
+      const claims = { member_id: "m-1", org_id: "o-1", project_id: PROJECT };
+      const now = Date.now();
+      const { id, session } = await login.completeLogin(
+        callbackFor(cookie),
+        exchangeFor(claims) as never,
+        now,
+      );
+      assert.deepEqual(session, { ...claims, expires_at: now + 60_000 });
+      const request = new Request("http://localhost:3500/api/events", {
+        headers: { cookie: `other=1; trivia_session=${id}` },
+      });
+      assert.deepEqual(
+        await login.requireSession(request, async () => PROJECT),
+        {
+          session,
+        },
+      );
+      const refusal = async (project: () => Promise<string>) =>
+        ((await login.requireSession(request, project)) as { status: number })
+          .status;
+      assert.equal(await refusal(async () => "another-project"), 403);
+      // Without a key the page cannot tell which project it runs in.
+      delete process.env.TRIVIA_EVAL_KEY_FILE;
+      const response = await startEvals(
+        new Request("http://localhost:3500/api/evals", {
+          method: "POST",
+          body: "{}",
+          headers: { cookie: `trivia_session=${id}` },
+        }),
+      );
+      assert.equal(response.status, 503);
+      assert.match((await response.json()).error, /TRIVIA_EVAL_KEY_FILE/);
+      assert.equal(login.sessionFor(id, now + 60_000), null);
+      // An expired session is gone, not just refused.
+      assert.equal(login.sessionFor(id, now), null);
+    },
+  );
+
+  await check(
+    "sign-in: a wrong state, another project or no member opens no session",
+    async () => {
+      const { cookie } = login.loginRequest(
+        "intro_app_x",
+        PROJECT,
+        "http://localhost:3510/callback",
+      );
+      const member = { member_id: "m-1", org_id: "o-1", project_id: PROJECT };
+      const refused = async (
+        callback: Parameters<typeof login.completeLogin>[0],
+        claims: Record<string, unknown>,
+      ) =>
+        login.completeLogin(callback, exchangeFor(claims) as never).then(
+          () => null,
+          (error: InstanceType<typeof login.LoginRefused>) => error.status,
+        );
+      assert.equal(
+        await refused({ ...callbackFor(cookie), state: "forged" }, member),
+        401,
+      );
+      assert.equal(
+        await refused({ ...callbackFor(cookie), cookie: undefined }, member),
+        401,
+      );
+      assert.equal(
+        await refused(callbackFor(cookie), { ...member, project_id: "other" }),
+        403,
+      );
+      assert.equal(
+        await refused(callbackFor(cookie), {
+          org_id: "o-1",
+          project_id: PROJECT,
+        }),
+        401,
+      );
+      const anonymous = new Request("http://localhost:3500/api/events");
+      assert.equal(
+        (
+          (await login.requireSession(anonymous, async () => PROJECT)) as {
+            status: number;
+          }
+        ).status,
+        401,
+      );
     },
   );
 

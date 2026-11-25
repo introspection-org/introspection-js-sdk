@@ -76,6 +76,8 @@ export type Step = {
   /** The pub whose night 1 wrote a wrong-notes night 2's notes. */
   donor?: string;
   donor_label?: string;
+  /** The signed-in member who started the run, by id. */
+  started_by?: string;
 };
 
 export const stepKey = (step: { venue: string; night: string }) =>
@@ -109,6 +111,7 @@ export type EvalRunFinished = {
   run: string;
   seconds: number;
   trials: number;
+  started_by?: string;
 };
 
 export const MAX_VENUES = VENUES.length;
