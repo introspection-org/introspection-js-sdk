@@ -24,6 +24,7 @@
     "evals:venues": "node recipe-operator/evals/venues.mjs"
   },
   "dependencies": {
+    "@introspection-sdk/introspection-browser": "workspace:*",
     "@introspection-sdk/introspection-node": "workspace:*",
     "jose": "^6.2.12",
     "next": "^16.4.6",

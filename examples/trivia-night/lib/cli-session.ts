@@ -7,7 +7,9 @@ import { readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import path from "node:path";
 
-import { apiBaseUrl, memberClient, type Env } from "./platform-runner";
+import { IntrospectionClient } from "@introspection-sdk/introspection-node";
+
+import type { Env } from "./platform-runner";
 
 interface Credentials {
   cp_url?: string;
@@ -30,20 +32,19 @@ export function cliSession(env: Env = process.env) {
     );
   // The stack the CLI signed in to, unless the environment names another, so a
   // script never falls through to production.
-  const scoped: Env = {
-    ...env,
-    INTROSPECTION_API_BASE_URL:
-      env.INTROSPECTION_API_BASE_URL?.trim() || credentials.cp_url,
-  };
+  const api =
+    env.INTROSPECTION_API_BASE_URL?.trim() ||
+    credentials.cp_url ||
+    "https://api.introspection.dev";
   return {
-    client: memberClient(
-      {
-        access_token: credentials.access_token,
-        dp_url: credentials.dp_url ?? null,
+    client: new IntrospectionClient({
+      token: credentials.access_token,
+      advanced: {
+        baseApiUrl: api,
+        dpUrl: env.INTROSPECTION_DP_URL?.trim() || credentials.dp_url || api,
       },
-      scoped,
-    ),
-    api: apiBaseUrl(scoped),
+    }),
+    api,
     project: credentials.project_id,
     member: credentials.member_id ?? "",
     token: credentials.access_token,

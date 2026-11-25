@@ -36,8 +36,10 @@ interface Bootstrap {
   member: string;
   /** The click that starts the recorded run, new each recording so it names a new run. */
   click: string;
-  /** A Runtime of the project whose commit has no generated venue tasks. */
-  untasked: string;
+  /** A Runtime of the project whose commit has no generated venue tasks, as the page is configured with one. */
+  untasked: { runtime: string; commit: string; repository: string };
+  /** The repository holding the Runtime's Recipe, at its root. */
+  repository: string;
 }
 
 async function main() {
@@ -52,15 +54,29 @@ async function main() {
     const api = process.env.INTROSPECTION_API_BASE_URL ?? "";
     if (!/^http:\/\/localhost:/.test(api))
       throw new Error("record against a local stack only");
-    const runner = await import("../lib/platform-runner");
-    const runtime = await runner
-      .memberClient({ access_token: recordToken, dp_url: null })
-      .runtimes.get(process.env.INTROSPECTION_TRIVIA_RUNTIME_ID ?? "");
+    const cp = new IntrospectionClient({
+      token: recordToken,
+      advanced: { baseApiUrl: api, dpUrl: process.env.INTROSPECTION_DP_URL },
+    });
+    const runtime = await cp.runtimes.get(
+      process.env.INTROSPECTION_TRIVIA_RUNTIME_ID ?? "",
+    );
+    const recipe = await cp.recipes.get(runtime.recipe_id);
     const bootstrap: Bootstrap = {
       project: runtime.project_id,
+      repository: recipe.repository_id,
       member: "recorded-member",
       click: `recorded-${Date.now()}`,
-      untasked: process.env.TRIVIA_RECORD_UNTASKED_RUNTIME_ID ?? "",
+      untasked: await (async () => {
+        const other = await cp.runtimes.get(
+          process.env.TRIVIA_RECORD_UNTASKED_RUNTIME_ID ?? "",
+        );
+        return {
+          runtime: other.id,
+          commit: other.git_commit_sha ?? "",
+          repository: (await cp.recipes.get(other.recipe_id)).repository_id,
+        };
+      })(),
       started_at: new Date().toISOString(),
       api,
       dp: process.env.INTROSPECTION_DP_URL ?? api,
@@ -90,10 +106,11 @@ async function main() {
     const runner = await import("../lib/platform-runner");
     const evals = await import("../lib/platform-evals");
     const token = recordToken;
-    const client = runner.memberClient(
-      { access_token: token, dp_url: bootstrap.dp },
-      env,
-    );
+    // The page's own calls through the Node client with a bearer token, which the recording can hold.
+    const client = new IntrospectionClient({
+      token,
+      advanced: { baseApiUrl: bootstrap.api, dpUrl: bootstrap.dp },
+    });
     const quiet = new IntrospectionClient({
       token,
       advanced: {
@@ -123,9 +140,15 @@ async function main() {
     const stepOf = (task: Task) => evals.trialMeta(task.metadata)?.step;
     const ENDED = new Set(["completed", "failed", "cancelled"]);
 
-    const target = await runner.resolveTarget(client, bootstrap.project, env);
+    const configured = {
+      runtime: bootstrap.runtime,
+      commit: bootstrap.commit,
+      repository: bootstrap.repository,
+      recipe_path: "",
+    };
+    const target = await runner.resolveTarget(client, configured);
     const record = {
-      run: runner.runIdFor(bootstrap.member, bootstrap.click),
+      run: await runner.runIdFor(bootstrap.member, bootstrap.click),
       venues: 1,
       teams: evals.DEFAULT_TEAMS,
       pubs: "development" as const,
@@ -140,29 +163,19 @@ async function main() {
       "platform evals: the run takes a Runtime whose commit holds the generated tasks",
       async () => {
         assert.equal(await runner.hasTasks(client, target), true);
-        // A pinned Runtime without them is never taken; here the project's trivia-host runs a
-        // commit without them too, so the run refuses and says how to push them.
+        // A configured Runtime without them is refused, saying how to push them.
+        const untasked = { ...bootstrap.untasked, recipe_path: "" };
+        assert.equal(await runner.hasTasks(client, untasked), false);
         await assert.rejects(
-          runner.resolveTarget(client, bootstrap.project, {
-            ...env,
-            INTROSPECTION_TRIVIA_RUNTIME_ID: bootstrap.untasked,
-          }),
+          runner.resolveTarget(client, untasked),
           (error) => error instanceof runner.NoTasks,
         );
-        const untasked = await client.runtimes.get(bootstrap.untasked);
-        const recipe = await client.recipes.get(untasked.recipe_id);
-        assert.equal(
-          await runner.hasTasks(client, {
-            runtime: untasked.id,
-            commit: untasked.git_commit_sha!,
-            slug: untasked.slug,
-            repository: recipe.repository_id,
-            recipe_path: "",
-          }),
-          false,
+        await assert.rejects(
+          runner.resolveTarget(client, null),
+          /no trivia Runtime/,
         );
         assert.match(
-          new runner.NoTasks(["trivia-night"]).message,
+          new runner.NoTasks("trivia-night").message,
           /generated venue tasks.*pnpm dev.*runtimes create --manifest/,
         );
       },
@@ -208,7 +221,7 @@ async function main() {
     const request = {
       venues: record.venues,
       startedBy: record.started_by,
-      project: bootstrap.project,
+      target: configured,
       token: bootstrap.click,
       teams: record.teams,
       pubs: record.pubs,
@@ -232,7 +245,10 @@ async function main() {
         assert.equal(task.kind, "eval");
         assert.ok(task.tags?.includes(evals.runTag(run)));
         assert.ok(task.tags?.includes(evals.TRIALS_TAG));
-        assert.equal(task.metadata?.admission_key, runner.admissionKey(first));
+        assert.equal(
+          task.metadata?.admission_key,
+          await runner.admissionKey(first),
+        );
         // The same click again is the same run; another click while it goes is refused.
         const again = await runner.startRun(client, {
           ...request,
@@ -264,7 +280,7 @@ async function main() {
         );
         const images = await runner.sidecarImages(client, target, definition);
         const archive = await client.files.upload({
-          file: (await import("../lib/tar")).tarGz(definition.tests),
+          file: await (await import("../lib/tar")).tarGz(definition.tests),
           name: `${first.task}-tests.tar.gz`,
           contentType: "application/gzip",
           ttl_seconds: 3600,
@@ -272,7 +288,7 @@ async function main() {
         // The platform refuses the key under another body: here, another archive.
         await assert.rejects(
           client.tasks.create(
-            runner.trialBody(
+            await runner.trialBody(
               record,
               first,
               definition,

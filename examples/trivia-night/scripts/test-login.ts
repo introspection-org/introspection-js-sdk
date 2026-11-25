@@ -1,18 +1,16 @@
 /**
- * The sign-in's code exchange through the real SDK against a recorded Control
+ * The sign-in's code exchange, as the browser sends it, against a recorded Control
  * Plane, replayed from `tests/recordings/trivia-night-login_*`. A code the
  * platform issued needs an interactive hosted login, and the token it returns
  * is a JWT the recording scrubs, so this records the exchange of a code the
  * platform never issued: the request the page sends and the refusal it gets.
- * The checks of an issued token's claims are unit tests in `scripts/test.ts`.
+ * The session it keeps, and its expiry, are unit tests in `scripts/test.ts`.
  * `pnpm test:login:record` records it against a LOCAL stack only, with
- * `INTROSPECTION_API_BASE_URL` and `TRIVIA_SPA_CLIENT_ID` set (`.env.local`).
+ * `INTROSPECTION_API_BASE_URL` and `NEXT_PUBLIC_TRIVIA_SPA_CLIENT_ID` set (`.env.local`).
  */
 import assert from "node:assert/strict";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
-
-import { IntrospectionAPIError } from "@introspection-sdk/introspection-node";
 
 const RECORDING = "trivia-night-login";
 const RECORDINGS = path.resolve(__dirname, "../../../tests/recordings");
@@ -43,29 +41,34 @@ async function main() {
   const bootstrap = JSON.parse(readFileSync(BOOTSTRAP, "utf8")) as Bootstrap;
   const polly = setupPolly({ recordingName: RECORDING, ordered: true });
   try {
-    const login = await import("../lib/session");
-    const callback = {
-      code: "a-code-the-platform-never-issued",
-      state: FLOW.state,
-      cookie: JSON.stringify(FLOW),
-      redirectUri: "http://localhost:3500/callback",
-      clientId:
-        getPollyMode() === "record"
-          ? (process.env.TRIVIA_SPA_CLIENT_ID ?? "")
-          : REPLAY_CLIENT_ID,
-      cpUrl: bootstrap.api,
-      key: Buffer.alloc(32),
+    const login = await import("../lib/browser-session");
+    const items = new Map([["trivia-night:login", JSON.stringify(FLOW)]]);
+    const storage = {
+      getItem: (key: string) => items.get(key) ?? null,
+      setItem: (key: string, value: string) => void items.set(key, value),
+      removeItem: (key: string) => void items.delete(key),
     };
-    const refusal = await login.completeLogin(callback).then(
-      () => null,
-      (error: unknown) => error,
-    );
-    // The Control Plane refuses the code: not the page's own refusal, so the callback answers 502.
-    assert.ok(refusal instanceof IntrospectionAPIError, String(refusal));
-    assert.ok(!(refusal instanceof login.LoginRefused));
-    assert.equal(refusal.status, 400);
+    const callback = new URL("http://localhost:3500/callback");
+    callback.searchParams.set("code", "a-code-the-platform-never-issued");
+    callback.searchParams.set("state", FLOW.state);
+    const refusal = await login
+      .completeLogin(storage, callback, fetch, {
+        ...login.CONFIG,
+        cpUrl: bootstrap.api,
+        clientId:
+          getPollyMode() === "record"
+            ? (process.env.NEXT_PUBLIC_TRIVIA_SPA_CLIENT_ID ?? "")
+            : REPLAY_CLIENT_ID,
+      })
+      .then(
+        () => null,
+        (error: Error) => error,
+      );
+    // The Control Plane refuses the code, and the page keeps no session.
+    assert.match(String(refusal?.message), /the sign-in failed: 400/);
+    assert.equal(items.size, 0);
     console.log(
-      "ok  sign-in: the code exchange is the SDK's, and an unissued code is refused by the platform",
+      "ok  sign-in: the browser's code exchange reaches the platform, which refuses an unissued code",
     );
     console.log("\n1 login check passed");
   } finally {

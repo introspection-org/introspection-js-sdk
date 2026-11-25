@@ -3,20 +3,15 @@
  * the SDK with the signed-in member's own token: each trial is a `kind: eval`
  * task of the project's trivia Runtime that scores itself with its Harbor
  * task's own verifier, billed to the member's organization. Nothing is held
- * here between requests: a run is its tasks, found by their tag, and
- * `advanceRun` moves it on from what they say. Server only.
+ * between calls: a run is its tasks, found by their tag, and `advanceRun`
+ * moves it on from what they say. Runs in the browser (and under Node in the
+ * tests), with web APIs only.
  */
-import { createHash } from "node:crypto";
-import path from "node:path";
-
-import {
-  ConflictError,
-  IntrospectionClient,
-  NotFoundError,
-  type Runtime,
-  type Task,
-  type TaskCreateParams,
-} from "@introspection-sdk/introspection-node";
+import type {
+  CreateTaskParams,
+  IntrospectionApiClient,
+  Task,
+} from "@introspection-sdk/introspection-browser/api";
 import { parse as parseToml } from "smol-toml";
 import { parse as parseYaml } from "yaml";
 
@@ -52,9 +47,6 @@ import { loadedMemory } from "./trial-steps";
 
 export type Env = Record<string, string | undefined>;
 
-const DEFAULT_API_BASE_URL = "https://api.introspection.dev";
-/** The Runtime a project adds from this repository's manifest, or the one `pnpm dev` creates. */
-const RUNTIME_SLUGS = ["trivia-night", "trivia-host"];
 export const ADD_RUNTIME =
   "add the trivia-night runtime to your project: introspection runtimes create --manifest .introspection/trivia-night.yaml";
 /** Where the Harbor tasks sit in the Recipe. */
@@ -80,47 +72,19 @@ const ARCHIVE_TTL_SECONDS = 2 * 24 * 3600;
 /** The uuid5 namespace a step's admission key is derived in. */
 const ADMISSION_NAMESPACE = "6f1c2a8e-3b4d-5e6f-8a9b-0c1d2e3f4a5b";
 
-/** The Control Plane the page signs in with and finds the Runtime on. */
-export function apiBaseUrl(env: Env = process.env): string {
-  return env.INTROSPECTION_API_BASE_URL?.trim() || DEFAULT_API_BASE_URL;
-}
-
-/** The Data Plane the trials run on; a stack that serves both on one host needs none. */
-export function dpBaseUrl(env: Env = process.env): string {
-  return env.INTROSPECTION_DP_URL?.trim() || apiBaseUrl(env);
-}
-
+/** What the run calls; the browser client, or the Node one in the tests and scripts. */
 export type PlatformClient = Pick<
-  IntrospectionClient,
-  "tasks" | "files" | "images" | "repositories" | "runtimes" | "recipes"
+  IntrospectionApiClient,
+  "tasks" | "files" | "images" | "repositories"
 >;
 
-/** A client acting as the signed-in member, with their own access token. */
-export function memberClient(
-  session: { access_token: string; dp_url: string | null },
-  env: Env = process.env,
-): IntrospectionClient {
-  return new IntrospectionClient({
-    token: session.access_token,
-    advanced: {
-      baseApiUrl: apiBaseUrl(env),
-      dpUrl: session.dp_url || dpBaseUrl(env),
-    },
-  });
-}
+const status = (error: unknown) => (error as { status?: number }).status;
 
-/** A project with no trivia Runtime, which the panel says how to add. */
-export class NoRuntime extends Error {
-  constructor() {
-    super(ADD_RUNTIME);
-  }
-}
-
-/** The project's trivia Runtimes run commits without the generated venue tasks. */
+/** The configured Runtime's commit carries no generated venue tasks. */
 export class NoTasks extends Error {
-  constructor(slugs: string[]) {
+  constructor(slug: string) {
     super(
-      `the ${slugs.join(" and ")} runtime${slugs.length === 1 ? "" : "s"} carry no generated venue tasks (evals/harbor is git-ignored): push them with the recipe, as pnpm dev does, after ${ADD_RUNTIME.replace(/^add/, "adding")}`,
+      `the ${slug} runtime's commit carries no generated venue tasks (evals/harbor is git-ignored): push them with the recipe, as pnpm dev does, after ${ADD_RUNTIME.replace(/^add/, "adding")}`,
     );
   }
 }
@@ -142,71 +106,56 @@ export async function hasTasks(
     });
     return true;
   } catch (error) {
-    if (error instanceof NotFoundError) return false;
+    if (status(error) === 404) return false;
     throw error;
   }
 }
 
 /**
  * The Runtime the trials run, the commit they run at, and the repository that
- * holds its Recipe: `INTROSPECTION_TRIVIA_RUNTIME_ID` when it is in the
- * project, then the project's trivia-night or trivia-host Runtime, the first
- * whose commit holds the generated venue tasks.
+ * holds its Recipe, as configured, once its commit is seen to hold the
+ * generated venue tasks. The browser reaches only the Data Plane, so it cannot
+ * look a Runtime up.
  */
 export async function resolveTarget(
   client: PlatformClient,
-  project: string,
-  env: Env = process.env,
+  target: Target | null,
 ): Promise<Target> {
-  const candidates: { runtime: Runtime; pinned: boolean }[] = [];
-  const pinnedId = env.INTROSPECTION_TRIVIA_RUNTIME_ID?.trim();
-  if (pinnedId) {
-    try {
-      const read = await client.runtimes.get(pinnedId);
-      if (read.project_id === project)
-        candidates.push({ runtime: read, pinned: true });
-    } catch (error) {
-      if (!(error instanceof NotFoundError)) throw error;
-    }
-  }
-  for (const slug of RUNTIME_SLUGS) {
-    try {
-      const found = await client.runtimes.resolve(slug, project);
-      if (!candidates.some(({ runtime }) => runtime.id === found.id))
-        candidates.push({ runtime: found, pinned: false });
-    } catch (error) {
-      if (!(error instanceof NotFoundError)) throw error;
-    }
-  }
-  if (!candidates.length) throw new NoRuntime();
-  for (const { runtime, pinned } of candidates) {
-    // The pinned commit goes with the pinned Runtime only.
-    const commit =
-      (pinned && env.INTROSPECTION_TRIVIA_COMMIT_SHA?.trim()) ||
-      runtime.git_commit_sha;
-    if (!commit || !runtime.recipe_id) continue;
-    const recipe = await client.recipes.get(runtime.recipe_id);
-    const target: Target = {
-      runtime: runtime.id,
-      commit,
-      slug: runtime.slug,
-      repository: recipe.repository_id,
-      recipe_path:
-        recipe.sub_path && recipe.sub_path !== "." ? recipe.sub_path : "",
-    };
-    if (await hasTasks(client, target)) return target;
-  }
-  throw new NoTasks(candidates.map(({ runtime }) => runtime.slug));
+  if (!target)
+    throw new Error(`no trivia Runtime is configured: ${ADD_RUNTIME}`);
+  if (!(await hasTasks(client, target)))
+    throw new NoTasks(target.slug ?? target.runtime);
+  return target;
 }
 
+/** POSIX path helpers, so the browser needs no `node:path`. */
+const posix = {
+  normalize(file: string): string {
+    const out: string[] = [];
+    for (const part of file.split("/"))
+      if (part === "..") {
+        if (out.length && out[out.length - 1] !== "..") out.pop();
+        else out.push("..");
+      } else if (part && part !== ".") out.push(part);
+    return (file.startsWith("/") ? "/" : "") + (out.join("/") || ".");
+  },
+  join: (...parts: string[]) =>
+    posix.normalize(parts.filter(Boolean).join("/")),
+  dirname: (file: string) =>
+    file.includes("/") ? file.slice(0, file.lastIndexOf("/")) || "/" : ".",
+};
+const fromBase64 = (value: string) =>
+  Uint8Array.from(atob(value.replace(/\s/g, "")), (c) => c.charCodeAt(0));
+const utf8 = (bytes: Uint8Array) => new TextDecoder().decode(bytes);
+
 const repoPath = (target: Target, ...parts: string[]) =>
-  path.posix.join(target.recipe_path ?? "", ...parts).replace(/^\.\/?/, "");
+  posix.join(target.recipe_path ?? "", ...parts).replace(/^\.\/?/, "");
 
 async function readText(
   client: PlatformClient,
   target: Target,
   file: string,
-): Promise<Buffer> {
+): Promise<Uint8Array> {
   const content = await client.repositories.contents.get(
     target.repository!,
     file,
@@ -217,10 +166,9 @@ async function readText(
     throw new Error(
       `${file} is larger than the repository contents API returns whole`,
     );
-  return Buffer.from(
-    content.content,
-    content.encoding === "base64" ? "base64" : "utf8",
-  );
+  return content.encoding === "base64"
+    ? fromBase64(content.content)
+    : new TextEncoder().encode(content.content);
 }
 
 /** Every file under `dir` at the commit, with paths relative to it. */
@@ -228,8 +176,8 @@ async function readTree(
   client: PlatformClient,
   target: Target,
   dir: string,
-): Promise<{ path: string; content: Buffer }[]> {
-  const files: { path: string; content: Buffer }[] = [];
+): Promise<{ path: string; content: Uint8Array }[]> {
+  const files: { path: string; content: Uint8Array }[] = [];
   for await (const entry of client.repositories.contents(target.repository!, {
     path: dir,
     ref: target.commit,
@@ -255,7 +203,7 @@ async function treeId(
   target: Target,
   dir: string,
 ): Promise<string> {
-  const parent = path.posix.dirname(dir);
+  const parent = posix.dirname(dir);
   for await (const entry of client.repositories.contents(target.repository!, {
     path: parent === "." ? "" : parent,
     ref: target.commit,
@@ -291,20 +239,24 @@ export async function readTaskDefinition(
   let compose: Record<string, unknown> = {};
   try {
     compose = (parseYaml(
-      (
-        await readText(client, target, `${dir}/environment/docker-compose.yaml`)
-      ).toString("utf8"),
+      utf8(
+        await readText(
+          client,
+          target,
+          `${dir}/environment/docker-compose.yaml`,
+        ),
+      ),
     ) ?? {}) as Record<string, unknown>;
   } catch (error) {
     if ((error as { status?: number }).status !== 404) throw error;
   }
-  const config = parseToml(toml.toString("utf8")) as {
+  const config = parseToml(utf8(toml)) as {
     verifier?: { timeout_sec?: number };
   };
   const expected = tests.find((file) => file.path === "expected.json");
   return {
     task,
-    instruction: instruction.toString("utf8").trim(),
+    instruction: utf8(instruction).trim(),
     // One over the Data Plane's command timeout is refused at create, not clamped.
     verifierSeconds: Math.max(
       1,
@@ -318,7 +270,7 @@ export async function readTaskDefinition(
     compose,
     contexts: buildContexts(compose, `${dir}/environment`),
     tastes: expected
-      ? (JSON.parse(expected.content.toString("utf8")) as VenueTastes)
+      ? (JSON.parse(utf8(expected.content)) as VenueTastes)
       : null,
   };
 }
@@ -347,10 +299,8 @@ export function buildContexts(
       (build as { dockerfile?: string }).dockerfile !== "Dockerfile"
     )
       throw new Error(`service ${name} builds from another Dockerfile`);
-    const resolved = path.posix.normalize(
-      path.posix.join(environmentDir, context),
-    );
-    if (resolved.startsWith("..") || path.posix.isAbsolute(resolved))
+    const resolved = posix.join(environmentDir, context);
+    if (resolved.startsWith("..") || resolved.startsWith("/"))
       throw new Error(`service ${name} builds from outside the repository`);
     contexts[name] = resolved;
   }
@@ -447,25 +397,31 @@ export function trialIdentity(step: Step): Record<string, unknown> {
  * key's member, under a lock, so two polls that both create a step make one
  * trial between them. A uuid5 of the run and the step.
  */
-export function admissionKey(step: Step): string {
-  const hash = createHash("sha1")
-    .update(Buffer.from(ADMISSION_NAMESPACE.replace(/-/g, ""), "hex"))
-    .update(`${step.run}/${stepKey(step)}`)
-    .digest();
+export async function admissionKey(step: Step): Promise<string> {
+  const namespace = ADMISSION_NAMESPACE.replace(/-/g, "");
+  const name = new TextEncoder().encode(`${step.run}/${stepKey(step)}`);
+  const input = new Uint8Array(16 + name.length);
+  for (let i = 0; i < 16; i++)
+    input[i] = parseInt(namespace.slice(i * 2, i * 2 + 2), 16);
+  input.set(name, 16);
+  const hash = new Uint8Array(await crypto.subtle.digest("SHA-1", input));
   hash[6] = (hash[6] & 0x0f) | 0x50;
   hash[8] = (hash[8] & 0x3f) | 0x80;
-  const hex = hash.subarray(0, 16).toString("hex");
+  const hex = hexOf(hash.subarray(0, 16));
   return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
 }
 
+const hexOf = (bytes: Uint8Array) =>
+  Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
+
 /** The create body for one trial, given its verifier archive. */
-export function trialBody(
+export async function trialBody(
   record: RunRecord,
   step: Step,
   definition: TaskDefinition,
   compose: Record<string, unknown>,
   testsFileId: string,
-): TaskCreateParams {
+): Promise<CreateTaskParams> {
   const meta: TrialMeta = { step: stepKey(step), record };
   return {
     prompt: definition.instruction,
@@ -483,7 +439,7 @@ export function trialBody(
       timeout_seconds: definition.verifierSeconds,
     },
     metadata: {
-      admission_key: admissionKey(step),
+      admission_key: await admissionKey(step),
       identity: trialIdentity(step),
       [TRIAL_METADATA_KEY]: meta,
     },
@@ -529,18 +485,18 @@ export async function createTrial(
     await sidecarImages(client, record.target, definition),
   );
   const archive = await client.files.upload({
-    file: tarGz(definition.tests),
+    file: await tarGz(definition.tests),
     name: `${step.task}-tests.tar.gz`,
     contentType: "application/gzip",
     ttl_seconds: ARCHIVE_TTL_SECONDS,
   });
   try {
     const created = await client.tasks.create(
-      trialBody(record, step, definition, compose, archive.id),
+      await trialBody(record, step, definition, compose, archive.id),
     );
     return created.task;
   } catch (error) {
-    if (!(error instanceof ConflictError)) throw error;
+    if (status(error) !== 409) throw error;
     const key = stepKey(step);
     const existing = (await runTasks(client, record.run)).find(
       ({ meta }) => meta.step === key,
@@ -555,7 +511,7 @@ async function completeTrial(client: PlatformClient, taskId: string) {
   try {
     await client.tasks.update(taskId, { status: "completed" });
   } catch (error) {
-    if (!(error instanceof ConflictError)) throw error;
+    if (status(error) !== 409) throw error;
   }
 }
 
@@ -691,8 +647,8 @@ export async function advanceRun(
 export interface StartRequest {
   venues: number;
   startedBy: string;
-  /** The member's project, which their token acts in. */
-  project: string;
+  /** The configured Runtime, its commit and its repository. */
+  target: Target | null;
   token: string;
   teams?: TeamSize;
   pubs?: Pubs;
@@ -700,8 +656,15 @@ export interface StartRequest {
 }
 
 /** A run's id from the member and their click's token: the same click names the same run. */
-export function runIdFor(member: string, token: string): string {
-  const hash = createHash("sha256").update(`${member}:${token}`).digest("hex");
+export async function runIdFor(member: string, token: string): Promise<string> {
+  const hash = hexOf(
+    new Uint8Array(
+      await crypto.subtle.digest(
+        "SHA-256",
+        new TextEncoder().encode(`${member}:${token}`),
+      ),
+    ),
+  );
   return `r${parseInt(hash.slice(0, 13), 16)}`;
 }
 
@@ -716,13 +679,13 @@ export async function startRun(
   request: StartRequest,
 ): Promise<{ run: string; target: Target }> {
   const now = request.now ?? new Date();
-  const run = runIdFor(request.startedBy, request.token);
+  const run = await runIdFor(request.startedBy, request.token);
   const latest = await latestRun(client);
   if (latest && latest !== run) {
     const view = await advanceRun(client, latest);
     if (view && !view.finished) throw new Error(`run ${latest} is still going`);
   }
-  const target = await resolveTarget(client, request.project);
+  const target = await resolveTarget(client, request.target);
   const record: RunRecord = {
     run,
     venues: request.venues,
@@ -743,7 +706,7 @@ export async function startRun(
 }
 
 const decode = async (client: PlatformClient, id: string | null | undefined) =>
-  id ? Buffer.from(await client.files.download(id)).toString("utf8") : null;
+  id ? utf8(await client.files.download(id)) : null;
 
 /** A finished trial's result from its verification's files. */
 export async function trialResult(

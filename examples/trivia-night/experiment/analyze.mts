@@ -6,13 +6,21 @@ import {
   validityGate,
 } from "../lib/experiment";
 import { cliSession } from "../lib/cli-session";
-import { runResults } from "../lib/platform-runner";
+import { advanceRun, runResults } from "../lib/platform-runner";
 
 const run = process.argv[2];
 if (!run) throw new Error("usage: analyze.mts <run-id>");
 // The run is its tasks on the platform, read as the member `introspection login` signed in.
-const results = await runResults(cliSession().client, run);
+const { client } = cliSession();
+const results = await runResults(client, run);
 if (!results) throw new Error(`no trials found for run ${run}`);
+// A member's eval tasks own no memory yet: then every arm ran without notes, and nothing below measures memory.
+const memoryOff = (await advanceRun(client, run, false))?.memory_off ?? false;
+const NOT_MEMORY = memoryOff ? " [memory off: not a memory finding]" : "";
+if (memoryOff)
+  console.log(
+    "MEMORY WAS OFF for this run's trials: every night 2 ran without notes, so the arm comparisons and the world gate below do not measure memory.\n",
+  );
 // A trial that errored measured nothing: it is counted and reported, never analysed.
 const fin = results.filter((e) => !e.error);
 const by: Record<string, Record<string, Record<string, number>>> = {};
@@ -88,13 +96,13 @@ const gp = pairsOf(arms.true, arms.none, "good_rounds").map((p) => ({
   none: p.without,
 }));
 console.log(
-  "\nWORLD GATE (true − no notes, good_rounds):",
+  `\nWORLD GATE (true − no notes, good_rounds)${NOT_MEMORY}:`,
   JSON.stringify(validityGate(gp)),
 );
 for (const m of ["good_rounds", "favourite_genre"]) {
   const g = pairsOf(arms.true, arms.none, m);
   console.log(
-    `true vs no notes ${m}:`,
+    `true vs no notes ${m}${NOT_MEMORY}:`,
     JSON.stringify(lift(g)),
     "sign",
     JSON.stringify(signTest(g.map((p) => p.with - p.without))),
@@ -102,17 +110,17 @@ for (const m of ["good_rounds", "favourite_genre"]) {
 }
 const rn = pairsOf(arms.model, arms.none, "good_rounds");
 console.log(
-  "PRIMARY model vs no notes, good_rounds:",
+  `PRIMARY model vs no notes, good_rounds${NOT_MEMORY}:`,
   JSON.stringify(lift(rn)),
 );
 const ro = pairsOf(arms.model, arms.other, "good_rounds");
 console.log(
-  "model vs other notes, good_rounds sign test:",
+  `model vs other notes, good_rounds sign test${NOT_MEMORY}:`,
   JSON.stringify(signTest(ro.map((p) => p.with - p.without))),
 );
 const ms = (a: string) => mean(pick(a, "good_rounds").map((r) => r.x));
 console.log(
-  "ordering:",
+  `ordering${NOT_MEMORY}:`,
   JSON.stringify(
     ordering({
       perfect: ms(arms.true),
@@ -133,7 +141,7 @@ const ps = sec.map(
     ).p,
 );
 console.log(
-  "model vs no notes secondaries, Holm:",
+  `model vs no notes secondaries, Holm${NOT_MEMORY}:`,
   JSON.stringify(Object.fromEntries(sec.map((m, i) => [m, holm(ps)[i]]))),
 );
 console.log(

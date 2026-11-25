@@ -311,7 +311,6 @@ async function main() {
 
   const evals = await import("../lib/platform-evals");
   const memory = await import("../lib/memory-measures");
-  const { POST: startEvals } = await import("../app/api/evals/route");
   const writeRunFolder = (
     folder: string,
     files: Record<string, string | object>,
@@ -712,27 +711,14 @@ async function main() {
   ].join("\n");
   const KEY = "intro_sk_secret_value";
 
-  await check(
-    "platform evals: a click names its run, and the planes come from the environment",
-    () => {
-      const run = runner.runIdFor("m-1", "click-1");
-      assert.match(run, /^r\d+$/);
-      assert.equal(runner.runIdFor("m-1", "click-1"), run);
-      assert.notEqual(runner.runIdFor("m-1", "click-2"), run);
-      assert.notEqual(runner.runIdFor("m-2", "click-1"), run);
-      assert.equal(
-        runner.dpBaseUrl({
-          INTROSPECTION_API_BASE_URL: "http://localhost:8000",
-        }),
-        "http://localhost:8000",
-      );
-      assert.equal(
-        runner.dpBaseUrl({ INTROSPECTION_DP_URL: "http://localhost:8002" }),
-        "http://localhost:8002",
-      );
-      assert.match(runner.ADD_RUNTIME, /runtimes create --manifest/);
-    },
-  );
+  await check("platform evals: a click names its run", async () => {
+    const run = await runner.runIdFor("m-1", "click-1");
+    assert.match(run, /^r\d+$/);
+    assert.equal(await runner.runIdFor("m-1", "click-1"), run);
+    assert.notEqual(await runner.runIdFor("m-1", "click-2"), run);
+    assert.notEqual(await runner.runIdFor("m-2", "click-1"), run);
+    assert.match(runner.ADD_RUNTIME, /runtimes create --manifest/);
+  });
 
   await check(
     "platform evals: a local script acts on the stack the CLI signed in to",
@@ -771,15 +757,15 @@ async function main() {
 
   await check(
     "platform evals: a tests archive unpacks with plain tar and has no . entry",
-    () => {
+    async () => {
       const dir = mkdtempSync(path.join(tmpdir(), "trivia-tar-"));
       const archive = path.join(dir, "tests.tar.gz");
       const files = [
         { path: "test.sh", content: Buffer.from("#!/bin/sh\n"), mode: 0o755 },
         { path: "nested/expected.json", content: Buffer.from("{}") },
       ];
-      writeFileSync(archive, tarGz(files));
-      assert.deepEqual(Buffer.from(tarGz(files)), readFileSync(archive));
+      writeFileSync(archive, await tarGz(files));
+      assert.deepEqual(Buffer.from(await tarGz(files)), readFileSync(archive));
       assert.deepEqual(
         execFileSync("tar", ["-tzf", archive], { encoding: "utf8" })
           .trim()
@@ -853,7 +839,7 @@ async function main() {
         target: TARGET,
       };
       const step = evals.runSteps(record)[0];
-      const body = runner.trialBody(
+      const body = await runner.trialBody(
         record,
         step,
         definition,
@@ -881,7 +867,7 @@ async function main() {
         },
       );
       assert.deepEqual(body.metadata, {
-        admission_key: runner.admissionKey(step),
+        admission_key: await runner.admissionKey(step),
         identity: {
           anonymous_id: "sim-r1-sydney",
           tags: ["simulation:r1", "simulation:trivia-night"],
@@ -890,14 +876,19 @@ async function main() {
       });
       assert.ok(!JSON.stringify(body).includes(KEY));
       // One key per step of a run, the same from any instance.
-      const keys = evals.runSteps(record).map(runner.admissionKey);
+      const keys = await Promise.all(
+        evals.runSteps(record).map(runner.admissionKey),
+      );
       assert.equal(new Set(keys).size, keys.length);
-      assert.equal(runner.admissionKey(step), keys[0]);
+      assert.equal(await runner.admissionKey(step), keys[0]);
       assert.match(
         keys[0],
         /^[0-9a-f]{8}-[0-9a-f]{4}-5[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
       );
-      assert.notEqual(runner.admissionKey({ ...step, run: "r2" }), keys[0]);
+      assert.notEqual(
+        await runner.admissionKey({ ...step, run: "r2" }),
+        keys[0],
+      );
     },
   );
 
@@ -1156,22 +1147,6 @@ async function main() {
         questions: [],
       });
       assert.deepEqual(evals.parseRounds(undefined), []);
-    },
-  );
-
-  await check(
-    "platform evals: the route refuses without a sign-in",
-    async () => {
-      const post = (cookie?: string) =>
-        startEvals(
-          new Request("http://localhost:3500/api/evals", {
-            method: "POST",
-            body: "{}",
-            headers: cookie ? { cookie } : {},
-          }),
-        );
-      assert.equal((await post()).status, 401);
-      assert.equal((await post("trivia_session=forged")).status, 401);
     },
   );
 
@@ -1569,190 +1544,81 @@ async function main() {
     },
   );
 
-  const login = await import("../lib/session");
-  const PROJECT = "01a1f15d-4fb5-700d-841b-6fb6ff2a783d";
-  const SECRET = "a-session-secret-of-at-least-32-characters";
-  process.env.TRIVIA_SESSION_SECRET = SECRET;
-  const sealing = login.sessionKey() as { key: Buffer };
-  const jwt = (claims: Record<string, unknown>) =>
-    ["{}", JSON.stringify(claims), "sig"]
-      .map((part) => Buffer.from(part).toString("base64url"))
-      .join(".");
-  // A token response as the Control Plane's exchange returns one; the exchange itself is
-  // recorded in scripts/test-login.ts.
-  const tokenFor = (
-    claims: Record<string, unknown>,
-    scope = login.LOGIN_SCOPES.join(" "),
-  ) => ({
-    access_token: jwt(claims),
-    token_type: "Bearer",
-    expires_in: 60,
-    scope,
-    dp_url: "http://localhost:8002",
-  });
-  const callbackFor = (cookie: string) => ({
-    code: "the-code",
-    state: (JSON.parse(cookie) as { state: string }).state,
-    cookie,
-    redirectUri: "http://localhost:3510/callback",
-    clientId: "intro_app_x",
-    cpUrl: "http://localhost:8000",
-    key: sealing.key,
-  });
-  const member = { member_id: "m-1", org_id: "o-1", project_id: PROJECT };
+  const login = await import("../lib/browser-session");
+  /** sessionStorage as the page uses it. */
+  const memoryStorage = () => {
+    const items = new Map<string, string>();
+    return {
+      items,
+      getItem: (key: string) => items.get(key) ?? null,
+      setItem: (key: string, value: string) => void items.set(key, value),
+      removeItem: (key: string) => void items.delete(key),
+    };
+  };
 
   await check(
-    "sign-in: the hosted login asks for the run's scopes, a project and an S256 challenge",
-    () => {
-      const { url, cookie } = login.loginRequest(
-        "intro_app_x",
-        "http://localhost:3510/callback",
-        "http://localhost:8000/",
+    "sign-in: the hosted login asks for the run's scopes and a project, with an S256 challenge",
+    async () => {
+      const storage = memoryStorage();
+      const url = new URL(
+        await login.loginUrl(storage, "http://localhost:3500/callback", {
+          ...login.CONFIG,
+          cpUrl: "http://localhost:8000/",
+          clientId: "intro_app_x",
+        }),
       );
-      const parsed = new URL(url);
       assert.equal(
-        parsed.origin + parsed.pathname,
+        url.origin + url.pathname,
         "http://localhost:8000/v1/oauth/authorize",
       );
-      assert.deepEqual(parsed.searchParams.get("scope")!.split(" "), [
-        ...login.LOGIN_SCOPES,
-      ]);
-      // The member picks the project on the platform's consent page.
-      assert.equal(parsed.searchParams.get("prompt"), "consent");
-      assert.equal(parsed.searchParams.get("project"), null);
-      assert.equal(parsed.searchParams.get("code_challenge_method"), "S256");
-      const { verifier, state } = JSON.parse(cookie);
-      assert.equal(parsed.searchParams.get("state"), state);
-      assert.ok(!url.includes(verifier));
+      assert.deepEqual(
+        url.searchParams.get("scope")!.split(" "),
+        login.LOGIN_SCOPES,
+      );
+      assert.equal(url.searchParams.get("prompt"), "consent");
+      assert.equal(url.searchParams.get("code_challenge_method"), "S256");
+      const flow = JSON.parse(storage.items.get("trivia-night:login")!);
+      assert.equal(url.searchParams.get("state"), flow.state);
+      assert.ok(!url.href.includes(flow.verifier));
     },
   );
 
   await check(
-    "sign-in: the member's own token is sealed into the session until it expires",
+    "sign-in: the token is kept until it expires, then the page signs in again",
     () => {
-      const { cookie } = login.loginRequest(
-        "intro_app_x",
-        "http://localhost:3510/callback",
-        "http://localhost:8000",
-      );
-      const now = Date.now();
-      const token = tokenFor(member);
-      const opened = login.sessionFromToken(token, callbackFor(cookie), now);
-      const { session } = opened;
-      assert.deepEqual(session, {
-        ...member,
-        scope: [...login.LOGIN_SCOPES],
-        access_token: token.access_token,
-        dp_url: "http://localhost:8002",
-        expires_at: now + 60_000,
-      });
-      // Sealed, not signed: the cookie carries neither the token nor the member in the clear.
-      const raw = Buffer.from(opened.cookie, "base64url").toString();
-      assert.ok(!raw.includes(token.access_token.split(".")[1]));
-      assert.ok(!opened.cookie.includes("m-1") && !raw.includes(PROJECT));
-      const request = new Request("http://localhost:3500/api/events", {
-        headers: { cookie: `other=1; trivia_session=${opened.cookie}` },
-      });
-      assert.deepEqual(login.requireSession(request), { session });
-      assert.deepEqual(login.missingScopes(session, login.RUN_SCOPES), []);
-      assert.equal(login.sessionFor(opened.cookie, now + 60_000), null);
-      assert.deepEqual(login.sessionFor(opened.cookie, now), session);
-      // Under another secret, tampered with, or with no secret at all, it opens nothing.
-      assert.equal(
-        login.sessionFor(opened.cookie, now, {
-          TRIVIA_SESSION_SECRET: `${SECRET}-rotated`,
-        }),
-        null,
-      );
-      const bytes = Buffer.from(opened.cookie, "base64url");
-      bytes[bytes.length - 20] ^= 1;
-      assert.equal(login.sessionFor(bytes.toString("base64url"), now), null);
-      assert.equal(login.sessionFor(opened.cookie, now, {}), null);
-      assert.match(
-        (
-          login.sessionKey({ TRIVIA_SESSION_SECRET: "short" }) as {
-            missing: string;
-          }
-        ).missing,
-        /at least 32/,
-      );
-    },
-  );
-
-  await check(
-    "sign-in: a wrong state, no member or no project opens no session; a member without the run scopes can only read",
-    async () => {
-      const { cookie } = login.loginRequest(
-        "intro_app_x",
-        "http://localhost:3510/callback",
-        "http://localhost:8000",
-      );
-      const status = (opened: () => unknown) =>
-        Promise.resolve()
-          .then(opened)
-          .then(
-            () => null,
-            (error: InstanceType<typeof login.LoginRefused>) => error.status,
-          );
-      // A forged state or a lost login cookie is refused before any exchange.
-      assert.equal(
-        await status(() =>
-          login.completeLogin({ ...callbackFor(cookie), state: "forged" }),
-        ),
-        401,
-      );
-      assert.equal(
-        await status(() =>
-          login.completeLogin({ ...callbackFor(cookie), cookie: undefined }),
-        ),
-        401,
-      );
-      const refused = (claims: Record<string, unknown>) =>
-        status(() =>
-          login.sessionFromToken(tokenFor(claims), callbackFor(cookie)),
-        );
-      assert.equal(await refused({ org_id: "o-1", project_id: PROJECT }), 401);
-      assert.equal(await refused({ member_id: "m-1", org_id: "o-1" }), 401);
-      // Any member of the application's organization signs in, in any of its projects.
-      assert.equal(await refused({ ...member, project_id: "another" }), null);
-      const reader = login.sessionFromToken(
-        tokenFor(member, "tasks:read files:read runtimes:read"),
-        callbackFor(cookie),
-      );
-      assert.deepEqual(login.missingScopes(reader.session, login.RUN_SCOPES), [
+      const storage = memoryStorage();
+      const session = {
+        access_token: "a-token",
+        member_id: "m-1",
+        project_id: "p-1",
+        scope: ["tasks:read", "files:read"],
+        expires_at: 1_000_000,
+      };
+      storage.setItem("trivia-night:session", JSON.stringify(session));
+      assert.deepEqual(login.storedSession(storage, 999_999), session);
+      assert.equal(login.storedSession(storage, 1_000_000), null);
+      assert.equal(storage.items.has("trivia-night:session"), false);
+      assert.equal(login.storedSession(storage), null);
+      // Only an owner or admin holds what a run needs beyond reading.
+      assert.deepEqual(login.missingScopes(session, login.RUN_SCOPES), [
         "tasks:write",
         "tasks:eval",
         "tasks:exec",
         "files:write",
       ]);
-      const post = (body: object) =>
-        startEvals(
-          new Request("http://localhost:3500/api/evals", {
-            method: "POST",
-            body: JSON.stringify(body),
-            headers: { cookie: `trivia_session=${reader.cookie}` },
-          }),
-        );
-      const response = await post({ token: "click-1" });
-      assert.equal(response.status, 403);
-      assert.match((await response.json()).error, /owner or admin.*tasks:eval/);
-      // A run is named by its click: a POST without the click's token starts nothing.
-      const admin = login.sessionFromToken(
-        tokenFor(member),
-        callbackFor(cookie),
-      );
-      const untokened = await startEvals(
-        new Request("http://localhost:3500/api/evals", {
-          method: "POST",
-          body: "{}",
-          headers: { cookie: `trivia_session=${admin.cookie}` },
-        }),
-      );
-      assert.equal(untokened.status, 400);
-      const anonymous = new Request("http://localhost:3500/api/events");
       assert.equal(
-        (login.requireSession(anonymous) as { status: number }).status,
-        401,
+        login.configuredTarget({ ...login.CONFIG, runtime: "" }),
+        null,
+      );
+      assert.deepEqual(
+        login.configuredTarget({
+          ...login.CONFIG,
+          runtime: "rt",
+          repository: "repo",
+          commit: "c1",
+          recipePath: "",
+        }),
+        { runtime: "rt", commit: "c1", repository: "repo", recipe_path: "" },
       );
     },
   );

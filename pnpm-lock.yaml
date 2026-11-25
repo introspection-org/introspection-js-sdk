@@ -226,6 +226,9 @@ importers:
 
   examples/trivia-night:
     dependencies:
+      '@introspection-sdk/introspection-browser':
+        specifier: workspace:*
+        version: link:../../packages/introspection-browser
       '@introspection-sdk/introspection-node':
         specifier: workspace:*
         version: link:../../packages/introspection-node

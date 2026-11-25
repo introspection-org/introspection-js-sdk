@@ -90,6 +90,10 @@ export {
 } from "./resources/aauth.js";
 export { CollectionClient } from "./resources/collection.js";
 export { ImagesApi, ImagesClient } from "./resources/images.js";
+export {
+  repositoryContents,
+  type RepositoryContentsApi,
+} from "./resources/repository-contents.js";
 export { RoutinesApi, RoutinesClient } from "./resources/routines.js";
 export {
   IssueCommentsApi,

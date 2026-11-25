@@ -65,10 +65,6 @@ json() {
   ' "$1"
 }
 
-# The page seals its sign-in cookie with this; a restart keeps the sessions.
-grep -q "^TRIVIA_SESSION_SECRET=" "$ENV_FILE" 2>/dev/null ||
-  upsert_env TRIVIA_SESSION_SECRET "$(openssl rand -base64 32)"
-
 # The bank trusts only the platform's token here: a header naming the owner
 # would let anyone on the tunnel play as any venue.
 unset TRIVIA_DEV_OWNER_HEADER TRIVIA_DEV_OWNER

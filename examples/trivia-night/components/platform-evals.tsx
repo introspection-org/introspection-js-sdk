@@ -2,12 +2,37 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import type {
-  EvalFinished,
-  EvalRunFinished,
-  EvalStarted,
-  PlayedRound,
+import {
+  COST_PER_TRIAL,
+  DEFAULT_TEAMS,
+  MAX_VENUES,
+  MAX_VENUES_BY_PUBS,
+  TEAM_SIZES,
+  TRIALS_PER_VENUE,
+  type EvalFinished,
+  type EvalRunFinished,
+  type EvalStarted,
+  type PlayedRound,
+  type Target,
+  type TeamSize,
 } from "@/lib/platform-evals";
+import {
+  RUN_SCOPES,
+  configuredTarget,
+  loginUrl,
+  missingScopes,
+  sessionClient,
+  storedSession,
+  type Session,
+} from "@/lib/browser-session";
+import {
+  advanceRun,
+  latestRun,
+  resolveTarget,
+  startRun,
+  trialResult,
+  type PlatformClient,
+} from "@/lib/platform-runner";
 import {
   factChips,
   firstSentences,
@@ -51,16 +76,17 @@ interface Config {
   /** An estimate of one trial's model cost, in US dollars. */
   cost_per_trial?: number;
   trials_per_venue?: number;
-  target: { runtime: string; commit: string; slug?: string } | null;
+  target: Target | null;
   target_error: string | null;
   active: string | null;
 }
 
 type Pubs = "development" | "heldout";
 
-/** A session that ended sends the browser back through the sign-in. */
-function signedOut(response: Response): boolean {
-  if (response.status !== 401) return false;
+/** An ended session sends the browser back through the sign-in. */
+function signedOut(error: unknown): boolean {
+  if ((error as { status?: number }).status !== 401) return false;
+  window.sessionStorage.clear();
   window.location.reload();
   return true;
 }
@@ -272,7 +298,7 @@ function venueParts(trial: Trial | undefined, venue: string) {
   return match ? `${match[1]} · ${match[2]}` : label;
 }
 
-/** A run as `/api/evals/<run>` reports it. */
+/** A run as `advanceRun` reports it. */
 interface RunState {
   run: string;
   trials: {
@@ -623,14 +649,56 @@ export function PlatformEvals() {
   const run = useRef<string | null>(null);
   const results = useRef(new Map<string, EvalFinished>());
 
+  const member = useRef<{ session: Session; client: PlatformClient } | null>(
+    null,
+  );
+
   const loadConfig = useCallback(async () => {
-    const response = await fetch("/api/evals");
-    if (signedOut(response)) return;
-    const body = await response.json();
-    if (!response.ok) setError(body.error);
-    else {
-      setConfig(body);
-      run.current ??= body.latest ?? null;
+    const session = storedSession(window.sessionStorage);
+    if (!session) {
+      window.location.href = await loginUrl(
+        window.sessionStorage,
+        `${window.location.origin}/callback`,
+      );
+      return;
+    }
+    try {
+      const client = await sessionClient(session, window.sessionStorage);
+      member.current = { session, client };
+      const missing = missingScopes(session, RUN_SCOPES);
+      // The latest run loads whether or not the target resolves.
+      const latest = await latestRun(client);
+      let active: string | null = null;
+      if (latest) {
+        const state = await advanceRun(client, latest, missing.length === 0);
+        active = state && !state.finished ? latest : null;
+      }
+      const configured = configuredTarget();
+      let target = null;
+      let target_error = null;
+      if (configured)
+        try {
+          target = await resolveTarget(client, configured);
+        } catch (failure) {
+          target_error = (failure as Error).message;
+        }
+      setConfig({
+        missing_scopes: missing,
+        no_runtime: !configured,
+        max_venues: MAX_VENUES,
+        max_venues_by_pubs: MAX_VENUES_BY_PUBS,
+        team_sizes: [...TEAM_SIZES],
+        default_teams: DEFAULT_TEAMS,
+        cost_per_trial: COST_PER_TRIAL,
+        trials_per_venue: TRIALS_PER_VENUE,
+        target,
+        target_error,
+        latest,
+        active,
+      });
+      run.current ??= latest;
+    } catch (failure) {
+      if (!signedOut(failure)) setError((failure as Error).message);
     }
   }, []);
 
@@ -638,23 +706,31 @@ export function PlatformEvals() {
   const resultRetries = useRef(0);
   const pollOnce = useCallback(async () => {
     const id = run.current;
-    if (!id) return;
-    const response = await fetch(`/api/evals/${id}`);
-    if (signedOut(response)) return;
-    const body = await response.json();
-    if (!response.ok) {
-      setError(body.error);
+    if (!id || !member.current) return;
+    const { session, client } = member.current;
+    let state: RunState;
+    try {
+      const view = await advanceRun(
+        client,
+        id,
+        missingScopes(session, RUN_SCOPES).length === 0,
+      );
+      if (!view) return;
+      state = view;
+    } catch (failure) {
+      if (!signedOut(failure)) setError((failure as Error).message);
       return;
     }
-    const state = body as RunState;
     // A finished trial's result never changes, so each is read once.
     await Promise.all(
       state.trials
         .filter((trial) => trial.done && trial.task_id)
         .filter((trial) => !results.current.has(trial.task_id!))
         .map(async (trial) => {
-          const read = await fetch(`/api/evals/trials/${trial.task_id}`);
-          if (read.ok) results.current.set(trial.task_id!, await read.json());
+          const read = await trialResult(client, trial.task_id!).catch(
+            () => null,
+          );
+          if (read) results.current.set(trial.task_id!, read);
         }),
     );
     const missing = state.trials.filter(
@@ -732,26 +808,27 @@ export function PlatformEvals() {
   const start = async () => {
     setError(undefined);
     setStarting(true);
-    // One token per click: a repeated or duplicated POST of it names the same run.
+    // One token per click: a repeated start of it names the same run.
     const token = crypto.randomUUID();
-    const response = await fetch("/api/evals", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
+    try {
+      if (!member.current || !config?.target) return;
+      const { session, client } = member.current;
+      const started = await startRun(client, {
         venues: venueCount,
-        teams: teams ?? config?.default_teams,
-        pubs,
+        startedBy: session.member_id,
+        target: config.target,
         token,
-      }),
-    }).finally(() => setStarting(false));
-    if (signedOut(response)) return;
-    const body = await response.json();
-    if (!response.ok) setError(body.error);
-    else {
-      run.current = body.run;
+        teams: (teams ?? config.default_teams) as TeamSize,
+        pubs,
+      });
+      run.current = started.run;
       results.current.clear();
       resultRetries.current = 0;
-      setConfig((current) => current && { ...current, active: body.run });
+      setConfig((current) => current && { ...current, active: started.run });
+    } catch (failure) {
+      if (!signedOut(failure)) setError((failure as Error).message);
+    } finally {
+      setStarting(false);
     }
     await poll();
   };

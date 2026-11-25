@@ -13,6 +13,7 @@ import path from "node:path";
 
 import VENUES from "../recipe-operator/evals/venues.json";
 import { taskName } from "../lib/platform-evals";
+import { configuredTarget } from "../lib/browser-session";
 import { cliSession } from "../lib/cli-session";
 import {
   readTaskDefinition,
@@ -51,8 +52,8 @@ async function hostedFiles(
 }
 
 async function main() {
-  const { client, project } = cliSession();
-  const target = await resolveTarget(client, project);
+  const { client } = cliSession();
+  const target = await resolveTarget(client, configuredTarget());
   const definition = await readTaskDefinition(
     client,
     target,
@@ -105,7 +106,7 @@ async function main() {
         `recipe-operator/${relative} differs from ${target.commit.slice(0, 12)} in ${differ.join(", ")}: push this checkout (pnpm dev) or check out that commit`,
       );
     const upload = await client.files.upload({
-      file: tarGz(files),
+      file: await tarGz(files),
       name: `${service}-context.tar.gz`,
       contentType: "application/gzip",
       ttl_seconds: UPLOAD_TTL_SECONDS,
