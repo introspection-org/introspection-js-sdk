@@ -640,8 +640,8 @@ export function PlatformEvals() {
   const [tabs, setTabs] = useState<Record<string, (typeof NIGHTS)[number]>>({});
   const [nightView, setNightView] = useState<NightView>("questions");
   const [starting, setStarting] = useState(false);
-  /** The Cancel run button's confirm step: off, asking, or cancelling. */
-  const [cancelling, setCancelling] = useState<"ask" | "busy">();
+  /** Set from a Cancel run click until the run's trials have all ended. */
+  const [cancelling, setCancelling] = useState(false);
   useEffect(() => {
     try {
       if (window.localStorage.getItem(NIGHT_VIEW_KEY) === "steps")
@@ -801,6 +801,10 @@ export function PlatformEvals() {
   }, [poll]);
 
   const running = Boolean(view && !view.finished) || Boolean(config?.active);
+  // A cancel holds the button until the trials report their ends.
+  useEffect(() => {
+    if (!running) setCancelling(false);
+  }, [running]);
   // While a run goes, the Data Plane's task events move it on. Each (re)connect re-reads the
   // run once, since events sent while the socket was down are gone.
   useEffect(() => {
@@ -879,13 +883,13 @@ export function PlatformEvals() {
   const cancel = async () => {
     const id = run.current;
     if (!id || !member.current) return;
-    setCancelling("busy");
+    setCancelling(true);
     try {
       await cancelRun(member.current.client, id);
     } catch (failure) {
+      // The button comes back so the cancel can be tried again.
+      setCancelling(false);
       if (!signedOut(failure)) setError((failure as Error).message);
-    } finally {
-      setCancelling(undefined);
     }
     await poll();
   };
@@ -1453,30 +1457,11 @@ export function PlatformEvals() {
         </button>
         {running &&
           config &&
-          !config.missing_scopes.includes("tasks:write") &&
-          (cancelling === undefined ? (
-            <button type="button" onClick={() => setCancelling("ask")}>
-              Cancel run
+          !config.missing_scopes.includes("tasks:write") && (
+            <button type="button" disabled={cancelling} onClick={cancel}>
+              {cancelling ? "Cancelling…" : "Cancel run"}
             </button>
-          ) : (
-            <span className="fine">
-              Cancel every trial still going?{" "}
-              <button
-                type="button"
-                disabled={cancelling === "busy"}
-                onClick={cancel}
-              >
-                Yes, cancel
-              </button>{" "}
-              <button
-                type="button"
-                disabled={cancelling === "busy"}
-                onClick={() => setCancelling(undefined)}
-              >
-                Keep running
-              </button>
-            </span>
-          ))}
+          )}
         {config?.cost_per_trial !== undefined && (
           <span
             className="fine cost"
