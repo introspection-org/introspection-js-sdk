@@ -925,7 +925,8 @@ async function main() {
           "const written = {};",
           "const writeFileSync = (to, text) => { written[to] = JSON.parse(text); };",
           venuesGen.HOST_STEPS,
-          "writeResult({ reward: 1, notes_written: 1 });",
+          // A night with 3 lead changes over its 6 rounds.
+          "writeResult({ reward: 1, notes_written: 1, in_band: 0.5, lead_changes: 0.6, lead_changes_count: 3, rounds_played: 6 });",
           "export { clip, written };",
         ].join("\n"),
       );
@@ -935,13 +936,21 @@ async function main() {
         written: Record<string, Record<string, unknown>>;
       };
       delete process.env.PI_RECIPE_GENAI_SPANS_FILE;
-      // Harbor reads reward.json as numbers only; the steps go in result.json.
-      assert.deepEqual(written["/logs/verifier/reward.json"], {
+      // Harbor reads every reward.json value as a reward in [0, 1]; the raw counts and the
+      // steps go in result.json only.
+      const rewards = written["/logs/verifier/reward.json"];
+      assert.deepEqual(rewards, {
         reward: 1,
         notes_written: 1,
+        in_band: 0.5,
+        lead_changes: 0.6,
       });
+      for (const value of Object.values(rewards))
+        assert.ok(typeof value === "number" && value >= 0 && value <= 1);
       const result = written["/logs/verifier/result.json"];
       assert.equal(result.reward, 1);
+      assert.equal(result.lead_changes_count, 3);
+      assert.equal(result.rounds_played, 6);
       const steps = result.steps as {
         name: string;
         result: string;

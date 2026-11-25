@@ -298,8 +298,15 @@ try {
 } catch (error) {
   host = { steps_error: clip(error?.message ?? error, 200) };
 }
+// Harbor reads every reward.json value as a reward in [0, 1]: a raw count (rounds_played,
+// lead_changes_count) is kept in result.json and the printed report only.
 const writeResult = (result) => {
-  writeFileSync("/logs/verifier/reward.json", JSON.stringify(result));
+  const rewards = Object.fromEntries(
+    Object.entries(result).filter(
+      ([, v]) => typeof v === "number" && Number.isFinite(v) && v >= 0 && v <= 1,
+    ),
+  );
+  writeFileSync("/logs/verifier/reward.json", JSON.stringify(rewards));
   writeFileSync(
     "/logs/verifier/result.json",
     JSON.stringify({ ...result, ...host }),

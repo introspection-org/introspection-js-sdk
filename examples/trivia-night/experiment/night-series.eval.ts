@@ -76,6 +76,10 @@ function score(
     .replace(
       '"/logs/verifier/reward.json"',
       JSON.stringify(join(out, "reward.json")),
+    )
+    .replace(
+      '"/logs/verifier/result.json"',
+      JSON.stringify(join(out, "result.json")),
     );
   copyFileSync(
     join(tasks, `night2-${pub}/tests/expected.json`),
@@ -86,7 +90,8 @@ function score(
     encoding: "utf8",
   });
   writeFileSync(join(out, "report.json"), report);
-  return JSON.parse(readFileSync(join(out, "reward.json"), "utf8"));
+  // Every measure, raw counts included; reward.json keeps only those in [0, 1].
+  return JSON.parse(readFileSync(join(out, "result.json"), "utf8"));
 }
 
 describeEval(
