@@ -451,8 +451,12 @@ async function runTasks(
   );
 }
 
-const skipReason = (failed: string[]) =>
-  `skipped: ${failed.map((k) => k.split("/")[1]).join(", ")} failed`;
+/** How a night that failed its successor ended: cancelled, skipped in turn, or failed. */
+const endOf = (task: Task | undefined) =>
+  !task ? "skipped" : task.status === "cancelled" ? "cancelled" : "failed";
+
+const skipReason = (ended: [key: string, end: string][]) =>
+  `skipped: ${ended.map(([k, end]) => `${k.split("/")[1]} ${end}`).join(", ")}`;
 
 /** The newest run this page started, by id, or null. */
 export async function latestRun(
@@ -497,7 +501,9 @@ export async function advanceRun(
       const before = (step.after ?? []).map((k) => [k, states.get(k)] as const);
       const failed = before.filter(([, state]) => state?.failed);
       if (failed.length) {
-        const reason = skipReason(failed.map(([k]) => k));
+        const reason = skipReason(
+          failed.map(([k]) => [k, endOf(byStep.get(k))]),
+        );
         states.set(key, { done: true, failed: true, error: reason });
         views.push({
           key,
@@ -714,7 +720,12 @@ export async function runResults(
       const before = (step.after ?? []).filter((k) => failed.has(k));
       if (before.length) {
         failed.add(key);
-        results.push(skippedTrial(step, skipReason(before)));
+        results.push(
+          skippedTrial(
+            step,
+            skipReason(before.map((k) => [k, endOf(byStep.get(k))])),
+          ),
+        );
       }
       continue;
     }

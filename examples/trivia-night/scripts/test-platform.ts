@@ -351,7 +351,7 @@ async function main() {
         assert.equal(byKey.get(evals.stepKey(perfect))?.status, "skipped");
         assert.equal(
           byKey.get(evals.stepKey(perfect))?.finished?.error,
-          "skipped: night0-seed failed",
+          "skipped: night0-seed cancelled",
         );
         assert.equal(view.finished?.trials, steps.length);
         assert.equal(view.finished?.started_by, bootstrap.member);

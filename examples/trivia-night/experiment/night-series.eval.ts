@@ -18,6 +18,8 @@ import { describeEval } from "vitest-evals";
 import { createRecipeHarness } from "@introspection-ai/vitest-evals";
 import { startServices } from "@introspection-ai/eval-simulate/mcp";
 
+import { parseVerifierJson } from "../lib/platform-evals";
+
 const pub = process.env.PUB!;
 const tasks = process.env.TASKS_DIR!;
 const evidence = process.env.EVIDENCE_DIR!;
@@ -76,10 +78,6 @@ function score(
     .replace(
       '"/logs/verifier/reward.json"',
       JSON.stringify(join(out, "reward.json")),
-    )
-    .replace(
-      '"/logs/verifier/result.json"',
-      JSON.stringify(join(out, "result.json")),
     );
   copyFileSync(
     join(tasks, `night2-${pub}/tests/expected.json`),
@@ -90,8 +88,12 @@ function score(
     encoding: "utf8",
   });
   writeFileSync(join(out, "report.json"), report);
-  // Every measure, raw counts included; reward.json keeps only those in [0, 1].
-  return JSON.parse(readFileSync(join(out, "result.json"), "utf8"));
+  // Every measure, raw counts included, from the printed report, as the page reads it;
+  // reward.json keeps only those in [0, 1].
+  const printed = parseVerifierJson(report);
+  if (!printed)
+    throw new Error(`the verifier printed no report: ${report.slice(-300)}`);
+  return printed;
 }
 
 describeEval(

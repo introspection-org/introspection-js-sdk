@@ -465,7 +465,7 @@ function NightQuestions({
   );
 }
 
-/** Polls a finished run makes for a result read that failed, before it says so. */
+/** Retries for a failed result read or run step, before the panel says so. */
 const MAX_RESULT_RETRIES = 5;
 
 type NightView = "questions" | "steps";
@@ -711,6 +711,7 @@ export function PlatformEvals() {
   const polling = useRef<Promise<void> | null>(null);
   const pollRef = useRef<() => Promise<void>>(undefined);
   const resultRetries = useRef(0);
+  const advanceRetries = useRef(0);
   const pollOnce = useCallback(async () => {
     const id = run.current;
     if (!id || !member.current) return;
@@ -724,8 +725,17 @@ export function PlatformEvals() {
       );
       if (!view) return;
       state = view;
+      advanceRetries.current = 0;
     } catch (failure) {
-      if (!signedOut(failure)) setError((failure as Error).message);
+      if (signedOut(failure)) return;
+      // No task event may follow a failed step (the run's last trial has ended), so retry it.
+      if (advanceRetries.current < MAX_RESULT_RETRIES) {
+        advanceRetries.current += 1;
+        setTimeout(
+          () => void pollRef.current?.(),
+          Math.min(1000 * 2 ** advanceRetries.current, 30_000),
+        );
+      } else setError((failure as Error).message);
       return;
     }
     // A finished trial's result never changes, so each is read once.

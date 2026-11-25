@@ -488,7 +488,7 @@ export interface TrialResult {
 }
 
 /** The verifier prints one JSON object: the reward, each check, and context. */
-function parseVerifierJson(
+export function parseVerifierJson(
   text: string | null,
 ): Record<string, unknown> | null {
   if (!text) return null;
