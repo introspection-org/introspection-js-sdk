@@ -15,7 +15,9 @@ import {
 } from "@introspection-sdk/introspection-node";
 import type {
   ImageCreateParams,
+  Task,
   TaskCommandSpec,
+  TaskCreateParams,
 } from "@introspection-sdk/introspection-node";
 
 const DP = "https://dp.example.com";
@@ -194,6 +196,87 @@ describe("tasks.commands", () => {
       kind: "eval",
       commands: true,
     });
+  });
+
+  it("an eval task carries its verifier, compose and Recipe commit", async () => {
+    const { sent, dp } = fakeDataPlane(() =>
+      json({ task: { id: TASK_ID }, run: { id: "run-1", task_id: TASK_ID } }),
+    );
+    const body: TaskCreateParams = {
+      prompt: "go",
+      kind: "eval",
+      commands: true,
+      recipe_git_commit_sha: "393c952f976e52419f415a60b4f6c6944776eb2b",
+      compose: { services: { main: { volumes: ["logs:/logs"] } } },
+      verifier: {
+        tests_file_id: FILE_ID,
+        command: ["sh", "/tests/test.sh"],
+        reward_path: "/logs/verifier/reward.json",
+        timeout_seconds: 120,
+      },
+    };
+    await dp.tasks.create(body);
+
+    expect(sent[0]).toMatchObject({
+      method: "POST",
+      url: `${DP}/v1/tasks`,
+      body,
+    });
+  });
+
+  it("completes an idle task and lists by verification status", async () => {
+    const { sent, dp } = fakeDataPlane((call) =>
+      call.method === "PATCH"
+        ? json({ id: TASK_ID, status: "idle" })
+        : json(page([])),
+    );
+    await dp.tasks.update(TASK_ID, { status: "completed" });
+    await dp.tasks.list({
+      tag: "simulation:r1",
+      verification_status: "failed",
+    });
+
+    expect(sent.map((s) => [s.method, s.url, s.body])).toEqual([
+      ["PATCH", `${DP}/v1/tasks/${TASK_ID}`, { status: "completed" }],
+      [
+        "GET",
+        `${DP}/v1/tasks?tag=simulation%3Ar1&verification_status=failed`,
+        undefined,
+      ],
+    ]);
+  });
+
+  it("decodes a finishing task's verification under strictSchema", async () => {
+    const task = {
+      id: TASK_ID,
+      org_id: TASK_ID,
+      project_id: TASK_ID,
+      created_at: "2026-11-24T00:00:00Z",
+      updated_at: "2026-11-24T00:00:00Z",
+      kind: "eval",
+      status: "finishing",
+      is_archived: false,
+      verification: {
+        status: "completed",
+        run_id: "run-1",
+        reward: 1,
+        exit_code: 0,
+        result_file_id: FILE_ID,
+        log_file_id: COMMAND_ID,
+        completed_at: "2026-11-24T00:01:00Z",
+        error: null,
+      },
+    };
+    const dp = new DataPlaneClient({
+      dpUrl: DP,
+      token: "admin-token",
+      strictSchema: true,
+      fetch: (async () => json(task)) as typeof globalThis.fetch,
+    });
+
+    const read: Task = await dp.tasks.get(TASK_ID);
+    expect(read.status).toBe("finishing");
+    expect(read.verification?.reward).toBe(1);
   });
 
   it("a simulate task is created with its kind", async () => {

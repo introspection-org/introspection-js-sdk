@@ -23,6 +23,7 @@ export type TaskStatus =
   | "idle"
   | "completed"
   | "failed"
+  | "finishing"
   | "cancelling"
   | "cancelled";
 
@@ -55,6 +56,41 @@ export interface Task {
   agent?: AgentInfo | null;
   /** `key:value` grouping tags stamped on this task. */
   tags?: string[];
+  /** The outcome of the task's {@link TaskVerifier}; absent on a task without one. */
+  verification?: TaskVerification | null;
+}
+
+/**
+ * An eval task's own verifier: once the run ends, the platform unpacks
+ * `tests_file_id` (a Files API `.tar.gz`) into `/tests`, runs `command` in the
+ * agent's container and keeps the JSON at `reward_path` and the command's log
+ * as files, reported as {@link Task.verification}.
+ */
+export interface TaskVerifier {
+  tests_file_id: Uuid;
+  /** Argv, never a shell string. */
+  command: string[];
+  /** Absolute path the verifier writes its JSON result to. */
+  reward_path: string;
+  /** At most the Data Plane's command timeout; a larger value is refused at create. */
+  timeout_seconds?: number;
+}
+
+export type VerificationStatus =
+  "pending" | "running" | "completed" | "failed" | "cancelled";
+
+/** A verifier's outcome. The full result and the log are Files API objects. */
+export interface TaskVerification {
+  status: VerificationStatus;
+  /** The run the verifier scored. */
+  run_id?: string | null;
+  /** The result's numeric `reward`, when it has one. */
+  reward?: number | null;
+  exit_code?: number | null;
+  result_file_id?: Uuid | null;
+  log_file_id?: Uuid | null;
+  completed_at?: IsoDate | null;
+  error?: string | null;
 }
 
 /**
@@ -114,6 +150,16 @@ export interface TaskCreateParams {
   kind?: Exclude<TaskKind, "process">;
   /** Consent to `tasks.commands` against the live sandbox; eval tasks only. */
   commands?: boolean;
+  /**
+   * The trial's compose document: a `services` mapping in which `main` is the
+   * agent's slot and every other service names an image from `images`. Eval
+   * tasks only.
+   */
+  compose?: Record<string, unknown>;
+  /** The pushed Recipe commit an eval task runs; eval tasks only. */
+  recipe_git_commit_sha?: string;
+  /** Scores the run in its sandbox once it ends; needs `commands: true`. */
+  verifier?: TaskVerifier;
   /** Recipe agent to run; omit for the recipe default (`agents/agent.yaml`). */
   agent_name?: string;
   /**
@@ -198,6 +244,12 @@ export interface TaskCreateParams {
 }
 
 export interface TaskUpdateParams {
+  /**
+   * `completed` ends an `idle` task: it passes through `finishing` while the
+   * platform's post-run work (judges, a verifier) runs, then releases its
+   * sandbox.
+   */
+  status?: "completed";
   title?: string;
   is_archived?: boolean;
   metadata?: Record<string, unknown>;
@@ -213,6 +265,7 @@ export interface TaskListParams extends ListParams {
   require_routine_id?: boolean;
   /** Filter by one `key:value` tag. ANDed with the ownership predicate, so it only narrows. */
   tag?: string;
+  verification_status?: VerificationStatus;
 }
 
 export interface TaskPrompt {
