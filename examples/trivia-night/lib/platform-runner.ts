@@ -31,6 +31,7 @@ import {
   TRIALS_TAG,
   trialMeta,
   trialState,
+  trialVerification,
   verifierOutput,
   type EvalFinished,
   type Pubs,
@@ -545,30 +546,25 @@ export async function advanceRun(
       const failed = before.filter(([, state]) => state?.failed);
       if (failed.length) {
         const reason = skipReason(failed.map(([k]) => k));
-        states.set(key, {
-          done: true,
-          failed: true,
-          ended: true,
-          error: reason,
-        });
+        states.set(key, { done: true, failed: true, error: reason });
         views.push({
           key,
           step,
           task_id: null,
           status: "skipped",
-          verification: null,
+          scored: false,
           done: true,
           finished: skippedTrial(step, reason),
         });
         continue;
       }
-      if (before.some(([, state]) => !state?.done || !state.ended)) {
+      if (before.some(([, state]) => !state?.done)) {
         views.push({
           key,
           step,
           task_id: null,
           status: "waiting",
-          verification: null,
+          scored: false,
           done: false,
           finished: null,
         });
@@ -584,7 +580,7 @@ export async function advanceRun(
       step,
       task_id: task.id,
       status: task.status,
-      verification: task.verification?.status ?? null,
+      scored: trialVerification(task.metadata) !== null,
       done: state.done,
       finished: null,
     });
@@ -660,7 +656,7 @@ export async function trialResult(
   const step = runSteps(meta.record).find((s) => stepKey(s) === meta.step);
   if (!step) return null;
   const state = trialState(task);
-  const verification = task.verification;
+  const verification = trialVerification(task.metadata);
   const [log, result, definition] = await Promise.all([
     decode(client, verification?.log_file_id),
     decode(client, verification?.result_file_id),
@@ -672,7 +668,7 @@ export async function trialResult(
     const before = (await runTasks(client, meta.record.run)).find(
       ({ meta: m }) => m.step === step.after![0],
     );
-    const v = before?.task.verification;
+    const v = before && trialVerification(before.task.metadata);
     if (v)
       night1Notes = verifierOutput(
         await decode(client, v.log_file_id),

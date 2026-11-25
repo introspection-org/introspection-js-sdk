@@ -7,6 +7,7 @@
 import HELDOUT from "../recipe-operator/evals/heldout.json";
 import VENUES from "../recipe-operator/evals/venues.json";
 import type { Fetch, Measures } from "./memory-measures";
+import type { TaskVerification } from "@introspection-sdk/introspection-node";
 
 /** A venue profile's task pair, as `pnpm evals:venues` writes it. */
 export interface VenueProfile {
@@ -387,64 +388,59 @@ export function runSteps(record: RunRecord): Step[] {
   );
 }
 
-const VERIFICATION_ENDED = new Set(["completed", "failed", "cancelled"]);
 const TASK_ENDED = new Set(["completed", "failed", "cancelled"]);
 
 /** The parts of a task a trial's state is read from. */
 export interface TrialTask {
   status: string;
   metadata?: Record<string, unknown> | null;
-  verification?: {
-    status: string;
-    exit_code?: number | null;
-    error?: string | null;
-  } | null;
+}
+
+/** The task's `metadata.verification`, which the platform writes once its verifier has run, or null. */
+export function trialVerification(
+  metadata: Record<string, unknown> | null | undefined,
+): TaskVerification | null {
+  const value = metadata?.verification;
+  return isRecord(value) && typeof value.completed_at === "string"
+    ? (value as unknown as TaskVerification)
+    : null;
 }
 
 export interface TrialState {
-  /** Scored, or ended without a score: nothing more will happen to its result. */
+  /** The task has ended, so nothing more will happen to its result or its notes. */
   done: boolean;
   failed: boolean;
-  /** The task itself has ended and released its sandbox, so its notes are saved. */
-  ended: boolean;
   error: string | null;
 }
 
+/** Scored once the task has ended `completed` with a verification that reports no error. */
 export function trialState(task: TrialTask): TrialState {
-  const ended = TASK_ENDED.has(task.status);
-  const verification = task.verification;
-  if (verification && VERIFICATION_ENDED.has(verification.status)) {
-    const exit = verification.exit_code;
-    const error =
-      verification.status === "completed"
-        ? exit && exit !== 0
-          ? `the verifier exited ${exit}`
-          : null
-        : (verification.error ?? `the verification was ${verification.status}`);
-    return { done: true, failed: error !== null, ended, error };
-  }
-  if (ended) {
-    const reason = task.metadata?.error;
-    return {
-      done: true,
-      failed: true,
-      ended,
-      error:
-        typeof reason === "string" && reason
-          ? reason
-          : `the trial was ${task.status} before it was scored`,
-    };
-  }
-  return { done: false, failed: false, ended, error: null };
+  if (!TASK_ENDED.has(task.status))
+    return { done: false, failed: false, error: null };
+  const verification = trialVerification(task.metadata);
+  const reason = task.metadata?.error;
+  const error =
+    task.status !== "completed"
+      ? typeof reason === "string" && reason
+        ? reason
+        : `the trial was ${task.status} before it was scored`
+      : !verification
+        ? "the trial ended without its verifier running"
+        : verification.error
+          ? verification.error
+          : verification.exit_code
+            ? `the verifier exited ${verification.exit_code}`
+            : null;
+  return { done: true, failed: error !== null, error };
 }
 
 /**
- * Whether a trial is ready to be ended: its run has settled at `idle` and its
- * verifier has not run. Completing it moves it to `finishing`, where the
- * platform runs its verifier, and then to `completed`.
+ * Whether a trial is ready to be ended: its run has settled at `idle`.
+ * Completing it moves it to `finishing`, where the platform runs its
+ * verifier, and then to `completed`.
  */
 export function readyToComplete(task: TrialTask): boolean {
-  return task.status === "idle" && task.verification?.status === "pending";
+  return task.status === "idle";
 }
 
 /** A step the page shows: its task's state, or why it has none yet. */
@@ -453,7 +449,8 @@ export interface TrialView {
   step: Step;
   task_id: string | null;
   status: string;
-  verification: string | null;
+  /** Whether its verifier has recorded an outcome. */
+  scored: boolean;
   done: boolean;
   /** A finished trial's result to read from its task, or the skipped step's record. */
   finished: EvalFinished | null;

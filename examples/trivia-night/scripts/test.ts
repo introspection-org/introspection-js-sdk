@@ -836,7 +836,6 @@ async function main() {
             is_archived: false,
             tags: body.tags,
             metadata: body.metadata,
-            verification: { status: "pending" },
           };
           tasks.push({ task, body });
           calls.push(
@@ -878,17 +877,22 @@ async function main() {
       const resultId = id();
       files.set(logId, Buffer.from(`noise\n${JSON.stringify(printed)}\n`));
       files.set(resultId, Buffer.from(JSON.stringify({ reward: 1 })));
-      Object.assign(step(key).task, {
+      const task = step(key).task;
+      Object.assign(task, {
         status,
         started_at: "2026-11-24T00:00:00Z",
         completed_at: "2026-11-24T00:01:30Z",
-        verification: {
-          status: "completed",
-          reward: (printed as { reward?: number }).reward ?? null,
-          exit_code: 0,
-          log_file_id: logId,
-          result_file_id: resultId,
-          completed_at: "2026-11-24T00:01:30Z",
+        metadata: {
+          ...(task.metadata as object),
+          settled_run_id: "run",
+          verification: {
+            run_id: "run",
+            reward: (printed as { reward?: number }).reward ?? null,
+            exit_code: 0,
+            log_file_id: logId,
+            result_file_id: resultId,
+            completed_at: "2026-11-24T00:01:30Z",
+          },
         },
       });
     };
@@ -1129,65 +1133,65 @@ async function main() {
       ...evals.trialState(task),
       end: evals.readyToComplete(task),
     });
-    assert.deepEqual(
-      state({ status: "running", verification: { status: "pending" } }),
-      {
-        done: false,
-        failed: false,
-        ended: false,
-        error: null,
-        end: false,
+    const verified = (fields: Record<string, unknown> = {}) => ({
+      settled_run_id: "run-1",
+      verification: {
+        run_id: "run-1",
+        reward: 1,
+        exit_code: 0,
+        completed_at: "2026-11-24T00:01:30Z",
+        ...fields,
       },
-    );
+    });
+    assert.deepEqual(state({ status: "running" }), {
+      done: false,
+      failed: false,
+      error: null,
+      end: false,
+    });
     // Settled: completing the task is what verifies it.
+    assert.equal(state({ status: "idle" }).end, true);
+    // Verified while finishing, but not done until the task ends and its notes are kept.
+    assert.deepEqual(state({ status: "finishing", metadata: verified() }), {
+      done: false,
+      failed: false,
+      error: null,
+      end: false,
+    });
+    assert.deepEqual(state({ status: "completed", metadata: verified() }), {
+      done: true,
+      failed: false,
+      error: null,
+      end: false,
+    });
     assert.equal(
-      state({ status: "idle", verification: { status: "pending" } }).end,
-      true,
-    );
-    assert.equal(
-      state({ status: "finishing", verification: { status: "running" } }).done,
-      false,
-    );
-    // Scored while finishing: done, but its sandbox, and so its notes, not yet released.
-    assert.deepEqual(
-      state({
-        status: "finishing",
-        verification: { status: "completed", exit_code: 0 },
-      }),
-      { done: true, failed: false, ended: false, error: null, end: false },
-    );
-    assert.deepEqual(
-      state({
-        status: "completed",
-        verification: { status: "completed", exit_code: 0 },
-      }),
-      { done: true, failed: false, ended: true, error: null, end: false },
+      evals.trialVerification(verified({ log_file_id: "f-1" }))?.log_file_id,
+      "f-1",
     );
     assert.equal(
-      state({
-        status: "completed",
-        verification: { status: "completed", exit_code: 2 },
-      }).error,
+      state({ status: "completed", metadata: verified({ exit_code: 2 }) })
+        .error,
       "the verifier exited 2",
     );
     assert.equal(
-      state({
-        status: "completed",
-        verification: { status: "failed", error: "no result" },
-      }).error,
+      state({ status: "completed", metadata: verified({ error: "no result" }) })
+        .error,
       "no result",
     );
+    // Completed without a verification: its verifier never ran, so it failed.
+    assert.deepEqual(state({ status: "completed", metadata: {} }), {
+      done: true,
+      failed: true,
+      error: "the trial ended without its verifier running",
+      end: false,
+    });
+    assert.equal(evals.trialVerification({ verification: "junk" }), null);
     // Ended before it was scored: failed, with the task's own reason.
     assert.deepEqual(
-      state({
-        status: "failed",
-        metadata: { error: "sandbox did not start" },
-        verification: { status: "pending" },
-      }),
+      state({ status: "failed", metadata: { error: "sandbox did not start" } }),
       {
         done: true,
         failed: true,
-        ended: true,
         error: "sandbox did not start",
         end: false,
       },
