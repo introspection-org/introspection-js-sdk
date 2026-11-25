@@ -12,7 +12,6 @@ import type {
   IntrospectionApiClient,
   Task,
 } from "@introspection-sdk/introspection-browser/api";
-import { parse as parseToml } from "smol-toml";
 import { parse as parseYaml } from "yaml";
 
 import { measuresOf, type VenueTastes } from "./memory-measures";
@@ -21,7 +20,6 @@ import {
   PUB_SETS,
   taskName,
   previewNotes,
-  readyToComplete,
   runSteps,
   runTag,
   skippedTrial,
@@ -42,7 +40,6 @@ import {
   type TrialMeta,
   type TrialView,
 } from "./platform-evals";
-import { tarGz, type TarFile } from "./tar";
 import { loadedMemory } from "./trial-steps";
 
 export type Env = Record<string, string | undefined>;
@@ -62,13 +59,6 @@ const VERIFIER_VOLUMES: Record<string, string> = {
   "harbor-logs": "/logs",
   "harbor-tests": "/tests",
 };
-/** The verifier's whole result; reward.json beside it holds only Harbor's numbers. */
-const REWARD_PATH = "/logs/verifier/result.json";
-const DEFAULT_VERIFIER_SECONDS = 120;
-/** The sandbox's ceiling, which also releases a wedged trial's. */
-const TRIAL_CEILING_SECONDS = 3600;
-/** The verifier archive only has to outlive its trial. */
-const ARCHIVE_TTL_SECONDS = 2 * 24 * 3600;
 /** The uuid5 namespace a step's admission key is derived in. */
 const ADMISSION_NAMESPACE = "6f1c2a8e-3b4d-5e6f-8a9b-0c1d2e3f4a5b";
 
@@ -171,32 +161,6 @@ async function readText(
     : new TextEncoder().encode(content.content);
 }
 
-/** Every file under `dir` at the commit, with paths relative to it. */
-async function readTree(
-  client: PlatformClient,
-  target: Target,
-  dir: string,
-): Promise<{ path: string; content: Uint8Array }[]> {
-  const files: { path: string; content: Uint8Array }[] = [];
-  for await (const entry of client.repositories.contents(target.repository!, {
-    path: dir,
-    ref: target.commit,
-  })) {
-    if (entry.type === "dir")
-      for (const child of await readTree(client, target, entry.path))
-        files.push({
-          path: `${entry.name}/${child.path}`,
-          content: child.content,
-        });
-    else
-      files.push({
-        path: entry.name,
-        content: await readText(client, target, entry.path),
-      });
-  }
-  return files;
-}
-
 /** The git tree id of a directory at the commit, which names its content. */
 async function treeId(
   client: PlatformClient,
@@ -212,17 +176,13 @@ async function treeId(
   throw new Error(`${dir} is not a directory at ${target.commit}`);
 }
 
-/** A Harbor task as the trial needs it, read from the Runtime's repository at the commit. */
+/** What a trial passes the platform beside its `task_path`: the compose world with each sidecar's image. */
 export interface TaskDefinition {
   task: string;
-  instruction: string;
-  verifierSeconds: number;
-  tests: TarFile[];
   /** The task's own `environment/docker-compose.yaml`, or an empty document. */
   compose: Record<string, unknown>;
   /** Each sidecar's build context, as a repository path. */
   contexts: Record<string, string>;
-  tastes: VenueTastes | null;
 }
 
 export async function readTaskDefinition(
@@ -231,11 +191,6 @@ export async function readTaskDefinition(
   task: string,
 ): Promise<TaskDefinition> {
   const dir = repoPath(target, TASKS_DIR, task);
-  const [instruction, toml, tests] = await Promise.all([
-    readText(client, target, `${dir}/instruction.md`),
-    readText(client, target, `${dir}/task.toml`),
-    readTree(client, target, `${dir}/tests`),
-  ]);
   let compose: Record<string, unknown> = {};
   try {
     compose = (parseYaml(
@@ -248,30 +203,12 @@ export async function readTaskDefinition(
       ),
     ) ?? {}) as Record<string, unknown>;
   } catch (error) {
-    if ((error as { status?: number }).status !== 404) throw error;
+    if (status(error) !== 404) throw error;
   }
-  const config = parseToml(utf8(toml)) as {
-    verifier?: { timeout_sec?: number };
-  };
-  const expected = tests.find((file) => file.path === "expected.json");
   return {
     task,
-    instruction: utf8(instruction).trim(),
-    // One over the Data Plane's command timeout is refused at create, not clamped.
-    verifierSeconds: Math.max(
-      1,
-      Math.round(config.verifier?.timeout_sec ?? DEFAULT_VERIFIER_SECONDS),
-    ),
-    tests: tests.map((file) => ({
-      path: file.path,
-      content: file.content,
-      mode: file.path.endsWith(".sh") ? 0o755 : 0o644,
-    })),
     compose,
     contexts: buildContexts(compose, `${dir}/environment`),
-    tastes: expected
-      ? (JSON.parse(utf8(expected.content)) as VenueTastes)
-      : null,
   };
 }
 
@@ -414,31 +351,27 @@ export async function admissionKey(step: Step): Promise<string> {
 const hexOf = (bytes: Uint8Array) =>
   Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
 
-/** The create body for one trial, given its verifier archive. */
+/**
+ * The create body for one trial: the platform reads its prompt, its verifier
+ * and its compose from `metadata.task_path`. The page passes the compose, since the
+ * runtime's build carries no image for the trivia bank sidecar.
+ */
 export async function trialBody(
   record: RunRecord,
   step: Step,
-  definition: TaskDefinition,
   compose: Record<string, unknown>,
-  testsFileId: string,
 ): Promise<CreateTaskParams> {
   const meta: TrialMeta = { step: stepKey(step), record };
+  const taskPath = repoPath(record.target, TASKS_DIR, step.task);
   return {
-    prompt: definition.instruction,
     kind: "eval",
     runtime_id: record.target.runtime,
     recipe_git_commit_sha: record.target.commit,
     commands: true,
-    idle_timeout_seconds: TRIAL_CEILING_SECONDS,
     tags: [runTag(step.run), TRIALS_TAG],
     compose,
-    verifier: {
-      tests_file_id: testsFileId,
-      command: ["sh", "/tests/test.sh"],
-      reward_path: REWARD_PATH,
-      timeout_seconds: definition.verifierSeconds,
-    },
     metadata: {
+      task_path: taskPath,
       admission_key: await admissionKey(step),
       identity: trialIdentity(step),
       [TRIAL_METADATA_KEY]: meta,
@@ -465,8 +398,8 @@ const definitionOf = (
 
 /**
  * Creates a step's trial, or returns the one another poll already made: the
- * platform refuses a second create under the step's admission key whose body
- * differs (its verifier archive is a new upload), and replays one that does not.
+ * platform admits one task per admission key, replaying the same body and
+ * refusing another, after which the existing task is read back.
  */
 export async function createTrial(
   client: PlatformClient,
@@ -484,15 +417,9 @@ export async function createTrial(
     definition.compose,
     await sidecarImages(client, record.target, definition),
   );
-  const archive = await client.files.upload({
-    file: await tarGz(definition.tests),
-    name: `${step.task}-tests.tar.gz`,
-    contentType: "application/gzip",
-    ttl_seconds: ARCHIVE_TTL_SECONDS,
-  });
   try {
     const created = await client.tasks.create(
-      await trialBody(record, step, definition, compose, archive.id),
+      await trialBody(record, step, compose),
     );
     return created.task;
   } catch (error) {
@@ -503,15 +430,6 @@ export async function createTrial(
     );
     if (!existing) throw error;
     return existing.task;
-  }
-}
-
-/** Ends a settled trial so the platform verifies it; another poll that got there first is no error. */
-async function completeTrial(client: PlatformClient, taskId: string) {
-  try {
-    await client.tasks.update(taskId, { status: "completed" });
-  } catch (error) {
-    if (status(error) !== 409) throw error;
   }
 }
 
@@ -548,8 +466,8 @@ export async function latestRun(
 }
 
 /**
- * Moves a run on one step and says where it stands: a settled trial is ended
- * so the platform verifies it, a night whose predecessors have ended starts, and one whose
+ * Moves a run on one step and says where it stands: a night whose
+ * predecessors have ended starts, and one whose
  * predecessor failed is skipped. Idempotent, and safe to call from any
  * instance: each step's admission key makes one task of it however many
  * calls create it, and a run made before the key keeps a step's first task
@@ -606,7 +524,6 @@ export async function advanceRun(
       }
       task = await createTrial(client, record, step, cache);
     }
-    if (advance && readyToComplete(task)) await completeTrial(client, task.id);
     const state = trialState(task);
     states.set(key, state);
     views.push({
@@ -699,7 +616,8 @@ export async function startRun(
   const first = runSteps(record).filter((step) => !step.after?.length);
   // The first trial records the run, so a failure here leaves no half-made run behind it.
   await createTrial(client, record, first[0], cache);
-  await Promise.all(
+  // Past it the run exists: one the rest fail to make, `advanceRun` makes on the next poll.
+  await Promise.allSettled(
     first.slice(1).map((step) => createTrial(client, record, step, cache)),
   );
   return { run: record.run, target };
@@ -720,10 +638,9 @@ export async function trialResult(
   if (!step) return null;
   const state = trialState(task);
   const verification = trialVerification(task.metadata);
-  const [log, result, definition] = await Promise.all([
+  const [log, result] = await Promise.all([
     decode(client, verification?.log_file_id),
     decode(client, verification?.result_file_id),
-    readTaskDefinition(client, meta.record.target, step.task),
   ]);
   const out = verifierOutput(log, result, verification?.reward ?? null);
   let night1Notes: string | null = null;
@@ -760,7 +677,7 @@ export async function trialResult(
             checks: out.checks,
             notes: out.notes,
             fetches: out.fetches,
-            tastes: definition.tastes,
+            tastes: out.tastes,
             night1Notes,
           })
         : {},

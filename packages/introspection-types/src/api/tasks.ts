@@ -59,23 +59,6 @@ export interface Task {
 }
 
 /**
- * An eval task's own verifier: once the run ends, the platform unpacks
- * `tests_file_id` (a Files API `.tar.gz`) into `/tests`, runs `command` in the
- * agent's container and keeps the JSON at `reward_path` and the command's log
- * as files, recorded as {@link TaskVerification} under the task's
- * `metadata.verification` before the task reaches `completed`.
- */
-export interface TaskVerifier {
-  tests_file_id: Uuid;
-  /** Argv, never a shell string. */
-  command: string[];
-  /** Absolute path the verifier writes its JSON result to. */
-  reward_path: string;
-  /** At most the Data Plane's command timeout; a larger value is refused at create. */
-  timeout_seconds?: number;
-}
-
-/**
  * A verifier's outcome, the platform-owned `metadata.verification` of an eval
  * task: written once, after the verifier ran, and absent before it ran or on a
  * task that ended without running it. It has no status of its own; the task's
@@ -159,8 +142,6 @@ export interface TaskCreateParams {
   compose?: Record<string, unknown>;
   /** The pushed Recipe commit an eval task runs; eval tasks only. */
   recipe_git_commit_sha?: string;
-  /** Scores the run in its sandbox once it ends; needs `commands: true`. */
-  verifier?: TaskVerifier;
   /** Recipe agent to run; omit for the recipe default (`agents/agent.yaml`). */
   agent_name?: string;
   /**
@@ -245,12 +226,6 @@ export interface TaskCreateParams {
 }
 
 export interface TaskUpdateParams {
-  /**
-   * `completed` ends an `idle` task: it passes through `finishing` while the
-   * platform's post-run work (judges, a verifier) runs, then releases its
-   * sandbox.
-   */
-  status?: "completed";
   title?: string;
   is_archived?: boolean;
   metadata?: Record<string, unknown>;

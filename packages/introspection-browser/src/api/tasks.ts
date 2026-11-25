@@ -24,12 +24,7 @@ import {
  */
 export interface CreateTaskParams extends Pick<
   TaskCreateParams,
-  | "kind"
-  | "commands"
-  | "compose"
-  | "verifier"
-  | "recipe_git_commit_sha"
-  | "tags"
+  "kind" | "commands" | "compose" | "recipe_git_commit_sha" | "tags"
 > {
   prompt?: string;
   /** Pin the task to a specific recipe runtime. */

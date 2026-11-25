@@ -1,13 +1,17 @@
 /**
  * An eval task the platform verifies, driven through the real SDK against a
- * recorded Data Plane: create with a verifier, compose and Recipe commit,
- * complete it once idle, read it `finishing`, then read its verification
- * under strict decoding and download its result file.
+ * recorded Data Plane: created with a Harbor task directory in
+ * `metadata.task_path` (the platform reads its prompt and verifier there), it
+ * ends on its own once its run settles, reads `finishing` while the verifier
+ * runs, and then `completed` with `metadata.verification` under strict
+ * decoding, whose result and log files download.
  *
- * Record against a LOCAL stack only, with an agent key in
+ * Record against a LOCAL stack only, with a bearer token of its project in
  * `INTROSPECTION_TOKEN_FILE`, the planes in `INTROSPECTION_API_BASE_URL` and
- * `INTROSPECTION_DP_URL`, and a git-backed Runtime with no required MCP
- * server in `EVAL_RUNTIME_ID` / `EVAL_RECIPE_COMMIT`:
+ * `INTROSPECTION_DP_URL`, a git-backed Runtime holding the task in
+ * `EVAL_RUNTIME_ID` / `EVAL_RECIPE_COMMIT` / `EVAL_TASK_PATH`, and the compose
+ * its sidecar runs (the Runtime's build carries no image for a branch commit)
+ * in the file `EVAL_COMPOSE_FILE`:
  * `POLLY_MODE=record pnpm --filter introspection-tests test api/eval-verifier.test.ts`.
  * Waits poll on the native fetch, which the recording never sees.
  */
@@ -27,14 +31,16 @@ const NATIVE_FETCH: typeof fetch = globalThis.fetch;
 const RECORDING = "eval-verifier";
 const here = path.dirname(fileURLToPath(import.meta.url));
 const BOOTSTRAP = path.resolve(here, "../recordings", RECORDING, "run.json");
-const ARCHIVE = path.resolve(here, "../fixtures/eval-verifier/tests.tar.gz");
-const WAIT_MS = 10 * 60 * 1000;
+const WAIT_MS = 15 * 60 * 1000;
 
 interface Bootstrap {
   api: string;
   dp: string;
   runtime: string;
   commit: string;
+  task_path: string;
+  compose: Record<string, unknown>;
+  anonymous_id: string;
 }
 
 const mode = getPollyMode();
@@ -52,6 +58,11 @@ function bootstrap(): Bootstrap {
     dp: process.env.INTROSPECTION_DP_URL ?? api,
     runtime: process.env.EVAL_RUNTIME_ID ?? "",
     commit: process.env.EVAL_RECIPE_COMMIT ?? "",
+    task_path: process.env.EVAL_TASK_PATH ?? "",
+    compose: JSON.parse(
+      fs.readFileSync(process.env.EVAL_COMPOSE_FILE ?? "", "utf8"),
+    ) as Record<string, unknown>,
+    anonymous_id: `eval-verifier-${Date.now()}`,
   };
   fs.mkdirSync(path.dirname(BOOTSTRAP), { recursive: true });
   fs.writeFileSync(BOOTSTRAP, `${JSON.stringify(value, null, 2)}\n`);
@@ -107,29 +118,16 @@ const token = () =>
       await polly?.stop();
     });
 
-    it("creates a kind=eval task carrying its verifier, compose and Recipe commit", async () => {
-      const archive = await client.files.upload({
-        file: fs.readFileSync(ARCHIVE),
-        name: "tests.tar.gz",
-        contentType: "application/gzip",
-        ttl_seconds: 3600,
-      });
+    it("creates a kind=eval task from its metadata.task_path", async () => {
       const created = await client.tasks.create({
-        prompt: "Reply with the single word done. Do not call any tool.",
         kind: "eval",
         runtime_id: settings.runtime,
         recipe_git_commit_sha: settings.commit,
         commands: true,
-        idle_timeout_seconds: 600,
-        compose: {
-          services: { main: { volumes: ["logs:/logs", "tests:/tests"] } },
-          volumes: { logs: null, tests: null },
-        },
-        verifier: {
-          tests_file_id: archive.id,
-          command: ["sh", "/tests/test.sh"],
-          reward_path: "/logs/verifier/result.json",
-          timeout_seconds: 60,
+        compose: settings.compose,
+        metadata: {
+          task_path: settings.task_path,
+          identity: { anonymous_id: settings.anonymous_id },
         },
       });
       task = created.task;
@@ -137,20 +135,12 @@ const token = () =>
       expect(task.metadata?.verification).toBeUndefined();
     });
 
-    it("completes the idle task, which the platform verifies while finishing", async () => {
-      await until("idle");
-      const completed = await client.tasks.update(task.id, {
-        status: "completed",
-      });
-      expect(completed.status).toBe("finishing");
-    }, 660_000);
-
-    it("reads the verification under strict decoding, and its result file", async () => {
+    it("ends on its own and reads completed with its verification, under strict decoding", async () => {
       await until("completed");
       const read = await strict.tasks.get(task.id);
       expect(read.status).toBe("completed");
       const verification = read.metadata?.verification as TaskVerification;
-      expect(verification.reward).toBe(1);
+      expect(typeof verification.reward).toBe("number");
       expect(verification.exit_code).toBe(0);
       expect(verification.error).toBeUndefined();
       const result = JSON.parse(
@@ -158,11 +148,11 @@ const token = () =>
           await client.files.download(verification.result_file_id!),
         ).toString("utf8"),
       ) as Record<string, number>;
-      expect(result).toEqual({ reward: 1, ran: 1 });
+      expect(result.reward).toBe(verification.reward);
       const log = Buffer.from(
         await client.files.download(verification.log_file_id!),
       ).toString("utf8");
-      expect(log).toContain("verifier ran");
-    }, 660_000);
+      expect(log).toContain('"notes_seeded"');
+    }, 960_000);
   },
 );

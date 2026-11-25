@@ -218,7 +218,7 @@ exit 0
 
 // The host's steps, for the page: its tool calls in order, with short arguments and results,
 // and its last message, read from the GenAI spans the runtime keeps in the sandbox (the agent's
-// session is not on disk), and written whole into result.json beside the numeric reward.json.
+// session is not on disk), and printed in the verifier's report beside the numeric reward.json.
 // The memory the runtime loads before the first turn is in no span; the page shows it from the
 // night before's notes.
 export const HOST_STEPS = String.raw`const SECRET =
@@ -298,21 +298,19 @@ try {
 } catch (error) {
   host = { steps_error: clip(error?.message ?? error, 200) };
 }
-// Harbor reads every reward.json value as a reward in [0, 1]: a raw count (rounds_played,
-// lead_changes_count) is kept in result.json and the printed report only.
-const writeResult = (result) => {
+// Harbor reads every reward.json value as a reward in [0, 1], so raw counts (rounds_played,
+// lead_changes_count) stay out of it. The printed report, which the platform keeps as the log,
+// carries everything else: measures, rounds, the host's steps and the crowd's true tastes.
+const writeResult = (result, report) => {
   const rewards = Object.fromEntries(
     Object.entries(result).filter(
       ([, v]) => typeof v === "number" && Number.isFinite(v) && v >= 0 && v <= 1,
     ),
   );
   writeFileSync("/logs/verifier/reward.json", JSON.stringify(rewards));
-  writeFileSync(
-    "/logs/verifier/result.json",
-    JSON.stringify({ ...result, ...host }),
-  );
-};
-`;
+  const tastes = typeof expected === "undefined" ? {} : { tastes: expected };
+  console.log(JSON.stringify({ ...report, ...host, ...tastes }));
+};`;
 
 // What both nights' verifiers read from the bank: each round (one next_questions call) with its
 // share right, in the order played, and the crowd's measures over them.
@@ -470,13 +468,9 @@ const scores = {
   notes_indexed: notesIndexed,
 };
 const reward = Object.values(scores).every((v) => v === 1) ? 1 : 0;
-writeResult({ reward, ...scores });
-console.log(
-  JSON.stringify(
-    { reward, ...scores, ...measures, round_rates, fetches, rounds, notes },
-    null,
-    2,
-  ),
+writeResult(
+  { reward, ...scores },
+  { reward, ...scores, ...measures, round_rates, fetches, rounds, notes },
 );
 `;
 
@@ -493,8 +487,7 @@ const notes = existsSync(notesPath) ? readFileSync(notesPath, "utf8") : "";
 ${HOST_STEPS}
 const scores = { notes_seeded: clean(notes) === want ? 1 : 0 };
 const reward = scores.notes_seeded;
-writeResult({ reward, ...scores });
-console.log(JSON.stringify({ reward, ...scores, notes }, null, 2));
+writeResult({ reward, ...scores }, { reward, ...scores, notes });
 `;
 
 const NIGHT2_CHECK = String.raw`// Night 2's measures, from the bank's record of the crowd's answers:
@@ -528,23 +521,18 @@ const scores = {
 };
 const reward =
   fetches.length >= ${ROUNDS} && (measures.in_band ?? 0) >= 0.5 ? 1 : 0;
-writeResult({ reward, ...scores });
-console.log(
-  JSON.stringify(
-    {
-      reward,
-      ...scores,
-      round_rates,
-      liked: expected.liked,
-      fetches,
-      rounds,
-      notes,
-    },
-    null,
-    2,
-  ),
-);
-`;
+writeResult(
+  { reward, ...scores },
+  {
+    reward,
+    ...scores,
+    round_rates,
+    liked: expected.liked,
+    fetches,
+    rounds,
+    notes,
+  },
+);`;
 
 /**
  * Each file of a venue's two tasks for a crowd of `size`, keyed by its path under evals/harbor.

@@ -6,7 +6,7 @@
  */
 import HELDOUT from "../recipe-operator/evals/heldout.json";
 import VENUES from "../recipe-operator/evals/venues.json";
-import type { Fetch, Measures } from "./memory-measures";
+import type { Fetch, Measures, VenueTastes } from "./memory-measures";
 import { hostEvents, type TrialEvent } from "./trial-steps";
 import type { TaskVerification } from "@introspection-sdk/introspection-node";
 
@@ -435,15 +435,6 @@ export function trialState(task: TrialTask): TrialState {
   return { done: true, failed: error !== null, error };
 }
 
-/**
- * Whether a trial is ready to be ended: its run has settled at `idle`.
- * Completing it moves it to `finishing`, where the platform runs its
- * verifier, and then to `completed`.
- */
-export function readyToComplete(task: TrialTask): boolean {
-  return task.status === "idle";
-}
-
 /** A step the page shows: its task's state, or why it has none yet. */
 export interface TrialView {
   key: string;
@@ -492,6 +483,8 @@ export interface TrialResult {
   rounds: PlayedRound[];
   steps: TrialEvent[];
   steps_error: string | null;
+  /** The crowd's true tastes, which the verifier keeps beside its result. */
+  tastes: VenueTastes | null;
 }
 
 /** The verifier prints one JSON object: the reward, each check, and context. */
@@ -513,9 +506,9 @@ function parseVerifierJson(
 
 /**
  * A trial's result from its verification files: the log is what the verifier
- * printed, with every measure, its rounds and the notes; the result file
- * holds the reward, the checks and the host's steps, and stands in for the
- * rest when the log has no JSON.
+ * printed, with every measure, its rounds, the notes, the host's steps and
+ * the crowd's tastes; the result file holds the reward and the checks, and
+ * stands in when the log has no JSON.
  */
 export function verifierOutput(
   log: string | null,
@@ -523,7 +516,6 @@ export function verifierOutput(
   reward: number | null = null,
 ): TrialResult {
   const printed = parseVerifierJson(log) ?? parseVerifierJson(result) ?? {};
-  const kept = parseVerifierJson(result) ?? {};
   const checks: Record<string, number> = {};
   for (const [name, value] of Object.entries(printed))
     if (name !== "reward" && typeof value === "number") checks[name] = value;
@@ -538,8 +530,12 @@ export function verifierOutput(
     notes,
     fetches: Array.isArray(printed.fetches) ? (printed.fetches as Fetch[]) : [],
     rounds: parseRounds(printed.rounds),
-    steps: hostEvents(kept.steps, kept.plan),
-    steps_error: typeof kept.steps_error === "string" ? kept.steps_error : null,
+    steps: hostEvents(printed.steps, printed.plan),
+    steps_error:
+      typeof printed.steps_error === "string" ? printed.steps_error : null,
+    tastes: isRecord(printed.tastes)
+      ? (printed.tastes as unknown as VenueTastes)
+      : null,
   };
 }
 

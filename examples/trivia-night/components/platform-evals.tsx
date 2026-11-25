@@ -17,6 +17,12 @@ import {
   type TeamSize,
 } from "@/lib/platform-evals";
 import {
+  IntrospectionApiClient,
+  LANE_QUERY_PARAM,
+  PROJECT_ID_QUERY_PARAM,
+} from "@introspection-sdk/introspection-browser/api";
+import {
+  CONFIG,
   RUN_SCOPES,
   configuredTarget,
   loginUrl,
@@ -31,7 +37,6 @@ import {
   resolveTarget,
   startRun,
   trialResult,
-  type PlatformClient,
 } from "@/lib/platform-runner";
 import {
   factChips,
@@ -649,9 +654,10 @@ export function PlatformEvals() {
   const run = useRef<string | null>(null);
   const results = useRef(new Map<string, EvalFinished>());
 
-  const member = useRef<{ session: Session; client: PlatformClient } | null>(
-    null,
-  );
+  const member = useRef<{
+    session: Session;
+    client: IntrospectionApiClient;
+  } | null>(null);
 
   const loadConfig = useCallback(async () => {
     const session = storedSession(window.sessionStorage);
@@ -703,6 +709,7 @@ export function PlatformEvals() {
   }, []);
 
   const polling = useRef<Promise<void> | null>(null);
+  const pollRef = useRef<() => Promise<void>>(undefined);
   const resultRetries = useRef(0);
   const pollOnce = useCallback(async () => {
     const id = run.current;
@@ -742,11 +749,9 @@ export function PlatformEvals() {
       // A result read failed: the run stays open, so polling goes on, backing off until it reads.
       resultRetries.current += 1;
       setView(runView({ ...state, finished: null }, results.current));
-      await new Promise((resolve) =>
-        setTimeout(
-          resolve,
-          Math.min(1000 * 2 ** resultRetries.current, 30_000),
-        ),
+      setTimeout(
+        () => void pollRef.current?.(),
+        Math.min(1000 * 2 ** resultRetries.current, 30_000),
       );
       return;
     } else if (state.finished)
@@ -774,24 +779,45 @@ export function PlatformEvals() {
     loadConfig().then(poll);
   }, [loadConfig, poll]);
 
+  useEffect(() => {
+    pollRef.current = poll;
+  }, [poll]);
+
   const running = Boolean(view && !view.finished) || Boolean(config?.active);
+  // While a run goes, the Data Plane's task events move it on. Each (re)connect re-reads the
+  // run once, since events sent while the socket was down are gone.
   useEffect(() => {
     if (!running) return;
     let stopped = false;
+    let socket: WebSocket | undefined;
     let timer: ReturnType<typeof setTimeout>;
-    const next = () => {
-      timer = setTimeout(async () => {
-        try {
-          await poll();
-        } finally {
-          if (!stopped) next();
-        }
-      }, 2000);
+    const open = () => {
+      const client = member.current?.client;
+      if (!client) return;
+      const params = new URLSearchParams({ event: "tasks" });
+      if (client.environment) params.set(LANE_QUERY_PARAM, client.environment);
+      if (client.projectId)
+        params.set(PROJECT_ID_QUERY_PARAM, client.projectId);
+      socket = new WebSocket(
+        `${CONFIG.dpUrl.replace(/^http/, "ws").replace(/\/+$/, "")}/v1/ws/stream?${params}`,
+      );
+      socket.onopen = () => void poll();
+      socket.onmessage = (message) => {
+        const event = JSON.parse(String(message.data)) as {
+          type?: string;
+          event_type?: string;
+        };
+        if (event.type === "event" && event.event_type === "tasks") void poll();
+      };
+      socket.onclose = () => {
+        if (!stopped) timer = setTimeout(open, 2000);
+      };
     };
-    next();
+    open();
     return () => {
       stopped = true;
       clearTimeout(timer);
+      socket?.close();
     };
   }, [running, poll]);
 

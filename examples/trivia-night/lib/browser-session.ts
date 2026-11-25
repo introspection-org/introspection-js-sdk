@@ -184,8 +184,8 @@ export const missingScopes = (session: Session, needed: readonly string[]) =>
 
 /**
  * A Data Plane client on the session's cookie. The token is redeemed once (the
- * exchange is single use); a reload reuses the cookie it set, in the lane it
- * named.
+ * exchange is single use); a reload reuses the cookie it set, naming its lane
+ * and the session's project, so another project's cookie is never read.
  */
 export async function sessionClient(
   session: Session,
@@ -196,6 +196,7 @@ export async function sessionClient(
     dpUrl: config.dpUrl,
     getToken: () => session.access_token,
     environment: session.environment as IntrospectionApiClientEnvironment,
+    projectId: session.project_id,
   });
   if (!session.environment) {
     // The exchange is single use, so concurrent callers (React runs effects twice in
@@ -207,6 +208,7 @@ export async function sessionClient(
       dpUrl: config.dpUrl,
       getToken: () => session.access_token,
       environment,
+      projectId: session.project_id,
     });
   }
   return client;

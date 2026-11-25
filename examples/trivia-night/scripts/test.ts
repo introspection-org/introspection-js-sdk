@@ -783,21 +783,17 @@ async function main() {
   );
 
   await check(
-    "platform evals: a trial is a kind=eval task carrying its own verifier",
+    "platform evals: a trial is a kind=eval task named by its metadata.task_path",
     async () => {
       const { parse } = await import("yaml");
       const document = parse(COMPOSE) as Record<string, unknown>;
       const definition: import("../lib/platform-runner").TaskDefinition = {
         task: "night1-sydney",
-        instruction: "Play night1-sydney.",
-        verifierSeconds: 120,
-        tests: [],
         compose: document,
         contexts: runner.buildContexts(
           document,
           "evals/harbor/night1-sydney/environment",
         ),
-        tastes: null,
       };
       assert.deepEqual(definition.contexts, { fakes: "fakes" });
       const images = { fakes: "registry/fakes:x@sha256:1" };
@@ -839,34 +835,22 @@ async function main() {
         target: TARGET,
       };
       const step = evals.runSteps(record)[0];
-      const body = await runner.trialBody(
-        record,
-        step,
-        definition,
-        compose,
-        "file-1",
-      );
+      const body = await runner.trialBody(record, step, compose);
       assert.deepEqual(
         { ...body, compose: undefined, metadata: undefined },
         {
-          prompt: "Play night1-sydney.",
           kind: "eval",
           runtime_id: TARGET.runtime,
           recipe_git_commit_sha: TARGET.commit,
           commands: true,
-          idle_timeout_seconds: 3600,
           tags: ["simulation:r1", "simulation:trivia-night"],
           compose: undefined,
-          verifier: {
-            tests_file_id: "file-1",
-            command: ["sh", "/tests/test.sh"],
-            reward_path: "/logs/verifier/result.json",
-            timeout_seconds: 120,
-          },
           metadata: undefined,
         },
       );
       assert.deepEqual(body.metadata, {
+        // The platform reads the prompt and the verifier from here.
+        task_path: "evals/harbor/night1-sydney",
         admission_key: await runner.admissionKey(step),
         identity: {
           anonymous_id: "sim-r1-sydney",
@@ -915,9 +899,12 @@ async function main() {
           'import { existsSync, readFileSync } from "node:fs";',
           "const written = {};",
           "const writeFileSync = (to, text) => { written[to] = JSON.parse(text); };",
+          "const console = { log: (text) => { written.report = JSON.parse(text); } };",
+          'const expected = { region: "au", liked: ["film"] };',
           venuesGen.HOST_STEPS,
           // A night with 3 lead changes over its 6 rounds.
-          "writeResult({ reward: 1, notes_written: 1, in_band: 0.5, lead_changes: 0.6, lead_changes_count: 3, rounds_played: 6 });",
+          "const scores = { reward: 1, notes_written: 1, in_band: 0.5, lead_changes: 0.6, lead_changes_count: 3, rounds_played: 6 };",
+          "writeResult(scores, { ...scores, rounds: [] });",
           "export { clip, written };",
         ].join("\n"),
       );
@@ -927,8 +914,8 @@ async function main() {
         written: Record<string, Record<string, unknown>>;
       };
       delete process.env.PI_RECIPE_GENAI_SPANS_FILE;
-      // Harbor reads every reward.json value as a reward in [0, 1]; the raw counts and the
-      // steps go in result.json only.
+      // Harbor reads every reward.json value as a reward in [0, 1]; the raw counts, the
+      // steps and the tastes go in the printed report, which the platform keeps as the log.
       const rewards = written["/logs/verifier/reward.json"];
       assert.deepEqual(rewards, {
         reward: 1,
@@ -938,10 +925,11 @@ async function main() {
       });
       for (const value of Object.values(rewards))
         assert.ok(typeof value === "number" && value >= 0 && value <= 1);
-      const result = written["/logs/verifier/result.json"];
+      const result = written.report;
       assert.equal(result.reward, 1);
       assert.equal(result.lead_changes_count, 3);
       assert.equal(result.rounds_played, 6);
+      assert.deepEqual(result.tastes, { region: "au", liked: ["film"] });
       const steps = result.steps as {
         name: string;
         result: string;
@@ -978,10 +966,14 @@ async function main() {
         "host.planned",
       ])
         assert.ok(types.has(type as never), type);
-      // The page reads them from the result file, which the log never cuts.
-      const out = evals.verifierOutput("tail only", JSON.stringify(result));
+      // The page reads them from the report the platform keeps as the log.
+      const out = evals.verifierOutput(
+        `starting\n${JSON.stringify(result)}\n`,
+        JSON.stringify(written["/logs/verifier/reward.json"]),
+      );
       assert.equal(out.steps.length, events.length);
       assert.equal(out.checks.notes_written, 1);
+      assert.deepEqual(out.tastes, { region: "au", liked: ["film"] });
       assert.deepEqual(loadedMemory("# Sydney").data, {
         path: "memories/MEMORY.md",
         file: "# Sydney",
@@ -1022,15 +1014,15 @@ async function main() {
         rounds: [],
         steps: [],
         steps_error: null,
+        tastes: null,
       },
     );
     assert.deepEqual(evals.verifierOutput(null, null).checks, {});
   });
 
-  await check("platform evals: a trial's state and what ends it", () => {
+  await check("platform evals: a trial's state", () => {
     const state = (task: Parameters<typeof evals.trialState>[0]) => ({
       ...evals.trialState(task),
-      end: evals.readyToComplete(task),
     });
     const verified = (fields: Record<string, unknown> = {}) => ({
       settled_run_id: "run-1",
@@ -1046,22 +1038,17 @@ async function main() {
       done: false,
       failed: false,
       error: null,
-      end: false,
     });
-    // Settled: completing the task is what verifies it.
-    assert.equal(state({ status: "idle" }).end, true);
     // Verified while finishing, but not done until the task ends and its notes are kept.
     assert.deepEqual(state({ status: "finishing", metadata: verified() }), {
       done: false,
       failed: false,
       error: null,
-      end: false,
     });
     assert.deepEqual(state({ status: "completed", metadata: verified() }), {
       done: true,
       failed: false,
       error: null,
-      end: false,
     });
     assert.equal(
       evals.trialVerification(verified({ log_file_id: "f-1" }))?.log_file_id,
@@ -1082,7 +1069,6 @@ async function main() {
       done: true,
       failed: true,
       error: "the trial ended without its verifier running",
-      end: false,
     });
     assert.equal(evals.trialVerification({ verification: "junk" }), null);
     // Ended before it was scored: failed, with the task's own reason.
@@ -1092,7 +1078,6 @@ async function main() {
         done: true,
         failed: true,
         error: "sandbox did not start",
-        end: false,
       },
     );
   });

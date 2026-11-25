@@ -119,6 +119,8 @@ async function main() {
         fetch: NATIVE_FETCH,
       },
     });
+    /** When a live recording first saw each task at each status, for the report. */
+    const statusSeen: Record<string, Record<string, number>> = {};
     /** Waits, off the recording, until the run's tasks say `ready`. */
     const until = async (
       run: string,
@@ -132,6 +134,10 @@ async function main() {
           tag: evals.runTag(run),
           limit: 100,
         });
+        for (const task of page.records) {
+          const seen = (statusSeen[task.id] ??= {});
+          seen[task.status] ??= Date.now();
+        }
         if (ready(page.records)) return;
         if (Date.now() > deadline) throw new Error(`timed out: ${label}`);
         await new Promise((resolve) => setTimeout(resolve, 5000));
@@ -182,7 +188,7 @@ async function main() {
     );
 
     await check(
-      "platform evals: a Harbor task is read from the Runtime's repository at its commit",
+      "platform evals: a Harbor task's compose is read from the Runtime's repository, with its sidecar's image",
       async () => {
         assert.equal(target.runtime, bootstrap.runtime);
         assert.equal(target.commit, bootstrap.commit);
@@ -190,12 +196,6 @@ async function main() {
           client,
           target,
           first.task,
-        );
-        assert.ok(definition.instruction.length > 0);
-        assert.ok(definition.verifierSeconds >= 1);
-        assert.equal(
-          definition.tests.find((file) => file.path === "test.sh")?.mode,
-          0o755,
         );
         assert.ok(Object.keys(definition.contexts).length > 0);
         const images = await runner.sidecarImages(client, target, definition);
@@ -273,34 +273,31 @@ async function main() {
     await check(
       "platform evals: a second create of a step makes no second trial",
       async () => {
+        // The same body again is the same task: the platform replays the step's admission key.
         const definition = await runner.readTaskDefinition(
           client,
           target,
           first.task,
         );
         const images = await runner.sidecarImages(client, target, definition);
-        const archive = await client.files.upload({
-          file: await (await import("../lib/tar")).tarGz(definition.tests),
-          name: `${first.task}-tests.tar.gz`,
-          contentType: "application/gzip",
-          ttl_seconds: 3600,
-        });
-        // The platform refuses the key under another body: here, another archive.
+        const body = await runner.trialBody(
+          record,
+          first,
+          runner.trialCompose(definition.compose, images),
+        );
+        const replayed = await client.tasks.create(body);
+        // Under another body, the key is refused.
         await assert.rejects(
-          client.tasks.create(
-            await runner.trialBody(
-              record,
-              first,
-              definition,
-              runner.trialCompose(definition.compose, images),
-              archive.id,
-            ),
-          ),
+          client.tasks.create({
+            ...body,
+            tags: [...(body.tags ?? []), "other"],
+          }),
           (error) => error instanceof ConflictError,
         );
         const again = await runner.createTrial(client, record, first);
         const view = (await runner.advanceRun(client, run))!;
         assert.equal(again.id, view.trials[0].task_id);
+        assert.equal(replayed.task.id, again.id);
         const listed = await client.tasks.list({
           tag: evals.runTag(run),
           limit: 100,
@@ -394,10 +391,12 @@ async function main() {
         for (const kind of ["bank.served", "host.planned"])
           assert.ok(kinds.has(kind as never), `night 2 has a ${kind} step`);
         // The run says whether its trials owned memory, and shows the runtime's load only when they did.
-        const owned = Boolean(
-          (await client.tasks.get(byKey.get(hostedKey)!.task_id!)).metadata
-            ?.memory,
-        );
+        const memory = (await client.tasks.get(byKey.get(hostedKey)!.task_id!))
+          .metadata?.memory as { remote_prefix?: string } | undefined;
+        const owned = Boolean(memory);
+        // The model-notes night 2 owns the memory its night 1 wrote.
+        assert.ok(owned, "night 2 owns memory");
+        if (live) console.log(`    night 2 memory: ${memory?.remote_prefix}`);
         assert.equal(view.memory_off, !owned);
         assert.equal(
           Boolean(hosted.steps?.some((step) => step.key === "runtime:memory")),
@@ -408,6 +407,8 @@ async function main() {
           byKey.get(evals.stepKey(first))!.task_id!,
         ))!;
         assert.ok(night1.steps?.some((step) => step.type === "memory.written"));
+        // The report carries the crowd's tastes, so the notes are scored without the task's files.
+        assert.equal(typeof night1.measures?.notes_accuracy, "number");
         const cancelled = (await runner.trialResult(
           client,
           byKey.get(seed)!.task_id!,
@@ -423,6 +424,13 @@ async function main() {
         assert.equal(await runner.latestRun(client), run);
       },
     );
+    if (live)
+      for (const [id, seen] of Object.entries(statusSeen))
+        console.log(
+          `    ${id}: ${Object.entries(seen)
+            .map(([status, at]) => `${status}@${new Date(at).toISOString()}`)
+            .join(" ")}`,
+        );
   } finally {
     await polly.stop();
   }

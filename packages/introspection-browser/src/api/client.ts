@@ -83,6 +83,11 @@ export interface IntrospectionApiClientOptions {
    * preferring one.
    */
   environment?: Environment;
+  /**
+   * Project this client's requests name, for a session whose cookie an
+   * earlier `connect()` set; `connect()` overwrites it with the exchange's.
+   */
+  projectId?: string;
 }
 
 export class IntrospectionApiClient {
@@ -123,6 +128,7 @@ export class IntrospectionApiClient {
       throw new Error("IntrospectionApiClient requires a dpUrl");
     }
     this.resolvedEnvironment = opts.environment;
+    this.resolvedProjectId = opts.projectId;
     const http = new BrowserHttpClient({
       apiUrl: opts.dpUrl,
       additionalHeaders: opts.additionalHeaders,
