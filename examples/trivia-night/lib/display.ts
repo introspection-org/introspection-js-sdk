@@ -1,8 +1,6 @@
 import { GENRES } from "./question-types";
 
-/** Text helpers for the evals panel: markdown to one plain line, and short labels. */
-
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+/** Text helpers for the evals panel: markdown to one plain line, short labels, and the facts in a venue's notes. */
 
 /** One line of markdown as plain text: no list marker, heading #s, emphasis or backticks. */
 export function plainLine(line: string): string {
@@ -42,15 +40,23 @@ export function notesPreview(notes: string, max = 70): string | null {
   return line ? truncateWords(line, max) : null;
 }
 
+/** The first sentence or two of a message, as plain text, cut to `max` characters. */
+export function firstSentences(text: string, count = 2, max = 200): string {
+  const plain = plainText(text);
+  const sentences = plain.match(/[^.!?]+(?:[.!?]+|$)/g) ?? [plain];
+  return truncateWords(sentences.slice(0, count).join("").trim(), max);
+}
+
 const KIND_LABELS: Record<string, string> = {
   "bank.served": "tool",
   "bank.marked": "tool",
+  "host.tool": "tool",
   "memory.read": "read",
   "memory.written": "write",
   "host.planned": "plan",
 };
 
-/** A short pill label for an event type. */
+/** A short pill label for a step's type. */
 export function kindLabel(type: string): string {
   return KIND_LABELS[type] ?? type.split(".").pop()!;
 }
@@ -70,16 +76,6 @@ export function toolLine(
   if (Array.isArray(args.answers)) parts.push(`${args.answers.length} answers`);
   if (Array.isArray(args.names)) parts.push(`${args.names.length} teams`);
   return parts.join(" · ");
-}
-
-/** The eval target as `trivia-host @ e328209`: its slug, else the runtime id cut to 8 characters. */
-export function targetLabel(
-  runtime: string,
-  commit: string,
-  slug?: string,
-): string {
-  const name = slug || (UUID.test(runtime) ? runtime.slice(0, 8) : runtime);
-  return `${name} @ ${commit.slice(0, 7)}`;
 }
 
 /** A fact the cell shows from a venue's notes; `changed` when it differs from night 1. */
@@ -147,32 +143,4 @@ export function factChips(notes: string, previous?: string): FactChip[] {
   add("difficulty", (value) => `diff ${value}`);
   add("genres", (value) => `played: ${value}`);
   return chips;
-}
-
-/** The starting difficulty a venue's notes set, or null when they name none. */
-export function startingDifficulty(notes: string): number | null {
-  const value = parseFacts(notes).difficulty;
-  return value ? Number(value) : null;
-}
-
-/** The first sentence or two of a message, as plain text, cut to `max` characters. */
-export function firstSentences(text: string, count = 2, max = 200): string {
-  const plain = plainText(text);
-  const sentences = plain.match(/[^.!?]+(?:[.!?]+|$)/g) ?? [plain];
-  return truncateWords(sentences.slice(0, count).join("").trim(), max);
-}
-
-/** A fetched round as `history · uk · diff 3`. */
-export function roundLabel(round: {
-  genre?: string;
-  region?: string;
-  difficulty?: number;
-}): string {
-  return [
-    round.genre,
-    round.region,
-    typeof round.difficulty === "number" ? `diff ${round.difficulty}` : null,
-  ]
-    .filter(Boolean)
-    .join(" · ");
 }

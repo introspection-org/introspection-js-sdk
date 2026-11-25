@@ -1,18 +1,16 @@
 /**
- * What the real agent did in one eval trial, as the page's events: read from
- * the trial's trajectory.json once it has finished. Pure, or reads files.
+ * What the host did in one eval trial, as the page's steps: built from the
+ * step list its verifier wrote into the result file, read from the GenAI
+ * spans the runtime keeps in the sandbox. Pure.
  */
-import { existsSync, readdirSync, readFileSync } from "node:fs";
-import path from "node:path";
-
-import type { Step } from "./platform-evals";
 
 export type TrialEventType =
   | "bank.served"
   | "bank.marked"
   | "memory.read"
   | "memory.written"
-  | "host.planned";
+  | "host.planned"
+  | "host.tool";
 
 export interface TrialEvent {
   /** Identifies the event within its trial, so a stream and a trajectory never show it twice. */
@@ -39,34 +37,6 @@ function parseArgs(raw: unknown): Record<string, unknown> {
     // Not JSON: nothing to show.
     return {};
   }
-}
-
-/** A tool result as text: a Pi result is `{content: [{type: "text", text}]}`, serialized or not. */
-function resultText(raw: unknown): string {
-  let value = raw;
-  if (typeof value === "string") {
-    try {
-      value = JSON.parse(value) as unknown;
-    } catch {
-      return value as string;
-    }
-  }
-  if (typeof value === "string") return value;
-  const content = Array.isArray(value)
-    ? value
-    : (value as { content?: unknown } | null)?.content;
-  if (typeof content === "string") return content;
-  if (Array.isArray(content))
-    return content
-      .map((part) =>
-        typeof part === "string"
-          ? part
-          : typeof (part as { text?: unknown })?.text === "string"
-            ? (part as { text: string }).text
-            : "",
-      )
-      .join("");
-  return typeof raw === "string" ? raw : JSON.stringify(raw);
 }
 
 function bankSummary(tool: string, args: Record<string, unknown>): string {
@@ -175,79 +145,51 @@ export function plannedEvent(text: string): TrialEvent | null {
   };
 }
 
-/** The trial's ATIF trajectory, as harbor writes it under the run folder. */
-export function trajectoryFile(runFolder: string): string | null {
-  const harbor = path.join(runFolder, "harbor");
-  if (!existsSync(harbor)) return null;
-  for (const name of readdirSync(harbor)) {
-    const file = path.join(harbor, name, "agent", "trajectory.json");
-    if (existsSync(file)) return file;
-  }
-  return null;
-}
-
-interface AtifStep {
-  source?: string;
-  message?: unknown;
-  tool_calls?: {
-    tool_call_id: string;
-    function_name: string;
-    arguments?: unknown;
-  }[];
-  observation?: {
-    results?: {
-      source_call_id?: string;
-      content?: unknown;
-      extra?: { is_error?: boolean };
-    }[];
+/**
+ * The memory the runtime loaded before the night's first turn: the notes the
+ * night before left, since the load is in no span the verifier can read.
+ */
+export function loadedMemory(notes: string): TrialEvent {
+  return {
+    key: "runtime:memory",
+    type: "memory.read",
+    summary: "Loading memory (by the runtime)",
+    data: { path: "memories/MEMORY.md", file: notes },
   };
 }
 
-/** The same events, built from a finished trial's trajectory.json. */
-export function trajectoryEvents(file: string): TrialEvent[] {
-  const trajectory = JSON.parse(readFileSync(file, "utf8")) as {
-    steps?: AtifStep[];
-  };
-  const steps = trajectory.steps ?? [];
-  const results = new Map<string, string>();
-  const errors = new Set<string>();
-  for (const step of steps)
-    for (const result of step.observation?.results ?? []) {
-      if (!result.source_call_id) continue;
-      results.set(result.source_call_id, resultText(result.content));
-      if (result.extra?.is_error) errors.add(result.source_call_id);
-    }
+/** One tool call as the verifier wrote it: arguments and result already cut short. */
+interface HostCall {
+  id?: unknown;
+  name?: unknown;
+  arguments?: unknown;
+  result?: unknown;
+  error?: unknown;
+}
+
+/** The night's steps from the result file's `steps` and `plan`; none when it has neither. */
+export function hostEvents(steps: unknown, plan: unknown): TrialEvent[] {
   const events: TrialEvent[] = [];
-  let lastText = "";
-  for (const step of steps) {
-    if (step.source !== "agent") continue;
-    if (typeof step.message === "string" && step.message.trim())
-      lastText = step.message;
-    for (const call of step.tool_calls ?? []) {
-      const event = toolCallEvent(
-        call.tool_call_id,
-        call.function_name,
-        parseArgs(call.arguments),
-        results.get(call.tool_call_id),
-        errors.has(call.tool_call_id),
-      );
-      if (event) events.push(event);
-    }
+  for (const [index, raw] of (Array.isArray(steps) ? steps : []).entries()) {
+    const call = (raw ?? {}) as HostCall;
+    if (typeof call.name !== "string") continue;
+    const event = toolCallEvent(
+      typeof call.id === "string" ? call.id : String(index),
+      call.name,
+      parseArgs(call.arguments),
+      typeof call.result === "string" ? call.result : undefined,
+      call.error === true,
+    );
+    events.push(
+      event ?? {
+        key: `tool:${typeof call.id === "string" ? call.id : index}`,
+        type: "host.tool",
+        summary: call.name,
+        data: { tool: call.name, arguments: parseArgs(call.arguments) },
+      },
+    );
   }
-  const planned = plannedEvent(lastText);
+  const planned = plannedEvent(typeof plan === "string" ? plan : "");
   if (planned) events.push(planned);
   return events;
-}
-
-/** What a trial's event carries besides its own data, so the page can file it. */
-export function tagged(step: Step, event: TrialEvent) {
-  return {
-    ...event.data,
-    run: step.run,
-    venue: step.venue,
-    venue_label: step.venue_label,
-    night: step.night,
-    variant: step.variant,
-    key: event.key,
-  };
 }

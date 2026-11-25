@@ -1,421 +1,572 @@
 /**
- * Runs the memory evals on the platform from the page: one chain per venue,
- * all at once, each step a `introspection eval run` child whose result goes on
- * the events feed. Server only.
+ * Runs the memory evals on the platform from the page, as plain calls through
+ * the SDK with the signed-in member's own token: each trial is a `kind: eval`
+ * task of the project's trivia Runtime that scores itself with its Harbor
+ * task's own verifier, billed to the member's organization. Nothing is held
+ * between calls: a run is its tasks, found by their tag, and `advanceRun`
+ * moves it on from what they say. Runs in the browser (and under Node in the
+ * tests), with web APIs only.
  */
-import { execFile, spawn } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import path from "node:path";
-import { promisify } from "node:util";
+import type {
+  CreateTaskParams,
+  IntrospectionApiClient,
+  Task,
+} from "@introspection-sdk/introspection-browser/api";
 
-import { record } from "./events";
-import { appendResult, resultsFile } from "./results";
-import { judgeInput, judgeSpec, parseJudgement, type Judgement } from "./judge";
-import { measuresOf } from "./memory-measures";
+import { measuresOf, type VenueTastes } from "./memory-measures";
 import {
   DEFAULT_TEAMS,
-  errorText,
-  findRunFolder,
-  newRunId,
-  PUB_SETS,
-  plan,
-  planText,
+  trialOfStep,
   previewNotes,
-  readRunFolder,
-  readTastes,
-  runsRoot,
-  spawnSpec,
+  runSteps,
+  runTag,
+  skippedTrial,
   stepKey,
+  TRIAL_METADATA_KEY,
+  TRIALS_TAG,
+  trialMeta,
+  trialState,
+  trialVerification,
+  verificationFile,
+  REPORT_FILE,
+  REWARD_FILE,
+  runCancelled,
+  untriedStep,
+  verifierOutput,
+  RUN_CANCELLED_KEY,
+  TARGET,
+  type StepState,
   type EvalFinished,
-  type EvalRunFinished,
-  type EvalStarted,
   type Pubs,
+  type RunRecord,
+  type RunView,
   type Step,
   type Target,
   type TeamSize,
+  type TrialMeta,
+  type TrialView,
 } from "./platform-evals";
+import { loadedMemory } from "./trial-steps";
 import {
-  tagged,
-  trajectoryEvents,
-  trajectoryFile,
-  type TrialEvent,
-} from "./trial-steps";
+  instructionFor,
+  trialWorld,
+} from "../recipe-operator/evals/trivia-tasks.mjs";
 
-const DEFAULT_API_BASE_URL = "https://api.introspection.dev";
-const run = promisify(execFile);
-const RUNTIME_SLUG = "trivia-host";
+export type Env = Record<string, string | undefined>;
 
-export const KEY_HOW_TO = [
-  "introspection api-keys create --environment staging --capabilities runtimes,evals \\",
-  "  --expires-at <today, 23:59 UTC> --secret-file recipe-operator/.agent.key",
-  "echo TRIVIA_EVAL_KEY_FILE=recipe-operator/.agent.key >> .env.local",
-].join("\n");
-
-const store = globalThis as unknown as {
-  __triviaPlatform?: { active: string | null };
+export const ADD_RUNTIME =
+  "add the trivia-night runtime to the trivia project, from the repository's root: introspection runtimes create --manifest .introspection/trivia-night.yaml -p trivia";
+/** Where the Harbor tasks sit in the repository: the Recipe's evals/harbor. */
+const TASKS_DIR = "examples/trivia-night/recipe-operator/evals/harbor";
+/** The bank sidecar's build context, packed by scripts/sidecar-context.ts under public/. */
+export const SIDECAR_ARCHIVE = "sidecar/fakes.tar.gz";
+const SIDECAR_TTL_SECONDS = 24 * 3600;
+/**
+ * Harbor's verifier writes under /logs and reads /tests, both directly under
+ * the root, which the sandbox user cannot write: as compose volumes they are
+ * writable without privilege.
+ */
+const VERIFIER_VOLUMES: Record<string, string> = {
+  "harbor-logs": "/logs",
+  "harbor-tests": "/tests",
 };
-const platform = (store.__triviaPlatform ??= { active: null });
+/** The uuid5 namespace a step's admission key is derived in. */
+const ADMISSION_NAMESPACE = "6f1c2a8e-3b4d-5e6f-8a9b-0c1d2e3f4a5b";
 
-export function recipeDir(): string {
-  return path.join(process.cwd(), "recipe-operator");
-}
+/** What the run calls; the browser client, or the Node one in the tests and scripts. */
+export type PlatformClient = Pick<IntrospectionApiClient, "tasks" | "files">;
 
-/** The configured key file, or why there is none. Never reads the key itself. */
-export function keyFile(
-  env: NodeJS.ProcessEnv = process.env,
-): { file: string } | { missing: string } {
-  const named = env.TRIVIA_EVAL_KEY_FILE?.trim();
-  if (!named) return { missing: "TRIVIA_EVAL_KEY_FILE is not set" };
-  const file = path.resolve(process.cwd(), named);
-  if (!existsSync(file)) return { missing: `${named} does not exist` };
-  return { file };
-}
+const status = (error: unknown) => (error as { status?: number }).status;
 
-interface RuntimeRecord {
-  id: string;
-  slug: string;
-  git_commit_sha?: string | null;
-  created_at?: string;
-}
-
-export async function resolveTarget(
-  env: NodeJS.ProcessEnv = process.env,
-): Promise<Target> {
-  const runtime = env.INTROSPECTION_TRIVIA_RUNTIME_ID?.trim();
-  const commit = env.INTROSPECTION_TRIVIA_COMMIT_SHA?.trim();
-  if (runtime && commit) return { runtime, commit, slug: RUNTIME_SLUG };
-  const { stdout } = await run(
-    "introspection",
-    ["runtimes", "list", "-o", "json"],
-    {
-      env,
-      maxBuffer: 32 * 1024 * 1024,
-    },
-  );
-  const parsed = JSON.parse(stdout) as
-    RuntimeRecord[] | { records: RuntimeRecord[] };
-  const latest = (Array.isArray(parsed) ? parsed : parsed.records)
-    .filter((item) => item.slug === RUNTIME_SLUG)
-    .sort((a, b) => (b.created_at ?? "").localeCompare(a.created_at ?? ""))[0];
-  if (!latest)
-    throw new Error(
-      `no ${RUNTIME_SLUG} runtime in this project: run pnpm dev first`,
-    );
-  const sha = commit ?? latest.git_commit_sha;
-  if (!sha) throw new Error(`the ${RUNTIME_SLUG} runtime has no commit yet`);
-  return { runtime: runtime ?? latest.id, commit: sha, slug: RUNTIME_SLUG };
-}
-
-/** The Control Plane the CLI talks to; it finds the Data Plane from there. */
-export function apiBaseUrl(env: NodeJS.ProcessEnv = process.env): string {
-  return env.INTROSPECTION_API_BASE_URL?.trim() || DEFAULT_API_BASE_URL;
-}
-
-export function activeRun(): string | null {
-  return platform.active;
-}
-
-type Credentials = { token: string; apiBaseUrl: string };
-
-/** A finished trial's steps on the events feed; returns its last message. */
-function recordSteps(step: Step, events: TrialEvent[]): string | null {
-  let planned: string | null = null;
-  for (const event of events) {
-    if (event.type === "host.planned" && typeof event.data.file === "string")
-      planned = event.data.file;
-    record(
-      `platform:${step.run}:${step.venue}`,
-      event.type,
-      event.summary,
-      tagged(step, event),
-    );
-  }
-  return planned;
-}
-
-/** Grades a finished night 2 with the return-visit judge, from its local trajectory. */
-async function judge(
-  step: Step,
-  folder: string,
-  trajectory: string,
-): Promise<Judgement> {
-  const customId = `${step.venue}-${step.night}`;
-  const dir = path.join(folder, "judge");
-  mkdirSync(dir, { recursive: true });
-  const input = path.join(dir, "input.jsonl");
-  writeFileSync(
-    input,
-    `${JSON.stringify(judgeInput(customId, JSON.parse(readFileSync(trajectory, "utf8"))))}\n`,
-  );
-  const spec = judgeSpec(input, dir, recipeDir());
-  const output = await new Promise<string>((resolve) => {
-    let text = "";
-    const child = spawn(spec.command, spec.args, {
-      ...spec.options,
-      env: spec.options.env as NodeJS.ProcessEnv,
-    });
-    child.stdout.on("data", (chunk: Buffer) => (text += chunk.toString()));
-    child.stderr.on("data", (chunk: Buffer) => (text += chunk.toString()));
-    child.on("error", (error) => resolve(error.message));
-    child.on("close", () => resolve(text));
-  });
-  const results = path.join(dir, "results.jsonl");
-  const found = existsSync(results)
-    ? parseJudgement(readFileSync(results, "utf8"), customId)
-    : null;
-  if (found) return found;
-  const hint = process.env.ANTHROPIC_API_KEY
-    ? ""
-    : " (the judge's model needs ANTHROPIC_API_KEY or a Pi sign-in)";
-  return {
-    score: null,
-    reason: null,
-    error: `${output.trim().split("\n").pop() || "the judge wrote no result"}${hint}`,
-  };
-}
-
-/** More trials at once than this and the CLI's Control Plane calls time out. */
-const MAX_PARALLEL_TRIALS = 6;
-let runningTrials = 0;
-const waitingTrials: (() => void)[] = [];
-
-/** Runs `work` once a trial slot is free; a finished trial hands its slot on. */
-async function inSlot<T>(work: () => Promise<T>): Promise<T> {
-  if (runningTrials >= MAX_PARALLEL_TRIALS)
-    await new Promise<void>((resolve) => waitingTrials.push(resolve));
-  else runningTrials += 1;
-  try {
-    return await work();
-  } finally {
-    const next = waitingTrials.shift();
-    if (next) next();
-    else runningTrials -= 1;
-  }
-}
-
-/** What a finished step leaves for the nights that wait on it. */
-interface Settled {
-  notes: string | null;
-  failed: boolean;
-}
-
-/** Records a night that never ran because a night it depends on failed, so it is never scored. */
-function recordSkipped(step: Step, reason: string): Settled {
-  const finished: EvalFinished = {
-    ...step,
-    reward: null,
-    checks: {},
-    notes: null,
-    plan: null,
-    round: null,
-    fetches: [],
-    rounds: [],
-    judge: null,
-    measures: {},
-    trajectory_source: null,
-    seconds: 0,
-    exit_code: null,
-    error: reason,
-  };
-  record(
-    `platform:${step.run}:${step.venue}`,
-    "eval.finished",
-    `${step.venue_label} ${step.task}: skipped, ${reason}`,
-    finished,
-  );
-  appendResult(resultsFile(recipeDir(), step.run), {
-    type: "eval.finished",
-    data: finished,
-  });
-  return { notes: null, failed: true };
-}
-
-/** Runs one step; resolves with the notes it left and whether it failed, for the chain's next night. */
-function runStep(
-  step: Step,
-  target: Target,
-  credentials: Credentials,
-  night1Notes: string | null = null,
-): Promise<Settled> {
-  const started: EvalStarted = { ...step };
-  record(
-    `platform:${step.run}:${step.venue}`,
-    "eval.started",
-    `${step.venue_label} ${step.task} as ${step.identity}`,
-    started,
-  );
-  const spec = spawnSpec(step, target, recipeDir(), credentials);
-  const began = Date.now();
-  return new Promise((resolve) => {
-    let output = "";
-    let done = false;
-    const finish = async (exitCode: number | null, failure?: string) => {
-      // A spawn failure can be followed by `close` as well.
-      if (done) return;
-      done = true;
-      const seconds = Math.round((Date.now() - began) / 1000);
-      const folder = findRunFolder(output, runsRoot(recipeDir(), step));
-      let trial: ReturnType<typeof readRunFolder> | null = null;
-      let readError: string | null = null;
-      let planned: string | null = null;
-      let judgement: Judgement | null = null;
-      if (folder) {
-        try {
-          trial = readRunFolder(folder);
-        } catch (error) {
-          readError = `could not read ${folder}: ${(error as Error).message}`;
-        }
-        const trajectory = trajectoryFile(folder);
-        if (trajectory) {
-          try {
-            planned = recordSteps(step, trajectoryEvents(trajectory));
-          } catch (error) {
-            readError ??= `could not read ${trajectory}: ${(error as Error).message}`;
-          }
-          if (step.night.startsWith("night2"))
-            judgement = await judge(step, folder, trajectory).catch(
-              (error: Error) => ({
-                score: null,
-                reason: null,
-                error: error.message,
-              }),
-            );
-        }
-      }
-      const error =
-        failure ??
-        trial?.error ??
-        readError ??
-        (exitCode === 0 ? null : errorText(output, credentials.token));
-      const checks = trial?.checks ?? {};
-      const finished: EvalFinished = {
-        ...step,
-        reward: trial?.reward ?? null,
-        checks,
-        notes: previewNotes(trial?.notes ?? null),
-        plan: planText(planned),
-        round: trial?.fetches[0] ?? null,
-        fetches: trial?.fetches ?? [],
-        rounds: trial?.rounds ?? [],
-        judge: judgement,
-        measures: trial
-          ? measuresOf(step.night, {
-              checks,
-              notes: trial.notes,
-              fetches: trial.fetches,
-              tastes: readTastes(recipeDir(), step.task),
-              night1Notes,
-            })
-          : {},
-        trajectory_source: trial?.trajectory_source ?? null,
-        seconds,
-        exit_code: exitCode,
-        error: error ? errorText(error, credentials.token) : null,
-      };
-      record(
-        `platform:${step.run}:${step.venue}`,
-        "eval.finished",
-        `${step.venue_label} ${step.task}: reward ${finished.reward ?? "none"} in ${seconds}s`,
-        finished,
+/**
+ * The bank sidecar's build context as a Files API id, uploaded once per
+ * client. The platform builds an image once per archive, so every trial after
+ * the first change to the folder runs the image already built.
+ */
+export type BankContext = () => Promise<string>;
+const contexts = new WeakMap<PlatformClient, Promise<string>>();
+export function bankContext(
+  client: PlatformClient,
+  archive: () => Promise<Uint8Array> = async () => {
+    const response = await fetch(`/${SIDECAR_ARCHIVE}`);
+    if (!response.ok)
+      throw new Error(
+        `the page has no ${SIDECAR_ARCHIVE}: run it with pnpm dev:app, which packs it`,
       );
-      appendResult(resultsFile(recipeDir(), step.run), {
-        type: "eval.finished",
-        data: finished,
-      });
-      resolve({ notes: trial?.notes ?? null, failed: Boolean(error) });
-    };
-    const child = spawn(spec.command, spec.args, {
-      ...spec.options,
-      env: spec.options.env as NodeJS.ProcessEnv,
-    });
-    const read = (chunk: Buffer) => {
-      output += chunk.toString();
-    };
-    child.stdout.on("data", read);
-    child.stderr.on("data", read);
-    child.on("error", (error) => void finish(null, error.message));
-    child.on("close", (code) => void finish(code));
-  });
+    return new Uint8Array(await response.arrayBuffer());
+  },
+): BankContext {
+  return () => {
+    let found = contexts.get(client);
+    if (!found) {
+      found = archive()
+        .then((file) =>
+          client.files.upload({
+            file,
+            name: "fakes-context.tar.gz",
+            contentType: "application/gzip",
+            ttl_seconds: SIDECAR_TTL_SECONDS,
+          }),
+        )
+        .then((upload) => upload.id);
+      found.catch(() => contexts.delete(client));
+      contexts.set(client, found);
+    }
+    return found;
+  };
 }
 
-/** Starts a run and returns its id; the trials report on the events feed. */
-export async function startRun(
-  venues: number,
-  teams: TeamSize = DEFAULT_TEAMS,
-  pubs: Pubs = "development",
-): Promise<{ run: string; target: Target }> {
-  if (platform.active) throw new Error(`run ${platform.active} is still going`);
-  const found = keyFile();
-  if ("missing" in found) throw new Error(found.missing);
-  const token = readFileSync(found.file, "utf8").trim();
-  if (!token) throw new Error("the key file is empty");
-  const id = newRunId();
-  platform.active = id;
-  const api = apiBaseUrl();
-  let target: Target;
+/** A trial's compose world: the bank built from its archive, and the verifier's volumes on `main`. */
+export function trialCompose(
+  step: Step,
+  context: string,
+): Record<string, unknown> {
+  const trial = trialOfStep(step);
+  const world = trialWorld(
+    asVenue(trial.venue),
+    trial.night,
+    trial.teams,
+    context,
+  ) as {
+    services: Record<string, Record<string, unknown>>;
+    volumes: Record<string, unknown>;
+  };
+  const main = world.services.main;
+  main.volumes = [
+    ...(main.volumes as string[]),
+    ...Object.entries(VERIFIER_VOLUMES).map(([name, at]) => `${name}:${at}`),
+  ];
+  return {
+    services: world.services,
+    volumes: {
+      ...world.volumes,
+      ...Object.fromEntries(
+        Object.keys(VERIFIER_VOLUMES).map((v) => [v, null]),
+      ),
+    },
+  };
+}
+
+/**
+ * Which runtime a trial runs on: the project's trivia-night by its slug, at
+ * the version the Data Plane deploys for the lane.
+ */
+export const trialRuntime = (
+  target: Target,
+): Pick<CreateTaskParams, "runtime"> => ({
+  runtime: target.runtime,
+});
+
+/** The end user a step runs as: `anon:<id>` or `user:<id>`, carrying the run's tags to the member it mints. */
+export function trialIdentity(step: Step): Record<string, unknown> {
+  const [kind, ...rest] = step.identity.split(":");
+  const id = rest.join(":");
+  const field =
+    kind === "anon" ? "anonymous_id" : kind === "user" ? "user_id" : null;
+  if (!field || !id) throw new Error(`unsupported identity ${step.identity}`);
+  return { [field]: id, tags: [runTag(step.run), TRIALS_TAG] };
+}
+
+/**
+ * The step's `admission_key`: the platform creates one task per key for the
+ * key's member, under a lock, so two polls that both create a step make one
+ * trial between them. A uuid5 of the run and the step.
+ */
+export async function admissionKey(step: Step): Promise<string> {
+  const namespace = ADMISSION_NAMESPACE.replace(/-/g, "");
+  const name = new TextEncoder().encode(`${step.run}/${stepKey(step)}`);
+  const input = new Uint8Array(16 + name.length);
+  for (let i = 0; i < 16; i++)
+    input[i] = parseInt(namespace.slice(i * 2, i * 2 + 2), 16);
+  input.set(name, 16);
+  const hash = new Uint8Array(await crypto.subtle.digest("SHA-1", input));
+  hash[6] = (hash[6] & 0x0f) | 0x50;
+  hash[8] = (hash[8] & 0x3f) | 0x80;
+  const hex = hexOf(hash.subarray(0, 16));
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+}
+
+const hexOf = (bytes: Uint8Array) =>
+  Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
+
+/**
+ * The create body for one trial: one of the Recipe's three Harbor tasks in
+ * `metadata.task_path`, whose verifier the platform runs, with the pub it
+ * plays, its instruction and its compose world.
+ */
+export async function trialBody(
+  record: RunRecord,
+  step: Step,
+  compose: Record<string, unknown>,
+): Promise<CreateTaskParams> {
+  const trial = trialOfStep(step);
+  const meta: TrialMeta = {
+    step: stepKey(step),
+    record,
+    trial: { pub: trial.venue.slug, night: trial.night, teams: trial.teams },
+  };
+  return {
+    kind: "eval",
+    // The pub's instruction, as the generator would write it, so the platform needn't read it.
+    prompt: instructionFor(asVenue(trial.venue), trial.night, trial.teams),
+    ...trialRuntime(record.target),
+    commands: true,
+    tags: [runTag(step.run), TRIALS_TAG],
+    compose,
+    metadata: {
+      task_path: `${TASKS_DIR}/night${trial.night}`,
+      admission_key: await admissionKey(step),
+      identity: trialIdentity(step),
+      [TRIAL_METADATA_KEY]: meta,
+    },
+  };
+}
+
+/** A venues.json entry as the shared task module types it. */
+const asVenue = (venue: unknown) =>
+  venue as Parameters<typeof instructionFor>[0];
+
+/**
+ * Creates a step's trial, or returns the one another poll already made: the
+ * platform admits one task per admission key, replaying the same body and
+ * refusing another, after which the existing task is read back.
+ */
+export async function createTrial(
+  client: PlatformClient,
+  record: RunRecord,
+  step: Step,
+  context: BankContext = bankContext(client),
+): Promise<Task> {
+  const compose = trialCompose(step, await context());
   try {
-    target = await resolveTarget({
-      ...process.env,
-      INTROSPECTION_API_BASE_URL: api,
-    });
+    const created = await client.tasks.create(
+      await trialBody(record, step, compose),
+    );
+    return created.task;
   } catch (error) {
-    platform.active = null;
-    throw error;
+    if (status(error) !== 409) throw error;
+    const key = stepKey(step);
+    const existing = (await runTasks(client, record.run)).find(
+      ({ meta }) => meta.step === key,
+    );
+    if (!existing) throw error;
+    return existing.task;
   }
-  const chains = plan(id, venues, PUB_SETS[pubs], teams);
-  const began = Date.now();
-  // Each step's notes once it finishes, for the steps that wait on it.
-  const settled = new Map<string, Promise<Settled>>();
-  const finishers = new Map<string, (result: Settled) => void>();
-  for (const step of chains.flat())
-    settled.set(
-      stepKey(step),
-      new Promise((resolve) => finishers.set(stepKey(step), resolve)),
-    );
-  void Promise.all(
-    chains.map(async (chain) => {
-      let previous: Settled = { notes: null, failed: false };
-      let previousNight: string | null = null;
-      for (const step of chain) {
-        if (step.after?.length) {
-          const waited = await Promise.all(
-            step.after.map(
-              (key) => settled.get(key) ?? { notes: null, failed: false },
-            ),
-          );
-          previous = {
-            notes: waited[0].notes,
-            failed: waited.some((w) => w.failed),
-          };
-          previousNight = step.after.join(", ");
-        }
-        const result = previous.failed
-          ? recordSkipped(step, `skipped: ${previousNight} failed`)
-          : await inSlot(() =>
-              runStep(step, target, { token, apiBaseUrl: api }, previous.notes),
-            );
-        finishers.get(stepKey(step))?.(result);
-        previous = result;
-        previousNight = step.night;
+}
+
+/** Every trial task of a run, oldest first. */
+async function runTasks(
+  client: PlatformClient,
+  run: string,
+): Promise<{ task: Task; meta: TrialMeta }[]> {
+  const found: { task: Task; meta: TrialMeta }[] = [];
+  for await (const task of client.tasks.list({
+    tag: runTag(run),
+    limit: 100,
+  })) {
+    const meta = trialMeta(task.metadata);
+    if (meta?.record.run === run) found.push({ task, meta });
+  }
+  return found.sort((a, b) =>
+    a.task.created_at.localeCompare(b.task.created_at),
+  );
+}
+
+/** The newest run this page started, by id, or null. */
+export async function latestRun(
+  client: PlatformClient,
+): Promise<string | null> {
+  for await (const task of client.tasks.list({ tag: TRIALS_TAG, limit: 5 })) {
+    const meta = trialMeta(task.metadata);
+    if (meta) return meta.record.run;
+  }
+  return null;
+}
+
+/**
+ * Moves a run on one step and says where it stands: a night whose
+ * predecessors have ended starts, and one whose
+ * predecessor failed is skipped. Idempotent, and safe to call from any
+ * instance: each step's admission key makes one task of it however many
+ * calls create it, and a run made before the key keeps a step's first task
+ * and archives the others. With `advance` false it only reads, for a member
+ * whose sign-in cannot move a run on.
+ */
+export async function advanceRun(
+  client: PlatformClient,
+  run: string,
+  advance = true,
+): Promise<RunView | null> {
+  const tasks = await runTasks(client, run);
+  if (!tasks.length) return null;
+  const record = tasks[0].meta.record;
+  const byStep = new Map<string, Task>();
+  for (const { task, meta } of tasks) {
+    if (!byStep.has(meta.step)) byStep.set(meta.step, task);
+    else if (advance && !task.is_archived) await client.tasks.archive(task.id);
+  }
+  const cancelled = tasks.some(({ task }) => runCancelled(task.metadata));
+  const context = bankContext(client);
+  const states = new Map<string, StepState>();
+  const views: TrialView[] = [];
+  for (const step of runSteps(record)) {
+    const key = stepKey(step);
+    let task = byStep.get(key);
+    if (!task) {
+      const next = untriedStep(step, states, cancelled);
+      if (next.skip) {
+        states.set(key, { done: true, failed: true, error: next.skip });
+        views.push({
+          key,
+          step,
+          task_id: null,
+          status: "skipped",
+          scored: false,
+          done: true,
+          finished: skippedTrial(step, next.skip),
+        });
+        continue;
       }
-    }),
-  ).finally(() => {
-    const finished: EvalRunFinished = {
-      run: id,
-      seconds: Math.round((Date.now() - began) / 1000),
-      trials: chains.flat().length,
-    };
-    record(
-      `platform:${id}`,
-      "eval.run_finished",
-      `run ${id} finished in ${finished.seconds}s`,
-      finished,
-    );
-    appendResult(resultsFile(recipeDir(), id), {
-      type: "eval.run_finished",
-      data: finished,
+      if (!advance || next.wait) {
+        views.push({
+          key,
+          step,
+          task_id: null,
+          status: "waiting",
+          scored: false,
+          done: false,
+          finished: null,
+        });
+        continue;
+      }
+      task = await createTrial(client, record, step, context);
+    }
+    const state = { ...trialState(task), status: task.status };
+    states.set(key, state);
+    views.push({
+      key,
+      step,
+      task_id: task.id,
+      status: task.status,
+      scored: trialVerification(task.metadata) !== null,
+      done: state.done,
+      finished: null,
     });
-    platform.active = null;
+  }
+  const done = views.every((view) => view.done);
+  const ends = tasks
+    .map(({ task }) => task.completed_at ?? task.updated_at)
+    .sort();
+  return {
+    run,
+    record,
+    trials: views,
+    memory_off: tasks.some(({ task }) => !task.metadata?.memory),
+    finished: done
+      ? {
+          run,
+          seconds: Math.round(
+            (Date.parse(ends[ends.length - 1] ?? record.started_at) -
+              Date.parse(record.started_at)) /
+              1000,
+          ),
+          trials: views.length,
+          started_by: record.started_by,
+        }
+      : null,
+  };
+}
+
+/** What a Run click asks for; `token` is the click's own, so a repeat of it starts nothing new. */
+export interface StartRequest {
+  venues: number;
+  startedBy: string;
+  token: string;
+  teams?: TeamSize;
+  pubs?: Pubs;
+  now?: Date;
+}
+
+/** A run's id from the member and their click's token: the same click names the same run. */
+export async function runIdFor(member: string, token: string): Promise<string> {
+  const hash = hexOf(
+    new Uint8Array(
+      await crypto.subtle.digest(
+        "SHA-256",
+        new TextEncoder().encode(`${member}:${token}`),
+      ),
+    ),
+  );
+  return `r${parseInt(hash.slice(0, 13), 16)}`;
+}
+
+/**
+ * Starts a run: records it on its first nights' tasks, which the page's polls
+ * then move on. A repeat of the same click resolves to the run it started,
+ * through its first trials' admission keys; another click while a run is
+ * going is refused.
+ */
+export async function startRun(
+  client: PlatformClient,
+  request: StartRequest,
+): Promise<{ run: string; target: Target }> {
+  const now = request.now ?? new Date();
+  const run = await runIdFor(request.startedBy, request.token);
+  const latest = await latestRun(client);
+  if (latest && latest !== run) {
+    const view = await advanceRun(client, latest);
+    if (view && !view.finished) throw new Error(`run ${latest} is still going`);
+  }
+  const target = TARGET;
+  const record: RunRecord = {
+    run,
+    venues: request.venues,
+    teams: request.teams ?? DEFAULT_TEAMS,
+    pubs: request.pubs ?? "development",
+    started_by: request.startedBy,
+    started_at: now.toISOString(),
+    target,
+  };
+  const context = bankContext(client);
+  const first = runSteps(record).filter((step) => !step.after?.length);
+  // The first trial records the run, so a failure here leaves no half-made run behind it.
+  await createTrial(client, record, first[0], context);
+  // Past it the run exists: one the rest fail to make, `advanceRun` makes on the next poll.
+  await Promise.allSettled(
+    first.slice(1).map((step) => createTrial(client, record, step, context)),
+  );
+  return { run: record.run, target };
+}
+
+/**
+ * Cancels a run: marks it on its first trial, so no night is started after
+ * it, then drains every trial still going, which then ends `cancelled`.
+ */
+export async function cancelRun(client: PlatformClient, run: string) {
+  const tasks = await runTasks(client, run);
+  if (!tasks.length) return;
+  await client.tasks.update(tasks[0].task.id, {
+    metadata: { [RUN_CANCELLED_KEY]: true },
   });
-  return { run: id, target };
+  await Promise.all(
+    tasks
+      .filter(({ task }) => !trialState(task).done)
+      .map(async ({ task }) => {
+        const runId =
+          task.metadata?.active_run_id ?? task.metadata?.latest_run_id;
+        if (typeof runId !== "string") return;
+        try {
+          await client.tasks.runs.cancel(task.id, runId, { mode: "drain" });
+        } catch (error) {
+          // A trial that ended meanwhile has no run to cancel.
+          if (status(error) !== 409) throw error;
+        }
+      }),
+  );
+}
+
+const utf8 = (bytes: Uint8Array) => new TextDecoder().decode(bytes);
+const decode = async (client: PlatformClient, id: string | null | undefined) =>
+  id ? utf8(await client.files.download(id)) : null;
+
+/** A finished trial's result from its verification's files. */
+export async function trialResult(
+  client: PlatformClient,
+  taskId: string,
+): Promise<EvalFinished | null> {
+  const task = await client.tasks.get(taskId);
+  const meta = trialMeta(task.metadata);
+  if (!meta) return null;
+  const step = runSteps(meta.record).find((s) => stepKey(s) === meta.step);
+  if (!step) return null;
+  const state = trialState(task);
+  const verification = trialVerification(task.metadata);
+  const [log, result] = await Promise.all([
+    decode(client, verificationFile(verification, REPORT_FILE)),
+    decode(client, verificationFile(verification, REWARD_FILE)),
+  ]);
+  const out = verifierOutput(log, result, verification?.reward ?? null);
+  let night1Notes: string | null = null;
+  if (step.night.startsWith("night2") && step.after?.length) {
+    const before = (await runTasks(client, meta.record.run)).find(
+      ({ meta: m }) => m.step === step.after![0],
+    );
+    const v = before && trialVerification(before.task.metadata);
+    if (v)
+      night1Notes = verifierOutput(
+        await decode(client, verificationFile(v, REPORT_FILE)),
+        await decode(client, verificationFile(v, REWARD_FILE)),
+      ).notes;
+  }
+  const scoredAt = verification?.completed_at ?? task.completed_at;
+  return {
+    ...step,
+    reward: out.reward,
+    checks: out.checks,
+    notes: previewNotes(out.notes),
+    fetches: out.fetches,
+    rounds: out.rounds,
+    // The runtime loads memory only for a trial that owns it.
+    steps:
+      night1Notes &&
+      task.metadata?.memory &&
+      !out.steps.some((event) => event.type === "memory.read")
+        ? [loadedMemory(night1Notes), ...out.steps]
+        : out.steps,
+    steps_error: out.steps_error,
+    measures:
+      log || result
+        ? measuresOf(step.night, {
+            checks: out.checks,
+            notes: out.notes,
+            fetches: out.fetches,
+            tastes: out.tastes,
+            night1Notes,
+          })
+        : {},
+    seconds:
+      task.started_at && scoredAt
+        ? Math.round(
+            (Date.parse(scoredAt) - Date.parse(task.started_at)) / 1000,
+          )
+        : 0,
+    exit_code: verification?.exit_code ?? null,
+    error: state.error,
+  };
+}
+
+/**
+ * A run's results without moving it on: each scored trial's, and the record
+ * of each night skipped because one before it failed. Null for no such run.
+ */
+export async function runResults(
+  client: PlatformClient,
+  run: string,
+): Promise<EvalFinished[] | null> {
+  const tasks = await runTasks(client, run);
+  if (!tasks.length) return null;
+  const byStep = new Map<string, Task>();
+  for (const { task, meta } of tasks)
+    if (!byStep.has(meta.step)) byStep.set(meta.step, task);
+  const cancelled = tasks.some(({ task }) => runCancelled(task.metadata));
+  const states = new Map<string, StepState>();
+  const results: EvalFinished[] = [];
+  for (const step of runSteps(tasks[0].meta.record)) {
+    const key = stepKey(step);
+    const task = byStep.get(key);
+    if (!task) {
+      const next = untriedStep(step, states, cancelled);
+      if (next.skip) {
+        states.set(key, { done: true, failed: true, error: next.skip });
+        results.push(skippedTrial(step, next.skip));
+      }
+      continue;
+    }
+    const state = { ...trialState(task), status: task.status };
+    states.set(key, state);
+    if (!state.done) continue;
+    const result = await trialResult(client, task.id);
+    if (result) results.push(result);
+  }
+  return results;
 }

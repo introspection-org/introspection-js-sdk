@@ -4,7 +4,8 @@ tsconfig.tsbuildinfo
 # next dev writes these for coding agents
 AGENTS.md
 CLAUDE.md
-.introspection-work/
 .trivia-state.json*
 runs/
 recipe/eval-runs/
+# The bank sidecar archive scripts/sidecar-context.ts packs
+public/sidecar/

@@ -1,0 +1,82 @@
+name: Deploy trivia-night
+
+# A push to main deploys a preview aliased to the staging domain; a manual run
+# with `production` deploys to production. The Vercel project needs no Git
+# connection: the CLI builds here and uploads the prebuilt output.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "examples/trivia-night/**"
+      - "packages/**"
+      - "pnpm-lock.yaml"
+      - ".github/workflows/deploy-trivia-night.yml"
+  workflow_dispatch:
+    inputs:
+      production:
+        description: "Deploy to production (trivia-night.introspection.dev)"
+        type: boolean
+        default: false
+
+concurrency:
+  group: deploy-trivia-night-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    name: Deploy ${{ inputs.production && 'Production' || 'Preview' }}
+    runs-on: ubuntu-latest
+    environment: build
+    env:
+      VERCEL_ORG_ID: ${{ vars.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ vars.VERCEL_TRIVIA_PROJECT_ID }}
+      VERCEL_TOKEN: ${{ secrets.VERCEL_API_TOKEN }}
+      PREVIEW_DOMAIN: trivia-night.staging.introspection.dev
+      VERCEL_SCOPE: introspection-team
+    steps:
+      - name: Require the Vercel settings
+        if: vars.VERCEL_ORG_ID == '' || vars.VERCEL_TRIVIA_PROJECT_ID == ''
+        run: |
+          echo "::error::Set vars.VERCEL_ORG_ID and vars.VERCEL_TRIVIA_PROJECT_ID (and secrets.VERCEL_API_TOKEN) to deploy."
+          exit 1
+
+      - uses: actions/checkout@v7
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v6
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+          cache: "pnpm"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build packages
+        run: pnpm build
+
+      # Pinned with introspection-cloud's deploy, which hit a `vercel build`
+      # regression on Next apps in a later release.
+      - name: Install Vercel CLI
+        run: pnpm install --global vercel@59.25.0
+
+      - name: Pull Vercel environment
+        run: vercel pull --yes --environment=${{ inputs.production && 'production' || 'preview' }}
+
+      - name: Build project artifacts
+        run: vercel build ${{ inputs.production && '--prod' || '' }}
+
+      - name: Deploy to Vercel
+        run: |
+          if [ "${{ inputs.production }}" = "true" ]; then
+            vercel deploy --prebuilt --prod
+          else
+            url="$(vercel deploy --prebuilt)"
+            vercel alias set "${url}" "${PREVIEW_DOMAIN}" --scope "${VERCEL_SCOPE}"
+          fi

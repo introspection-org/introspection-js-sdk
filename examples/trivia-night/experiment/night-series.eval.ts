@@ -1,9 +1,8 @@
 // One pub's two-night series for one candidate Recipe: night 1 writes the
 // notes, a fresh session plays night 2 from them, and the platform's own
-// verifier (night2-<pub>/tests/check.mjs) scores night 2 from the bank's state.
-// Run from the candidate's directory: PUB, TASKS_DIR, EVIDENCE_DIR and ARM
+// verifier (evals/trivia-check.mjs) scores night 2 from the bank's state.
+// Run from the candidate's directory: PUB, EVIDENCE_DIR and ARM
 // (hosted = its own notes, fresh = an empty memories folder on night 2).
-import { execFileSync } from "node:child_process";
 import {
   copyFileSync,
   existsSync,
@@ -19,7 +18,6 @@ import { createRecipeHarness } from "@introspection-ai/vitest-evals";
 import { startServices } from "@introspection-ai/eval-simulate/mcp";
 
 const pub = process.env.PUB!;
-const tasks = process.env.TASKS_DIR!;
 const evidence = process.env.EVIDENCE_DIR!;
 const arm = process.env.ARM ?? "hosted";
 const recipe = process.cwd();
@@ -30,9 +28,20 @@ const { fakes } = await import(
 const { world } = await import(
   pathToFileURL(join(recipe, "fakes/scenarios/index.ts")).href
 );
-const scenario = JSON.parse(
-  readFileSync(join(tasks, `night1-${pub}/tests/expected.json`), "utf8"),
-).venue as string;
+// The candidate's own task module and verifier, as its dynamic tasks run them.
+const tasks = await import(
+  pathToFileURL(join(recipe, "evals/trivia-tasks.mjs")).href
+);
+const { check } = await import(
+  pathToFileURL(join(recipe, "evals/trivia-check.mjs")).href
+);
+const venue = tasks.venueNamed(
+  ["venues.json", "heldout.json"].map((file) =>
+    JSON.parse(readFileSync(join(recipe, "evals", file), "utf8")),
+  ),
+  pub,
+);
+const scenario = venue.profile as string;
 
 type Input = { prompt: string; night: 1 | 2; memories: string };
 type Services = Awaited<ReturnType<typeof startServices>>;
@@ -57,36 +66,23 @@ const harness = createRecipeHarness<Input, Services>({
   collectArtifacts: ({ fixture }) => ({ bank: fixture.states }),
 });
 
-function score(
+async function score(
   state: unknown,
   memories: string,
   out: string,
-): Record<string, unknown> {
+): Promise<Record<string, unknown>> {
   mkdirSync(out, { recursive: true });
-  writeFileSync(join(out, "state.json"), JSON.stringify(state));
-  const check = readFileSync(
-    join(tasks, `night2-${pub}/tests/check.mjs`),
-    "utf8",
-  )
-    .replace(
-      /await \(\s*await fetch\("http:\/\/fakes:7353\/trivia-bank\/admin\/state"\)\s*\)\.json\(\)/,
-      `JSON.parse(readFileSync(${JSON.stringify(join(out, "state.json"))}, "utf8"))`,
-    )
-    .replace('"/workspace/memories"', JSON.stringify(memories))
-    .replace(
-      '"/logs/verifier/reward.json"',
-      JSON.stringify(join(out, "reward.json")),
-    );
-  copyFileSync(
-    join(tasks, `night2-${pub}/tests/expected.json`),
-    join(out, "expected.json"),
-  );
-  writeFileSync(join(out, "check.mjs"), check);
-  const report = execFileSync(process.execPath, [join(out, "check.mjs")], {
-    encoding: "utf8",
+  // Every measure, raw counts included, from the report, as the page reads it;
+  // reward.json keeps only those in [0, 1].
+  const { report } = await check({
+    night: 2,
+    expected: tasks.expectedFor(venue, 2),
+    bank: state,
+    memories,
+    env: { ...process.env, LOGS_DIR: out },
   });
-  writeFileSync(join(out, "report.json"), report);
-  return JSON.parse(readFileSync(join(out, "reward.json"), "utf8"));
+  writeFileSync(join(out, "report.json"), JSON.stringify(report));
+  return report;
 }
 
 describeEval(
@@ -98,10 +94,7 @@ describeEval(
       const memories = join(dir, "memories");
       mkdirSync(memories, { recursive: true });
       const instruction = (night: 1 | 2) =>
-        readFileSync(
-          join(tasks, `night${night}-${pub}/instruction.md`),
-          "utf8",
-        ).trim();
+        (tasks.instructionFor(venue, night) as string).trim();
 
       let night1Memories = memories;
       if (arm === "fresh") night1Memories = join(dir, "night1-memories");
@@ -118,7 +111,7 @@ describeEval(
 
       const second = await run({ prompt: instruction(2), night: 2, memories });
       writeFileSync(join(dir, "night2.json"), JSON.stringify(second, null, 1));
-      const measures = score(
+      const measures = await score(
         second.artifacts?.bank,
         memories,
         join(dir, "score"),

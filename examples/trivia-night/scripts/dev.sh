@@ -9,27 +9,31 @@
 # The public URL is a free Cloudflare quick tunnel (`brew install cloudflared`),
 # new each run; the project follows it.
 #
-# The project setup, the first time on a stack (safe to re-run):
-#   1. the trivia-host Runtime: a repository Introspection hosts, synced from
-#      this example's recipe-operator/ with its generated Harbor tasks, and its runtime
-#   2. the application the bank is linked to: the platform signs a token
+# The project setup, the first time on a stack (safe to re-run), in the trivia project:
+#   1. the trivia-night Runtime, from this repository's .introspection/trivia-night.yaml
+#   2. the page's `spa` application; off production, .env.local names the stack
+#      and that application, the page's only settings
+#   3. the application the bank is linked to: the platform signs a token
 #      naming the end user, as that application, on every call to the bank
-#   3. the trivia-bank MCP binding, on the tunnel, linked to that application
+#   4. the trivia-bank MCP binding, on the tunnel, linked to that application
 # Later runs only point the binding at the new tunnel URL.
 #
 # Env:
-#   TRIVIA_NO_SETUP=1  serve the app and its tunnel only, from .env.local as it
-#                      stands: no CLI, and nothing in the project changes
+#   TRIVIA_NO_SETUP=1  serve the app and its tunnel only: no CLI, and nothing in
+#                      the project changes
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
 PORT=3500
 BANK_PORT=3501
 ENV_FILE=.env.local
-WORK=.introspection-work
-RUNTIME=trivia-host
+RUNTIME=trivia-night
+# The project the page signs in to, beside its runtime and the bank's binding.
+PROJECT=trivia
+PRODUCTION=https://api.introspection.dev
 MCP_SERVER_ID=trivia-bank
 APP_NAME="Trivia Night bank"
+SPA_NAME="Trivia night"
 
 say() { echo "[dev] $*"; }
 fail() {
@@ -68,8 +72,14 @@ json() {
 # The bank trusts only the platform's token here: a header naming the owner
 # would let anyone on the tunnel play as any venue.
 unset TRIVIA_DEV_OWNER_HEADER TRIVIA_DEV_OWNER
-remove_env TRIVIA_DEV_OWNER_HEADER
-remove_env TRIVIA_DEV_OWNER
+# What earlier versions wrote: the page now reads only its stack and application,
+# and the bank's issuer is handed to it below.
+for name in TRIVIA_DEV_OWNER_HEADER TRIVIA_DEV_OWNER TRIVIA_ISSUER TRIVIA_AUDIENCE \
+  NEXT_PUBLIC_INTROSPECTION_DP_URL NEXT_PUBLIC_INTROSPECTION_TRIVIA_PROJECT \
+  NEXT_PUBLIC_INTROSPECTION_TRIVIA_RUNTIME_ID NEXT_PUBLIC_INTROSPECTION_TRIVIA_REPOSITORY_ID \
+  NEXT_PUBLIC_INTROSPECTION_TRIVIA_COMMIT_SHA NEXT_PUBLIC_INTROSPECTION_TRIVIA_RECIPE_PATH; do
+  remove_env "$name"
+done
 
 # ---------------------------------------------------------------------------
 # The Introspection CLI, installed or brought up to date, and a live session
@@ -120,65 +130,37 @@ say "bank: $BANK_URL"
 # ---------------------------------------------------------------------------
 
 ensure_runtime() {
-  # The runtime runs recipe-operator/ with its Harbor tasks, which
-  # recipe-operator/evals/venues.mjs generates and git ignores, so its hosted
-  # repository holds a copy of that folder plus the generated tasks, synced on
-  # every run so the platform evals use the tasks this checkout generates.
-  local git_id=(-c user.name=trivia-night -c user.email=trivia-night@example.invalid)
-  local repo_url exists
-  repo_url="$(introspection repositories list -o json | json "v.find((r) => r.slug === '$RUNTIME')?.url")"
-  exists="$(introspection runtimes list -o json | json "v.some((r) => r.slug === '$RUNTIME')")"
-  rm -rf "${WORK:?}/$RUNTIME"
-  mkdir -p "$WORK"
-  if [ -n "$repo_url" ]; then
-    git clone -q "$repo_url" "$WORK/$RUNTIME"
-  else
-    mkdir -p "$WORK/$RUNTIME"
-    git -C "$WORK/$RUNTIME" init -q -b main
+  # The runtime runs recipe-operator/ from GitHub, as the manifest at the repository's
+  # root names it, at the version the Data Plane deploys.
+  if [ "$(introspection runtimes list -p "$PROJECT" -o json | json "v.some((r) => r.slug === '$RUNTIME')")" != "true" ]; then
+    say "creating the $RUNTIME runtime from .introspection/$RUNTIME.yaml"
+    (cd "$(git rev-parse --show-toplevel)" &&
+      introspection runtimes create --manifest ".introspection/$RUNTIME.yaml" -p "$PROJECT" --yes >/dev/null) ||
+      fail "could not create the $RUNTIME runtime"
   fi
-  (cd recipe-operator && git ls-files -z --cached --others --exclude-standard |
-    rsync -a --from0 --files-from=- . "../$WORK/$RUNTIME/")
-  # The generator reads the fakes' world, so their dependencies come first; the
-  # page reads each task's tastes from recipe-operator/evals/harbor, so the tasks
-  # are generated there too, beside the copy the runtime gets.
-  [ -d recipe-operator/fakes/node_modules ] ||
-    (cd recipe-operator/fakes && npm ci --silent) ||
-    fail "could not install recipe-operator/fakes' dependencies"
-  node recipe-operator/evals/venues.mjs >/dev/null &&
-    node recipe-operator/evals/venues.mjs "$WORK/$RUNTIME/evals/harbor" >/dev/null ||
-    fail "could not generate the Harbor tasks"
-  (cd "$WORK/$RUNTIME" && git add -A && git add -f evals/harbor &&
-    { git diff --cached --quiet HEAD 2>/dev/null ||
-      git "${git_id[@]}" commit -q -m "feat: trivia-host from introspection-js-sdk examples/trivia-night/recipe-operator"; })
-  if [ -z "$repo_url" ]; then
-    say "creating the $RUNTIME repository from recipe-operator/"
-    # Run inside a repository with commits and no origin, `add` pushes it as
-    # the first commit and sets it as origin.
-    (cd "$WORK/$RUNTIME" && introspection repositories add "$RUNTIME" --provider introspection >/dev/null) ||
-      fail "could not create the $RUNTIME repository"
+}
+
+# The page's `spa` application, by name; its client_id on stdout.
+ensure_spa() {
+  local app
+  app="$(introspection applications list -p "$PROJECT" -o json | json "(v.records ?? v).find((a) => a.name === '$SPA_NAME')")"
+  if [ -z "$app" ]; then
+    app="$(introspection applications create -p "$PROJECT" --type spa --name "$SPA_NAME" \
+      --environment staging \
+      --redirect-uri "http://localhost:$PORT/callback" --allowed-origin "http://localhost:$PORT" \
+      --allowed-scope "tasks:read tasks:write tasks:eval tasks:exec files:read files:write" -o json | json 'v.application ?? v')"
   fi
-  if [ "$exists" != "true" ]; then
-    say "creating the $RUNTIME runtime"
-    (cd "$WORK/$RUNTIME" && introspection runtimes create --yes >/dev/null) ||
-      fail "could not create the $RUNTIME runtime from $WORK/$RUNTIME"
-    # A hosted recipe is checked from the files a push carries, and the seed push
-    # came before the runtime existed, so push once more to check and build it.
-    (cd "$WORK/$RUNTIME" &&
-      git "${git_id[@]}" commit -q --allow-empty -m "chore: check the recipe")
-  fi
-  say "pushing $RUNTIME so the platform checks and builds the recipe and its tasks"
-  (cd "$WORK/$RUNTIME" && git push -q origin HEAD:main) ||
-    fail "could not push $RUNTIME"
+  json 'v.client_id' <<<"$app"
 }
 
 # The application the bank is linked to, by name; its id on stdout.
 ensure_application() {
   local app
-  app="$(introspection applications list -o json | json "(v.records ?? v).find((a) => a.name === '$APP_NAME')")"
+  app="$(introspection applications list -p "$PROJECT" -o json | json "(v.records ?? v).find((a) => a.name === '$APP_NAME')")"
   if [ -z "$app" ]; then
     # It only signs end-user tokens: it holds no secret and needs no scope
     # beyond the least one.
-    app="$(introspection applications create --type service-account --name "$APP_NAME" \
+    app="$(introspection applications create -p "$PROJECT" --type service-account --name "$APP_NAME" \
       --allowed-scope "runtimes:read" -o json | json 'v.application ?? v')"
   fi
   json 'v.id + " " + v.client_id' <<<"$app"
@@ -193,12 +175,24 @@ connect() {
 
   ensure_runtime
 
+  local spa_client
+  spa_client="$(ensure_spa)"
+  [ -n "$spa_client" ] || fail "could not create the $SPA_NAME application"
+  upsert_env NEXT_PUBLIC_TRIVIA_SPA_CLIENT_ID "$spa_client"
+  if [ "${cp_url%/}" = "$PRODUCTION" ]; then
+    remove_env NEXT_PUBLIC_INTROSPECTION_API_BASE_URL
+  else
+    upsert_env NEXT_PUBLIC_INTROSPECTION_API_BASE_URL "${cp_url%/}"
+  fi
+
   app="$(ensure_application)"
   app_id="${app% *}"
   client_id="${app#* }"
   [ -n "$app_id" ] && [ -n "$client_id" ] || fail "could not create the $APP_NAME application"
 
-  # An upsert by MCP server id, so a restart repoints it at the new tunnel.
+  # An upsert by MCP server id, so a restart repoints it at the new tunnel. The binding
+  # command takes no project, so it acts in the one `introspection login` chose: sign in to
+  # the $PROJECT project for it to land beside the runtime.
   endpoint="$(introspection bindings mcp connect -r "$RUNTIME" --mcp-server-id "$MCP_SERVER_ID" \
     --endpoint-url "$BANK_URL" --authorized-application "$app_id" -o json)" ||
     fail "could not bind $MCP_SERVER_ID to $BANK_URL"
@@ -206,9 +200,9 @@ connect() {
 
   # The token's audience is the endpoint's audience setting, or else its URL.
   audience="$(json 'v.audience ?? v.endpoint?.audience ?? ""' <<<"$endpoint")"
-  upsert_env TRIVIA_ISSUER "${cp_url%/}/v1/applications/$client_id"
-  if [ -n "$audience" ]; then upsert_env TRIVIA_AUDIENCE "$audience"; else remove_env TRIVIA_AUDIENCE; fi
-  say "the bank verifies tokens from ${cp_url%/}/v1/applications/$client_id"
+  export TRIVIA_ISSUER="${cp_url%/}/v1/applications/$client_id"
+  if [ -n "$audience" ]; then export TRIVIA_AUDIENCE="$audience"; fi
+  say "the bank verifies tokens from $TRIVIA_ISSUER"
 }
 
 if [ -n "${TRIVIA_NO_SETUP:-}" ]; then
@@ -217,8 +211,7 @@ elif ! connect; then
   say "not connected to Introspection: the bank refuses every call until you run \`introspection login\` and restart pnpm dev"
 fi
 
-# The bank starts after the setup: it reads TRIVIA_ISSUER and TRIVIA_AUDIENCE
-# when it loads. It serves only /mcp, and only on loopback, for the tunnel.
+# The bank starts after the setup, with the issuer and audience it set. It serves only /mcp, and only on loopback, for the tunnel.
 PORT="$BANK_PORT" HOST=127.0.0.1 TRIVIA_BANK_MCP_ONLY=1 \
   node --env-file-if-exists="$ENV_FILE" --import tsx scripts/bank-server.ts &
 PIDS+=($!)

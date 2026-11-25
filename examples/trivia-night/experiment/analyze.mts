@@ -1,4 +1,3 @@
-import path from "node:path";
 import {
   holm,
   lift,
@@ -6,55 +5,47 @@ import {
   signTest,
   validityGate,
 } from "../lib/experiment";
-import { readResults, resultsFile, scored } from "../lib/results";
+import { cliSession } from "../lib/cli-session";
+import { advanceRun, runResults } from "../lib/platform-runner";
 
 const run = process.argv[2];
-// The run's results file is the record; the page's bounded feed is only a fallback for older runs.
-const stored = readResults(
-  resultsFile(path.join(import.meta.dirname, "../recipe-operator"), run),
-);
-let events: { type: string; data: Record<string, unknown> }[] = stored;
-if (!stored.length) {
-  const res = await fetch("http://localhost:3500/api/events");
-  const body = (await res.json()) as unknown;
-  events = (
-    Array.isArray(body) ? body : ((body as { events?: unknown[] }).events ?? [])
-  ) as { type: string; data: Record<string, unknown> }[];
-}
-const all = events.filter(
-  (e) => e.type === "eval.finished" && e.data.run === run,
-);
+if (!run) throw new Error("usage: analyze.mts <run-id>");
+// The run is its tasks on the platform, read as the member `introspection login` signed in.
+const { client } = cliSession();
+const results = await runResults(client, run);
+if (!results) throw new Error(`no trials found for run ${run}`);
+// A member's eval tasks own no memory yet: then every arm ran without notes, and nothing below measures memory.
+const memoryOff = (await advanceRun(client, run, false))?.memory_off ?? false;
+const NOT_MEMORY = memoryOff ? " [memory off: not a memory finding]" : "";
+if (memoryOff)
+  console.log(
+    "MEMORY WAS OFF for this run's trials: every night 2 ran without notes, so the arm comparisons and the world gate below do not measure memory.\n",
+  );
 // A trial that errored measured nothing: it is counted and reported, never analysed.
-const fin = all.filter((e) => scored(e.data));
+const fin = results.filter((e) => !e.error);
 const by: Record<string, Record<string, Record<string, number>>> = {};
 // Runs before the verifier printed first_round_in_band: the first round's share right says the same.
 const BAND = [0.55, 0.75];
 // A true-notes night 2 counts only when its night 0 seeded the true notes (the pre-registration's rule).
 const seeded = new Set(
   fin
-    .filter(
-      (e) =>
-        e.data.night === "night0-seed" &&
-        (e.data.checks as Record<string, number> | undefined)?.notes_seeded ===
-          1,
-    )
-    .map((e) => String(e.data.venue)),
+    .filter((e) => e.night === "night0-seed" && e.checks.notes_seeded === 1)
+    .map((e) => e.venue),
 );
 for (const e of fin) {
-  const v = String(e.data.venue);
-  if (e.data.night === "night2-perfect" && !seeded.has(v)) continue;
-  const measures = { ...(e.data.measures ?? {}) } as Record<string, number>;
-  const opening = (e.data.fetches as { correct_rate?: number | null }[])?.[0]
-    ?.correct_rate;
+  const v = e.venue;
+  if (e.night === "night2-perfect" && !seeded.has(v)) continue;
+  const measures: Record<string, number> = { ...e.measures };
+  const opening = e.fetches?.[0]?.correct_rate;
   if (
     typeof measures.first_round_in_band !== "number" &&
     typeof opening === "number"
   )
     measures.first_round_in_band =
       opening >= BAND[0] && opening <= BAND[1] ? 1 : 0;
-  (by[v] ??= {})[String(e.data.night)] = measures;
+  (by[v] ??= {})[e.night] = measures;
 }
-const errors = all.length - fin.length;
+const errors = results.length - fin.length;
 console.log(
   `trials ${fin.length}, errors ${errors}, pubs ${Object.keys(by).length}`,
 );
@@ -65,10 +56,7 @@ const arms = {
   other: "night2-wrong",
   true: "night2-perfect",
 };
-console.log(
-  "arms seen:",
-  [...new Set(fin.map((e) => String(e.data.night)))].join(", "),
-);
+console.log("arms seen:", [...new Set(fin.map((e) => e.night))].join(", "));
 const measures = [
   "good_rounds",
   "favourite_genre",
@@ -108,13 +96,13 @@ const gp = pairsOf(arms.true, arms.none, "good_rounds").map((p) => ({
   none: p.without,
 }));
 console.log(
-  "\nWORLD GATE (true − no notes, good_rounds):",
+  `\nWORLD GATE (true − no notes, good_rounds)${NOT_MEMORY}:`,
   JSON.stringify(validityGate(gp)),
 );
 for (const m of ["good_rounds", "favourite_genre"]) {
   const g = pairsOf(arms.true, arms.none, m);
   console.log(
-    `true vs no notes ${m}:`,
+    `true vs no notes ${m}${NOT_MEMORY}:`,
     JSON.stringify(lift(g)),
     "sign",
     JSON.stringify(signTest(g.map((p) => p.with - p.without))),
@@ -122,17 +110,17 @@ for (const m of ["good_rounds", "favourite_genre"]) {
 }
 const rn = pairsOf(arms.model, arms.none, "good_rounds");
 console.log(
-  "PRIMARY model vs no notes, good_rounds:",
+  `PRIMARY model vs no notes, good_rounds${NOT_MEMORY}:`,
   JSON.stringify(lift(rn)),
 );
 const ro = pairsOf(arms.model, arms.other, "good_rounds");
 console.log(
-  "model vs other notes, good_rounds sign test:",
+  `model vs other notes, good_rounds sign test${NOT_MEMORY}:`,
   JSON.stringify(signTest(ro.map((p) => p.with - p.without))),
 );
 const ms = (a: string) => mean(pick(a, "good_rounds").map((r) => r.x));
 console.log(
-  "ordering:",
+  `ordering${NOT_MEMORY}:`,
   JSON.stringify(
     ordering({
       perfect: ms(arms.true),
@@ -153,7 +141,7 @@ const ps = sec.map(
     ).p,
 );
 console.log(
-  "model vs no notes secondaries, Holm:",
+  `model vs no notes secondaries, Holm${NOT_MEMORY}:`,
   JSON.stringify(Object.fromEntries(sec.map((m, i) => [m, holm(ps)[i]]))),
 );
 console.log(

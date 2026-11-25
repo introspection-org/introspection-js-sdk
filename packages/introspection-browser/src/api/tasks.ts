@@ -1,5 +1,6 @@
 import type {
   RunIdentityInput,
+  TaskCreateParams,
   TaskFileRef,
   TaskRepoRequest,
   Uuid,
@@ -21,10 +22,15 @@ import {
  * `metadata.identity` for attribution (the DP derives the owning member from
  * the session's JWT claims, never from this body).
  */
-export interface CreateTaskParams {
+export interface CreateTaskParams extends Pick<
+  TaskCreateParams,
+  "kind" | "commands" | "compose" | "recipe_git_commit_sha" | "tags"
+> {
   prompt?: string;
   /** Pin the task to a specific recipe runtime. */
   runtime_id?: Uuid;
+  /** The same runtime by its slug in the project; name it or `runtime_id`, not both. */
+  runtime?: string;
   /** Named recipe agent, when no `runtime_id` is pinned. */
   agent_name?: string;
   title?: string;

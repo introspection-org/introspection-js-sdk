@@ -1,0 +1,20 @@
+schema_version = "1.1"
+
+[task]
+name = "trivia-night/night1"
+description = "A pub's first night: the host plays six rounds to a simulated crowd and leaves its notes in memories/MEMORY.md"
+
+[verifier]
+timeout_sec = 120.0
+
+[agent]
+timeout_sec = 900.0
+
+[environment]
+build_timeout_sec = 600.0
+cpus = 1
+memory_mb = 2048
+
+[[artifacts]]
+source = "/workspace/memories"
+destination = "memories"

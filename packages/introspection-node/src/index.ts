@@ -175,6 +175,8 @@ export type {
   ListParams,
   Task,
   TaskCreateParams,
+  TaskVerification,
+  TaskVerificationFile,
   TaskUpdateParams,
   TaskListParams,
   TaskKind,

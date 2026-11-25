@@ -110,13 +110,21 @@ export interface NextStepInput {
   gatePasses: boolean | null;
   costPerTrial: number;
   trialsPerPub: number;
+  /** The trials owned no memory, so night 2 ran without notes. */
+  memoryOff?: boolean;
 }
+
+/** Why a run whose trials owned no memory measures nothing about memory. */
+export const MEMORY_OFF =
+  "Memory was off for these trials: a member's eval tasks don't own memory on the platform yet, so every night 2 ran without notes. The arms can't differ by their notes, so this run says nothing about memory.";
 
 const cost = (pubs: number, input: NextStepInput) =>
   `$${(pubs * input.trialsPerPub * input.costPerTrial).toFixed(2)}`;
 
 /** The one next step a run suggests, by simple rules. */
 export function nextStep(input: NextStepInput): string {
+  if (input.memoryOff)
+    return "Rerun once the platform lets a member's eval tasks own memory; until then a run can't measure it.";
   if (input.missingNights > 0)
     return `Rerun to fill the missing nights: ${plural(input.missingNights, "pub")} lost a night 2.`;
   if (input.pubSet === "heldout")

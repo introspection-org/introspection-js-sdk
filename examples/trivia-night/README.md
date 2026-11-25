@@ -1,8 +1,8 @@
 # Trivia Night: a memory demo
 
-A quiz host for pubs. The question bank never repeats a question at a venue, and a host that remembers the venue pitches each night to its crowd. The page runs the real memory evals on the platform and shows, as each trial runs, every bank call the agent makes and every read and write of its notes.
+A quiz host for pubs. The question bank never repeats a question at a venue, and a host that remembers the venue pitches each night to its crowd. The page runs the real memory evals on the platform and shows each night's rounds as its verifier scored them.
 
-> **Status:** the bank and its MCP server run with no platform. `pnpm dev` also deploys the Recipe as the `trivia-host` Runtime and binds the bank to it on a public URL, and the agent calls the bank, but the bank does not yet accept the token the platform sends for it; [What's next](#whats-next) says why and what is missing.
+> **Status:** the bank and its MCP server run with no platform. `pnpm dev` also deploys the Recipe as the `trivia-night` Runtime and binds the bank to it on a public URL, and the agent calls the bank, but the bank does not yet accept the token the platform sends for it; [What's next](#whats-next) says why and what is missing.
 
 ## The point: improve
 
@@ -19,43 +19,87 @@ Improve works on single conversations today, and memory spans several. So each m
 
 ## Run it
 
-You need Node 22 or later, pnpm, and cloudflared (`brew install cloudflared`).
+You need Node 22 or later, pnpm, and the Introspection CLI (`pnpm add -g @introspection-ai/cli`, then `introspection login`).
 
 ```bash
+git clone https://github.com/introspection-org/introspection-js-sdk.git
+cd introspection-js-sdk
 pnpm install
+introspection runtimes create --manifest .introspection/trivia-night.yaml -p trivia   # once
+cd examples/trivia-night
+pnpm dev:app
 ```
+
+Open `http://localhost:3500` and sign in. `pnpm dev:app` builds the SDK packages the page imports (through turbo, so a restart builds nothing new) and packs the bank sidecar's build context, then serves the page. Trials run in your organization's `trivia` project on the `trivia-night` Runtime, at the version the Data Plane deploys.
+
+The page signs in with a `spa` application. There is no production one for this example yet, so register your own once and name it in `.env.local`. Its environment is the lane the trials run on; `staging` keeps them off production traffic:
 
 ```bash
-pnpm dev
+echo NEXT_PUBLIC_TRIVIA_SPA_CLIENT_ID=$(introspection applications create -p trivia --type spa --name "Trivia night" \
+  --environment staging \
+  --redirect-uri http://localhost:3500/callback --allowed-origin http://localhost:3500 \
+  --allowed-scope "tasks:read tasks:write tasks:eval tasks:exec files:read files:write" \
+  --query client_id -o table) >> .env.local
 ```
 
-It serves the page on `http://localhost:3500`, and the bank's MCP server alone on `127.0.0.1:3501` behind a free Cloudflare quick tunnel, new each run. The page and `/api/*` are never on the tunnel. On whichever stack `introspection login` chose (staging, production or your own) it then sets up, and on a later run only checks:
+### On a hosted repository
 
-1. the `trivia-host` Runtime: a repository Introspection hosts, seeded from a copy of [`recipe/`](./recipe) in `.introspection-work/`, and its runtime;
-2. the `Trivia Night bank` application, which signs the end-user token the bank verifies;
-3. the `trivia-bank` MCP binding on the tunnel's `/mcp`, linked to that application. Each run points it at the new tunnel.
+`.introspection/trivia-night.yaml` runs `recipe-operator/` from this repository on GitHub, which your organization's GitHub integration must reach. Without it, host a copy on the platform instead:
 
-It writes `TRIVIA_ISSUER` (and `TRIVIA_AUDIENCE` when the binding has one) into `.env.local`, and never sets `TRIVIA_DEV_OWNER_HEADER`, so the bank verifies real tokens and refuses a call without one. Not logged in, the page runs alone and the bank refuses every call. `TRIVIA_NO_SETUP=1` serves the page, the bank and its tunnel without touching the project. `pnpm dev:app` runs the page alone, with no tunnel. The page's own `/bank/mcp` serves a separate bank for the local room scripts (`scripts/rooms.ts`, `scripts/host.ts`); the platform reaches only the tunnelled one.
+```bash
+cp -R examples/trivia-night/recipe-operator ~/trivia-night && cd ~/trivia-night
+mkdir .introspection && printf 'name: trivia-night\nruntime:\n  llm_mode: managed\n' > .introspection/trivia-night.yaml
+git init -b main && git add -A && git commit -m "Trivia night"
+git remote add origin "$(introspection repositories add trivia-night --provider introspection --template "" -p trivia --query url -o table)"
+git push -u origin main
+introspection runtimes create -p trivia
+```
+
+Each push to `main` then builds a new version. `pnpm dev` finds the `trivia-night` Runtime and leaves it as it is.
+
+The page reads two settings and no others:
+
+| Variable                                 | Default                         | What it is                                                                                           |
+| ---------------------------------------- | ------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| `NEXT_PUBLIC_TRIVIA_SPA_CLIENT_ID`       | none: required                  | The `spa` application's `client_id`.                                                                 |
+| `NEXT_PUBLIC_INTROSPECTION_API_BASE_URL` | `https://api.introspection.dev` | The Control Plane the page signs in at. Set it only off production, such as `http://localhost:8000`. |
+
+The Data Plane is the one the sign-in names for the project (the token response's `dp_url`), and it must allow the page's origin for CORS.
+
+### With the bank on the platform
+
+The host plays only through the `trivia-bank` MCP server. `pnpm dev` serves it as well, on `127.0.0.1:3501` behind a free Cloudflare quick tunnel (`brew install cloudflared`), new each run; the page and `/api/*` are never on the tunnel. On whichever stack `introspection login` chose it then sets up the `trivia` project, and on a later run only checks:
+
+1. the `trivia-night` Runtime, from [`.introspection/trivia-night.yaml`](../../.introspection/trivia-night.yaml), which runs [`recipe-operator/`](./recipe-operator);
+2. the page's `Trivia night` `spa` application, whose `client_id` it writes to `.env.local`, with the stack's URL when it is not production;
+3. the `Trivia Night bank` application, which signs the end-user token the bank verifies;
+4. the `trivia-bank` MCP binding on the tunnel's `/mcp`, linked to that application. Each run points it at the new tunnel.
+
+The bank is handed the issuer and audience it verifies, and never `TRIVIA_DEV_OWNER_HEADER`, so it refuses a call without a real token. Not logged in, the page runs alone and the bank refuses every call. `TRIVIA_NO_SETUP=1` serves the page, the bank and its tunnel without touching the project. The page's own `/bank/mcp` serves a separate bank for the local room scripts (`scripts/rooms.ts`, `scripts/host.ts`); the platform reaches only the tunnelled one.
 
 ```bash
 pnpm test       # the bank, its MCP server, the scoring and the eval runner
 ```
 
+These are unit tests: the eval runner's planning, trial bodies, admission keys and run ids, the verifier's step extraction from a real sandbox capture, the sign-in and its Data Plane, token expiry and scopes, and the summary rules. The platform side is checked by a live run of one development pub from a browser on a local stack.
+
 ## Run the evals from the page
 
-The page runs the real memory evals, as [Run the memory evals](./recipe-operator/README.md#run-the-memory-evals) describes, against the `trivia-host` Runtime at its latest commit (or `INTROSPECTION_TRIVIA_RUNTIME_ID` and `INTROSPECTION_TRIVIA_COMMIT_SHA`, when both are set).
+The page runs the real memory evals, as [Run the memory evals](./recipe-operator/README.md#run-the-memory-evals) describes, on the project's `trivia-night` Runtime.
 
-Each eval task and its verifier come from the Runtime's Recipe at that commit: `eval run` resolves `--path` inside that checkout, so the page tests with that commit's verifiers. To test a newer commit than the Runtime's latest version, set `INTROSPECTION_TRIVIA_COMMIT_SHA` and `INTROSPECTION_TRIVIA_RUNTIME_ID` in `.env.local`.
+Each trial is one platform call through the browser SDK: a `kind: eval` task naming one of the Recipe's three Harbor tasks (`examples/trivia-night/recipe-operator/evals/harbor/night0`, `night1` or `night2`) in `metadata.task_path`, with the Runtime, the customer's identity, the run's tags, the pub it plays (`metadata.trivia_night.trial`), its instruction as the `prompt`, and a compose that gives the bank the pub's crowd. The platform reads the verifier and its timeout from that directory at the Runtime's deployed commit, and the verifier reads the pub's truth from `evals/venues.json`. When the run settles the trial ends at once (an eval task's idle window defaults to 0): the platform runs the verifier in the trial's sandbox while the task is `finishing`, records the outcome as `metadata.verification`, and only then marks it `completed`. The page reads the verifier's report from the outcome's log.
 
-It needs a staging agent key that expires today, named in `.env.local`:
+Nothing about a run is kept on the server: a run is its tasks. Start creates each pub's first nights and returns; each time the Data Plane's WebSocket reports a task change (and once on every connect, since events sent while it was down are gone) the page lists the run's tasks by the `simulation:<run>` tag, and creates a night 2 once the night it waits on is `completed` with a verification that reports no error (otherwise it is skipped). Every trial task carries the run's settings in its metadata (`trivia_night`), which is all a poll needs to know which nights are still to come, so any instance of the page can serve any poll. Two polls that both create a night make one trial between them: each trial carries its step's `admission_key` (a uuid5 of the run and the step), the platform admits one task per key under a lock and answers a second create with `409`, and the page then reads the existing task. A tab never overlaps its own polls. **Cancel run**, shown to a member holding `tasks:write` while a run goes, marks the run cancelled on its first trial, so no later night starts, and drains every trial still going; the cancelled nights read as cancelled.
 
-```bash
-introspection api-keys create --environment staging --capabilities runtimes,evals \
-  --expires-at <today, 23:59 UTC> --secret-file recipe-operator/.agent.key
-echo TRIVIA_EVAL_KEY_FILE=recipe-operator/.agent.key >> .env.local
-```
+The trials' sidecar, the trivia bank fake, is built from `recipe-operator/fakes/` as this checkout has it: `pnpm dev:app` packs the folder into `public/sidecar/fakes.tar.gz` with fixed bytes, the page uploads it once per sign-in and names it as the sidecar's build context, and the platform builds an image once per archive, so the first trial after a change to the folder waits for the build and the rest reuse it.
 
-The runs use your `introspection login`, on `https://api.introspection.dev` unless `INTROSPECTION_API_BASE_URL` names another stack, and find the Data Plane from there. Without a key file the panel shows these commands and the server refuses to run.
+### Sign in
+
+The page is client-side: it signs a member in in the browser and every trial runs as them, so its usage is billed to their organization. Opening it without a session sends you to the platform's hosted login (`/v1/oauth/authorize`) for the `trivia` project, and back to `/callback`, which exchanges the code (PKCE) at the Control Plane's token endpoint. The token response names the project's Data Plane; the token waits in sessionStorage until it expires, when the page signs in again; it is redeemed once at that Data Plane's `/v1/oauth/exchange`, and every platform call then rides its session cookie through the browser SDK (`@introspection-sdk/introspection-browser/api`). Each trial records the member's id as `started_by`.
+
+The platform grants a member only the scopes their role holds, and an eval task needs `tasks:eval` and `tasks:exec`, so only an organization owner or admin can start or move a run on; another member reads the runs and the panel says why the **Run** button is off.
+
+**Memory is off for these trials for now.** The platform gives an eval task memory only when an agent's credentials run it, and a member's own eval tasks own none yet, so every night 2 runs without notes, whatever its arm. The panel says so instead of reading the arms' sameness as "no memory effect"; a run measures memory again once the platform lets a member's eval tasks own memory.
 
 Pick a number of venues and press **Run**. Venue _i_ plays the _i_-th venue profile (Sydney, Manchester, Chicago, and on across AU, UK and US pubs), all venues at once, each as its own customer:
 
@@ -70,11 +114,11 @@ Pick a number of venues and press **Run**. Venue _i_ plays the _i_-th venue prof
 
 Every trial is tagged `simulation:<run>` and `simulation:trivia-night`. Trials are scored in their own sandbox, so seeing results needs neither tag; to browse the trials themselves, an admin already can, and an owner can give another member the `simulation:trivia-night` tag. The page reads as an experiment: the hypothesis that notes tune night 2 to the crowd, the method, and the result. The two night 2s at a pub differ only in the notes, so each pub is a paired comparison: the result is how far each round's share right was from 65%, with memory against without, as a mean of per-pub differences with a 95% t-interval (from 3 pubs; 11 pubs gives a meaningful result), with the other measures beside it. Each run starts new customers, so nothing carries over between runs; a run measures one version of the agent and changes nothing.
 
-As a second opinion, the server grades each finished night 2 with the `return-visit` judge (`recipe-operator/judges/return-visit.yaml`): it converts the trial's local `trajectory.json` to the judge's conversation input and runs `introspection judges run --conversation <trial>/judge/input.jsonl`, scoring from 1 to 5 how tailored the night felt, with a one-line reason. It is one Sonnet judgement per night 2, about $0.01 to $0.03 each; the judge's model uses `ANTHROPIC_API_KEY` from the server's environment, or your Pi sign-in.
+Each venue gets a card with a tab per night: what night 1 learned, whose notes the other-notes night had, and each round's questions and team marks, all from the verifier's output. The **Questions | Under the hood** switch changes only that night detail, never the charts: under the hood shows the host's steps in order (its memory read, each bank call, its notes written and its closing message) and what the verifier measured. A trial's conversation is not the page's to read; the verifier reads the GenAI spans the runtime keeps in the sandbox instead and prints a bounded step list, with credentials redacted, in its report, which the platform keeps as the verification's log (`reward.json` keeps only the numbers Harbor reads). While a run is going the page shows its progress; a card fills in as its venue's trials finish. [`experiment/analyze.mts`](./experiment/README.md) prints a run's pre-registered analysis from the same tasks.
 
-Each venue gets a card: what night 1 learned, and how each night 2 opened. Click a card for each trial's steps, read from its `trajectory.json` once the trial ends: each read of `memories/MEMORY.md` with its content (**read**, including the read the runtime makes before the first turn), each `trivia-bank` tool call with its arguments (**tool**), each write of the notes (**write**), and the agent's final message (**plan**), then its checks, reward and time. While a run is going the page shows its progress; a card fills in as its venue's trials finish.
+## Deploy
 
-The key reaches each `introspection eval run` only as `INTROSPECTION_TOKEN` in its environment: never in its arguments, the logs or the browser. The page is served only on this machine. Each trial's run folder is under `recipe-operator/eval-runs/<run>/`.
+`.github/workflows/deploy-trivia-night.yml` deploys the page to Vercel: a push to `main` makes a preview aliased to `trivia-night.staging.introspection.dev`, and a manual run with `production` deploys production. The repository's `build` environment needs the variables `VERCEL_ORG_ID` and `VERCEL_TRIVIA_PROJECT_ID` and the secret `VERCEL_API_TOKEN`; the Vercel project needs `NEXT_PUBLIC_TRIVIA_SPA_CLIENT_ID`, and `NEXT_PUBLIC_INTROSPECTION_API_BASE_URL` only for a deploy that signs in anywhere but production. Both are public: the page holds no secret, and trials run as the signed-in member. The `spa` application's ceiling must allow `tasks:read tasks:write tasks:eval tasks:exec files:read files:write`, its redirect URIs must include the deployed `/callback`, and the Data Plane must allow the deployed origin for CORS.
 
 ## What it costs
 
@@ -82,8 +126,8 @@ Every trial is a real model conversation, and the cost is mostly how many there 
 
 | What                            | Volume                                               | Cost                                                   | Billed to                                               |
 | ------------------------------- | ---------------------------------------------------- | ------------------------------------------------------ | ------------------------------------------------------- |
-| **Run** with 3 venues           | 9 trials                                             | about $1                                               | your organization's platform usage                      |
-| **Run** with 11 venues          | 33 trials                                            | about $3                                               | your organization's platform usage                      |
+| **Run** with 3 venues           | 21 trials                                            | about $2                                               | your organization's platform usage                      |
+| **Run** with 11 venues          | 77 trials                                            | about $7                                               | your organization's platform usage                      |
 | One improve cycle, as first run | 178 four-night series nights plus 135 Operator turns | about $20 for the search, before held-out confirmation | the key or subscription the Operator and its trials use |
 
 What the first improve cycle spent, measured from each trial's `trajectory.json` (`final_metrics`) and the Operator's Pi session:
@@ -104,16 +148,16 @@ With the first three, a full cycle on API keys is about $3 to $5.
 
 [ARCHITECTURE.md](./ARCHITECTURE.md) shows how the pieces fit, with diagrams of the system, a night, and how it is tested and improved.
 
-| Piece                 | Where                                                                      | What it does                                                                                                                                                             |
-| --------------------- | -------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Question bank         | [`lib/bank.ts`](./lib/bank.ts), [`lib/questions.ts`](./lib/questions.ts)   | 240 questions with a genre, region and difficulty (2,102 with `TRIVIA_BANK=large`). Tracks what each venue was asked and how its teams answered. Marks answers.          |
-| MCP server            | [`lib/mcp.ts`](./lib/mcp.ts), served at `/mcp` by `scripts/bank-server.ts` | `start_night`, `register_teams`, `next_questions`, `submit_round`, `round_summary`, `scoreboard`. No tool takes a venue: the bank reads it from the caller's credential. |
-| Scorer                | [`lib/scorer.ts`](./lib/scorer.ts)                                         | Tonight's teams, the season table, and a whole round's answer sheet marked in one call. Served by the same server as the bank.                                           |
-| Identity              | [`lib/identity.ts`](./lib/identity.ts)                                     | Verifies the end-user token the platform sends, and refuses a call without one.                                                                                          |
-| Simulated venues      | [`lib/venues.ts`](./lib/venues.ts)                                         | Crowds for the in-session room scripts, each a table of how well it knows each genre. Seeded, so a run repeats exactly.                                                  |
-| Operator-built Recipe | [`recipe-operator/`](./recipe-operator)                                    | What a fresh Operator session built from [WALKTHROUGH.md](./WALKTHROUGH.md): the version to hill-climb on. Its bank is a contract it designed, not this one.             |
-| The page              | [`components/platform-evals.tsx`](./components/platform-evals.tsx)         | A card per venue: what night 1 learned, how each night 2 opened, and each trial's steps and checks.                                                                      |
-| Platform evals        | [`lib/platform-runner.ts`](./lib/platform-runner.ts), `/api/evals`         | Runs the memory evals as cloud trials, and puts each trial's result and its steps ([`lib/trial-steps.ts`](./lib/trial-steps.ts)) on the events feed.                     |
+| Piece                 | Where                                                                                                      | What it does                                                                                                                                                                 |
+| --------------------- | ---------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Question bank         | [`lib/bank.ts`](./lib/bank.ts), [`lib/questions.ts`](./lib/questions.ts)                                   | 240 questions with a genre, region and difficulty (2,102 with `TRIVIA_BANK=large`). Tracks what each venue was asked and how its teams answered. Marks answers.              |
+| MCP server            | [`lib/mcp.ts`](./lib/mcp.ts), served at `/mcp` by `scripts/bank-server.ts`                                 | `start_night`, `register_teams`, `next_questions`, `submit_round`, `round_summary`, `scoreboard`. No tool takes a venue: the bank reads it from the caller's credential.     |
+| Scorer                | [`lib/scorer.ts`](./lib/scorer.ts)                                                                         | Tonight's teams, the season table, and a whole round's answer sheet marked in one call. Served by the same server as the bank.                                               |
+| Identity              | [`lib/identity.ts`](./lib/identity.ts)                                                                     | Verifies the end-user token the platform sends, and refuses a call without one.                                                                                              |
+| Simulated venues      | [`lib/venues.ts`](./lib/venues.ts)                                                                         | Crowds for the in-session room scripts, each a table of how well it knows each genre. Seeded, so a run repeats exactly.                                                      |
+| Operator-built Recipe | [`recipe-operator/`](./recipe-operator)                                                                    | What a fresh Operator session built from [WALKTHROUGH.md](./WALKTHROUGH.md): the version to hill-climb on. Its bank is a contract it designed, not this one.                 |
+| The page              | [`components/platform-evals.tsx`](./components/platform-evals.tsx)                                         | A card per venue: what night 1 learned and each night's rounds.                                                                                                              |
+| Platform evals        | [`lib/platform-runner.ts`](./lib/platform-runner.ts), [`lib/browser-session.ts`](./lib/browser-session.ts) | Runs the memory evals from the browser as `kind: eval` tasks that verify themselves, through the browser SDK: the sign-in, starting a run, moving it on and reading results. |
 
 ## Who owns what
 
@@ -162,4 +206,4 @@ Then:
 3. A larger bank: enough questions per genre, region and difficulty to hold the filter for a season.
 4. The venues as customer members, once the bank accepts their tokens.
 5. A judge for answers that are close but not a misspelling, calibrated on a labelled set before it marks anything.
-6. `pnpm dev` pushing recipe/ changes to an existing `trivia-host` repository: today it seeds the repository only when it creates the runtime.
+6. `pnpm dev` pushing recipe/ changes to an existing `trivia-night` repository: today it seeds the repository only when it creates the runtime.

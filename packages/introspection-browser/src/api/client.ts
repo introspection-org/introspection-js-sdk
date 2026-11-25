@@ -35,8 +35,11 @@ import {
   RoutinesClient,
   ConversationsClient,
   FilesClient,
+  ImagesClient,
   IssuesClient,
   SharesClient,
+  repositoryContents,
+  type RepositoryContentsApi,
 } from "@introspection-sdk/http";
 import type { Environment } from "@introspection-sdk/types";
 import { TasksClient } from "./tasks.js";
@@ -80,6 +83,11 @@ export interface IntrospectionApiClientOptions {
    * preferring one.
    */
   environment?: Environment;
+  /**
+   * Project this client's requests name, for a session whose cookie an
+   * earlier `connect()` set; `connect()` overwrites it with the exchange's.
+   */
+  projectId?: string;
 }
 
 export class IntrospectionApiClient {
@@ -96,6 +104,10 @@ export class IntrospectionApiClient {
   readonly routines: RoutinesClient;
   /** `/v1/issues` operations bound to the DP session cookie. */
   readonly issues: IssuesClient;
+  /** `/v1/images`, what an eval task's compose services run as. */
+  readonly images: ImagesClient;
+  /** A repository's files at a ref, read through the DP. */
+  readonly repositories: { readonly contents: RepositoryContentsApi };
   /**
    * Lane established by the most recent exchange. Per instance, never module
    * scope — two clients on one page holding different lanes is the point.
@@ -116,6 +128,7 @@ export class IntrospectionApiClient {
       throw new Error("IntrospectionApiClient requires a dpUrl");
     }
     this.resolvedEnvironment = opts.environment;
+    this.resolvedProjectId = opts.projectId;
     const http = new BrowserHttpClient({
       apiUrl: opts.dpUrl,
       additionalHeaders: opts.additionalHeaders,
@@ -131,6 +144,8 @@ export class IntrospectionApiClient {
     this.shares = new SharesClient(http);
     this.routines = new RoutinesClient(http);
     this.issues = new IssuesClient(http);
+    this.images = new ImagesClient(http);
+    this.repositories = { contents: repositoryContents(http) };
   }
 
   /**

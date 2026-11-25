@@ -1,0 +1,5 @@
+name: trivia-night
+path: examples/trivia-night/recipe-operator
+description: Hosts a pub quiz night from a question bank, remembering each pub between nights
+runtime:
+  llm_mode: managed

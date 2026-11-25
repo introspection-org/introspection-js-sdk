@@ -7,6 +7,9 @@
   --accent: #b4521a;
   --bank: #1f6f8b;
   --memory: #7a3fa0;
+  --arm-none: #b9b6ac;
+  --arm-other: #c98a85;
+  --arm-true: #4a2366;
   --host: #2f7d4f;
   --bad: #b3261e;
   color-scheme: light dark;
@@ -22,6 +25,9 @@
     --accent: #e08a52;
     --bank: #6fb8d2;
     --memory: #c193e0;
+    --arm-none: #b9b6ac;
+    --arm-other: #c98a85;
+    --arm-true: #6b3a91;
     --host: #7fc79b;
     --bad: #f2867d;
   }
@@ -126,27 +132,6 @@ pre {
   overflow-wrap: anywhere;
 }
 
-.kind {
-  font:
-    11px ui-monospace,
-    monospace;
-  border-radius: 4px;
-  padding: 0 5px;
-  border: 1px solid currentColor;
-}
-
-.kind-bank {
-  color: var(--bank);
-}
-
-.kind-memory {
-  color: var(--memory);
-}
-
-.kind-host {
-  color: var(--host);
-}
-
 .platform {
   min-width: 0;
   padding: 16px;
@@ -192,15 +177,6 @@ pre {
   font-size: 13px;
 }
 
-.verifiers {
-  margin: 8px 0 2px;
-  font-size: 13px;
-}
-
-.verifiers .fine {
-  font-weight: normal;
-}
-
 .platform-form .target {
   margin: 0;
   min-width: 0;
@@ -211,11 +187,6 @@ pre {
 
 .run-summary {
   margin-top: 16px;
-}
-
-.pass {
-  color: var(--host);
-  font-weight: 600;
 }
 
 .facts {
@@ -237,21 +208,6 @@ pre {
   border: 1px solid var(--line);
   border-radius: 4px;
   padding: 0 5px;
-}
-
-.check-list {
-  list-style: none;
-  margin: 0 8px;
-  padding: 0;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 2px 16px;
-  font-size: 13px;
-  overflow-wrap: anywhere;
-}
-
-.check-list li {
-  min-width: 0;
 }
 
 .notice pre {
@@ -321,35 +277,6 @@ pre {
   white-space: normal;
 }
 
-.quote {
-  font-style: italic;
-}
-
-.step-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  width: 100%;
-}
-
-.step-list pre {
-  margin-top: 4px;
-  max-height: 240px;
-  overflow-y: auto;
-}
-
-.step-list summary {
-  cursor: pointer;
-}
-
-.night-body .check-list {
-  margin: 0;
-  flex-direction: column;
-}
-
 .spinner {
   display: inline-block;
   width: 10px;
@@ -367,12 +294,6 @@ pre {
   }
 }
 
-.step-error {
-  color: var(--bad);
-  opacity: 0.8;
-  font-size: 12px;
-}
-
 .experiment p {
   margin: 0 0 6px;
   max-width: none;
@@ -386,10 +307,6 @@ pre {
   margin: 0;
   font-size: 12px;
   white-space: normal;
-}
-
-.score {
-  font-size: 12px;
 }
 
 .experiment .pick {
@@ -510,16 +427,16 @@ table.steps td.fine {
   border-radius: 3px;
 }
 .bar-fill.without {
-  background: #b9b6ac;
+  background: var(--arm-none);
 }
 .bar-fill.with {
   background: var(--memory);
 }
 .bar-fill.perfect {
-  background: #4a2366;
+  background: var(--arm-true);
 }
 .bar-fill.wrong {
-  background: #c98a85;
+  background: var(--arm-other);
 }
 .bar-verdict small {
   display: block;
@@ -547,33 +464,6 @@ table.steps td.fine {
 /* The section's intro runs the section's width; other intros keep the reading cap. */
 .host-head p {
   max-width: none;
-}
-
-.view-toggle {
-  display: inline-flex;
-  gap: 0;
-  margin: 2px 0 8px;
-}
-
-.view-toggle button {
-  font-size: 12px;
-  padding: 2px 10px;
-  border-radius: 0;
-}
-
-.view-toggle button:first-child {
-  border-radius: 6px 0 0 6px;
-}
-
-.view-toggle button:last-child {
-  border-radius: 0 6px 6px 0;
-  border-left: none;
-}
-
-.view-toggle button[aria-pressed="true"] {
-  background: var(--ink);
-  color: var(--panel);
-  border-color: var(--ink);
 }
 
 .round-list,
@@ -677,10 +567,6 @@ table.steps td.fine {
   margin-bottom: 8px;
 }
 
-.cards-head .view-toggle {
-  margin: 0;
-}
-
 .night-tabs {
   display: flex;
   flex-wrap: wrap;
@@ -728,13 +614,6 @@ table.steps td.fine {
 .night-body .fine,
 .night-body p {
   max-width: none;
-}
-
-.hood-summary {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px 10px;
-  align-items: baseline;
 }
 
 .control {
@@ -808,4 +687,128 @@ table.steps td.fine {
 
 .next-step {
   margin: 10px 0 0;
+}
+
+/* Under the hood: a night's steps and what its verifier measured. */
+.kind {
+  font:
+    11px ui-monospace,
+    monospace;
+  border-radius: 4px;
+  padding: 0 5px;
+  border: 1px solid currentColor;
+}
+
+.kind-bank {
+  color: var(--bank);
+}
+
+.kind-memory {
+  color: var(--memory);
+}
+
+.kind-host {
+  color: var(--host);
+}
+
+.verifiers {
+  margin: 8px 0 2px;
+  font-size: 13px;
+}
+
+.verifiers .fine {
+  font-weight: normal;
+}
+
+.pass {
+  color: var(--host);
+  font-weight: 600;
+}
+
+.check-list {
+  list-style: none;
+  margin: 0 8px;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 16px;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.check-list li {
+  min-width: 0;
+}
+
+.quote {
+  font-style: italic;
+}
+
+.step-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+}
+
+.step-list pre {
+  margin-top: 4px;
+  max-height: 240px;
+  overflow-y: auto;
+}
+
+.step-list summary {
+  cursor: pointer;
+}
+
+.night-body .check-list {
+  margin: 0;
+  flex-direction: column;
+}
+
+.step-error {
+  color: var(--bad);
+  opacity: 0.8;
+  font-size: 12px;
+}
+
+.view-toggle {
+  display: inline-flex;
+  gap: 0;
+  margin: 2px 0 8px;
+}
+
+.view-toggle button {
+  font-size: 12px;
+  padding: 2px 10px;
+  border-radius: 0;
+}
+
+.view-toggle button:first-child {
+  border-radius: 6px 0 0 6px;
+}
+
+.view-toggle button:last-child {
+  border-radius: 0 6px 6px 0;
+  border-left: none;
+}
+
+.view-toggle button[aria-pressed="true"] {
+  background: var(--ink);
+  color: var(--panel);
+  border-color: var(--ink);
+}
+
+.cards-head .view-toggle {
+  margin: 0;
+}
+
+.hood-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  align-items: baseline;
 }

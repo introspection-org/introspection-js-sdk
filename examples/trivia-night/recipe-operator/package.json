@@ -27,7 +27,7 @@
       "servers": [
         {
           "id": "trivia-bank",
-          "required": true,
+          "required": false,
           "tools": {
             "include": [
               "start_night",

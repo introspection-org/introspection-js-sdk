@@ -23,6 +23,7 @@ export type TaskStatus =
   | "idle"
   | "completed"
   | "failed"
+  | "finishing"
   | "cancelling"
   | "cancelled";
 
@@ -55,6 +56,31 @@ export interface Task {
   agent?: AgentInfo | null;
   /** `key:value` grouping tags stamped on this task. */
   tags?: string[];
+}
+
+/**
+ * A verifier's outcome, the platform-owned `metadata.verification` of an eval
+ * task: written once, after the verifier ran, and absent before it ran or on a
+ * task that ended without running it. It has no status of its own; the task's
+ * status is the lifecycle. The full result and the log are Files API objects.
+ */
+export interface TaskVerification {
+  /** The run the verifier scored. */
+  run_id?: string | null;
+  /** The result's numeric `reward`, when it has one. */
+  reward?: number | null;
+  exit_code?: number | null;
+  completed_at: IsoDate;
+  /** Whether the verifier ran out of time. */
+  timed_out?: boolean | null;
+  /** The files the verifier left, such as `verifier/reward.json` and `verifier/test-output.txt` (its stdout). */
+  files?: TaskVerificationFile[];
+}
+
+/** One file a verifier left, by its path under the task's outputs. */
+export interface TaskVerificationFile {
+  path: string;
+  file_id: Uuid;
 }
 
 /**
@@ -114,6 +140,14 @@ export interface TaskCreateParams {
   kind?: Exclude<TaskKind, "process">;
   /** Consent to `tasks.commands` against the live sandbox; eval tasks only. */
   commands?: boolean;
+  /**
+   * The trial's compose document: a `services` mapping in which `main` is the
+   * agent's slot and every other service names an image from `images`. Eval
+   * tasks only.
+   */
+  compose?: Record<string, unknown>;
+  /** The pushed Recipe commit an eval task runs; eval tasks only. */
+  recipe_git_commit_sha?: string;
   /** Recipe agent to run; omit for the recipe default (`agents/agent.yaml`). */
   agent_name?: string;
   /**
@@ -122,6 +156,8 @@ export interface TaskCreateParams {
    * whose token already does. Validated against the token's project.
    */
   runtime_id?: Uuid;
+  /** The same runtime by its slug in the token's project; name it or `runtime_id`, not both. */
+  runtime?: string;
   /**
    * Workspace repositories to clone into the sandbox's `workspace/repos/`
    * before the first turn. No count limit — the server refuses a statically

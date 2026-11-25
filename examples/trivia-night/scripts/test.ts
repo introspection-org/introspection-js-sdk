@@ -13,6 +13,9 @@ import { execFileSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
+import * as triviaTasks from "../recipe-operator/evals/trivia-tasks.mjs";
+import VENUES from "../recipe-operator/evals/venues.json";
+
 process.env.TRIVIA_DEV_OWNER_HEADER = "1";
 
 async function main() {
@@ -311,7 +314,6 @@ async function main() {
 
   const evals = await import("../lib/platform-evals");
   const memory = await import("../lib/memory-measures");
-  const { POST: startEvals } = await import("../app/api/evals/route");
   const writeRunFolder = (
     folder: string,
     files: Record<string, string | object>,
@@ -326,76 +328,6 @@ async function main() {
     }
     return folder;
   };
-  const passedTrial = "harbor/night1-memory__Ab12Cd";
-  const passedFiles = {
-    "run.json": {
-      schema_version: 11,
-      id: "2026-11-23__10-00-00",
-      runner: "harbor",
-      suite_path: "evals/harbor/night1-memory",
-      status: "completed",
-      candidate: { runtime: "00000000-0000-7000-8000-000000000001" },
-      result: {
-        metrics: { cases_passed: 1.0, cases_total: 1.0, reward: 1.0 },
-        completion_reason: "completed",
-        diagnostics: [],
-      },
-      started_at: "1795400000",
-      completed_at: "1795400180",
-    },
-    [`${passedTrial}/result.json`]: {
-      task_name: "trivia-host/night1-memory",
-      trial_name: "night1-memory__Ab12Cd",
-      agent_result: { metadata: { trajectory_source: "sandbox" } },
-      verifier_result: { rewards: { reward: 1.0 } },
-      exception_info: null,
-    },
-    [`${passedTrial}/verifier/test-stdout.txt`]: JSON.stringify(
-      {
-        reward: 1,
-        night_started: 1,
-        round_fetched: 1,
-        notes_written: 1,
-        notes_name_no_team: 1,
-        notes: "# The venue\n\n- Country: UK\n",
-      },
-      null,
-      2,
-    ),
-    [`${passedTrial}/artifacts/memories/MEMORY.md`]:
-      "# The venue\n\n- Country: UK\n- Likes: music, film\n- Difficulty: 3\n",
-  };
-  const failedFiles = {
-    "run.json": {
-      schema_version: 11,
-      id: "2026-11-23__10-00-01",
-      runner: "harbor",
-      suite_path: "evals/harbor/night2-control",
-      status: "completed",
-      result: {
-        metrics: { cases_incomplete: 1.0, cases_total: 1.0 },
-        completion_reason: "completed_with_errors",
-        diagnostics: [
-          {
-            trial: "night2-control__Zz99Yy",
-            kind: "RuntimeError",
-            message: "the trial sandbox did not start",
-          },
-        ],
-      },
-    },
-    "harbor/night2-control__Zz99Yy/result.json": {
-      task_name: "trivia-host/night2-control",
-      trial_name: "night2-control__Zz99Yy",
-      agent_result: null,
-      verifier_result: null,
-      exception_info: {
-        exception_type: "RuntimeError",
-        exception_message: "the trial sandbox did not start\n",
-      },
-    },
-  };
-
   await check("platform evals: each venue's four night 2s", () => {
     const profiles = [
       { slug: "melbourne", label: "Melbourne (AU)", region: "au" },
@@ -580,7 +512,6 @@ async function main() {
     assert.ok(
       evals.isTeamSize(5) && !evals.isTeamSize(4) && !evals.isTeamSize("5"),
     );
-    assert.match(evals.newRunId(new Date(1700000000000)), /^r1700000000000$/);
   });
 
   const venuesGen = await import("../recipe-operator/evals/venues.mjs");
@@ -593,6 +524,94 @@ async function main() {
         venuesGen.taskName(2, "leeds", size),
       );
   });
+  await check(
+    "dynamic tasks: the pub's truth and instruction from its metadata match the generated task's",
+    async () => {
+      const tasks = triviaTasks;
+      const dir = mkdtempSync(path.join(tmpdir(), "trivia-parity-"));
+      try {
+        const lists = ["venues.json", "heldout.json"].map((file) =>
+          JSON.parse(
+            readFileSync(path.join("recipe-operator/evals", file), "utf8"),
+          ),
+        );
+        for (const pub of ["sydney", "leeds", lists[1][0].slug])
+          for (const teams of [3, 5, 8]) {
+            const venue = tasks.venueNamed(lists, pub);
+            const files = venuesGen.taskFiles(venue, teams);
+            for (const night of [1, 2] as const) {
+              const name = venuesGen.taskName(night, pub, teams);
+              assert.deepEqual(
+                tasks.expectedFor(venue, night, teams),
+                JSON.parse(files[`${name}/tests/expected.json`]),
+              );
+              assert.equal(
+                tasks.instructionFor(venue, night, teams),
+                files[`${name}/instruction.md`],
+              );
+            }
+            if (teams === 5)
+              assert.equal(
+                tasks.perfectNotes(venue),
+                files[`${venuesGen.taskName(0, pub)}/tests/notes.md`],
+              );
+          }
+        // The trial comes from the task's metadata, else from plain TRIVIA_* variables.
+        const fromMetadata = {
+          INTROSPECTION_TASK_METADATA_JSON: JSON.stringify({
+            trivia_night: { trial: { pub: "leeds", night: 2, teams: 8 } },
+          }),
+          TRIVIA_PUB: "sydney",
+          TRIVIA_NIGHT: "1",
+        };
+        assert.deepEqual(tasks.trialOf(fromMetadata), {
+          pub: "leeds",
+          night: 2,
+          teams: 8,
+        });
+        assert.deepEqual(
+          tasks.trialOf({
+            INTROSPECTION_TASK_METADATA_JSON: "{}",
+            TRIVIA_PUB: "sydney",
+            TRIVIA_NIGHT: "1",
+          }),
+          { pub: "sydney", night: 1, teams: 5 },
+        );
+        assert.throws(() => tasks.trialOf({}), /no trial/);
+        // A night 0 seeds exactly the pub's true notes.
+        const memories = path.join(dir, "memories");
+        mkdirSync(memories);
+        writeFileSync(
+          path.join(memories, "MEMORY.md"),
+          tasks.perfectNotes(tasks.venueNamed(lists, "sydney")),
+        );
+        const { check: verify } =
+          await import("../recipe-operator/evals/trivia-check.mjs");
+        const log = console.log;
+        console.log = () => undefined;
+        try {
+          await verify({
+            night: 0,
+            seeded: tasks.perfectNotes(tasks.venueNamed(lists, "sydney")),
+            memories,
+            env: {
+              LOGS_DIR: dir,
+              PI_RECIPE_GENAI_SPANS_FILE: path.join(dir, "none"),
+            },
+          });
+        } finally {
+          console.log = log;
+        }
+        assert.deepEqual(
+          JSON.parse(readFileSync(path.join(dir, "reward.json"), "utf8")),
+          { reward: 1, notes_seeded: 1 },
+        );
+      } finally {
+        rmSync(dir, { recursive: true });
+      }
+    },
+  );
+
   await check("venue tasks: a night-1 and night-2 task per profile", () => {
     const dir = mkdtempSync(path.join(tmpdir(), "trivia-venues-"));
     try {
@@ -624,7 +643,7 @@ async function main() {
         4,
       );
       assert.deepEqual(
-        venues.map((v) => [v.slug, v.label]),
+        venues.map((v: { slug: string; label: string }) => [v.slug, v.label]),
         [
           ["melbourne", "Melbourne (AU)"],
           ["new-york", "New York (US)"],
@@ -728,14 +747,15 @@ async function main() {
         read("night1-melbourne/task.toml"),
         /name = "trivia-host\/night1-melbourne"/,
       );
+      // Each generated check calls the shared verifier, which it carries in its tests/.
       assert.match(
         read("night2-melbourne/tests/check.mjs"),
-        /reward =\s+fetches\.length >= 6 && \(measures\.in_band \?\? 0\) >= 0\.5/,
+        /await check\(\{ night: 2, expected: JSON\.parse\(here\("\.\/expected\.json"\)\) \}\)/,
       );
-      assert.match(
-        read("night2-melbourne/tests/check.mjs"),
-        /\.length \/ Math\.max\(6, fetches\.length\)/,
-      );
+      for (const shared of ["trivia-check.mjs", "trivia-tasks.mjs"])
+        assert.ok(
+          existsSync(path.join(harbor, "night2-melbourne/tests", shared)),
+        );
       for (const file of ["tests/test.sh", "solution/solve.sh"])
         assert.ok(
           statSync(path.join(harbor, "night1-melbourne", file)).mode & 0o100,
@@ -752,63 +772,461 @@ async function main() {
     }
   });
 
-  await check("platform evals: the key goes only in the environment", () => {
-    const key = "intro_sk_secret_value";
-    const spec = evals.spawnSpec(
-      evals.plan("r1", 1, [
-        { slug: "sydney", label: "Sydney (AU)", region: "au" },
-      ])[0][1],
-      { runtime: "rt-1", commit: "abc123" },
-      "/work/recipe-operator",
-      { token: key, apiBaseUrl: "http://localhost:8000" },
-      { PATH: "/bin" },
+  const runner = await import("../lib/platform-runner");
+  const { hostEvents, loadedMemory } = await import("../lib/trial-steps");
+  const { tarGz } = await import("../lib/tar");
+  const TARGET = evals.TARGET;
+  const KEY = "intro_sk_secret_value";
+
+  await check("platform evals: a click names its run", async () => {
+    const run = await runner.runIdFor("m-1", "click-1");
+    assert.match(run, /^r\d+$/);
+    assert.equal(await runner.runIdFor("m-1", "click-1"), run);
+    assert.notEqual(await runner.runIdFor("m-1", "click-2"), run);
+    assert.notEqual(await runner.runIdFor("m-2", "click-1"), run);
+    assert.match(runner.ADD_RUNTIME, /runtimes create --manifest/);
+  });
+
+  await check(
+    "platform evals: a local script acts on the stack the CLI signed in to",
+    async () => {
+      const { cliSession } = await import("../lib/cli-session");
+      const dir = mkdtempSync(path.join(tmpdir(), "trivia-cli-"));
+      const file = path.join(dir, "credentials.json");
+      writeFileSync(
+        file,
+        JSON.stringify({
+          cp_url: "http://localhost:8000",
+          dp_url: "http://localhost:8002",
+          access_token: "a-token",
+          project_id: "p-1",
+          member_id: "m-1",
+        }),
+      );
+      const signedIn = cliSession({ INTROSPECTION_CREDENTIALS: file });
+      assert.equal(signedIn.api, "http://localhost:8000");
+      assert.deepEqual([signedIn.project, signedIn.member], ["p-1", "m-1"]);
+      assert.equal(
+        cliSession({
+          INTROSPECTION_CREDENTIALS: file,
+          INTROSPECTION_API_BASE_URL: "http://localhost:9000",
+        }).api,
+        "http://localhost:9000",
+      );
+      writeFileSync(file, JSON.stringify({ cp_url: "http://localhost:8000" }));
+      assert.throws(
+        () => cliSession({ INTROSPECTION_CREDENTIALS: file }),
+        /introspection login/,
+      );
+      rmSync(dir, { recursive: true });
+    },
+  );
+
+  await check(
+    "platform evals: a tests archive unpacks with plain tar and has no . entry",
+    async () => {
+      const dir = mkdtempSync(path.join(tmpdir(), "trivia-tar-"));
+      const archive = path.join(dir, "tests.tar.gz");
+      const files = [
+        { path: "test.sh", content: Buffer.from("#!/bin/sh\n"), mode: 0o755 },
+        { path: "nested/expected.json", content: Buffer.from("{}") },
+      ];
+      writeFileSync(archive, await tarGz(files));
+      assert.deepEqual(Buffer.from(await tarGz(files)), readFileSync(archive));
+      assert.deepEqual(
+        execFileSync("tar", ["-tzf", archive], { encoding: "utf8" })
+          .trim()
+          .split("\n"),
+        ["nested/expected.json", "test.sh"],
+      );
+      execFileSync("tar", ["-xzf", archive, "-C", dir]);
+      assert.equal(
+        readFileSync(path.join(dir, "test.sh"), "utf8"),
+        "#!/bin/sh\n",
+      );
+      assert.ok(statSync(path.join(dir, "test.sh")).mode & 0o100);
+      rmSync(dir, { recursive: true });
+    },
+  );
+
+  await check(
+    "platform evals: a trial is a kind=eval task named by its metadata.task_path",
+    async () => {
+      const record = {
+        run: "r1",
+        venues: 1,
+        teams: 5 as const,
+        pubs: "development" as const,
+        started_by: "m-1",
+        started_at: "2026-11-24T00:00:00Z",
+        target: TARGET,
+      };
+      const step = evals.runSteps(record)[0];
+      // The bank is built from the page's archive of fakes/, and serves the trial's pub.
+      const compose = runner.trialCompose(step, "file-1");
+      const services = compose.services as Record<
+        string,
+        Record<string, unknown>
+      >;
+      assert.deepEqual(services.main, {
+        depends_on: { fakes: { condition: "service_healthy" } },
+        volumes: [
+          "fakes-verifier:/opt/fakes-verifier:ro",
+          "harbor-logs:/logs",
+          "harbor-tests:/tests",
+        ],
+      });
+      assert.deepEqual(services.fakes.build, { context: "file-1" });
+      assert.equal(
+        (services.fakes.environment as Record<string, string>)
+          .EVAL_SIMULATE_SCENARIO,
+        `crowd-${VENUES[0].profile}`,
+      );
+      assert.deepEqual(compose.volumes, {
+        "fakes-verifier": {},
+        "harbor-logs": null,
+        "harbor-tests": null,
+      });
+      const body = await runner.trialBody(record, step, compose);
+      assert.deepEqual(
+        { ...body, compose: undefined, metadata: undefined },
+        {
+          kind: "eval",
+          // The pub's own instruction, so the platform needn't read it from the task.
+          prompt: triviaTasks.instructionFor(
+            triviaTasks.venueNamed([VENUES as never], "sydney"),
+            1,
+            5,
+          ),
+          // The runtime by its slug, at the version the Data Plane deploys.
+          runtime: "trivia-night",
+          commands: true,
+          tags: ["simulation:r1", "simulation:trivia-night"],
+          compose: undefined,
+          metadata: undefined,
+        },
+      );
+      assert.deepEqual(body.metadata, {
+        // The platform reads the verifier from the dynamic night-1 task.
+        task_path: "examples/trivia-night/recipe-operator/evals/harbor/night1",
+        admission_key: await runner.admissionKey(step),
+        identity: {
+          anonymous_id: "sim-r1-sydney",
+          tags: ["simulation:r1", "simulation:trivia-night"],
+        },
+        trivia_night: {
+          step: "sydney/night1-memory",
+          record,
+          trial: { pub: "sydney", night: 1, teams: 5 },
+        },
+      });
+      assert.ok(!JSON.stringify(body).includes(KEY));
+      // One key per step of a run, the same from any instance.
+      const keys = await Promise.all(
+        evals.runSteps(record).map(runner.admissionKey),
+      );
+      assert.equal(new Set(keys).size, keys.length);
+      assert.equal(await runner.admissionKey(step), keys[0]);
+      assert.match(
+        keys[0],
+        /^[0-9a-f]{8}-[0-9a-f]{4}-5[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
+      );
+      assert.notEqual(
+        await runner.admissionKey({ ...step, run: "r2" }),
+        keys[0],
+      );
+    },
+  );
+
+  await check(
+    "platform evals: the verifier keeps the host's steps from the sandbox's GenAI spans",
+    async () => {
+      const dir = mkdtempSync(path.join(tmpdir(), "trivia-steps-"));
+      // A real night 1's spans file, as the runtime wrote it in the sandbox, trimmed to the
+      // fields the verifier reads (scripts/fixtures/night1-genai-spans.json).
+      const file = path.join(
+        import.meta.dirname,
+        "fixtures/night1-genai-spans.json",
+      );
+      const spans = JSON.parse(readFileSync(file, "utf8")) as {
+        data: { name: string }[];
+      };
+      const tools = spans.data.filter((span) =>
+        span.name.startsWith("execute_tool "),
+      );
+      // A night 1 with 3 lead changes over its 6 rounds: two teams, two questions a round,
+      // answered right (A, B) times in turn.
+      const right = [
+        [1, 0],
+        [0, 2],
+        [2, 0],
+        [0, 2],
+        [0, 0],
+        [0, 0],
+      ];
+      const asked = right.flatMap((_, r) =>
+        [0, 1].map((q) => ({
+          week: 1,
+          request: r,
+          question_id: `q${r}-${q}`,
+          genre: "film",
+          region: "au",
+          difficulty: 3,
+        })),
+      );
+      const marks = right.flatMap(([a, b], r) =>
+        [0, 1].flatMap((q) => [
+          { question_id: `q${r}-${q}`, team: "Owls", correct: q < a },
+          { question_id: `q${r}-${q}`, team: "Hawks", correct: q < b },
+        ]),
+      );
+      const memories = path.join(dir, "memories");
+      mkdirSync(memories);
+      writeFileSync(path.join(memories, "MEMORY.md"), "# Venue notes\n");
+      const expected = {
+        region: "au",
+        liked: ["film"],
+        teams: ["Owls", "Hawks"],
+      };
+      const { check: verify, clip } =
+        await import("../recipe-operator/evals/trivia-check.mjs");
+      const printed: string[] = [];
+      const log = console.log;
+      console.log = (text: string) => void printed.push(text);
+      try {
+        await verify({
+          night: 1,
+          expected,
+          bank: { nights: [{}], asked, marks },
+          memories,
+          env: { PI_RECIPE_GENAI_SPANS_FILE: file, LOGS_DIR: dir },
+        });
+      } finally {
+        console.log = log;
+      }
+      // Harbor reads every reward.json value as a reward in [0, 1]; the raw counts, the
+      // steps and the tastes go in the printed report, which the platform keeps as the log.
+      const rewards = JSON.parse(
+        readFileSync(path.join(dir, "reward.json"), "utf8"),
+      ) as Record<string, number>;
+      for (const value of Object.values(rewards))
+        assert.ok(typeof value === "number" && value >= 0 && value <= 1);
+      assert.equal(rewards.notes_written, 1);
+      const result = JSON.parse(printed[0]);
+      assert.equal(result.lead_changes_count, 3);
+      assert.equal(result.rounds_played, 6);
+      assert.ok(
+        !("lead_changes_count" in rewards) && !("rounds_played" in rewards),
+      );
+      assert.deepEqual(result.tastes, expected);
+      const steps = result.steps as {
+        name: string;
+        result: string;
+        error: boolean;
+      }[];
+      // Every tool call, in order, each result cut short except a memory file's.
+      assert.deepEqual(
+        steps.map((step) => step.name),
+        tools.map((span) => span.name.slice("execute_tool ".length)),
+      );
+      for (const step of steps)
+        if (step.name !== "write" && step.name !== "read")
+          assert.ok(step.result.length <= 240);
+      assert.ok(steps.some((step) => step.result.endsWith("…")));
+      assert.equal(steps[0].error, true);
+      assert.ok((result.plan as string).length > 0);
+      assert.ok((result.plan as string).length <= 2000);
+      // Anything credential-shaped is redacted before it is kept.
+      assert.equal(
+        clip("token intro_sk_abcdefghijklmnopqrstu end", 4000),
+        "token [redacted] end",
+      );
+      assert.equal(clip("x".repeat(300), 240).length, 240);
+      const events = hostEvents(result.steps, result.plan);
+      assert.equal(
+        events[0].summary,
+        "Loading memory · none yet — first visit",
+      );
+      const types = new Set(events.map((e) => e.type));
+      for (const type of [
+        "bank.served",
+        "bank.marked",
+        "memory.written",
+        "host.planned",
+      ])
+        assert.ok(types.has(type as never), type);
+      // The page reads them from the report the platform keeps as the log.
+      const out = evals.verifierOutput(printed[0], JSON.stringify(rewards));
+      assert.equal(out.steps.length, events.length);
+      assert.equal(out.checks.notes_written, 1);
+      assert.deepEqual(out.tastes, expected);
+      assert.deepEqual(loadedMemory("# Sydney").data, {
+        path: "memories/MEMORY.md",
+        file: "# Sydney",
+      });
+      assert.deepEqual(
+        hostEvents([{ name: "bash", arguments: { command: "ls" } }], null).map(
+          (e) => e.type,
+        ),
+        ["host.tool"],
+      );
+      rmSync(dir, { recursive: true });
+    },
+  );
+
+  await check("platform evals: the verifier's log and result are read", () => {
+    const log = `starting\n${JSON.stringify({
+      reward: 1,
+      night_started: 1,
+      good_rounds: 0.5,
+      notes: "  # Notes\n",
+      fetches: [{ round: 1, correct_rate: 0.6 }],
+      rounds: [{ round: 1, genre: "film", questions: [] }],
+    })}\n`;
+    const out = evals.verifierOutput(log, '{"reward": 0}', 1);
+    assert.equal(out.reward, 1);
+    assert.deepEqual(out.checks, { night_started: 1, good_rounds: 0.5 });
+    assert.equal(out.notes, "# Notes");
+    assert.equal(out.fetches.length, 1);
+    assert.equal(out.rounds[0].genre, "film");
+    // No JSON in the log: the result file stands in.
+    assert.deepEqual(
+      evals.verifierOutput("Error: boom", '{"reward": 0, "notes_written": 0}'),
+      {
+        reward: 0,
+        checks: { notes_written: 0 },
+        notes: null,
+        fetches: [],
+        rounds: [],
+        steps: [],
+        steps_error: null,
+        tastes: null,
+      },
     );
-    assert.equal(spec.command, "introspection");
-    assert.equal(spec.options.shell, false);
-    assert.equal(spec.options.cwd, "/work/recipe-operator");
-    assert.ok(spec.args.every((arg) => !arg.includes(key)));
-    assert.deepEqual(spec.args, [
-      "eval",
-      "run",
-      "-r",
-      "rt-1",
-      "--commit-sha",
-      "abc123",
-      "--path",
-      "evals/harbor/night2-sydney",
-      "--identity",
-      "anon:sim-r1-sydney",
-      "--tag",
-      "simulation:r1",
-      "--tag",
-      "simulation:trivia-night",
-      "-y",
-    ]);
-    assert.equal(spec.options.env.INTROSPECTION_TOKEN, key);
-    assert.equal(
-      spec.options.env.INTROSPECTION_API_BASE_URL,
-      "http://localhost:8000",
-    );
-    assert.equal(
-      spec.options.env.INTROSPECTION_EVAL_RUNS_DIR,
-      "/work/recipe-operator/eval-runs/r1/sydney-night2-hosted",
-    );
-    assert.equal(
-      evals.errorText(`failed with ${key}`, key),
-      "failed with [redacted]",
-    );
-    assert.equal(
-      evals.errorText(
+    assert.deepEqual(evals.verifierOutput(null, null).checks, {});
+  });
+
+  await check(
+    "platform evals: a cancelled run starts no dependent night, and a skip names how the night before ended",
+    () => {
+      const record = {
+        run: "r1",
+        venues: 1,
+        teams: 5 as const,
+        pubs: "development" as const,
+        started_by: "m-1",
+        started_at: "2026-11-24T00:00:00Z",
+        target: TARGET,
+      };
+      const steps = evals.runSteps(record);
+      const night1 = steps.find((s) => s.night === "night1-memory")!;
+      const hosted = steps.find((s) => s.after?.[0] === evals.stepKey(night1))!;
+      const done = new Map([
         [
-          "  Harbor adapter native, environment introspection_harbor.task_environment:IntrospectionEnvironment",
-          "Error: The installed Introspection Harbor adapter is not compatible with this CLI.",
-          "",
-          "Run:",
-          "  introspection setup --target harbor",
-        ].join("\n"),
-        key,
-      ),
-      "Error: The installed Introspection Harbor adapter is not compatible with this CLI.\n\nRun:\n  introspection setup --target harbor",
+          evals.stepKey(night1),
+          { done: true, failed: false, error: null, status: "completed" },
+        ],
+      ]);
+      // Night 1 scored: night 2 starts, unless the run was cancelled.
+      assert.deepEqual(evals.untriedStep(hosted, done, false), {});
+      assert.deepEqual(evals.untriedStep(hosted, done, true), {
+        skip: "skipped: the run was cancelled",
+      });
+      assert.deepEqual(evals.untriedStep(hosted, new Map(), false), {
+        wait: true,
+      });
+      const ended = (status?: string) =>
+        new Map([
+          [
+            evals.stepKey(night1),
+            { done: true, failed: true, error: "x", status },
+          ],
+        ]);
+      assert.equal(
+        evals.untriedStep(hosted, ended("cancelled"), false).skip,
+        "skipped: night1-memory cancelled",
+      );
+      assert.equal(
+        evals.untriedStep(hosted, ended("failed"), false).skip,
+        "skipped: night1-memory failed",
+      );
+      assert.equal(
+        evals.untriedStep(hosted, ended(undefined), false).skip,
+        "skipped: night1-memory skipped",
+      );
+      assert.equal(
+        evals.runCancelled({ [evals.RUN_CANCELLED_KEY]: true }),
+        true,
+      );
+      assert.equal(evals.runCancelled({}), false);
+    },
+  );
+
+  await check("platform evals: a trial's state", () => {
+    const state = (task: Parameters<typeof evals.trialState>[0]) => ({
+      ...evals.trialState(task),
+    });
+    const verified = (fields: Record<string, unknown> = {}) => ({
+      settled_run_id: "run-1",
+      verification: {
+        run_id: "run-1",
+        reward: 1,
+        exit_code: 0,
+        completed_at: "2026-11-24T00:01:30Z",
+        ...fields,
+      },
+    });
+    assert.deepEqual(state({ status: "running" }), {
+      done: false,
+      failed: false,
+      error: null,
+    });
+    // Verified while finishing, but not done until the task ends and its notes are kept.
+    assert.deepEqual(state({ status: "finishing", metadata: verified() }), {
+      done: false,
+      failed: false,
+      error: null,
+    });
+    assert.deepEqual(state({ status: "completed", metadata: verified() }), {
+      done: true,
+      failed: false,
+      error: null,
+    });
+    // The report and the rewards are found among the verifier's files by path.
+    const files = evals.trialVerification(
+      verified({
+        files: [
+          { path: "verifier/reward.json", file_id: "f-reward" },
+          { path: "verifier/test-output.txt", file_id: "f-report" },
+        ],
+      }),
+    );
+    assert.equal(evals.verificationFile(files, evals.REPORT_FILE), "f-report");
+    assert.equal(evals.verificationFile(files, evals.REWARD_FILE), "f-reward");
+    assert.equal(
+      evals.verificationFile(verified().verification, evals.REPORT_FILE),
+      null,
+    );
+    assert.equal(
+      state({ status: "completed", metadata: verified({ exit_code: 2 }) })
+        .error,
+      "the verifier exited 2",
+    );
+    // Completed without a verification: its verifier never ran, so it failed.
+    assert.deepEqual(state({ status: "completed", metadata: {} }), {
+      done: true,
+      failed: true,
+      error: "the trial ended without its verifier running",
+    });
+    assert.equal(evals.trialVerification({ verification: "junk" }), null);
+    // Ended before it was scored: failed, with the task's own reason.
+    assert.deepEqual(
+      state({ status: "failed", metadata: { error: "sandbox did not start" } }),
+      {
+        done: true,
+        failed: true,
+        error: "sandbox did not start",
+      },
     );
   });
 
@@ -865,252 +1283,12 @@ async function main() {
     },
   );
 
-  await check("platform evals: a run folder is found and read", () => {
-    const base = mkdtempSync(path.join(tmpdir(), "trivia-evals-"));
-    const passedRun = writeRunFolder(path.join(base, "passed"), passedFiles);
-    const printed = `1 completed · 0 errors\nResults    ${passedRun}\n`;
-    assert.equal(evals.findRunFolder(printed, "/nowhere"), passedRun);
-    const root = path.join(base, "runs");
-    writeRunFolder(path.join(root, "2026-11-23__10-00-00"), passedFiles);
-    assert.equal(
-      evals.findRunFolder("no results line", root),
-      path.join(root, "2026-11-23__10-00-00"),
-    );
-
-    const ok = evals.readRunFolder(passedRun);
-    assert.equal(ok.reward, 1);
-    assert.deepEqual(ok.checks, {
-      night_started: 1,
-      round_fetched: 1,
-      notes_written: 1,
-      notes_name_no_team: 1,
-    });
-    assert.equal(ok.trajectory_source, "sandbox");
-    assert.match(ok.notes ?? "", /Difficulty: 3/);
-    assert.deepEqual(ok.fetches, []);
-    assert.deepEqual(ok.rounds, []);
-    assert.equal(ok.error, null);
-
-    const failed = evals.readRunFolder(
-      writeRunFolder(path.join(base, "failed"), failedFiles),
-    );
-    assert.equal(failed.reward, null);
-    assert.deepEqual(failed.checks, {});
-    assert.equal(failed.error, "the trial sandbox did not start");
-    rmSync(base, { recursive: true });
-  });
-
-  await check("platform evals: the route refuses without a key", async () => {
-    const local = (init: RequestInit = {}) =>
-      new Request("http://localhost:3500/api/evals", {
-        method: "POST",
-        body: "{}",
-        ...init,
-      });
-    delete process.env.TRIVIA_EVAL_KEY_FILE;
-    let response: Response = await startEvals(local());
-    assert.equal(response.status, 403);
-    assert.match((await response.json()).how_to, /--secret-file/);
-    process.env.TRIVIA_EVAL_KEY_FILE = "no-such-file.key";
-    response = await startEvals(local());
-    assert.equal(response.status, 403);
-    assert.match((await response.json()).error, /does not exist/);
-    delete process.env.TRIVIA_EVAL_KEY_FILE;
-  });
-
-  const trial = await import("../lib/trial-steps");
-  const notes = "# Venue notes\n\n- Country: UK\n- Difficulty: 3\n";
-  const kinds = (events: { type: string }[]) => events.map((e) => e.type);
-
-  await check(
-    "trial steps: a finished trajectory becomes the page's events",
-    () => {
-      const base = mkdtempSync(path.join(tmpdir(), "trivia-trajectory-"));
-      const steps = [
-        { step_id: 1, source: "system", message: "You are the trivia host." },
-        { step_id: 2, source: "user", message: "Evening!" },
-        {
-          step_id: 3,
-          source: "agent",
-          message: "",
-          tool_calls: [
-            {
-              tool_call_id: "toolu_recipe_memory_read",
-              function_name: "read",
-              arguments: { path: "/workspace/memories/MEMORY.md" },
-            },
-            {
-              tool_call_id: "t1",
-              function_name: "mcp_trivia-bank_next_questions_520f9420fe",
-              arguments: { count: 8, genre: "history" },
-            },
-          ],
-          observation: {
-            results: [
-              { source_call_id: "toolu_recipe_memory_read", content: notes },
-              { source_call_id: "t1", content: '{"questions":[]}' },
-            ],
-          },
-        },
-        {
-          step_id: 4,
-          source: "agent",
-          message: "Now the notes.",
-          tool_calls: [
-            {
-              tool_call_id: "t2",
-              function_name: "edit",
-              arguments: {
-                path: "/workspace/memories/MEMORY.md",
-                oldText: "Difficulty: 3",
-                newText: "Difficulty: 4",
-              },
-            },
-          ],
-          observation: { results: [{ source_call_id: "t2", content: "ok" }] },
-        },
-        {
-          step_id: 5,
-          source: "agent",
-          message: "Tonight: history at 3. " + "x".repeat(2400),
-        },
-      ];
-      writeRunFolder(base, {
-        "run.json": {},
-        "harbor/night2-hosted__getFCyA/result.json": {},
-        "harbor/night2-hosted__getFCyA/agent/trajectory.json": {
-          schema_version: "ATIF-v1.7",
-          steps,
-        },
-      });
-      const file = trial.trajectoryFile(base);
-      assert.equal(
-        file,
-        path.join(base, "harbor/night2-hosted__getFCyA/agent/trajectory.json"),
-      );
-      const events = trial.trajectoryEvents(file!);
-      assert.deepEqual(kinds(events), [
-        "memory.read",
-        "bank.served",
-        "memory.written",
-        "host.planned",
-      ]);
-      assert.equal(events[0].data.file, notes);
-      assert.equal((events[3].data.file as string).length, 2000);
-
-      assert.deepEqual(events[1].data, {
-        server: "trivia-bank",
-        tool: "next_questions",
-        arguments: { count: 8, genre: "history" },
-      });
-      assert.match(events[1].summary, /genre history, 8 questions/);
-
-      // A first visit's read of notes that don't exist yet is no error.
-      const missing =
-        "ENOENT: no such file or directory, access '/workspace/memories/MEMORY.md'";
-      for (const result of [missing, ""])
-        assert.deepEqual(
-          trial.toolCallEvent(
-            "r1",
-            "read",
-            { path: "/workspace/memories/MEMORY.md" },
-            result,
-            result !== "",
-          ),
-          {
-            key: "tool:r1",
-            type: "memory.read",
-            summary: "Loading memory · none yet — first visit",
-            data: {
-              path: "/workspace/memories/MEMORY.md",
-              file: "",
-              first_visit: true,
-            },
-          },
-        );
-      // Other tool errors still show, shortened to one line.
-      const failed = trial.toolCallEvent(
-        "t9",
-        "mcp_trivia-bank_next_questions_520f9420fe",
-        { genre: "history" },
-        "Error: unknown region\nstack…",
-        true,
-      );
-      assert.equal(failed?.data.error, "Error: unknown region");
-      rmSync(base, { recursive: true });
-    },
-  );
-
   const display = await import("../lib/display");
 
-  await check("notes previews and event text drop markdown", () => {
+  await check("display: a notes line drops its markdown", () => {
     assert.equal(
       display.plainLine("- **Country:** UK. Use region `uk` only."),
       "Country: UK. Use region uk only.",
-    );
-    assert.equal(
-      display.notesPreview(
-        "# Venue\n\n- **Crowd:** loves music and hates sport",
-      ),
-      "Crowd: loves music and hates sport",
-    );
-    const long = display.truncateWords(
-      "the crowd liked music so it's a safe opener for next week",
-      30,
-    );
-    assert.equal(long, "the crowd liked music so it's…");
-    assert.ok(long.length <= 30);
-    assert.equal(display.truncateWords("short", 30), "short");
-    assert.equal(
-      display.firstSentences(
-        "**Before I fetch anything**, which country is the venue in? Then I'll pick rounds. Third.",
-      ),
-      "Before I fetch anything, which country is the venue in? Then I'll pick rounds.",
-    );
-    assert.equal(
-      display.roundLabel({ genre: "history", region: "uk", difficulty: 3 }),
-      "history · uk · diff 3",
-    );
-  });
-
-  await check("event labels are short", () => {
-    assert.equal(display.kindLabel("bank.served"), "tool");
-    assert.equal(display.kindLabel("bank.marked"), "tool");
-    assert.equal(display.kindLabel("memory.read"), "read");
-    assert.equal(display.kindLabel("memory.written"), "write");
-    assert.equal(display.kindLabel("host.planned"), "plan");
-    assert.equal(
-      display.toolLine("trivia-bank", "next_questions", {
-        genre: "music",
-        difficulty: 3,
-        region: "uk",
-        count: 8,
-      }),
-      "trivia-bank · next_questions · music · difficulty 3 · uk · 8 questions",
-    );
-    assert.equal(
-      display.toolLine("trivia-bank", "start_night", {}),
-      "trivia-bank · start_night",
-    );
-    assert.equal(
-      display.toolLine("trivia-bank", "register_teams", { names: ["a", "b"] }),
-      "trivia-bank · register_teams · 2 teams",
-    );
-    assert.equal(
-      display.targetLabel("trivia-host", "e328209abcdef0123"),
-      "trivia-host @ e328209",
-    );
-    assert.equal(
-      display.targetLabel("0199a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5b", "e328209ab"),
-      "0199a1b2 @ e328209",
-    );
-    assert.equal(
-      display.targetLabel(
-        "0199a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5b",
-        "e328209ab",
-        "trivia-host",
-      ),
-      "trivia-host @ e328209",
     );
   });
 
@@ -1142,47 +1320,6 @@ async function main() {
         display.factChips("Just a sentence about the room."),
         [],
       );
-    },
-  );
-
-  await check(
-    "verifier rows: yes/no checks tick, measures read in words",
-    () => {
-      const fetches = [
-        { genre: "sport", count: 5, correct_rate: 0.68 },
-        { genre: "history", count: 5, correct_rate: 0.41 },
-      ];
-      const line = (key: string, value: number, f = fetches) =>
-        memory.checkLine(key, value, f);
-      assert.deepEqual(line("fetched_a_round", 1), {
-        key: "fetched_a_round",
-        text: "Quiz run",
-        pass: true,
-      });
-      assert.equal(line("notes_kept", 0).pass, false);
-      assert.equal(
-        line("right_region", 1).text,
-        "Questions from the right region",
-      );
-      assert.deepEqual(line("in_band", 0.5), {
-        key: "in_band",
-        text: "Rounds pitched right: 1 of 2 (68%, 41% right)",
-      });
-      assert.equal(line("in_band", 0.5, []).text, "Rounds pitched right: 50%");
-      assert.equal(
-        line("favourite_genre", 1).text,
-        "Rounds in favourite genres: 2 of 2",
-      );
-      assert.equal(
-        line("close_finish", 0.2).text,
-        "How close the finish was: within 2 points",
-      );
-      assert.equal(
-        line("close_finish", 0.2, []).text,
-        "How close the finish was: 20% gap",
-      );
-      assert.equal(line("some_new_key", 3).text, "Some new key: 3");
-      assert.equal(line("in_band", 0.5).pass, undefined);
     },
   );
 
@@ -1443,32 +1580,6 @@ async function main() {
     );
   });
 
-  const results = await import("../lib/results");
-  await check("trial results: kept on disk past the bounded feed", () => {
-    const dir = mkdtempSync(path.join(tmpdir(), "trivia-results-"));
-    const file = results.resultsFile(dir, "r1");
-    assert.deepEqual(results.readResults(file), []);
-    for (let i = 0; i < 2500; i++)
-      results.appendResult(file, {
-        type: "eval.finished",
-        data: { run: "r1", venue: `pub-${i}`, night: "night2-fresh" },
-      });
-    results.appendResult(file, {
-      type: "eval.run_finished",
-      data: { run: "r1", trials: 2500 },
-    });
-    const lines = results.readResults(file);
-    assert.equal(lines.length, 2501);
-    assert.equal(lines[0].data.venue, "pub-0");
-    assert.equal(lines.at(-1)?.type, "eval.run_finished");
-  });
-  await check("trial results: an errored trial is never analysed", () => {
-    assert.equal(results.scored({ error: null }), true);
-    assert.equal(results.scored({}), true);
-    assert.equal(results.scored({ error: "sandbox failed" }), false);
-    assert.equal(results.scored(null), false);
-    assert.equal(results.scored(undefined), false);
-  });
   const experiment = await import("../lib/experiment");
   await check(
     "experiment: sign test, Holm, ordering and the validity gate",
@@ -1541,6 +1652,149 @@ async function main() {
         false,
       );
       assert.equal(experiment.validityGate([]), null);
+    },
+  );
+
+  const login = await import("../lib/browser-session");
+  /** sessionStorage as the page uses it. */
+  const memoryStorage = () => {
+    const items = new Map<string, string>();
+    return {
+      items,
+      getItem: (key: string) => items.get(key) ?? null,
+      setItem: (key: string, value: string) => void items.set(key, value),
+      removeItem: (key: string) => void items.delete(key),
+    };
+  };
+
+  await check(
+    "sign-in: the hosted login names the project (or lets the member pick one) and asks for the run's scopes, with an S256 challenge",
+    async () => {
+      const storage = memoryStorage();
+      const url = new URL(
+        await login.loginUrl(storage, "http://localhost:3500/callback", {
+          ...login.CONFIG,
+          cpUrl: "http://localhost:8000/",
+          clientId: "intro_app_x",
+        }),
+      );
+      assert.equal(
+        url.origin + url.pathname,
+        "http://localhost:8000/v1/oauth/authorize",
+      );
+      assert.deepEqual(
+        url.searchParams.get("scope")!.split(" "),
+        login.LOGIN_SCOPES,
+      );
+      assert.equal(url.searchParams.get("project"), "trivia");
+      assert.equal(url.searchParams.get("code_challenge_method"), "S256");
+      const flow = JSON.parse(storage.items.get("trivia-night:login")!);
+      assert.equal(url.searchParams.get("state"), flow.state);
+      assert.ok(!url.href.includes(flow.verifier));
+    },
+  );
+
+  await check(
+    "sign-in: the token is kept until it expires, then the page signs in again",
+    () => {
+      const storage = memoryStorage();
+      const session = {
+        access_token: "a-token",
+        member_id: "m-1",
+        project_id: "p-1",
+        dp_url: "http://localhost:8002",
+        scope: ["tasks:read", "files:read"],
+        expires_at: 1_000_000,
+      };
+      storage.setItem("trivia-night:session", JSON.stringify(session));
+      assert.deepEqual(login.storedSession(storage, 999_999), session);
+      assert.equal(login.storedSession(storage, 1_000_000), null);
+      assert.equal(storage.items.has("trivia-night:session"), false);
+      assert.equal(login.storedSession(storage), null);
+      // Only an owner or admin holds what a run needs beyond reading.
+      assert.deepEqual(login.missingScopes(session, login.RUN_SCOPES), [
+        "tasks:write",
+        "tasks:eval",
+        "tasks:exec",
+        "files:write",
+      ]);
+      // A session kept before the page held its Data Plane signs in again.
+      const { dp_url: _dp, ...older } = session;
+      storage.setItem("trivia-night:session", JSON.stringify(older));
+      assert.equal(login.storedSession(storage, 0), null);
+    },
+  );
+
+  await check(
+    "sign-in: the code becomes a session on the Data Plane the sign-in names",
+    async () => {
+      const storage = memoryStorage();
+      const url = new URL(
+        await login.loginUrl(storage, "http://localhost:3500/callback", {
+          cpUrl: "http://localhost:8000",
+          clientId: "intro_app_x",
+        }),
+      );
+      const claims = btoa(
+        JSON.stringify({ member_id: "m-1", project_id: "p-1" }),
+      );
+      const token = (dp_url: string | null) =>
+        (async () =>
+          new Response(
+            JSON.stringify({
+              access_token: `h.${claims}.s`,
+              expires_in: 60,
+              scope: "tasks:read",
+              dp_url,
+            }),
+          )) as unknown as typeof fetch;
+      const callback = () =>
+        new URL(
+          `http://localhost:3500/callback?code=c&state=${url.searchParams.get("state")}`,
+        );
+      const flow = storage.items.get("trivia-night:login")!;
+      const session = await login.completeLogin(
+        storage,
+        callback(),
+        token("http://localhost:8002"),
+        login.CONFIG,
+        0,
+      );
+      assert.equal(session.dp_url, "http://localhost:8002");
+      assert.deepEqual(login.storedSession(storage, 0), session);
+      storage.setItem("trivia-night:login", flow);
+      await assert.rejects(
+        login.completeLogin(storage, callback(), token(null), login.CONFIG, 0),
+        /no Data Plane/,
+      );
+    },
+  );
+
+  await check(
+    "platform evals: the bank's build context is uploaded once per client, again after a failure",
+    async () => {
+      const uploads: unknown[] = [];
+      let fail = true;
+      const client = {
+        files: {
+          upload: async (body: unknown) => {
+            uploads.push(body);
+            if (fail) {
+              fail = false;
+              throw new Error("down");
+            }
+            return { id: `file-${uploads.length}` };
+          },
+        },
+      } as unknown as import("../lib/platform-runner").PlatformClient;
+      const context = runner.bankContext(
+        client,
+        async () => new Uint8Array([1]),
+      );
+      await assert.rejects(context(), /down/);
+      assert.equal(await context(), "file-2");
+      assert.equal(await runner.bankContext(client)(), "file-2");
+      assert.equal(uploads.length, 2);
     },
   );
 

@@ -2,19 +2,46 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import type {
-  EvalFinished,
-  EvalRunFinished,
-  EvalStarted,
-  PlayedRound,
+import {
+  COST_PER_TRIAL,
+  DEFAULT_TEAMS,
+  MAX_VENUES,
+  MAX_VENUES_BY_PUBS,
+  TEAM_SIZES,
+  TRIALS_PER_VENUE,
+  type EvalFinished,
+  type EvalRunFinished,
+  type EvalStarted,
+  type PlayedRound,
+  PROJECT,
+  TARGET,
+  type TeamSize,
 } from "@/lib/platform-evals";
+import {
+  IntrospectionApiClient,
+  LANE_QUERY_PARAM,
+  PROJECT_ID_QUERY_PARAM,
+} from "@introspection-sdk/introspection-browser/api";
+import {
+  RUN_SCOPES,
+  loginUrl,
+  missingScopes,
+  sessionClient,
+  storedSession,
+  type Session,
+} from "@/lib/browser-session";
+import {
+  advanceRun,
+  cancelRun,
+  latestRun,
+  startRun,
+  trialResult,
+} from "@/lib/platform-runner";
 import {
   factChips,
   firstSentences,
   kindLabel,
   notesPreview,
-  roundLabel,
-  targetLabel,
   toolLine,
 } from "@/lib/display";
 import {
@@ -26,11 +53,12 @@ import {
   validityGate,
   type Pair,
 } from "@/lib/experiment";
-import { scored } from "@/lib/scored";
-import type { Judgement } from "@/lib/judge";
 import { BAND, MEASURES, checkLine } from "@/lib/memory-measures";
+import type { TrialEvent } from "@/lib/trial-steps";
 import {
   type Comparison,
+  MEMORY_OFF,
+  MIN_PUBS,
   modelWhy,
   nextStep,
   otherWhy,
@@ -38,7 +66,11 @@ import {
 } from "@/lib/summary";
 
 interface Config {
-  configured: boolean;
+  /** The run scopes the member's sign-in lacks; only an owner or admin holds them. */
+  missing_scopes: string[];
+  /** The project has no trivia Runtime yet. */
+  /** The newest run, finished or not. */
+  latest?: string | null;
   max_venues?: number;
   max_venues_by_pubs?: Record<Pubs, number>;
   team_sizes?: number[];
@@ -46,23 +78,18 @@ interface Config {
   /** An estimate of one trial's model cost, in US dollars. */
   cost_per_trial?: number;
   trials_per_venue?: number;
-  missing: string | null;
-  how_to: string;
-  target: { runtime: string; commit: string; slug?: string } | null;
-  target_error: string | null;
   active: string | null;
 }
 
 type Pubs = "development" | "heldout";
 
-interface FeedEvent {
-  seq: number;
-  type: string;
-  summary: string;
-  data: Record<string, unknown>;
+/** An ended session sends the browser back through the sign-in. */
+function signedOut(error: unknown): boolean {
+  if ((error as { status?: number }).status !== 401) return false;
+  window.sessionStorage.clear();
+  window.location.reload();
+  return true;
 }
-
-const MAX_STEPS = 3000;
 
 interface Trial {
   started: EvalStarted;
@@ -73,6 +100,7 @@ interface RunView {
   run: string;
   trials: Map<string, Trial>;
   finished?: EvalRunFinished;
+  memoryOff: boolean;
 }
 
 // The night 2s from worst expected to best; night 0 only seeds the perfect notes.
@@ -84,16 +112,6 @@ const NIGHTS = [
   "night2-perfect",
 ] as const;
 type NightKey = (typeof NIGHTS)[number] | "night0-seed" | "night1-donor";
-
-const NIGHT_TITLES: Record<NightKey, string> = {
-  "night0-seed": "Night 0 · true notes seeded",
-  "night1-donor": "Night 1 at another pub · the other notes",
-  "night1-memory": "Night 1 · what it learned",
-  "night2-wrong": "Night 2 · other notes",
-  "night2-fresh": "Night 2 · no notes",
-  "night2-hosted": "Night 2 · model notes",
-  "night2-perfect": "Night 2 · true notes",
-};
 
 /** The bars, top to bottom: each night 2 arm, its label and its bar colour. */
 const ARMS = [
@@ -236,19 +254,19 @@ const HOW_ARMS = [
   {
     name: "No notes",
     lines: ["starts fresh, like a", "new pub · the baseline"],
-    color: "--muted",
+    color: "--arm-none",
     night: "night2-fresh",
   },
   {
     name: "Other notes",
     lines: ["another pub's notes ·", "the placebo"],
-    color: "--bad",
+    color: "--arm-other",
     night: "night2-wrong",
   },
   {
     name: "True notes",
     lines: ["the crowd's real tastes ·", "the ceiling"],
-    color: "--host",
+    color: "--arm-true",
     night: "night2-perfect",
   },
 ] as const;
@@ -258,9 +276,6 @@ const GOOD_ROUNDS = "good_rounds";
 
 /** A share (0-1) as points, `0.12` as 12. */
 const points = (value: number) => Math.round(value * 100);
-
-/** A measure key in plain words: `favourite_genre` as "favourite genre". */
-const measureLabel = (key: string) => key.replace(/_/g, " ");
 
 /** The country code of a "City (CC)" label. */
 const countryOf = (label: string) => /\(([^)]+)\)$/.exec(label)?.[1] ?? null;
@@ -283,109 +298,37 @@ function venueParts(trial: Trial | undefined, venue: string) {
   return match ? `${match[1]} · ${match[2]}` : label;
 }
 
-function fold(
-  view: RunView | undefined,
-  event: FeedEvent,
-): RunView | undefined {
-  const run = event.data.run as string;
-  const current: RunView =
-    view && view.run === run
-      ? { ...view, trials: new Map(view.trials) }
-      : { run, trials: new Map<string, Trial>() };
-  if (event.type === "eval.started") {
-    const started = event.data as unknown as EvalStarted;
-    current.trials.set(`${started.venue}/${started.night}`, { started });
-  } else if (event.type === "eval.finished") {
-    const finished = event.data as unknown as EvalFinished;
-    const key = `${finished.venue}/${finished.night}`;
-    current.trials.set(key, { started: finished, finished });
-  } else if (event.type === "eval.run_finished") {
-    current.finished = event.data as unknown as EvalRunFinished;
-  }
-  return current;
+/** A run as `advanceRun` reports it. */
+interface RunState {
+  run: string;
+  trials: {
+    key: string;
+    step: EvalStarted;
+    task_id: string | null;
+    status: string;
+    done: boolean;
+    finished: EvalFinished | null;
+  }[];
+  finished: EvalRunFinished | null;
+  memory_off?: boolean;
 }
 
-/** A night 2's judge score and its reason, or why it has none. */
-function Score({ judge }: { judge?: Judgement | null }) {
-  if (!judge) return null;
-  if (judge.score === null)
-    return <span className="fine">judge: {judge.error ?? "no score"}</span>;
-  return (
-    <span className="score">
-      <strong>{judge.score}/5</strong>
-      {judge.reason && <span className="fine"> {judge.reason}</span>}
-    </span>
-  );
-}
-
-/** What a finished trial's card column says: night 1's facts, night 2's opening words. */
-function Summary({
-  night,
-  finished,
-}: {
-  night: NightKey;
-  finished: EvalFinished;
-}) {
-  const checks = Object.values(finished.checks);
-  const missed = checks.filter((value) => !value).length;
-  if (night === "night1-memory") {
-    const chips = finished.notes ? factChips(finished.notes) : [];
-    const preview =
-      finished.notes && !chips.length ? notesPreview(finished.notes) : null;
-    return (
-      <>
-        {chips.length > 0 ? (
-          <span className="facts">
-            {chips.map((chip) => (
-              <span key={chip.key} className="fact">
-                {chip.text}
-              </span>
-            ))}
-          </span>
-        ) : (
-          <span className="fine">{preview ?? "No notes left."}</span>
-        )}
-        {finished.error ? (
-          <span className="amber">error, see details</span>
-        ) : (
-          missed > 0 && (
-            <span className="amber">
-              missed {missed} of {checks.length} checks
-            </span>
-          )
-        )}
-      </>
-    );
+/** The trials that have started, each with its result once it is read. */
+function runView(state: RunState, results: Map<string, EvalFinished>): RunView {
+  const trials = new Map<string, Trial>();
+  for (const trial of state.trials) {
+    const finished =
+      trial.finished ??
+      (trial.task_id ? results.get(trial.task_id) : undefined);
+    if (finished) trials.set(trial.key, { started: finished, finished });
+    else if (trial.task_id) trials.set(trial.key, { started: trial.step });
   }
-  return (
-    <>
-      {night === "night2-wrong" && finished.donor_label && (
-        <span className="fine">notes from {finished.donor_label}</span>
-      )}
-      {finished.plan ? (
-        <q className="quote">{firstSentences(finished.plan)}</q>
-      ) : (
-        <span className="fine">No message.</span>
-      )}
-      <span className={finished.round ? "fact" : "fine"}>
-        {finished.round ? roundLabel(finished.round) : "no round fetched"}
-      </span>
-      <Score judge={finished.judge} />
-      {night === "night2-hosted" &&
-        (finished.error ? (
-          <span className="amber">error, see details</span>
-        ) : (
-          missed > 0 && (
-            <span className="amber">
-              missed {missed} of {checks.length} checks
-            </span>
-          )
-        ))}
-      {night !== "night2-hosted" && finished.error && (
-        <span className="fine">error, see details</span>
-      )}
-    </>
-  );
+  return {
+    run: state.run,
+    trials,
+    finished: state.finished ?? undefined,
+    memoryOff: Boolean(state.memory_off),
+  };
 }
 
 /** Each round as it was played: the questions with their answers, and which teams got each right. */
@@ -437,8 +380,6 @@ function Rounds({ rounds }: { rounds: PlayedRound[] }) {
   );
 }
 
-type NightView = "questions" | "steps";
-
 /** The night tabs, short enough to sit in one row. */
 const TAB_LABELS: Record<(typeof NIGHTS)[number], string> = {
   "night1-memory": "Night 1",
@@ -459,6 +400,8 @@ function nightStatus(
       : { kind: "waiting", mark: "·", title: "Waiting to start" };
   const finished = trial.finished;
   if (!finished) return { kind: "running", mark: "", title: "Running" };
+  if (finished.error && /cancelled/.test(finished.error))
+    return { kind: "skipped", mark: "—", title: finished.error };
   if (finished.error)
     return { kind: "failed", mark: "✗", title: finished.error };
   const good = finished.measures?.[GOOD_ROUNDS];
@@ -470,8 +413,10 @@ function nightStatus(
   };
 }
 
-/** A failed night in one line; the raw message is its title and sits under the hood. */
+/** A failed night in one line; the raw message is its title. */
 function failureLine(finished: EvalFinished): string {
+  if (/the run was cancelled|was cancelled before/.test(finished.error ?? ""))
+    return "Cancelled.";
   if (finished.rounds?.length)
     return "Stopped part way: the platform task failed.";
   return /did not start|failed to start|fetch failed|Git fetch/i.test(
@@ -518,10 +463,15 @@ function NightQuestions({
     </>
   );
 }
+
+/** Retries for a failed result read or run step, before the panel says so. */
+const MAX_RESULT_RETRIES = 5;
+
+type NightView = "questions" | "steps";
 const NIGHT_VIEW_KEY = "trivia-night:night-view";
 
-/** One step of a trial, from its trajectory. */
-function Step({ event }: { event: FeedEvent }) {
+/** One step the host took, as its verifier recorded it. */
+function Step({ event }: { event: TrialEvent }) {
   const kind = (
     <span className={`kind kind-${event.type.split(".")[0]}`}>
       {kindLabel(event.type)}
@@ -533,19 +483,21 @@ function Step({ event }: { event: FeedEvent }) {
     ) : null;
   if (event.type === "memory.read") {
     const file = String(event.data.file ?? "").trim();
-    // Events recorded before the step builder knew a missing file carry its error as the file.
-    if (!file || /ENOENT|no such file/i.test(file))
+    if (!file)
       return (
         <li>
-          {kind} Loading memory{" "}
-          <span className="fine">· none yet — first visit</span>
+          {kind} {event.summary}
           {error}
         </li>
       );
     return (
       <li>
-        {kind} Loading memory
-        <pre>{file}</pre>
+        <details>
+          <summary>
+            {kind} {event.summary}
+          </summary>
+          <pre>{file}</pre>
+        </details>
       </li>
     );
   }
@@ -553,7 +505,9 @@ function Step({ event }: { event: FeedEvent }) {
     return (
       <li>
         <details>
-          <summary>{kind} Saving memory</summary>
+          <summary>
+            {kind} {event.summary}
+          </summary>
           <pre>
             {typeof event.data.file === "string"
               ? event.data.file
@@ -596,6 +550,77 @@ function Step({ event }: { event: FeedEvent }) {
   );
 }
 
+/** A night as the host ran it: what it noted or opened with, its steps, and what the verifier measured. */
+function NightSteps({
+  night,
+  finished,
+}: {
+  night: NightKey;
+  finished: EvalFinished;
+}) {
+  const steps = finished.steps ?? [];
+  const plan = steps.find((event) => event.type === "host.planned");
+  const chips =
+    night === "night1-memory" && finished.notes
+      ? factChips(finished.notes)
+      : [];
+  return (
+    <>
+      <div className="hood-summary">
+        {chips.length > 0 ? (
+          <span className="facts">
+            {chips.map((chip) => (
+              <span key={chip.key} className="fact">
+                {chip.text}
+              </span>
+            ))}
+          </span>
+        ) : night === "night1-memory" && finished.notes ? (
+          <span className="fine">{notesPreview(finished.notes)}</span>
+        ) : null}
+        {plan && (
+          <q className="quote">{firstSentences(String(plan.data.file))}</q>
+        )}
+      </div>
+      {steps.length > 0 ? (
+        <ol className="step-list">
+          {steps.map((event) => (
+            <Step key={event.key} event={event} />
+          ))}
+        </ol>
+      ) : (
+        <p className="fine">
+          {finished.steps_error
+            ? `No steps: ${finished.steps_error}.`
+            : "No steps recorded: this night's verifier predates them."}
+        </p>
+      )}
+      <h5 className="verifiers">
+        Verifiers{" "}
+        <span className="fine">
+          what the eval&apos;s verifier measured for this night
+        </span>
+      </h5>
+      <ul className="check-list">
+        {Object.entries(finished.checks).map(([name, value]) => {
+          const line = checkLine(name, value, finished.fetches ?? []);
+          return line.pass === undefined ? (
+            <li key={name}>{line.text}</li>
+          ) : (
+            <li key={name} className={line.pass ? "pass" : "fine"}>
+              {line.text} {line.pass ? "✓" : "✗"}
+            </li>
+          );
+        })}
+      </ul>
+      <span className="fine">
+        reward {finished.reward ?? "none"} · {finished.seconds}s
+      </span>
+      {finished.error && <pre>{finished.error}</pre>}
+    </>
+  );
+}
+
 export function PlatformEvals() {
   const [config, setConfig] = useState<Config>();
   const [venues, setVenues] = useState(3);
@@ -606,8 +631,11 @@ export function PlatformEvals() {
   const [view, setView] = useState<RunView>();
   const [error, setError] = useState<string>();
   const [open, setOpen] = useState<string>();
-  const [nightView, setNightView] = useState<NightView>("questions");
   const [tabs, setTabs] = useState<Record<string, (typeof NIGHTS)[number]>>({});
+  const [nightView, setNightView] = useState<NightView>("questions");
+  const [starting, setStarting] = useState(false);
+  /** Set from a Cancel run click until the run's trials have all ended. */
+  const [cancelling, setCancelling] = useState(false);
   useEffect(() => {
     try {
       if (window.localStorage.getItem(NIGHT_VIEW_KEY) === "steps")
@@ -616,75 +644,185 @@ export function PlatformEvals() {
       // Storage blocked: the default view stays.
     }
   }, []);
-  const chooseView = (view: NightView) => {
-    setNightView(view);
+  const chooseView = (next: NightView) => {
+    setNightView(next);
     try {
-      window.localStorage.setItem(NIGHT_VIEW_KEY, view);
+      window.localStorage.setItem(NIGHT_VIEW_KEY, next);
     } catch {
       // Storage blocked: the choice lasts for this page only.
     }
   };
-  const [steps, setSteps] = useState<FeedEvent[]>([]);
-  const cursor = useRef(0);
+  const run = useRef<string | null>(null);
+  const results = useRef(new Map<string, EvalFinished>());
+
+  const member = useRef<{
+    session: Session;
+    client: IntrospectionApiClient;
+  } | null>(null);
 
   const loadConfig = useCallback(async () => {
-    const response = await fetch("/api/evals");
-    const body = await response.json();
-    if (!response.ok) setError(body.error);
-    else setConfig(body);
+    const session = storedSession(window.sessionStorage);
+    if (!session) {
+      window.location.href = await loginUrl(
+        window.sessionStorage,
+        `${window.location.origin}/callback`,
+      );
+      return;
+    }
+    try {
+      const client = await sessionClient(session, window.sessionStorage);
+      member.current = { session, client };
+      const missing = missingScopes(session, RUN_SCOPES);
+      // The latest run loads whether or not the target resolves.
+      const latest = await latestRun(client);
+      let active: string | null = null;
+      if (latest) {
+        const state = await advanceRun(client, latest, missing.length === 0);
+        active = state && !state.finished ? latest : null;
+      }
+      setConfig({
+        missing_scopes: missing,
+        max_venues: MAX_VENUES,
+        max_venues_by_pubs: MAX_VENUES_BY_PUBS,
+        team_sizes: [...TEAM_SIZES],
+        default_teams: DEFAULT_TEAMS,
+        cost_per_trial: COST_PER_TRIAL,
+        trials_per_venue: TRIALS_PER_VENUE,
+        latest,
+        active,
+      });
+      run.current ??= latest;
+    } catch (failure) {
+      if (!signedOut(failure)) setError((failure as Error).message);
+    }
   }, []);
 
-  const poll = useCallback(async () => {
-    const more = (await fetch(`/api/events?after=${cursor.current}`).then((r) =>
-      r.json(),
-    )) as { events: FeedEvent[] };
-    if (!more.events.length) return;
-    cursor.current = Math.max(
-      cursor.current,
-      more.events[more.events.length - 1].seq,
-    );
-    setView((current) =>
-      more.events
-        .filter((event) => event.type.startsWith("eval."))
-        .reduce(fold, current),
-    );
-    // Two polls can overlap (React runs effects twice in development), so an
-    // event already kept is skipped rather than kept again.
-    setSteps((current) => {
-      const seen = new Set(current.map((event) => event.seq));
-      const fresh = more.events.filter(
-        (event) =>
-          !event.type.startsWith("eval.") &&
-          typeof event.data.venue === "string" &&
-          !seen.has(event.seq),
+  const polling = useRef<Promise<void> | null>(null);
+  const pollRef = useRef<() => Promise<void>>(undefined);
+  const resultRetries = useRef(0);
+  const advanceRetries = useRef(0);
+  const pollOnce = useCallback(async () => {
+    const id = run.current;
+    if (!id || !member.current) return;
+    const { session, client } = member.current;
+    let state: RunState;
+    try {
+      const view = await advanceRun(
+        client,
+        id,
+        missingScopes(session, RUN_SCOPES).length === 0,
       );
-      return fresh.length ? [...current, ...fresh].slice(-MAX_STEPS) : current;
-    });
-    const finished = new Set(
-      more.events
-        .filter((event) => event.type === "eval.run_finished")
-        .map((event) => event.data.run as string),
+      if (!view) return;
+      state = view;
+      advanceRetries.current = 0;
+    } catch (failure) {
+      if (signedOut(failure)) return;
+      // No task event may follow a failed step (the run's last trial has ended), so retry it.
+      if (advanceRetries.current < MAX_RESULT_RETRIES) {
+        advanceRetries.current += 1;
+        setTimeout(
+          () => void pollRef.current?.(),
+          Math.min(1000 * 2 ** advanceRetries.current, 30_000),
+        );
+      } else setError((failure as Error).message);
+      return;
+    }
+    // A finished trial's result never changes, so each is read once.
+    await Promise.all(
+      state.trials
+        .filter((trial) => trial.done && trial.task_id)
+        .filter((trial) => !results.current.has(trial.task_id!))
+        .map(async (trial) => {
+          const read = await trialResult(client, trial.task_id!).catch(
+            () => null,
+          );
+          if (read) results.current.set(trial.task_id!, read);
+        }),
     );
-    if (finished.size)
+    const missing = state.trials.filter(
+      (trial) =>
+        trial.done && trial.task_id && !results.current.has(trial.task_id),
+    ).length;
+    if (missing === 0) resultRetries.current = 0;
+    else if (state.finished && resultRetries.current < MAX_RESULT_RETRIES) {
+      // A result read failed: the run stays open, so polling goes on, backing off until it reads.
+      resultRetries.current += 1;
+      setView(runView({ ...state, finished: null }, results.current));
+      setTimeout(
+        () => void pollRef.current?.(),
+        Math.min(1000 * 2 ** resultRetries.current, 30_000),
+      );
+      return;
+    } else if (state.finished)
+      setError(
+        `${missing} trial result${missing === 1 ? "" : "s"} could not be read: reload to try again`,
+      );
+    setView(runView(state, results.current));
+    if (state.finished)
       setConfig(
         (current) =>
           current &&
-          (current.active && finished.has(current.active)
-            ? { ...current, active: null }
-            : current),
+          (current.active === id ? { ...current, active: null } : current),
       );
   }, []);
+  // Single flight: a poll asked for while one is out waits for it instead of overlapping it.
+  const poll = useCallback(async () => {
+    while (polling.current) await polling.current;
+    polling.current = pollOnce().finally(() => {
+      polling.current = null;
+    });
+    await polling.current;
+  }, [pollOnce]);
 
   useEffect(() => {
-    loadConfig();
-    poll();
+    loadConfig().then(poll);
   }, [loadConfig, poll]);
 
+  useEffect(() => {
+    pollRef.current = poll;
+  }, [poll]);
+
   const running = Boolean(view && !view.finished) || Boolean(config?.active);
+  // A cancel holds the button until the trials report their ends.
+  useEffect(() => {
+    if (!running) setCancelling(false);
+  }, [running]);
+  // While a run goes, the Data Plane's task events move it on. Each (re)connect re-reads the
+  // run once, since events sent while the socket was down are gone.
   useEffect(() => {
     if (!running) return;
-    const timer = setInterval(poll, 2000);
-    return () => clearInterval(timer);
+    let stopped = false;
+    let socket: WebSocket | undefined;
+    let timer: ReturnType<typeof setTimeout>;
+    const open = () => {
+      const client = member.current?.client;
+      const dpUrl = member.current?.session.dp_url;
+      if (!client || !dpUrl) return;
+      const params = new URLSearchParams({ event: "tasks" });
+      if (client.environment) params.set(LANE_QUERY_PARAM, client.environment);
+      if (client.projectId)
+        params.set(PROJECT_ID_QUERY_PARAM, client.projectId);
+      socket = new WebSocket(
+        `${dpUrl.replace(/^http/, "ws").replace(/\/+$/, "")}/v1/ws/stream?${params}`,
+      );
+      socket.onopen = () => void poll();
+      socket.onmessage = (message) => {
+        const event = JSON.parse(String(message.data)) as {
+          type?: string;
+          event_type?: string;
+        };
+        if (event.type === "event" && event.event_type === "tasks") void poll();
+      };
+      socket.onclose = () => {
+        if (!stopped) timer = setTimeout(open, 2000);
+      };
+    };
+    open();
+    return () => {
+      stopped = true;
+      clearTimeout(timer);
+      socket?.close();
+    };
   }, [running, poll]);
 
   // A run of one venue has no other pub's night 1 or wrong-notes night 2.
@@ -699,18 +837,42 @@ export function PlatformEvals() {
 
   const start = async () => {
     setError(undefined);
-    const response = await fetch("/api/evals", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
+    setStarting(true);
+    // One token per click: a repeated start of it names the same run.
+    const token = crypto.randomUUID();
+    try {
+      if (!member.current || !config) return;
+      const { session, client } = member.current;
+      const started = await startRun(client, {
         venues: venueCount,
-        teams: teams ?? config?.default_teams,
+        startedBy: session.member_id,
+        token,
+        teams: (teams ?? config.default_teams) as TeamSize,
         pubs,
-      }),
-    });
-    const body = await response.json();
-    if (!response.ok) setError(body.error);
-    else setConfig((current) => current && { ...current, active: body.run });
+      });
+      run.current = started.run;
+      results.current.clear();
+      resultRetries.current = 0;
+      setConfig((current) => current && { ...current, active: started.run });
+    } catch (failure) {
+      if (!signedOut(failure)) setError((failure as Error).message);
+    } finally {
+      setStarting(false);
+    }
+    await poll();
+  };
+
+  const cancel = async () => {
+    const id = run.current;
+    if (!id || !member.current) return;
+    setCancelling(true);
+    try {
+      await cancelRun(member.current.client, id);
+    } catch (failure) {
+      // The button comes back so the cancel can be tried again.
+      setCancelling(false);
+      if (!signedOut(failure)) setError((failure as Error).message);
+    }
     await poll();
   };
 
@@ -720,23 +882,16 @@ export function PlatformEvals() {
   ];
   const done = trialList.filter(({ finished }) => finished).length;
   const expected = view?.finished?.trials ?? trialsFor(trialVenues.length);
-  const finishedAt = (night: NightKey) =>
-    trialList
-      .filter(({ started, finished }) => started.night === night && finished)
-      .map(({ finished }) => finished!);
   // A perfect-notes night 2 counts only when night 0 seeded exactly the true notes.
   const counted = (venue: string, night: NightKey) =>
     night !== "night2-perfect" ||
     view?.trials.get(`${venue}/night0-seed`)?.finished?.checks.notes_seeded ===
       1;
-  const scoreOf = (venue: string, night: NightKey) =>
-    counted(venue, night)
-      ? (view?.trials.get(`${venue}/${night}`)?.finished?.judge?.score ?? null)
-      : null;
   const measureAt = (venue: string, night: NightKey, key: string) => {
     if (!counted(venue, night)) return null;
     const finished = view?.trials.get(`${venue}/${night}`)?.finished;
-    if (!scored(finished)) return null;
+    // A trial that errored measured nothing.
+    if (!finished || finished.error) return null;
     const value = (finished?.measures as Record<string, number> | undefined)?.[
       key
     ];
@@ -881,7 +1036,7 @@ export function PlatformEvals() {
     measureRow("favourite_genre", "Loved genres played"),
     measureRow("first_round_in_band", "First round pitched right"),
   ].filter((row): row is Row => row !== null);
-  // Under the hood: how the night felt, which doesn't test memory, and the rest.
+  // How the night felt, which doesn't test memory, and rounds in band.
   const experienceRows = [
     measureRow("close_finish", "How close the finish was"),
     measureRow(
@@ -893,18 +1048,7 @@ export function PlatformEvals() {
       "Last place's points, as a share of the winner's",
     ),
   ].filter((row): row is Row => row !== null);
-  const otherRows = [
-    measureRow("in_band", "Rounds 55–75% right"),
-    rowFor(
-      "judge",
-      "Judge: how tailored it felt (1–5)",
-      "A model judge's 1–5 score of how well night 2 suited this crowd",
-      false,
-      scoreOf,
-      (value) => (value === null ? "–" : value.toFixed(1)),
-      [1, 5],
-    ),
-  ].filter((row): row is Row => row !== null);
+  const inBand = measureRow("in_band", "Rounds 55–75% right");
   // Secondary rows are called better or worse only past a Holm-corrected sign test.
   const secondary = built.filter((row) => !row.primary);
   const adjusted = holm(secondary.map((row) => row.p));
@@ -952,11 +1096,13 @@ export function PlatformEvals() {
     };
   };
   const modelVsNone = compare("night2-hosted");
-  const reasons = [
-    modelWhy(modelVsNone),
-    otherWhy(compare("night2-wrong")),
-    trueWhy(compare("night2-perfect"), modelVsNone),
-  ].filter((line): line is string => line !== null);
+  const reasons = view?.memoryOff
+    ? [MEMORY_OFF]
+    : [
+        modelWhy(modelVsNone),
+        otherWhy(compare("night2-wrong")),
+        trueWhy(compare("night2-perfect"), modelVsNone),
+      ].filter((line): line is string => line !== null);
   const order =
     primary &&
     typeof primary.means.with === "number" &&
@@ -974,13 +1120,18 @@ export function PlatformEvals() {
     "night2-hosted",
     "night2-fresh",
   ).length;
+  // A run with one pub plans no other-notes arm: there is no other pub to borrow from.
+  const hasOther = trialVenues.some((venue) =>
+    view?.trials.has(`${venue}/night2-wrong`),
+  );
   const headline = !rows.length
     ? running
       ? "Waiting for the night 2s at a pub…"
       : "No results yet."
     : !order
-      ? `Model notes vs no notes, across ${pubCount} pub${pubCount === 1 ? "" : "s"}: ${primary?.verdict.toLowerCase() ?? "no result"} on good rounds; waiting for the other notes.`
-      : order.holds &&
+      ? `Model notes vs no notes, across ${pubCount} pub${pubCount === 1 ? "" : "s"}: ${primary?.verdict.toLowerCase() ?? "no result"} on good rounds${hasOther ? "; waiting for the other notes" : ""}.`
+      : view?.finished &&
+          order.holds &&
           primary?.verdict === "Better" &&
           primary.wrong?.tone === "good"
         ? "Memory helps because of what it remembered: model notes beat no notes, and other notes did worst."
@@ -991,13 +1142,12 @@ export function PlatformEvals() {
                 ? `, and true notes ${order.perfectAtLeastRight ? "matched or beat" : "fell short of"} model notes`
                 : ""
             }.`;
-  const gate = validityGate(
-    trialVenues.flatMap((venue) => {
-      const perfect = measureAt(venue, "night2-perfect", GOOD_ROUNDS);
-      const none = measureAt(venue, "night2-fresh", GOOD_ROUNDS);
-      return perfect !== null && none !== null ? [{ perfect, none }] : [];
-    }),
-  );
+  const gatePairs = trialVenues.flatMap((venue) => {
+    const perfect = measureAt(venue, "night2-perfect", GOOD_ROUNDS);
+    const none = measureAt(venue, "night2-fresh", GOOD_ROUNDS);
+    return perfect !== null && none !== null ? [{ perfect, none }] : [];
+  });
+  const gate = gatePairs.length >= MIN_PUBS ? validityGate(gatePairs) : null;
   const goodLift = lift(
     pairedOf(
       (venue, night) => measureAt(venue, night, GOOD_ROUNDS),
@@ -1009,7 +1159,9 @@ export function PlatformEvals() {
   const missingNights = trialVenues.filter((venue) =>
     night2Keys.some((night) => {
       const trial = view?.trials.get(`${venue}/${night}`);
-      return trial?.finished ? Boolean(trial.finished.error) : view?.finished;
+      // Only a planned night can be missing; a one-pub run never plans other notes.
+      if (!trial) return false;
+      return trial.finished ? Boolean(trial.finished.error) : view?.finished;
     }),
   ).length;
   const suggestion = view?.finished
@@ -1027,6 +1179,7 @@ export function PlatformEvals() {
         gatePasses: gate?.passes ?? null,
         costPerTrial: config?.cost_per_trial ?? 0.086,
         trialsPerPub: config?.trials_per_venue ?? 7,
+        memoryOff: view.memoryOff,
       })
     : null;
   const accuracy = trialVenues.flatMap((venue) => {
@@ -1044,14 +1197,6 @@ export function PlatformEvals() {
           },
         ];
   });
-  const night2s = [
-    ...finishedAt("night2-hosted"),
-    ...finishedAt("night2-fresh"),
-    ...finishedAt("night2-wrong"),
-    ...finishedAt("night2-perfect"),
-  ];
-  const judgeError = night2s.find((finished) => finished.judge?.error)?.judge
-    ?.error;
 
   const armStatus = (night: NightKey): ArmStatus => {
     const runs = trialVenues.map((venue) =>
@@ -1077,13 +1222,6 @@ export function PlatformEvals() {
   ) as Partial<Record<NightKey, ArmStatus>>;
   const trialAt = (venue: string, night: NightKey) =>
     view?.trials.get(`${venue}/${night}`);
-  const stepsOf = (venue: string, night: NightKey) =>
-    steps.filter(
-      (event) =>
-        event.data.run === view?.run &&
-        event.data.venue === venue &&
-        event.data.night === night,
-    );
 
   const card = (venue: string) => {
     const trials = NIGHTS.map((night) => trialAt(venue, night));
@@ -1148,57 +1286,7 @@ export function PlatformEvals() {
             ) : nightView === "questions" ? (
               <NightQuestions night={chosen} finished={finished} />
             ) : (
-              <>
-                {chosen === "night2-wrong" &&
-                  trialAt(venue, "night1-donor")?.finished && (
-                    <div className="hood-summary">
-                      <h5 className="verifiers">
-                        {NIGHT_TITLES["night1-donor"]}{" "}
-                        <span className="fine">
-                          played first, as this customer, to write the notes
-                          night 2 loads
-                        </span>
-                      </h5>
-                      <Summary
-                        night="night1-donor"
-                        finished={trialAt(venue, "night1-donor")!.finished!}
-                      />
-                    </div>
-                  )}
-                <div className="hood-summary">
-                  <Summary night={chosen} finished={finished} />
-                </div>
-                <ol className="step-list">
-                  {stepsOf(venue, chosen).map((event) => (
-                    <Step key={event.seq} event={event} />
-                  ))}
-                </ol>
-                <h5 className="verifiers">
-                  Verifiers{" "}
-                  <span className="fine">
-                    what the eval&apos;s verifier measured for this night
-                  </span>
-                </h5>
-                <ul className="check-list">
-                  {Object.entries(finished.checks).map(([name, value]) => {
-                    const line = checkLine(name, value, finished.fetches ?? []);
-                    return line.pass === undefined ? (
-                      <li key={name}>{line.text}</li>
-                    ) : (
-                      <li key={name} className={line.pass ? "pass" : "fine"}>
-                        {line.text} {line.pass ? "✓" : "✗"}
-                      </li>
-                    );
-                  })}
-                </ul>
-                <span className="fine">
-                  reward {finished.reward ?? "none"} · {finished.seconds}s
-                  {finished.trajectory_source &&
-                    finished.trajectory_source !== "sandbox" &&
-                    ` · ${finished.trajectory_source}`}
-                </span>
-                {finished.error && <pre>{finished.error}</pre>}
-              </>
+              <NightSteps night={chosen} finished={finished} />
             )}
           </div>
         )}
@@ -1243,13 +1331,13 @@ export function PlatformEvals() {
         </div>
       </div>
 
-      {config && !config.configured && (
+      {config && config.missing_scopes.length > 0 && (
         <div className="notice">
           <p>
-            No agent key: {config.missing}. Create a key that expires today,
-            then restart <code>pnpm dev</code>:
+            Only an organization owner or admin can run the evals: your sign-in
+            lacks {config.missing_scopes.join(", ")}. You can still read the
+            runs others start.
           </p>
-          <pre className="notes">{config.how_to}</pre>
         </div>
       )}
 
@@ -1327,12 +1415,24 @@ export function PlatformEvals() {
           </div>
         </div>
         <button
-          disabled={!config?.configured || !config?.target || running}
+          disabled={
+            !config ||
+            (config?.missing_scopes.length ?? 0) > 0 ||
+            running ||
+            starting
+          }
           onClick={start}
           title="Starts new pubs with no memory: night 1, then night 2 with model notes, no notes, other notes and true notes"
         >
           {running ? "Running…" : "Run"}
         </button>
+        {running &&
+          config &&
+          !config.missing_scopes.includes("tasks:write") && (
+            <button type="button" disabled={cancelling} onClick={cancel}>
+              {cancelling ? "Cancelling…" : "Cancel run"}
+            </button>
+          )}
         {config?.cost_per_trial !== undefined && (
           <span
             className="fine cost"
@@ -1342,24 +1442,10 @@ export function PlatformEvals() {
             {trials} trials
           </span>
         )}
-        <span
-          className="fine target"
-          title={
-            config?.target
-              ? `Runtime ${config.target.runtime} at ${config.target.commit}`
-              : undefined
-          }
-        >
-          {config?.target
-            ? targetLabel(
-                config.target.runtime,
-                config.target.commit,
-                config.target.slug,
-              )
-            : "…"}
+        <span className="fine target">
+          {TARGET.runtime} in {PROJECT}
         </span>
       </div>
-      {config?.target_error && <p className="bad">{config.target_error}</p>}
       {error && <p className="bad">{error}</p>}
 
       {view && (
@@ -1379,7 +1465,9 @@ export function PlatformEvals() {
           </p>
           <div className="experiment">
             <div className="pick">
-              <p className="big">{headline}</p>
+              <p className="big">
+                {view.memoryOff ? "Memory was off for this run" : headline}
+              </p>
               {reasons.length > 0 && (
                 <ul className="reasons">
                   {reasons.map((line) => (
@@ -1396,7 +1484,14 @@ export function PlatformEvals() {
                 <p className="fine">
                   Night 2 at the same {pubCount} pub
                   {pubCount === 1 ? "" : "s"}, the same teams answering, with
-                  model notes, no notes, other notes and true notes.
+                  model notes, no notes, {hasOther ? "other notes " : ""}and
+                  true notes.
+                </p>
+              )}
+              {!gate && gatePairs.length > 0 && (
+                <p className="fine">
+                  World check: needs at least {MIN_PUBS} pubs with true notes
+                  and no notes ({gatePairs.length} so far).
                 </p>
               )}
               {gate && (
@@ -1425,16 +1520,15 @@ export function PlatformEvals() {
                 {rows.map(barRow)}
               </div>
             )}
-            {nightView === "steps" && experienceRows.length > 0 && (
-              <div className="bars">
-                <p className="fine bars-key">
-                  <strong>Experience measures (don&apos;t test memory)</strong>
-                </p>
+            {experienceRows.length > 0 && (
+              <details className="bars">
+                <summary className="fine bars-key">
+                  <strong>More measures (don&apos;t test memory)</strong>
+                </summary>
                 {experienceRows.map(barRow)}
-                {otherRows.map(barRow)}
-              </div>
+                {inBand && barRow(inBand)}
+              </details>
             )}
-            {judgeError && <p className="amber">Judge: {judgeError}</p>}
             <details className="fine how">
               <summary>How it&apos;s tested</summary>
               <p>
@@ -1469,7 +1563,7 @@ export function PlatformEvals() {
             </details>
           </div>
           <div className="cards-head">
-            <div className="view-toggle" role="group" aria-label="View">
+            <div className="view-toggle" role="group" aria-label="Night view">
               <button
                 type="button"
                 aria-pressed={nightView === "questions"}
@@ -1485,7 +1579,11 @@ export function PlatformEvals() {
                 Under the hood
               </button>
             </div>
-            <span className="fine">Click a night to see its rounds.</span>
+            <span className="fine">
+              {nightView === "questions"
+                ? "Click a night to see its rounds."
+                : "Click a night to see what the host did."}
+            </span>
           </div>
           <div className="venue-cards">{trialVenues.map(card)}</div>
         </>
