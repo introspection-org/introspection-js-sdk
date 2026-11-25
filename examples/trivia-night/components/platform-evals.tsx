@@ -79,15 +79,22 @@ interface Config {
   cost_per_trial?: number;
   trials_per_venue?: number;
   active: string | null;
+  /** The lane the sign-in runs trials on. */
+  lane?: string;
 }
 
 type Pubs = "development" | "heldout";
 
+/** Forgets this tab's sign-in; the reload signs in again, as the platform's session allows. */
+function signOut(): void {
+  window.sessionStorage.clear();
+  window.location.reload();
+}
+
 /** An ended session sends the browser back through the sign-in. */
 function signedOut(error: unknown): boolean {
   if ((error as { status?: number }).status !== 401) return false;
-  window.sessionStorage.clear();
-  window.location.reload();
+  signOut();
   return true;
 }
 
@@ -681,6 +688,7 @@ export function PlatformEvals() {
         active = state && !state.finished ? latest : null;
       }
       setConfig({
+        lane: client.environment,
         missing_scopes: missing,
         max_venues: MAX_VENUES,
         max_venues_by_pubs: MAX_VENUES_BY_PUBS,
@@ -1444,7 +1452,13 @@ export function PlatformEvals() {
         )}
         <span className="fine target">
           {TARGET.runtime} in {PROJECT}
+          {config?.lane && ` · ${config.lane}`}
         </span>
+        {config && (
+          <button type="button" onClick={signOut}>
+            Sign out
+          </button>
+        )}
       </div>
       {error && <p className="bad">{error}</p>}
 
