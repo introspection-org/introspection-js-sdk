@@ -13,6 +13,7 @@
     "check-types": "tsc --noEmit",
     "clean": "rm -rf .next .turbo node_modules",
     "rooms": "node --import tsx scripts/rooms.ts",
+    "sidecar:image": "node --env-file-if-exists=.env.local --import tsx scripts/sidecar-image.ts",
     "bank:bundle": "pnpm dlx esbuild@0.25.12 scripts/bank-server.ts --bundle --platform=node --format=esm --target=node22 --outfile=recipe/fakes/mcp/trivia-bank/server.mjs --log-level=warning",
     "seed:write-case": "node --import tsx scripts/seed-write-case.ts recipe/fakes/mcp/trivia-bank/seeds/write.json",
     "host": "node --import tsx scripts/host.ts",
@@ -21,11 +22,13 @@
     "evals:venues": "node recipe-operator/evals/venues.mjs"
   },
   "dependencies": {
+    "@introspection-sdk/introspection-node": "workspace:*",
     "jose": "^6.2.12",
     "next": "^16.4.6",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
-    "@introspection-sdk/introspection-node": "workspace:*"
+    "smol-toml": "^1.9.1",
+    "yaml": "^2.9.1"
   },
   "devDependencies": {
     "@types/node": "^22.20.4",

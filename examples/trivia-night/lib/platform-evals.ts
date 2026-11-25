@@ -1,21 +1,14 @@
 /**
- * The memory evals as cloud trials of the deployed `trivia-host` Runtime: what
- * each `introspection eval run` is called with, and what its run folder says.
- * The spawning lives in platform-runner.ts; everything here is pure or reads files.
+ * The memory evals as cloud trials of the deployed `trivia-host` Runtime: the
+ * plan of a run, what each trial task records about itself, and what its
+ * verifier printed. platform-runner.ts makes the platform calls; everything
+ * here is pure.
  */
-import type {
-  SpawnOptionsWithStdioTuple,
-  StdioNull,
-  StdioPipe,
-} from "node:child_process";
-import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
-import path from "node:path";
-
 import HELDOUT from "../recipe-operator/evals/heldout.json";
 import VENUES from "../recipe-operator/evals/venues.json";
 import { plainText, truncateWords } from "./display";
 import type { Judgement } from "./judge";
-import type { Fetch, Measures, VenueTastes } from "./memory-measures";
+import type { Fetch, Measures } from "./memory-measures";
 
 /** A venue profile's task pair, as `pnpm evals:venues` writes it. */
 export interface VenueProfile {
@@ -59,6 +52,10 @@ export interface Target {
   commit: string;
   /** The runtime's slug, for display. */
   slug?: string;
+  /** The repository holding the Runtime's Recipe, which the trials' tasks are read from. */
+  repository?: string;
+  /** The Recipe's folder in that repository; empty for its root. */
+  recipe_path?: string;
 }
 
 export type Step = {
@@ -280,95 +277,9 @@ export function plan(
   return chains;
 }
 
-export interface SpawnSpec {
-  command: string;
-  args: string[];
-  options: Omit<
-    SpawnOptionsWithStdioTuple<StdioNull, StdioPipe, StdioPipe>,
-    "env"
-  > & {
-    cwd: string;
-    env: Record<string, string | undefined>;
-    shell: false;
-  };
-}
-
 /** Tags every trial so a member who holds it can read them; an owner adds it to a member. */
 export const TRIALS_TAG = "simulation:trivia-night";
-
-/**
- * The child's command line and environment. The key travels only as
- * INTROSPECTION_TOKEN; each step gets its own runs root, so concurrent runs
- * never share a folder.
- */
-export function spawnSpec(
-  step: Step,
-  target: Target,
-  recipeDir: string,
-  credentials: { token: string; apiBaseUrl: string },
-  baseEnv: Record<string, string | undefined> = process.env,
-): SpawnSpec {
-  const args = [
-    "eval",
-    "run",
-    "-r",
-    target.runtime,
-    "--commit-sha",
-    target.commit,
-    // Resolved inside the runtime's Recipe at --commit-sha, so it is relative.
-    "--path",
-    `evals/harbor/${step.task}`,
-    "--identity",
-    step.identity,
-    "--tag",
-    `simulation:${step.run}`,
-    // A stable tag on every run's trials: a member given it can read them all.
-    "--tag",
-    TRIALS_TAG,
-    "-y",
-  ];
-  return {
-    command: "introspection",
-    args,
-    options: {
-      cwd: recipeDir,
-      env: {
-        ...baseEnv,
-        INTROSPECTION_TOKEN: credentials.token,
-        INTROSPECTION_API_BASE_URL: credentials.apiBaseUrl,
-        INTROSPECTION_EVAL_RUNS_DIR: runsRoot(recipeDir, step),
-      },
-      shell: false,
-      stdio: ["ignore", "pipe", "pipe"],
-    },
-  };
-}
-
-export function runsRoot(recipeDir: string, step: Step): string {
-  return path.join(
-    recipeDir,
-    "eval-runs",
-    step.run,
-    `${step.venue}-${step.night}`,
-  );
-}
-
-/**
- * The run folder of one finished `eval run`: the `Results` line it printed, or
- * else the one folder with a run.json in the step's own runs root.
- */
-export function findRunFolder(output: string, root: string): string | null {
-  for (const match of output.matchAll(/^\s*Results\s+(\S.*?)\s*$/gm)) {
-    const folder = match[1];
-    if (existsSync(path.join(folder, "run.json"))) return folder;
-  }
-  if (!existsSync(root)) return null;
-  const folders = readdirSync(root)
-    .map((name) => path.join(root, name))
-    .filter((folder) => existsSync(path.join(folder, "run.json")))
-    .sort((a, b) => statSync(b).mtimeMs - statSync(a).mtimeMs);
-  return folders[0] ?? null;
-}
+export const runTag = (run: string) => `simulation:${run}`;
 
 export interface TeamMark {
   team: string;
@@ -426,6 +337,165 @@ export function parseRounds(value: unknown): PlayedRound[] {
   }));
 }
 
+/**
+ * What a run was started with. Every trial task carries it in its metadata,
+ * so the run is exactly its tasks: listing them by `runTag` rebuilds it, and
+ * the trials still to create are the plan's steps no task names yet.
+ */
+export interface RunRecord {
+  run: string;
+  venues: number;
+  teams: TeamSize;
+  pubs: Pubs;
+  /** The signed-in member who started the run, by id. */
+  started_by: string;
+  started_at: string;
+  target: Target;
+}
+
+/** The task metadata key a trial records itself under. */
+export const TRIAL_METADATA_KEY = "trivia_night";
+
+export interface TrialMeta {
+  /** The step's `stepKey`. */
+  step: string;
+  record: RunRecord;
+}
+
+/** A task's trial record, or null for a task this page did not create. */
+export function trialMeta(
+  metadata: Record<string, unknown> | null | undefined,
+): TrialMeta | null {
+  const value = metadata?.[TRIAL_METADATA_KEY];
+  if (!isRecord(value) || typeof value.step !== "string") return null;
+  const record = value.record;
+  if (
+    !isRecord(record) ||
+    typeof record.run !== "string" ||
+    typeof record.venues !== "number" ||
+    !isTeamSize(record.teams) ||
+    !isPubs(record.pubs) ||
+    !isRecord(record.target)
+  )
+    return null;
+  return value as unknown as TrialMeta;
+}
+
+/** Every step of a recorded run, in plan order, each after the one before it in its chain. */
+export function runSteps(record: RunRecord): Step[] {
+  return plan(
+    record.run,
+    record.venues,
+    PUB_SETS[record.pubs],
+    record.teams,
+  ).flatMap((chain) =>
+    chain.map((step, index) => ({
+      ...step,
+      ...(index ? { after: [stepKey(chain[index - 1])] } : {}),
+      started_by: record.started_by,
+    })),
+  );
+}
+
+const VERIFICATION_ENDED = new Set(["completed", "failed", "cancelled"]);
+const TASK_ENDED = new Set(["completed", "failed", "cancelled"]);
+
+/** The parts of a task a trial's state is read from. */
+export interface TrialTask {
+  status: string;
+  metadata?: Record<string, unknown> | null;
+  verification?: {
+    status: string;
+    exit_code?: number | null;
+    error?: string | null;
+  } | null;
+}
+
+export interface TrialState {
+  /** Scored, or ended without a score: nothing more will happen to its result. */
+  done: boolean;
+  failed: boolean;
+  /** The task itself has ended and released its sandbox, so its notes are saved. */
+  ended: boolean;
+  error: string | null;
+}
+
+export function trialState(task: TrialTask): TrialState {
+  const ended = TASK_ENDED.has(task.status);
+  const verification = task.verification;
+  if (verification && VERIFICATION_ENDED.has(verification.status)) {
+    const exit = verification.exit_code;
+    const error =
+      verification.status === "completed"
+        ? exit && exit !== 0
+          ? `the verifier exited ${exit}`
+          : null
+        : (verification.error ?? `the verification was ${verification.status}`);
+    return { done: true, failed: error !== null, ended, error };
+  }
+  if (ended) {
+    const reason = task.metadata?.error;
+    return {
+      done: true,
+      failed: true,
+      ended,
+      error:
+        typeof reason === "string" && reason
+          ? reason
+          : `the trial was ${task.status} before it was scored`,
+    };
+  }
+  return { done: false, failed: false, ended, error: null };
+}
+
+/**
+ * Whether a trial is ready to be ended: its run has settled at `idle` and its
+ * verifier has not run. Completing it moves it to `finishing`, where the
+ * platform runs its verifier, and then to `completed`.
+ */
+export function readyToComplete(task: TrialTask): boolean {
+  return task.status === "idle" && task.verification?.status === "pending";
+}
+
+/** A step the page shows: its task's state, or why it has none yet. */
+export interface TrialView {
+  key: string;
+  step: Step;
+  task_id: string | null;
+  status: string;
+  verification: string | null;
+  done: boolean;
+  /** A finished trial's result to read from its task, or the skipped step's record. */
+  finished: EvalFinished | null;
+}
+
+export interface RunView {
+  run: string;
+  record: RunRecord;
+  trials: TrialView[];
+  finished: EvalRunFinished | null;
+}
+
+/** A night that never ran because a night it depends on failed, so it is never scored. */
+export function skippedTrial(step: Step, reason: string): EvalFinished {
+  return {
+    ...step,
+    reward: null,
+    checks: {},
+    notes: null,
+    plan: null,
+    round: null,
+    fetches: [],
+    rounds: [],
+    judge: null,
+    measures: {},
+    trajectory_source: null,
+    seconds: 0,
+    exit_code: null,
+    error: reason,
+  };
+}
+
 export interface TrialResult {
   reward: number | null;
   checks: Record<string, number>;
@@ -434,112 +504,53 @@ export interface TrialResult {
   /** Night 2's `next_questions` calls, as its verifier printed them. */
   fetches: Fetch[];
   rounds: PlayedRound[];
-  trajectory_source: string | null;
-  error: string | null;
-}
-
-function readJson(file: string): unknown {
-  return JSON.parse(readFileSync(file, "utf8"));
-}
-
-/** The first value under `key` anywhere in a parsed JSON document. */
-function findKey(value: unknown, key: string): unknown {
-  if (!value || typeof value !== "object") return undefined;
-  if (!Array.isArray(value) && key in value)
-    return (value as Record<string, unknown>)[key];
-  for (const child of Object.values(value)) {
-    const found = findKey(child, key);
-    if (found !== undefined) return found;
-  }
-  return undefined;
 }
 
 /** The verifier prints one JSON object: the reward, each check, and context. */
-function parseVerifierStdout(text: string): Record<string, unknown> | null {
+function parseVerifierJson(
+  text: string | null,
+): Record<string, unknown> | null {
+  if (!text) return null;
   const start = text.indexOf("{");
   const end = text.lastIndexOf("}");
   if (start < 0 || end <= start) return null;
-  return JSON.parse(text.slice(start, end + 1)) as Record<string, unknown>;
+  try {
+    const parsed = JSON.parse(text.slice(start, end + 1)) as unknown;
+    return isRecord(parsed) ? parsed : null;
+  } catch (error) {
+    if (error instanceof SyntaxError) return null;
+    throw error;
+  }
 }
 
-function trialFolder(runFolder: string): string | null {
-  const harbor = path.join(runFolder, "harbor");
-  if (!existsSync(harbor)) return null;
-  const trial = readdirSync(harbor).find((name) => {
-    const folder = path.join(harbor, name);
-    return (
-      statSync(folder).isDirectory() &&
-      existsSync(path.join(folder, "result.json"))
-    );
-  });
-  return trial ? path.join(harbor, trial) : null;
-}
-
-export function readRunFolder(runFolder: string): TrialResult {
-  const run = readJson(path.join(runFolder, "run.json")) as {
-    result?: {
-      diagnostics?: { message?: string }[];
-      metrics?: Record<string, number>;
-    };
-  };
-  const trial = trialFolder(runFolder);
-  const result = trial ? readJson(path.join(trial, "result.json")) : undefined;
-  const stdoutFile = trial
-    ? path.join(trial, "verifier", "test-stdout.txt")
-    : null;
-  const verifier =
-    stdoutFile && existsSync(stdoutFile)
-      ? parseVerifierStdout(readFileSync(stdoutFile, "utf8"))
-      : null;
-  const memoryFile = trial
-    ? path.join(trial, "artifacts", "memories", "MEMORY.md")
-    : null;
-
+/**
+ * A trial's result from its verification files: the log is what the verifier
+ * printed, with every measure, its rounds and the notes; the result file
+ * holds the reward and the checks, and stands in when the log has no JSON.
+ */
+export function verifierOutput(
+  log: string | null,
+  result: string | null,
+  reward: number | null = null,
+): TrialResult {
+  const printed = parseVerifierJson(log) ?? parseVerifierJson(result) ?? {};
   const checks: Record<string, number> = {};
-  for (const [name, value] of Object.entries(verifier ?? {}))
+  for (const [name, value] of Object.entries(printed))
     if (name !== "reward" && typeof value === "number") checks[name] = value;
-
-  const rewards = findKey(result, "rewards") as
-    Record<string, unknown> | undefined;
-  const reward =
-    typeof verifier?.reward === "number"
-      ? verifier.reward
-      : typeof rewards?.reward === "number"
-        ? rewards.reward
-        : (run.result?.metrics?.reward ?? null);
-
   const notes =
-    memoryFile && existsSync(memoryFile)
-      ? readFileSync(memoryFile, "utf8")
-      : typeof verifier?.notes === "string" && verifier.notes.trim()
-        ? verifier.notes
-        : null;
-
-  const source =
-    findKey(result, "trajectory_source") ?? findKey(run, "trajectory_source");
-  const exception = findKey(result, "exception_message");
-  const diagnostic = run.result?.diagnostics?.[0]?.message;
-  const error =
-    typeof exception === "string"
-      ? exception
-      : typeof diagnostic === "string"
-        ? diagnostic
-        : null;
-
+    typeof printed.notes === "string" && printed.notes.trim()
+      ? printed.notes.trim()
+      : null;
   return {
-    reward,
+    reward:
+      reward ?? (typeof printed.reward === "number" ? printed.reward : null),
     checks,
-    notes: notes ? notes.trim() : null,
-    fetches: Array.isArray(verifier?.fetches)
-      ? (verifier.fetches as Fetch[])
-      : [],
-    rounds: parseRounds(verifier?.rounds),
-    trajectory_source: typeof source === "string" ? source : null,
-    error: error ? error.trim() : null,
+    notes,
+    fetches: Array.isArray(printed.fetches) ? (printed.fetches as Fetch[]) : [],
+    rounds: parseRounds(printed.rounds),
   };
 }
 
-/** The agent's message as plain text, cut to a preview. */
 export function planText(message: string | null): string | null {
   const text = message ? plainText(message) : "";
   return text ? truncateWords(text, PLAN_PREVIEW) : null;
@@ -547,32 +558,4 @@ export function planText(message: string | null): string | null {
 
 export function previewNotes(notes: string | null): string | null {
   return notes ? notes.slice(0, NOTES_PREVIEW) : null;
-}
-
-/** The venue's facts from its task's tests/expected.json, or null when it has none. */
-export function readTastes(
-  recipeDir: string,
-  task: string,
-): VenueTastes | null {
-  const file = path.join(
-    recipeDir,
-    "evals",
-    "harbor",
-    task,
-    "tests",
-    "expected.json",
-  );
-  return existsSync(file) ? (readJson(file) as VenueTastes) : null;
-}
-
-/**
- * Why a run failed, with the key removed: from the CLI's last `Error:` line
- * on, which carries its hint (such as the setup command), else the output's
- * last lines.
- */
-export function errorText(output: string, secret: string): string {
-  const text = secret ? output.split(secret).join("[redacted]") : output;
-  const lines = text.trim().split("\n");
-  const last = lines.findLastIndex((line) => line.startsWith("Error:"));
-  return (last >= 0 ? lines.slice(last) : lines.slice(-6)).join("\n").trim();
 }

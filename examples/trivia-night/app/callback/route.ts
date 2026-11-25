@@ -7,8 +7,10 @@ import {
   SESSION_COOKIE,
   completeLogin,
   keyProject,
+  sessionKey,
   spaClientId,
 } from "@/lib/session";
+import { apiBaseUrl } from "@/lib/platform-runner";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -23,17 +25,21 @@ export async function GET(request: Request) {
         `the sign-in failed: ${url.searchParams.get("error")}`,
         401,
       );
-    const { id, session } = await completeLogin({
+    const sealing = sessionKey();
+    if ("missing" in sealing) throw new Error(sealing.missing);
+    const { cookie, session } = await completeLogin({
       code: url.searchParams.get("code"),
       state: url.searchParams.get("state"),
       cookie: jar.get(LOGIN_COOKIE)?.value,
       redirectUri: `${url.origin}/callback`,
       clientId: spaClientId(),
+      cpUrl: apiBaseUrl(),
       project: keyProject,
+      key: sealing.key,
     });
     const response = NextResponse.redirect(new URL("/", url.origin));
     response.cookies.delete({ name: LOGIN_COOKIE, path: "/callback" });
-    response.cookies.set(SESSION_COOKIE, id, {
+    response.cookies.set(SESSION_COOKIE, cookie, {
       httpOnly: true,
       sameSite: "lax",
       secure: url.protocol === "https:",

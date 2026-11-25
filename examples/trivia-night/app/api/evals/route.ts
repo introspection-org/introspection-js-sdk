@@ -13,9 +13,10 @@ import {
 
 import {
   KEY_HOW_TO,
-  activeRun,
-  apiBaseUrl,
-  keyFile,
+  advanceRun,
+  agentKey,
+  latestRun,
+  platformClient,
   resolveTarget,
   startRun,
 } from "@/lib/platform-runner";
@@ -24,24 +25,29 @@ import { requireSession } from "@/lib/session";
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
-/** What the panel shows: whether a key is set, and the target. Never the key. */
+/** What the panel shows: whether a key is set, the target and the latest run. Never the key. */
 export async function GET(request: Request) {
   const auth = await requireSession(request);
   if ("error" in auth)
     return NextResponse.json({ error: auth.error }, { status: auth.status });
-  const key = keyFile();
+  const key = agentKey();
   let target = null;
   let target_error = null;
+  let latest: string | null = null;
+  let active: string | null = null;
   try {
-    target = await resolveTarget({
-      ...process.env,
-      INTROSPECTION_API_BASE_URL: apiBaseUrl(),
-    });
+    const client = platformClient();
+    target = await resolveTarget(client);
+    latest = await latestRun(client);
+    if (latest) {
+      const view = await advanceRun(client, latest);
+      active = view && !view.finished ? latest : null;
+    }
   } catch (error) {
     target_error = (error as Error).message;
   }
   return NextResponse.json({
-    configured: "file" in key,
+    configured: "token" in key,
     max_venues: MAX_VENUES,
     max_venues_by_pubs: MAX_VENUES_BY_PUBS,
     team_sizes: TEAM_SIZES,
@@ -52,15 +58,17 @@ export async function GET(request: Request) {
     how_to: KEY_HOW_TO,
     target,
     target_error,
-    active: activeRun(),
+    latest,
+    active,
   });
 }
 
+/** Starts a run: creates its first nights and returns; the page's polls of the run start the rest. */
 export async function POST(request: Request) {
   const auth = await requireSession(request);
   if ("error" in auth)
     return NextResponse.json({ error: auth.error }, { status: auth.status });
-  const key = keyFile();
+  const key = agentKey();
   if ("missing" in key)
     return NextResponse.json(
       { error: key.missing, how_to: KEY_HOW_TO },
@@ -83,10 +91,15 @@ export async function POST(request: Request) {
       { error: `teams must be one of ${TEAM_SIZES.join(", ")}` },
       { status: 400 },
     );
+  const venues = Math.min(
+    Math.max(Math.trunc(Number(body.venues ?? 3)) || 1, 1),
+    MAX_VENUES_BY_PUBS[pubs],
+  );
   try {
     return NextResponse.json(
       await startRun(
-        Number(body.venues ?? 3),
+        platformClient(),
+        venues,
         auth.session.member_id,
         teams,
         pubs,

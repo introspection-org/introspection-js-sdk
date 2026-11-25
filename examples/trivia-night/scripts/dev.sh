@@ -65,6 +65,10 @@ json() {
   ' "$1"
 }
 
+# The page seals its sign-in cookie with this; a restart keeps the sessions.
+grep -q "^TRIVIA_SESSION_SECRET=" "$ENV_FILE" 2>/dev/null ||
+  upsert_env TRIVIA_SESSION_SECRET "$(openssl rand -base64 32)"
+
 # The bank trusts only the platform's token here: a header naming the owner
 # would let anyone on the tunnel play as any venue.
 unset TRIVIA_DEV_OWNER_HEADER TRIVIA_DEV_OWNER
@@ -169,6 +173,10 @@ ensure_runtime() {
   say "pushing $RUNTIME so the platform checks and builds the recipe and its tasks"
   (cd "$WORK/$RUNTIME" && git push -q origin HEAD:main) ||
     fail "could not push $RUNTIME"
+  # The page finds the trials' sidecar image by its folder at the pushed commit,
+  # and builds none itself; this builds it when the folder changed.
+  node --env-file-if-exists="$ENV_FILE" --import tsx scripts/sidecar-image.ts ||
+    say "the sidecar image is not built: set TRIVIA_EVAL_KEY_FILE, then pnpm sidecar:image"
 }
 
 # The application the bank is linked to, by name; its id on stdout.

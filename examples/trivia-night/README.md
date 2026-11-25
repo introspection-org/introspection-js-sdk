@@ -45,9 +45,13 @@ pnpm test       # the bank, its MCP server, the scoring and the eval runner
 
 The page runs the real memory evals, as [Run the memory evals](./recipe-operator/README.md#run-the-memory-evals) describes, against the `trivia-host` Runtime at its latest commit (or `INTROSPECTION_TRIVIA_RUNTIME_ID` and `INTROSPECTION_TRIVIA_COMMIT_SHA`, when both are set).
 
-Each eval task and its verifier come from the Runtime's Recipe at that commit: `eval run` resolves `--path` inside that checkout, so the page tests with that commit's verifiers. To test a newer commit than the Runtime's latest version, set `INTROSPECTION_TRIVIA_COMMIT_SHA` and `INTROSPECTION_TRIVIA_RUNTIME_ID` in `.env.local`.
+Each trial is a plain platform call through the SDK, with no CLI: the server reads the Harbor task (`instruction.md`, `task.toml`, `tests/`, `environment/docker-compose.yaml`) from the Runtime's repository at that commit through the repository contents API, packs `tests/` as the task's own `verifier`, and creates a `kind: eval` task with the commit, the customer's identity, the run's tags and the compose. The platform runs the verifier in the trial's sandbox once the run ends and records `verification` on the task; the page reads its result and log files. To test a newer commit than the Runtime's latest version, set `INTROSPECTION_TRIVIA_COMMIT_SHA` and `INTROSPECTION_TRIVIA_RUNTIME_ID` in `.env.local`.
 
-It needs a staging agent key that expires today, named in `.env.local`:
+Nothing about a run is kept on the server: a run is its tasks. Start creates each pub's first nights and returns; each poll of the run lists its tasks by the `simulation:<run>` tag, ends a trial whose run has settled so it is scored, and creates a night 2 once the night it waits on has ended (a failed one skips it). Every trial task carries the run's settings in its metadata (`trivia_night`), which is all a poll needs to know which nights are still to come, so any instance of the page can serve any poll.
+
+The trials' sidecar, the trivia bank fake, runs an image the page finds by its folder's git tree at that commit; the contents API returns no file over 1 MB whole, so the page cannot build it. `pnpm dev` builds it after each push, or run `pnpm sidecar:image`, which checks every file against the commit first.
+
+It needs a staging agent key that expires today:
 
 ```bash
 introspection api-keys create --environment staging --capabilities runtimes,evals \
@@ -55,7 +59,7 @@ introspection api-keys create --environment staging --capabilities runtimes,eval
 echo TRIVIA_EVAL_KEY_FILE=recipe-operator/.agent.key >> .env.local
 ```
 
-The runs use your `introspection login`, on `https://api.introspection.dev` unless `INTROSPECTION_API_BASE_URL` names another stack, and find the Data Plane from there. Without a key file the panel shows these commands and the server refuses to run.
+Where there is no disk to keep it on, set `TRIVIA_AGENT_KEY` to the key itself instead. Without a key the panel shows these commands and the server refuses to run.
 
 ### Sign in
 
@@ -72,9 +76,12 @@ echo TRIVIA_SPA_CLIENT_ID=<the printed client_id> >> .env.local
 | ---------------------------- | ------------------------------- | ---------------------------------------------------------------------------------------- |
 | `TRIVIA_SPA_CLIENT_ID`       | none                            | The `spa` application's `client_id`. Without it the page refuses to open.                |
 | `INTROSPECTION_API_BASE_URL` | `https://api.introspection.dev` | The Control Plane, for the login and the runs. A local stack is `http://localhost:8000`. |
-| `TRIVIA_EVAL_KEY_FILE`       | none                            | The agent key file, as above.                                                            |
+| `INTROSPECTION_DP_URL`       | the Control Plane's URL         | The Data Plane the trials run on. A local stack is `http://localhost:8002`.              |
+| `TRIVIA_AGENT_KEY`           | none                            | The agent key itself.                                                                    |
+| `TRIVIA_EVAL_KEY_FILE`       | none                            | The agent key file, when `TRIVIA_AGENT_KEY` is not set.                                  |
+| `TRIVIA_SESSION_SECRET`      | none                            | At least 32 characters the sign-in cookie is sealed with; `pnpm dev` writes one.         |
 
-The server exchanges the code itself (PKCE, through the SDK's `authorizationCodeToken`) and keeps only the member's id, org, project and the token's expiry, behind an httpOnly cookie. It refuses a sign-in to any project but the one the agent key's runtime is in, and `/api/evals` and `/api/events` answer 401 without a live session and 403 for another project. The trials still run with the agent key, since per-pub memory needs an agent's credentials; the key stays on the server and never reaches the browser. Each trial and the run's `eval.run_finished` record the signed-in member's id as `started_by`. Sessions live in the server's memory, so a restart signs everyone in again.
+The server exchanges the code itself (PKCE, through the SDK's `authorizationCodeToken`) and keeps only the member's id, org, project and the token's expiry, in an httpOnly cookie sealed with AES-256-GCM under `TRIVIA_SESSION_SECRET`. It refuses a sign-in to any project but the one the agent key's runtime is in, and `/api/evals` and `/api/events` answer 401 without a live session and 403 for another project. The trials still run with the agent key, since per-pub memory needs an agent's credentials; the key stays on the server and never reaches the browser. Each trial and the run's `eval.run_finished` record the signed-in member's id as `started_by`. The server holds no sessions, so a restart or another instance keeps everyone signed in; changing the secret signs everyone out.
 
 Pick a number of venues and press **Run**. Venue _i_ plays the _i_-th venue profile (Sydney, Manchester, Chicago, and on across AU, UK and US pubs), all venues at once, each as its own customer:
 
@@ -89,11 +96,11 @@ Pick a number of venues and press **Run**. Venue _i_ plays the _i_-th venue prof
 
 Every trial is tagged `simulation:<run>` and `simulation:trivia-night`. Trials are scored in their own sandbox, so seeing results needs neither tag; to browse the trials themselves, an admin already can, and an owner can give another member the `simulation:trivia-night` tag. The page reads as an experiment: the hypothesis that notes tune night 2 to the crowd, the method, and the result. The two night 2s at a pub differ only in the notes, so each pub is a paired comparison: the result is how far each round's share right was from 65%, with memory against without, as a mean of per-pub differences with a 95% t-interval (from 3 pubs; 11 pubs gives a meaningful result), with the other measures beside it. Each run starts new customers, so nothing carries over between runs; a run measures one version of the agent and changes nothing.
 
-As a second opinion, the server grades each finished night 2 with the `return-visit` judge (`recipe-operator/judges/return-visit.yaml`): it converts the trial's local `trajectory.json` to the judge's conversation input and runs `introspection judges run --conversation <trial>/judge/input.jsonl`, scoring from 1 to 5 how tailored the night felt, with a one-line reason. It is one Sonnet judgement per night 2, about $0.01 to $0.03 each; the judge's model uses `ANTHROPIC_API_KEY` from the server's environment, or your Pi sign-in.
+The `return-visit` judge (`recipe-operator/judges/return-visit.yaml`) no longer grades night 2 from the page: it ran `introspection judges run` over a local `trajectory.json`, and the page now spawns nothing and keeps no files.
 
-Each venue gets a card: what night 1 learned, and how each night 2 opened. Click a card for each trial's steps, read from its `trajectory.json` once the trial ends: each read of `memories/MEMORY.md` with its content (**read**, including the read the runtime makes before the first turn), each `trivia-bank` tool call with its arguments (**tool**), each write of the notes (**write**), and the agent's final message (**plan**), then its checks, reward and time. While a run is going the page shows its progress; a card fills in as its venue's trials finish.
+Each venue gets a card: what night 1 learned, and how each night 2 opened, with each round's questions and marks, the checks, reward and time, all from the verifier's output. A trial runs as an end user, so its conversation is not the key's to read, and the card has no step list (each read and write of the notes, each bank call, the agent's last message) until the page can read a trial's trajectory. While a run is going the page shows its progress; a card fills in as its venue's trials finish.
 
-The key reaches each `introspection eval run` only as `INTROSPECTION_TOKEN` in its environment: never in its arguments, the logs or the browser. The page is served only on this machine. Each trial's run folder is under `recipe-operator/eval-runs/<run>/`.
+The key stays on the server: it never reaches a command line, the logs or the browser.
 
 ## What it costs
 
@@ -131,8 +138,8 @@ With the first three, a full cycle on API keys is about $3 to $5.
 | Identity              | [`lib/identity.ts`](./lib/identity.ts)                                     | Verifies the end-user token the platform sends, and refuses a call without one.                                                                                          |
 | Simulated venues      | [`lib/venues.ts`](./lib/venues.ts)                                         | Crowds for the in-session room scripts, each a table of how well it knows each genre. Seeded, so a run repeats exactly.                                                  |
 | Operator-built Recipe | [`recipe-operator/`](./recipe-operator)                                    | What a fresh Operator session built from [WALKTHROUGH.md](./WALKTHROUGH.md): the version to hill-climb on. Its bank is a contract it designed, not this one.             |
-| The page              | [`components/platform-evals.tsx`](./components/platform-evals.tsx)         | A card per venue: what night 1 learned, how each night 2 opened, and each trial's steps and checks.                                                                      |
-| Platform evals        | [`lib/platform-runner.ts`](./lib/platform-runner.ts), `/api/evals`         | Runs the memory evals as cloud trials, and puts each trial's result and its steps ([`lib/trial-steps.ts`](./lib/trial-steps.ts)) on the events feed.                     |
+| The page              | [`components/platform-evals.tsx`](./components/platform-evals.tsx)         | A card per venue: what night 1 learned, how each night 2 opened, and each trial's rounds and checks.                                                                     |
+| Platform evals        | [`lib/platform-runner.ts`](./lib/platform-runner.ts), `/api/evals`         | Runs the memory evals as `kind: eval` tasks that verify themselves, through the SDK; `/api/evals/<run>` moves a run on and `/api/evals/trials/<task>` reads a result.    |
 
 ## Who owns what
 

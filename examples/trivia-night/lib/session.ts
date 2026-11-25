@@ -1,25 +1,32 @@
 /**
  * Sign-in for the page: the platform's hosted login for a `spa` application
  * (authorization code + PKCE), exchanged on this server, which keeps the
- * signed-in member as an opaque session behind an httpOnly cookie. The browser
- * never holds a platform token, and trials still run with the agent key.
- * Server only.
+ * signed-in member in an httpOnly cookie sealed with AES-256-GCM under
+ * TRIVIA_SESSION_SECRET, so any instance of the page can read it and none
+ * holds it. The browser never holds a platform token, and trials still run
+ * with the agent key. Server only.
  */
-import { createHash, randomBytes } from "node:crypto";
-import { readFileSync } from "node:fs";
-
 import {
-  IntrospectionClient,
-  authorizationCodeToken,
-} from "@introspection-sdk/introspection-node";
+  createCipheriv,
+  createDecipheriv,
+  createHash,
+  randomBytes,
+} from "node:crypto";
+
+import { authorizationCodeToken } from "@introspection-sdk/introspection-node";
 import { decodeJwt } from "jose";
 
-import { apiBaseUrl, keyFile, resolveTarget } from "./platform-runner";
+import { platformClient, resolveTarget, type Env } from "./platform-runner";
 
 export const SESSION_COOKIE = "trivia_session";
 export const LOGIN_COOKIE = "trivia_login";
 /** The page makes no platform call with the token, so it asks for the least. */
 const LOGIN_SCOPE = "tasks:read";
+const MIN_SECRET_LENGTH = 32;
+const IV_BYTES = 12;
+const TAG_BYTES = 16;
+/** Bound into every sealed value, so a value sealed for another purpose never opens as a session. */
+const SEAL_AAD = Buffer.from("trivia-night/session/v1");
 
 export interface Session {
   member_id: string;
@@ -38,31 +45,75 @@ export class LoginRefused extends Error {
 }
 
 const store = globalThis as unknown as {
-  __triviaSignIns?: Map<string, Session>;
-  __triviaKeyProject?: { file: string; project: string };
+  __triviaKeyProject?: { runtime: string; project: string };
 };
-const sessions = (store.__triviaSignIns ??= new Map());
 
-export function spaClientId(env: NodeJS.ProcessEnv = process.env): string {
+export function spaClientId(env: Env = process.env): string {
   return env.TRIVIA_SPA_CLIENT_ID?.trim() ?? "";
+}
+
+/** The sealing key, from TRIVIA_SESSION_SECRET, or why there is none. */
+export function sessionKey(
+  env: Env = process.env,
+): { key: Buffer } | { missing: string } {
+  const secret = env.TRIVIA_SESSION_SECRET?.trim() ?? "";
+  if (secret.length < MIN_SECRET_LENGTH)
+    return {
+      missing: `TRIVIA_SESSION_SECRET must be set to at least ${MIN_SECRET_LENGTH} characters (openssl rand -base64 32)`,
+    };
+  return { key: createHash("sha256").update(secret).digest() };
+}
+
+export function sealSession(session: Session, key: Buffer): string {
+  const iv = randomBytes(IV_BYTES);
+  const cipher = createCipheriv("aes-256-gcm", key, iv);
+  cipher.setAAD(SEAL_AAD);
+  const sealed = Buffer.concat([
+    cipher.update(JSON.stringify(session), "utf8"),
+    cipher.final(),
+  ]);
+  return Buffer.concat([iv, sealed, cipher.getAuthTag()]).toString("base64url");
+}
+
+/** The session a sealed value holds, or null when it was not sealed with `key` or is malformed. */
+export function openSession(value: string, key: Buffer): Session | null {
+  const bytes = Buffer.from(value, "base64url");
+  if (bytes.length <= IV_BYTES + TAG_BYTES) return null;
+  const decipher = createDecipheriv(
+    "aes-256-gcm",
+    key,
+    bytes.subarray(0, IV_BYTES),
+  );
+  decipher.setAAD(SEAL_AAD);
+  decipher.setAuthTag(bytes.subarray(bytes.length - TAG_BYTES));
+  let plain: string;
+  try {
+    plain = Buffer.concat([
+      decipher.update(bytes.subarray(IV_BYTES, bytes.length - TAG_BYTES)),
+      decipher.final(),
+    ]).toString("utf8");
+  } catch {
+    // A forged, tampered or rotated-out cookie: no session.
+    return null;
+  }
+  const parsed = JSON.parse(plain) as Partial<Session>;
+  if (
+    typeof parsed.member_id !== "string" ||
+    typeof parsed.org_id !== "string" ||
+    typeof parsed.project_id !== "string" ||
+    typeof parsed.expires_at !== "number"
+  )
+    return null;
+  return parsed as Session;
 }
 
 /** The project the agent key runs trials in: its runtime's, read with the key. */
 export async function keyProject(): Promise<string> {
-  const found = keyFile();
-  if ("missing" in found) throw new Error(found.missing);
-  if (store.__triviaKeyProject?.file === found.file)
+  const target = await resolveTarget();
+  if (store.__triviaKeyProject?.runtime === target.runtime)
     return store.__triviaKeyProject.project;
-  const target = await resolveTarget({
-    ...process.env,
-    INTROSPECTION_API_BASE_URL: apiBaseUrl(),
-  });
-  const client = new IntrospectionClient({
-    token: readFileSync(found.file, "utf8").trim(),
-    advanced: { baseApiUrl: apiBaseUrl() },
-  });
-  const { project_id } = await client.runtimes.get(target.runtime);
-  store.__triviaKeyProject = { file: found.file, project: project_id };
+  const { project_id } = await platformClient().runtimes.get(target.runtime);
+  store.__triviaKeyProject = { runtime: target.runtime, project: project_id };
   return project_id;
 }
 
@@ -71,7 +122,7 @@ export function loginRequest(
   clientId: string,
   project: string,
   redirectUri: string,
-  cpUrl: string = apiBaseUrl(),
+  cpUrl: string,
 ): { url: string; cookie: string } {
   const verifier = randomBytes(32).toString("base64url");
   const state = randomBytes(16).toString("base64url");
@@ -98,12 +149,14 @@ export interface Callback {
   cookie: string | undefined;
   redirectUri: string;
   clientId: string;
+  cpUrl: string;
   /** The project the agent key runs in; the member must be signed in to it. */
   project: () => Promise<string>;
+  key: Buffer;
 }
 
 /**
- * Exchanges the code and opens a session for the member it signed in, only in
+ * Exchanges the code and seals a session for the member it signed in, only in
  * the agent key's project. The token comes straight from the Control Plane in
  * reply to this server's own PKCE exchange, so its claims are read as issued.
  */
@@ -111,7 +164,7 @@ export async function completeLogin(
   callback: Callback,
   exchange: typeof authorizationCodeToken = authorizationCodeToken,
   now = Date.now(),
-): Promise<{ id: string; session: Session }> {
+): Promise<{ cookie: string; session: Session }> {
   const flow = callback.cookie
     ? (JSON.parse(callback.cookie) as { verifier?: string; state?: string })
     : {};
@@ -122,7 +175,7 @@ export async function completeLogin(
     clientId: callback.clientId,
     redirectUri: callback.redirectUri,
     codeVerifier: flow.verifier,
-    baseApiUrl: apiBaseUrl(),
+    baseApiUrl: callback.cpUrl,
   });
   const claims = decodeJwt(token.access_token);
   const member = claims.member_id;
@@ -141,21 +194,19 @@ export async function completeLogin(
     project_id: project,
     expires_at: now + token.expires_in * 1000,
   };
-  const id = randomBytes(32).toString("base64url");
-  sessions.set(id, session);
-  return { id, session };
+  return { cookie: sealSession(session, callback.key), session };
 }
 
-/** The live session a cookie names, or null. */
+/** The live session a sealed cookie value holds, or null. */
 export function sessionFor(
-  id: string | undefined,
+  value: string | undefined,
   now = Date.now(),
+  env: Env = process.env,
 ): Session | null {
-  const session = id ? sessions.get(id) : undefined;
-  if (!session) return null;
-  if (session.expires_at > now) return session;
-  sessions.delete(id!);
-  return null;
+  const sealing = sessionKey(env);
+  if (!value || "missing" in sealing) return null;
+  const session = openSession(value, sealing.key);
+  return session && session.expires_at > now ? session : null;
 }
 
 /** What a route may act for: a live session in the agent key's project, or why not. */
@@ -182,7 +233,7 @@ export async function requireSession(
   return { session };
 }
 
-/** The session id a request's cookie carries. */
+/** The sealed session a request's cookie carries. */
 export function sessionCookie(request: Request): string | undefined {
   for (const part of request.headers.get("cookie")?.split(";") ?? []) {
     const [name, ...value] = part.trim().split("=");

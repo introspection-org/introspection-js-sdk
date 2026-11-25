@@ -40,6 +40,8 @@ import {
 
 interface Config {
   configured: boolean;
+  /** The newest run, finished or not. */
+  latest?: string | null;
   max_venues?: number;
   max_venues_by_pubs?: Record<Pubs, number>;
   team_sizes?: number[];
@@ -62,8 +64,6 @@ interface FeedEvent {
   summary: string;
   data: Record<string, unknown>;
 }
-
-const MAX_STEPS = 3000;
 
 /** A session that ended sends the browser back through the sign-in. */
 function signedOut(response: Response): boolean {
@@ -291,26 +291,35 @@ function venueParts(trial: Trial | undefined, venue: string) {
   return match ? `${match[1]} · ${match[2]}` : label;
 }
 
-function fold(
-  view: RunView | undefined,
-  event: FeedEvent,
-): RunView | undefined {
-  const run = event.data.run as string;
-  const current: RunView =
-    view && view.run === run
-      ? { ...view, trials: new Map(view.trials) }
-      : { run, trials: new Map<string, Trial>() };
-  if (event.type === "eval.started") {
-    const started = event.data as unknown as EvalStarted;
-    current.trials.set(`${started.venue}/${started.night}`, { started });
-  } else if (event.type === "eval.finished") {
-    const finished = event.data as unknown as EvalFinished;
-    const key = `${finished.venue}/${finished.night}`;
-    current.trials.set(key, { started: finished, finished });
-  } else if (event.type === "eval.run_finished") {
-    current.finished = event.data as unknown as EvalRunFinished;
+/** A run as `/api/evals/<run>` reports it. */
+interface RunState {
+  run: string;
+  trials: {
+    key: string;
+    step: EvalStarted;
+    task_id: string | null;
+    status: string;
+    done: boolean;
+    finished: EvalFinished | null;
+  }[];
+  finished: EvalRunFinished | null;
+}
+
+/** The trials that have started, each with its result once it is read. */
+function runView(state: RunState, results: Map<string, EvalFinished>): RunView {
+  const trials = new Map<string, Trial>();
+  for (const trial of state.trials) {
+    const finished =
+      trial.finished ??
+      (trial.task_id ? results.get(trial.task_id) : undefined);
+    if (finished) trials.set(trial.key, { started: finished, finished });
+    else if (trial.task_id) trials.set(trial.key, { started: trial.step });
   }
-  return current;
+  return {
+    run: state.run,
+    trials,
+    finished: state.finished ?? undefined,
+  };
 }
 
 /** A night 2's judge score and its reason, or why it has none. */
@@ -632,57 +641,49 @@ export function PlatformEvals() {
       // Storage blocked: the choice lasts for this page only.
     }
   };
-  const [steps, setSteps] = useState<FeedEvent[]>([]);
-  const cursor = useRef(0);
+  // A platform trial's steps would come from its trajectory, which the page cannot read yet.
+  const steps: FeedEvent[] = [];
+  const run = useRef<string | null>(null);
+  const results = useRef(new Map<string, EvalFinished>());
 
   const loadConfig = useCallback(async () => {
     const response = await fetch("/api/evals");
     if (signedOut(response)) return;
     const body = await response.json();
     if (!response.ok) setError(body.error);
-    else setConfig(body);
+    else {
+      setConfig(body);
+      run.current ??= body.latest ?? null;
+    }
   }, []);
 
   const poll = useCallback(async () => {
-    const response = await fetch(`/api/events?after=${cursor.current}`);
+    const id = run.current;
+    if (!id) return;
+    const response = await fetch(`/api/evals/${id}`);
     if (signedOut(response)) return;
-    const more = { events: [], ...(await response.json()) } as {
-      events: FeedEvent[];
-    };
-    if (!more.events.length) return;
-    cursor.current = Math.max(
-      cursor.current,
-      more.events[more.events.length - 1].seq,
+    const body = await response.json();
+    if (!response.ok) {
+      setError(body.error);
+      return;
+    }
+    const state = body as RunState;
+    // A finished trial's result never changes, so each is read once.
+    await Promise.all(
+      state.trials
+        .filter((trial) => trial.done && trial.task_id)
+        .filter((trial) => !results.current.has(trial.task_id!))
+        .map(async (trial) => {
+          const read = await fetch(`/api/evals/trials/${trial.task_id}`);
+          if (read.ok) results.current.set(trial.task_id!, await read.json());
+        }),
     );
-    setView((current) =>
-      more.events
-        .filter((event) => event.type.startsWith("eval."))
-        .reduce(fold, current),
-    );
-    // Two polls can overlap (React runs effects twice in development), so an
-    // event already kept is skipped rather than kept again.
-    setSteps((current) => {
-      const seen = new Set(current.map((event) => event.seq));
-      const fresh = more.events.filter(
-        (event) =>
-          !event.type.startsWith("eval.") &&
-          typeof event.data.venue === "string" &&
-          !seen.has(event.seq),
-      );
-      return fresh.length ? [...current, ...fresh].slice(-MAX_STEPS) : current;
-    });
-    const finished = new Set(
-      more.events
-        .filter((event) => event.type === "eval.run_finished")
-        .map((event) => event.data.run as string),
-    );
-    if (finished.size)
+    setView(runView(state, results.current));
+    if (state.finished)
       setConfig(
         (current) =>
           current &&
-          (current.active && finished.has(current.active)
-            ? { ...current, active: null }
-            : current),
+          (current.active === id ? { ...current, active: null } : current),
       );
   }, []);
 
@@ -722,7 +723,11 @@ export function PlatformEvals() {
     if (signedOut(response)) return;
     const body = await response.json();
     if (!response.ok) setError(body.error);
-    else setConfig((current) => current && { ...current, active: body.run });
+    else {
+      run.current = body.run;
+      results.current.clear();
+      setConfig((current) => current && { ...current, active: body.run });
+    }
     await poll();
   };
 
@@ -996,7 +1001,8 @@ export function PlatformEvals() {
       : "No results yet."
     : !order
       ? `Model notes vs no notes, across ${pubCount} pub${pubCount === 1 ? "" : "s"}: ${primary?.verdict.toLowerCase() ?? "no result"} on good rounds${hasOther ? "; waiting for the other notes" : ""}.`
-      : order.holds &&
+      : view?.finished &&
+          order.holds &&
           primary?.verdict === "Better" &&
           primary.wrong?.tone === "good"
         ? "Memory helps because of what it remembered: model notes beat no notes, and other notes did worst."
@@ -1449,14 +1455,14 @@ export function PlatformEvals() {
                 {rows.map(barRow)}
               </div>
             )}
-            {nightView === "steps" && experienceRows.length > 0 && (
-              <div className="bars">
-                <p className="fine bars-key">
-                  <strong>Experience measures (don&apos;t test memory)</strong>
-                </p>
+            {experienceRows.length > 0 && (
+              <details className="bars">
+                <summary className="fine bars-key">
+                  <strong>More measures (don&apos;t test memory)</strong>
+                </summary>
                 {experienceRows.map(barRow)}
                 {otherRows.map(barRow)}
-              </div>
+              </details>
             )}
             {judgeError && <p className="amber">Judge: {judgeError}</p>}
             <details className="fine how">

@@ -2,8 +2,19 @@
  * The return-visit judge over one finished night 2: its trajectory.json as the
  * normalized conversation `introspection judges run --conversation` reads, the
  * command that grades it, and the score read back from its results.jsonl.
+ * Run locally only: the page itself does not judge, since it spawns nothing.
  */
-import type { SpawnSpec } from "./platform-evals";
+/** A command line and its options, for `node:child_process` spawn. */
+export interface SpawnSpec {
+  command: string;
+  args: string[];
+  options: {
+    cwd: string;
+    env: Record<string, string | undefined>;
+    shell: false;
+    stdio: ["ignore", "pipe", "pipe"];
+  };
+}
 
 export const JUDGE_FILE = "judges/return-visit.yaml";
 export const JUDGE_NAME = "return-visit";

@@ -326,76 +326,6 @@ async function main() {
     }
     return folder;
   };
-  const passedTrial = "harbor/night1-memory__Ab12Cd";
-  const passedFiles = {
-    "run.json": {
-      schema_version: 11,
-      id: "2026-11-23__10-00-00",
-      runner: "harbor",
-      suite_path: "evals/harbor/night1-memory",
-      status: "completed",
-      candidate: { runtime: "00000000-0000-7000-8000-000000000001" },
-      result: {
-        metrics: { cases_passed: 1.0, cases_total: 1.0, reward: 1.0 },
-        completion_reason: "completed",
-        diagnostics: [],
-      },
-      started_at: "1795400000",
-      completed_at: "1795400180",
-    },
-    [`${passedTrial}/result.json`]: {
-      task_name: "trivia-host/night1-memory",
-      trial_name: "night1-memory__Ab12Cd",
-      agent_result: { metadata: { trajectory_source: "sandbox" } },
-      verifier_result: { rewards: { reward: 1.0 } },
-      exception_info: null,
-    },
-    [`${passedTrial}/verifier/test-stdout.txt`]: JSON.stringify(
-      {
-        reward: 1,
-        night_started: 1,
-        round_fetched: 1,
-        notes_written: 1,
-        notes_name_no_team: 1,
-        notes: "# The venue\n\n- Country: UK\n",
-      },
-      null,
-      2,
-    ),
-    [`${passedTrial}/artifacts/memories/MEMORY.md`]:
-      "# The venue\n\n- Country: UK\n- Likes: music, film\n- Difficulty: 3\n",
-  };
-  const failedFiles = {
-    "run.json": {
-      schema_version: 11,
-      id: "2026-11-23__10-00-01",
-      runner: "harbor",
-      suite_path: "evals/harbor/night2-control",
-      status: "completed",
-      result: {
-        metrics: { cases_incomplete: 1.0, cases_total: 1.0 },
-        completion_reason: "completed_with_errors",
-        diagnostics: [
-          {
-            trial: "night2-control__Zz99Yy",
-            kind: "RuntimeError",
-            message: "the trial sandbox did not start",
-          },
-        ],
-      },
-    },
-    "harbor/night2-control__Zz99Yy/result.json": {
-      task_name: "trivia-host/night2-control",
-      trial_name: "night2-control__Zz99Yy",
-      agent_result: null,
-      verifier_result: null,
-      exception_info: {
-        exception_type: "RuntimeError",
-        exception_message: "the trial sandbox did not start\n",
-      },
-    },
-  };
-
   await check("platform evals: each venue's four night 2s", () => {
     const profiles = [
       { slug: "melbourne", label: "Melbourne (AU)", region: "au" },
@@ -752,65 +682,638 @@ async function main() {
     }
   });
 
-  await check("platform evals: the key goes only in the environment", () => {
-    const key = "intro_sk_secret_value";
-    const spec = evals.spawnSpec(
-      evals.plan("r1", 1, [
-        { slug: "sydney", label: "Sydney (AU)", region: "au" },
-      ])[0][1],
-      { runtime: "rt-1", commit: "abc123" },
-      "/work/recipe-operator",
-      { token: key, apiBaseUrl: "http://localhost:8000" },
-      { PATH: "/bin" },
+  const runner = await import("../lib/platform-runner");
+  const { tarGz } = await import("../lib/tar");
+  const TARGET = {
+    runtime: "01a20a7c-077e-7066-8429-59576969a693",
+    commit: "393c952f976e52419f415a60b4f6c6944776eb2b",
+    slug: "trivia-host",
+    repository: "9e02cb78-24f4-57f0-8725-568e0dfff815",
+    recipe_path: "",
+  };
+  const FAKES_TREE = "ac4d3d2e716a728b3afa1763a9181ee8e1fd7d05";
+  const COMPOSE = [
+    "services:",
+    "  main:",
+    "    depends_on:",
+    "      fakes:",
+    "        condition: service_healthy",
+    "    volumes:",
+    "      - fakes-verifier:/opt/fakes-verifier:ro",
+    "  fakes:",
+    "    build:",
+    "      context: ../../../../fakes",
+    "    environment:",
+    '      EVAL_SIMULATE_NIGHT: "1"',
+    "    volumes:",
+    "      - fakes-verifier:/verifier",
+    "volumes:",
+    "  fakes-verifier: {}",
+    "",
+  ].join("\n");
+  /** One Harbor task as the hosted repository holds it. */
+  const taskFiles = (task: string) => ({
+    [`evals/harbor/${task}/instruction.md`]: `Play ${task}.\n`,
+    [`evals/harbor/${task}/task.toml`]:
+      '[task]\nname = "trivia-host/x"\n\n[verifier]\ntimeout_sec = 120.0\n',
+    [`evals/harbor/${task}/tests/test.sh`]:
+      "#!/bin/sh\nnode /tests/check.mjs\n",
+    [`evals/harbor/${task}/tests/check.mjs`]: "console.log('{}')\n",
+    [`evals/harbor/${task}/tests/expected.json`]: JSON.stringify({
+      region: "au",
+      liked: ["film"],
+    }),
+    [`evals/harbor/${task}/environment/docker-compose.yaml`]: COMPOSE,
+  });
+  const REPO: Record<string, string> = {
+    ...taskFiles("night1-sydney"),
+    ...taskFiles("night2-sydney"),
+    ...taskFiles("night0-sydney"),
+    "fakes/Dockerfile": "FROM node:22-slim\n",
+  };
+  const KEY = "intro_sk_secret_value";
+
+  /** An in-memory platform: tasks, files, images and the hosted repository, through the SDK's shapes. */
+  function fakePlatform() {
+    const tasks: Record<string, Record<string, unknown>>[] = [];
+    const calls: string[] = [];
+    const files = new Map<string, Uint8Array>();
+    let next = 0;
+    const id = () =>
+      `0199a1b2-0000-7000-8000-${String(++next).padStart(12, "0")}`;
+    const pages = <T>(records: T[]) =>
+      Object.assign(Promise.resolve({ records, next: null }), {
+        async *[Symbol.asyncIterator]() {
+          yield* records;
+        },
+      });
+    const entries = (dir: string) => {
+      const prefix = dir ? `${dir}/` : "";
+      const seen = new Map<string, { type: string; sha: string }>();
+      for (const file of Object.keys(REPO)) {
+        if (!file.startsWith(prefix)) continue;
+        const [name, ...rest] = file.slice(prefix.length).split("/");
+        seen.set(name, {
+          type: rest.length ? "dir" : "file",
+          sha: `${prefix}${name}` === "fakes" ? FAKES_TREE : "f".repeat(40),
+        });
+      }
+      return [...seen].map(([name, { type, sha }]) => ({
+        name,
+        path: `${prefix}${name}`,
+        type,
+        size: 1,
+        sha,
+      }));
+    };
+    const contents = Object.assign(
+      (_repo: string, params: { path?: string; ref?: string }) => {
+        assert.equal(params.ref, TARGET.commit);
+        return pages(entries(params.path ?? ""));
+      },
+      {
+        get: async (_repo: string, file: string, params: { ref?: string }) => {
+          assert.equal(params.ref, TARGET.commit);
+          if (!(file in REPO))
+            throw Object.assign(new Error("not found"), { status: 404 });
+          return {
+            type: "file",
+            content: REPO[file],
+            encoding: "utf-8",
+            truncated: false,
+          };
+        },
+      },
     );
-    assert.equal(spec.command, "introspection");
-    assert.equal(spec.options.shell, false);
-    assert.equal(spec.options.cwd, "/work/recipe-operator");
-    assert.ok(spec.args.every((arg) => !arg.includes(key)));
-    assert.deepEqual(spec.args, [
-      "eval",
-      "run",
-      "-r",
-      "rt-1",
-      "--commit-sha",
-      "abc123",
-      "--path",
-      "evals/harbor/night2-sydney",
-      "--identity",
-      "anon:sim-r1-sydney",
-      "--tag",
-      "simulation:r1",
-      "--tag",
-      "simulation:trivia-night",
-      "-y",
-    ]);
-    assert.equal(spec.options.env.INTROSPECTION_TOKEN, key);
-    assert.equal(
-      spec.options.env.INTROSPECTION_API_BASE_URL,
-      "http://localhost:8000",
-    );
-    assert.equal(
-      spec.options.env.INTROSPECTION_EVAL_RUNS_DIR,
-      "/work/recipe-operator/eval-runs/r1/sydney-night2-hosted",
-    );
-    assert.equal(
-      evals.errorText(`failed with ${key}`, key),
-      "failed with [redacted]",
-    );
-    assert.equal(
-      evals.errorText(
+    const find = (taskId: string) => {
+      const task = tasks.find((t) => t.task.id === taskId);
+      assert.ok(task, `no task ${taskId}`);
+      return task.task;
+    };
+    const client = {
+      runtimes: {
+        resolve: async () => ({
+          id: TARGET.runtime,
+          slug: "trivia-host",
+          git_commit_sha: TARGET.commit,
+          recipe_id: "recipe-1",
+          project_id: "p-1",
+        }),
+        get: async () => ({ id: TARGET.runtime, project_id: "p-1" }),
+      },
+      recipes: {
+        get: async () => ({ repository_id: TARGET.repository, sub_path: "." }),
+      },
+      repositories: { contents },
+      images: {
+        list: async (params: { name: string; status: string }) => {
+          return {
+            records:
+              params.name === `trivia-night/fakes/${FAKES_TREE.slice(0, 12)}`
+                ? [{ image_ref: "registry/fakes:x", image_digest: "sha256:1" }]
+                : [],
+          };
+        },
+      },
+      files: {
+        upload: async (body: { file: Uint8Array; ttl_seconds?: number }) => {
+          const fileId = id();
+          files.set(fileId, body.file);
+          assert.ok(body.ttl_seconds);
+          return { id: fileId };
+        },
+        download: async (fileId: string) => files.get(fileId)!,
+      },
+      tasks: {
+        create: async (body: Record<string, unknown>) => {
+          const task = {
+            id: id(),
+            created_at: new Date(
+              Date.UTC(2026, 10, 24, 0, 0, next),
+            ).toISOString(),
+            updated_at: "2026-11-24T00:00:00Z",
+            status: "queued",
+            is_archived: false,
+            tags: body.tags,
+            metadata: body.metadata,
+            verification: { status: "pending" },
+          };
+          tasks.push({ task, body });
+          calls.push(
+            `create ${(body.metadata as Record<string, { step: string }>).trivia_night.step}`,
+          );
+          return { task, run: { id: "run", task_id: task.id } };
+        },
+        list: (params: { tag?: string }) =>
+          pages(
+            tasks
+              .map((t) => t.task)
+              .filter((t) => (t.tags as string[]).includes(params.tag!))
+              .reverse(),
+          ),
+        get: async (taskId: string) => find(taskId),
+        update: async (taskId: string, body: { status?: string }) => {
+          calls.push(`complete ${taskId}`);
+          assert.deepEqual(body, { status: "completed" });
+          return find(taskId);
+        },
+        archive: async (taskId: string) => {
+          calls.push(`archive ${taskId}`);
+          find(taskId).is_archived = true;
+        },
+      },
+    };
+    const step = (key: string) => {
+      const found = tasks.find(
+        (t) =>
+          (t.task.metadata as Record<string, { step: string }>).trivia_night
+            .step === key,
+      );
+      assert.ok(found, `no task for ${key}`);
+      return found;
+    };
+    /** Scores a step's trial as the platform would: a log, a result and its status. */
+    const score = (key: string, printed: object, status = "completed") => {
+      const logId = id();
+      const resultId = id();
+      files.set(logId, Buffer.from(`noise\n${JSON.stringify(printed)}\n`));
+      files.set(resultId, Buffer.from(JSON.stringify({ reward: 1 })));
+      Object.assign(step(key).task, {
+        status,
+        started_at: "2026-11-24T00:00:00Z",
+        completed_at: "2026-11-24T00:01:30Z",
+        verification: {
+          status: "completed",
+          reward: (printed as { reward?: number }).reward ?? null,
+          exit_code: 0,
+          log_file_id: logId,
+          result_file_id: resultId,
+          completed_at: "2026-11-24T00:01:30Z",
+        },
+      });
+    };
+    return {
+      client:
+        client as unknown as import("../lib/platform-runner").PlatformClient,
+      tasks,
+      calls,
+      files,
+      step,
+      score,
+    };
+  }
+
+  await check(
+    "platform evals: the agent key comes from the environment, else its file",
+    () => {
+      const dir = mkdtempSync(path.join(tmpdir(), "trivia-key-"));
+      const file = path.join(dir, "agent.key");
+      writeFileSync(file, `${KEY}\n`);
+      assert.deepEqual(runner.agentKey({ TRIVIA_AGENT_KEY: ` ${KEY} ` }), {
+        token: KEY,
+      });
+      assert.deepEqual(runner.agentKey({ TRIVIA_EVAL_KEY_FILE: file }), {
+        token: KEY,
+      });
+      assert.deepEqual(
+        runner.agentKey({
+          TRIVIA_AGENT_KEY: "from-env",
+          TRIVIA_EVAL_KEY_FILE: file,
+        }),
+        { token: "from-env" },
+      );
+      assert.match(
+        (
+          runner.agentKey({ TRIVIA_EVAL_KEY_FILE: path.join(dir, "none") }) as {
+            missing: string;
+          }
+        ).missing,
+        /does not exist/,
+      );
+      assert.ok("missing" in runner.agentKey({}));
+      assert.equal(
+        runner.dpBaseUrl({
+          INTROSPECTION_API_BASE_URL: "http://localhost:8000",
+        }),
+        "http://localhost:8000",
+      );
+      assert.equal(
+        runner.dpBaseUrl({ INTROSPECTION_DP_URL: "http://localhost:8002" }),
+        "http://localhost:8002",
+      );
+      rmSync(dir, { recursive: true });
+    },
+  );
+
+  await check(
+    "platform evals: a tests archive unpacks with plain tar and has no . entry",
+    () => {
+      const dir = mkdtempSync(path.join(tmpdir(), "trivia-tar-"));
+      const archive = path.join(dir, "tests.tar.gz");
+      const files = [
+        { path: "test.sh", content: Buffer.from("#!/bin/sh\n"), mode: 0o755 },
+        { path: "nested/expected.json", content: Buffer.from("{}") },
+      ];
+      writeFileSync(archive, tarGz(files));
+      assert.deepEqual(Buffer.from(tarGz(files)), readFileSync(archive));
+      assert.deepEqual(
+        execFileSync("tar", ["-tzf", archive], { encoding: "utf8" })
+          .trim()
+          .split("\n"),
+        ["nested/expected.json", "test.sh"],
+      );
+      execFileSync("tar", ["-xzf", archive, "-C", dir]);
+      assert.equal(
+        readFileSync(path.join(dir, "test.sh"), "utf8"),
+        "#!/bin/sh\n",
+      );
+      assert.ok(statSync(path.join(dir, "test.sh")).mode & 0o100);
+      rmSync(dir, { recursive: true });
+    },
+  );
+
+  await check(
+    "platform evals: a trial is a kind=eval task carrying its own verifier",
+    async () => {
+      const { client, tasks } = fakePlatform();
+      const definition = await runner.readTaskDefinition(
+        client,
+        TARGET,
+        "night1-sydney",
+      );
+      assert.equal(definition.instruction, "Play night1-sydney.");
+      assert.equal(definition.verifierSeconds, 120);
+      assert.deepEqual(definition.contexts, { fakes: "fakes" });
+      assert.deepEqual(definition.tastes, { region: "au", liked: ["film"] });
+      assert.deepEqual(
+        definition.tests.map((f) => [f.path, f.mode]),
         [
-          "  Harbor adapter native, environment introspection_harbor.task_environment:IntrospectionEnvironment",
-          "Error: The installed Introspection Harbor adapter is not compatible with this CLI.",
-          "",
-          "Run:",
-          "  introspection setup --target harbor",
-        ].join("\n"),
-        key,
-      ),
-      "Error: The installed Introspection Harbor adapter is not compatible with this CLI.\n\nRun:\n  introspection setup --target harbor",
+          ["test.sh", 0o755],
+          ["check.mjs", 0o644],
+          ["expected.json", 0o644],
+        ],
+      );
+      const images = await runner.sidecarImages(client, TARGET, definition);
+      assert.deepEqual(images, { fakes: "registry/fakes:x@sha256:1" });
+      const compose = runner.trialCompose(definition.compose, images);
+      assert.deepEqual(compose, {
+        services: {
+          main: {
+            depends_on: { fakes: { condition: "service_healthy" } },
+            volumes: [
+              "fakes-verifier:/opt/fakes-verifier:ro",
+              "harbor-logs:/logs",
+              "harbor-tests:/tests",
+            ],
+          },
+          fakes: {
+            environment: { EVAL_SIMULATE_NIGHT: "1" },
+            volumes: ["fakes-verifier:/verifier"],
+            image: "registry/fakes:x@sha256:1",
+          },
+        },
+        volumes: {
+          "fakes-verifier": {},
+          "harbor-logs": null,
+          "harbor-tests": null,
+        },
+      });
+      assert.throws(
+        () =>
+          runner.trialCompose({ services: { main: { image: "mine" } } }, {}),
+        /Runtime image fills main/,
+      );
+      const record = {
+        run: "r1",
+        venues: 1,
+        teams: 5 as const,
+        pubs: "development" as const,
+        started_by: "m-1",
+        started_at: "2026-11-24T00:00:00Z",
+        target: TARGET,
+      };
+      const step = evals.runSteps(record)[0];
+      const body = runner.trialBody(
+        record,
+        step,
+        definition,
+        compose,
+        "file-1",
+      );
+      assert.deepEqual(
+        { ...body, compose: undefined, metadata: undefined },
+        {
+          prompt: "Play night1-sydney.",
+          kind: "eval",
+          runtime_id: TARGET.runtime,
+          recipe_git_commit_sha: TARGET.commit,
+          commands: true,
+          idle_timeout_seconds: 3600,
+          tags: ["simulation:r1", "simulation:trivia-night"],
+          compose: undefined,
+          verifier: {
+            tests_file_id: "file-1",
+            command: ["sh", "/tests/test.sh"],
+            reward_path: "/logs/verifier/reward.json",
+            timeout_seconds: 120,
+          },
+          metadata: undefined,
+        },
+      );
+      assert.deepEqual(body.metadata, {
+        identity: {
+          anonymous_id: "sim-r1-sydney",
+          tags: ["simulation:r1", "simulation:trivia-night"],
+        },
+        trivia_night: { step: "sydney/night1-memory", record },
+      });
+      assert.ok(!JSON.stringify(body).includes(KEY));
+      assert.equal(tasks.length, 0);
+    },
+  );
+
+  await check(
+    "platform evals: a context with no image says how to build it",
+    async () => {
+      const { client } = fakePlatform();
+      const definition = await runner.readTaskDefinition(
+        client,
+        TARGET,
+        "night1-sydney",
+      );
+      await assert.rejects(
+        runner.sidecarImages(
+          client,
+          { ...TARGET },
+          {
+            ...definition,
+            contexts: { fakes: "evals" },
+          },
+        ),
+        /pnpm sidecar:image/,
+      );
+    },
+  );
+
+  await check("platform evals: the verifier's log and result are read", () => {
+    const log = `starting\n${JSON.stringify({
+      reward: 1,
+      night_started: 1,
+      good_rounds: 0.5,
+      notes: "  # Notes\n",
+      fetches: [{ round: 1, correct_rate: 0.6 }],
+      rounds: [{ round: 1, genre: "film", questions: [] }],
+    })}\n`;
+    const out = evals.verifierOutput(log, '{"reward": 0}', 1);
+    assert.equal(out.reward, 1);
+    assert.deepEqual(out.checks, { night_started: 1, good_rounds: 0.5 });
+    assert.equal(out.notes, "# Notes");
+    assert.equal(out.fetches.length, 1);
+    assert.equal(out.rounds[0].genre, "film");
+    // No JSON in the log: the result file stands in.
+    assert.deepEqual(
+      evals.verifierOutput("Error: boom", '{"reward": 0, "notes_written": 0}'),
+      {
+        reward: 0,
+        checks: { notes_written: 0 },
+        notes: null,
+        fetches: [],
+        rounds: [],
+      },
+    );
+    assert.deepEqual(evals.verifierOutput(null, null).checks, {});
+  });
+
+  await check("platform evals: a trial's state and what ends it", () => {
+    const state = (task: Parameters<typeof evals.trialState>[0]) => ({
+      ...evals.trialState(task),
+      end: evals.readyToComplete(task),
+    });
+    assert.deepEqual(
+      state({ status: "running", verification: { status: "pending" } }),
+      {
+        done: false,
+        failed: false,
+        ended: false,
+        error: null,
+        end: false,
+      },
+    );
+    // Settled: completing the task is what verifies it.
+    assert.equal(
+      state({ status: "idle", verification: { status: "pending" } }).end,
+      true,
+    );
+    assert.equal(
+      state({ status: "finishing", verification: { status: "running" } }).done,
+      false,
+    );
+    // Scored while finishing: done, but its sandbox, and so its notes, not yet released.
+    assert.deepEqual(
+      state({
+        status: "finishing",
+        verification: { status: "completed", exit_code: 0 },
+      }),
+      { done: true, failed: false, ended: false, error: null, end: false },
+    );
+    assert.deepEqual(
+      state({
+        status: "completed",
+        verification: { status: "completed", exit_code: 0 },
+      }),
+      { done: true, failed: false, ended: true, error: null, end: false },
+    );
+    assert.equal(
+      state({
+        status: "completed",
+        verification: { status: "completed", exit_code: 2 },
+      }).error,
+      "the verifier exited 2",
+    );
+    assert.equal(
+      state({
+        status: "completed",
+        verification: { status: "failed", error: "no result" },
+      }).error,
+      "no result",
+    );
+    // Ended before it was scored: failed, with the task's own reason.
+    assert.deepEqual(
+      state({
+        status: "failed",
+        metadata: { error: "sandbox did not start" },
+        verification: { status: "pending" },
+      }),
+      {
+        done: true,
+        failed: true,
+        ended: true,
+        error: "sandbox did not start",
+        end: false,
+      },
     );
   });
+
+  await check(
+    "platform evals: a run moves on from its tasks alone, and each night 2 waits for its night 1",
+    async () => {
+      const platform = fakePlatform();
+      const { client, calls, step, score } = platform;
+      const started = await runner.startRun(
+        client,
+        1,
+        "m-1",
+        5,
+        "development",
+        new Date(Date.UTC(2026, 10, 24)),
+      );
+      assert.equal(started.run, `r${Date.UTC(2026, 10, 24)}`);
+      assert.deepEqual(started.target, TARGET);
+      assert.deepEqual(
+        calls.filter((c) => c.startsWith("create")),
+        [
+          "create sydney/night1-memory",
+          "create sydney/night2-fresh",
+          "create sydney/night0-seed",
+        ],
+      );
+      const run = started.run;
+      let view = (await runner.advanceRun(client, run))!;
+      assert.deepEqual(
+        view.trials.map((t) => [t.key, t.status]),
+        [
+          ["sydney/night1-memory", "queued"],
+          ["sydney/night2-hosted", "waiting"],
+          ["sydney/night2-fresh", "queued"],
+          ["sydney/night0-seed", "queued"],
+          ["sydney/night2-perfect", "waiting"],
+        ],
+      );
+      assert.equal(view.finished, null);
+      await assert.rejects(runner.startRun(client, 1, "m-1"), /still going/);
+
+      // Night 1 settles: the page completes it, which verifies it.
+      Object.assign(step("sydney/night1-memory").task, { status: "idle" });
+      calls.length = 0;
+      await runner.advanceRun(client, run);
+      assert.deepEqual(calls, [
+        `complete ${step("sydney/night1-memory").task.id}`,
+      ]);
+
+      // Scored but still tearing down: its night 2 waits for the notes to be kept.
+      score(
+        "sydney/night1-memory",
+        { reward: 1, notes: "# Sydney\n- likes film" },
+        "finishing",
+      );
+      calls.length = 0;
+      await runner.advanceRun(client, run);
+      assert.ok(!calls.some((c) => c.startsWith("create")));
+      Object.assign(step("sydney/night1-memory").task, { status: "completed" });
+      // Night 0 fails: the true-notes night 2 is skipped, never run.
+      Object.assign(step("sydney/night0-seed").task, {
+        status: "failed",
+        metadata: {
+          ...(step("sydney/night0-seed").task.metadata as object),
+          error: "no sandbox",
+        },
+      });
+      calls.length = 0;
+      view = (await runner.advanceRun(client, run))!;
+      assert.deepEqual(calls, ["create sydney/night2-hosted"]);
+      const perfect = view.trials.find(
+        (t) => t.key === "sydney/night2-perfect",
+      )!;
+      assert.equal(perfect.status, "skipped");
+      assert.equal(perfect.finished?.error, "skipped: night0-seed failed");
+      // The same identity runs night 2, so it loads night 1's notes.
+      const hosted = step("sydney/night2-hosted");
+      assert.deepEqual(
+        (hosted.body.metadata as { identity: unknown }).identity,
+        (step("sydney/night1-memory").body.metadata as { identity: unknown })
+          .identity,
+      );
+
+      // Two pages created the same night 2: the later task is archived, the first kept.
+      await client.tasks.create({ ...hosted.body });
+      calls.length = 0;
+      await runner.advanceRun(client, run);
+      assert.deepEqual(calls, [`archive ${platform.tasks.at(-1)!.task.id}`]);
+
+      score("sydney/night2-hosted", {
+        reward: 1,
+        good_rounds: 0.5,
+        fetches: [{ round: 1, genre: "film", correct_rate: 0.6 }],
+      });
+      score("sydney/night2-fresh", { reward: 1, good_rounds: 0.25 });
+      view = (await runner.advanceRun(client, run))!;
+      assert.deepEqual(view.finished, {
+        run,
+        seconds: 90,
+        trials: 5,
+        started_by: "m-1",
+      });
+      assert.equal(await runner.latestRun(client), run);
+
+      const result = (await runner.trialResult(
+        client,
+        hosted.task.id as string,
+      ))!;
+      assert.equal(result.night, "night2-hosted");
+      assert.equal(result.reward, 1);
+      assert.equal(result.checks.good_rounds, 0.5);
+      assert.equal(result.seconds, 90);
+      assert.equal(result.error, null);
+      assert.equal(result.round?.correct_rate, 0.6);
+      assert.ok(result.measures && Object.keys(result.measures).length > 0);
+      const seed = (await runner.trialResult(
+        client,
+        step("sydney/night0-seed").task.id as string,
+      ))!;
+      assert.equal(seed.error, "no sandbox");
+      assert.deepEqual(seed.measures, {});
+    },
+  );
 
   await check(
     "platform evals: each round's questions and team marks are read from the verifier",
@@ -864,41 +1367,6 @@ async function main() {
       assert.deepEqual(evals.parseRounds(undefined), []);
     },
   );
-
-  await check("platform evals: a run folder is found and read", () => {
-    const base = mkdtempSync(path.join(tmpdir(), "trivia-evals-"));
-    const passedRun = writeRunFolder(path.join(base, "passed"), passedFiles);
-    const printed = `1 completed · 0 errors\nResults    ${passedRun}\n`;
-    assert.equal(evals.findRunFolder(printed, "/nowhere"), passedRun);
-    const root = path.join(base, "runs");
-    writeRunFolder(path.join(root, "2026-11-23__10-00-00"), passedFiles);
-    assert.equal(
-      evals.findRunFolder("no results line", root),
-      path.join(root, "2026-11-23__10-00-00"),
-    );
-
-    const ok = evals.readRunFolder(passedRun);
-    assert.equal(ok.reward, 1);
-    assert.deepEqual(ok.checks, {
-      night_started: 1,
-      round_fetched: 1,
-      notes_written: 1,
-      notes_name_no_team: 1,
-    });
-    assert.equal(ok.trajectory_source, "sandbox");
-    assert.match(ok.notes ?? "", /Difficulty: 3/);
-    assert.deepEqual(ok.fetches, []);
-    assert.deepEqual(ok.rounds, []);
-    assert.equal(ok.error, null);
-
-    const failed = evals.readRunFolder(
-      writeRunFolder(path.join(base, "failed"), failedFiles),
-    );
-    assert.equal(failed.reward, null);
-    assert.deepEqual(failed.checks, {});
-    assert.equal(failed.error, "the trial sandbox did not start");
-    rmSync(base, { recursive: true });
-  });
 
   await check(
     "platform evals: the route refuses without a sign-in",
@@ -1544,6 +2012,9 @@ async function main() {
 
   const login = await import("../lib/session");
   const PROJECT = "01a1f15d-4fb5-700d-841b-6fb6ff2a783d";
+  const SECRET = "a-session-secret-of-at-least-32-characters";
+  process.env.TRIVIA_SESSION_SECRET = SECRET;
+  const sealing = login.sessionKey() as { key: Buffer };
   const jwt = (claims: Record<string, unknown>) =>
     ["{}", JSON.stringify(claims), "sig"]
       .map((part) => Buffer.from(part).toString("base64url"))
@@ -1566,7 +2037,9 @@ async function main() {
     cookie,
     redirectUri: "http://localhost:3510/callback",
     clientId: "intro_app_x",
+    cpUrl: "http://localhost:8000",
     project: async () => PROJECT,
+    key: sealing.key,
   });
 
   await check(
@@ -1592,48 +2065,78 @@ async function main() {
   );
 
   await check(
-    "sign-in: a member of the key's project gets a session until the token expires",
+    "sign-in: a member of the key's project gets a sealed session until the token expires",
     async () => {
       const { cookie } = login.loginRequest(
         "intro_app_x",
         PROJECT,
         "http://localhost:3510/callback",
+        "http://localhost:8000",
       );
       const claims = { member_id: "m-1", org_id: "o-1", project_id: PROJECT };
       const now = Date.now();
-      const { id, session } = await login.completeLogin(
+      const opened = await login.completeLogin(
         callbackFor(cookie),
         exchangeFor(claims) as never,
         now,
       );
+      const { session } = opened;
       assert.deepEqual(session, { ...claims, expires_at: now + 60_000 });
+      // Sealed, not signed: the cookie names neither the member nor the project.
+      assert.ok(!opened.cookie.includes("m-1"));
+      assert.ok(
+        !Buffer.from(opened.cookie, "base64url").toString().includes(PROJECT),
+      );
       const request = new Request("http://localhost:3500/api/events", {
-        headers: { cookie: `other=1; trivia_session=${id}` },
+        headers: { cookie: `other=1; trivia_session=${opened.cookie}` },
       });
       assert.deepEqual(
         await login.requireSession(request, async () => PROJECT),
-        {
-          session,
-        },
+        { session },
       );
       const refusal = async (project: () => Promise<string>) =>
         ((await login.requireSession(request, project)) as { status: number })
           .status;
       assert.equal(await refusal(async () => "another-project"), 403);
       // Without a key the page cannot tell which project it runs in.
+      const saved = {
+        file: process.env.TRIVIA_EVAL_KEY_FILE,
+        inline: process.env.TRIVIA_AGENT_KEY,
+      };
       delete process.env.TRIVIA_EVAL_KEY_FILE;
+      delete process.env.TRIVIA_AGENT_KEY;
       const response = await startEvals(
         new Request("http://localhost:3500/api/evals", {
           method: "POST",
           body: "{}",
-          headers: { cookie: `trivia_session=${id}` },
+          headers: { cookie: `trivia_session=${opened.cookie}` },
         }),
       );
       assert.equal(response.status, 503);
-      assert.match((await response.json()).error, /TRIVIA_EVAL_KEY_FILE/);
-      assert.equal(login.sessionFor(id, now + 60_000), null);
-      // An expired session is gone, not just refused.
-      assert.equal(login.sessionFor(id, now), null);
+      assert.match((await response.json()).error, /TRIVIA_AGENT_KEY/);
+      if (saved.file) process.env.TRIVIA_EVAL_KEY_FILE = saved.file;
+      if (saved.inline) process.env.TRIVIA_AGENT_KEY = saved.inline;
+      assert.equal(login.sessionFor(opened.cookie, now + 60_000), null);
+      assert.deepEqual(login.sessionFor(opened.cookie, now), session);
+      // Under another secret, tampered with, or with no secret at all, it opens nothing.
+      assert.equal(
+        login.sessionFor(opened.cookie, now, {
+          TRIVIA_SESSION_SECRET: `${SECRET}-rotated`,
+        }),
+        null,
+      );
+      const bytes = Buffer.from(opened.cookie, "base64url");
+      bytes[bytes.length - 20] ^= 1;
+      assert.equal(login.sessionFor(bytes.toString("base64url"), now), null);
+      assert.equal(login.sessionFor(opened.cookie, now, {}), null);
+      assert.match(
+        (
+          login.sessionKey({ TRIVIA_SESSION_SECRET: "short" }) as {
+            missing: string;
+          }
+        ).missing,
+        /at least 32/,
+      );
     },
   );
 
@@ -1644,6 +2147,7 @@ async function main() {
         "intro_app_x",
         PROJECT,
         "http://localhost:3510/callback",
+        "http://localhost:8000",
       );
       const member = { member_id: "m-1", org_id: "o-1", project_id: PROJECT };
       const refused = async (
