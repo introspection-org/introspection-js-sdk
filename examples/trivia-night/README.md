@@ -41,7 +41,7 @@ It writes `TRIVIA_ISSUER` (and `TRIVIA_AUDIENCE` when the binding has one) into 
 pnpm test       # the bank, its MCP server, the scoring and the eval runner
 ```
 
-The eval runner's checks drive the real SDK against a recorded run of one pub (`tests/recordings/trivia-night-platform_*`). Re-record it against a local stack only, with `.env.local` naming the local planes, the Runtime, its commit and the key file: `pnpm test:platform:record`.
+The eval runner's checks drive the real SDK against a recorded run of one pub (`tests/recordings/trivia-night-platform_*`), and the sign-in's code exchange against a recorded Control Plane (`trivia-night-login_*`). Re-record them against a local stack only, with `.env.local` naming the local planes, the Runtime, its commit, the key file and the sign-in client: `pnpm test:platform:record` and `pnpm test:login:record`. The exchange is recorded for a code the platform never issued, since an issued one needs an interactive login; the claims an issued token carries are checked as unit tests.
 
 ## Run the evals from the page
 

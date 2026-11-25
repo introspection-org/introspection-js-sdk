@@ -13,7 +13,10 @@ import {
   randomBytes,
 } from "node:crypto";
 
-import { authorizationCodeToken } from "@introspection-sdk/introspection-node";
+import {
+  authorizationCodeToken,
+  type OAuthToken,
+} from "@introspection-sdk/introspection-node";
 import { decodeJwt } from "jose";
 
 import { platformClient, resolveTarget, type Env } from "./platform-runner";
@@ -156,13 +159,11 @@ export interface Callback {
 }
 
 /**
- * Exchanges the code and seals a session for the member it signed in, only in
- * the agent key's project. The token comes straight from the Control Plane in
- * reply to this server's own PKCE exchange, so its claims are read as issued.
+ * Exchanges the code with the Control Plane, over this server's own PKCE
+ * verifier, and seals a session for the member it signed in.
  */
 export async function completeLogin(
   callback: Callback,
-  exchange: typeof authorizationCodeToken = authorizationCodeToken,
   now = Date.now(),
 ): Promise<{ cookie: string; session: Session }> {
   const flow = callback.cookie
@@ -170,13 +171,26 @@ export async function completeLogin(
     : {};
   if (!callback.code || !flow.verifier || callback.state !== flow.state)
     throw new LoginRefused("the sign-in did not match this browser", 401);
-  const token = await exchange({
+  const token = await authorizationCodeToken({
     code: callback.code,
     clientId: callback.clientId,
     redirectUri: callback.redirectUri,
     codeVerifier: flow.verifier,
     baseApiUrl: callback.cpUrl,
   });
+  return sessionFromToken(token, callback, now);
+}
+
+/**
+ * The session a token from that exchange opens, only in the agent key's
+ * project. The token comes straight from the Control Plane in reply to the
+ * exchange, so its claims are read as issued.
+ */
+export async function sessionFromToken(
+  token: OAuthToken,
+  callback: Pick<Callback, "project" | "key">,
+  now = Date.now(),
+): Promise<{ cookie: string; session: Session }> {
   const claims = decodeJwt(token.access_token);
   const member = claims.member_id;
   const project = claims.project_id;

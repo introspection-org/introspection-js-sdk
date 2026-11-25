@@ -1588,18 +1588,15 @@ async function main() {
     ["{}", JSON.stringify(claims), "sig"]
       .map((part) => Buffer.from(part).toString("base64url"))
       .join(".");
-  const exchangeFor =
-    (claims: Record<string, unknown>) =>
-    async (params: { codeVerifier: string }) => {
-      assert.ok(params.codeVerifier.length >= 43);
-      return {
-        access_token: jwt(claims),
-        token_type: "Bearer",
-        expires_in: 60,
-        scope: "tasks:read",
-        dp_url: null,
-      };
-    };
+  // A token response as the Control Plane's exchange returns one; the exchange itself is
+  // recorded in scripts/test-login.ts.
+  const tokenFor = (claims: Record<string, unknown>) => ({
+    access_token: jwt(claims),
+    token_type: "Bearer",
+    expires_in: 60,
+    scope: "tasks:read",
+    dp_url: null,
+  });
   const callbackFor = (cookie: string) => ({
     code: "the-code",
     state: (JSON.parse(cookie) as { state: string }).state,
@@ -1644,9 +1641,9 @@ async function main() {
       );
       const claims = { member_id: "m-1", org_id: "o-1", project_id: PROJECT };
       const now = Date.now();
-      const opened = await login.completeLogin(
+      const opened = await login.sessionFromToken(
+        tokenFor(claims),
         callbackFor(cookie),
-        exchangeFor(claims) as never,
         now,
       );
       const { session } = opened;
@@ -1719,33 +1716,28 @@ async function main() {
         "http://localhost:8000",
       );
       const member = { member_id: "m-1", org_id: "o-1", project_id: PROJECT };
-      const refused = async (
-        callback: Parameters<typeof login.completeLogin>[0],
-        claims: Record<string, unknown>,
-      ) =>
-        login.completeLogin(callback, exchangeFor(claims) as never).then(
+      const status = (opened: Promise<unknown>) =>
+        opened.then(
           () => null,
           (error: InstanceType<typeof login.LoginRefused>) => error.status,
         );
+      // A forged state or a lost login cookie is refused before any exchange.
       assert.equal(
-        await refused({ ...callbackFor(cookie), state: "forged" }, member),
+        await status(
+          login.completeLogin({ ...callbackFor(cookie), state: "forged" }),
+        ),
         401,
       );
       assert.equal(
-        await refused({ ...callbackFor(cookie), cookie: undefined }, member),
+        await status(
+          login.completeLogin({ ...callbackFor(cookie), cookie: undefined }),
+        ),
         401,
       );
-      assert.equal(
-        await refused(callbackFor(cookie), { ...member, project_id: "other" }),
-        403,
-      );
-      assert.equal(
-        await refused(callbackFor(cookie), {
-          org_id: "o-1",
-          project_id: PROJECT,
-        }),
-        401,
-      );
+      const refused = (claims: Record<string, unknown>) =>
+        status(login.sessionFromToken(tokenFor(claims), callbackFor(cookie)));
+      assert.equal(await refused({ ...member, project_id: "other" }), 403);
+      assert.equal(await refused({ org_id: "o-1", project_id: PROJECT }), 401);
       const anonymous = new Request("http://localhost:3500/api/events");
       assert.equal(
         (

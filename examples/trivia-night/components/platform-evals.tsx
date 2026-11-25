@@ -429,6 +429,9 @@ function NightQuestions({
   );
 }
 
+/** Polls a finished run makes for a result read that failed, before it says so. */
+const MAX_RESULT_RETRIES = 5;
+
 type NightView = "questions" | "steps";
 const NIGHT_VIEW_KEY = "trivia-night:night-view";
 
@@ -626,6 +629,7 @@ export function PlatformEvals() {
   }, []);
 
   const polling = useRef<Promise<void> | null>(null);
+  const resultRetries = useRef(0);
   const pollOnce = useCallback(async () => {
     const id = run.current;
     if (!id) return;
@@ -647,6 +651,26 @@ export function PlatformEvals() {
           if (read.ok) results.current.set(trial.task_id!, await read.json());
         }),
     );
+    const missing = state.trials.filter(
+      (trial) =>
+        trial.done && trial.task_id && !results.current.has(trial.task_id),
+    ).length;
+    if (missing === 0) resultRetries.current = 0;
+    else if (state.finished && resultRetries.current < MAX_RESULT_RETRIES) {
+      // A result read failed: the run stays open, so polling goes on, backing off until it reads.
+      resultRetries.current += 1;
+      setView(runView({ ...state, finished: null }, results.current));
+      await new Promise((resolve) =>
+        setTimeout(
+          resolve,
+          Math.min(1000 * 2 ** resultRetries.current, 30_000),
+        ),
+      );
+      return;
+    } else if (state.finished)
+      setError(
+        `${missing} trial result${missing === 1 ? "" : "s"} could not be read: reload to try again`,
+      );
     setView(runView(state, results.current));
     if (state.finished)
       setConfig(
@@ -716,6 +740,7 @@ export function PlatformEvals() {
     else {
       run.current = body.run;
       results.current.clear();
+      resultRetries.current = 0;
       setConfig((current) => current && { ...current, active: body.run });
     }
     await poll();
