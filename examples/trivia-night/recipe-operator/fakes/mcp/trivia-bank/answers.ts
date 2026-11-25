@@ -49,7 +49,13 @@ export const answers = {
               genre: Type.String(),
               region: Type.String(),
               difficulty: Type.Integer(),
+              format: Type.Union([
+                Type.Literal("choice"),
+                Type.Literal("short"),
+              ]),
               text: Type.String(),
+              options: Type.Optional(Type.Array(Type.String())),
+              decade: Type.Optional(Type.String()),
             },
             { additionalProperties: false },
           ),
@@ -89,6 +95,23 @@ export const answers = {
         week: Type.Integer(),
         by_genre: Type.Record(Type.String(), Rate),
         by_difficulty: Type.Record(Type.String(), Rate),
+        // Only where the crowd answers on its own (a platform eval's venue).
+        rounds: Type.Optional(
+          Type.Array(
+            Type.Object(
+              {
+                round: Type.Integer(),
+                genre: Type.String(),
+                difficulty: Type.Number(),
+                questions: Type.Integer(),
+                correct_rate: Type.Number(),
+                points: Type.Array(Standing),
+              },
+              { additionalProperties: false },
+            ),
+          ),
+        ),
+        standings: Type.Optional(Type.Array(Standing)),
       },
       { additionalProperties: false },
     ),

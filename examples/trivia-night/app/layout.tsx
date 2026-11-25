@@ -5,7 +5,7 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "Trivia Night",
   description:
-    "A quiz host that never repeats a question at a venue and pitches each round to its crowd.",
+    "A quiz host that never repeats a question at a pub and pitches each round to its crowd.",
 };
 
 export default function RootLayout({

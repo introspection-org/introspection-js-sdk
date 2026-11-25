@@ -14,7 +14,13 @@ services:
     volumes:
       - fakes-verifier:/verifier
     healthcheck:
-      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:7353/health').then((r)=>process.exit(r.ok?0:1),()=>process.exit(1))"]
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:7353/health').then((r)=>process.exit(r.ok?0:1),()=>process.exit(1))",
+        ]
       interval: 1s
       retries: 30
 volumes:

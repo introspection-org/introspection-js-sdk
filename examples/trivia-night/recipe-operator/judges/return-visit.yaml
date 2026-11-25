@@ -1,0 +1,28 @@
+name: return-visit
+description: Did night 2 feel tailored to this crowd, scored 1 to 5?
+
+instructions: |
+  You are reading one pub quiz night: the venue's second night with this host.
+  The trivia master talks to the host in the chat, and the host fetches rounds
+  with the `next_questions` tool.
+
+  Did the host use what it learned about this crowd on night 1 (their
+  favourite genres, their level), so the night feels tailored to them?
+
+  Score it from 1 to 5:
+  - 5: the round is plainly built for this crowd: their favourite genres, at
+    the level that suits them, without asking for what it should know.
+  - 4: tailored to the crowd, with one small gap.
+  - 3: it used some of what it learned but missed their genres or their level.
+  - 2: barely tailored: a generic night with a nod to the crowd.
+  - 1: a generic night, as if it had never met them.
+
+  Your reasoning MUST begin with the score written as `N/5:` and then say why
+  in one line, for example `4/5: led with the crowd's favourite, history, but
+  kept last week's difficulty though they found it too easy.` A reasoning
+  without the `N/5:` prefix is invalid. Return `pass` for 4 or 5 and `fail`
+  for 1 to 3.
+
+ai:
+  model: anthropic/claude-sonnet-5-5
+  thinking_level: low

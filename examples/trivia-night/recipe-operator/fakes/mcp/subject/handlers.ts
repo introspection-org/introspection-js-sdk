@@ -6,7 +6,13 @@ import {
   toolsOf,
 } from "@introspection-ai/eval-simulate/mcp";
 import type { Genre } from "../trivia-bank/entities.ts";
-import { byId, enjoyment, GENRES, type Profile } from "../../world/profiles.ts";
+import {
+  byId,
+  crowd,
+  enjoyment,
+  GENRES,
+  type Profile,
+} from "../../world/profiles.ts";
 import { contract } from "./contract.ts";
 import type { SubjectState } from "./entities.ts";
 
@@ -20,7 +26,7 @@ const list = (xs: string[]) =>
     : `${xs.slice(0, -1).join(", ")} and ${xs.at(-1)}`;
 
 export function opening(p: Profile, night: number): string {
-  const teams = `Teams: ${p.teams.join(", ")}.`;
+  const teams = `Teams: ${crowd(p).join(", ")}.`;
   const request =
     p.request.night === night
       ? ` It's ${p.request.who}'s birthday and they're mad about ${p.request.genre}, so can we do all ${p.request.genre} tonight?`
@@ -75,7 +81,7 @@ export function sheet(
   _round: number,
   count: number,
 ): string {
-  return p.teams
+  return crowd(p)
     .map(
       (team, t) =>
         `${team}: ${Array.from({ length: count }, (_, i) => `${i + 1} sheet-${String.fromCharCode(97 + t)}${i + 1}`).join(", ")}`,
@@ -123,7 +129,7 @@ export function register(server: McpServer, state: SubjectState) {
     if (/countr|where are you|which city/i.test(message))
       return answer("say", `We're in ${p.city}, ${COUNTRY[p.region]}.`);
     if (/team/i.test(message) && /\?/.test(message))
-      return answer("say", `Teams tonight: ${p.teams.join(", ")}.`);
+      return answer("say", `Teams tonight: ${crowd(p).join(", ")}.`);
     return answer("say", "Sounds good, go ahead.");
   });
 }

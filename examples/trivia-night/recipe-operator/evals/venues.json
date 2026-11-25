@@ -1,0 +1,475 @@
+[
+  {
+    "slug": "sydney",
+    "label": "Sydney (AU)",
+    "profile": "page-sydney",
+    "pub": "The Lord Nelson",
+    "city": "Sydney",
+    "region": "au",
+    "teams": [
+      "Quizzly Bears",
+      "Les Quizerables",
+      "Trivia Newton-John",
+      "The Bondi Brainstormers",
+      "Opera House Party",
+      "Manly Know-It-Alls",
+      "The Harbour Bridge Players",
+      "Surry Hills Have Eyes"
+    ],
+    "night2_teams": {
+      "3": ["Quizzly Bears", "Les Quizerables", "The Blow-Ins"],
+      "5": [
+        "Quizzly Bears",
+        "Les Quizerables",
+        "The Bondi Brainstormers",
+        "Opera House Party",
+        "The Blow-Ins"
+      ],
+      "8": [
+        "Les Quizerables",
+        "Trivia Newton-John",
+        "The Bondi Brainstormers",
+        "Opera House Party",
+        "Manly Know-It-Alls",
+        "The Harbour Bridge Players",
+        "Surry Hills Have Eyes",
+        "The Blow-Ins"
+      ]
+    },
+    "liked": ["film", "music"],
+    "disliked": ["science"],
+    "hinted": ["film"],
+    "best_decades": ["2010s", "2000s"],
+    "target_difficulty": 2
+  },
+  {
+    "slug": "manchester",
+    "label": "Manchester (UK)",
+    "profile": "page-manchester",
+    "pub": "The Crown",
+    "city": "Manchester",
+    "region": "uk",
+    "teams": [
+      "The Mancunian Candidates",
+      "Quiz Team Aguilera",
+      "Agatha Quiztie",
+      "Oasis of Knowledge",
+      "Quiz Division",
+      "Corrie Street Smarts",
+      "The Ancoats Answerers",
+      "Mancunian Way Out"
+    ],
+    "night2_teams": {
+      "3": ["The Mancunian Candidates", "Quiz Team Aguilera", "The Blow-Ins"],
+      "5": [
+        "Quiz Team Aguilera",
+        "Agatha Quiztie",
+        "Oasis of Knowledge",
+        "Quiz Division",
+        "The Blow-Ins"
+      ],
+      "8": [
+        "The Mancunian Candidates",
+        "Agatha Quiztie",
+        "Oasis of Knowledge",
+        "Quiz Division",
+        "The Ancoats Answerers",
+        "Mancunian Way Out",
+        "The Blow-Ins",
+        "First Timers"
+      ]
+    },
+    "liked": ["science", "geography"],
+    "disliked": ["sport"],
+    "hinted": ["science"],
+    "best_decades": ["2000s", "2010s"],
+    "target_difficulty": 3
+  },
+  {
+    "slug": "chicago",
+    "label": "Chicago (US)",
+    "profile": "page-chicago",
+    "pub": "Kelly's Tap",
+    "city": "Chicago",
+    "region": "us",
+    "teams": [
+      "Smarty Pints",
+      "The Quizzards",
+      "Universally Challenged",
+      "Deep Dish Thinkers",
+      "The Windy City Wits",
+      "The Second City Sages",
+      "Wrigley Field Goals",
+      "The Loop Hole"
+    ],
+    "night2_teams": {
+      "3": ["Smarty Pints", "The Quizzards", "Universally Challenged"],
+      "5": [
+        "The Quizzards",
+        "Universally Challenged",
+        "Deep Dish Thinkers",
+        "The Windy City Wits",
+        "The Walk-Ins"
+      ],
+      "8": [
+        "Smarty Pints",
+        "The Quizzards",
+        "Universally Challenged",
+        "The Windy City Wits",
+        "The Second City Sages",
+        "Wrigley Field Goals",
+        "The Loop Hole",
+        "The Walk-Ins"
+      ]
+    },
+    "liked": ["science", "film"],
+    "disliked": ["geography"],
+    "hinted": ["science"],
+    "best_decades": ["2000s", "1990s"],
+    "target_difficulty": 2
+  },
+  {
+    "slug": "leeds",
+    "label": "Leeds (UK)",
+    "profile": "page-leeds",
+    "pub": "The Royal Oak",
+    "city": "Leeds",
+    "region": "uk",
+    "teams": [
+      "Leeds Brainiacs",
+      "Quiz Pro Quo 1",
+      "The Oak Regulars",
+      "Yorkshire Puddingheads",
+      "The Headingley Hopefuls",
+      "Elland Road Scholars",
+      "The Briggate Brainboxes",
+      "Kirkstall Abbey Roads"
+    ],
+    "night2_teams": {
+      "3": ["Leeds Brainiacs", "Quiz Pro Quo 1", "The Oak Regulars"],
+      "5": [
+        "Leeds Brainiacs",
+        "Quiz Pro Quo 1",
+        "The Oak Regulars",
+        "Yorkshire Puddingheads",
+        "New Kids on the Quiz"
+      ],
+      "8": [
+        "Leeds Brainiacs",
+        "Quiz Pro Quo 1",
+        "The Oak Regulars",
+        "Yorkshire Puddingheads",
+        "Elland Road Scholars",
+        "Kirkstall Abbey Roads",
+        "New Kids on the Quiz",
+        "The Walk-Ins"
+      ]
+    },
+    "liked": ["film", "music"],
+    "disliked": ["sport"],
+    "hinted": ["film"],
+    "best_decades": ["2010s", "2000s"],
+    "target_difficulty": 2
+  },
+  {
+    "slug": "melbourne",
+    "label": "Melbourne (AU)",
+    "profile": "page-melbourne",
+    "pub": "The Esplanade",
+    "city": "Melbourne",
+    "region": "au",
+    "teams": [
+      "Melbourne Brainiacs",
+      "Quiz Pro Quo 2",
+      "The Esplanade Regulars",
+      "Flat White Thinkers",
+      "The Laneway Legends",
+      "Tram Stop Trivia",
+      "The St Kilda Sharks",
+      "Footscray Fact Finders"
+    ],
+    "night2_teams": {
+      "3": ["Melbourne Brainiacs", "Quiz Pro Quo 2", "The Late Arrivals"],
+      "5": [
+        "Melbourne Brainiacs",
+        "Quiz Pro Quo 2",
+        "The Esplanade Regulars",
+        "Flat White Thinkers",
+        "The Late Arrivals"
+      ],
+      "8": [
+        "Quiz Pro Quo 2",
+        "The Esplanade Regulars",
+        "The Laneway Legends",
+        "Tram Stop Trivia",
+        "The St Kilda Sharks",
+        "Footscray Fact Finders",
+        "The Late Arrivals",
+        "First Timers"
+      ]
+    },
+    "liked": ["geography", "music"],
+    "disliked": ["science"],
+    "hinted": ["geography"],
+    "best_decades": ["2020s", "2010s"],
+    "target_difficulty": 3
+  },
+  {
+    "slug": "boston",
+    "label": "Boston (US)",
+    "profile": "page-boston",
+    "pub": "Murphy's",
+    "city": "Boston",
+    "region": "us",
+    "teams": [
+      "Boston Brainiacs",
+      "Quiz Pro Quo 3",
+      "The Murphy's Regulars",
+      "Fenway Fact Checkers",
+      "The Chowdaheads",
+      "Wicked Smaht",
+      "The Beacon Hill Brains",
+      "Back Bay Buzzers"
+    ],
+    "night2_teams": {
+      "3": ["Quiz Pro Quo 3", "The Murphy's Regulars", "The Late Arrivals"],
+      "5": [
+        "Boston Brainiacs",
+        "Quiz Pro Quo 3",
+        "The Murphy's Regulars",
+        "The Chowdaheads",
+        "The Late Arrivals"
+      ],
+      "8": [
+        "Boston Brainiacs",
+        "Fenway Fact Checkers",
+        "The Chowdaheads",
+        "Wicked Smaht",
+        "The Beacon Hill Brains",
+        "Back Bay Buzzers",
+        "The Late Arrivals",
+        "The Blow-Ins"
+      ]
+    },
+    "liked": ["music", "film"],
+    "disliked": ["sport"],
+    "hinted": ["music"],
+    "best_decades": ["2000s", "2010s"],
+    "target_difficulty": 3
+  },
+  {
+    "slug": "bristol",
+    "label": "Bristol (UK)",
+    "profile": "page-bristol",
+    "pub": "The Swan",
+    "city": "Bristol",
+    "region": "uk",
+    "teams": [
+      "Bristol Brainiacs",
+      "Quiz Pro Quo 4",
+      "The Swan Regulars",
+      "Banksy's Bright Sparks",
+      "The Clifton Suspenders",
+      "The Harbourside Heroes",
+      "Brizzle Brainboxes",
+      "The Gromit Unit"
+    ],
+    "night2_teams": {
+      "3": ["Bristol Brainiacs", "Quiz Pro Quo 4", "The Late Arrivals"],
+      "5": [
+        "Bristol Brainiacs",
+        "Quiz Pro Quo 4",
+        "The Swan Regulars",
+        "Banksy's Bright Sparks",
+        "The Late Arrivals"
+      ],
+      "8": [
+        "Bristol Brainiacs",
+        "Quiz Pro Quo 4",
+        "The Swan Regulars",
+        "Banksy's Bright Sparks",
+        "The Clifton Suspenders",
+        "The Harbourside Heroes",
+        "Brizzle Brainboxes",
+        "The Late Arrivals"
+      ]
+    },
+    "liked": ["sport", "geography"],
+    "disliked": ["science"],
+    "hinted": ["sport"],
+    "best_decades": ["2010s", "2000s"],
+    "target_difficulty": 3
+  },
+  {
+    "slug": "brisbane",
+    "label": "Brisbane (AU)",
+    "profile": "page-brisbane",
+    "pub": "The Grand",
+    "city": "Brisbane",
+    "region": "au",
+    "teams": [
+      "Brisbane Brainiacs",
+      "Quiz Pro Quo 5",
+      "The Grand Regulars",
+      "Bris-Vegas Brainstrust",
+      "The Story Bridge Club",
+      "The South Bank Thinkers",
+      "Lamington Legends",
+      "The Gabba Grey Matter"
+    ],
+    "night2_teams": {
+      "3": ["Brisbane Brainiacs", "Quiz Pro Quo 5", "The Grand Regulars"],
+      "5": [
+        "Brisbane Brainiacs",
+        "The Grand Regulars",
+        "Bris-Vegas Brainstrust",
+        "The Story Bridge Club",
+        "The Plus Ones"
+      ],
+      "8": [
+        "Quiz Pro Quo 5",
+        "The Grand Regulars",
+        "Bris-Vegas Brainstrust",
+        "The Story Bridge Club",
+        "The South Bank Thinkers",
+        "Lamington Legends",
+        "The Plus Ones",
+        "The Walk-Ins"
+      ]
+    },
+    "liked": ["science", "film"],
+    "disliked": ["sport"],
+    "hinted": ["science"],
+    "best_decades": ["2010s", "2020s"],
+    "target_difficulty": 2
+  },
+  {
+    "slug": "seattle",
+    "label": "Seattle (US)",
+    "profile": "page-seattle",
+    "pub": "Dockside",
+    "city": "Seattle",
+    "region": "us",
+    "teams": [
+      "Seattle Brainiacs",
+      "Quiz Pro Quo 6",
+      "The Dockside Regulars",
+      "The Space Needlers",
+      "Grunge Against the Machine",
+      "Pike Place Fishmongers",
+      "The Rainy Day Ravers",
+      "Sleepless in Quizattle"
+    ],
+    "night2_teams": {
+      "3": ["Seattle Brainiacs", "Quiz Pro Quo 6", "The Dockside Regulars"],
+      "5": [
+        "Seattle Brainiacs",
+        "Quiz Pro Quo 6",
+        "The Dockside Regulars",
+        "The Space Needlers",
+        "The Plus Ones"
+      ],
+      "8": [
+        "Seattle Brainiacs",
+        "Quiz Pro Quo 6",
+        "The Dockside Regulars",
+        "The Space Needlers",
+        "Pike Place Fishmongers",
+        "The Rainy Day Ravers",
+        "Sleepless in Quizattle",
+        "The Plus Ones"
+      ]
+    },
+    "liked": ["history", "geography"],
+    "disliked": ["science"],
+    "hinted": ["history"],
+    "best_decades": ["2010s", "2020s"],
+    "target_difficulty": 3
+  },
+  {
+    "slug": "glasgow",
+    "label": "Glasgow (UK)",
+    "profile": "page-glasgow",
+    "pub": "The Anchor",
+    "city": "Glasgow",
+    "region": "uk",
+    "teams": [
+      "Glasgow Brainiacs",
+      "Quiz Pro Quo 7",
+      "The Anchor Regulars",
+      "Irn-Bru Brains",
+      "Weegie Wonders",
+      "The Clydeside Thinkers",
+      "Barrowland Ballers",
+      "The Kelvingrove Knowers"
+    ],
+    "night2_teams": {
+      "3": ["Glasgow Brainiacs", "Quiz Pro Quo 7", "The Anchor Regulars"],
+      "5": [
+        "Glasgow Brainiacs",
+        "The Anchor Regulars",
+        "Irn-Bru Brains",
+        "Weegie Wonders",
+        "Fresh Faces"
+      ],
+      "8": [
+        "Glasgow Brainiacs",
+        "Quiz Pro Quo 7",
+        "The Anchor Regulars",
+        "Weegie Wonders",
+        "The Clydeside Thinkers",
+        "Barrowland Ballers",
+        "The Kelvingrove Knowers",
+        "Fresh Faces"
+      ]
+    },
+    "liked": ["geography", "music"],
+    "disliked": ["sport"],
+    "hinted": ["geography"],
+    "best_decades": ["2010s", "2000s"],
+    "target_difficulty": 3
+  },
+  {
+    "slug": "perth",
+    "label": "Perth (AU)",
+    "profile": "page-perth",
+    "pub": "The Railway",
+    "city": "Perth",
+    "region": "au",
+    "teams": [
+      "Perth Brainiacs",
+      "Quiz Pro Quo 8",
+      "The Railway Regulars",
+      "Quokka Quizzers",
+      "The Fremantle Doctors",
+      "The Cottesloe Crew",
+      "Swan River Scholars",
+      "Kings Park Rangers"
+    ],
+    "night2_teams": {
+      "3": ["Quiz Pro Quo 8", "The Railway Regulars", "Beginners' Luck"],
+      "5": [
+        "Quiz Pro Quo 8",
+        "The Railway Regulars",
+        "Quokka Quizzers",
+        "The Fremantle Doctors",
+        "Beginners' Luck"
+      ],
+      "8": [
+        "Perth Brainiacs",
+        "Quiz Pro Quo 8",
+        "Quokka Quizzers",
+        "The Fremantle Doctors",
+        "The Cottesloe Crew",
+        "Swan River Scholars",
+        "Kings Park Rangers",
+        "Beginners' Luck"
+      ]
+    },
+    "liked": ["history", "film"],
+    "disliked": ["science"],
+    "hinted": ["history"],
+    "best_decades": ["2010s", "2020s"],
+    "target_difficulty": 3
+  }
+]

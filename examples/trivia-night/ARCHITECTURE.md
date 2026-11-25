@@ -4,7 +4,7 @@ A trivia host (the agent) runs quiz nights at many venues and gets better at eac
 
 Two stores carry anything from one night to the next, and they never overlap:
 
-- **The question bank** holds facts: the questions, which ones each venue has heard, and how its teams answered. It is an MCP server served by this app at `/bank/mcp`, and it enforces its rules in code.
+- **The question bank** holds facts: the questions, which ones each venue has heard, and how its teams answered. It is an MCP server (`scripts/bank-server.ts` serves it at `/mcp`), and it enforces its rules in code.
 - **The host's memory** holds judgement: per venue, the few settings that change the next night's choices, such as its region, the genres the crowd likes, and a level that suits it in each genre. It is the agent's own folder for that venue, written by the agent under the rules in its memory block.
 
 Keeping them apart is a design rule, not an accident: a fact the bank can enforce never depends on the agent remembering it, and the agent's memory stays small enough to rewrite every night.

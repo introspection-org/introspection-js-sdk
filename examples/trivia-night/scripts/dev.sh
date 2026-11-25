@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# `pnpm dev`: the Trivia Night page and its question bank on :3500, the bank on
-# a public https URL, and your Introspection project set up to call it.
+# `pnpm dev`: the Trivia Night page on :3500, the question bank on its own
+# loopback port with only its MCP server on a public https URL, and your
+# Introspection project set up to call it. The page and /api/* are never public.
 #
 # Which Introspection it connects to is whichever stack `introspection login`
 # chose: staging, production, or your own. Not logged in, the app runs alone.
@@ -9,8 +10,8 @@
 # new each run; the project follows it.
 #
 # The project setup, the first time on a stack (safe to re-run):
-#   1. the trivia-host Runtime: a repository Introspection hosts, seeded from
-#      this example's recipe/, and its runtime
+#   1. the trivia-host Runtime: a repository Introspection hosts, synced from
+#      this example's recipe-operator/ with its generated Harbor tasks, and its runtime
 #   2. the application the bank is linked to: the platform signs a token
 #      naming the end user, as that application, on every call to the bank
 #   3. the trivia-bank MCP binding, on the tunnel, linked to that application
@@ -23,6 +24,7 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 PORT=3500
+BANK_PORT=3501
 ENV_FILE=.env.local
 WORK=.introspection-work
 RUNTIME=trivia-host
@@ -101,7 +103,7 @@ PIDS=()
 trap 'kill "${PIDS[@]}" 2>/dev/null || true' EXIT
 
 TUNNEL_LOG="$(mktemp "${TMPDIR:-/tmp}/trivia-tunnel.XXXXXX")"
-cloudflared tunnel --no-autoupdate --url "http://localhost:$PORT" >"$TUNNEL_LOG" 2>&1 &
+cloudflared tunnel --no-autoupdate --url "http://127.0.0.1:$BANK_PORT" >"$TUNNEL_LOG" 2>&1 &
 PIDS+=($!)
 TUNNEL=""
 for _ in $(seq 60); do
@@ -110,7 +112,7 @@ for _ in $(seq 60); do
   sleep 1
 done
 [ -n "$TUNNEL" ] || fail "the tunnel did not start; its log: $TUNNEL_LOG"
-BANK_URL="$TUNNEL/bank/mcp"
+BANK_URL="$TUNNEL/mcp"
 say "bank: $BANK_URL"
 
 # ---------------------------------------------------------------------------
@@ -118,15 +120,14 @@ say "bank: $BANK_URL"
 # ---------------------------------------------------------------------------
 
 ensure_runtime() {
-  if introspection runtimes list -o json | json "v.some((r) => r.slug === '$RUNTIME')" | grep -q true; then
-    say "runtime $RUNTIME exists"
-    return
-  fi
-  # The recipe is a folder of this repository, so its hosted repository holds
-  # a copy of that folder with a history of its own.
+  # The runtime runs recipe-operator/ with its Harbor tasks, which
+  # recipe-operator/evals/venues.mjs generates and git ignores, so its hosted
+  # repository holds a copy of that folder plus the generated tasks, synced on
+  # every run so the platform evals use the tasks this checkout generates.
   local git_id=(-c user.name=trivia-night -c user.email=trivia-night@example.invalid)
-  local repo_url
+  local repo_url exists
   repo_url="$(introspection repositories list -o json | json "v.find((r) => r.slug === '$RUNTIME')?.url")"
+  exists="$(introspection runtimes list -o json | json "v.some((r) => r.slug === '$RUNTIME')")"
   rm -rf "${WORK:?}/$RUNTIME"
   mkdir -p "$WORK"
   if [ -n "$repo_url" ]; then
@@ -135,27 +136,39 @@ ensure_runtime() {
     mkdir -p "$WORK/$RUNTIME"
     git -C "$WORK/$RUNTIME" init -q -b main
   fi
-  (cd recipe && git ls-files -z --cached --others --exclude-standard |
+  (cd recipe-operator && git ls-files -z --cached --others --exclude-standard |
     rsync -a --from0 --files-from=- . "../$WORK/$RUNTIME/")
-  (cd "$WORK/$RUNTIME" && git add -A &&
+  # The generator reads the fakes' world, so their dependencies come first; the
+  # page reads each task's tastes from recipe-operator/evals/harbor, so the tasks
+  # are generated there too, beside the copy the runtime gets.
+  [ -d recipe-operator/fakes/node_modules ] ||
+    (cd recipe-operator/fakes && npm ci --silent) ||
+    fail "could not install recipe-operator/fakes' dependencies"
+  node recipe-operator/evals/venues.mjs >/dev/null &&
+    node recipe-operator/evals/venues.mjs "$WORK/$RUNTIME/evals/harbor" >/dev/null ||
+    fail "could not generate the Harbor tasks"
+  (cd "$WORK/$RUNTIME" && git add -A && git add -f evals/harbor &&
     { git diff --cached --quiet HEAD 2>/dev/null ||
-      git "${git_id[@]}" commit -q -m "feat: trivia-host from introspection-js-sdk examples/trivia-night/recipe"; })
+      git "${git_id[@]}" commit -q -m "feat: trivia-host from introspection-js-sdk examples/trivia-night/recipe-operator"; })
   if [ -z "$repo_url" ]; then
-    say "creating the $RUNTIME repository from recipe/"
+    say "creating the $RUNTIME repository from recipe-operator/"
     # Run inside a repository with commits and no origin, `add` pushes it as
     # the first commit and sets it as origin.
     (cd "$WORK/$RUNTIME" && introspection repositories add "$RUNTIME" --provider introspection >/dev/null) ||
       fail "could not create the $RUNTIME repository"
   fi
-  say "creating the $RUNTIME runtime"
-  (cd "$WORK/$RUNTIME" && introspection runtimes create --yes >/dev/null) ||
-    fail "could not create the $RUNTIME runtime from $WORK/$RUNTIME"
-  # A hosted recipe is checked from the files a push carries, and the seed push
-  # came before the runtime existed, so push once more to check and build it.
-  say "pushing to $RUNTIME so the platform checks and builds the recipe"
-  (cd "$WORK/$RUNTIME" &&
-    git "${git_id[@]}" commit -q --allow-empty -m "chore: check the recipe" &&
-    git push -q origin HEAD:main)
+  if [ "$exists" != "true" ]; then
+    say "creating the $RUNTIME runtime"
+    (cd "$WORK/$RUNTIME" && introspection runtimes create --yes >/dev/null) ||
+      fail "could not create the $RUNTIME runtime from $WORK/$RUNTIME"
+    # A hosted recipe is checked from the files a push carries, and the seed push
+    # came before the runtime existed, so push once more to check and build it.
+    (cd "$WORK/$RUNTIME" &&
+      git "${git_id[@]}" commit -q --allow-empty -m "chore: check the recipe")
+  fi
+  say "pushing $RUNTIME so the platform checks and builds the recipe and its tasks"
+  (cd "$WORK/$RUNTIME" && git push -q origin HEAD:main) ||
+    fail "could not push $RUNTIME"
 }
 
 # The application the bank is linked to, by name; its id on stdout.
@@ -204,8 +217,12 @@ elif ! connect; then
   say "not connected to Introspection: the bank refuses every call until you run \`introspection login\` and restart pnpm dev"
 fi
 
-# The app starts last: it reads TRIVIA_ISSUER and TRIVIA_AUDIENCE when it loads.
-node_modules/.bin/next dev --port "$PORT" &
+# The bank starts after the setup: it reads TRIVIA_ISSUER and TRIVIA_AUDIENCE
+# when it loads. It serves only /mcp, and only on loopback, for the tunnel.
+PORT="$BANK_PORT" HOST=127.0.0.1 TRIVIA_BANK_MCP_ONLY=1 \
+  node --env-file-if-exists="$ENV_FILE" --import tsx scripts/bank-server.ts &
+PIDS+=($!)
+node_modules/.bin/next dev --hostname 127.0.0.1 --port "$PORT" &
 PIDS+=($!)
 APP=$!
 say "page: http://localhost:$PORT, bank: $BANK_URL"

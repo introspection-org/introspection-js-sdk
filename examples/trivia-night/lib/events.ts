@@ -9,7 +9,9 @@ type FlowEventType =
   | "memory.read"
   | "memory.written"
   | "host.planned"
-  | "round.finished";
+  | "eval.started"
+  | "eval.finished"
+  | "eval.run_finished";
 
 export interface FlowEvent {
   seq: number;
@@ -27,11 +29,13 @@ export type Recorder = (
   data?: Record<string, unknown>,
 ) => void;
 
-const MAX_EVENTS = 400;
+const MAX_EVENTS = 2000;
 const store = globalThis as unknown as {
   __triviaEvents?: { seq: number; events: FlowEvent[] };
 };
-const log = (store.__triviaEvents ??= { seq: 0, events: [] });
+// Starts at the boot time, so a restarted server never reuses a number a page
+// already holds: the page asks for events after the last one it has.
+const log = (store.__triviaEvents ??= { seq: Date.now(), events: [] });
 
 export const record: Recorder = (owner, type, summary, data = {}) => {
   log.seq += 1;
@@ -49,8 +53,4 @@ export const record: Recorder = (owner, type, summary, data = {}) => {
 
 export function since(seq: number): FlowEvent[] {
   return log.events.filter((event) => event.seq > seq);
-}
-
-export function clearEvents(): void {
-  log.events.length = 0;
 }

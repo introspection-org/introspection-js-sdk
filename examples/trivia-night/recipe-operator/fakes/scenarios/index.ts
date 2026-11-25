@@ -1,6 +1,7 @@
 import type { State } from "../mcp/trivia-bank/entities.ts";
 import type { SubjectState } from "../mcp/subject/entities.ts";
-import { ALL, CASES } from "../world/profiles.ts";
+import { ALL, CASES, CROWD_SIZES, HELDOUT, PAGE } from "../world/profiles.ts";
+import { SERIES_NIGHTS } from "../mcp/trivia-bank/supply.ts";
 import { base } from "./base.ts";
 import returning from "./returning.ts";
 import secondWeek from "./second-week.ts";
@@ -14,6 +15,18 @@ const venues = Object.fromEntries(
     (w: World) => {
       w["trivia-bank"].venue = p.id;
       w.subject.venue = p.id;
+    },
+  ]),
+);
+
+// The same venues for the platform evals: the crowd answers each question as it's served.
+const crowds = Object.fromEntries(
+  [...ALL, ...PAGE, ...HELDOUT].map((p) => [
+    `crowd-${p.id}`,
+    (w: World) => {
+      w["trivia-bank"].venue = p.id;
+      w.subject.venue = p.id;
+      w["trivia-bank"].crowd = true;
     },
   ]),
 );
@@ -39,6 +52,7 @@ export const SCENARIOS: Record<string, (world: World) => void> = {
   returning,
   "second-week": secondWeek,
   ...venues,
+  ...crowds,
   ...cases,
 };
 
@@ -52,5 +66,47 @@ export function world(
   const change = SCENARIOS[scenario];
   if (!change) throw new Error(`Unknown scenario: ${scenario}`);
   change(w);
+  const nights = seriesNights(process.env.EVAL_SIMULATE_SERIES_NIGHTS);
+  if (nights !== undefined) w["trivia-bank"].series_nights = nights;
+  const night = seriesNight(process.env.EVAL_SIMULATE_NIGHT, nights);
+  if (night !== undefined) w["trivia-bank"].series_night = night;
+  const teams = crowdSize(process.env.EVAL_SIMULATE_TEAMS);
+  if (teams !== undefined) w["trivia-bank"].crowd_size = teams;
   return w;
+}
+
+/** `EVAL_SIMULATE_TEAMS`, how many of the venue's teams a crowd plays (one of CROWD_SIZES); unset or empty is the default. */
+export function crowdSize(value: string | undefined): number | undefined {
+  if (!value) return undefined;
+  const teams = Number(value);
+  if (!(CROWD_SIZES as readonly number[]).includes(teams))
+    throw new Error(
+      `EVAL_SIMULATE_TEAMS must be one of ${CROWD_SIZES.join(", ")}: ${value}`,
+    );
+  return teams;
+}
+
+/** `EVAL_SIMULATE_SERIES_NIGHTS`, the nights a series splits a venue's questions across; unset or empty is SERIES_NIGHTS. */
+export function seriesNights(value: string | undefined): number | undefined {
+  if (!value) return undefined;
+  const nights = Number(value);
+  if (!Number.isInteger(nights) || nights < 1 || nights > SERIES_NIGHTS)
+    throw new Error(
+      `EVAL_SIMULATE_SERIES_NIGHTS must be from 1 to ${SERIES_NIGHTS}: ${value}`,
+    );
+  return nights;
+}
+
+/** `EVAL_SIMULATE_NIGHT`, the night of the series a sandbox plays (1 to its nights); unset or empty is none. */
+export function seriesNight(
+  value: string | undefined,
+  nights = SERIES_NIGHTS,
+): number | undefined {
+  if (!value) return undefined;
+  const night = Number(value);
+  if (!Number.isInteger(night) || night < 1 || night > nights)
+    throw new Error(
+      `EVAL_SIMULATE_NIGHT must be a night from 1 to ${nights}: ${value}`,
+    );
+  return night;
 }

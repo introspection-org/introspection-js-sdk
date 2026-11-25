@@ -9,7 +9,6 @@
     "build": "next build",
     "start": "next start --port 3500",
     "test": "node --import tsx scripts/test.ts",
-    "simulate": "node --import tsx scripts/simulate.ts",
     "lint": "eslint .",
     "check-types": "tsc --noEmit",
     "clean": "rm -rf .next .turbo node_modules",
@@ -18,7 +17,8 @@
     "seed:write-case": "node --import tsx scripts/seed-write-case.ts recipe/fakes/mcp/trivia-bank/seeds/write.json",
     "host": "node --import tsx scripts/host.ts",
     "candidate": "node --import tsx scripts/candidate.ts",
-    "meta-input": "node --import tsx scripts/meta-input.ts"
+    "meta-input": "node --import tsx scripts/meta-input.ts",
+    "evals:venues": "node recipe-operator/evals/venues.mjs"
   },
   "dependencies": {
     "jose": "^6.2.12",

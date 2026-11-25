@@ -29,9 +29,8 @@ import { parseArgs, promisify } from "node:util";
 
 import { IntrospectionLogs } from "@introspection-sdk/introspection-node/otel";
 
-import { TARGET } from "../lib/host";
 import type { RoomState } from "../lib/rooms";
-import { seeded, teamAnswer, VENUES, type Venue } from "../lib/venues";
+import { seeded, TARGET, teamAnswer, VENUES, type Venue } from "../lib/venues";
 import {
   answerSheet,
   ASKS_ABOUT_VENUE,

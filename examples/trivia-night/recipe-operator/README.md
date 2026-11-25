@@ -16,14 +16,17 @@ The owner told brainstorm the bank already runs as an MCP server, so the session
 
 ## Run the memory evals
 
-Four Harbor tasks check that the host keeps a venue's notes from one night to the next. Each night is a trial against the bank's fakes (`fakes/`, served as a sidecar); its notes come back as the trial's `memories` artifact.
+Harbor tasks check that the host keeps a venue's notes from one night to the next. Each night is a trial against the bank's fakes (`fakes/`, served as a sidecar, with the venue's profile as its scenario); its notes come back as the trial's `memories` artifact.
 
-| Task             | Night                           | Where memory comes from                           |
-| ---------------- | ------------------------------- | ------------------------------------------------- |
-| `night1-memory`  | first night at a new venue      | none: it writes `memories/MEMORY.md`              |
-| `night2-memory`  | the next night, local Docker    | night 1's notes, mounted by `evals/run-series.sh` |
-| `night2-hosted`  | the next night, on the platform | the identity's own memory                         |
-| `night2-control` | the next night, a new identity  | none: it must ask where the venue is              |
+| Task             | Night                                    | Where memory comes from                           |
+| ---------------- | ---------------------------------------- | ------------------------------------------------- |
+| `night1-<venue>` | first night at a new venue               | none: it writes `memories/MEMORY.md`              |
+| `night2-<venue>` | the next night there, on the platform    | the identity's own memory                         |
+| `night2-control` | the next night, a new identity           | none: it must ask where the venue is              |
+| `night1-memory`  | first night at a new venue, local Docker | none: it writes `memories/MEMORY.md`              |
+| `night2-memory`  | the next night, local Docker             | night 1's notes, mounted by `evals/run-series.sh` |
+
+There is a `night1-<venue>` and `night2-<venue>` pair for each venue profile in `fakes/world/profiles.ts`: Sydney, Melbourne, Brisbane and Perth in Australia; Manchester, Leeds, Bristol and Glasgow in the UK; Chicago, Boston and Seattle in the US. Night 1 names the venue's city, country, five teams and what its crowd likes; night 2 says it's the same teams as last week, and passes only if every round it fetches is from the venue's own region or global (`tests/expected.json`). `evals/venues.json` lists them for the trivia-night page. After changing a profile, regenerate them from the example with `pnpm evals:venues`, and commit the result: `eval run` reads the tasks at the pushed commit.
 
 **Local Docker.** Runs the Recipe in the Runtime image with your own model key:
 
@@ -39,12 +42,12 @@ introspection api-keys create --environment staging --capabilities runtimes,eval
   --expires-at <today, 23:59 UTC> --secret-file .agent.key
 export INTROSPECTION_TOKEN="$(cat .agent.key)"
 export INTROSPECTION_DP_URL="$(introspection whoami --query dp_url -o table)"
-for task in night1-memory night2-hosted; do
+for task in night1-melbourne night2-melbourne; do
   introspection eval run -r <runtime version> --commit-sha <pushed commit> \
-    --path evals/harbor/$task --identity anon:sim-<run>-venue-a
+    --path evals/harbor/$task --identity anon:sim-<run>-melbourne
 done
 introspection eval run -r <runtime version> --commit-sha <pushed commit> \
-  --path evals/harbor/night2-control --identity anon:sim-<run>-venue-b
+  --path evals/harbor/night2-control --identity anon:sim-<run>-control
 introspection api-keys revoke --key <key id> --yes
 ```
 
@@ -57,8 +60,10 @@ On the local stack all three pass, each scored from the sandbox:
 | Trial            | Identity | Reward | What it shows                                                          |
 | ---------------- | -------- | ------ | ---------------------------------------------------------------------- |
 | `night1-memory`  | venue A  | 1      | notes hold the country, genres and difficulty, and no team names       |
-| `night2-hosted`  | venue A  | 1      | a UK round at difficulty 3 in a genre not yet played; no country asked |
+| night 2          | venue A  | 1      | a UK round at difficulty 3 in a genre not yet played; no country asked |
 | `night2-control` | venue B  | 1      | asks the venue's country before fetching anything                      |
+
+These were recorded with the single Manchester venue the per-venue tasks replaced.
 
 ## Next iteration
 
