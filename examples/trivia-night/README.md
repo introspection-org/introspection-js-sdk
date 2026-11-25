@@ -106,8 +106,8 @@ Every trial is a real model conversation, and the cost is mostly how many there 
 
 | What                            | Volume                                               | Cost                                                   | Billed to                                               |
 | ------------------------------- | ---------------------------------------------------- | ------------------------------------------------------ | ------------------------------------------------------- |
-| **Run** with 3 venues           | 9 trials                                             | about $1                                               | your organization's platform usage                      |
-| **Run** with 11 venues          | 33 trials                                            | about $3                                               | your organization's platform usage                      |
+| **Run** with 3 venues           | 21 trials                                            | about $2                                               | your organization's platform usage                      |
+| **Run** with 11 venues          | 77 trials                                            | about $7                                               | your organization's platform usage                      |
 | One improve cycle, as first run | 178 four-night series nights plus 135 Operator turns | about $20 for the search, before held-out confirmation | the key or subscription the Operator and its trials use |
 
 What the first improve cycle spent, measured from each trial's `trajectory.json` (`final_metrics`) and the Operator's Pi session:
