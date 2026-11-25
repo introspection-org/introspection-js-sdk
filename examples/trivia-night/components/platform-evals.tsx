@@ -254,19 +254,19 @@ const HOW_ARMS = [
   {
     name: "No notes",
     lines: ["starts fresh, like a", "new pub · the baseline"],
-    color: "--muted",
+    color: "--arm-none",
     night: "night2-fresh",
   },
   {
     name: "Other notes",
     lines: ["another pub's notes ·", "the placebo"],
-    color: "--bad",
+    color: "--arm-other",
     night: "night2-wrong",
   },
   {
     name: "True notes",
     lines: ["the crowd's real tastes ·", "the ceiling"],
-    color: "--host",
+    color: "--arm-true",
     night: "night2-perfect",
   },
 ] as const;

@@ -7,6 +7,9 @@
   --accent: #b4521a;
   --bank: #1f6f8b;
   --memory: #7a3fa0;
+  --arm-none: #b9b6ac;
+  --arm-other: #c98a85;
+  --arm-true: #4a2366;
   --host: #2f7d4f;
   --bad: #b3261e;
   color-scheme: light dark;
@@ -22,6 +25,9 @@
     --accent: #e08a52;
     --bank: #6fb8d2;
     --memory: #c193e0;
+    --arm-none: #b9b6ac;
+    --arm-other: #c98a85;
+    --arm-true: #6b3a91;
     --host: #7fc79b;
     --bad: #f2867d;
   }
@@ -421,16 +427,16 @@ table.steps td.fine {
   border-radius: 3px;
 }
 .bar-fill.without {
-  background: #b9b6ac;
+  background: var(--arm-none);
 }
 .bar-fill.with {
   background: var(--memory);
 }
 .bar-fill.perfect {
-  background: #4a2366;
+  background: var(--arm-true);
 }
 .bar-fill.wrong {
-  background: #c98a85;
+  background: var(--arm-other);
 }
 .bar-verdict small {
   display: block;
