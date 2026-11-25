@@ -6,7 +6,6 @@ import {
   LoginRefused,
   SESSION_COOKIE,
   completeLogin,
-  keyProject,
   sessionKey,
   spaClientId,
 } from "@/lib/session";
@@ -34,7 +33,6 @@ export async function GET(request: Request) {
       redirectUri: `${url.origin}/callback`,
       clientId: spaClientId(),
       cpUrl: apiBaseUrl(),
-      project: keyProject,
       key: sealing.key,
     });
     const response = NextResponse.redirect(new URL("/", url.origin));

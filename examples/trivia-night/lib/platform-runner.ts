@@ -1,17 +1,19 @@
 /**
  * Runs the memory evals on the platform from the page, as plain calls through
- * the SDK: each trial is a `kind: eval` task of the `trivia-host` Runtime that
- * scores itself with its Harbor task's own verifier. Nothing is held here
- * between requests: a run is its tasks, found by their tag, and `advanceRun`
- * moves it on from what they say. Server only.
+ * the SDK with the signed-in member's own token: each trial is a `kind: eval`
+ * task of the project's trivia Runtime that scores itself with its Harbor
+ * task's own verifier, billed to the member's organization. Nothing is held
+ * here between requests: a run is its tasks, found by their tag, and
+ * `advanceRun` moves it on from what they say. Server only.
  */
 import { createHash } from "node:crypto";
-import { readFileSync } from "node:fs";
 import path from "node:path";
 
 import {
   ConflictError,
   IntrospectionClient,
+  NotFoundError,
+  type Runtime,
   type Task,
   type TaskCreateParams,
 } from "@introspection-sdk/introspection-node";
@@ -21,7 +23,6 @@ import { parse as parseYaml } from "yaml";
 import { measuresOf, type VenueTastes } from "./memory-measures";
 import {
   DEFAULT_TEAMS,
-  newRunId,
   previewNotes,
   readyToComplete,
   runSteps,
@@ -50,7 +51,10 @@ import { loadedMemory } from "./trial-steps";
 export type Env = Record<string, string | undefined>;
 
 const DEFAULT_API_BASE_URL = "https://api.introspection.dev";
-const RUNTIME_SLUG = "trivia-host";
+/** The Runtime a project adds from this repository's manifest, or the one `pnpm dev` creates. */
+const RUNTIME_SLUGS = ["trivia-night", "trivia-host"];
+export const ADD_RUNTIME =
+  "add the trivia-night runtime to your project: introspection runtimes create --manifest .introspection/trivia-night.yaml";
 /** Where the Harbor tasks sit in the Recipe. */
 const TASKS_DIR = "evals/harbor";
 const MAIN_SERVICE = "main";
@@ -74,42 +78,6 @@ const ARCHIVE_TTL_SECONDS = 2 * 24 * 3600;
 /** The uuid5 namespace a step's admission key is derived in. */
 const ADMISSION_NAMESPACE = "6f1c2a8e-3b4d-5e6f-8a9b-0c1d2e3f4a5b";
 
-export const KEY_HOW_TO = [
-  "introspection api-keys create --environment staging --capabilities runtimes,evals \\",
-  "  --expires-at <today, 23:59 UTC> --secret-file recipe-operator/.agent.key",
-  "echo TRIVIA_EVAL_KEY_FILE=recipe-operator/.agent.key >> .env.local",
-  "# or, where there is no disk (Vercel): set TRIVIA_AGENT_KEY to the key itself",
-].join("\n");
-
-/** The agent key, from TRIVIA_AGENT_KEY or else the file TRIVIA_EVAL_KEY_FILE names, or why there is none. */
-export function agentKey(
-  env: Env = process.env,
-): { token: string } | { missing: string } {
-  const inline = env.TRIVIA_AGENT_KEY?.trim();
-  if (inline) return { token: inline };
-  const named = env.TRIVIA_EVAL_KEY_FILE?.trim();
-  if (!named)
-    return {
-      missing: "neither TRIVIA_AGENT_KEY nor TRIVIA_EVAL_KEY_FILE is set",
-    };
-  let token: string;
-  try {
-    // A local fallback only, so the build must not trace the project for it.
-    token = readFileSync(
-      /* turbopackIgnore: true */ path.resolve(
-        /* turbopackIgnore: true */ process.cwd(),
-        named,
-      ),
-      "utf8",
-    ).trim();
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === "ENOENT")
-      return { missing: `${named} does not exist` };
-    throw error;
-  }
-  return token ? { token } : { missing: `${named} is empty` };
-}
-
 /** The Control Plane the page signs in with and finds the Runtime on. */
 export function apiBaseUrl(env: Env = process.env): string {
   return env.INTROSPECTION_API_BASE_URL?.trim() || DEFAULT_API_BASE_URL;
@@ -125,27 +93,57 @@ export type PlatformClient = Pick<
   "tasks" | "files" | "images" | "repositories" | "runtimes" | "recipes"
 >;
 
-/** A client holding the agent key. */
-export function platformClient(env: Env = process.env): IntrospectionClient {
-  const key = agentKey(env);
-  if ("missing" in key) throw new Error(key.missing);
+/** A client acting as the signed-in member, with their own access token. */
+export function memberClient(
+  session: { access_token: string; dp_url: string | null },
+  env: Env = process.env,
+): IntrospectionClient {
   return new IntrospectionClient({
-    token: key.token,
-    advanced: { baseApiUrl: apiBaseUrl(env), dpUrl: dpBaseUrl(env) },
+    token: session.access_token,
+    advanced: {
+      baseApiUrl: apiBaseUrl(env),
+      dpUrl: session.dp_url || dpBaseUrl(env),
+    },
   });
+}
+
+/** A project with no trivia Runtime, which the panel says how to add. */
+export class NoRuntime extends Error {
+  constructor() {
+    super(ADD_RUNTIME);
+  }
 }
 
 /** The Runtime the trials run, the commit they run at, and the repository that holds its Recipe. */
 export async function resolveTarget(
-  client: PlatformClient = platformClient(),
+  client: PlatformClient,
+  project: string,
   env: Env = process.env,
 ): Promise<Target> {
-  const pinned = env.INTROSPECTION_TRIVIA_RUNTIME_ID?.trim();
-  const runtime = pinned
-    ? await client.runtimes.get(pinned)
-    : await client.runtimes.resolve(RUNTIME_SLUG);
+  const pinnedId = env.INTROSPECTION_TRIVIA_RUNTIME_ID?.trim();
+  let runtime: Runtime | null = null;
+  if (pinnedId) {
+    try {
+      const read = await client.runtimes.get(pinnedId);
+      if (read.project_id === project) runtime = read;
+    } catch (error) {
+      if (!(error instanceof NotFoundError)) throw error;
+    }
+  }
+  // The pinned commit goes with the pinned Runtime only.
+  const pinned = runtime !== null;
+  for (const slug of RUNTIME_SLUGS) {
+    if (runtime) break;
+    try {
+      runtime = await client.runtimes.resolve(slug, project);
+    } catch (error) {
+      if (!(error instanceof NotFoundError)) throw error;
+    }
+  }
+  if (!runtime) throw new NoRuntime();
   const commit =
-    env.INTROSPECTION_TRIVIA_COMMIT_SHA?.trim() || runtime.git_commit_sha;
+    (pinned && env.INTROSPECTION_TRIVIA_COMMIT_SHA?.trim()) ||
+    runtime.git_commit_sha;
   if (!commit) throw new Error(`the ${runtime.slug} runtime has no commit yet`);
   if (!runtime.recipe_id)
     throw new Error(`the ${runtime.slug} runtime has no Recipe`);
@@ -543,7 +541,7 @@ const skipReason = (failed: string[]) =>
 
 /** The newest run this page started, by id, or null. */
 export async function latestRun(
-  client: PlatformClient = platformClient(),
+  client: PlatformClient,
 ): Promise<string | null> {
   for await (const task of client.tasks.list({ tag: TRIALS_TAG, limit: 5 })) {
     const meta = trialMeta(task.metadata);
@@ -558,11 +556,13 @@ export async function latestRun(
  * predecessor failed is skipped. Idempotent, and safe to call from any
  * instance: each step's admission key makes one task of it however many
  * calls create it, and a run made before the key keeps a step's first task
- * and archives the others.
+ * and archives the others. With `advance` false it only reads, for a member
+ * whose sign-in cannot move a run on.
  */
 export async function advanceRun(
   client: PlatformClient,
   run: string,
+  advance = true,
 ): Promise<RunView | null> {
   const tasks = await runTasks(client, run);
   if (!tasks.length) return null;
@@ -570,7 +570,7 @@ export async function advanceRun(
   const byStep = new Map<string, Task>();
   for (const { task, meta } of tasks) {
     if (!byStep.has(meta.step)) byStep.set(meta.step, task);
-    else if (!task.is_archived) await client.tasks.archive(task.id);
+    else if (advance && !task.is_archived) await client.tasks.archive(task.id);
   }
   const cache: Definitions = new Map();
   const states = new Map<string, ReturnType<typeof trialState>>();
@@ -595,7 +595,7 @@ export async function advanceRun(
         });
         continue;
       }
-      if (before.some(([, state]) => !state?.done)) {
+      if (!advance || before.some(([, state]) => !state?.done)) {
         views.push({
           key,
           step,
@@ -609,7 +609,7 @@ export async function advanceRun(
       }
       task = await createTrial(client, record, step, cache);
     }
-    if (readyToComplete(task)) await completeTrial(client, task.id);
+    if (advance && readyToComplete(task)) await completeTrial(client, task.id);
     const state = trialState(task);
     states.set(key, state);
     views.push({
@@ -630,6 +630,7 @@ export async function advanceRun(
     run,
     record,
     trials: views,
+    memory_off: tasks.some(({ task }) => !task.metadata?.memory),
     finished: done
       ? {
           run,
@@ -645,27 +646,48 @@ export async function advanceRun(
   };
 }
 
-/** Starts a run: records it on its first nights' tasks, which the page's polls then move on. */
+/** What a Run click asks for; `token` is the click's own, so a repeat of it starts nothing new. */
+export interface StartRequest {
+  venues: number;
+  startedBy: string;
+  /** The member's project, which their token acts in. */
+  project: string;
+  token: string;
+  teams?: TeamSize;
+  pubs?: Pubs;
+  now?: Date;
+}
+
+/** A run's id from the member and their click's token: the same click names the same run. */
+export function runIdFor(member: string, token: string): string {
+  const hash = createHash("sha256").update(`${member}:${token}`).digest("hex");
+  return `r${parseInt(hash.slice(0, 13), 16)}`;
+}
+
+/**
+ * Starts a run: records it on its first nights' tasks, which the page's polls
+ * then move on. A repeat of the same click resolves to the run it started,
+ * through its first trials' admission keys; another click while a run is
+ * going is refused.
+ */
 export async function startRun(
   client: PlatformClient,
-  venues: number,
-  startedBy: string,
-  teams: TeamSize = DEFAULT_TEAMS,
-  pubs: Pubs = "development",
-  now = new Date(),
+  request: StartRequest,
 ): Promise<{ run: string; target: Target }> {
+  const now = request.now ?? new Date();
+  const run = runIdFor(request.startedBy, request.token);
   const latest = await latestRun(client);
-  if (latest) {
+  if (latest && latest !== run) {
     const view = await advanceRun(client, latest);
     if (view && !view.finished) throw new Error(`run ${latest} is still going`);
   }
-  const target = await resolveTarget(client);
+  const target = await resolveTarget(client, request.project);
   const record: RunRecord = {
-    run: newRunId(now),
-    venues,
-    teams,
-    pubs,
-    started_by: startedBy,
+    run,
+    venues: request.venues,
+    teams: request.teams ?? DEFAULT_TEAMS,
+    pubs: request.pubs ?? "development",
+    started_by: request.startedBy,
     started_at: now.toISOString(),
     target,
   };
@@ -720,8 +742,11 @@ export async function trialResult(
     notes: previewNotes(out.notes),
     fetches: out.fetches,
     rounds: out.rounds,
+    // The runtime loads memory only for a trial that owns it.
     steps:
-      night1Notes && !out.steps.some((event) => event.type === "memory.read")
+      night1Notes &&
+      task.metadata?.memory &&
+      !out.steps.some((event) => event.type === "memory.read")
         ? [loadedMemory(night1Notes), ...out.steps]
         : out.steps,
     steps_error: out.steps_error,

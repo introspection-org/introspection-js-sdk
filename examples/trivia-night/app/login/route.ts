@@ -1,9 +1,8 @@
 import { NextResponse } from "next/server";
 
-import { KEY_HOW_TO, apiBaseUrl } from "@/lib/platform-runner";
+import { apiBaseUrl } from "@/lib/platform-runner";
 import {
   LOGIN_COOKIE,
-  keyProject,
   loginRequest,
   sessionKey,
   spaClientId,
@@ -23,22 +22,8 @@ export async function GET(request: Request) {
   const sealing = sessionKey();
   if ("missing" in sealing)
     return new Response(`${sealing.missing}.\n`, { status: 500 });
-  let project: string;
-  try {
-    project = await keyProject();
-  } catch (error) {
-    return new Response(
-      `Could not read the agent key's project: ${(error as Error).message}\n\n${KEY_HOW_TO}\n`,
-      { status: 503 },
-    );
-  }
   const origin = new URL(request.url).origin;
-  const login = loginRequest(
-    clientId,
-    project,
-    `${origin}/callback`,
-    apiBaseUrl(),
-  );
+  const login = loginRequest(clientId, `${origin}/callback`, apiBaseUrl());
   const response = NextResponse.redirect(login.url);
   response.cookies.set(LOGIN_COOKIE, login.cookie, {
     httpOnly: true,

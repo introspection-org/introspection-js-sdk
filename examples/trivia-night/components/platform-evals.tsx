@@ -29,6 +29,7 @@ import { BAND, MEASURES, checkLine } from "@/lib/memory-measures";
 import type { TrialEvent } from "@/lib/trial-steps";
 import {
   type Comparison,
+  MEMORY_OFF,
   MIN_PUBS,
   modelWhy,
   nextStep,
@@ -37,7 +38,10 @@ import {
 } from "@/lib/summary";
 
 interface Config {
-  configured: boolean;
+  /** The run scopes the member's sign-in lacks; only an owner or admin holds them. */
+  missing_scopes: string[];
+  /** The project has no trivia Runtime yet. */
+  no_runtime: boolean;
   /** The newest run, finished or not. */
   latest?: string | null;
   max_venues?: number;
@@ -47,8 +51,6 @@ interface Config {
   /** An estimate of one trial's model cost, in US dollars. */
   cost_per_trial?: number;
   trials_per_venue?: number;
-  missing: string | null;
-  how_to: string;
   target: { runtime: string; commit: string; slug?: string } | null;
   target_error: string | null;
   active: string | null;
@@ -72,6 +74,7 @@ interface RunView {
   run: string;
   trials: Map<string, Trial>;
   finished?: EvalRunFinished;
+  memoryOff: boolean;
 }
 
 // The night 2s from worst expected to best; night 0 only seeds the perfect notes.
@@ -281,6 +284,7 @@ interface RunState {
     finished: EvalFinished | null;
   }[];
   finished: EvalRunFinished | null;
+  memory_off?: boolean;
 }
 
 /** The trials that have started, each with its result once it is read. */
@@ -297,6 +301,7 @@ function runView(state: RunState, results: Map<string, EvalFinished>): RunView {
     run: state.run,
     trials,
     finished: state.finished ?? undefined,
+    memoryOff: Boolean(state.memory_off),
   };
 }
 
@@ -598,6 +603,7 @@ export function PlatformEvals() {
   const [open, setOpen] = useState<string>();
   const [tabs, setTabs] = useState<Record<string, (typeof NIGHTS)[number]>>({});
   const [nightView, setNightView] = useState<NightView>("questions");
+  const [starting, setStarting] = useState(false);
   useEffect(() => {
     try {
       if (window.localStorage.getItem(NIGHT_VIEW_KEY) === "steps")
@@ -725,6 +731,9 @@ export function PlatformEvals() {
 
   const start = async () => {
     setError(undefined);
+    setStarting(true);
+    // One token per click: a repeated or duplicated POST of it names the same run.
+    const token = crypto.randomUUID();
     const response = await fetch("/api/evals", {
       method: "POST",
       headers: { "content-type": "application/json" },
@@ -732,8 +741,9 @@ export function PlatformEvals() {
         venues: venueCount,
         teams: teams ?? config?.default_teams,
         pubs,
+        token,
       }),
-    });
+    }).finally(() => setStarting(false));
     if (signedOut(response)) return;
     const body = await response.json();
     if (!response.ok) setError(body.error);
@@ -966,11 +976,13 @@ export function PlatformEvals() {
     };
   };
   const modelVsNone = compare("night2-hosted");
-  const reasons = [
-    modelWhy(modelVsNone),
-    otherWhy(compare("night2-wrong")),
-    trueWhy(compare("night2-perfect"), modelVsNone),
-  ].filter((line): line is string => line !== null);
+  const reasons = view?.memoryOff
+    ? [MEMORY_OFF]
+    : [
+        modelWhy(modelVsNone),
+        otherWhy(compare("night2-wrong")),
+        trueWhy(compare("night2-perfect"), modelVsNone),
+      ].filter((line): line is string => line !== null);
   const order =
     primary &&
     typeof primary.means.with === "number" &&
@@ -1047,6 +1059,7 @@ export function PlatformEvals() {
         gatePasses: gate?.passes ?? null,
         costPerTrial: config?.cost_per_trial ?? 0.086,
         trialsPerPub: config?.trials_per_venue ?? 7,
+        memoryOff: view.memoryOff,
       })
     : null;
   const accuracy = trialVenues.flatMap((venue) => {
@@ -1198,13 +1211,24 @@ export function PlatformEvals() {
         </div>
       </div>
 
-      {config && !config.configured && (
+      {config && config.missing_scopes.length > 0 && (
         <div className="notice">
           <p>
-            No agent key: {config.missing}. Create a key that expires today,
-            then restart <code>pnpm dev</code>:
+            Only an organization owner or admin can run the evals: your sign-in
+            lacks {config.missing_scopes.join(", ")}. You can still read the
+            runs others start.
           </p>
-          <pre className="notes">{config.how_to}</pre>
+        </div>
+      )}
+      {config?.no_runtime && (
+        <div className="notice">
+          <p>
+            Your project has no trivia Runtime. From a clone of this repository:
+          </p>
+          <pre className="notes">
+            introspection runtimes create --manifest
+            .introspection/trivia-night.yaml
+          </pre>
         </div>
       )}
 
@@ -1282,7 +1306,12 @@ export function PlatformEvals() {
           </div>
         </div>
         <button
-          disabled={!config?.configured || !config?.target || running}
+          disabled={
+            !config?.target ||
+            (config?.missing_scopes.length ?? 0) > 0 ||
+            running ||
+            starting
+          }
           onClick={start}
           title="Starts new pubs with no memory: night 1, then night 2 with model notes, no notes, other notes and true notes"
         >
@@ -1334,7 +1363,9 @@ export function PlatformEvals() {
           </p>
           <div className="experiment">
             <div className="pick">
-              <p className="big">{headline}</p>
+              <p className="big">
+                {view.memoryOff ? "Memory was off for this run" : headline}
+              </p>
               {reasons.length > 0 && (
                 <ul className="reasons">
                   {reasons.map((line) => (

@@ -5,12 +5,13 @@ import {
   signTest,
   validityGate,
 } from "../lib/experiment";
-import { platformClient, runResults } from "../lib/platform-runner";
+import { cliSession } from "../lib/cli-session";
+import { runResults } from "../lib/platform-runner";
 
 const run = process.argv[2];
 if (!run) throw new Error("usage: analyze.mts <run-id>");
-// The run is its tasks on the platform, read with the agent key.
-const results = await runResults(platformClient(), run);
+// The run is its tasks on the platform, read as the member `introspection login` signed in.
+const results = await runResults(cliSession().client, run);
 if (!results) throw new Error(`no trials found for run ${run}`);
 // A trial that errored measured nothing: it is counted and reported, never analysed.
 const fin = results.filter((e) => !e.error);

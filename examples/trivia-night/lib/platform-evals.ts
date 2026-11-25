@@ -142,10 +142,6 @@ export const taskName = (
 ) => `night${night}-${slug}${teams === DEFAULT_TEAMS ? "" : `-t${teams}`}`;
 const NOTES_PREVIEW = 600;
 
-export function newRunId(now = new Date()): string {
-  return `r${now.getTime()}`;
-}
-
 /**
  * The pub whose notes venue i's wrong-notes night 2 loads: the next pub in the
  * list in another country with none of its favourites, else the next in
@@ -466,6 +462,8 @@ export interface RunView {
   record: RunRecord;
   trials: TrialView[];
   finished: EvalRunFinished | null;
+  /** The trials own no memory, as a business member's eval tasks do not yet, so night 2 runs without notes. */
+  memory_off: boolean;
 }
 
 /** A night that never ran because a night it depends on failed, so it is never scored. */

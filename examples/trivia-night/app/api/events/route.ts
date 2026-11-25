@@ -7,7 +7,7 @@ export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 export async function GET(request: Request) {
-  const auth = await requireSession(request);
+  const auth = requireSession(request);
   if ("error" in auth)
     return NextResponse.json({ error: auth.error }, { status: auth.status });
   const after = Number(new URL(request.url).searchParams.get("after") ?? 0);

@@ -4,7 +4,8 @@
  * page finds it by the folder's git tree id at the runtime's commit, but cannot
  * build it, since the repository contents API returns no file over 1 MB whole.
  * Every file is checked against the runtime's repository first, so the image
- * is the commit's folder exactly. Needs the agent key, as the page does.
+ * is the commit's folder exactly. Runs as the member `introspection login`
+ * signed in, in their project.
  */
 import { createHash } from "node:crypto";
 import { readFileSync, statSync } from "node:fs";
@@ -12,8 +13,8 @@ import path from "node:path";
 
 import VENUES from "../recipe-operator/evals/venues.json";
 import { taskName } from "../lib/platform-evals";
+import { cliSession } from "../lib/cli-session";
 import {
-  platformClient,
   readTaskDefinition,
   resolveTarget,
   sidecarImageName,
@@ -50,8 +51,8 @@ async function hostedFiles(
 }
 
 async function main() {
-  const client = platformClient();
-  const target = await resolveTarget(client);
+  const { client, project } = cliSession();
+  const target = await resolveTarget(client, project);
   const definition = await readTaskDefinition(
     client,
     target,

@@ -2,8 +2,10 @@
  * The eval runner against the real SDK and a recorded platform: one pub's run
  * from its first trials to its results, replayed from
  * `tests/recordings/trivia-night-platform_*`. `pnpm test` replays it;
- * `pnpm test:platform:record` records it against a LOCAL stack only, with
- * `TRIVIA_EVAL_KEY_FILE`, `INTROSPECTION_API_BASE_URL`, `INTROSPECTION_DP_URL`,
+ * `pnpm test:platform:record` records it against a LOCAL stack only, with a
+ * bearer token of that stack's project in the file `TRIVIA_RECORD_TOKEN_FILE`
+ * standing in for the member's (the page's sign-in needs a browser), and
+ * `INTROSPECTION_API_BASE_URL`, `INTROSPECTION_DP_URL`,
  * `INTROSPECTION_TRIVIA_RUNTIME_ID` and `INTROSPECTION_TRIVIA_COMMIT_SHA` set
  * (`.env.local`). Waits poll on the native fetch, which the recording never
  * sees; each decision is one recorded call.
@@ -30,6 +32,10 @@ interface Bootstrap {
   dp: string;
   runtime: string;
   commit: string;
+  project: string;
+  member: string;
+  /** The click that starts the recorded run, new each recording so it names a new run. */
+  click: string;
 }
 
 async function main() {
@@ -37,11 +43,21 @@ async function main() {
     await import("../../../tests/polly-setup");
   const mode = getPollyMode();
   const live = mode !== "replay";
+  const recordToken = live
+    ? readFileSync(process.env.TRIVIA_RECORD_TOKEN_FILE ?? "", "utf8").trim()
+    : "polly-replay";
   if (mode === "record") {
     const api = process.env.INTROSPECTION_API_BASE_URL ?? "";
     if (!/^http:\/\/localhost:/.test(api))
       throw new Error("record against a local stack only");
+    const runner = await import("../lib/platform-runner");
+    const runtime = await runner
+      .memberClient({ access_token: recordToken, dp_url: null })
+      .runtimes.get(process.env.INTROSPECTION_TRIVIA_RUNTIME_ID ?? "");
     const bootstrap: Bootstrap = {
+      project: runtime.project_id,
+      member: "recorded-member",
+      click: `recorded-${Date.now()}`,
       started_at: new Date().toISOString(),
       api,
       dp: process.env.INTROSPECTION_DP_URL ?? api,
@@ -57,9 +73,6 @@ async function main() {
     INTROSPECTION_DP_URL: bootstrap.dp,
     INTROSPECTION_TRIVIA_RUNTIME_ID: bootstrap.runtime,
     INTROSPECTION_TRIVIA_COMMIT_SHA: bootstrap.commit,
-    ...(live
-      ? { TRIVIA_EVAL_KEY_FILE: process.env.TRIVIA_EVAL_KEY_FILE }
-      : { TRIVIA_AGENT_KEY: "polly-replay" }),
   };
   Object.assign(process.env, env);
 
@@ -73,10 +86,13 @@ async function main() {
   try {
     const runner = await import("../lib/platform-runner");
     const evals = await import("../lib/platform-evals");
-    const client = runner.platformClient(env);
-    const key = runner.agentKey(env);
+    const token = recordToken;
+    const client = runner.memberClient(
+      { access_token: token, dp_url: bootstrap.dp },
+      env,
+    );
     const quiet = new IntrospectionClient({
-      token: "token" in key ? key.token : "",
+      token,
       advanced: {
         baseApiUrl: bootstrap.api,
         dpUrl: bootstrap.dp,
@@ -104,13 +120,13 @@ async function main() {
     const stepOf = (task: Task) => evals.trialMeta(task.metadata)?.step;
     const ENDED = new Set(["completed", "failed", "cancelled"]);
 
-    const target = await runner.resolveTarget(client, env);
+    const target = await runner.resolveTarget(client, bootstrap.project, env);
     const record = {
-      run: evals.newRunId(new Date(bootstrap.started_at)),
+      run: runner.runIdFor(bootstrap.member, bootstrap.click),
       venues: 1,
       teams: evals.DEFAULT_TEAMS,
       pubs: "development" as const,
-      started_by: "m-test",
+      started_by: bootstrap.member,
       started_at: bootstrap.started_at,
       target,
     };
@@ -154,14 +170,16 @@ async function main() {
       },
     );
 
-    const started = await runner.startRun(
-      client,
-      record.venues,
-      record.started_by,
-      record.teams,
-      record.pubs,
-      new Date(bootstrap.started_at),
-    );
+    const request = {
+      venues: record.venues,
+      startedBy: record.started_by,
+      project: bootstrap.project,
+      token: bootstrap.click,
+      teams: record.teams,
+      pubs: record.pubs,
+      now: new Date(bootstrap.started_at),
+    };
+    const started = await runner.startRun(client, request);
     const run = started.run;
 
     await check(
@@ -180,8 +198,22 @@ async function main() {
         assert.ok(task.tags?.includes(evals.runTag(run)));
         assert.ok(task.tags?.includes(evals.TRIALS_TAG));
         assert.equal(task.metadata?.admission_key, runner.admissionKey(first));
+        // The same click again is the same run; another click while it goes is refused.
+        const again = await runner.startRun(client, {
+          ...request,
+          now: new Date(Date.parse(bootstrap.started_at) + 1000),
+        });
+        assert.equal(again.run, run);
+        const listed = await client.tasks.list({
+          tag: evals.runTag(run),
+          limit: 100,
+        });
+        assert.equal(
+          listed.records.length,
+          steps.filter((s) => !s.after?.length).length,
+        );
         await assert.rejects(
-          runner.startRun(client, 1, "m-test"),
+          runner.startRun(client, { ...request, token: "another-click" }),
           /still going/,
         );
       },
@@ -274,7 +306,7 @@ async function main() {
           "skipped: night0-seed failed",
         );
         assert.equal(view.finished?.trials, steps.length);
-        assert.equal(view.finished?.started_by, "m-test");
+        assert.equal(view.finished?.started_by, bootstrap.member);
         const hostedStep = steps.find((s) => s.night === "night2-hosted")!;
         const hosted = await client.tasks.get(
           byKey.get(evals.stepKey(hostedStep))!.task_id!,
@@ -308,8 +340,18 @@ async function main() {
         assert.ok(Object.keys(hosted.checks).length > 0);
         // What the host did, kept by the verifier from the sandbox's own record.
         const kinds = new Set(hosted.steps?.map((step) => step.type));
-        for (const kind of ["memory.read", "bank.served", "host.planned"])
+        for (const kind of ["bank.served", "host.planned"])
           assert.ok(kinds.has(kind as never), `night 2 has a ${kind} step`);
+        // The run says whether its trials owned memory, and shows the runtime's load only when they did.
+        const owned = Boolean(
+          (await client.tasks.get(byKey.get(hostedKey)!.task_id!)).metadata
+            ?.memory,
+        );
+        assert.equal(view.memory_off, !owned);
+        assert.equal(
+          Boolean(hosted.steps?.some((step) => step.key === "runtime:memory")),
+          owned,
+        );
         const night1 = (await runner.trialResult(
           client,
           byKey.get(evals.stepKey(first))!.task_id!,

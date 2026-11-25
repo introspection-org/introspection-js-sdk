@@ -12,50 +12,51 @@ import {
 } from "@/lib/platform-evals";
 
 import {
-  KEY_HOW_TO,
+  NoRuntime,
   advanceRun,
-  agentKey,
   latestRun,
-  platformClient,
+  memberClient,
   resolveTarget,
   startRun,
 } from "@/lib/platform-runner";
-import { requireSession } from "@/lib/session";
+import { RUN_SCOPES, missingScopes, requireSession } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
-/** What the panel shows: whether a key is set, the target and the latest run. Never the key. */
+/** What the panel shows: the member's target, whether they can run, and the latest run. */
 export async function GET(request: Request) {
-  const auth = await requireSession(request);
+  const auth = requireSession(request);
   if ("error" in auth)
     return NextResponse.json({ error: auth.error }, { status: auth.status });
-  const key = agentKey();
+  const { session } = auth;
+  const missing = missingScopes(session, RUN_SCOPES);
   let target = null;
   let target_error = null;
+  let no_runtime = false;
   let latest: string | null = null;
   let active: string | null = null;
   try {
-    const client = platformClient();
-    target = await resolveTarget(client);
+    const client = memberClient(session);
+    target = await resolveTarget(client, session.project_id);
     latest = await latestRun(client);
     if (latest) {
-      const view = await advanceRun(client, latest);
+      const view = await advanceRun(client, latest, missing.length === 0);
       active = view && !view.finished ? latest : null;
     }
   } catch (error) {
-    target_error = (error as Error).message;
+    no_runtime = error instanceof NoRuntime;
+    target_error = no_runtime ? null : (error as Error).message;
   }
   return NextResponse.json({
-    configured: "token" in key,
+    missing_scopes: missing,
+    no_runtime,
     max_venues: MAX_VENUES,
     max_venues_by_pubs: MAX_VENUES_BY_PUBS,
     team_sizes: TEAM_SIZES,
     default_teams: DEFAULT_TEAMS,
     cost_per_trial: COST_PER_TRIAL,
     trials_per_venue: TRIALS_PER_VENUE,
-    missing: "missing" in key ? key.missing : null,
-    how_to: KEY_HOW_TO,
     target,
     target_error,
     latest,
@@ -63,22 +64,34 @@ export async function GET(request: Request) {
   });
 }
 
-/** Starts a run: creates its first nights and returns; the page's polls of the run start the rest. */
+/** Starts a run as the member: creates its first nights and returns; the page's polls start the rest. */
 export async function POST(request: Request) {
-  const auth = await requireSession(request);
+  const auth = requireSession(request);
   if ("error" in auth)
     return NextResponse.json({ error: auth.error }, { status: auth.status });
-  const key = agentKey();
-  if ("missing" in key)
+  const { session } = auth;
+  const missing = missingScopes(session, RUN_SCOPES);
+  if (missing.length)
     return NextResponse.json(
-      { error: key.missing, how_to: KEY_HOW_TO },
+      {
+        error: `only an organization owner or admin can run the evals: your sign-in lacks ${missing.join(", ")}`,
+      },
       { status: 403 },
     );
   const body = (await request.json().catch(() => ({}))) as {
     venues?: number;
     teams?: unknown;
     pubs?: unknown;
+    token?: unknown;
   };
+  if (
+    typeof body.token !== "string" ||
+    !/^[A-Za-z0-9-]{8,64}$/.test(body.token)
+  )
+    return NextResponse.json(
+      { error: "token must name this click" },
+      { status: 400 },
+    );
   const pubs = body.pubs ?? "development";
   if (!isPubs(pubs))
     return NextResponse.json(
@@ -97,13 +110,14 @@ export async function POST(request: Request) {
   );
   try {
     return NextResponse.json(
-      await startRun(
-        platformClient(),
+      await startRun(memberClient(session), {
         venues,
-        auth.session.member_id,
+        startedBy: session.member_id,
+        project: session.project_id,
+        token: body.token,
         teams,
         pubs,
-      ),
+      }),
     );
   } catch (error) {
     return NextResponse.json(

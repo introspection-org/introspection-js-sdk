@@ -176,7 +176,7 @@ ensure_runtime() {
   # The page finds the trials' sidecar image by its folder at the pushed commit,
   # and builds none itself; this builds it when the folder changed.
   node --env-file-if-exists="$ENV_FILE" --import tsx scripts/sidecar-image.ts ||
-    say "the sidecar image is not built: set TRIVIA_EVAL_KEY_FILE, then pnpm sidecar:image"
+    say "the sidecar image is not built: run pnpm sidecar:image"
 }
 
 # The application the bank is linked to, by name; its id on stdout.

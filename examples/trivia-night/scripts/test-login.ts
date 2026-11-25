@@ -54,9 +54,6 @@ async function main() {
           ? (process.env.TRIVIA_SPA_CLIENT_ID ?? "")
           : REPLAY_CLIENT_ID,
       cpUrl: bootstrap.api,
-      project: async () => {
-        throw new Error("a refused exchange never reaches the project check");
-      },
       key: Buffer.alloc(32),
     };
     const refusal = await login.completeLogin(callback).then(

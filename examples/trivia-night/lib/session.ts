@@ -1,10 +1,11 @@
 /**
  * Sign-in for the page: the platform's hosted login for a `spa` application
  * (authorization code + PKCE), exchanged on this server, which keeps the
- * signed-in member in an httpOnly cookie sealed with AES-256-GCM under
- * TRIVIA_SESSION_SECRET, so any instance of the page can read it and none
- * holds it. The browser never holds a platform token, and trials still run
- * with the agent key. Server only.
+ * signed-in member and their access token in an httpOnly cookie sealed with
+ * AES-256-GCM under TRIVIA_SESSION_SECRET, so any instance of the page can
+ * read it and none holds it. The browser never holds the token in the clear,
+ * and every trial runs with it, billed to the member's own organization. The
+ * session ends when the token expires. Server only.
  */
 import {
   createCipheriv,
@@ -19,12 +20,35 @@ import {
 } from "@introspection-sdk/introspection-node";
 import { decodeJwt } from "jose";
 
-import { platformClient, resolveTarget, type Env } from "./platform-runner";
+import type { Env } from "./platform-runner";
 
 export const SESSION_COOKIE = "trivia_session";
 export const LOGIN_COOKIE = "trivia_login";
-/** The page makes no platform call with the token, so it asks for the least. */
-const LOGIN_SCOPE = "tasks:read";
+/**
+ * What a run calls, and no more: the trials (`tasks:*`, with `tasks:eval` and
+ * `tasks:exec` for a verified eval task), their archives and results
+ * (`files:*`), and the Runtime, its Recipe, its repository and its sidecar
+ * image (`*:read`). The application's ceiling must allow every one.
+ */
+export const LOGIN_SCOPES = [
+  "tasks:read",
+  "tasks:write",
+  "tasks:eval",
+  "tasks:exec",
+  "files:read",
+  "files:write",
+  "runtimes:read",
+  "recipes:read",
+  "repositories:read",
+  "images:read",
+] as const;
+/** What starting or moving a run on needs beyond reading it; an owner or admin holds them. */
+export const RUN_SCOPES = [
+  "tasks:write",
+  "tasks:eval",
+  "tasks:exec",
+  "files:write",
+];
 const MIN_SECRET_LENGTH = 32;
 const IV_BYTES = 12;
 const TAG_BYTES = 16;
@@ -35,6 +59,11 @@ export interface Session {
   member_id: string;
   org_id: string;
   project_id: string;
+  /** The scopes the platform granted, which the member's role caps. */
+  scope: string[];
+  /** The member's own access token; every trial call carries it. */
+  access_token: string;
+  dp_url: string | null;
   expires_at: number;
 }
 
@@ -46,10 +75,6 @@ export class LoginRefused extends Error {
     super(message);
   }
 }
-
-const store = globalThis as unknown as {
-  __triviaKeyProject?: { runtime: string; project: string };
-};
 
 export function spaClientId(env: Env = process.env): string {
   return env.TRIVIA_SPA_CLIENT_ID?.trim() ?? "";
@@ -104,26 +129,17 @@ export function openSession(value: string, key: Buffer): Session | null {
     typeof parsed.member_id !== "string" ||
     typeof parsed.org_id !== "string" ||
     typeof parsed.project_id !== "string" ||
+    typeof parsed.access_token !== "string" ||
+    !Array.isArray(parsed.scope) ||
     typeof parsed.expires_at !== "number"
   )
     return null;
   return parsed as Session;
 }
 
-/** The project the agent key runs trials in: its runtime's, read with the key. */
-export async function keyProject(): Promise<string> {
-  const target = await resolveTarget();
-  if (store.__triviaKeyProject?.runtime === target.runtime)
-    return store.__triviaKeyProject.project;
-  const { project_id } = await platformClient().runtimes.get(target.runtime);
-  store.__triviaKeyProject = { runtime: target.runtime, project: project_id };
-  return project_id;
-}
-
 /** The hosted-login redirect, and the PKCE verifier and state to keep for the callback. */
 export function loginRequest(
   clientId: string,
-  project: string,
   redirectUri: string,
   cpUrl: string,
 ): { url: string; cookie: string } {
@@ -134,8 +150,9 @@ export function loginRequest(
     redirect_uri: redirectUri,
     response_type: "code",
     state,
-    scope: LOGIN_SCOPE,
-    project,
+    scope: LOGIN_SCOPES.join(" "),
+    // The member picks the project their trials run in.
+    prompt: "consent",
     code_challenge: createHash("sha256").update(verifier).digest("base64url"),
     code_challenge_method: "S256",
   });
@@ -153,8 +170,6 @@ export interface Callback {
   redirectUri: string;
   clientId: string;
   cpUrl: string;
-  /** The project the agent key runs in; the member must be signed in to it. */
-  project: () => Promise<string>;
   key: Buffer;
 }
 
@@ -182,33 +197,43 @@ export async function completeLogin(
 }
 
 /**
- * The session a token from that exchange opens, only in the agent key's
- * project. The token comes straight from the Control Plane in reply to the
- * exchange, so its claims are read as issued.
+ * The session a token from that exchange opens: the member, the project they
+ * chose, the scopes their role allowed, and the token itself. The token comes
+ * straight from the Control Plane in reply to the exchange, so its claims are
+ * read as issued.
  */
-export async function sessionFromToken(
+export function sessionFromToken(
   token: OAuthToken,
-  callback: Pick<Callback, "project" | "key">,
+  callback: Pick<Callback, "key">,
   now = Date.now(),
-): Promise<{ cookie: string; session: Session }> {
+): { cookie: string; session: Session } {
   const claims = decodeJwt(token.access_token);
   const member = claims.member_id;
   const project = claims.project_id;
   const org = claims.org_id;
   if (typeof member !== "string" || typeof org !== "string")
     throw new LoginRefused("the sign-in named no member", 401);
-  if (project !== (await callback.project()))
-    throw new LoginRefused(
-      "you signed in to a different project from the one this page runs trials in",
-      403,
-    );
+  if (typeof project !== "string")
+    throw new LoginRefused("the sign-in chose no project", 401);
+  const scope = (token.scope ?? String(claims.scope ?? "")).split(" ");
   const session: Session = {
     member_id: member,
     org_id: org,
     project_id: project,
+    scope: scope.filter(Boolean),
+    access_token: token.access_token,
+    dp_url: token.dp_url ?? null,
     expires_at: now + token.expires_in * 1000,
   };
   return { cookie: sealSession(session, callback.key), session };
+}
+
+/** The scopes a session lacks of `needed`, which only an owner or admin holds. */
+export function missingScopes(
+  session: Session,
+  needed: readonly string[],
+): string[] {
+  return needed.filter((scope) => !session.scope.includes(scope));
 }
 
 /** The live session a sealed cookie value holds, or null. */
@@ -223,27 +248,12 @@ export function sessionFor(
   return session && session.expires_at > now ? session : null;
 }
 
-/** What a route may act for: a live session in the agent key's project, or why not. */
-export async function requireSession(
+/** What a route may act for: a live session, or why not. */
+export function requireSession(
   request: Request,
-  project: () => Promise<string> = keyProject,
-): Promise<{ session: Session } | { status: 401 | 403 | 503; error: string }> {
+): { session: Session } | { status: 401; error: string } {
   const session = sessionFor(sessionCookie(request));
   if (!session) return { status: 401, error: "sign in first" };
-  let expected: string;
-  try {
-    expected = await project();
-  } catch (error) {
-    return {
-      status: 503,
-      error: `could not read the agent key's project: ${(error as Error).message}`,
-    };
-  }
-  if (session.project_id !== expected)
-    return {
-      status: 403,
-      error: "your sign-in is not for this page's project",
-    };
   return { session };
 }
 

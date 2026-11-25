@@ -41,11 +41,11 @@ It writes `TRIVIA_ISSUER` (and `TRIVIA_AUDIENCE` when the binding has one) into 
 pnpm test       # the bank, its MCP server, the scoring and the eval runner
 ```
 
-The eval runner's checks drive the real SDK against a recorded run of one pub (`tests/recordings/trivia-night-platform_*`), and the sign-in's code exchange against a recorded Control Plane (`trivia-night-login_*`). Re-record them against a local stack only, with `.env.local` naming the local planes, the Runtime, its commit, the key file and the sign-in client: `pnpm test:platform:record` and `pnpm test:login:record`. The exchange is recorded for a code the platform never issued, since an issued one needs an interactive login; the claims an issued token carries are checked as unit tests.
+The eval runner's checks drive the real SDK against a recorded run of one pub (`tests/recordings/trivia-night-platform_*`), and the sign-in's code exchange against a recorded Control Plane (`trivia-night-login_*`). Re-record them against a local stack only, with `.env.local` naming the local planes, the Runtime, its commit and the sign-in client, and `TRIVIA_RECORD_TOKEN_FILE` naming a file holding a bearer token of that stack's project, which stands in for the member's own since the page's sign-in needs a browser: `pnpm test:platform:record` and `pnpm test:login:record`. The exchange is recorded for a code the platform never issued, since an issued one needs an interactive login; the claims an issued token carries are checked as unit tests.
 
 ## Run the evals from the page
 
-The page runs the real memory evals, as [Run the memory evals](./recipe-operator/README.md#run-the-memory-evals) describes, against the `trivia-host` Runtime at its latest commit (or `INTROSPECTION_TRIVIA_RUNTIME_ID` and `INTROSPECTION_TRIVIA_COMMIT_SHA`, when both are set).
+The page runs the real memory evals, as [Run the memory evals](./recipe-operator/README.md#run-the-memory-evals) describes, against the signed-in member's project's trivia Runtime at its latest commit (or `INTROSPECTION_TRIVIA_RUNTIME_ID` and `INTROSPECTION_TRIVIA_COMMIT_SHA`, when that Runtime is in the project).
 
 Each trial is a plain platform call through the SDK, with no CLI: the server reads the Harbor task (`instruction.md`, `task.toml`, `tests/`, `environment/docker-compose.yaml`) from the Runtime's repository at that commit through the repository contents API, packs `tests/` as the task's own `verifier`, and creates a `kind: eval` task with the commit, the customer's identity, the run's tags and the compose. Once the run settles the page completes the task (`PATCH status: completed`); the platform runs the verifier in the trial's sandbox while the task is `finishing`, records the outcome as `metadata.verification`, and only then marks it `completed`. The page reads the outcome's result and log files. To test a newer commit than the Runtime's latest version, set `INTROSPECTION_TRIVIA_COMMIT_SHA` and `INTROSPECTION_TRIVIA_RUNTIME_ID` in `.env.local`.
 
@@ -53,37 +53,31 @@ Nothing about a run is kept on the server: a run is its tasks. Start creates eac
 
 The trials' sidecar, the trivia bank fake, runs an image the page finds by its folder's git tree at that commit; the contents API returns no file over 1 MB whole, so the page cannot build it. `pnpm dev` builds it after each push, or run `pnpm sidecar:image`, which checks every file against the commit first.
 
-It needs a staging agent key that expires today:
-
-```bash
-introspection api-keys create --environment staging --capabilities runtimes,evals \
-  --expires-at <today, 23:59 UTC> --secret-file recipe-operator/.agent.key
-echo TRIVIA_EVAL_KEY_FILE=recipe-operator/.agent.key >> .env.local
-```
-
-Where there is no disk to keep it on, set `TRIVIA_AGENT_KEY` to the key itself instead. Without a key the panel shows these commands and the server refuses to run.
-
 ### Sign in
 
-The page opens only to a member signed in to the project the agent key runs in. Opening it without a session sends you straight to the platform's hosted login (`/v1/oauth/authorize` on `INTROSPECTION_API_BASE_URL`, so production unless that names another stack), and back to `/callback`. Register the page once as a `spa` application, on the same platform as the key, with `introspection login --url <Control Plane>` first for anything but production:
+The page opens only to a signed-in member, and every trial runs as them, with their own access token, so its usage is billed to their organization. Opening it without a session sends you straight to the platform's hosted login (`/v1/oauth/authorize` on `INTROSPECTION_API_BASE_URL`, so production unless that names another stack), where you pick the project the trials run in, and back to `/callback`. The project needs the trivia Runtime (see [Add it to your own project](#add-it-to-your-own-project)); the page runs `INTROSPECTION_TRIVIA_RUNTIME_ID` when it is in that project, and otherwise the project's `trivia-night` or `trivia-host` Runtime. Register the page once as a `spa` application whose ceiling holds every scope a run calls, with `introspection login --url <Control Plane>` first for anything but production:
 
 ```bash
 introspection applications create --type spa --name "Trivia night" \
-  --redirect-uri http://localhost:3500/callback \
-  --allowed-origin http://localhost:3500 --allowed-scope tasks:read
+  --redirect-uri http://localhost:3500/callback --allowed-origin http://localhost:3500 \
+  --allowed-scope "tasks:read tasks:write tasks:eval tasks:exec files:read files:write runtimes:read recipes:read repositories:read images:read"
 echo TRIVIA_SPA_CLIENT_ID=<the printed client_id> >> .env.local
 ```
 
-| Variable                     | Default                         | What it is                                                                               |
-| ---------------------------- | ------------------------------- | ---------------------------------------------------------------------------------------- |
-| `TRIVIA_SPA_CLIENT_ID`       | none                            | The `spa` application's `client_id`. Without it the page refuses to open.                |
-| `INTROSPECTION_API_BASE_URL` | `https://api.introspection.dev` | The Control Plane, for the login and the runs. A local stack is `http://localhost:8000`. |
-| `INTROSPECTION_DP_URL`       | the Control Plane's URL         | The Data Plane the trials run on. A local stack is `http://localhost:8002`.              |
-| `TRIVIA_AGENT_KEY`           | none                            | The agent key itself.                                                                    |
-| `TRIVIA_EVAL_KEY_FILE`       | none                            | The agent key file, when `TRIVIA_AGENT_KEY` is not set.                                  |
-| `TRIVIA_SESSION_SECRET`      | none                            | At least 32 characters the sign-in cookie is sealed with; `pnpm dev` writes one.         |
+The platform grants a member only the scopes their role holds, and an eval task needs `tasks:eval` and `tasks:exec`, so only an organization owner or admin can start or move a run on; another member reads the runs and the panel says why the **Run** button is off.
 
-The server exchanges the code itself (PKCE, through the SDK's `authorizationCodeToken`) and keeps only the member's id, org, project and the token's expiry, in an httpOnly cookie sealed with AES-256-GCM under `TRIVIA_SESSION_SECRET`. It refuses a sign-in to any project but the one the agent key's runtime is in, and `/api/evals` and `/api/events` answer 401 without a live session and 403 for another project. The trials still run with the agent key, since per-pub memory needs an agent's credentials; the key stays on the server and never reaches the browser. Each trial records the signed-in member's id as `started_by` in its metadata. The server holds no sessions, so a restart or another instance keeps everyone signed in; changing the secret signs everyone out.
+| Variable                          | Default                         | What it is                                                                               |
+| --------------------------------- | ------------------------------- | ---------------------------------------------------------------------------------------- |
+| `TRIVIA_SPA_CLIENT_ID`            | none                            | The `spa` application's `client_id`. Without it the page refuses to open.                |
+| `INTROSPECTION_API_BASE_URL`      | `https://api.introspection.dev` | The Control Plane, for the login and the runs. A local stack is `http://localhost:8000`. |
+| `INTROSPECTION_DP_URL`            | the Control Plane's URL         | The Data Plane the trials run on. A local stack is `http://localhost:8002`.              |
+| `INTROSPECTION_TRIVIA_RUNTIME_ID` | none                            | A Runtime to run, when it is in the member's project.                                    |
+| `INTROSPECTION_TRIVIA_COMMIT_SHA` | the Runtime's commit            | The commit to run, with that Runtime only.                                               |
+| `TRIVIA_SESSION_SECRET`           | none                            | At least 32 characters the sign-in cookie is sealed with; `pnpm dev` writes one.         |
+
+The server exchanges the code itself (PKCE, through the SDK's `authorizationCodeToken`) and keeps the member's id, org, project, granted scopes and access token in an httpOnly cookie sealed with AES-256-GCM under `TRIVIA_SESSION_SECRET`; the token is never in the browser in the clear and never logged. The session ends when the token expires, and there is no refresh: sign in again. `/api/evals` and `/api/events` answer 401 without a live session. Each trial records the member's id as `started_by` in its metadata. The server holds no sessions, so a restart or another instance keeps everyone signed in; changing the secret signs everyone out.
+
+**Memory is off for these trials for now.** The platform gives an eval task memory only when an agent's credentials run it, and a member's own eval tasks own none yet, so every night 2 runs without notes, whatever its arm. The panel says so instead of reading the arms' sameness as "no memory effect"; a run measures memory again once the platform lets a member's eval tasks own memory.
 
 Pick a number of venues and press **Run**. Venue _i_ plays the _i_-th venue profile (Sydney, Manchester, Chicago, and on across AU, UK and US pubs), all venues at once, each as its own customer:
 
@@ -98,9 +92,7 @@ Pick a number of venues and press **Run**. Venue _i_ plays the _i_-th venue prof
 
 Every trial is tagged `simulation:<run>` and `simulation:trivia-night`. Trials are scored in their own sandbox, so seeing results needs neither tag; to browse the trials themselves, an admin already can, and an owner can give another member the `simulation:trivia-night` tag. The page reads as an experiment: the hypothesis that notes tune night 2 to the crowd, the method, and the result. The two night 2s at a pub differ only in the notes, so each pub is a paired comparison: the result is how far each round's share right was from 65%, with memory against without, as a mean of per-pub differences with a 95% t-interval (from 3 pubs; 11 pubs gives a meaningful result), with the other measures beside it. Each run starts new customers, so nothing carries over between runs; a run measures one version of the agent and changes nothing.
 
-Each venue gets a card with a tab per night: what night 1 learned, whose notes the other-notes night had, and each round's questions and team marks, all from the verifier's output. The **Questions | Under the hood** switch changes only that night detail, never the charts: under the hood shows the host's steps in order (its memory read, each bank call, its notes written and its closing message) and what the verifier measured. A trial runs as an end user, so its conversation is not the key's to read; the verifier reads the GenAI spans the runtime keeps in the sandbox instead and writes a bounded step list, with credentials redacted, into its result file (`/logs/verifier/result.json`; `reward.json` beside it keeps only the numbers Harbor reads). While a run is going the page shows its progress; a card fills in as its venue's trials finish. [`experiment/analyze.mts`](./experiment/README.md) prints a run's pre-registered analysis from the same tasks.
-
-The key stays on the server: it never reaches a command line, the logs or the browser.
+Each venue gets a card with a tab per night: what night 1 learned, whose notes the other-notes night had, and each round's questions and team marks, all from the verifier's output. The **Questions | Under the hood** switch changes only that night detail, never the charts: under the hood shows the host's steps in order (its memory read, each bank call, its notes written and its closing message) and what the verifier measured. A trial's conversation is not the page's to read; the verifier reads the GenAI spans the runtime keeps in the sandbox instead and writes a bounded step list, with credentials redacted, into its result file (`/logs/verifier/result.json`; `reward.json` beside it keeps only the numbers Harbor reads). While a run is going the page shows its progress; a card fills in as its venue's trials finish. [`experiment/analyze.mts`](./experiment/README.md) prints a run's pre-registered analysis from the same tasks.
 
 ## Add it to your own project
 
@@ -114,7 +106,7 @@ The host plays only through the `trivia-bank` MCP server, which `pnpm dev` serve
 
 ## Deploy
 
-`.github/workflows/deploy-trivia-night.yml` deploys the page to Vercel: a push to `main` makes a preview aliased to `trivia-night.staging.introspection.dev`, and a manual run with `production` deploys production. The repository's `build` environment needs the variables `VERCEL_ORG_ID` and `VERCEL_TRIVIA_PROJECT_ID` and the secret `VERCEL_API_TOKEN`; the Vercel project needs `INTROSPECTION_API_BASE_URL`, `INTROSPECTION_DP_URL`, `TRIVIA_SPA_CLIENT_ID`, `TRIVIA_AGENT_KEY`, `TRIVIA_SESSION_SECRET`, `INTROSPECTION_TRIVIA_RUNTIME_ID` and `INTROSPECTION_TRIVIA_COMMIT_SHA`.
+`.github/workflows/deploy-trivia-night.yml` deploys the page to Vercel: a push to `main` makes a preview aliased to `trivia-night.staging.introspection.dev`, and a manual run with `production` deploys production. The repository's `build` environment needs the variables `VERCEL_ORG_ID` and `VERCEL_TRIVIA_PROJECT_ID` and the secret `VERCEL_API_TOKEN`; the Vercel project needs `INTROSPECTION_API_BASE_URL`, `INTROSPECTION_DP_URL`, `TRIVIA_SPA_CLIENT_ID` and `TRIVIA_SESSION_SECRET`, and optionally `INTROSPECTION_TRIVIA_RUNTIME_ID` and `INTROSPECTION_TRIVIA_COMMIT_SHA`. There is no key to deploy: trials run as the signed-in member. The `spa` application's ceiling must allow `tasks:read tasks:write tasks:eval tasks:exec files:read files:write runtimes:read recipes:read repositories:read images:read`, and its redirect URIs must include the deployed `/callback`.
 
 ## What it costs
 

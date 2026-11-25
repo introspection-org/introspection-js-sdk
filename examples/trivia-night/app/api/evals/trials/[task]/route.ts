@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { platformClient, trialResult } from "@/lib/platform-runner";
+import { memberClient, trialResult } from "@/lib/platform-runner";
 import { requireSession } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
@@ -13,14 +13,14 @@ export async function GET(
   request: Request,
   { params }: { params: Promise<{ task: string }> },
 ) {
-  const auth = await requireSession(request);
+  const auth = requireSession(request);
   if ("error" in auth)
     return NextResponse.json({ error: auth.error }, { status: auth.status });
   const { task } = await params;
   if (!UUID.test(task))
     return NextResponse.json({ error: "no such trial" }, { status: 404 });
   try {
-    const result = await trialResult(platformClient(), task);
+    const result = await trialResult(memberClient(auth.session), task);
     if (!result)
       return NextResponse.json({ error: "no such trial" }, { status: 404 });
     return NextResponse.json(result, {
