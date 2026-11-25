@@ -25,6 +25,7 @@ import {
 import {
   RUN_SCOPES,
   loginUrl,
+  logoutUrl,
   missingScopes,
   sessionClient,
   storedSession,
@@ -85,16 +86,17 @@ interface Config {
 
 type Pubs = "development" | "heldout";
 
-/** Forgets this tab's sign-in; the reload signs in again, as the platform's session allows. */
+/** Signs out of the platform too, so the next visit asks to sign in. */
 function signOut(): void {
   window.sessionStorage.clear();
-  window.location.reload();
+  window.location.assign(logoutUrl(undefined, `${window.location.origin}/`));
 }
 
 /** An ended session sends the browser back through the sign-in. */
 function signedOut(error: unknown): boolean {
   if ((error as { status?: number }).status !== 401) return false;
-  signOut();
+  window.sessionStorage.clear();
+  window.location.reload();
   return true;
 }
 

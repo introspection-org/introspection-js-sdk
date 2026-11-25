@@ -1695,6 +1695,26 @@ async function main() {
   );
 
   await check(
+    "sign-out: ends the platform's session and asks to come back to the page",
+    () => {
+      const url = new URL(
+        login.logoutUrl(
+          { ...login.CONFIG, cpUrl: "http://localhost:8000/" },
+          "http://localhost:3500/",
+        ),
+      );
+      assert.equal(
+        url.origin + url.pathname,
+        "http://localhost:8000/v1/oidc/logout",
+      );
+      assert.equal(
+        url.searchParams.get("redirect_uri"),
+        "http://localhost:3500/",
+      );
+    },
+  );
+
+  await check(
     "sign-in: the token is kept until it expires, then the page signs in again",
     () => {
       const storage = memoryStorage();

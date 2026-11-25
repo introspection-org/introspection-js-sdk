@@ -22,6 +22,18 @@ export const CONFIG = {
 };
 
 /**
+ * The platform's sign-out: it ends the platform session and the identity
+ * provider's, then returns to `returnTo` when the platform allows that origin,
+ * or to its own signed-out page.
+ */
+export function logoutUrl(config = CONFIG, returnTo?: string): string {
+  const params = returnTo
+    ? `?${new URLSearchParams({ redirect_uri: returnTo })}`
+    : "";
+  return `${config.cpUrl.replace(/\/+$/, "")}/v1/oidc/logout${params}`;
+}
+
+/**
  * What a run calls, and no more: the trials (`tasks:*`, with `tasks:eval` and
  * `tasks:exec` for a verified eval task), and their sidecar's build context
  * and results (`files:*`).
