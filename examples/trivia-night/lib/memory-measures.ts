@@ -296,3 +296,83 @@ export function measuresOf(night: string, input: MeasureInput): Measures {
     ? night1Measures(input)
     : night2Measures(input);
 }
+
+/** The verifier's yes/no checks, in plain words; every other key is a measure. */
+const YES_NO: Record<string, string> = {
+  night_started: "Night started",
+  round_fetched: "Round fetched",
+  fetched_a_round: "Quiz run",
+  notes_written: "Notes written",
+  notes_name_no_team: "Notes name no team",
+  notes_kept: "Notes kept for next week",
+  notes_indexed: "Every note file named in MEMORY.md",
+  notes_seeded: "True notes seeded",
+  right_region: "Questions from the right region",
+};
+
+/** One verifier row: a yes/no check carries `pass`; a measure reads as its value. */
+export interface CheckLine {
+  key: string;
+  text: string;
+  pass?: boolean;
+}
+
+const pct = (x: number) => `${Math.round(x * 100)}%`;
+
+/** A verifier key and value in plain words, using the night's rounds where they say more. */
+export function checkLine(
+  key: string,
+  value: number,
+  fetches: Fetch[] = [],
+): CheckLine {
+  if (key in YES_NO) return { key, text: YES_NO[key], pass: value === 1 };
+  const rated = fetches
+    .map((f) => f.correct_rate)
+    .filter((r): r is number => num(r));
+  if (key === "in_band") {
+    const text = rated.length
+      ? `${rated.filter((r) => r >= BAND[0] && r <= BAND[1]).length} of ${rated.length} (${rated.map(pct).join(", ")} right)`
+      : pct(value);
+    return { key, text: `Rounds pitched right: ${text}` };
+  }
+  if (key === "good_rounds")
+    return {
+      key,
+      text: `Good rounds (favourite genre, pitched right): ${
+        fetches.length
+          ? `${Math.round(value * fetches.length)} of ${fetches.length}`
+          : pct(value)
+      }`,
+    };
+  if (key === "favourite_genre")
+    return {
+      key,
+      text: `Rounds in favourite genres: ${
+        fetches.length
+          ? `${Math.round(value * fetches.length)} of ${fetches.length}`
+          : pct(value)
+      }`,
+    };
+  if (key === "close_finish") {
+    const asked = fetches.reduce((s, f) => s + (f.count ?? 0), 0);
+    const gap = Math.round(value * asked);
+    return {
+      key,
+      text: `How close the finish was: ${
+        asked
+          ? `within ${gap} point${gap === 1 ? "" : "s"}`
+          : `${pct(value)} gap`
+      }`,
+    };
+  }
+  if (key === "pitch_miss")
+    return {
+      key,
+      text: `Average miss from ${pct(TARGET)} right: ${Math.round(value * 100)} points`,
+    };
+  const label = MEASURES[key as MeasureKey]?.label ?? key.replace(/_/g, " ");
+  return {
+    key,
+    text: `${label[0].toUpperCase()}${label.slice(1)}: ${value}`,
+  };
+}

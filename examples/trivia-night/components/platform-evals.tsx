@@ -8,7 +8,14 @@ import type {
   EvalStarted,
   PlayedRound,
 } from "@/lib/platform-evals";
-import { factChips, targetLabel } from "@/lib/display";
+import {
+  factChips,
+  firstSentences,
+  kindLabel,
+  notesPreview,
+  targetLabel,
+  toolLine,
+} from "@/lib/display";
 import {
   GATE_MIN,
   holm,
@@ -18,7 +25,8 @@ import {
   validityGate,
   type Pair,
 } from "@/lib/experiment";
-import { BAND, MEASURES } from "@/lib/memory-measures";
+import { BAND, MEASURES, checkLine } from "@/lib/memory-measures";
+import type { TrialEvent } from "@/lib/trial-steps";
 import {
   type Comparison,
   MIN_PUBS,
@@ -421,6 +429,160 @@ function NightQuestions({
   );
 }
 
+type NightView = "questions" | "steps";
+const NIGHT_VIEW_KEY = "trivia-night:night-view";
+
+/** One step the host took, as its verifier recorded it. */
+function Step({ event }: { event: TrialEvent }) {
+  const kind = (
+    <span className={`kind kind-${event.type.split(".")[0]}`}>
+      {kindLabel(event.type)}
+    </span>
+  );
+  const error =
+    typeof event.data.error === "string" ? (
+      <span className="step-error"> {event.data.error}</span>
+    ) : null;
+  if (event.type === "memory.read") {
+    const file = String(event.data.file ?? "").trim();
+    if (!file)
+      return (
+        <li>
+          {kind} {event.summary}
+          {error}
+        </li>
+      );
+    return (
+      <li>
+        <details>
+          <summary>
+            {kind} {event.summary}
+          </summary>
+          <pre>{file}</pre>
+        </details>
+      </li>
+    );
+  }
+  if (event.type === "memory.written")
+    return (
+      <li>
+        <details>
+          <summary>
+            {kind} {event.summary}
+          </summary>
+          <pre>
+            {typeof event.data.file === "string"
+              ? event.data.file
+              : JSON.stringify(event.data.edit, null, 2)}
+          </pre>
+        </details>
+      </li>
+    );
+  if (event.type === "host.planned") {
+    const plan = String(event.data.file ?? "");
+    return (
+      <li>
+        <details>
+          <summary>
+            {kind} {firstSentences(plan, 1, 100) || "Planning"}
+          </summary>
+          <pre className="plan">{plan}</pre>
+        </details>
+      </li>
+    );
+  }
+  if (event.type.startsWith("bank.") && typeof event.data.tool === "string")
+    return (
+      <li>
+        {kind}{" "}
+        {toolLine(
+          typeof event.data.server === "string"
+            ? event.data.server
+            : "trivia-bank",
+          event.data.tool,
+          (event.data.arguments as Record<string, unknown>) ?? {},
+        )}
+        {error}
+      </li>
+    );
+  return (
+    <li>
+      {kind} {event.summary}
+    </li>
+  );
+}
+
+/** A night as the host ran it: what it noted or opened with, its steps, and what the verifier measured. */
+function NightSteps({
+  night,
+  finished,
+}: {
+  night: NightKey;
+  finished: EvalFinished;
+}) {
+  const steps = finished.steps ?? [];
+  const plan = steps.find((event) => event.type === "host.planned");
+  const chips =
+    night === "night1-memory" && finished.notes
+      ? factChips(finished.notes)
+      : [];
+  return (
+    <>
+      <div className="hood-summary">
+        {chips.length > 0 ? (
+          <span className="facts">
+            {chips.map((chip) => (
+              <span key={chip.key} className="fact">
+                {chip.text}
+              </span>
+            ))}
+          </span>
+        ) : night === "night1-memory" && finished.notes ? (
+          <span className="fine">{notesPreview(finished.notes)}</span>
+        ) : null}
+        {plan && (
+          <q className="quote">{firstSentences(String(plan.data.file))}</q>
+        )}
+      </div>
+      {steps.length > 0 ? (
+        <ol className="step-list">
+          {steps.map((event) => (
+            <Step key={event.key} event={event} />
+          ))}
+        </ol>
+      ) : (
+        <p className="fine">
+          {finished.steps_error
+            ? `No steps: ${finished.steps_error}.`
+            : "No steps recorded: this night's verifier predates them."}
+        </p>
+      )}
+      <h5 className="verifiers">
+        Verifiers{" "}
+        <span className="fine">
+          what the eval&apos;s verifier measured for this night
+        </span>
+      </h5>
+      <ul className="check-list">
+        {Object.entries(finished.checks).map(([name, value]) => {
+          const line = checkLine(name, value, finished.fetches ?? []);
+          return line.pass === undefined ? (
+            <li key={name}>{line.text}</li>
+          ) : (
+            <li key={name} className={line.pass ? "pass" : "fine"}>
+              {line.text} {line.pass ? "✓" : "✗"}
+            </li>
+          );
+        })}
+      </ul>
+      <span className="fine">
+        reward {finished.reward ?? "none"} · {finished.seconds}s
+      </span>
+      {finished.error && <pre>{finished.error}</pre>}
+    </>
+  );
+}
+
 export function PlatformEvals() {
   const [config, setConfig] = useState<Config>();
   const [venues, setVenues] = useState(3);
@@ -432,6 +594,23 @@ export function PlatformEvals() {
   const [error, setError] = useState<string>();
   const [open, setOpen] = useState<string>();
   const [tabs, setTabs] = useState<Record<string, (typeof NIGHTS)[number]>>({});
+  const [nightView, setNightView] = useState<NightView>("questions");
+  useEffect(() => {
+    try {
+      if (window.localStorage.getItem(NIGHT_VIEW_KEY) === "steps")
+        setNightView("steps");
+    } catch {
+      // Storage blocked: the default view stays.
+    }
+  }, []);
+  const chooseView = (next: NightView) => {
+    setNightView(next);
+    try {
+      window.localStorage.setItem(NIGHT_VIEW_KEY, next);
+    } catch {
+      // Storage blocked: the choice lasts for this page only.
+    }
+  };
   const run = useRef<string | null>(null);
   const results = useRef(new Map<string, EvalFinished>());
 
@@ -946,8 +1125,10 @@ export function PlatformEvals() {
                     ? "This night didn't run."
                     : "Waiting to start."}
               </span>
-            ) : (
+            ) : nightView === "questions" ? (
               <NightQuestions night={chosen} finished={finished} />
+            ) : (
+              <NightSteps night={chosen} finished={finished} />
             )}
           </div>
         )}
@@ -1224,7 +1405,27 @@ export function PlatformEvals() {
             </details>
           </div>
           <div className="cards-head">
-            <span className="fine">Click a night to see its rounds.</span>
+            <div className="view-toggle" role="group" aria-label="Night view">
+              <button
+                type="button"
+                aria-pressed={nightView === "questions"}
+                onClick={() => chooseView("questions")}
+              >
+                Questions
+              </button>
+              <button
+                type="button"
+                aria-pressed={nightView === "steps"}
+                onClick={() => chooseView("steps")}
+              >
+                Under the hood
+              </button>
+            </div>
+            <span className="fine">
+              {nightView === "questions"
+                ? "Click a night to see its rounds."
+                : "Click a night to see what the host did."}
+            </span>
           </div>
           <div className="venue-cards">{trialVenues.map(card)}</div>
         </>

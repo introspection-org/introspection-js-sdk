@@ -98,9 +98,23 @@ Pick a number of venues and press **Run**. Venue _i_ plays the _i_-th venue prof
 
 Every trial is tagged `simulation:<run>` and `simulation:trivia-night`. Trials are scored in their own sandbox, so seeing results needs neither tag; to browse the trials themselves, an admin already can, and an owner can give another member the `simulation:trivia-night` tag. The page reads as an experiment: the hypothesis that notes tune night 2 to the crowd, the method, and the result. The two night 2s at a pub differ only in the notes, so each pub is a paired comparison: the result is how far each round's share right was from 65%, with memory against without, as a mean of per-pub differences with a 95% t-interval (from 3 pubs; 11 pubs gives a meaningful result), with the other measures beside it. Each run starts new customers, so nothing carries over between runs; a run measures one version of the agent and changes nothing.
 
-Each venue gets a card with a tab per night: what night 1 learned, whose notes the other-notes night had, and each round's questions and team marks, all from the verifier's output. A trial runs as an end user, so its conversation is not the key's to read. While a run is going the page shows its progress; a card fills in as its venue's trials finish. [`experiment/analyze.mts`](./experiment/README.md) prints a run's pre-registered analysis from the same tasks.
+Each venue gets a card with a tab per night: what night 1 learned, whose notes the other-notes night had, and each round's questions and team marks, all from the verifier's output. The **Questions | Under the hood** switch changes only that night detail, never the charts: under the hood shows the host's steps in order (its memory read, each bank call, its notes written and its closing message) and what the verifier measured. A trial runs as an end user, so its conversation is not the key's to read; the verifier reads the GenAI spans the runtime keeps in the sandbox instead and writes a bounded step list, with credentials redacted, into its result file (`/logs/verifier/result.json`; `reward.json` beside it keeps only the numbers Harbor reads). While a run is going the page shows its progress; a card fills in as its venue's trials finish. [`experiment/analyze.mts`](./experiment/README.md) prints a run's pre-registered analysis from the same tasks.
 
 The key stays on the server: it never reaches a command line, the logs or the browser.
+
+## Add it to your own project
+
+The recipe in `recipe-operator/` is published with a Runtime manifest, [`.introspection/trivia-night.yaml`](../../.introspection/trivia-night.yaml). From a clone of this repository, signed in with `introspection login`:
+
+```bash
+introspection runtimes create --manifest .introspection/trivia-night.yaml
+```
+
+The host plays only through the `trivia-bank` MCP server, which `pnpm dev` serves and binds; the page's evals also need the Harbor tasks `pnpm evals:venues` generates (git ignores them, so `pnpm dev` pushes them with a copy of the recipe) and the bank's sidecar image (`pnpm sidecar:image`).
+
+## Deploy
+
+`.github/workflows/deploy-trivia-night.yml` deploys the page to Vercel: a push to `main` makes a preview aliased to `trivia-night.staging.introspection.dev`, and a manual run with `production` deploys production. The repository's `build` environment needs the variables `VERCEL_ORG_ID` and `VERCEL_TRIVIA_PROJECT_ID` and the secret `VERCEL_API_TOKEN`; the Vercel project needs `INTROSPECTION_API_BASE_URL`, `INTROSPECTION_DP_URL`, `TRIVIA_SPA_CLIENT_ID`, `TRIVIA_AGENT_KEY`, `TRIVIA_SESSION_SECRET`, `INTROSPECTION_TRIVIA_RUNTIME_ID` and `INTROSPECTION_TRIVIA_COMMIT_SHA`.
 
 ## What it costs
 

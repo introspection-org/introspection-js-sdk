@@ -683,6 +683,7 @@ async function main() {
   });
 
   const runner = await import("../lib/platform-runner");
+  const { hostEvents, loadedMemory } = await import("../lib/trial-steps");
   const { tarGz } = await import("../lib/tar");
   const TARGET = {
     runtime: "01a20a7c-077e-7066-8429-59576969a693",
@@ -859,7 +860,7 @@ async function main() {
           verifier: {
             tests_file_id: "file-1",
             command: ["sh", "/tests/test.sh"],
-            reward_path: "/logs/verifier/reward.json",
+            reward_path: "/logs/verifier/result.json",
             timeout_seconds: 120,
           },
           metadata: undefined,
@@ -883,6 +884,134 @@ async function main() {
         /^[0-9a-f]{8}-[0-9a-f]{4}-5[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
       );
       assert.notEqual(runner.admissionKey({ ...step, run: "r2" }), keys[0]);
+    },
+  );
+
+  await check(
+    "platform evals: the verifier keeps the host's steps from the sandbox's GenAI spans",
+    async () => {
+      const dir = mkdtempSync(path.join(tmpdir(), "trivia-steps-"));
+      const tool = (name: string, args: object, text: string, code = "Ok") => ({
+        name: `execute_tool ${name}`,
+        start_time: `2026-11-25T02:20:0${next++}.000Z`,
+        status: { code },
+        attributes: {
+          gen_ai: {
+            agent: { id: "root" },
+            operation: { name: "execute_tool" },
+            tool: {
+              name,
+              call: {
+                id: `toolu_${next}`,
+                arguments: JSON.stringify(args),
+                result: JSON.stringify({ content: [{ type: "text", text }] }),
+              },
+            },
+          },
+        },
+      });
+      let next = 0;
+      const spans = {
+        object: "list",
+        data: [
+          tool(
+            "read",
+            { path: "memories/MEMORY.md" },
+            "ENOENT: no such file or directory",
+            "Error",
+          ),
+          tool(
+            "mcp_trivia-bank_next_questions_520f9420fe",
+            {
+              count: 4,
+              genre: "film",
+              token: "intro_sk_abcdefghijklmnopqrstu",
+            },
+            "x".repeat(1000),
+          ),
+          tool(
+            "write",
+            { path: "memories/MEMORY.md", content: "# Sydney" },
+            "ok",
+          ),
+          {
+            name: "chat",
+            start_time: "2026-11-25T02:20:09.000Z",
+            attributes: {
+              gen_ai: {
+                agent: { id: "root" },
+                operation: { name: "chat" },
+                output: {
+                  messages: [
+                    {
+                      role: "assistant",
+                      parts: [
+                        { type: "text", content: "Tonight's plan: film." },
+                      ],
+                    },
+                  ],
+                },
+              },
+            },
+          },
+        ],
+      };
+      const file = path.join(dir, "genai-spans.json");
+      writeFileSync(file, JSON.stringify(spans));
+      const checkFile = path.join(dir, "check.mjs");
+      writeFileSync(
+        checkFile,
+        [
+          'import { existsSync, readFileSync } from "node:fs";',
+          "const written = {};",
+          "const writeFileSync = (to, text) => { written[to] = JSON.parse(text); };",
+          venuesGen.HOST_STEPS,
+          "writeResult({ reward: 1, notes_written: 1 });",
+          "export { written };",
+        ].join("\n"),
+      );
+      process.env.PI_RECIPE_GENAI_SPANS_FILE = file;
+      const { written } = (await import(checkFile)) as {
+        written: Record<string, Record<string, unknown>>;
+      };
+      delete process.env.PI_RECIPE_GENAI_SPANS_FILE;
+      // Harbor reads reward.json as numbers only; the steps go in result.json.
+      assert.deepEqual(written["/logs/verifier/reward.json"], {
+        reward: 1,
+        notes_written: 1,
+      });
+      const result = written["/logs/verifier/result.json"];
+      assert.equal(result.reward, 1);
+      assert.equal(result.plan, "Tonight's plan: film.");
+      const steps = result.steps as { result: string }[];
+      assert.equal(steps.length, 3);
+      assert.ok(steps[1].result.length <= 240);
+      assert.ok(!JSON.stringify(result).includes("intro_sk_"));
+      const events = hostEvents(result.steps, result.plan);
+      assert.deepEqual(
+        events.map((e) => [e.type, e.summary]),
+        [
+          ["memory.read", "Loading memory · none yet — first visit"],
+          ["bank.served", "next_questions: genre film, 4 questions"],
+          ["memory.written", "Saving memory"],
+          ["host.planned", "Tonight's plan: film."],
+        ],
+      );
+      // The page reads them from the result file, which the log never cuts.
+      const out = evals.verifierOutput("tail only", JSON.stringify(result));
+      assert.equal(out.steps.length, 4);
+      assert.deepEqual(loadedMemory("# Sydney").data, {
+        path: "memories/MEMORY.md",
+        file: "# Sydney",
+      });
+      assert.equal(out.checks.notes_written, 1);
+      assert.deepEqual(
+        hostEvents([{ name: "bash", arguments: { command: "ls" } }], null).map(
+          (e) => e.type,
+        ),
+        ["host.tool"],
+      );
+      rmSync(dir, { recursive: true });
     },
   );
 
@@ -910,6 +1039,8 @@ async function main() {
         notes: null,
         fetches: [],
         rounds: [],
+        steps: [],
+        steps_error: null,
       },
     );
     assert.deepEqual(evals.verifierOutput(null, null).checks, {});

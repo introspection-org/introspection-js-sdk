@@ -45,6 +45,7 @@ import {
   type TrialView,
 } from "./platform-evals";
 import { tarGz, type TarFile } from "./tar";
+import { loadedMemory } from "./trial-steps";
 
 export type Env = Record<string, string | undefined>;
 
@@ -63,7 +64,8 @@ const VERIFIER_VOLUMES: Record<string, string> = {
   "harbor-logs": "/logs",
   "harbor-tests": "/tests",
 };
-const REWARD_PATH = "/logs/verifier/reward.json";
+/** The verifier's whole result; reward.json beside it holds only Harbor's numbers. */
+const REWARD_PATH = "/logs/verifier/result.json";
 const DEFAULT_VERIFIER_SECONDS = 120;
 /** The sandbox's ceiling, which also releases a wedged trial's. */
 const TRIAL_CEILING_SECONDS = 3600;
@@ -718,6 +720,11 @@ export async function trialResult(
     notes: previewNotes(out.notes),
     fetches: out.fetches,
     rounds: out.rounds,
+    steps:
+      night1Notes && !out.steps.some((event) => event.type === "memory.read")
+        ? [loadedMemory(night1Notes), ...out.steps]
+        : out.steps,
+    steps_error: out.steps_error,
     measures:
       log || result
         ? measuresOf(step.night, {

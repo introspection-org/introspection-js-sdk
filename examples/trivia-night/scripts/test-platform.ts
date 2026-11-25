@@ -306,6 +306,15 @@ async function main() {
         assert.ok(hosted.seconds > 0);
         assert.equal(hosted.error, null);
         assert.ok(Object.keys(hosted.checks).length > 0);
+        // What the host did, kept by the verifier from the sandbox's own record.
+        const kinds = new Set(hosted.steps?.map((step) => step.type));
+        for (const kind of ["memory.read", "bank.served", "host.planned"])
+          assert.ok(kinds.has(kind as never), `night 2 has a ${kind} step`);
+        const night1 = (await runner.trialResult(
+          client,
+          byKey.get(evals.stepKey(first))!.task_id!,
+        ))!;
+        assert.ok(night1.steps?.some((step) => step.type === "memory.written"));
         const cancelled = (await runner.trialResult(
           client,
           byKey.get(seed)!.task_id!,

@@ -682,3 +682,127 @@ table.steps td.fine {
 .next-step {
   margin: 10px 0 0;
 }
+
+/* Under the hood: a night's steps and what its verifier measured. */
+.kind {
+  font:
+    11px ui-monospace,
+    monospace;
+  border-radius: 4px;
+  padding: 0 5px;
+  border: 1px solid currentColor;
+}
+
+.kind-bank {
+  color: var(--bank);
+}
+
+.kind-memory {
+  color: var(--memory);
+}
+
+.kind-host {
+  color: var(--host);
+}
+
+.verifiers {
+  margin: 8px 0 2px;
+  font-size: 13px;
+}
+
+.verifiers .fine {
+  font-weight: normal;
+}
+
+.pass {
+  color: var(--host);
+  font-weight: 600;
+}
+
+.check-list {
+  list-style: none;
+  margin: 0 8px;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 16px;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.check-list li {
+  min-width: 0;
+}
+
+.quote {
+  font-style: italic;
+}
+
+.step-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+}
+
+.step-list pre {
+  margin-top: 4px;
+  max-height: 240px;
+  overflow-y: auto;
+}
+
+.step-list summary {
+  cursor: pointer;
+}
+
+.night-body .check-list {
+  margin: 0;
+  flex-direction: column;
+}
+
+.step-error {
+  color: var(--bad);
+  opacity: 0.8;
+  font-size: 12px;
+}
+
+.view-toggle {
+  display: inline-flex;
+  gap: 0;
+  margin: 2px 0 8px;
+}
+
+.view-toggle button {
+  font-size: 12px;
+  padding: 2px 10px;
+  border-radius: 0;
+}
+
+.view-toggle button:first-child {
+  border-radius: 6px 0 0 6px;
+}
+
+.view-toggle button:last-child {
+  border-radius: 0 6px 6px 0;
+  border-left: none;
+}
+
+.view-toggle button[aria-pressed="true"] {
+  background: var(--ink);
+  color: var(--panel);
+  border-color: var(--ink);
+}
+
+.cards-head .view-toggle {
+  margin: 0;
+}
+
+.hood-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  align-items: baseline;
+}

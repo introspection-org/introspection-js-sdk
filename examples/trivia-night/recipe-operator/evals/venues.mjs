@@ -216,6 +216,97 @@ const SOLVE_SH = `#!/bin/sh
 exit 0
 `;
 
+// The host's steps, for the page: its tool calls in order, with short arguments and results,
+// and its last message, read from the GenAI spans the runtime keeps in the sandbox (the agent's
+// session is not on disk), and written whole into result.json beside the numeric reward.json.
+// The memory the runtime loads before the first turn is in no span; the page shows it from the
+// night before's notes.
+export const HOST_STEPS = String.raw`const SECRET =
+  /(sk-[A-Za-z0-9_-]{16,}|intro_[a-z]+_[A-Za-z0-9_-]{16,}|eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}|Bearer [A-Za-z0-9._-]{16,})/g;
+const clip = (text, max) => {
+  const clean = String(text).replace(SECRET, "[redacted]");
+  return clean.length > max ? clean.slice(0, max - 1) + "…" : clean;
+};
+const shorten = (value, depth = 0) =>
+  typeof value === "string"
+    ? clip(value, depth ? 160 : 4000)
+    : Array.isArray(value)
+      ? value.slice(0, 40).map((v) => shorten(v, depth + 1))
+      : value && typeof value === "object"
+        ? Object.fromEntries(
+            Object.entries(value).map(([k, v]) => [k, shorten(v, depth + 1)]),
+          )
+        : value;
+const resultText = (raw) => {
+  try {
+    const parsed = JSON.parse(raw);
+    if (typeof parsed === "string") return parsed;
+    const parts = Array.isArray(parsed?.content) ? parsed.content : [];
+    return parts.map((p) => (typeof p?.text === "string" ? p.text : "")).join("");
+  } catch {
+    return String(raw ?? "");
+  }
+};
+const MEMORY = /(^|\/)memories\/[^/]+\.md$/;
+const step = (id, name, rawArgs, result, error) => {
+  let args = rawArgs ?? {};
+  if (typeof args === "string")
+    try {
+      args = JSON.parse(args || "{}");
+    } catch {
+      args = { raw: args };
+    }
+  const memory = typeof args.path === "string" && MEMORY.test(args.path);
+  return {
+    id,
+    name,
+    arguments: memory ? shorten(args) : shorten(args, 1),
+    result: clip(result, memory ? 4000 : 240),
+    error,
+  };
+};
+function hostSteps() {
+  const file =
+    process.env.PI_RECIPE_GENAI_SPANS_FILE || "/tmp/introspection/genai-spans.json";
+  if (!existsSync(file)) return { steps_error: "no session record in the sandbox" };
+  const spans = (JSON.parse(readFileSync(file, "utf8")).data ?? [])
+    .filter((s) => s.attributes?.gen_ai?.agent?.id === "root")
+    .sort((a, b) => String(a.start_time).localeCompare(String(b.start_time)));
+  const steps = [];
+  let plan = "";
+  for (const span of spans) {
+    const gen = span.attributes.gen_ai;
+    if (gen.operation?.name === "execute_tool" && gen.tool?.call)
+      steps.push(
+        step(
+          gen.tool.call.id,
+          gen.tool.name,
+          gen.tool.call.arguments,
+          resultText(gen.tool.call.result),
+          span.status?.code === "Error",
+        ),
+      );
+    for (const message of gen.output?.messages ?? [])
+      for (const part of message.parts ?? [])
+        if (part.type === "text" && part.content?.trim()) plan = part.content;
+  }
+  return { steps: steps.slice(0, 120), plan: clip(plan, 2000) };
+}
+let host;
+try {
+  host = hostSteps();
+} catch (error) {
+  host = { steps_error: clip(error?.message ?? error, 200) };
+}
+const writeResult = (result) => {
+  writeFileSync("/logs/verifier/reward.json", JSON.stringify(result));
+  writeFileSync(
+    "/logs/verifier/result.json",
+    JSON.stringify({ ...result, ...host }),
+  );
+};
+`;
+
 // What both nights' verifiers read from the bank: each round (one next_questions call) with its
 // share right, in the order played, and the crowd's measures over them.
 const CROWD_MEASURES = String.raw`const state = await (
@@ -359,6 +450,7 @@ const expected = JSON.parse(
   readFileSync(new URL("./expected.json", import.meta.url), "utf8"),
 );
 ${CROWD_MEASURES}
+${HOST_STEPS}
 const teams = expected.teams.map((t) =>
   t.replace(/^the\s+/i, "").toLowerCase(),
 );
@@ -371,10 +463,7 @@ const scores = {
   notes_indexed: notesIndexed,
 };
 const reward = Object.values(scores).every((v) => v === 1) ? 1 : 0;
-writeFileSync(
-  "/logs/verifier/reward.json",
-  JSON.stringify({ reward, ...scores }),
-);
+writeResult({ reward, ...scores });
 console.log(
   JSON.stringify(
     { reward, ...scores, ...measures, round_rates, fetches, rounds, notes },
@@ -394,12 +483,10 @@ const want = clean(
 );
 const notesPath = "/workspace/memories/MEMORY.md";
 const notes = existsSync(notesPath) ? readFileSync(notesPath, "utf8") : "";
+${HOST_STEPS}
 const scores = { notes_seeded: clean(notes) === want ? 1 : 0 };
 const reward = scores.notes_seeded;
-writeFileSync(
-  "/logs/verifier/reward.json",
-  JSON.stringify({ reward, ...scores }),
-);
+writeResult({ reward, ...scores });
 console.log(JSON.stringify({ reward, ...scores, notes }, null, 2));
 `;
 
@@ -422,6 +509,7 @@ const expected = JSON.parse(
   readFileSync(new URL("./expected.json", import.meta.url), "utf8"),
 );
 ${CROWD_MEASURES}
+${HOST_STEPS}
 const teams = [
   ...new Set([...expected.teams, ...(expected.night1_teams ?? [])]),
 ].map((t) => t.replace(/^the\s+/i, "").toLowerCase());
@@ -433,10 +521,7 @@ const scores = {
 };
 const reward =
   fetches.length >= ${ROUNDS} && (measures.in_band ?? 0) >= 0.5 ? 1 : 0;
-writeFileSync(
-  "/logs/verifier/reward.json",
-  JSON.stringify({ reward, ...scores }),
-);
+writeResult({ reward, ...scores });
 console.log(
   JSON.stringify(
     {

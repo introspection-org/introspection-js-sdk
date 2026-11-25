@@ -7,6 +7,7 @@
 import HELDOUT from "../recipe-operator/evals/heldout.json";
 import VENUES from "../recipe-operator/evals/venues.json";
 import type { Fetch, Measures } from "./memory-measures";
+import { hostEvents, type TrialEvent } from "./trial-steps";
 import type { TaskVerification } from "@introspection-sdk/introspection-node";
 
 /** A venue profile's task pair, as `pnpm evals:venues` writes it. */
@@ -91,6 +92,10 @@ export type EvalFinished = Step & {
   fetches?: Fetch[];
   /** Each round as played: its questions, their answers and each team's mark. */
   rounds?: PlayedRound[];
+  /** What the host did, from the result file; absent before the verifier wrote it. */
+  steps?: TrialEvent[];
+  /** Why the verifier has no steps for the night. */
+  steps_error?: string | null;
   seconds: number;
   exit_code: number | null;
   error: string | null;
@@ -487,6 +492,8 @@ export interface TrialResult {
   /** Night 2's `next_questions` calls, as its verifier printed them. */
   fetches: Fetch[];
   rounds: PlayedRound[];
+  steps: TrialEvent[];
+  steps_error: string | null;
 }
 
 /** The verifier prints one JSON object: the reward, each check, and context. */
@@ -509,7 +516,8 @@ function parseVerifierJson(
 /**
  * A trial's result from its verification files: the log is what the verifier
  * printed, with every measure, its rounds and the notes; the result file
- * holds the reward and the checks, and stands in when the log has no JSON.
+ * holds the reward, the checks and the host's steps, and stands in for the
+ * rest when the log has no JSON.
  */
 export function verifierOutput(
   log: string | null,
@@ -517,6 +525,7 @@ export function verifierOutput(
   reward: number | null = null,
 ): TrialResult {
   const printed = parseVerifierJson(log) ?? parseVerifierJson(result) ?? {};
+  const kept = parseVerifierJson(result) ?? {};
   const checks: Record<string, number> = {};
   for (const [name, value] of Object.entries(printed))
     if (name !== "reward" && typeof value === "number") checks[name] = value;
@@ -531,6 +540,8 @@ export function verifierOutput(
     notes,
     fetches: Array.isArray(printed.fetches) ? (printed.fetches as Fetch[]) : [],
     rounds: parseRounds(printed.rounds),
+    steps: hostEvents(kept.steps, kept.plan),
+    steps_error: typeof kept.steps_error === "string" ? kept.steps_error : null,
   };
 }
 
