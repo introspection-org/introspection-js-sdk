@@ -146,6 +146,7 @@ ensure_spa() {
   app="$(introspection applications list -p "$PROJECT" -o json | json "(v.records ?? v).find((a) => a.name === '$SPA_NAME')")"
   if [ -z "$app" ]; then
     app="$(introspection applications create -p "$PROJECT" --type spa --name "$SPA_NAME" \
+      --environment staging \
       --redirect-uri "http://localhost:$PORT/callback" --allowed-origin "http://localhost:$PORT" \
       --allowed-scope "tasks:read tasks:write tasks:eval tasks:exec files:read files:write" -o json | json 'v.application ?? v')"
   fi

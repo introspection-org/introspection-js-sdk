@@ -32,14 +32,30 @@ pnpm dev:app
 
 Open `http://localhost:3500` and sign in. `pnpm dev:app` builds the SDK packages the page imports (through turbo, so a restart builds nothing new) and packs the bank sidecar's build context, then serves the page. Trials run in your organization's `trivia` project on the `trivia-night` Runtime, at the version the Data Plane deploys.
 
-The page signs in with a `spa` application. There is no production one for this example yet, so register your own once and name it in `.env.local`:
+The page signs in with a `spa` application. There is no production one for this example yet, so register your own once and name it in `.env.local`. Its environment is the lane the trials run on; `staging` keeps them off production traffic:
 
 ```bash
-introspection applications create -p trivia --type spa --name "Trivia night" \
+echo NEXT_PUBLIC_TRIVIA_SPA_CLIENT_ID=$(introspection applications create -p trivia --type spa --name "Trivia night" \
+  --environment staging \
   --redirect-uri http://localhost:3500/callback --allowed-origin http://localhost:3500 \
-  --allowed-scope "tasks:read tasks:write tasks:eval tasks:exec files:read files:write"
-echo NEXT_PUBLIC_TRIVIA_SPA_CLIENT_ID=<the printed client_id> >> .env.local
+  --allowed-scope "tasks:read tasks:write tasks:eval tasks:exec files:read files:write" \
+  --query client_id -o table) >> .env.local
 ```
+
+### On a hosted repository
+
+`.introspection/trivia-night.yaml` runs `recipe-operator/` from this repository on GitHub, which your organization's GitHub integration must reach. Without it, host a copy on the platform instead:
+
+```bash
+cp -R examples/trivia-night/recipe-operator ~/trivia-night && cd ~/trivia-night
+mkdir .introspection && printf 'name: trivia-night\nruntime:\n  llm_mode: managed\n' > .introspection/trivia-night.yaml
+git init -b main && git add -A && git commit -m "Trivia night"
+git remote add origin "$(introspection repositories add trivia-night --provider introspection --template "" -p trivia --query url -o table)"
+git push -u origin main
+introspection runtimes create -p trivia
+```
+
+Each push to `main` then builds a new version. `pnpm dev` finds the `trivia-night` Runtime and leaves it as it is.
 
 The page reads two settings and no others:
 
