@@ -31,6 +31,7 @@ import type { Judgement } from "@/lib/judge";
 import { BAND, MEASURES, checkLine } from "@/lib/memory-measures";
 import {
   type Comparison,
+  MIN_PUBS,
   modelWhy,
   nextStep,
   otherWhy,
@@ -985,12 +986,16 @@ export function PlatformEvals() {
     "night2-hosted",
     "night2-fresh",
   ).length;
+  // A run with one pub plans no other-notes arm: there is no other pub to borrow from.
+  const hasOther = trialVenues.some((venue) =>
+    view?.trials.has(`${venue}/night2-wrong`),
+  );
   const headline = !rows.length
     ? running
       ? "Waiting for the night 2s at a pub…"
       : "No results yet."
     : !order
-      ? `Model notes vs no notes, across ${pubCount} pub${pubCount === 1 ? "" : "s"}: ${primary?.verdict.toLowerCase() ?? "no result"} on good rounds; waiting for the other notes.`
+      ? `Model notes vs no notes, across ${pubCount} pub${pubCount === 1 ? "" : "s"}: ${primary?.verdict.toLowerCase() ?? "no result"} on good rounds${hasOther ? "; waiting for the other notes" : ""}.`
       : order.holds &&
           primary?.verdict === "Better" &&
           primary.wrong?.tone === "good"
@@ -1002,13 +1007,12 @@ export function PlatformEvals() {
                 ? `, and true notes ${order.perfectAtLeastRight ? "matched or beat" : "fell short of"} model notes`
                 : ""
             }.`;
-  const gate = validityGate(
-    trialVenues.flatMap((venue) => {
-      const perfect = measureAt(venue, "night2-perfect", GOOD_ROUNDS);
-      const none = measureAt(venue, "night2-fresh", GOOD_ROUNDS);
-      return perfect !== null && none !== null ? [{ perfect, none }] : [];
-    }),
-  );
+  const gatePairs = trialVenues.flatMap((venue) => {
+    const perfect = measureAt(venue, "night2-perfect", GOOD_ROUNDS);
+    const none = measureAt(venue, "night2-fresh", GOOD_ROUNDS);
+    return perfect !== null && none !== null ? [{ perfect, none }] : [];
+  });
+  const gate = gatePairs.length >= MIN_PUBS ? validityGate(gatePairs) : null;
   const goodLift = lift(
     pairedOf(
       (venue, night) => measureAt(venue, night, GOOD_ROUNDS),
@@ -1020,7 +1024,9 @@ export function PlatformEvals() {
   const missingNights = trialVenues.filter((venue) =>
     night2Keys.some((night) => {
       const trial = view?.trials.get(`${venue}/${night}`);
-      return trial?.finished ? Boolean(trial.finished.error) : view?.finished;
+      // Only a planned night can be missing; a one-pub run never plans other notes.
+      if (!trial) return false;
+      return trial.finished ? Boolean(trial.finished.error) : view?.finished;
     }),
   ).length;
   const suggestion = view?.finished
@@ -1407,7 +1413,14 @@ export function PlatformEvals() {
                 <p className="fine">
                   Night 2 at the same {pubCount} pub
                   {pubCount === 1 ? "" : "s"}, the same teams answering, with
-                  model notes, no notes, other notes and true notes.
+                  model notes, no notes, {hasOther ? "other notes " : ""}and
+                  true notes.
+                </p>
+              )}
+              {!gate && gatePairs.length > 0 && (
+                <p className="fine">
+                  World check: needs at least {MIN_PUBS} pubs with true notes
+                  and no notes ({gatePairs.length} so far).
                 </p>
               )}
               {gate && (
