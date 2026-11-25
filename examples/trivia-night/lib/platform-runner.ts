@@ -29,7 +29,11 @@ import {
   trialMeta,
   trialState,
   trialVerification,
+  runCancelled,
+  untriedStep,
   verifierOutput,
+  RUN_CANCELLED_KEY,
+  type StepState,
   type EvalFinished,
   type Pubs,
   type RunRecord,
@@ -451,13 +455,6 @@ async function runTasks(
   );
 }
 
-/** How a night that failed its successor ended: cancelled, skipped in turn, or failed. */
-const endOf = (task: Task | undefined) =>
-  !task ? "skipped" : task.status === "cancelled" ? "cancelled" : "failed";
-
-const skipReason = (ended: [key: string, end: string][]) =>
-  `skipped: ${ended.map(([k, end]) => `${k.split("/")[1]} ${end}`).join(", ")}`;
-
 /** The newest run this page started, by id, or null. */
 export async function latestRun(
   client: PlatformClient,
@@ -491,20 +488,17 @@ export async function advanceRun(
     if (!byStep.has(meta.step)) byStep.set(meta.step, task);
     else if (advance && !task.is_archived) await client.tasks.archive(task.id);
   }
+  const cancelled = tasks.some(({ task }) => runCancelled(task.metadata));
   const cache: Definitions = new Map();
-  const states = new Map<string, ReturnType<typeof trialState>>();
+  const states = new Map<string, StepState>();
   const views: TrialView[] = [];
   for (const step of runSteps(record)) {
     const key = stepKey(step);
     let task = byStep.get(key);
     if (!task) {
-      const before = (step.after ?? []).map((k) => [k, states.get(k)] as const);
-      const failed = before.filter(([, state]) => state?.failed);
-      if (failed.length) {
-        const reason = skipReason(
-          failed.map(([k]) => [k, endOf(byStep.get(k))]),
-        );
-        states.set(key, { done: true, failed: true, error: reason });
+      const next = untriedStep(step, states, cancelled);
+      if (next.skip) {
+        states.set(key, { done: true, failed: true, error: next.skip });
         views.push({
           key,
           step,
@@ -512,11 +506,11 @@ export async function advanceRun(
           status: "skipped",
           scored: false,
           done: true,
-          finished: skippedTrial(step, reason),
+          finished: skippedTrial(step, next.skip),
         });
         continue;
       }
-      if (!advance || before.some(([, state]) => !state?.done)) {
+      if (!advance || next.wait) {
         views.push({
           key,
           step,
@@ -530,7 +524,7 @@ export async function advanceRun(
       }
       task = await createTrial(client, record, step, cache);
     }
-    const state = trialState(task);
+    const state = { ...trialState(task), status: task.status };
     states.set(key, state);
     views.push({
       key,
@@ -629,6 +623,33 @@ export async function startRun(
   return { run: record.run, target };
 }
 
+/**
+ * Cancels a run: marks it on its first trial, so no night is started after
+ * it, then drains every trial still going, which then ends `cancelled`.
+ */
+export async function cancelRun(client: PlatformClient, run: string) {
+  const tasks = await runTasks(client, run);
+  if (!tasks.length) return;
+  await client.tasks.update(tasks[0].task.id, {
+    metadata: { [RUN_CANCELLED_KEY]: true },
+  });
+  await Promise.all(
+    tasks
+      .filter(({ task }) => !trialState(task).done)
+      .map(async ({ task }) => {
+        const runId =
+          task.metadata?.active_run_id ?? task.metadata?.latest_run_id;
+        if (typeof runId !== "string") return;
+        try {
+          await client.tasks.runs.cancel(task.id, runId, { mode: "drain" });
+        } catch (error) {
+          // A trial that ended meanwhile has no run to cancel.
+          if (status(error) !== 409) throw error;
+        }
+      }),
+  );
+}
+
 const decode = async (client: PlatformClient, id: string | null | undefined) =>
   id ? utf8(await client.files.download(id)) : null;
 
@@ -711,26 +732,22 @@ export async function runResults(
   const byStep = new Map<string, Task>();
   for (const { task, meta } of tasks)
     if (!byStep.has(meta.step)) byStep.set(meta.step, task);
-  const failed = new Set<string>();
+  const cancelled = tasks.some(({ task }) => runCancelled(task.metadata));
+  const states = new Map<string, StepState>();
   const results: EvalFinished[] = [];
   for (const step of runSteps(tasks[0].meta.record)) {
     const key = stepKey(step);
     const task = byStep.get(key);
     if (!task) {
-      const before = (step.after ?? []).filter((k) => failed.has(k));
-      if (before.length) {
-        failed.add(key);
-        results.push(
-          skippedTrial(
-            step,
-            skipReason(before.map((k) => [k, endOf(byStep.get(k))])),
-          ),
-        );
+      const next = untriedStep(step, states, cancelled);
+      if (next.skip) {
+        states.set(key, { done: true, failed: true, error: next.skip });
+        results.push(skippedTrial(step, next.skip));
       }
       continue;
     }
-    const state = trialState(task);
-    if (state.failed) failed.add(key);
+    const state = { ...trialState(task), status: task.status };
+    states.set(key, state);
     if (!state.done) continue;
     const result = await trialResult(client, task.id);
     if (result) results.push(result);

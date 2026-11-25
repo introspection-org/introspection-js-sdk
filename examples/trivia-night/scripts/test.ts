@@ -1020,6 +1020,62 @@ async function main() {
     assert.deepEqual(evals.verifierOutput(null, null).checks, {});
   });
 
+  await check(
+    "platform evals: a cancelled run starts no dependent night, and a skip names how the night before ended",
+    () => {
+      const record = {
+        run: "r1",
+        venues: 1,
+        teams: 5 as const,
+        pubs: "development" as const,
+        started_by: "m-1",
+        started_at: "2026-11-24T00:00:00Z",
+        target: TARGET,
+      };
+      const steps = evals.runSteps(record);
+      const night1 = steps.find((s) => s.night === "night1-memory")!;
+      const hosted = steps.find((s) => s.after?.[0] === evals.stepKey(night1))!;
+      const done = new Map([
+        [
+          evals.stepKey(night1),
+          { done: true, failed: false, error: null, status: "completed" },
+        ],
+      ]);
+      // Night 1 scored: night 2 starts, unless the run was cancelled.
+      assert.deepEqual(evals.untriedStep(hosted, done, false), {});
+      assert.deepEqual(evals.untriedStep(hosted, done, true), {
+        skip: "skipped: the run was cancelled",
+      });
+      assert.deepEqual(evals.untriedStep(hosted, new Map(), false), {
+        wait: true,
+      });
+      const ended = (status?: string) =>
+        new Map([
+          [
+            evals.stepKey(night1),
+            { done: true, failed: true, error: "x", status },
+          ],
+        ]);
+      assert.equal(
+        evals.untriedStep(hosted, ended("cancelled"), false).skip,
+        "skipped: night1-memory cancelled",
+      );
+      assert.equal(
+        evals.untriedStep(hosted, ended("failed"), false).skip,
+        "skipped: night1-memory failed",
+      );
+      assert.equal(
+        evals.untriedStep(hosted, ended(undefined), false).skip,
+        "skipped: night1-memory skipped",
+      );
+      assert.equal(
+        evals.runCancelled({ [evals.RUN_CANCELLED_KEY]: true }),
+        true,
+      );
+      assert.equal(evals.runCancelled({}), false);
+    },
+  );
+
   await check("platform evals: a trial's state", () => {
     const state = (task: Parameters<typeof evals.trialState>[0]) => ({
       ...evals.trialState(task),

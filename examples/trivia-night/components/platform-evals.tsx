@@ -33,6 +33,7 @@ import {
 } from "@/lib/browser-session";
 import {
   advanceRun,
+  cancelRun,
   latestRun,
   resolveTarget,
   startRun,
@@ -405,6 +406,8 @@ function nightStatus(
       : { kind: "waiting", mark: "·", title: "Waiting to start" };
   const finished = trial.finished;
   if (!finished) return { kind: "running", mark: "", title: "Running" };
+  if (finished.error && /cancelled/.test(finished.error))
+    return { kind: "skipped", mark: "—", title: finished.error };
   if (finished.error)
     return { kind: "failed", mark: "✗", title: finished.error };
   const good = finished.measures?.[GOOD_ROUNDS];
@@ -418,6 +421,8 @@ function nightStatus(
 
 /** A failed night in one line; the raw message is its title. */
 function failureLine(finished: EvalFinished): string {
+  if (/the run was cancelled|was cancelled before/.test(finished.error ?? ""))
+    return "Cancelled.";
   if (finished.rounds?.length)
     return "Stopped part way: the platform task failed.";
   return /did not start|failed to start|fetch failed|Git fetch/i.test(
@@ -635,6 +640,8 @@ export function PlatformEvals() {
   const [tabs, setTabs] = useState<Record<string, (typeof NIGHTS)[number]>>({});
   const [nightView, setNightView] = useState<NightView>("questions");
   const [starting, setStarting] = useState(false);
+  /** The Cancel run button's confirm step: off, asking, or cancelling. */
+  const [cancelling, setCancelling] = useState<"ask" | "busy">();
   useEffect(() => {
     try {
       if (window.localStorage.getItem(NIGHT_VIEW_KEY) === "steps")
@@ -865,6 +872,20 @@ export function PlatformEvals() {
       if (!signedOut(failure)) setError((failure as Error).message);
     } finally {
       setStarting(false);
+    }
+    await poll();
+  };
+
+  const cancel = async () => {
+    const id = run.current;
+    if (!id || !member.current) return;
+    setCancelling("busy");
+    try {
+      await cancelRun(member.current.client, id);
+    } catch (failure) {
+      if (!signedOut(failure)) setError((failure as Error).message);
+    } finally {
+      setCancelling(undefined);
     }
     await poll();
   };
@@ -1430,6 +1451,32 @@ export function PlatformEvals() {
         >
           {running ? "Running…" : "Run"}
         </button>
+        {running &&
+          config &&
+          !config.missing_scopes.includes("tasks:write") &&
+          (cancelling === undefined ? (
+            <button type="button" onClick={() => setCancelling("ask")}>
+              Cancel run
+            </button>
+          ) : (
+            <span className="fine">
+              Cancel every trial still going?{" "}
+              <button
+                type="button"
+                disabled={cancelling === "busy"}
+                onClick={cancel}
+              >
+                Yes, cancel
+              </button>{" "}
+              <button
+                type="button"
+                disabled={cancelling === "busy"}
+                onClick={() => setCancelling(undefined)}
+              >
+                Keep running
+              </button>
+            </span>
+          ))}
         {config?.cost_per_trial !== undefined && (
           <span
             className="fine cost"

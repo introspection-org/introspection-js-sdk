@@ -435,6 +435,48 @@ export function trialState(task: TrialTask): TrialState {
   return { done: true, failed: error !== null, error };
 }
 
+/** Set on a run's first trial when the run is cancelled, so no later night starts. */
+export const RUN_CANCELLED_KEY = "trivia_night_cancelled";
+
+export const runCancelled = (
+  metadata: Record<string, unknown> | null | undefined,
+) => metadata?.[RUN_CANCELLED_KEY] === true;
+
+/** A step's state as the nights after it read it: how a trial ended, or why it was skipped. */
+export interface StepState extends TrialState {
+  /** The trial's task status; absent for a step that was skipped. */
+  status?: string;
+}
+
+/**
+ * What a step with no trial yet does: skipped when the run was cancelled or a
+ * night it waits for failed (naming how that night ended), waiting while a
+ * night it waits for is still going, and otherwise started.
+ */
+export function untriedStep(
+  step: Step,
+  states: Map<string, StepState>,
+  cancelled: boolean,
+): { skip?: string; wait?: boolean } {
+  if (cancelled) return { skip: "skipped: the run was cancelled" };
+  const before = (step.after ?? []).map((k) => [k, states.get(k)] as const);
+  const failed = before.filter(([, state]) => state?.failed);
+  if (failed.length)
+    return {
+      skip: `skipped: ${failed
+        .map(([k, state]) => {
+          const end = !state?.status
+            ? "skipped"
+            : state.status === "cancelled"
+              ? "cancelled"
+              : "failed";
+          return `${k.split("/")[1]} ${end}`;
+        })
+        .join(", ")}`,
+    };
+  return before.some(([, state]) => !state?.done) ? { wait: true } : {};
+}
+
 /** A step the page shows: its task's state, or why it has none yet. */
 export interface TrialView {
   key: string;
