@@ -7,40 +7,24 @@
  */
 import { IntrospectionApiClient } from "@introspection-sdk/introspection-browser/api";
 
-import type { Target } from "./platform-evals";
+import { PROJECT } from "./platform-evals";
 
-/** Public configuration, inlined at build time. */
+/**
+ * The page's only configuration, inlined at build time: the Control Plane it
+ * signs in at, production unless set, and its `spa` application. The Data
+ * Plane is the one the sign-in names for the project.
+ */
 export const CONFIG = {
   cpUrl:
     process.env.NEXT_PUBLIC_INTROSPECTION_API_BASE_URL ||
     "https://api.introspection.dev",
-  dpUrl:
-    process.env.NEXT_PUBLIC_INTROSPECTION_DP_URL ||
-    process.env.NEXT_PUBLIC_INTROSPECTION_API_BASE_URL ||
-    "https://api.introspection.dev",
   clientId: process.env.NEXT_PUBLIC_TRIVIA_SPA_CLIENT_ID ?? "",
-  runtime: process.env.NEXT_PUBLIC_INTROSPECTION_TRIVIA_RUNTIME_ID ?? "",
-  repository: process.env.NEXT_PUBLIC_INTROSPECTION_TRIVIA_REPOSITORY_ID ?? "",
-  commit: process.env.NEXT_PUBLIC_INTROSPECTION_TRIVIA_COMMIT_SHA ?? "",
-  recipePath: process.env.NEXT_PUBLIC_INTROSPECTION_TRIVIA_RECIPE_PATH ?? "",
-  project: process.env.NEXT_PUBLIC_INTROSPECTION_TRIVIA_PROJECT || "trivia",
 };
-
-/** The configured Runtime, or null when the page names none. */
-export function configuredTarget(config = CONFIG): Target | null {
-  if (!config.runtime || !config.repository || !config.commit) return null;
-  return {
-    runtime: config.runtime,
-    commit: config.commit,
-    repository: config.repository,
-    recipe_path: config.recipePath,
-  };
-}
 
 /**
  * What a run calls, and no more: the trials (`tasks:*`, with `tasks:eval` and
- * `tasks:exec` for a verified eval task), their archives and results
- * (`files:*`), and the repository and sidecar image (`*:read`).
+ * `tasks:exec` for a verified eval task), and their sidecar's build context
+ * and results (`files:*`).
  */
 export const LOGIN_SCOPES = [
   "tasks:read",
@@ -49,8 +33,6 @@ export const LOGIN_SCOPES = [
   "tasks:exec",
   "files:read",
   "files:write",
-  "repositories:read",
-  "images:read",
 ];
 /** What starting or moving a run on needs beyond reading it; an owner or admin holds them. */
 export const RUN_SCOPES = [
@@ -64,6 +46,8 @@ export interface Session {
   access_token: string;
   member_id: string;
   project_id: string;
+  /** The project's Data Plane, as the sign-in names it. */
+  dp_url: string;
   scope: string[];
   expires_at: number;
   /** The lane the Data Plane set its cookie for, once the token is redeemed. */
@@ -87,7 +71,8 @@ export function storedSession(
 ): Session | null {
   const raw = storage.getItem(SESSION_KEY);
   const session = raw ? (JSON.parse(raw) as Session) : null;
-  if (session && session.expires_at > now) return session;
+  // A session from before the page kept its Data Plane signs in again.
+  if (session && session.expires_at > now && session.dp_url) return session;
   storage.removeItem(SESSION_KEY);
   return null;
 }
@@ -115,9 +100,8 @@ export async function loginUrl(
     code_challenge: challenge,
     code_challenge_method: "S256",
   });
-  // Naming the project (its slug or id) signs straight in; without one the member picks it.
-  if (config.project) params.set("project", config.project);
-  else params.set("prompt", "consent");
+  // Naming the project signs straight in to it.
+  params.set("project", PROJECT);
   return `${config.cpUrl.replace(/\/+$/, "")}/v1/oauth/authorize?${params}`;
 }
 
@@ -159,6 +143,7 @@ export async function completeLogin(
     access_token: string;
     expires_in: number;
     scope?: string | null;
+    dp_url?: string | null;
   };
   const claims = JSON.parse(
     atob(
@@ -167,10 +152,13 @@ export async function completeLogin(
   ) as { member_id?: string; project_id?: string; scope?: string };
   if (!claims.member_id || !claims.project_id)
     throw new Error("the sign-in named no member or project");
+  if (!token.dp_url)
+    throw new Error(`the ${PROJECT} project has no Data Plane`);
   const session: Session = {
     access_token: token.access_token,
     member_id: claims.member_id,
     project_id: claims.project_id,
+    dp_url: token.dp_url,
     scope: (token.scope ?? claims.scope ?? "").split(" ").filter(Boolean),
     expires_at: now + token.expires_in * 1000,
   };
@@ -190,10 +178,9 @@ export const missingScopes = (session: Session, needed: readonly string[]) =>
 export async function sessionClient(
   session: Session,
   storage: Pick<Storage, "setItem">,
-  config = CONFIG,
 ): Promise<IntrospectionApiClient> {
   const client = new IntrospectionApiClient({
-    dpUrl: config.dpUrl,
+    dpUrl: session.dp_url,
     getToken: () => session.access_token,
     environment: session.environment as IntrospectionApiClientEnvironment,
     projectId: session.project_id,
@@ -205,7 +192,7 @@ export async function sessionClient(
     const environment = await connecting;
     storage.setItem(SESSION_KEY, JSON.stringify({ ...session, environment }));
     return new IntrospectionApiClient({
-      dpUrl: config.dpUrl,
+      dpUrl: session.dp_url,
       getToken: () => session.access_token,
       environment,
       projectId: session.project_id,

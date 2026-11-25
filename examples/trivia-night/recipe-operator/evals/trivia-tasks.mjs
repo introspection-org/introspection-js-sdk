@@ -138,6 +138,43 @@ export function bankEnvironment(venue, night, size = DEFAULT_TEAMS) {
   };
 }
 
+/** The bank sidecar's compose service name, which is also the host the agent reaches it on. */
+export const BANK_SERVICE = "fakes";
+
+/**
+ * A trial's compose world for a night, with the bank built from `context`: a
+ * path beside the task for a local Harbor run, or the platform's Files API id
+ * of the same folder's archive. The bank's verifier manifest reaches the
+ * verifier on `fakes-verifier`.
+ * @param {Venue} venue @param {0 | 1 | 2} night @param {number} size @param {string} context
+ */
+export function trialWorld(venue, night, size, context) {
+  return {
+    services: {
+      main: {
+        depends_on: { [BANK_SERVICE]: { condition: "service_healthy" } },
+        volumes: ["fakes-verifier:/opt/fakes-verifier:ro"],
+      },
+      [BANK_SERVICE]: {
+        build: { context },
+        environment: bankEnvironment(venue, night, size),
+        volumes: ["fakes-verifier:/verifier"],
+        healthcheck: {
+          test: [
+            "CMD",
+            "node",
+            "-e",
+            "fetch('http://127.0.0.1:7353/health').then((r)=>process.exit(r.ok?0:1),()=>process.exit(1))",
+          ],
+          interval: "1s",
+          retries: 30,
+        },
+      },
+    },
+    volumes: { "fakes-verifier": {} },
+  };
+}
+
 /**
  * The trial a verifier scores: from the task's metadata (`trivia_night.trial`,
  * which the platform passes as INTROSPECTION_TASK_METADATA_JSON), else from

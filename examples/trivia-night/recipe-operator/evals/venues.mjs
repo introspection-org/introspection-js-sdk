@@ -17,13 +17,15 @@ import {
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
+import { stringify } from "yaml";
+
 import {
-  bankEnvironment,
   DEFAULT_TEAMS,
   expectedFor,
   instructionFor,
   perfectNotes,
   TEAM_SIZES,
+  trialWorld,
 } from "./trivia-tasks.mjs";
 
 export { DEFAULT_TEAMS, TEAM_SIZES, perfectNotes };
@@ -135,35 +137,8 @@ destination = "memories"
 `;
 
 /** A generated task's compose: the bank sidecar, built from fakes/, with the trial's settings. */
-const compose = (venue, night, teams) => `services:
-  main:
-    depends_on:
-      fakes:
-        condition: service_healthy
-    volumes:
-      - fakes-verifier:/opt/fakes-verifier:ro
-  fakes:
-    build:
-      context: ../../../../fakes
-    environment:
-${Object.entries(bankEnvironment(venue, night, teams))
-  .map(([k, v]) => `      ${k}: "${v}"`)
-  .join("\n")}
-    volumes:
-      - fakes-verifier:/verifier
-    healthcheck:
-      test:
-        [
-          "CMD",
-          "node",
-          "-e",
-          "fetch('http://127.0.0.1:7353/health').then((r)=>process.exit(r.ok?0:1),()=>process.exit(1))",
-        ]
-      interval: 1s
-      retries: 30
-volumes:
-  fakes-verifier: {}
-`;
+const compose = (venue, night, teams) =>
+  stringify(trialWorld(venue, night, teams, "../../../../fakes"));
 
 // Runs under Harbor (tests in /tests, logs in /logs/verifier) and natively, where the runtime
 // runs it from the task's own tests folder and names the logs folder in LOGS_DIR.
@@ -210,7 +185,11 @@ export function taskFiles(venue, size = DEFAULT_TEAMS) {
             `Seeds the venue's true notes (${venue.pub}, ${venue.city}) in memories/MEMORY.md for the perfect-notes night 2; no quiz is played`,
             venue,
           ),
-          [`${night0}/environment/docker-compose.yaml`]: compose(venue, 0),
+          [`${night0}/environment/docker-compose.yaml`]: compose(
+            venue,
+            0,
+            DEFAULT_TEAMS,
+          ),
           [`${night0}/tests/test.sh`]: TEST_SH,
           [`${night0}/tests/check.mjs`]: CHECK(0),
           [`${night0}/tests/notes.md`]: notes,

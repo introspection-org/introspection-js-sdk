@@ -19,64 +19,69 @@ Improve works on single conversations today, and memory spans several. So each m
 
 ## Run it
 
-You need Node 22 or later, pnpm, and cloudflared (`brew install cloudflared`).
+You need Node 22 or later, pnpm, and the Introspection CLI (`pnpm add -g @introspection-ai/cli`, then `introspection login`).
 
 ```bash
+git clone https://github.com/introspection-org/introspection-js-sdk.git
+cd introspection-js-sdk
 pnpm install
+introspection runtimes create --manifest .introspection/trivia-night.yaml -p trivia   # once
+cd examples/trivia-night
+pnpm dev:app
 ```
+
+Open `http://localhost:3500` and sign in. `pnpm dev:app` builds the SDK packages the page imports (through turbo, so a restart builds nothing new) and packs the bank sidecar's build context, then serves the page. Trials run in your organization's `trivia` project on the `trivia-night` Runtime, at the version the Data Plane deploys.
+
+The page signs in with a `spa` application. There is no production one for this example yet, so register your own once and name it in `.env.local`:
 
 ```bash
-pnpm dev
+introspection applications create -p trivia --type spa --name "Trivia night" \
+  --redirect-uri http://localhost:3500/callback --allowed-origin http://localhost:3500 \
+  --allowed-scope "tasks:read tasks:write tasks:eval tasks:exec files:read files:write"
+echo NEXT_PUBLIC_TRIVIA_SPA_CLIENT_ID=<the printed client_id> >> .env.local
 ```
 
-It serves the page on `http://localhost:3500`, and the bank's MCP server alone on `127.0.0.1:3501` behind a free Cloudflare quick tunnel, new each run. The page and `/api/*` are never on the tunnel. On whichever stack `introspection login` chose (staging, production or your own) it then sets up in the `trivia` project (`TRIVIA_PROJECT` names another), and on a later run only checks:
+The page reads two settings and no others:
 
-1. the `trivia-night` Runtime, from this GitHub repository's [`.introspection/trivia-night.yaml`](../../.introspection/trivia-night.yaml), which runs [`recipe-operator/`](./recipe-operator);
-2. the `Trivia Night bank` application, which signs the end-user token the bank verifies;
-3. the `trivia-bank` MCP binding on the tunnel's `/mcp`, linked to that application. Each run points it at the new tunnel.
+| Variable                                 | Default                         | What it is                                                                                           |
+| ---------------------------------------- | ------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| `NEXT_PUBLIC_TRIVIA_SPA_CLIENT_ID`       | none: required                  | The `spa` application's `client_id`.                                                                 |
+| `NEXT_PUBLIC_INTROSPECTION_API_BASE_URL` | `https://api.introspection.dev` | The Control Plane the page signs in at. Set it only off production, such as `http://localhost:8000`. |
 
-It writes `TRIVIA_ISSUER` (and `TRIVIA_AUDIENCE` when the binding has one), and the page's project, runtime, repository, Recipe path and commit (`NEXT_PUBLIC_INTROSPECTION_TRIVIA_*`; the checkout's `HEAD`, which must be pushed, or `TRIVIA_COMMIT`), into `.env.local`, and never sets `TRIVIA_DEV_OWNER_HEADER`, so the bank verifies real tokens and refuses a call without one. Not logged in, the page runs alone and the bank refuses every call. `TRIVIA_NO_SETUP=1` serves the page, the bank and its tunnel without touching the project. `pnpm dev:app` runs the page alone, with no tunnel. The page's own `/bank/mcp` serves a separate bank for the local room scripts (`scripts/rooms.ts`, `scripts/host.ts`); the platform reaches only the tunnelled one.
+The Data Plane is the one the sign-in names for the project (the token response's `dp_url`), and it must allow the page's origin for CORS.
+
+### With the bank on the platform
+
+The host plays only through the `trivia-bank` MCP server. `pnpm dev` serves it as well, on `127.0.0.1:3501` behind a free Cloudflare quick tunnel (`brew install cloudflared`), new each run; the page and `/api/*` are never on the tunnel. On whichever stack `introspection login` chose it then sets up the `trivia` project, and on a later run only checks:
+
+1. the `trivia-night` Runtime, from [`.introspection/trivia-night.yaml`](../../.introspection/trivia-night.yaml), which runs [`recipe-operator/`](./recipe-operator);
+2. the page's `Trivia night` `spa` application, whose `client_id` it writes to `.env.local`, with the stack's URL when it is not production;
+3. the `Trivia Night bank` application, which signs the end-user token the bank verifies;
+4. the `trivia-bank` MCP binding on the tunnel's `/mcp`, linked to that application. Each run points it at the new tunnel.
+
+The bank is handed the issuer and audience it verifies, and never `TRIVIA_DEV_OWNER_HEADER`, so it refuses a call without a real token. Not logged in, the page runs alone and the bank refuses every call. `TRIVIA_NO_SETUP=1` serves the page, the bank and its tunnel without touching the project. The page's own `/bank/mcp` serves a separate bank for the local room scripts (`scripts/rooms.ts`, `scripts/host.ts`); the platform reaches only the tunnelled one.
 
 ```bash
 pnpm test       # the bank, its MCP server, the scoring and the eval runner
 ```
 
-These are unit tests: the eval runner's planning, trial bodies, admission keys and run ids, the verifier's step extraction from a real sandbox capture, the sign-in URL, token expiry and scopes, and the summary rules. The platform side is checked by a live run of one development pub from a browser on a local stack.
+These are unit tests: the eval runner's planning, trial bodies, admission keys and run ids, the verifier's step extraction from a real sandbox capture, the sign-in and its Data Plane, token expiry and scopes, and the summary rules. The platform side is checked by a live run of one development pub from a browser on a local stack.
 
 ## Run the evals from the page
 
-The page runs the real memory evals, as [Run the memory evals](./recipe-operator/README.md#run-the-memory-evals) describes, against the configured trivia Runtime at the configured commit (see [Sign in](#sign-in)).
+The page runs the real memory evals, as [Run the memory evals](./recipe-operator/README.md#run-the-memory-evals) describes, on the project's `trivia-night` Runtime.
 
-Each trial is one platform call through the browser SDK: a `kind: eval` task naming one of the Recipe's three Harbor tasks (`evals/harbor/night0`, `night1` or `night2`) in `metadata.task_path`, with the commit, the customer's identity, the run's tags, the pub it plays (`metadata.trivia_night.trial`), its instruction as the `prompt`, and a compose that gives the bank the pub's crowd. The platform reads the verifier and its timeout from that directory at the commit, and the verifier reads the pub's truth from `evals/venues.json` (see [Run the memory evals](./recipe-operator/README.md#run-the-memory-evals)). When the run settles the trial ends at once (an eval task's idle window defaults to 0): the platform runs the verifier in the trial's sandbox while the task is `finishing`, records the outcome as `metadata.verification`, and only then marks it `completed`. The page reads the verifier's report from the outcome's log. To test another commit, set `NEXT_PUBLIC_INTROSPECTION_TRIVIA_COMMIT_SHA` in `.env.local`.
+Each trial is one platform call through the browser SDK: a `kind: eval` task naming one of the Recipe's three Harbor tasks (`examples/trivia-night/recipe-operator/evals/harbor/night0`, `night1` or `night2`) in `metadata.task_path`, with the Runtime, the customer's identity, the run's tags, the pub it plays (`metadata.trivia_night.trial`), its instruction as the `prompt`, and a compose that gives the bank the pub's crowd. The platform reads the verifier and its timeout from that directory at the Runtime's deployed commit, and the verifier reads the pub's truth from `evals/venues.json`. When the run settles the trial ends at once (an eval task's idle window defaults to 0): the platform runs the verifier in the trial's sandbox while the task is `finishing`, records the outcome as `metadata.verification`, and only then marks it `completed`. The page reads the verifier's report from the outcome's log.
 
 Nothing about a run is kept on the server: a run is its tasks. Start creates each pub's first nights and returns; each time the Data Plane's WebSocket reports a task change (and once on every connect, since events sent while it was down are gone) the page lists the run's tasks by the `simulation:<run>` tag, and creates a night 2 once the night it waits on is `completed` with a verification that reports no error (otherwise it is skipped). Every trial task carries the run's settings in its metadata (`trivia_night`), which is all a poll needs to know which nights are still to come, so any instance of the page can serve any poll. Two polls that both create a night make one trial between them: each trial carries its step's `admission_key` (a uuid5 of the run and the step), the platform admits one task per key under a lock and answers a second create with `409`, and the page then reads the existing task. A tab never overlaps its own polls. **Cancel run**, shown to a member holding `tasks:write` while a run goes, marks the run cancelled on its first trial, so no later night starts, and drains every trial still going; the cancelled nights read as cancelled.
 
-The trials' sidecar, the trivia bank fake, runs an image the page finds by its folder's git tree at that commit and passes in the compose, since the Runtime's build carries none for a branch commit; the contents API returns no file over 1 MB whole, so the page cannot build it. `pnpm dev` builds it after each push, or run `pnpm sidecar:image`, which checks every file against the commit first.
+The trials' sidecar, the trivia bank fake, is built from `recipe-operator/fakes/` as this checkout has it: `pnpm dev:app` packs the folder into `public/sidecar/fakes.tar.gz` with fixed bytes, the page uploads it once per sign-in and names it as the sidecar's build context, and the platform builds an image once per archive, so the first trial after a change to the folder waits for the build and the rest reuse it.
 
 ### Sign in
 
-The page is client-side: it signs a member in in the browser and every trial runs as them, so its usage is billed to their organization. Opening it without a session sends you to the platform's hosted login (`/v1/oauth/authorize` on `NEXT_PUBLIC_INTROSPECTION_API_BASE_URL`), where you pick the project the trials run in, and back to `/callback`, which exchanges the code (PKCE) at the Control Plane's token endpoint. The token waits in sessionStorage until it expires, when the page signs in again; it is redeemed once at the Data Plane's `/v1/oauth/exchange`, and every platform call then rides the Data Plane's session cookie through the browser SDK (`@introspection-sdk/introspection-browser/api`). Each trial records the member's id as `started_by`.
+The page is client-side: it signs a member in in the browser and every trial runs as them, so its usage is billed to their organization. Opening it without a session sends you to the platform's hosted login (`/v1/oauth/authorize`) for the `trivia` project, and back to `/callback`, which exchanges the code (PKCE) at the Control Plane's token endpoint. The token response names the project's Data Plane; the token waits in sessionStorage until it expires, when the page signs in again; it is redeemed once at that Data Plane's `/v1/oauth/exchange`, and every platform call then rides its session cookie through the browser SDK (`@introspection-sdk/introspection-browser/api`). Each trial records the member's id as `started_by`.
 
-The browser reaches only the Data Plane, so it cannot look a Runtime up: the page runs the Runtime its configuration names, once its commit is seen to hold the Recipe's Harbor tasks. Register the page once as a `spa` application whose ceiling holds every scope a run calls, with `introspection login --url <Control Plane>` first for anything but production:
-
-```bash
-introspection applications create --type spa --name "Trivia night" \
-  --redirect-uri http://localhost:3500/callback --allowed-origin http://localhost:3500 \
-  --allowed-scope "tasks:read tasks:write tasks:eval tasks:exec files:read files:write repositories:read images:read"
-echo NEXT_PUBLIC_TRIVIA_SPA_CLIENT_ID=<the printed client_id> >> .env.local
-```
-
-The Data Plane must allow the page's origin for CORS (`CORS_ORIGINS` on the Data Plane). The platform grants a member only the scopes their role holds, and an eval task needs `tasks:eval` and `tasks:exec`, so only an organization owner or admin can start or move a run on; another member reads the runs and the panel says why the **Run** button is off.
-
-| Variable                                         | Default                         | What it is                                                                   |
-| ------------------------------------------------ | ------------------------------- | ---------------------------------------------------------------------------- |
-| `NEXT_PUBLIC_TRIVIA_SPA_CLIENT_ID`               | none                            | The `spa` application's `client_id`.                                         |
-| `NEXT_PUBLIC_INTROSPECTION_API_BASE_URL`         | `https://api.introspection.dev` | The Control Plane, for the login. A local stack is `http://localhost:8000`.  |
-| `NEXT_PUBLIC_INTROSPECTION_DP_URL`               | the Control Plane's URL         | The Data Plane the trials run on. A local stack is `http://localhost:8002`.  |
-| `NEXT_PUBLIC_INTROSPECTION_TRIVIA_RUNTIME_ID`    | none                            | The trivia Runtime to run; without it and the two below the page cannot run. |
-| `NEXT_PUBLIC_INTROSPECTION_TRIVIA_REPOSITORY_ID` | none                            | The repository holding its Recipe.                                           |
-| `NEXT_PUBLIC_INTROSPECTION_TRIVIA_COMMIT_SHA`    | none                            | The commit to run, which must hold the Recipe's Harbor tasks.                |
-| `NEXT_PUBLIC_INTROSPECTION_TRIVIA_RECIPE_PATH`   | the repository's root           | The Recipe's folder in that repository.                                      |
+The platform grants a member only the scopes their role holds, and an eval task needs `tasks:eval` and `tasks:exec`, so only an organization owner or admin can start or move a run on; another member reads the runs and the panel says why the **Run** button is off.
 
 **Memory is off for these trials for now.** The platform gives an eval task memory only when an agent's credentials run it, and a member's own eval tasks own none yet, so every night 2 runs without notes, whatever its arm. The panel says so instead of reading the arms' sameness as "no memory effect"; a run measures memory again once the platform lets a member's eval tasks own memory.
 
@@ -95,19 +100,9 @@ Every trial is tagged `simulation:<run>` and `simulation:trivia-night`. Trials a
 
 Each venue gets a card with a tab per night: what night 1 learned, whose notes the other-notes night had, and each round's questions and team marks, all from the verifier's output. The **Questions | Under the hood** switch changes only that night detail, never the charts: under the hood shows the host's steps in order (its memory read, each bank call, its notes written and its closing message) and what the verifier measured. A trial's conversation is not the page's to read; the verifier reads the GenAI spans the runtime keeps in the sandbox instead and prints a bounded step list, with credentials redacted, in its report, which the platform keeps as the verification's log (`reward.json` keeps only the numbers Harbor reads). While a run is going the page shows its progress; a card fills in as its venue's trials finish. [`experiment/analyze.mts`](./experiment/README.md) prints a run's pre-registered analysis from the same tasks.
 
-## Add it to your own project
-
-The recipe in `recipe-operator/` is published with a Runtime manifest, [`.introspection/trivia-night.yaml`](../../.introspection/trivia-night.yaml). From a clone of this repository, signed in with `introspection login`:
-
-```bash
-introspection runtimes create --manifest .introspection/trivia-night.yaml
-```
-
-The host plays only through the `trivia-bank` MCP server, which `pnpm dev` serves and binds; the page's evals also need the bank's sidecar image (`pnpm sidecar:image`).
-
 ## Deploy
 
-`.github/workflows/deploy-trivia-night.yml` deploys the page to Vercel: a push to `main` makes a preview aliased to `trivia-night.staging.introspection.dev`, and a manual run with `production` deploys production. The repository's `build` environment needs the variables `VERCEL_ORG_ID` and `VERCEL_TRIVIA_PROJECT_ID` and the secret `VERCEL_API_TOKEN`; the Vercel project needs `NEXT_PUBLIC_INTROSPECTION_API_BASE_URL`, `NEXT_PUBLIC_INTROSPECTION_DP_URL`, `NEXT_PUBLIC_TRIVIA_SPA_CLIENT_ID`, `NEXT_PUBLIC_INTROSPECTION_TRIVIA_RUNTIME_ID`, `NEXT_PUBLIC_INTROSPECTION_TRIVIA_REPOSITORY_ID` and `NEXT_PUBLIC_INTROSPECTION_TRIVIA_COMMIT_SHA`, `NEXT_PUBLIC_INTROSPECTION_TRIVIA_PROJECT` (the project's slug or id, `trivia` by default, so sign-in goes straight to it), and `NEXT_PUBLIC_INTROSPECTION_TRIVIA_RECIPE_PATH` when the Recipe is not at its repository's root. They are public: the page holds no secret, and trials run as the signed-in member. The `spa` application's ceiling must allow `tasks:read tasks:write tasks:eval tasks:exec files:read files:write repositories:read images:read`, its redirect URIs must include the deployed `/callback`, and the Data Plane must allow the deployed origin for CORS.
+`.github/workflows/deploy-trivia-night.yml` deploys the page to Vercel: a push to `main` makes a preview aliased to `trivia-night.staging.introspection.dev`, and a manual run with `production` deploys production. The repository's `build` environment needs the variables `VERCEL_ORG_ID` and `VERCEL_TRIVIA_PROJECT_ID` and the secret `VERCEL_API_TOKEN`; the Vercel project needs `NEXT_PUBLIC_TRIVIA_SPA_CLIENT_ID`, and `NEXT_PUBLIC_INTROSPECTION_API_BASE_URL` only for a deploy that signs in anywhere but production. Both are public: the page holds no secret, and trials run as the signed-in member. The `spa` application's ceiling must allow `tasks:read tasks:write tasks:eval tasks:exec files:read files:write`, its redirect URIs must include the deployed `/callback`, and the Data Plane must allow the deployed origin for CORS.
 
 ## What it costs
 

@@ -13,7 +13,8 @@ import {
   type EvalRunFinished,
   type EvalStarted,
   type PlayedRound,
-  type Target,
+  PROJECT,
+  TARGET,
   type TeamSize,
 } from "@/lib/platform-evals";
 import {
@@ -22,9 +23,7 @@ import {
   PROJECT_ID_QUERY_PARAM,
 } from "@introspection-sdk/introspection-browser/api";
 import {
-  CONFIG,
   RUN_SCOPES,
-  configuredTarget,
   loginUrl,
   missingScopes,
   sessionClient,
@@ -35,7 +34,6 @@ import {
   advanceRun,
   cancelRun,
   latestRun,
-  resolveTarget,
   startRun,
   trialResult,
 } from "@/lib/platform-runner";
@@ -44,7 +42,6 @@ import {
   firstSentences,
   kindLabel,
   notesPreview,
-  targetLabel,
   toolLine,
 } from "@/lib/display";
 import {
@@ -72,7 +69,6 @@ interface Config {
   /** The run scopes the member's sign-in lacks; only an owner or admin holds them. */
   missing_scopes: string[];
   /** The project has no trivia Runtime yet. */
-  no_runtime: boolean;
   /** The newest run, finished or not. */
   latest?: string | null;
   max_venues?: number;
@@ -82,8 +78,6 @@ interface Config {
   /** An estimate of one trial's model cost, in US dollars. */
   cost_per_trial?: number;
   trials_per_venue?: number;
-  target: Target | null;
-  target_error: string | null;
   active: string | null;
 }
 
@@ -686,26 +680,14 @@ export function PlatformEvals() {
         const state = await advanceRun(client, latest, missing.length === 0);
         active = state && !state.finished ? latest : null;
       }
-      const configured = configuredTarget();
-      let target = null;
-      let target_error = null;
-      if (configured)
-        try {
-          target = await resolveTarget(client, configured);
-        } catch (failure) {
-          target_error = (failure as Error).message;
-        }
       setConfig({
         missing_scopes: missing,
-        no_runtime: !configured,
         max_venues: MAX_VENUES,
         max_venues_by_pubs: MAX_VENUES_BY_PUBS,
         team_sizes: [...TEAM_SIZES],
         default_teams: DEFAULT_TEAMS,
         cost_per_trial: COST_PER_TRIAL,
         trials_per_venue: TRIALS_PER_VENUE,
-        target,
-        target_error,
         latest,
         active,
       });
@@ -814,13 +796,14 @@ export function PlatformEvals() {
     let timer: ReturnType<typeof setTimeout>;
     const open = () => {
       const client = member.current?.client;
-      if (!client) return;
+      const dpUrl = member.current?.session.dp_url;
+      if (!client || !dpUrl) return;
       const params = new URLSearchParams({ event: "tasks" });
       if (client.environment) params.set(LANE_QUERY_PARAM, client.environment);
       if (client.projectId)
         params.set(PROJECT_ID_QUERY_PARAM, client.projectId);
       socket = new WebSocket(
-        `${CONFIG.dpUrl.replace(/^http/, "ws").replace(/\/+$/, "")}/v1/ws/stream?${params}`,
+        `${dpUrl.replace(/^http/, "ws").replace(/\/+$/, "")}/v1/ws/stream?${params}`,
       );
       socket.onopen = () => void poll();
       socket.onmessage = (message) => {
@@ -858,12 +841,11 @@ export function PlatformEvals() {
     // One token per click: a repeated start of it names the same run.
     const token = crypto.randomUUID();
     try {
-      if (!member.current || !config?.target) return;
+      if (!member.current || !config) return;
       const { session, client } = member.current;
       const started = await startRun(client, {
         venues: venueCount,
         startedBy: session.member_id,
-        target: config.target,
         token,
         teams: (teams ?? config.default_teams) as TeamSize,
         pubs,
@@ -1358,17 +1340,6 @@ export function PlatformEvals() {
           </p>
         </div>
       )}
-      {config?.no_runtime && (
-        <div className="notice">
-          <p>
-            Your project has no trivia Runtime. From a clone of this repository:
-          </p>
-          <pre className="notes">
-            introspection runtimes create --manifest
-            .introspection/trivia-night.yaml
-          </pre>
-        </div>
-      )}
 
       <div className="platform-form">
         <div className="control">
@@ -1445,7 +1416,7 @@ export function PlatformEvals() {
         </div>
         <button
           disabled={
-            !config?.target ||
+            !config ||
             (config?.missing_scopes.length ?? 0) > 0 ||
             running ||
             starting
@@ -1471,24 +1442,10 @@ export function PlatformEvals() {
             {trials} trials
           </span>
         )}
-        <span
-          className="fine target"
-          title={
-            config?.target
-              ? `Runtime ${config.target.runtime} at ${config.target.commit}`
-              : undefined
-          }
-        >
-          {config?.target
-            ? targetLabel(
-                config.target.runtime,
-                config.target.commit,
-                config.target.slug,
-              )
-            : "…"}
+        <span className="fine target">
+          {TARGET.runtime} in {PROJECT}
         </span>
       </div>
-      {config?.target_error && <p className="bad">{config.target_error}</p>}
       {error && <p className="bad">{error}</p>}
 
       {view && (

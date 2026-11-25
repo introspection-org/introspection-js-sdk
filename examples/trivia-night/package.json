@@ -4,8 +4,11 @@
   "private": true,
   "description": "Trivia Night, a memory demo: a quiz host that never repeats a question at a venue and pitches each round to that venue's crowd. Hosts the question bank as an MCP server and shows every bank lookup and memory read and write as it happens.",
   "scripts": {
+    "predev": "pnpm run prepare:page",
     "dev": "bash scripts/dev.sh",
+    "predev:app": "pnpm run prepare:page",
     "dev:app": "next dev --port 3500",
+    "prebuild": "pnpm run sidecar:context",
     "build": "next build",
     "start": "next start --port 3500",
     "test": "node --import tsx scripts/test.ts",
@@ -13,13 +16,14 @@
     "check-types": "tsc --noEmit",
     "clean": "rm -rf .next .turbo node_modules",
     "rooms": "node --import tsx scripts/rooms.ts",
-    "sidecar:image": "node --env-file-if-exists=.env.local --import tsx scripts/sidecar-image.ts",
     "bank:bundle": "pnpm dlx esbuild@0.25.12 scripts/bank-server.ts --bundle --platform=node --format=esm --target=node22 --outfile=recipe/fakes/mcp/trivia-bank/server.mjs --log-level=warning",
     "seed:write-case": "node --import tsx scripts/seed-write-case.ts recipe/fakes/mcp/trivia-bank/seeds/write.json",
     "host": "node --import tsx scripts/host.ts",
     "candidate": "node --import tsx scripts/candidate.ts",
     "meta-input": "node --import tsx scripts/meta-input.ts",
-    "evals:venues": "node recipe-operator/evals/venues.mjs"
+    "evals:venues": "node recipe-operator/evals/venues.mjs",
+    "prepare:page": "turbo run build --filter=introspection-example-trivia-night^... --output-logs=errors-only && pnpm run sidecar:context",
+    "sidecar:context": "node --import tsx scripts/sidecar-context.ts"
   },
   "dependencies": {
     "@introspection-sdk/introspection-browser": "workspace:*",

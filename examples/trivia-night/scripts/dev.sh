@@ -9,17 +9,18 @@
 # The public URL is a free Cloudflare quick tunnel (`brew install cloudflared`),
 # new each run; the project follows it.
 #
-# The project setup, the first time on a stack (safe to re-run):
-#   1. the trivia-night Runtime, from this GitHub repository's
-#      .introspection/trivia-night.yaml (recipe-operator/, with its three Harbor tasks)
-#   2. the application the bank is linked to: the platform signs a token
+# The project setup, the first time on a stack (safe to re-run), in the trivia project:
+#   1. the trivia-night Runtime, from this repository's .introspection/trivia-night.yaml
+#   2. the page's `spa` application; off production, .env.local names the stack
+#      and that application, the page's only settings
+#   3. the application the bank is linked to: the platform signs a token
 #      naming the end user, as that application, on every call to the bank
-#   3. the trivia-bank MCP binding, on the tunnel, linked to that application
+#   4. the trivia-bank MCP binding, on the tunnel, linked to that application
 # Later runs only point the binding at the new tunnel URL.
 #
 # Env:
-#   TRIVIA_NO_SETUP=1  serve the app and its tunnel only, from .env.local as it
-#                      stands: no CLI, and nothing in the project changes
+#   TRIVIA_NO_SETUP=1  serve the app and its tunnel only: no CLI, and nothing in
+#                      the project changes
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -27,11 +28,12 @@ PORT=3500
 BANK_PORT=3501
 ENV_FILE=.env.local
 RUNTIME=trivia-night
-# The project the runtime and the bank's binding live in;
-# the page signs in to it by default (NEXT_PUBLIC_INTROSPECTION_TRIVIA_PROJECT).
-PROJECT="${TRIVIA_PROJECT:-trivia}"
+# The project the page signs in to, beside its runtime and the bank's binding.
+PROJECT=trivia
+PRODUCTION=https://api.introspection.dev
 MCP_SERVER_ID=trivia-bank
 APP_NAME="Trivia Night bank"
+SPA_NAME="Trivia night"
 
 say() { echo "[dev] $*"; }
 fail() {
@@ -70,8 +72,14 @@ json() {
 # The bank trusts only the platform's token here: a header naming the owner
 # would let anyone on the tunnel play as any venue.
 unset TRIVIA_DEV_OWNER_HEADER TRIVIA_DEV_OWNER
-remove_env TRIVIA_DEV_OWNER_HEADER
-remove_env TRIVIA_DEV_OWNER
+# What earlier versions wrote: the page now reads only its stack and application,
+# and the bank's issuer is handed to it below.
+for name in TRIVIA_DEV_OWNER_HEADER TRIVIA_DEV_OWNER TRIVIA_ISSUER TRIVIA_AUDIENCE \
+  NEXT_PUBLIC_INTROSPECTION_DP_URL NEXT_PUBLIC_INTROSPECTION_TRIVIA_PROJECT \
+  NEXT_PUBLIC_INTROSPECTION_TRIVIA_RUNTIME_ID NEXT_PUBLIC_INTROSPECTION_TRIVIA_REPOSITORY_ID \
+  NEXT_PUBLIC_INTROSPECTION_TRIVIA_COMMIT_SHA NEXT_PUBLIC_INTROSPECTION_TRIVIA_RECIPE_PATH; do
+  remove_env "$name"
+done
 
 # ---------------------------------------------------------------------------
 # The Introspection CLI, installed or brought up to date, and a live session
@@ -123,31 +131,25 @@ say "bank: $BANK_URL"
 
 ensure_runtime() {
   # The runtime runs recipe-operator/ from GitHub, as the manifest at the repository's
-  # root names it; the page runs this checkout's commit, which must be pushed.
-  local root runtime_id repository_id commit
-  root="$(git rev-parse --show-toplevel)"
+  # root names it, at the version the Data Plane deploys.
   if [ "$(introspection runtimes list -p "$PROJECT" -o json | json "v.some((r) => r.slug === '$RUNTIME')")" != "true" ]; then
     say "creating the $RUNTIME runtime from .introspection/$RUNTIME.yaml"
-    (cd "$root" && introspection runtimes create --manifest ".introspection/$RUNTIME.yaml" -p "$PROJECT" --yes >/dev/null) ||
+    (cd "$(git rev-parse --show-toplevel)" &&
+      introspection runtimes create --manifest ".introspection/$RUNTIME.yaml" -p "$PROJECT" --yes >/dev/null) ||
       fail "could not create the $RUNTIME runtime"
   fi
-  commit="${TRIVIA_COMMIT:-$(git rev-parse HEAD)}"
-  [ -n "$(git branch -r --contains "$commit" 2>/dev/null)" ] ||
-    say "commit ${commit:0:12} is not pushed: push it, or set TRIVIA_COMMIT to one that is"
-  runtime_id="$(introspection runtimes list -p "$PROJECT" -o json | json "v.find((r) => r.slug === '$RUNTIME')?.id")"
-  repository_id="$(introspection runtimes list -p "$PROJECT" -o json | json "v.find((r) => r.slug === '$RUNTIME')?.repository_id")"
-  [ -n "$repository_id" ] || repository_id="$(introspection repositories list -p "$PROJECT" -o json |
-    json "v.find((r) => /introspection-js-sdk/.test(r.full_name ?? r.url ?? r.slug ?? ''))?.id")"
-  [ -n "$runtime_id" ] && [ -n "$repository_id" ] || fail "could not find the $RUNTIME runtime and its repository in $PROJECT"
-  upsert_env NEXT_PUBLIC_INTROSPECTION_TRIVIA_PROJECT "$PROJECT"
-  upsert_env NEXT_PUBLIC_INTROSPECTION_TRIVIA_RUNTIME_ID "$runtime_id"
-  upsert_env NEXT_PUBLIC_INTROSPECTION_TRIVIA_REPOSITORY_ID "$repository_id"
-  upsert_env NEXT_PUBLIC_INTROSPECTION_TRIVIA_COMMIT_SHA "$commit"
-  upsert_env NEXT_PUBLIC_INTROSPECTION_TRIVIA_RECIPE_PATH "examples/trivia-night/recipe-operator"
-  # The page finds the trials' sidecar image by its folder at that commit, and
-  # builds none itself; this builds it when the folder changed.
-  node --env-file-if-exists="$ENV_FILE" --import tsx scripts/sidecar-image.ts ||
-    say "the sidecar image is not built: run pnpm sidecar:image"
+}
+
+# The page's `spa` application, by name; its client_id on stdout.
+ensure_spa() {
+  local app
+  app="$(introspection applications list -p "$PROJECT" -o json | json "(v.records ?? v).find((a) => a.name === '$SPA_NAME')")"
+  if [ -z "$app" ]; then
+    app="$(introspection applications create -p "$PROJECT" --type spa --name "$SPA_NAME" \
+      --redirect-uri "http://localhost:$PORT/callback" --allowed-origin "http://localhost:$PORT" \
+      --allowed-scope "tasks:read tasks:write tasks:eval tasks:exec files:read files:write" -o json | json 'v.application ?? v')"
+  fi
+  json 'v.client_id' <<<"$app"
 }
 
 # The application the bank is linked to, by name; its id on stdout.
@@ -172,6 +174,16 @@ connect() {
 
   ensure_runtime
 
+  local spa_client
+  spa_client="$(ensure_spa)"
+  [ -n "$spa_client" ] || fail "could not create the $SPA_NAME application"
+  upsert_env NEXT_PUBLIC_TRIVIA_SPA_CLIENT_ID "$spa_client"
+  if [ "${cp_url%/}" = "$PRODUCTION" ]; then
+    remove_env NEXT_PUBLIC_INTROSPECTION_API_BASE_URL
+  else
+    upsert_env NEXT_PUBLIC_INTROSPECTION_API_BASE_URL "${cp_url%/}"
+  fi
+
   app="$(ensure_application)"
   app_id="${app% *}"
   client_id="${app#* }"
@@ -187,9 +199,9 @@ connect() {
 
   # The token's audience is the endpoint's audience setting, or else its URL.
   audience="$(json 'v.audience ?? v.endpoint?.audience ?? ""' <<<"$endpoint")"
-  upsert_env TRIVIA_ISSUER "${cp_url%/}/v1/applications/$client_id"
-  if [ -n "$audience" ]; then upsert_env TRIVIA_AUDIENCE "$audience"; else remove_env TRIVIA_AUDIENCE; fi
-  say "the bank verifies tokens from ${cp_url%/}/v1/applications/$client_id"
+  export TRIVIA_ISSUER="${cp_url%/}/v1/applications/$client_id"
+  if [ -n "$audience" ]; then export TRIVIA_AUDIENCE="$audience"; fi
+  say "the bank verifies tokens from $TRIVIA_ISSUER"
 }
 
 if [ -n "${TRIVIA_NO_SETUP:-}" ]; then
@@ -198,8 +210,7 @@ elif ! connect; then
   say "not connected to Introspection: the bank refuses every call until you run \`introspection login\` and restart pnpm dev"
 fi
 
-# The bank starts after the setup: it reads TRIVIA_ISSUER and TRIVIA_AUDIENCE
-# when it loads. It serves only /mcp, and only on loopback, for the tunnel.
+# The bank starts after the setup, with the issuer and audience it set. It serves only /mcp, and only on loopback, for the tunnel.
 PORT="$BANK_PORT" HOST=127.0.0.1 TRIVIA_BANK_MCP_ONLY=1 \
   node --env-file-if-exists="$ENV_FILE" --import tsx scripts/bank-server.ts &
 PIDS+=($!)

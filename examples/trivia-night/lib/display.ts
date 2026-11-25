@@ -2,8 +2,6 @@ import { GENRES } from "./question-types";
 
 /** Text helpers for the evals panel: markdown to one plain line, short labels, and the facts in a venue's notes. */
 
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
 /** One line of markdown as plain text: no list marker, heading #s, emphasis or backticks. */
 export function plainLine(line: string): string {
   return line
@@ -78,16 +76,6 @@ export function toolLine(
   if (Array.isArray(args.answers)) parts.push(`${args.answers.length} answers`);
   if (Array.isArray(args.names)) parts.push(`${args.names.length} teams`);
   return parts.join(" · ");
-}
-
-/** The eval target as `trivia-host @ e328209`: its slug, else the runtime id cut to 8 characters. */
-export function targetLabel(
-  runtime: string,
-  commit: string,
-  slug?: string,
-): string {
-  const name = slug || (UUID.test(runtime) ? runtime.slice(0, 8) : runtime);
-  return `${name} @ ${commit.slice(0, 7)}`;
 }
 
 /** A fact the cell shows from a venue's notes; `changed` when it differs from night 1. */

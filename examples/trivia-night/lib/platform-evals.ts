@@ -47,16 +47,13 @@ export const PUB_SETS: Record<Pubs, VenueProfile[]> = {
 export const isPubs = (value: unknown): value is Pubs =>
   value === "development" || value === "heldout";
 
+/** The runtime a run's trials run on, by its slug in the project. */
 export interface Target {
   runtime: string;
-  commit: string;
-  /** The runtime's slug, for display. */
-  slug?: string;
-  /** The repository holding the Runtime's Recipe, which the trials' tasks are read from. */
-  repository?: string;
-  /** The Recipe's folder in that repository; empty for its root. */
-  recipe_path?: string;
 }
+/** The project the page signs in to, and the runtime its trials run on there. */
+export const PROJECT = "trivia";
+export const TARGET: Target = { runtime: "trivia-night" };
 
 export type Step = {
   run: string;

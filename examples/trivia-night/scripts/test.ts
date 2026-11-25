@@ -729,7 +729,7 @@ async function main() {
       );
       assert.match(
         read("night2-new-york/environment/docker-compose.yaml"),
-        /EVAL_SIMULATE_SCENARIO: "crowd-us-b"/,
+        /EVAL_SIMULATE_SCENARIO: crowd-us-b/,
       );
       assert.match(
         read("night2-new-york/environment/docker-compose.yaml"),
@@ -775,32 +775,7 @@ async function main() {
   const runner = await import("../lib/platform-runner");
   const { hostEvents, loadedMemory } = await import("../lib/trial-steps");
   const { tarGz } = await import("../lib/tar");
-  const TARGET = {
-    runtime: "01a20a7c-077e-7066-8429-59576969a693",
-    commit: "393c952f976e52419f415a60b4f6c6944776eb2b",
-    slug: "trivia-host",
-    repository: "9e02cb78-24f4-57f0-8725-568e0dfff815",
-    recipe_path: "",
-  };
-  const COMPOSE = [
-    "services:",
-    "  main:",
-    "    depends_on:",
-    "      fakes:",
-    "        condition: service_healthy",
-    "    volumes:",
-    "      - fakes-verifier:/opt/fakes-verifier:ro",
-    "  fakes:",
-    "    build:",
-    "      context: ../../../../fakes",
-    "    environment:",
-    '      EVAL_SIMULATE_NIGHT: "1"',
-    "    volumes:",
-    "      - fakes-verifier:/verifier",
-    "volumes:",
-    "  fakes-verifier: {}",
-    "",
-  ].join("\n");
+  const TARGET = evals.TARGET;
   const KEY = "intro_sk_secret_value";
 
   await check("platform evals: a click names its run", async () => {
@@ -877,46 +852,6 @@ async function main() {
   await check(
     "platform evals: a trial is a kind=eval task named by its metadata.task_path",
     async () => {
-      const { parse } = await import("yaml");
-      const document = parse(COMPOSE) as Record<string, unknown>;
-      const definition: import("../lib/platform-runner").TaskDefinition = {
-        task: "night1-sydney",
-        compose: document,
-        contexts: runner.buildContexts(
-          document,
-          "evals/harbor/night1-sydney/environment",
-        ),
-      };
-      assert.deepEqual(definition.contexts, { fakes: "fakes" });
-      const images = { fakes: "registry/fakes:x@sha256:1" };
-      const compose = runner.trialCompose(definition.compose, images);
-      assert.deepEqual(compose, {
-        services: {
-          main: {
-            depends_on: { fakes: { condition: "service_healthy" } },
-            volumes: [
-              "fakes-verifier:/opt/fakes-verifier:ro",
-              "harbor-logs:/logs",
-              "harbor-tests:/tests",
-            ],
-          },
-          fakes: {
-            environment: { EVAL_SIMULATE_NIGHT: "1" },
-            volumes: ["fakes-verifier:/verifier"],
-            image: "registry/fakes:x@sha256:1",
-          },
-        },
-        volumes: {
-          "fakes-verifier": {},
-          "harbor-logs": null,
-          "harbor-tests": null,
-        },
-      });
-      assert.throws(
-        () =>
-          runner.trialCompose({ services: { main: { image: "mine" } } }, {}),
-        /Runtime image fills main/,
-      );
       const record = {
         run: "r1",
         venues: 1,
@@ -927,6 +862,31 @@ async function main() {
         target: TARGET,
       };
       const step = evals.runSteps(record)[0];
+      // The bank is built from the page's archive of fakes/, and serves the trial's pub.
+      const compose = runner.trialCompose(step, "file-1");
+      const services = compose.services as Record<
+        string,
+        Record<string, unknown>
+      >;
+      assert.deepEqual(services.main, {
+        depends_on: { fakes: { condition: "service_healthy" } },
+        volumes: [
+          "fakes-verifier:/opt/fakes-verifier:ro",
+          "harbor-logs:/logs",
+          "harbor-tests:/tests",
+        ],
+      });
+      assert.deepEqual(services.fakes.build, { context: "file-1" });
+      assert.equal(
+        (services.fakes.environment as Record<string, string>)
+          .EVAL_SIMULATE_SCENARIO,
+        `crowd-${VENUES[0].profile}`,
+      );
+      assert.deepEqual(compose.volumes, {
+        "fakes-verifier": {},
+        "harbor-logs": null,
+        "harbor-tests": null,
+      });
       const body = await runner.trialBody(record, step, compose);
       assert.deepEqual(
         { ...body, compose: undefined, metadata: undefined },
@@ -938,8 +898,8 @@ async function main() {
             1,
             5,
           ),
-          runtime_id: TARGET.runtime,
-          recipe_git_commit_sha: TARGET.commit,
+          // The runtime by its slug, at the version the Data Plane deploys.
+          runtime_slug: "trivia-night",
           commands: true,
           tags: ["simulation:r1", "simulation:trivia-night"],
           compose: undefined,
@@ -948,7 +908,7 @@ async function main() {
       );
       assert.deepEqual(body.metadata, {
         // The platform reads the verifier from the dynamic night-1 task.
-        task_path: "evals/harbor/night1",
+        task_path: "examples/trivia-night/recipe-operator/evals/harbor/night1",
         admission_key: await runner.admissionKey(step),
         identity: {
           anonymous_id: "sim-r1-sydney",
@@ -1325,34 +1285,12 @@ async function main() {
 
   const display = await import("../lib/display");
 
-  await check(
-    "display: a notes line drops its markdown, a target is short",
-    () => {
-      assert.equal(
-        display.plainLine("- **Country:** UK. Use region `uk` only."),
-        "Country: UK. Use region uk only.",
-      );
-      assert.equal(
-        display.targetLabel("trivia-host", "e328209abcdef0123"),
-        "trivia-host @ e328209",
-      );
-      assert.equal(
-        display.targetLabel(
-          "0199a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5b",
-          "e328209ab",
-        ),
-        "0199a1b2 @ e328209",
-      );
-      assert.equal(
-        display.targetLabel(
-          "0199a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5b",
-          "e328209ab",
-          "trivia-host",
-        ),
-        "trivia-host @ e328209",
-      );
-    },
-  );
+  await check("display: a notes line drops its markdown", () => {
+    assert.equal(
+      display.plainLine("- **Country:** UK. Use region `uk` only."),
+      "Country: UK. Use region uk only.",
+    );
+  });
 
   await check(
     "notes become fact chips, marking what changed since night 1",
@@ -1748,22 +1686,8 @@ async function main() {
         url.searchParams.get("scope")!.split(" "),
         login.LOGIN_SCOPES,
       );
-      assert.equal(url.searchParams.get("project"), login.CONFIG.project);
-      assert.equal(url.searchParams.get("prompt"), null);
+      assert.equal(url.searchParams.get("project"), "trivia");
       assert.equal(url.searchParams.get("code_challenge_method"), "S256");
-      const picking = new URL(
-        await login.loginUrl(
-          memoryStorage(),
-          "http://localhost:3500/callback",
-          {
-            ...login.CONFIG,
-            clientId: "intro_app_x",
-            project: "",
-          },
-        ),
-      );
-      assert.equal(picking.searchParams.get("project"), null);
-      assert.equal(picking.searchParams.get("prompt"), "consent");
       const flow = JSON.parse(storage.items.get("trivia-night:login")!);
       assert.equal(url.searchParams.get("state"), flow.state);
       assert.ok(!url.href.includes(flow.verifier));
@@ -1778,6 +1702,7 @@ async function main() {
         access_token: "a-token",
         member_id: "m-1",
         project_id: "p-1",
+        dp_url: "http://localhost:8002",
         scope: ["tasks:read", "files:read"],
         expires_at: 1_000_000,
       };
@@ -1793,20 +1718,83 @@ async function main() {
         "tasks:exec",
         "files:write",
       ]);
-      assert.equal(
-        login.configuredTarget({ ...login.CONFIG, runtime: "" }),
-        null,
-      );
-      assert.deepEqual(
-        login.configuredTarget({
-          ...login.CONFIG,
-          runtime: "rt",
-          repository: "repo",
-          commit: "c1",
-          recipePath: "",
+      // A session kept before the page held its Data Plane signs in again.
+      const { dp_url: _dp, ...older } = session;
+      storage.setItem("trivia-night:session", JSON.stringify(older));
+      assert.equal(login.storedSession(storage, 0), null);
+    },
+  );
+
+  await check(
+    "sign-in: the code becomes a session on the Data Plane the sign-in names",
+    async () => {
+      const storage = memoryStorage();
+      const url = new URL(
+        await login.loginUrl(storage, "http://localhost:3500/callback", {
+          cpUrl: "http://localhost:8000",
+          clientId: "intro_app_x",
         }),
-        { runtime: "rt", commit: "c1", repository: "repo", recipe_path: "" },
       );
+      const claims = btoa(
+        JSON.stringify({ member_id: "m-1", project_id: "p-1" }),
+      );
+      const token = (dp_url: string | null) =>
+        (async () =>
+          new Response(
+            JSON.stringify({
+              access_token: `h.${claims}.s`,
+              expires_in: 60,
+              scope: "tasks:read",
+              dp_url,
+            }),
+          )) as unknown as typeof fetch;
+      const callback = () =>
+        new URL(
+          `http://localhost:3500/callback?code=c&state=${url.searchParams.get("state")}`,
+        );
+      const flow = storage.items.get("trivia-night:login")!;
+      const session = await login.completeLogin(
+        storage,
+        callback(),
+        token("http://localhost:8002"),
+        login.CONFIG,
+        0,
+      );
+      assert.equal(session.dp_url, "http://localhost:8002");
+      assert.deepEqual(login.storedSession(storage, 0), session);
+      storage.setItem("trivia-night:login", flow);
+      await assert.rejects(
+        login.completeLogin(storage, callback(), token(null), login.CONFIG, 0),
+        /no Data Plane/,
+      );
+    },
+  );
+
+  await check(
+    "platform evals: the bank's build context is uploaded once per client, again after a failure",
+    async () => {
+      const uploads: unknown[] = [];
+      let fail = true;
+      const client = {
+        files: {
+          upload: async (body: unknown) => {
+            uploads.push(body);
+            if (fail) {
+              fail = false;
+              throw new Error("down");
+            }
+            return { id: `file-${uploads.length}` };
+          },
+        },
+      } as unknown as import("../lib/platform-runner").PlatformClient;
+      const context = runner.bankContext(
+        client,
+        async () => new Uint8Array([1]),
+      );
+      await assert.rejects(context(), /down/);
+      assert.equal(await context(), "file-2");
+      assert.equal(await runner.bankContext(client)(), "file-2");
+      assert.equal(uploads.length, 2);
     },
   );
 

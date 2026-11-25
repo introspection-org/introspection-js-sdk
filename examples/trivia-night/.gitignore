@@ -7,3 +7,5 @@ CLAUDE.md
 .trivia-state.json*
 runs/
 recipe/eval-runs/
+# The bank sidecar archive scripts/sidecar-context.ts packs
+public/sidecar/

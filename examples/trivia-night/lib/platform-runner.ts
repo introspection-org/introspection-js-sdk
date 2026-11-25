@@ -12,7 +12,6 @@ import type {
   IntrospectionApiClient,
   Task,
 } from "@introspection-sdk/introspection-browser/api";
-import { parse as parseYaml } from "yaml";
 
 import { measuresOf, type VenueTastes } from "./memory-measures";
 import {
@@ -35,6 +34,7 @@ import {
   untriedStep,
   verifierOutput,
   RUN_CANCELLED_KEY,
+  TARGET,
   type StepState,
   type EvalFinished,
   type Pubs,
@@ -48,18 +48,19 @@ import {
 } from "./platform-evals";
 import { loadedMemory } from "./trial-steps";
 import {
-  bankEnvironment,
   instructionFor,
+  trialWorld,
 } from "../recipe-operator/evals/trivia-tasks.mjs";
 
 export type Env = Record<string, string | undefined>;
 
 export const ADD_RUNTIME =
-  "add the trivia-night runtime to your project: introspection runtimes create --manifest .introspection/trivia-night.yaml";
-/** Where the Harbor tasks sit in the Recipe. */
-const TASKS_DIR = "evals/harbor";
-const MAIN_SERVICE = "main";
-const MAIN_SERVICE_KEYS = new Set(["volumes", "depends_on"]);
+  "add the trivia-night runtime to the trivia project, from the repository's root: introspection runtimes create --manifest .introspection/trivia-night.yaml -p trivia";
+/** Where the Harbor tasks sit in the repository: the Recipe's evals/harbor. */
+const TASKS_DIR = "examples/trivia-night/recipe-operator/evals/harbor";
+/** The bank sidecar's build context, packed by scripts/sidecar-context.ts under public/. */
+export const SIDECAR_ARCHIVE = "sidecar/fakes.tar.gz";
+const SIDECAR_TTL_SECONDS = 24 * 3600;
 /**
  * Harbor's verifier writes under /logs and reads /tests, both directly under
  * the root, which the sandbox user cannot write: as compose volumes they are
@@ -73,256 +74,86 @@ const VERIFIER_VOLUMES: Record<string, string> = {
 const ADMISSION_NAMESPACE = "6f1c2a8e-3b4d-5e6f-8a9b-0c1d2e3f4a5b";
 
 /** What the run calls; the browser client, or the Node one in the tests and scripts. */
-export type PlatformClient = Pick<
-  IntrospectionApiClient,
-  "tasks" | "files" | "images" | "repositories"
->;
+export type PlatformClient = Pick<IntrospectionApiClient, "tasks" | "files">;
 
 const status = (error: unknown) => (error as { status?: number }).status;
 
-/** The configured Runtime's commit carries no generated venue tasks. */
-export class NoTasks extends Error {
-  constructor(slug: string) {
-    super(
-      `the ${slug} runtime's commit carries no generated venue tasks (evals/harbor is git-ignored): push them with the recipe, as pnpm dev does, after ${ADD_RUNTIME.replace(/^add/, "adding")}`,
-    );
-  }
-}
-
-/** Whether a target's commit holds the generated tasks, by the first planned venue's night 1. */
-export async function hasTasks(
-  client: PlatformClient,
-  target: Target,
-): Promise<boolean> {
-  const file = repoPath(target, TASKS_DIR, "night1", "tests/check.mjs");
-  try {
-    await client.repositories.contents.get(target.repository!, file, {
-      ref: target.commit,
-    });
-    return true;
-  } catch (error) {
-    if (status(error) === 404) return false;
-    throw error;
-  }
-}
-
 /**
- * The Runtime the trials run, the commit they run at, and the repository that
- * holds its Recipe, as configured, once its commit is seen to hold the
- * generated venue tasks. The browser reaches only the Data Plane, so it cannot
- * look a Runtime up.
+ * The bank sidecar's build context as a Files API id, uploaded once per
+ * client. The platform builds an image once per archive, so every trial after
+ * the first change to the folder runs the image already built.
  */
-export async function resolveTarget(
+export type BankContext = () => Promise<string>;
+const contexts = new WeakMap<PlatformClient, Promise<string>>();
+export function bankContext(
   client: PlatformClient,
-  target: Target | null,
-): Promise<Target> {
-  if (!target)
-    throw new Error(`no trivia Runtime is configured: ${ADD_RUNTIME}`);
-  if (!(await hasTasks(client, target)))
-    throw new NoTasks(target.slug ?? target.runtime);
-  return target;
-}
-
-/** POSIX path helpers, so the browser needs no `node:path`. */
-const posix = {
-  normalize(file: string): string {
-    const out: string[] = [];
-    for (const part of file.split("/"))
-      if (part === "..") {
-        if (out.length && out[out.length - 1] !== "..") out.pop();
-        else out.push("..");
-      } else if (part && part !== ".") out.push(part);
-    return (file.startsWith("/") ? "/" : "") + (out.join("/") || ".");
-  },
-  join: (...parts: string[]) =>
-    posix.normalize(parts.filter(Boolean).join("/")),
-  dirname: (file: string) =>
-    file.includes("/") ? file.slice(0, file.lastIndexOf("/")) || "/" : ".",
-};
-const fromBase64 = (value: string) =>
-  Uint8Array.from(atob(value.replace(/\s/g, "")), (c) => c.charCodeAt(0));
-const utf8 = (bytes: Uint8Array) => new TextDecoder().decode(bytes);
-
-const repoPath = (target: Target, ...parts: string[]) =>
-  posix.join(target.recipe_path ?? "", ...parts).replace(/^\.\/?/, "");
-
-async function readText(
-  client: PlatformClient,
-  target: Target,
-  file: string,
-): Promise<Uint8Array> {
-  const content = await client.repositories.contents.get(
-    target.repository!,
-    file,
-    { ref: target.commit },
-  );
-  if (content.type !== "file") throw new Error(`${file} is a directory`);
-  if (content.truncated)
-    throw new Error(
-      `${file} is larger than the repository contents API returns whole`,
-    );
-  return content.encoding === "base64"
-    ? fromBase64(content.content)
-    : new TextEncoder().encode(content.content);
-}
-
-/** The git tree id of a directory at the commit, which names its content. */
-async function treeId(
-  client: PlatformClient,
-  target: Target,
-  dir: string,
-): Promise<string> {
-  const parent = posix.dirname(dir);
-  for await (const entry of client.repositories.contents(target.repository!, {
-    path: parent === "." ? "" : parent,
-    ref: target.commit,
-  }))
-    if (entry.path === dir && entry.type === "dir") return entry.sha;
-  throw new Error(`${dir} is not a directory at ${target.commit}`);
-}
-
-/** What a trial passes the platform beside its `task_path`: the compose world with each sidecar's image. */
-export interface TaskDefinition {
-  task: string;
-  /** The task's own `environment/docker-compose.yaml`, or an empty document. */
-  compose: Record<string, unknown>;
-  /** Each sidecar's build context, as a repository path. */
-  contexts: Record<string, string>;
-}
-
-export async function readTaskDefinition(
-  client: PlatformClient,
-  target: Target,
-  task: string,
-): Promise<TaskDefinition> {
-  const dir = repoPath(target, TASKS_DIR, task);
-  let compose: Record<string, unknown> = {};
-  try {
-    compose = (parseYaml(
-      utf8(
-        await readText(
-          client,
-          target,
-          `${dir}/environment/docker-compose.yaml`,
-        ),
-      ),
-    ) ?? {}) as Record<string, unknown>;
-  } catch (error) {
-    if (status(error) !== 404) throw error;
-  }
-  return {
-    task,
-    compose,
-    contexts: buildContexts(compose, `${dir}/environment`),
-  };
-}
-
-type Service = Record<string, unknown>;
-const servicesOf = (document: Record<string, unknown>) =>
-  (document.services ?? {}) as Record<string, Service | null>;
-
-/** Each sidecar's `build:` context as a repository path. */
-export function buildContexts(
-  document: Record<string, unknown>,
-  environmentDir: string,
-): Record<string, string> {
-  const contexts: Record<string, string> = {};
-  for (const [name, service] of Object.entries(servicesOf(document))) {
-    if (name === MAIN_SERVICE || !service) continue;
-    const build = service.build;
-    if (build === undefined) continue;
-    const context =
-      typeof build === "string"
-        ? build
-        : ((build as { context?: string; dockerfile?: string }).context ?? ".");
-    if (
-      typeof build === "object" &&
-      (build as { dockerfile?: string }).dockerfile &&
-      (build as { dockerfile?: string }).dockerfile !== "Dockerfile"
-    )
-      throw new Error(`service ${name} builds from another Dockerfile`);
-    const resolved = posix.join(environmentDir, context);
-    if (resolved.startsWith("..") || resolved.startsWith("/"))
-      throw new Error(`service ${name} builds from outside the repository`);
-    contexts[name] = resolved;
-  }
-  return contexts;
-}
-
-/**
- * The catalog name of a sidecar built from `context`: its git tree id names
- * its content, so a commit that leaves the context alone reuses the image.
- */
-export const sidecarImageName = (service: string, tree: string) =>
-  `trivia-night/${service}/${tree.slice(0, 12)}`;
-
-/**
- * The image each sidecar runs: the ready catalog image for its context's
- * tree. The repository contents API returns no file over 1 MB whole, so the
- * page cannot pack the context itself; `pnpm sidecar:image` builds it from
- * this checkout once per change to the context.
- */
-export async function sidecarImages(
-  client: PlatformClient,
-  target: Target,
-  definition: TaskDefinition,
-): Promise<Record<string, string>> {
-  const references: Record<string, string> = {};
-  for (const [name, context] of Object.entries(definition.contexts)) {
-    const image = sidecarImageName(name, await treeId(client, target, context));
-    const page = await client.images.list({ name: image, status: "ready" });
-    const ready = page.records.find((record) => record.image_digest);
-    if (!ready?.image_ref)
+  archive: () => Promise<Uint8Array> = async () => {
+    const response = await fetch(`/${SIDECAR_ARCHIVE}`);
+    if (!response.ok)
       throw new Error(
-        `no ready ${image} image for ${context}/ at ${target.commit.slice(0, 12)}: run pnpm sidecar:image`,
+        `the page has no ${SIDECAR_ARCHIVE}: run it with pnpm dev:app, which packs it`,
       );
-    references[name] = `${ready.image_ref}@${ready.image_digest}`;
-  }
-  for (const [name, service] of Object.entries(servicesOf(definition.compose)))
-    if (name !== MAIN_SERVICE && service?.build === undefined)
-      throw new Error(`service ${name} has no build context`);
-  return references;
+    return new Uint8Array(await response.arrayBuffer());
+  },
+): BankContext {
+  return () => {
+    let found = contexts.get(client);
+    if (!found) {
+      found = archive()
+        .then((file) =>
+          client.files.upload({
+            file,
+            name: "fakes-context.tar.gz",
+            contentType: "application/gzip",
+            ttl_seconds: SIDECAR_TTL_SECONDS,
+          }),
+        )
+        .then((upload) => upload.id);
+      found.catch(() => contexts.delete(client));
+      contexts.set(client, found);
+    }
+    return found;
+  };
 }
 
-/** The task's compose with each sidecar on its catalog image and the verifier's volumes on `main`. */
+/** A trial's compose world: the bank built from its archive, and the verifier's volumes on `main`. */
 export function trialCompose(
-  document: Record<string, unknown>,
-  references: Record<string, string>,
+  step: Step,
+  context: string,
 ): Record<string, unknown> {
-  const declared = servicesOf(document)[MAIN_SERVICE] ?? {};
-  const unsupported = Object.keys(declared).filter(
-    (key) => !MAIN_SERVICE_KEYS.has(key),
-  );
-  if (unsupported.length)
-    throw new Error(
-      `services.main declares ${unsupported.join(", ")}; the Runtime image fills main`,
-    );
-  const services: Record<string, unknown> = {
-    [MAIN_SERVICE]: {
-      ...declared,
-      volumes: [
-        ...((declared.volumes as string[] | undefined) ?? []),
-        ...Object.entries(VERIFIER_VOLUMES).map(
-          ([name, mount]) => `${name}:${mount}`,
-        ),
-      ],
-    },
+  const trial = trialOfStep(step);
+  const world = trialWorld(
+    asVenue(trial.venue),
+    trial.night,
+    trial.teams,
+    context,
+  ) as {
+    services: Record<string, Record<string, unknown>>;
+    volumes: Record<string, unknown>;
   };
-  for (const [name, service] of Object.entries(servicesOf(document))) {
-    if (name === MAIN_SERVICE) continue;
-    const { build: _build, image: _image, ...rest } = service ?? {};
-    services[name] = { ...rest, image: references[name] };
-  }
+  const main = world.services.main;
+  main.volumes = [
+    ...(main.volumes as string[]),
+    ...Object.entries(VERIFIER_VOLUMES).map(([name, at]) => `${name}:${at}`),
+  ];
   return {
-    services,
+    services: world.services,
     volumes: {
-      ...((document.volumes as Record<string, unknown> | undefined) ?? {}),
+      ...world.volumes,
       ...Object.fromEntries(
         Object.keys(VERIFIER_VOLUMES).map((v) => [v, null]),
       ),
     },
   };
 }
+
+/**
+ * Which runtime a trial runs on: the project's trivia-night, at the version
+ * the Data Plane deploys for the lane.
+ */
+// todo: name the runtime as task create takes a slug (introspection-cloud #4275).
+export const trialRuntime = (target: Target) =>
+  ({ runtime_slug: target.runtime }) as Pick<CreateTaskParams, "runtime_id">;
 
 /** The end user a step runs as: `anon:<id>` or `user:<id>`, carrying the run's tags to the member it mints. */
 export function trialIdentity(step: Step): Record<string, unknown> {
@@ -357,9 +188,9 @@ const hexOf = (bytes: Uint8Array) =>
   Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
 
 /**
- * The create body for one trial: the platform reads its prompt, its verifier
- * and its compose from `metadata.task_path`. The page passes the compose, since the
- * runtime's build carries no image for the trivia bank sidecar.
+ * The create body for one trial: one of the Recipe's three Harbor tasks in
+ * `metadata.task_path`, whose verifier the platform runs, with the pub it
+ * plays, its instruction and its compose world.
  */
 export async function trialBody(
   record: RunRecord,
@@ -376,13 +207,12 @@ export async function trialBody(
     kind: "eval",
     // The pub's instruction, as the generator would write it, so the platform needn't read it.
     prompt: instructionFor(asVenue(trial.venue), trial.night, trial.teams),
-    runtime_id: record.target.runtime,
-    recipe_git_commit_sha: record.target.commit,
+    ...trialRuntime(record.target),
     commands: true,
     tags: [runTag(step.run), TRIALS_TAG],
     compose,
     metadata: {
-      task_path: repoPath(record.target, TASKS_DIR, `night${trial.night}`),
+      task_path: `${TASKS_DIR}/night${trial.night}`,
       admission_key: await admissionKey(step),
       identity: trialIdentity(step),
       [TRIAL_METADATA_KEY]: meta,
@@ -394,23 +224,6 @@ export async function trialBody(
 const asVenue = (venue: unknown) =>
   venue as Parameters<typeof instructionFor>[0];
 
-/** Task definitions read in this request, so a run's steps share each task's reads. */
-export type Definitions = Map<string, Promise<TaskDefinition>>;
-
-const definitionOf = (
-  client: PlatformClient,
-  target: Target,
-  task: string,
-  cache: Definitions,
-) => {
-  let found = cache.get(task);
-  if (!found) {
-    found = readTaskDefinition(client, target, task);
-    cache.set(task, found);
-  }
-  return found;
-};
-
 /**
  * Creates a step's trial, or returns the one another poll already made: the
  * platform admits one task per admission key, replaying the same body and
@@ -420,27 +233,9 @@ export async function createTrial(
   client: PlatformClient,
   record: RunRecord,
   step: Step,
-  cache: Definitions = new Map(),
+  context: BankContext = bankContext(client),
 ): Promise<Task> {
-  const trial = trialOfStep(step);
-  const definition = await definitionOf(
-    client,
-    record.target,
-    `night${trial.night}`,
-    cache,
-  );
-  const compose = trialCompose(
-    definition.compose,
-    await sidecarImages(client, record.target, definition),
-  );
-  // The bank serves this trial's pub, night and crowd.
-  const services = compose.services as Record<string, Record<string, unknown>>;
-  for (const [name, service] of Object.entries(services))
-    if (name !== MAIN_SERVICE)
-      service.environment = {
-        ...(service.environment as object),
-        ...bankEnvironment(asVenue(trial.venue), trial.night, trial.teams),
-      };
+  const compose = trialCompose(step, await context());
   try {
     const created = await client.tasks.create(
       await trialBody(record, step, compose),
@@ -509,7 +304,7 @@ export async function advanceRun(
     else if (advance && !task.is_archived) await client.tasks.archive(task.id);
   }
   const cancelled = tasks.some(({ task }) => runCancelled(task.metadata));
-  const cache: Definitions = new Map();
+  const context = bankContext(client);
   const states = new Map<string, StepState>();
   const views: TrialView[] = [];
   for (const step of runSteps(record)) {
@@ -542,7 +337,7 @@ export async function advanceRun(
         });
         continue;
       }
-      task = await createTrial(client, record, step, cache);
+      task = await createTrial(client, record, step, context);
     }
     const state = { ...trialState(task), status: task.status };
     states.set(key, state);
@@ -584,8 +379,6 @@ export async function advanceRun(
 export interface StartRequest {
   venues: number;
   startedBy: string;
-  /** The configured Runtime, its commit and its repository. */
-  target: Target | null;
   token: string;
   teams?: TeamSize;
   pubs?: Pubs;
@@ -622,7 +415,7 @@ export async function startRun(
     const view = await advanceRun(client, latest);
     if (view && !view.finished) throw new Error(`run ${latest} is still going`);
   }
-  const target = await resolveTarget(client, request.target);
+  const target = TARGET;
   const record: RunRecord = {
     run,
     venues: request.venues,
@@ -632,13 +425,13 @@ export async function startRun(
     started_at: now.toISOString(),
     target,
   };
-  const cache: Definitions = new Map();
+  const context = bankContext(client);
   const first = runSteps(record).filter((step) => !step.after?.length);
   // The first trial records the run, so a failure here leaves no half-made run behind it.
-  await createTrial(client, record, first[0], cache);
+  await createTrial(client, record, first[0], context);
   // Past it the run exists: one the rest fail to make, `advanceRun` makes on the next poll.
   await Promise.allSettled(
-    first.slice(1).map((step) => createTrial(client, record, step, cache)),
+    first.slice(1).map((step) => createTrial(client, record, step, context)),
   );
   return { run: record.run, target };
 }
@@ -670,6 +463,7 @@ export async function cancelRun(client: PlatformClient, run: string) {
   );
 }
 
+const utf8 = (bytes: Uint8Array) => new TextDecoder().decode(bytes);
 const decode = async (client: PlatformClient, id: string | null | undefined) =>
   id ? utf8(await client.files.download(id)) : null;
 
