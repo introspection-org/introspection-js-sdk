@@ -74,11 +74,7 @@ function score(
       /await \(\s*await fetch\("http:\/\/fakes:7353\/trivia-bank\/admin\/state"\)\s*\)\.json\(\)/,
       `JSON.parse(readFileSync(${JSON.stringify(join(out, "state.json"))}, "utf8"))`,
     )
-    .replace('"/workspace/memories"', JSON.stringify(memories))
-    .replace(
-      '"/logs/verifier/reward.json"',
-      JSON.stringify(join(out, "reward.json")),
-    );
+    .replace('"/workspace/memories"', JSON.stringify(memories));
   copyFileSync(
     join(tasks, `night2-${pub}/tests/expected.json`),
     join(out, "expected.json"),
@@ -86,6 +82,7 @@ function score(
   writeFileSync(join(out, "check.mjs"), check);
   const report = execFileSync(process.execPath, [join(out, "check.mjs")], {
     encoding: "utf8",
+    env: { ...process.env, LOGS_DIR: out },
   });
   writeFileSync(join(out, "report.json"), report);
   // Every measure, raw counts included, from the printed report, as the page reads it;

@@ -206,10 +206,13 @@ export function perfectNotes(venue) {
   ].join("\n");
 }
 
+// Runs under Harbor (tests in /tests, logs in /logs/verifier) and natively, where the runtime
+// runs it from the task's own tests folder and names the logs folder in LOGS_DIR.
 const TEST_SH = `#!/bin/sh
 set -u
-mkdir -p /logs/verifier
-node /tests/check.mjs
+here=$(dirname "$0")
+mkdir -p "\${LOGS_DIR:-/logs/verifier}"
+node "$here/check.mjs"
 `;
 
 const SOLVE_SH = `#!/bin/sh
@@ -307,7 +310,8 @@ const writeResult = (result, report) => {
       ([, v]) => typeof v === "number" && Number.isFinite(v) && v >= 0 && v <= 1,
     ),
   );
-  writeFileSync("/logs/verifier/reward.json", JSON.stringify(rewards));
+  const logs = process.env.LOGS_DIR || "/logs/verifier";
+  writeFileSync(logs + "/reward.json", JSON.stringify(rewards));
   const tastes = typeof expected === "undefined" ? {} : { tastes: expected };
   console.log(JSON.stringify({ ...report, ...host, ...tastes }));
 };`;
