@@ -1557,7 +1557,7 @@ async function main() {
   };
 
   await check(
-    "sign-in: the hosted login asks for the run's scopes and a project, with an S256 challenge",
+    "sign-in: the hosted login names the project (or lets the member pick one) and asks for the run's scopes, with an S256 challenge",
     async () => {
       const storage = memoryStorage();
       const url = new URL(
@@ -1575,8 +1575,22 @@ async function main() {
         url.searchParams.get("scope")!.split(" "),
         login.LOGIN_SCOPES,
       );
-      assert.equal(url.searchParams.get("prompt"), "consent");
+      assert.equal(url.searchParams.get("project"), login.CONFIG.project);
+      assert.equal(url.searchParams.get("prompt"), null);
       assert.equal(url.searchParams.get("code_challenge_method"), "S256");
+      const picking = new URL(
+        await login.loginUrl(
+          memoryStorage(),
+          "http://localhost:3500/callback",
+          {
+            ...login.CONFIG,
+            clientId: "intro_app_x",
+            project: "",
+          },
+        ),
+      );
+      assert.equal(picking.searchParams.get("project"), null);
+      assert.equal(picking.searchParams.get("prompt"), "consent");
       const flow = JSON.parse(storage.items.get("trivia-night:login")!);
       assert.equal(url.searchParams.get("state"), flow.state);
       assert.ok(!url.href.includes(flow.verifier));

@@ -23,6 +23,7 @@ export const CONFIG = {
   repository: process.env.NEXT_PUBLIC_INTROSPECTION_TRIVIA_REPOSITORY_ID ?? "",
   commit: process.env.NEXT_PUBLIC_INTROSPECTION_TRIVIA_COMMIT_SHA ?? "",
   recipePath: process.env.NEXT_PUBLIC_INTROSPECTION_TRIVIA_RECIPE_PATH ?? "",
+  project: process.env.NEXT_PUBLIC_INTROSPECTION_TRIVIA_PROJECT || "trivia",
 };
 
 /** The configured Runtime, or null when the page names none. */
@@ -111,11 +112,12 @@ export async function loginUrl(
     response_type: "code",
     state,
     scope: LOGIN_SCOPES.join(" "),
-    // The member picks the project their trials run in.
-    prompt: "consent",
     code_challenge: challenge,
     code_challenge_method: "S256",
   });
+  // Naming the project (its slug or id) signs straight in; without one the member picks it.
+  if (config.project) params.set("project", config.project);
+  else params.set("prompt", "consent");
   return `${config.cpUrl.replace(/\/+$/, "")}/v1/oauth/authorize?${params}`;
 }
 
