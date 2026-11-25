@@ -1,5 +1,5 @@
 /**
- * The memory evals as cloud trials of the deployed `trivia-host` Runtime: the
+ * The memory evals as cloud trials of the deployed `trivia-night` Runtime: the
  * plan of a run, what each trial task records about itself, and what its
  * verifier printed. platform-runner.ts makes the platform calls; everything
  * here is pure.

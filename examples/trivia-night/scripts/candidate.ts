@@ -6,7 +6,7 @@ import { cpSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 const [name, block] = process.argv.slice(2);
-const base = ".introspection-work/trivia-host";
+const base = ".introspection-work/trivia-night";
 const out = `.introspection-work/cand-${name}`;
 rmSync(out, { recursive: true, force: true });
 cpSync(base, out, {

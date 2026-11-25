@@ -2,7 +2,7 @@
 
 A quiz host for pubs. The question bank never repeats a question at a venue, and a host that remembers the venue pitches each night to its crowd. The page runs the real memory evals on the platform and shows each night's rounds as its verifier scored them.
 
-> **Status:** the bank and its MCP server run with no platform. `pnpm dev` also deploys the Recipe as the `trivia-host` Runtime and binds the bank to it on a public URL, and the agent calls the bank, but the bank does not yet accept the token the platform sends for it; [What's next](#whats-next) says why and what is missing.
+> **Status:** the bank and its MCP server run with no platform. `pnpm dev` also deploys the Recipe as the `trivia-night` Runtime and binds the bank to it on a public URL, and the agent calls the bank, but the bank does not yet accept the token the platform sends for it; [What's next](#whats-next) says why and what is missing.
 
 ## The point: improve
 
@@ -29,13 +29,13 @@ pnpm install
 pnpm dev
 ```
 
-It serves the page on `http://localhost:3500`, and the bank's MCP server alone on `127.0.0.1:3501` behind a free Cloudflare quick tunnel, new each run. The page and `/api/*` are never on the tunnel. On whichever stack `introspection login` chose (staging, production or your own) it then sets up, and on a later run only checks:
+It serves the page on `http://localhost:3500`, and the bank's MCP server alone on `127.0.0.1:3501` behind a free Cloudflare quick tunnel, new each run. The page and `/api/*` are never on the tunnel. On whichever stack `introspection login` chose (staging, production or your own) it then sets up in the `trivia` project (`TRIVIA_PROJECT` names another), and on a later run only checks:
 
-1. the `trivia-host` Runtime: a repository Introspection hosts, seeded from a copy of [`recipe/`](./recipe) in `.introspection-work/`, and its runtime;
+1. the `trivia-night` Runtime: a repository Introspection hosts, synced from a copy of [`recipe-operator/`](./recipe-operator) with its generated Harbor tasks in `.introspection-work/`, and its runtime;
 2. the `Trivia Night bank` application, which signs the end-user token the bank verifies;
 3. the `trivia-bank` MCP binding on the tunnel's `/mcp`, linked to that application. Each run points it at the new tunnel.
 
-It writes `TRIVIA_ISSUER` (and `TRIVIA_AUDIENCE` when the binding has one) into `.env.local`, and never sets `TRIVIA_DEV_OWNER_HEADER`, so the bank verifies real tokens and refuses a call without one. Not logged in, the page runs alone and the bank refuses every call. `TRIVIA_NO_SETUP=1` serves the page, the bank and its tunnel without touching the project. `pnpm dev:app` runs the page alone, with no tunnel. The page's own `/bank/mcp` serves a separate bank for the local room scripts (`scripts/rooms.ts`, `scripts/host.ts`); the platform reaches only the tunnelled one.
+It writes `TRIVIA_ISSUER` (and `TRIVIA_AUDIENCE` when the binding has one), and the page's project, runtime, repository and pushed commit (`NEXT_PUBLIC_INTROSPECTION_TRIVIA_*`), into `.env.local`, and never sets `TRIVIA_DEV_OWNER_HEADER`, so the bank verifies real tokens and refuses a call without one. Not logged in, the page runs alone and the bank refuses every call. `TRIVIA_NO_SETUP=1` serves the page, the bank and its tunnel without touching the project. `pnpm dev:app` runs the page alone, with no tunnel. The page's own `/bank/mcp` serves a separate bank for the local room scripts (`scripts/rooms.ts`, `scripts/host.ts`); the platform reaches only the tunnelled one.
 
 ```bash
 pnpm test       # the bank, its MCP server, the scoring and the eval runner
@@ -195,4 +195,4 @@ Then:
 3. A larger bank: enough questions per genre, region and difficulty to hold the filter for a season.
 4. The venues as customer members, once the bank accepts their tokens.
 5. A judge for answers that are close but not a misspelling, calibrated on a labelled set before it marks anything.
-6. `pnpm dev` pushing recipe/ changes to an existing `trivia-host` repository: today it seeds the repository only when it creates the runtime.
+6. `pnpm dev` pushing recipe/ changes to an existing `trivia-night` repository: today it seeds the repository only when it creates the runtime.

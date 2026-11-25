@@ -10,7 +10,7 @@
 # new each run; the project follows it.
 #
 # The project setup, the first time on a stack (safe to re-run):
-#   1. the trivia-host Runtime: a repository Introspection hosts, synced from
+#   1. the trivia-night Runtime: a repository Introspection hosts, synced from
 #      this example's recipe-operator/ with its generated Harbor tasks, and its runtime
 #   2. the application the bank is linked to: the platform signs a token
 #      naming the end user, as that application, on every call to the bank
@@ -27,7 +27,10 @@ PORT=3500
 BANK_PORT=3501
 ENV_FILE=.env.local
 WORK=.introspection-work
-RUNTIME=trivia-host
+RUNTIME=trivia-night
+# The project the hosted repository, the runtime and the bank's binding live in;
+# the page signs in to it by default (NEXT_PUBLIC_INTROSPECTION_TRIVIA_PROJECT).
+PROJECT="${TRIVIA_PROJECT:-trivia}"
 MCP_SERVER_ID=trivia-bank
 APP_NAME="Trivia Night bank"
 
@@ -126,8 +129,8 @@ ensure_runtime() {
   # every run so the platform evals use the tasks this checkout generates.
   local git_id=(-c user.name=trivia-night -c user.email=trivia-night@example.invalid)
   local repo_url exists
-  repo_url="$(introspection repositories list -o json | json "v.find((r) => r.slug === '$RUNTIME')?.url")"
-  exists="$(introspection runtimes list -o json | json "v.some((r) => r.slug === '$RUNTIME')")"
+  repo_url="$(introspection repositories list -p "$PROJECT" -o json | json "v.find((r) => r.slug === '$RUNTIME')?.url")"
+  exists="$(introspection runtimes list -p "$PROJECT" -o json | json "v.some((r) => r.slug === '$RUNTIME')")"
   rm -rf "${WORK:?}/$RUNTIME"
   mkdir -p "$WORK"
   if [ -n "$repo_url" ]; then
@@ -150,19 +153,23 @@ ensure_runtime() {
   node recipe-operator/evals/venues.mjs >/dev/null &&
     node recipe-operator/evals/venues.mjs "$WORK/$RUNTIME/evals/harbor" >/dev/null ||
     fail "could not generate the Harbor tasks"
+  # The runtime's manifest, named for it, at the hosted repository's root.
+  mkdir -p "$WORK/$RUNTIME/.introspection"
+  printf 'name: %s\npath: .\ndescription: Hosts a pub quiz night from a question bank, remembering each pub between nights\nruntime:\n  llm_mode: managed\n' \
+    "$RUNTIME" >"$WORK/$RUNTIME/.introspection/$RUNTIME.yaml"
   (cd "$WORK/$RUNTIME" && git add -A && git add -f evals/harbor &&
     { git diff --cached --quiet HEAD 2>/dev/null ||
-      git "${git_id[@]}" commit -q -m "feat: trivia-host from introspection-js-sdk examples/trivia-night/recipe-operator"; })
+      git "${git_id[@]}" commit -q -m "feat: $RUNTIME from introspection-js-sdk examples/trivia-night/recipe-operator"; })
   if [ -z "$repo_url" ]; then
     say "creating the $RUNTIME repository from recipe-operator/"
     # Run inside a repository with commits and no origin, `add` pushes it as
     # the first commit and sets it as origin.
-    (cd "$WORK/$RUNTIME" && introspection repositories add "$RUNTIME" --provider introspection >/dev/null) ||
+    (cd "$WORK/$RUNTIME" && introspection repositories add "$RUNTIME" --provider introspection -p "$PROJECT" >/dev/null) ||
       fail "could not create the $RUNTIME repository"
   fi
   if [ "$exists" != "true" ]; then
     say "creating the $RUNTIME runtime"
-    (cd "$WORK/$RUNTIME" && introspection runtimes create --yes >/dev/null) ||
+    (cd "$WORK/$RUNTIME" && introspection runtimes create -p "$PROJECT" --yes >/dev/null) ||
       fail "could not create the $RUNTIME runtime from $WORK/$RUNTIME"
     # A hosted recipe is checked from the files a push carries, and the seed push
     # came before the runtime existed, so push once more to check and build it.
@@ -172,6 +179,15 @@ ensure_runtime() {
   say "pushing $RUNTIME so the platform checks and builds the recipe and its tasks"
   (cd "$WORK/$RUNTIME" && git push -q origin HEAD:main) ||
     fail "could not push $RUNTIME"
+  # The page runs this runtime, at the commit just pushed, from its public config.
+  local runtime_id repository_id
+  runtime_id="$(introspection runtimes list -p "$PROJECT" -o json | json "v.find((r) => r.slug === '$RUNTIME')?.id")"
+  repository_id="$(introspection repositories list -p "$PROJECT" -o json | json "v.find((r) => r.slug === '$RUNTIME')?.id")"
+  [ -n "$runtime_id" ] && [ -n "$repository_id" ] || fail "could not find the $RUNTIME runtime and repository in $PROJECT"
+  upsert_env NEXT_PUBLIC_INTROSPECTION_TRIVIA_PROJECT "$PROJECT"
+  upsert_env NEXT_PUBLIC_INTROSPECTION_TRIVIA_RUNTIME_ID "$runtime_id"
+  upsert_env NEXT_PUBLIC_INTROSPECTION_TRIVIA_REPOSITORY_ID "$repository_id"
+  upsert_env NEXT_PUBLIC_INTROSPECTION_TRIVIA_COMMIT_SHA "$(git -C "$WORK/$RUNTIME" rev-parse HEAD)"
   # The page finds the trials' sidecar image by its folder at the pushed commit,
   # and builds none itself; this builds it when the folder changed.
   node --env-file-if-exists="$ENV_FILE" --import tsx scripts/sidecar-image.ts ||
@@ -181,11 +197,11 @@ ensure_runtime() {
 # The application the bank is linked to, by name; its id on stdout.
 ensure_application() {
   local app
-  app="$(introspection applications list -o json | json "(v.records ?? v).find((a) => a.name === '$APP_NAME')")"
+  app="$(introspection applications list -p "$PROJECT" -o json | json "(v.records ?? v).find((a) => a.name === '$APP_NAME')")"
   if [ -z "$app" ]; then
     # It only signs end-user tokens: it holds no secret and needs no scope
     # beyond the least one.
-    app="$(introspection applications create --type service-account --name "$APP_NAME" \
+    app="$(introspection applications create -p "$PROJECT" --type service-account --name "$APP_NAME" \
       --allowed-scope "runtimes:read" -o json | json 'v.application ?? v')"
   fi
   json 'v.id + " " + v.client_id' <<<"$app"
@@ -205,7 +221,9 @@ connect() {
   client_id="${app#* }"
   [ -n "$app_id" ] && [ -n "$client_id" ] || fail "could not create the $APP_NAME application"
 
-  # An upsert by MCP server id, so a restart repoints it at the new tunnel.
+  # An upsert by MCP server id, so a restart repoints it at the new tunnel. The binding
+  # command takes no project, so it acts in the one `introspection login` chose: sign in to
+  # the $PROJECT project for it to land beside the runtime.
   endpoint="$(introspection bindings mcp connect -r "$RUNTIME" --mcp-server-id "$MCP_SERVER_ID" \
     --endpoint-url "$BANK_URL" --authorized-application "$app_id" -o json)" ||
     fail "could not bind $MCP_SERVER_ID to $BANK_URL"
