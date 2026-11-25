@@ -18,6 +18,7 @@ import type {
   Task,
   TaskCommandSpec,
   TaskCreateParams,
+  TaskVerification,
 } from "@introspection-sdk/introspection-node";
 
 const DP = "https://dp.example.com";
@@ -224,29 +225,18 @@ describe("tasks.commands", () => {
     });
   });
 
-  it("completes an idle task and lists by verification status", async () => {
-    const { sent, dp } = fakeDataPlane((call) =>
-      call.method === "PATCH"
-        ? json({ id: TASK_ID, status: "idle" })
-        : json(page([])),
+  it("completes an idle task", async () => {
+    const { sent, dp } = fakeDataPlane(() =>
+      json({ id: TASK_ID, status: "idle" }),
     );
     await dp.tasks.update(TASK_ID, { status: "completed" });
-    await dp.tasks.list({
-      tag: "simulation:r1",
-      verification_status: "failed",
-    });
 
     expect(sent.map((s) => [s.method, s.url, s.body])).toEqual([
       ["PATCH", `${DP}/v1/tasks/${TASK_ID}`, { status: "completed" }],
-      [
-        "GET",
-        `${DP}/v1/tasks?tag=simulation%3Ar1&verification_status=failed`,
-        undefined,
-      ],
     ]);
   });
 
-  it("decodes a finishing task's verification under strictSchema", async () => {
+  it("decodes a finishing task and its verification under strictSchema", async () => {
     const task = {
       id: TASK_ID,
       org_id: TASK_ID,
@@ -256,15 +246,17 @@ describe("tasks.commands", () => {
       kind: "eval",
       status: "finishing",
       is_archived: false,
-      verification: {
-        status: "completed",
-        run_id: "run-1",
-        reward: 1,
-        exit_code: 0,
-        result_file_id: FILE_ID,
-        log_file_id: COMMAND_ID,
-        completed_at: "2026-11-24T00:01:00Z",
-        error: null,
+      metadata: {
+        settled_run_id: "run-1",
+        verification: {
+          run_id: "run-1",
+          reward: 1,
+          exit_code: 0,
+          result_file_id: FILE_ID,
+          log_file_id: COMMAND_ID,
+          completed_at: "2026-11-24T00:01:00Z",
+          error: null,
+        },
       },
     };
     const dp = new DataPlaneClient({
@@ -276,7 +268,8 @@ describe("tasks.commands", () => {
 
     const read: Task = await dp.tasks.get(TASK_ID);
     expect(read.status).toBe("finishing");
-    expect(read.verification?.reward).toBe(1);
+    const verification = read.metadata?.verification as TaskVerification;
+    expect(verification.reward).toBe(1);
   });
 
   it("a simulate task is created with its kind", async () => {

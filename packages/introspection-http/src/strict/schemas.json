@@ -2952,8 +2952,7 @@
         "status": {},
         "tags": { "type": "array" },
         "title": {},
-        "updated_at": {},
-        "verification": { "$ref": "#/$defs/TaskVerification" }
+        "updated_at": {}
       },
       "additionalProperties": false
     },
@@ -3011,20 +3010,6 @@
     "TaskRunResponse": {
       "type": "object",
       "properties": { "run": { "$ref": "#/$defs/TaskRun" } },
-      "additionalProperties": false
-    },
-    "TaskVerification": {
-      "type": "object",
-      "properties": {
-        "completed_at": {},
-        "error": {},
-        "exit_code": {},
-        "log_file_id": {},
-        "result_file_id": {},
-        "reward": {},
-        "run_id": {},
-        "status": {}
-      },
       "additionalProperties": false
     },
     "TelemetryGoalComponent": {

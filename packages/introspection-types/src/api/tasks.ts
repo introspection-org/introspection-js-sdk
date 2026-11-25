@@ -56,15 +56,14 @@ export interface Task {
   agent?: AgentInfo | null;
   /** `key:value` grouping tags stamped on this task. */
   tags?: string[];
-  /** The outcome of the task's {@link TaskVerifier}; absent on a task without one. */
-  verification?: TaskVerification | null;
 }
 
 /**
  * An eval task's own verifier: once the run ends, the platform unpacks
  * `tests_file_id` (a Files API `.tar.gz`) into `/tests`, runs `command` in the
  * agent's container and keeps the JSON at `reward_path` and the command's log
- * as files, reported as {@link Task.verification}.
+ * as files, recorded as {@link TaskVerification} under the task's
+ * `metadata.verification` before the task reaches `completed`.
  */
 export interface TaskVerifier {
   tests_file_id: Uuid;
@@ -76,12 +75,13 @@ export interface TaskVerifier {
   timeout_seconds?: number;
 }
 
-export type VerificationStatus =
-  "pending" | "running" | "completed" | "failed" | "cancelled";
-
-/** A verifier's outcome. The full result and the log are Files API objects. */
+/**
+ * A verifier's outcome, the platform-owned `metadata.verification` of an eval
+ * task: written once, after the verifier ran, and absent before it ran or on a
+ * task that ended without running it. It has no status of its own; the task's
+ * status is the lifecycle. The full result and the log are Files API objects.
+ */
 export interface TaskVerification {
-  status: VerificationStatus;
   /** The run the verifier scored. */
   run_id?: string | null;
   /** The result's numeric `reward`, when it has one. */
@@ -89,7 +89,8 @@ export interface TaskVerification {
   exit_code?: number | null;
   result_file_id?: Uuid | null;
   log_file_id?: Uuid | null;
-  completed_at?: IsoDate | null;
+  completed_at: IsoDate;
+  /** Why the verifier produced no result. */
   error?: string | null;
 }
 
@@ -265,7 +266,6 @@ export interface TaskListParams extends ListParams {
   require_routine_id?: boolean;
   /** Filter by one `key:value` tag. ANDed with the ownership predicate, so it only narrows. */
   tag?: string;
-  verification_status?: VerificationStatus;
 }
 
 export interface TaskPrompt {
