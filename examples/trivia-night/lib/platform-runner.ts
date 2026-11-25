@@ -17,8 +17,7 @@ import { parse as parseYaml } from "yaml";
 import { measuresOf, type VenueTastes } from "./memory-measures";
 import {
   DEFAULT_TEAMS,
-  PUB_SETS,
-  taskName,
+  trialOfStep,
   previewNotes,
   runSteps,
   runTag,
@@ -48,6 +47,10 @@ import {
   type TrialView,
 } from "./platform-evals";
 import { loadedMemory } from "./trial-steps";
+import {
+  bankEnvironment,
+  instructionFor,
+} from "../recipe-operator/evals/trivia-tasks.mjs";
 
 export type Env = Record<string, string | undefined>;
 
@@ -91,12 +94,7 @@ export async function hasTasks(
   client: PlatformClient,
   target: Target,
 ): Promise<boolean> {
-  const file = repoPath(
-    target,
-    TASKS_DIR,
-    taskName(1, PUB_SETS.development[0].slug),
-    "task.toml",
-  );
+  const file = repoPath(target, TASKS_DIR, "night1", "tests/check.mjs");
   try {
     await client.repositories.contents.get(target.repository!, file, {
       ref: target.commit,
@@ -368,23 +366,33 @@ export async function trialBody(
   step: Step,
   compose: Record<string, unknown>,
 ): Promise<CreateTaskParams> {
-  const meta: TrialMeta = { step: stepKey(step), record };
-  const taskPath = repoPath(record.target, TASKS_DIR, step.task);
+  const trial = trialOfStep(step);
+  const meta: TrialMeta = {
+    step: stepKey(step),
+    record,
+    trial: { pub: trial.venue.slug, night: trial.night, teams: trial.teams },
+  };
   return {
     kind: "eval",
+    // The pub's instruction, as the generator would write it, so the platform needn't read it.
+    prompt: instructionFor(asVenue(trial.venue), trial.night, trial.teams),
     runtime_id: record.target.runtime,
     recipe_git_commit_sha: record.target.commit,
     commands: true,
     tags: [runTag(step.run), TRIALS_TAG],
     compose,
     metadata: {
-      task_path: taskPath,
+      task_path: repoPath(record.target, TASKS_DIR, `night${trial.night}`),
       admission_key: await admissionKey(step),
       identity: trialIdentity(step),
       [TRIAL_METADATA_KEY]: meta,
     },
   };
 }
+
+/** A venues.json entry as the shared task module types it. */
+const asVenue = (venue: unknown) =>
+  venue as Parameters<typeof instructionFor>[0];
 
 /** Task definitions read in this request, so a run's steps share each task's reads. */
 export type Definitions = Map<string, Promise<TaskDefinition>>;
@@ -414,16 +422,25 @@ export async function createTrial(
   step: Step,
   cache: Definitions = new Map(),
 ): Promise<Task> {
+  const trial = trialOfStep(step);
   const definition = await definitionOf(
     client,
     record.target,
-    step.task,
+    `night${trial.night}`,
     cache,
   );
   const compose = trialCompose(
     definition.compose,
     await sidecarImages(client, record.target, definition),
   );
+  // The bank serves this trial's pub, night and crowd.
+  const services = compose.services as Record<string, Record<string, unknown>>;
+  for (const [name, service] of Object.entries(services))
+    if (name !== MAIN_SERVICE)
+      service.environment = {
+        ...(service.environment as object),
+        ...bankEnvironment(asVenue(trial.venue), trial.night, trial.teams),
+      };
   try {
     const created = await client.tasks.create(
       await trialBody(record, step, compose),

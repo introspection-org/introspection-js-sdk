@@ -10,8 +10,8 @@
 # new each run; the project follows it.
 #
 # The project setup, the first time on a stack (safe to re-run):
-#   1. the trivia-night Runtime: a repository Introspection hosts, synced from
-#      this example's recipe-operator/ with its generated Harbor tasks, and its runtime
+#   1. the trivia-night Runtime, from this GitHub repository's
+#      .introspection/trivia-night.yaml (recipe-operator/, with its three Harbor tasks)
 #   2. the application the bank is linked to: the platform signs a token
 #      naming the end user, as that application, on every call to the bank
 #   3. the trivia-bank MCP binding, on the tunnel, linked to that application
@@ -26,9 +26,8 @@ cd "$(dirname "$0")/.."
 PORT=3500
 BANK_PORT=3501
 ENV_FILE=.env.local
-WORK=.introspection-work
 RUNTIME=trivia-night
-# The project the hosted repository, the runtime and the bank's binding live in;
+# The project the runtime and the bank's binding live in;
 # the page signs in to it by default (NEXT_PUBLIC_INTROSPECTION_TRIVIA_PROJECT).
 PROJECT="${TRIVIA_PROJECT:-trivia}"
 MCP_SERVER_ID=trivia-bank
@@ -123,73 +122,30 @@ say "bank: $BANK_URL"
 # ---------------------------------------------------------------------------
 
 ensure_runtime() {
-  # The runtime runs recipe-operator/ with its Harbor tasks, which
-  # recipe-operator/evals/venues.mjs generates and git ignores, so its hosted
-  # repository holds a copy of that folder plus the generated tasks, synced on
-  # every run so the platform evals use the tasks this checkout generates.
-  local git_id=(-c user.name=trivia-night -c user.email=trivia-night@example.invalid)
-  local repo_url exists
-  repo_url="$(introspection repositories list -p "$PROJECT" -o json | json "v.find((r) => r.slug === '$RUNTIME')?.url")"
-  exists="$(introspection runtimes list -p "$PROJECT" -o json | json "v.some((r) => r.slug === '$RUNTIME')")"
-  rm -rf "${WORK:?}/$RUNTIME"
-  mkdir -p "$WORK"
-  if [ -n "$repo_url" ]; then
-    git clone -q "$repo_url" "$WORK/$RUNTIME"
-  else
-    mkdir -p "$WORK/$RUNTIME"
-    git -C "$WORK/$RUNTIME" init -q -b main
+  # The runtime runs recipe-operator/ from GitHub, as the manifest at the repository's
+  # root names it; the page runs this checkout's commit, which must be pushed.
+  local root runtime_id repository_id commit
+  root="$(git rev-parse --show-toplevel)"
+  if [ "$(introspection runtimes list -p "$PROJECT" -o json | json "v.some((r) => r.slug === '$RUNTIME')")" != "true" ]; then
+    say "creating the $RUNTIME runtime from .introspection/$RUNTIME.yaml"
+    (cd "$root" && introspection runtimes create --manifest ".introspection/$RUNTIME.yaml" -p "$PROJECT" --yes >/dev/null) ||
+      fail "could not create the $RUNTIME runtime"
   fi
-  # The hosted copy's tasks are only what the generator writes now, so a task it
-  # no longer makes is removed rather than left behind.
-  rm -rf "${WORK:?}/$RUNTIME/evals/harbor"
-  (cd recipe-operator && git ls-files -z --cached --others --exclude-standard |
-    rsync -a --from0 --files-from=- . "../$WORK/$RUNTIME/")
-  # The generator reads the fakes' world, so their dependencies come first; the
-  # page reads each task's tastes from recipe-operator/evals/harbor, so the tasks
-  # are generated there too, beside the copy the runtime gets.
-  [ -d recipe-operator/fakes/node_modules ] ||
-    (cd recipe-operator/fakes && npm ci --silent) ||
-    fail "could not install recipe-operator/fakes' dependencies"
-  node recipe-operator/evals/venues.mjs >/dev/null &&
-    node recipe-operator/evals/venues.mjs "$WORK/$RUNTIME/evals/harbor" >/dev/null ||
-    fail "could not generate the Harbor tasks"
-  # The runtime's manifest, named for it, at the hosted repository's root.
-  mkdir -p "$WORK/$RUNTIME/.introspection"
-  printf 'name: %s\npath: .\ndescription: Hosts a pub quiz night from a question bank, remembering each pub between nights\nruntime:\n  llm_mode: managed\n' \
-    "$RUNTIME" >"$WORK/$RUNTIME/.introspection/$RUNTIME.yaml"
-  (cd "$WORK/$RUNTIME" && git add -A && git add -f evals/harbor &&
-    { git diff --cached --quiet HEAD 2>/dev/null ||
-      git "${git_id[@]}" commit -q -m "feat: $RUNTIME from introspection-js-sdk examples/trivia-night/recipe-operator"; })
-  if [ -z "$repo_url" ]; then
-    say "creating the $RUNTIME repository from recipe-operator/"
-    # Run inside a repository with commits and no origin, `add` pushes it as
-    # the first commit and sets it as origin.
-    (cd "$WORK/$RUNTIME" && introspection repositories add "$RUNTIME" --provider introspection -p "$PROJECT" >/dev/null) ||
-      fail "could not create the $RUNTIME repository"
-  fi
-  if [ "$exists" != "true" ]; then
-    say "creating the $RUNTIME runtime"
-    (cd "$WORK/$RUNTIME" && introspection runtimes create -p "$PROJECT" --yes >/dev/null) ||
-      fail "could not create the $RUNTIME runtime from $WORK/$RUNTIME"
-    # A hosted recipe is checked from the files a push carries, and the seed push
-    # came before the runtime existed, so push once more to check and build it.
-    (cd "$WORK/$RUNTIME" &&
-      git "${git_id[@]}" commit -q --allow-empty -m "chore: check the recipe")
-  fi
-  say "pushing $RUNTIME so the platform checks and builds the recipe and its tasks"
-  (cd "$WORK/$RUNTIME" && git push -q origin HEAD:main) ||
-    fail "could not push $RUNTIME"
-  # The page runs this runtime, at the commit just pushed, from its public config.
-  local runtime_id repository_id
+  commit="${TRIVIA_COMMIT:-$(git rev-parse HEAD)}"
+  [ -n "$(git branch -r --contains "$commit" 2>/dev/null)" ] ||
+    say "commit ${commit:0:12} is not pushed: push it, or set TRIVIA_COMMIT to one that is"
   runtime_id="$(introspection runtimes list -p "$PROJECT" -o json | json "v.find((r) => r.slug === '$RUNTIME')?.id")"
-  repository_id="$(introspection repositories list -p "$PROJECT" -o json | json "v.find((r) => r.slug === '$RUNTIME')?.id")"
-  [ -n "$runtime_id" ] && [ -n "$repository_id" ] || fail "could not find the $RUNTIME runtime and repository in $PROJECT"
+  repository_id="$(introspection runtimes list -p "$PROJECT" -o json | json "v.find((r) => r.slug === '$RUNTIME')?.repository_id")"
+  [ -n "$repository_id" ] || repository_id="$(introspection repositories list -p "$PROJECT" -o json |
+    json "v.find((r) => /introspection-js-sdk/.test(r.full_name ?? r.url ?? r.slug ?? ''))?.id")"
+  [ -n "$runtime_id" ] && [ -n "$repository_id" ] || fail "could not find the $RUNTIME runtime and its repository in $PROJECT"
   upsert_env NEXT_PUBLIC_INTROSPECTION_TRIVIA_PROJECT "$PROJECT"
   upsert_env NEXT_PUBLIC_INTROSPECTION_TRIVIA_RUNTIME_ID "$runtime_id"
   upsert_env NEXT_PUBLIC_INTROSPECTION_TRIVIA_REPOSITORY_ID "$repository_id"
-  upsert_env NEXT_PUBLIC_INTROSPECTION_TRIVIA_COMMIT_SHA "$(git -C "$WORK/$RUNTIME" rev-parse HEAD)"
-  # The page finds the trials' sidecar image by its folder at the pushed commit,
-  # and builds none itself; this builds it when the folder changed.
+  upsert_env NEXT_PUBLIC_INTROSPECTION_TRIVIA_COMMIT_SHA "$commit"
+  upsert_env NEXT_PUBLIC_INTROSPECTION_TRIVIA_RECIPE_PATH "examples/trivia-night/recipe-operator"
+  # The page finds the trials' sidecar image by its folder at that commit, and
+  # builds none itself; this builds it when the folder changed.
   node --env-file-if-exists="$ENV_FILE" --import tsx scripts/sidecar-image.ts ||
     say "the sidecar image is not built: run pnpm sidecar:image"
 }

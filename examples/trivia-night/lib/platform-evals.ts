@@ -64,7 +64,7 @@ export type Step = {
   /** The venue's display name, such as "Melbourne (AU)". */
   venue_label: string;
   night: Night;
-  /** The Harbor task under evals/harbor, such as night1-melbourne. */
+  /** The trial, named as a generated task would be, such as night1-melbourne. */
   task: string;
   identity: string;
   variant?: Variant;
@@ -113,7 +113,7 @@ export const MAX_VENUES_BY_PUBS: Record<Pubs, number> = {
   development: VENUES.length,
   heldout: HELDOUT.length,
 };
-/** The crowd sizes each venue has tasks for, as evals/venues.mjs writes them; 5 is unsuffixed. */
+/** The crowd sizes a venue plays, as evals/trivia-tasks.mjs lists them; 5 is unsuffixed. */
 export const TEAM_SIZES = [3, 5, 8] as const;
 export type TeamSize = (typeof TEAM_SIZES)[number];
 export const DEFAULT_TEAMS: TeamSize = 5;
@@ -352,6 +352,26 @@ export interface TrialMeta {
   /** The step's `stepKey`. */
   step: string;
   record: RunRecord;
+  /** The pub, night and crowd the dynamic Harbor task's verifier scores. */
+  trial?: { pub: string; night: 0 | 1 | 2; teams: number };
+}
+
+/** The pub, night and crowd a step's task plays, read off its name (`night2-leeds-t8`). */
+export function trialOfStep(step: Step): {
+  venue: VenueProfile;
+  night: 0 | 1 | 2;
+  teams: number;
+} {
+  const match = /^night([012])-(.+?)(?:-t(\d+))?$/.exec(step.task);
+  const venue = match
+    ? [...VENUES, ...HELDOUT].find((v) => v.slug === match[2])
+    : undefined;
+  if (!match || !venue) throw new Error(`no pub for ${step.task}`);
+  return {
+    venue,
+    night: Number(match[1]) as 0 | 1 | 2,
+    teams: match[3] ? Number(match[3]) : DEFAULT_TEAMS,
+  };
 }
 
 /** A task's trial record, or null for a task this page did not create. */

@@ -46,7 +46,7 @@ Every pub plays night 1, then night 2 four ways. The same simulated teams answer
 | Other notes (wrong notes)  | the customer of another pub's night 1, in another country with other favourites | that pub's (a placebo)             |
 | True notes (perfect notes) | a customer whose memory night 0 seeded                                          | the venue's true notes (a ceiling) |
 
-Night 0 seeds the true notes: its instruction carries notes written from the venue's true tastes by `evals/venues.mjs` (`perfectNotes`), with no model writing them, and its verifier checks `memories/MEMORY.md` holds exactly those notes (`notes_seeded`). The memory then persists for that customer like any other. A true-notes night 2 whose night 0 failed `notes_seeded` is excluded.
+Night 0 seeds the true notes: its instruction carries notes written from the venue's true tastes by `evals/trivia-tasks.mjs` (`perfectNotes`), with no model writing them, and its verifier checks `memories/MEMORY.md` holds exactly those notes (`notes_seeded`). The memory then persists for that customer like any other. A true-notes night 2 whose night 0 failed `notes_seeded` is excluded.
 
 An other-notes night 2 starts only after the donor pub's night 1 and model-notes night 2 have finished, so neither of the donor's reads sees its writes.
 

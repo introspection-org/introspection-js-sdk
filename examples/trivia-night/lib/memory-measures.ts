@@ -1,7 +1,7 @@
 /**
  * How well a night suited its crowd, per trial: pure, from the verifier's
  * checks (computed from the bank's record of the simulated crowd's answers),
- * its rounds, the venue's tastes (its task's expected.json) and its notes.
+ * its rounds, the venue's tastes (its trial's truth, from evals/venues.json) and its notes.
  */
 
 /** One round (one `next_questions` call), as the verifier prints it. */

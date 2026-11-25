@@ -18,26 +18,23 @@ The owner told brainstorm the bank already runs as an MCP server, so the session
 
 Harbor tasks check that the host keeps a venue's notes from one night to the next. Each night is a trial against the bank's fakes (`fakes/`, served as a sidecar, with the venue's profile as its scenario); its notes come back as the trial's `memories` artifact.
 
-| Task             | Night                                 | Where memory comes from              |
-| ---------------- | ------------------------------------- | ------------------------------------ |
-| `night1-<venue>` | first night at a new venue            | none: it writes `memories/MEMORY.md` |
-| `night2-<venue>` | the next night there, on the platform | the identity's own memory            |
+| Task     | Night                                 | Where memory comes from                     |
+| -------- | ------------------------------------- | ------------------------------------------- |
+| `night0` | none: seeds a pub's true notes        | the trivia master's notes, word for word    |
+| `night1` | first night at a new pub              | none: it writes `memories/MEMORY.md`        |
+| `night2` | the next night there, on the platform | its own memory, another pub's, seeded, none |
 
-There is a `night1-<venue>` and `night2-<venue>` pair for each venue profile in `fakes/world/profiles.ts`: Sydney, Melbourne, Brisbane and Perth in Australia; Manchester, Leeds, Bristol and Glasgow in the UK; Chicago, Boston and Seattle in the US. Night 1 names the venue's city, country, five teams and what its crowd likes; night 2 says it's the same teams as last week, and passes only if every round it fetches is from the venue's own region or global (`tests/expected.json`). `evals/venues.json` lists them for the trivia-night page. After changing a profile, regenerate them from the example with `pnpm evals:venues`, and commit the result: `eval run` reads the tasks at the pushed commit.
+**On the platform** the three tasks in `evals/harbor/` are all there is, and each trial says which pub it plays: the task's metadata names it (`trivia_night.trial`: `pub`, `night`, `teams`), its prompt is the pub's instruction, and its compose gives the bank sidecar the pub's crowd. The verifier (`tests/check.mjs`) reads the trial from `INTROSPECTION_TASK_METADATA_JSON` and the pub's truth from `evals/venues.json` (or `evals/heldout.json`), and scores it with `evals/trivia-check.mjs`. `evals/trivia-tasks.mjs` holds the instructions, the truth and the bank's settings, for the page, the verifiers and the generator alike. Without that metadata the verifier reads `TRIVIA_PUB`, `TRIVIA_NIGHT` and `TRIVIA_TEAMS` (5 by default) from its environment, which a task's `[verifier] env` in `task.toml` can set.
 
-**On the platform.** Memory is kept per identity only for tasks an agent creates, so run as a staging key that expires today, and give each series its own anonymous identity:
+**In plain Harbor** a task's `tests/` is all the sandbox gets, so it cannot reach `venues.json`. Generate a self-contained task per pub, night and crowd size first, each with its instruction, compose, `tests/expected.json` and a copy of the shared verifier, then run one:
 
 ```sh
-introspection api-keys create --environment staging --capabilities runtimes,evals \
-  --expires-at <today, 23:59 UTC> --secret-file .agent.key
-export INTROSPECTION_TOKEN="$(cat .agent.key)"
-export INTROSPECTION_DP_URL="$(introspection whoami --query dp_url -o table)"
-for task in night1-melbourne night2-melbourne; do
-  introspection eval run -r <runtime version> --commit-sha <pushed commit> \
-    --path evals/harbor/$task --identity anon:sim-<run>-melbourne
-done
-introspection api-keys revoke --key <key id> --yes
+node evals/venues.mjs            # into evals/harbor/, beside the three committed tasks; git ignores them
+harbor run --path evals/harbor/night1-melbourne
+introspection eval run --path evals/harbor/night1-melbourne
 ```
+
+`venues.mjs` also writes `evals/venues.json` and `evals/heldout.json` from the profiles in `fakes/world/profiles.ts`: Sydney, Melbourne, Brisbane and Perth in Australia; Manchester, Leeds, Bristol and Glasgow in the UK; Chicago, Boston and Seattle in the US, and the held-out pubs. Commit those after changing a profile; nothing it generates under `evals/harbor/` is committed.
 
 Night 2 recalls night 1 only for the same identity. Use a new `<run>` each time, since an identity keeps its memory.
 

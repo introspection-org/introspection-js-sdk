@@ -13,6 +13,9 @@ import { execFileSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
+import * as triviaTasks from "../recipe-operator/evals/trivia-tasks.mjs";
+import VENUES from "../recipe-operator/evals/venues.json";
+
 process.env.TRIVIA_DEV_OWNER_HEADER = "1";
 
 async function main() {
@@ -521,6 +524,94 @@ async function main() {
         venuesGen.taskName(2, "leeds", size),
       );
   });
+  await check(
+    "dynamic tasks: the pub's truth and instruction from its metadata match the generated task's",
+    async () => {
+      const tasks = triviaTasks;
+      const dir = mkdtempSync(path.join(tmpdir(), "trivia-parity-"));
+      try {
+        const lists = ["venues.json", "heldout.json"].map((file) =>
+          JSON.parse(
+            readFileSync(path.join("recipe-operator/evals", file), "utf8"),
+          ),
+        );
+        for (const pub of ["sydney", "leeds", lists[1][0].slug])
+          for (const teams of [3, 5, 8]) {
+            const venue = tasks.venueNamed(lists, pub);
+            const files = venuesGen.taskFiles(venue, teams);
+            for (const night of [1, 2] as const) {
+              const name = venuesGen.taskName(night, pub, teams);
+              assert.deepEqual(
+                tasks.expectedFor(venue, night, teams),
+                JSON.parse(files[`${name}/tests/expected.json`]),
+              );
+              assert.equal(
+                tasks.instructionFor(venue, night, teams),
+                files[`${name}/instruction.md`],
+              );
+            }
+            if (teams === 5)
+              assert.equal(
+                tasks.perfectNotes(venue),
+                files[`${venuesGen.taskName(0, pub)}/tests/notes.md`],
+              );
+          }
+        // The trial comes from the task's metadata, else from plain TRIVIA_* variables.
+        const fromMetadata = {
+          INTROSPECTION_TASK_METADATA_JSON: JSON.stringify({
+            trivia_night: { trial: { pub: "leeds", night: 2, teams: 8 } },
+          }),
+          TRIVIA_PUB: "sydney",
+          TRIVIA_NIGHT: "1",
+        };
+        assert.deepEqual(tasks.trialOf(fromMetadata), {
+          pub: "leeds",
+          night: 2,
+          teams: 8,
+        });
+        assert.deepEqual(
+          tasks.trialOf({
+            INTROSPECTION_TASK_METADATA_JSON: "{}",
+            TRIVIA_PUB: "sydney",
+            TRIVIA_NIGHT: "1",
+          }),
+          { pub: "sydney", night: 1, teams: 5 },
+        );
+        assert.throws(() => tasks.trialOf({}), /no trial/);
+        // A night 0 seeds exactly the pub's true notes.
+        const memories = path.join(dir, "memories");
+        mkdirSync(memories);
+        writeFileSync(
+          path.join(memories, "MEMORY.md"),
+          tasks.perfectNotes(tasks.venueNamed(lists, "sydney")),
+        );
+        const { check: verify } =
+          await import("../recipe-operator/evals/trivia-check.mjs");
+        const log = console.log;
+        console.log = () => undefined;
+        try {
+          await verify({
+            night: 0,
+            seeded: tasks.perfectNotes(tasks.venueNamed(lists, "sydney")),
+            memories,
+            env: {
+              LOGS_DIR: dir,
+              PI_RECIPE_GENAI_SPANS_FILE: path.join(dir, "none"),
+            },
+          });
+        } finally {
+          console.log = log;
+        }
+        assert.deepEqual(
+          JSON.parse(readFileSync(path.join(dir, "reward.json"), "utf8")),
+          { reward: 1, notes_seeded: 1 },
+        );
+      } finally {
+        rmSync(dir, { recursive: true });
+      }
+    },
+  );
+
   await check("venue tasks: a night-1 and night-2 task per profile", () => {
     const dir = mkdtempSync(path.join(tmpdir(), "trivia-venues-"));
     try {
@@ -552,7 +643,7 @@ async function main() {
         4,
       );
       assert.deepEqual(
-        venues.map((v) => [v.slug, v.label]),
+        venues.map((v: { slug: string; label: string }) => [v.slug, v.label]),
         [
           ["melbourne", "Melbourne (AU)"],
           ["new-york", "New York (US)"],
@@ -638,7 +729,7 @@ async function main() {
       );
       assert.match(
         read("night2-new-york/environment/docker-compose.yaml"),
-        /EVAL_SIMULATE_SCENARIO: crowd-us-b/,
+        /EVAL_SIMULATE_SCENARIO: "crowd-us-b"/,
       );
       assert.match(
         read("night2-new-york/environment/docker-compose.yaml"),
@@ -656,14 +747,15 @@ async function main() {
         read("night1-melbourne/task.toml"),
         /name = "trivia-host\/night1-melbourne"/,
       );
+      // Each generated check calls the shared verifier, which it carries in its tests/.
       assert.match(
         read("night2-melbourne/tests/check.mjs"),
-        /reward =\s+fetches\.length >= 6 && \(measures\.in_band \?\? 0\) >= 0\.5/,
+        /await check\(\{ night: 2, expected: JSON\.parse\(here\("\.\/expected\.json"\)\) \}\)/,
       );
-      assert.match(
-        read("night2-melbourne/tests/check.mjs"),
-        /\.length \/ Math\.max\(6, fetches\.length\)/,
-      );
+      for (const shared of ["trivia-check.mjs", "trivia-tasks.mjs"])
+        assert.ok(
+          existsSync(path.join(harbor, "night2-melbourne/tests", shared)),
+        );
       for (const file of ["tests/test.sh", "solution/solve.sh"])
         assert.ok(
           statSync(path.join(harbor, "night1-melbourne", file)).mode & 0o100,
@@ -840,6 +932,12 @@ async function main() {
         { ...body, compose: undefined, metadata: undefined },
         {
           kind: "eval",
+          // The pub's own instruction, so the platform needn't read it from the task.
+          prompt: triviaTasks.instructionFor(
+            triviaTasks.venueNamed([VENUES as never], "sydney"),
+            1,
+            5,
+          ),
           runtime_id: TARGET.runtime,
           recipe_git_commit_sha: TARGET.commit,
           commands: true,
@@ -849,14 +947,18 @@ async function main() {
         },
       );
       assert.deepEqual(body.metadata, {
-        // The platform reads the prompt and the verifier from here.
-        task_path: "evals/harbor/night1-sydney",
+        // The platform reads the verifier from the dynamic night-1 task.
+        task_path: "evals/harbor/night1",
         admission_key: await runner.admissionKey(step),
         identity: {
           anonymous_id: "sim-r1-sydney",
           tags: ["simulation:r1", "simulation:trivia-night"],
         },
-        trivia_night: { step: "sydney/night1-memory", record },
+        trivia_night: {
+          step: "sydney/night1-memory",
+          record,
+          trial: { pub: "sydney", night: 1, teams: 5 },
+        },
       });
       assert.ok(!JSON.stringify(body).includes(KEY));
       // One key per step of a run, the same from any instance.
@@ -892,44 +994,71 @@ async function main() {
       const tools = spans.data.filter((span) =>
         span.name.startsWith("execute_tool "),
       );
-      const checkFile = path.join(dir, "check.mjs");
-      writeFileSync(
-        checkFile,
-        [
-          'import { existsSync, readFileSync } from "node:fs";',
-          "const written = {};",
-          "const writeFileSync = (to, text) => { written[to] = JSON.parse(text); };",
-          "const console = { log: (text) => { written.report = JSON.parse(text); } };",
-          'const expected = { region: "au", liked: ["film"] };',
-          venuesGen.HOST_STEPS,
-          // A night with 3 lead changes over its 6 rounds.
-          "const scores = { reward: 1, notes_written: 1, in_band: 0.5, lead_changes: 0.6, lead_changes_count: 3, rounds_played: 6 };",
-          "writeResult(scores, { ...scores, rounds: [] });",
-          "export { clip, written };",
-        ].join("\n"),
+      // A night 1 with 3 lead changes over its 6 rounds: two teams, two questions a round,
+      // answered right (A, B) times in turn.
+      const right = [
+        [1, 0],
+        [0, 2],
+        [2, 0],
+        [0, 2],
+        [0, 0],
+        [0, 0],
+      ];
+      const asked = right.flatMap((_, r) =>
+        [0, 1].map((q) => ({
+          week: 1,
+          request: r,
+          question_id: `q${r}-${q}`,
+          genre: "film",
+          region: "au",
+          difficulty: 3,
+        })),
       );
-      process.env.PI_RECIPE_GENAI_SPANS_FILE = file;
-      const { clip, written } = (await import(checkFile)) as {
-        clip: (text: string, max: number) => string;
-        written: Record<string, Record<string, unknown>>;
+      const marks = right.flatMap(([a, b], r) =>
+        [0, 1].flatMap((q) => [
+          { question_id: `q${r}-${q}`, team: "Owls", correct: q < a },
+          { question_id: `q${r}-${q}`, team: "Hawks", correct: q < b },
+        ]),
+      );
+      const memories = path.join(dir, "memories");
+      mkdirSync(memories);
+      writeFileSync(path.join(memories, "MEMORY.md"), "# Venue notes\n");
+      const expected = {
+        region: "au",
+        liked: ["film"],
+        teams: ["Owls", "Hawks"],
       };
-      delete process.env.PI_RECIPE_GENAI_SPANS_FILE;
+      const { check: verify, clip } =
+        await import("../recipe-operator/evals/trivia-check.mjs");
+      const printed: string[] = [];
+      const log = console.log;
+      console.log = (text: string) => void printed.push(text);
+      try {
+        await verify({
+          night: 1,
+          expected,
+          bank: { nights: [{}], asked, marks },
+          memories,
+          env: { PI_RECIPE_GENAI_SPANS_FILE: file, LOGS_DIR: dir },
+        });
+      } finally {
+        console.log = log;
+      }
       // Harbor reads every reward.json value as a reward in [0, 1]; the raw counts, the
       // steps and the tastes go in the printed report, which the platform keeps as the log.
-      const rewards = written["/logs/verifier/reward.json"];
-      assert.deepEqual(rewards, {
-        reward: 1,
-        notes_written: 1,
-        in_band: 0.5,
-        lead_changes: 0.6,
-      });
+      const rewards = JSON.parse(
+        readFileSync(path.join(dir, "reward.json"), "utf8"),
+      ) as Record<string, number>;
       for (const value of Object.values(rewards))
         assert.ok(typeof value === "number" && value >= 0 && value <= 1);
-      const result = written.report;
-      assert.equal(result.reward, 1);
+      assert.equal(rewards.notes_written, 1);
+      const result = JSON.parse(printed[0]);
       assert.equal(result.lead_changes_count, 3);
       assert.equal(result.rounds_played, 6);
-      assert.deepEqual(result.tastes, { region: "au", liked: ["film"] });
+      assert.ok(
+        !("lead_changes_count" in rewards) && !("rounds_played" in rewards),
+      );
+      assert.deepEqual(result.tastes, expected);
       const steps = result.steps as {
         name: string;
         result: string;
@@ -967,13 +1096,10 @@ async function main() {
       ])
         assert.ok(types.has(type as never), type);
       // The page reads them from the report the platform keeps as the log.
-      const out = evals.verifierOutput(
-        `starting\n${JSON.stringify(result)}\n`,
-        JSON.stringify(written["/logs/verifier/reward.json"]),
-      );
+      const out = evals.verifierOutput(printed[0], JSON.stringify(rewards));
       assert.equal(out.steps.length, events.length);
       assert.equal(out.checks.notes_written, 1);
-      assert.deepEqual(out.tastes, { region: "au", liked: ["film"] });
+      assert.deepEqual(out.tastes, expected);
       assert.deepEqual(loadedMemory("# Sydney").data, {
         path: "memories/MEMORY.md",
         file: "# Sydney",
