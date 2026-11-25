@@ -446,7 +446,8 @@ export function PlatformEvals() {
     }
   }, []);
 
-  const poll = useCallback(async () => {
+  const polling = useRef<Promise<void> | null>(null);
+  const pollOnce = useCallback(async () => {
     const id = run.current;
     if (!id) return;
     const response = await fetch(`/api/evals/${id}`);
@@ -475,17 +476,38 @@ export function PlatformEvals() {
           (current.active === id ? { ...current, active: null } : current),
       );
   }, []);
+  // Single flight: a poll asked for while one is out waits for it instead of overlapping it.
+  const poll = useCallback(async () => {
+    while (polling.current) await polling.current;
+    polling.current = pollOnce().finally(() => {
+      polling.current = null;
+    });
+    await polling.current;
+  }, [pollOnce]);
 
   useEffect(() => {
-    loadConfig();
-    poll();
+    loadConfig().then(poll);
   }, [loadConfig, poll]);
 
   const running = Boolean(view && !view.finished) || Boolean(config?.active);
   useEffect(() => {
     if (!running) return;
-    const timer = setInterval(poll, 2000);
-    return () => clearInterval(timer);
+    let stopped = false;
+    let timer: ReturnType<typeof setTimeout>;
+    const next = () => {
+      timer = setTimeout(async () => {
+        try {
+          await poll();
+        } finally {
+          if (!stopped) next();
+        }
+      }, 2000);
+    };
+    next();
+    return () => {
+      stopped = true;
+      clearTimeout(timer);
+    };
   }, [running, poll]);
 
   // A run of one venue has no other pub's night 1 or wrong-notes night 2.

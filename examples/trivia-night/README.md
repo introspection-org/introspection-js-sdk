@@ -41,13 +41,15 @@ It writes `TRIVIA_ISSUER` (and `TRIVIA_AUDIENCE` when the binding has one) into 
 pnpm test       # the bank, its MCP server, the scoring and the eval runner
 ```
 
+The eval runner's checks drive the real SDK against a recorded run of one pub (`tests/recordings/trivia-night-platform_*`). Re-record it against a local stack only, with `.env.local` naming the local planes, the Runtime, its commit and the key file: `pnpm test:platform:record`.
+
 ## Run the evals from the page
 
 The page runs the real memory evals, as [Run the memory evals](./recipe-operator/README.md#run-the-memory-evals) describes, against the `trivia-host` Runtime at its latest commit (or `INTROSPECTION_TRIVIA_RUNTIME_ID` and `INTROSPECTION_TRIVIA_COMMIT_SHA`, when both are set).
 
 Each trial is a plain platform call through the SDK, with no CLI: the server reads the Harbor task (`instruction.md`, `task.toml`, `tests/`, `environment/docker-compose.yaml`) from the Runtime's repository at that commit through the repository contents API, packs `tests/` as the task's own `verifier`, and creates a `kind: eval` task with the commit, the customer's identity, the run's tags and the compose. Once the run settles the page completes the task (`PATCH status: completed`); the platform runs the verifier in the trial's sandbox while the task is `finishing`, records the outcome as `metadata.verification`, and only then marks it `completed`. The page reads the outcome's result and log files. To test a newer commit than the Runtime's latest version, set `INTROSPECTION_TRIVIA_COMMIT_SHA` and `INTROSPECTION_TRIVIA_RUNTIME_ID` in `.env.local`.
 
-Nothing about a run is kept on the server: a run is its tasks. Start creates each pub's first nights and returns; each poll of the run lists its tasks by the `simulation:<run>` tag, completes a trial whose run has settled so it is scored, and creates a night 2 once the night it waits on is `completed` with a verification that reports no error (otherwise it is skipped). Every trial task carries the run's settings in its metadata (`trivia_night`), which is all a poll needs to know which nights are still to come, so any instance of the page can serve any poll.
+Nothing about a run is kept on the server: a run is its tasks. Start creates each pub's first nights and returns; each poll of the run lists its tasks by the `simulation:<run>` tag, completes a trial whose run has settled so it is scored, and creates a night 2 once the night it waits on is `completed` with a verification that reports no error (otherwise it is skipped). Every trial task carries the run's settings in its metadata (`trivia_night`), which is all a poll needs to know which nights are still to come, so any instance of the page can serve any poll. Two polls that both create a night make one trial between them: each trial carries its step's `admission_key` (a uuid5 of the run and the step), the platform admits one task per key under a lock and answers a second create with `409`, and the page then reads the existing task. A tab never overlaps its own polls.
 
 The trials' sidecar, the trivia bank fake, runs an image the page finds by its folder's git tree at that commit; the contents API returns no file over 1 MB whole, so the page cannot build it. `pnpm dev` builds it after each push, or run `pnpm sidecar:image`, which checks every file against the commit first.
 

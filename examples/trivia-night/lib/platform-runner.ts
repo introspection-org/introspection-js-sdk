@@ -5,6 +5,7 @@
  * between requests: a run is its tasks, found by their tag, and `advanceRun`
  * moves it on from what they say. Server only.
  */
+import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 
@@ -68,6 +69,8 @@ const DEFAULT_VERIFIER_SECONDS = 120;
 const TRIAL_CEILING_SECONDS = 3600;
 /** The verifier archive only has to outlive its trial. */
 const ARCHIVE_TTL_SECONDS = 2 * 24 * 3600;
+/** The uuid5 namespace a step's admission key is derived in. */
+const ADMISSION_NAMESPACE = "6f1c2a8e-3b4d-5e6f-8a9b-0c1d2e3f4a5b";
 
 export const KEY_HOW_TO = [
   "introspection api-keys create --environment staging --capabilities runtimes,evals \\",
@@ -398,6 +401,22 @@ export function trialIdentity(step: Step): Record<string, unknown> {
   return { [field]: id, tags: [runTag(step.run), TRIALS_TAG] };
 }
 
+/**
+ * The step's `admission_key`: the platform creates one task per key for the
+ * key's member, under a lock, so two polls that both create a step make one
+ * trial between them. A uuid5 of the run and the step.
+ */
+export function admissionKey(step: Step): string {
+  const hash = createHash("sha1")
+    .update(Buffer.from(ADMISSION_NAMESPACE.replace(/-/g, ""), "hex"))
+    .update(`${step.run}/${stepKey(step)}`)
+    .digest();
+  hash[6] = (hash[6] & 0x0f) | 0x50;
+  hash[8] = (hash[8] & 0x3f) | 0x80;
+  const hex = hash.subarray(0, 16).toString("hex");
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+}
+
 /** The create body for one trial, given its verifier archive. */
 export function trialBody(
   record: RunRecord,
@@ -423,6 +442,7 @@ export function trialBody(
       timeout_seconds: definition.verifierSeconds,
     },
     metadata: {
+      admission_key: admissionKey(step),
       identity: trialIdentity(step),
       [TRIAL_METADATA_KEY]: meta,
     },
@@ -430,7 +450,7 @@ export function trialBody(
 }
 
 /** Task definitions read in this request, so a run's steps share each task's reads. */
-type Definitions = Map<string, Promise<TaskDefinition>>;
+export type Definitions = Map<string, Promise<TaskDefinition>>;
 
 const definitionOf = (
   client: PlatformClient,
@@ -446,11 +466,16 @@ const definitionOf = (
   return found;
 };
 
-async function createTrial(
+/**
+ * Creates a step's trial, or returns the one another poll already made: the
+ * platform refuses a second create under the step's admission key whose body
+ * differs (its verifier archive is a new upload), and replays one that does not.
+ */
+export async function createTrial(
   client: PlatformClient,
   record: RunRecord,
   step: Step,
-  cache: Definitions,
+  cache: Definitions = new Map(),
 ): Promise<Task> {
   const definition = await definitionOf(
     client,
@@ -468,10 +493,20 @@ async function createTrial(
     contentType: "application/gzip",
     ttl_seconds: ARCHIVE_TTL_SECONDS,
   });
-  const created = await client.tasks.create(
-    trialBody(record, step, definition, compose, archive.id),
-  );
-  return created.task;
+  try {
+    const created = await client.tasks.create(
+      trialBody(record, step, definition, compose, archive.id),
+    );
+    return created.task;
+  } catch (error) {
+    if (!(error instanceof ConflictError)) throw error;
+    const key = stepKey(step);
+    const existing = (await runTasks(client, record.run)).find(
+      ({ meta }) => meta.step === key,
+    );
+    if (!existing) throw error;
+    return existing.task;
+  }
 }
 
 /** Ends a settled trial so the platform verifies it; another poll that got there first is no error. */
@@ -508,8 +543,7 @@ const skipReason = (failed: string[]) =>
 export async function latestRun(
   client: PlatformClient = platformClient(),
 ): Promise<string | null> {
-  const page = await client.tasks.list({ tag: TRIALS_TAG, limit: 50 });
-  for (const task of page.records) {
+  for await (const task of client.tasks.list({ tag: TRIALS_TAG, limit: 5 })) {
     const meta = trialMeta(task.metadata);
     if (meta) return meta.record.run;
   }
@@ -520,8 +554,9 @@ export async function latestRun(
  * Moves a run on one step and says where it stands: a settled trial is ended
  * so the platform verifies it, a night whose predecessors have ended starts, and one whose
  * predecessor failed is skipped. Idempotent, and safe to call from any
- * instance: a step two calls both created keeps its first task and the other
- * is archived.
+ * instance: each step's admission key makes one task of it however many
+ * calls create it, and a run made before the key keeps a step's first task
+ * and archives the others.
  */
 export async function advanceRun(
   client: PlatformClient,
