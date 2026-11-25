@@ -136,6 +136,9 @@ ensure_runtime() {
     mkdir -p "$WORK/$RUNTIME"
     git -C "$WORK/$RUNTIME" init -q -b main
   fi
+  # The hosted copy's tasks are only what the generator writes now, so a task it
+  # no longer makes is removed rather than left behind.
+  rm -rf "${WORK:?}/$RUNTIME/evals/harbor"
   (cd recipe-operator && git ls-files -z --cached --others --exclude-standard |
     rsync -a --from0 --files-from=- . "../$WORK/$RUNTIME/")
   # The generator reads the fakes' world, so their dependencies come first; the

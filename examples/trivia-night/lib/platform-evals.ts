@@ -397,6 +397,20 @@ export interface TrialTask {
   metadata?: Record<string, unknown> | null;
 }
 
+/** The verifier's printed report (its stdout) and its rewards, among the files it leaves. */
+export const REPORT_FILE = "verifier/test-output.txt";
+export const REWARD_FILE = "verifier/reward.json";
+
+/** The id of the verification's file at `path`, or null. */
+export function verificationFile(
+  verification: TaskVerification | null | undefined,
+  path: string,
+): string | null {
+  return (
+    verification?.files?.find((file) => file.path === path)?.file_id ?? null
+  );
+}
+
 /** The task's `metadata.verification`, which the platform writes once its verifier has run, or null. */
 export function trialVerification(
   metadata: Record<string, unknown> | null | undefined,
@@ -427,11 +441,9 @@ export function trialState(task: TrialTask): TrialState {
         : `the trial was ${task.status} before it was scored`
       : !verification
         ? "the trial ended without its verifier running"
-        : verification.error
-          ? verification.error
-          : verification.exit_code
-            ? `the verifier exited ${verification.exit_code}`
-            : null;
+        : verification.exit_code
+          ? `the verifier exited ${verification.exit_code}`
+          : null;
   return { done: true, failed: error !== null, error };
 }
 

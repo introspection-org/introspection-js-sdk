@@ -70,11 +70,17 @@ export interface TaskVerification {
   /** The result's numeric `reward`, when it has one. */
   reward?: number | null;
   exit_code?: number | null;
-  result_file_id?: Uuid | null;
-  log_file_id?: Uuid | null;
   completed_at: IsoDate;
-  /** Why the verifier produced no result. */
-  error?: string | null;
+  /** Whether the verifier ran out of time. */
+  timed_out?: boolean | null;
+  /** The files the verifier left, such as `verifier/reward.json` and `verifier/test-output.txt` (its stdout). */
+  files?: TaskVerificationFile[];
+}
+
+/** One file a verifier left, by its path under the task's outputs. */
+export interface TaskVerificationFile {
+  path: string;
+  file_id: Uuid;
 }
 
 /**

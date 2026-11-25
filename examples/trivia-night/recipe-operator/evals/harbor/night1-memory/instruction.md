@@ -1,1 +1,0 @@
-We're in Manchester, and it's our first trivia night with you. Two teams tonight: the Quizzly Bears and Pub Cerebral. We only have time for one round, so plan the night, fetch that round and read it out. I'll mark it myself, so you won't get a sheet back. When you've read it out, that's the end of tonight: leave your notes ready for next week, as you would after the last round.

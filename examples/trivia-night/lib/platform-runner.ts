@@ -29,6 +29,9 @@ import {
   trialMeta,
   trialState,
   trialVerification,
+  verificationFile,
+  REPORT_FILE,
+  REWARD_FILE,
   runCancelled,
   untriedStep,
   verifierOutput,
@@ -666,8 +669,8 @@ export async function trialResult(
   const state = trialState(task);
   const verification = trialVerification(task.metadata);
   const [log, result] = await Promise.all([
-    decode(client, verification?.log_file_id),
-    decode(client, verification?.result_file_id),
+    decode(client, verificationFile(verification, REPORT_FILE)),
+    decode(client, verificationFile(verification, REWARD_FILE)),
   ]);
   const out = verifierOutput(log, result, verification?.reward ?? null);
   let night1Notes: string | null = null;
@@ -678,8 +681,8 @@ export async function trialResult(
     const v = before && trialVerification(before.task.metadata);
     if (v)
       night1Notes = verifierOutput(
-        await decode(client, v.log_file_id),
-        await decode(client, v.result_file_id),
+        await decode(client, verificationFile(v, REPORT_FILE)),
+        await decode(client, verificationFile(v, REWARD_FILE)),
       ).notes;
   }
   const scoredAt = verification?.completed_at ?? task.completed_at;

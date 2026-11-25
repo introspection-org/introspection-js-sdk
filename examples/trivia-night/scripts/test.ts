@@ -1106,19 +1106,25 @@ async function main() {
       failed: false,
       error: null,
     });
+    // The report and the rewards are found among the verifier's files by path.
+    const files = evals.trialVerification(
+      verified({
+        files: [
+          { path: "verifier/reward.json", file_id: "f-reward" },
+          { path: "verifier/test-output.txt", file_id: "f-report" },
+        ],
+      }),
+    );
+    assert.equal(evals.verificationFile(files, evals.REPORT_FILE), "f-report");
+    assert.equal(evals.verificationFile(files, evals.REWARD_FILE), "f-reward");
     assert.equal(
-      evals.trialVerification(verified({ log_file_id: "f-1" }))?.log_file_id,
-      "f-1",
+      evals.verificationFile(verified().verification, evals.REPORT_FILE),
+      null,
     );
     assert.equal(
       state({ status: "completed", metadata: verified({ exit_code: 2 }) })
         .error,
       "the verifier exited 2",
-    );
-    assert.equal(
-      state({ status: "completed", metadata: verified({ error: "no result" }) })
-        .error,
-      "no result",
     );
     // Completed without a verification: its verifier never ran, so it failed.
     assert.deepEqual(state({ status: "completed", metadata: {} }), {

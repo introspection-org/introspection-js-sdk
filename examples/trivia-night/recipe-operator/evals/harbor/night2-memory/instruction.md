@@ -1,1 +1,0 @@
-Evening! Same two teams as last week, the Quizzly Bears and Pub Cerebral. One round again tonight: plan it, fetch it and read it out. I'll mark it myself. After that we're done, so leave your notes ready for next week.
