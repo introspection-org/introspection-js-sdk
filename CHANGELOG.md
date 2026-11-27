@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.60.0](https://github.com/introspection-org/introspection-js-sdk/compare/v0.59.0...v0.60.0) (2026-11-27)
+
+
+### Features
+
+* **examples:** the trivia host has ls and grep ([#672](https://github.com/introspection-org/introspection-js-sdk/issues/672)) ([64b49eb](https://github.com/introspection-org/introspection-js-sdk/commit/64b49ebc9e1b5dfbd747fef068ca6691a6bb5e96))
+
 ## [0.59.0](https://github.com/introspection-org/introspection-js-sdk/compare/v0.58.0...v0.59.0) (2026-11-25)
 
 
